@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
   // Protected routes (with MainLayout)
   {
     path: '/',
+    name: 'layout',
     component: () => import('layouts/MainLayout.vue'),
     children: [
       {
