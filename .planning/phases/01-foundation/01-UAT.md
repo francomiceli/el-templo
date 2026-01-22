@@ -30,9 +30,9 @@ result: pass
 
 ### 5. Frontend-Backend Connection
 expected: With both servers running, the Index page shows "Backend connection: connected" instead of "offline".
-result: issue
+result: pass (fixed)
 reported: "with both servers running, backend connection: offline"
-severity: major
+fix: "368ab16 - Use axios directly with computed base URL"
 
 ### 6. Index Page Foundation Status
 expected: Index page shows checklist with checkmarks for: Quasar + Capacitor configured, Pinia stores ready, API client configured.
@@ -41,10 +41,11 @@ result: pass
 ## Summary
 
 total: 6
-passed: 5
-issues: 1
+passed: 6
+issues: 0
 pending: 0
 skipped: 0
+fixed: 1
 
 ## Gaps
 
