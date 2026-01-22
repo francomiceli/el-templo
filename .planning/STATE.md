@@ -5,32 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 1 - Foundation
+**Current focus:** Phase 2 - Authentication
 
 ## Current Position
 
-Phase: 1 of 10 (Foundation)
-Plan: 4 of 4 in current phase (all complete)
-Status: Phase 1 complete
-Last activity: 2026-01-22 — Completed 01-03-PLAN.md (Database schema)
+Phase: 2 of 10 (Authentication)
+Plan: 2 of 4 in current phase
+Status: In progress
+Last activity: 2026-01-22 — Completed 02-02-PLAN.md (Token storage and auth boot)
 
-Progress: [██████████] 100% (Phase 1)
+Progress: [██████░░░░] 62% (5/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 7 min
-- Total execution time: 0.5 hours
+- Total plans completed: 5
+- Average duration: 6 min
+- Total execution time: 0.6 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 4 | 30min | 7.5min |
+| 02-authentication | 1 | 3min | 3min |
 
 **Recent Trend:**
-- Last 3 plans: 6min, 5min, 5min
+- Last 3 plans: 5min, 5min, 3min
 - Trend: Consistent high velocity
 
 *Updated after each plan completion*
@@ -58,6 +59,8 @@ Recent decisions affecting current work:
 | 01-03 | argon2 for password hashing | Industry-standard, resistant to GPU attacks |
 | 01-03 | Branch-first user model | branchId required, supports multi-location gym |
 | 01-03 | Manual migration application | drizzle-kit push env issues, direct MySQL CLI more reliable |
+| 02-02 | Capacitor packages in both locations | Needed for SPA build resolution, common Quasar+Capacitor pattern |
+| 02-02 | @capacitor/preferences v7 | Match Capacitor v7, avoid peer dependency mismatch |
 
 ### Pending Todos
 
@@ -71,6 +74,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22T17:00:33Z
-Stopped at: Completed 01-03-PLAN.md (Database schema)
+Last session: 2026-01-22T17:53:35Z
+Stopped at: Completed 02-02-PLAN.md (Token storage and auth boot)
 Resume file: None
