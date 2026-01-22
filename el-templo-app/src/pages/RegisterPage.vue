@@ -1,5 +1,7 @@
 <template>
-  <q-page class="flex flex-center">
+  <q-layout>
+    <q-page-container>
+      <q-page class="flex flex-center">
     <q-card class="q-pa-md" style="width: 400px; max-width: 90vw">
       <q-card-section>
         <div class="text-h5 text-center">Crear Cuenta</div>
@@ -80,7 +82,9 @@
         </router-link>
       </q-card-section>
     </q-card>
-  </q-page>
+      </q-page>
+    </q-page-container>
+  </q-layout>
 </template>
 
 <script setup lang="ts">
