@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import databasePlugin from './plugins/database';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -10,6 +11,9 @@ export async function buildApp() {
       ? ['http://localhost:9000', 'capacitor://localhost', 'http://localhost']
       : (process.env.FRONTEND_URL || 'https://app.eltemplo.com'),
   });
+
+  // Database plugin (decorates fastify.db)
+  await app.register(databasePlugin);
 
   // Health check endpoint
   app.get('/health', async () => {
