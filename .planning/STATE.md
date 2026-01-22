@@ -10,28 +10,28 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 1 of 10 (Foundation)
-Plan: 2 of 4 in current phase (01-01, 01-02 complete)
+Plan: 3 of 4 in current phase (01-01, 01-02, 01-04 complete)
 Status: In progress
-Last activity: 2026-01-22 — Completed 01-01-PLAN.md (Frontend scaffold)
+Last activity: 2026-01-22 — Completed 01-04-PLAN.md (Frontend state & API)
 
-Progress: [█████░░░░░] 50% (Phase 1)
+Progress: [███████░░░] 75% (Phase 1)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 10 min
-- Total execution time: 0.3 hours
+- Total plans completed: 3
+- Average duration: 8 min
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 2 | 20min | 10min |
+| 01-foundation | 3 | 25min | 8min |
 
 **Recent Trend:**
-- Last 2 plans: 14min, 6min
-- Trend: Establishing baseline
+- Last 3 plans: 14min, 6min, 5min
+- Trend: Improving velocity
 
 *Updated after each plan completion*
 
@@ -51,6 +51,10 @@ Recent decisions affecting current work:
 | 01-02 | Drizzle ORM with mysql2 | Type-safe database access |
 | 01-02 | Database plugin pattern | Proper lifecycle management |
 | 01-02 | CORS for web + Capacitor | Support both localhost:9000 and capacitor://localhost |
+| 01-04 | Pinia composition API | Better TypeScript inference, aligns with Vue 3 best practices |
+| 01-04 | localStorage for tokens | Simple, works across tabs, sufficient for Phase 1 |
+| 01-04 | Auto-redirect on 401 | Clear auth state immediately, improve UX |
+| 01-04 | Custom tsconfig | Quasar preset export issue, custom config provides full control |
 
 ### Pending Todos
 
@@ -64,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22T16:39:32Z
-Stopped at: Completed 01-01-PLAN.md (Frontend scaffold)
+Last session: 2026-01-22T16:50:38Z
+Stopped at: Completed 01-04-PLAN.md (Frontend state & API)
 Resume file: None
