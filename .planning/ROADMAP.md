@@ -53,10 +53,13 @@ Plans:
   3. Member can log out from any screen in the app
   4. Member is automatically assigned to a branch during registration
   5. Member starts at Alfa level and can see their level in profile
-**Plans**: TBD
+**Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Backend JWT auth (register, login, /me endpoints)
+- [ ] 02-02-PLAN.md — Token storage composable and auth boot file
+- [ ] 02-03-PLAN.md — Login, Register, and Profile pages
+- [ ] 02-04-PLAN.md — Store enhancements, logout button, navigation guards
 
 ### Phase 3: Shell & Module System
 **Goal**: Training module can register and load as a pluggable module within the shell
@@ -188,7 +191,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete | 2026-01-22 |
-| 2. Authentication | 0/0 | Not started | - |
+| 2. Authentication | 0/4 | Planned | - |
 | 3. Shell & Module System | 0/0 | Not started | - |
 | 4. SPOM Engine | 0/0 | Not started | - |
 | 5. Session Generation | 0/0 | Not started | - |
@@ -200,4 +203,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 1 complete*
+*Last updated: 2026-01-22 — Phase 2 planned*
