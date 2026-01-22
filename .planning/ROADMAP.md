@@ -53,13 +53,18 @@ Plans:
   3. Member can log out from any screen in the app
   4. Member is automatically assigned to a branch during registration
   5. Member starts at Alfa level and can see their level in profile
-**Plans**: 4 plans in 2 waves
+**Plans**: 4 plans in 3 waves
 
 Plans:
 - [ ] 02-01-PLAN.md — Backend JWT auth (register, login, /me endpoints)
 - [ ] 02-02-PLAN.md — Token storage composable and auth boot file
 - [ ] 02-03-PLAN.md — Login, Register, and Profile pages
 - [ ] 02-04-PLAN.md — Store enhancements, logout button, navigation guards
+
+Waves:
+- Wave 1: 02-01, 02-02 (parallel - backend + frontend infra)
+- Wave 2: 02-04 (store methods, guards)
+- Wave 3: 02-03 (pages that use store methods)
 
 ### Phase 3: Shell & Module System
 **Goal**: Training module can register and load as a pluggable module within the shell
