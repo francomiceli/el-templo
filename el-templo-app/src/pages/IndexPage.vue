@@ -74,7 +74,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from 'stores/useAuthStore';
-import { api } from 'boot/axios';
+import axios from 'axios';
 import { storeToRefs } from 'pinia';
 
 const authStore = useAuthStore();
@@ -82,9 +82,12 @@ const { isAuthenticated } = storeToRefs(authStore);
 
 const apiStatus = ref('checking...');
 
+// Health endpoint is at root level, not under /api
+const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace('/api', '');
+
 onMounted(async () => {
   try {
-    const response = await api.get('/health');
+    const response = await axios.get(`${apiBaseUrl}/health`);
     if (response.data.status === 'ok') {
       apiStatus.value = 'connected';
     }

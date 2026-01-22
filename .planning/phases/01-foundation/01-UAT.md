@@ -1,5 +1,5 @@
 ---
-status: complete
+status: diagnosed
 phase: 01-foundation
 source: [01-01-SUMMARY.md, 01-02-SUMMARY.md, 01-03-SUMMARY.md, 01-04-SUMMARY.md]
 started: 2026-01-22T17:35:00Z
@@ -49,11 +49,14 @@ skipped: 0
 ## Gaps
 
 - truth: "Frontend connects to backend and shows 'connected' status"
-  status: failed
+  status: fixed
   reason: "User reported: with both servers running, backend connection: offline"
   severity: major
   test: 5
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "IndexPage used api instance with baseURL /api to call /health, resulting in request to /api/health which doesn't exist. Health endpoint is at root /health."
+  artifacts:
+    - path: "el-templo-app/src/pages/IndexPage.vue"
+      issue: "Called api.get('/health') instead of axios.get to root URL"
+  missing:
+    - "Use axios directly with computed base URL (without /api suffix) for health check"
+  debug_session: "inline diagnosis"
