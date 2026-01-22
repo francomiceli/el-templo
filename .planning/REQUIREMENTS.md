@@ -99,10 +99,10 @@ Requirements for Training module release. Each maps to roadmap phases.
 
 ### Shell Architecture
 
-- [ ] **ARCH-01**: Shell (temple-nest) provides auth, global state, navigation, event bus
+- [x] **ARCH-01**: Shell (temple-nest) provides auth, global state, navigation, event bus
 - [ ] **ARCH-02**: Training module registers via manifest system
-- [ ] **ARCH-03**: Module boundaries designed for future Academy/Agora addition
-- [ ] **ARCH-04**: Role system supports member, coach, admin, superadmin
+- [x] **ARCH-03**: Module boundaries designed for future Academy/Agora addition
+- [x] **ARCH-04**: Role system supports member, coach, admin, superadmin
 
 ## v2 Requirements
 
@@ -214,10 +214,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COACH-03 | Phase 10 | Pending |
 | COACH-04 | Phase 10 | Pending |
 | COACH-05 | Phase 10 | Pending |
-| ARCH-01 | Phase 1 | Pending |
+| ARCH-01 | Phase 1 | Complete |
 | ARCH-02 | Phase 3 | Pending |
-| ARCH-03 | Phase 1 | Pending |
-| ARCH-04 | Phase 1 | Pending |
+| ARCH-03 | Phase 1 | Complete |
+| ARCH-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 64 total
@@ -226,4 +226,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after roadmap creation*
+*Last updated: 2026-01-22 — Phase 1 complete (ARCH-01, ARCH-03, ARCH-04)*

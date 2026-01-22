@@ -98,17 +98,6 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Out of Scope
 
-- Academy module — future milestone, requires shell + Training foundation, gated behind Sigma level
-- Agora module — future milestone, community/loyalty engine with Temple Points
-- Real-time chat — high complexity, not core to training value
-- Social features (following, likes) — belongs in Agora module
-- Multi-tenant SaaS — current scope is single-tenant (one business, multiple branches)
-- OAuth/social login — email/password sufficient for v1
-- Push notifications — can add in later milestone
-- Offline mode — PWA provides basic caching, full offline sync deferred
-
-## Context
-
 **Data Sources:**
 - SPOM rules and exercise database exist in `[Planificaciones] - Base de Datos.xlsx`
 - 1869 exercises across 9 patterns (PUSH, PULL, LOWER, CORE, FLOW, CARDIO, KL, MOVILIDAD, PLYO)

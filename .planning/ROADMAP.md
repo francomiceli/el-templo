@@ -12,7 +12,7 @@ This roadmap delivers the Training module for El Templo App: a SPOM-powered sess
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Backend/frontend scaffolding, database schema, shell architecture
+- [x] **Phase 1: Foundation** - Backend/frontend scaffolding, database schema, shell architecture
 - [ ] **Phase 2: Authentication** - User registration, login, session persistence, branch/level assignment
 - [ ] **Phase 3: Shell & Module System** - Module registry, global stores, Capacitor bridge
 - [ ] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
@@ -38,10 +38,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 01-01-PLAN.md — Scaffold Quasar frontend with Capacitor mode
-- [ ] 01-02-PLAN.md — Scaffold Fastify backend with Drizzle and health endpoint
-- [ ] 01-03-PLAN.md — Create database schema (users, branches) and seed data
-- [ ] 01-04-PLAN.md — Create Pinia stores and API client
+- [x] 01-01-PLAN.md — Scaffold Quasar frontend with Capacitor mode
+- [x] 01-02-PLAN.md — Scaffold Fastify backend with Drizzle and health endpoint
+- [x] 01-03-PLAN.md — Create database schema (users, branches) and seed data
+- [x] 01-04-PLAN.md — Create Pinia stores and API client
 
 ### Phase 2: Authentication
 **Goal**: Members can securely create accounts, log in, and maintain sessions across app restarts
@@ -187,7 +187,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/4 | Planned | - |
+| 1. Foundation | 4/4 | Complete | 2026-01-22 |
 | 2. Authentication | 0/0 | Not started | - |
 | 3. Shell & Module System | 0/0 | Not started | - |
 | 4. SPOM Engine | 0/0 | Not started | - |
@@ -200,4 +200,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-22*
+*Last updated: 2026-01-22 — Phase 1 complete*
