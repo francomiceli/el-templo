@@ -1,4 +1,5 @@
 import { boot } from 'quasar/wrappers'
+import { manifest as trainingManifest, registerModule as registerTraining } from 'src/modules/training'
 
 // Handle Vite chunk load failures (e.g., after deployment with cleared old chunks)
 if (typeof window !== 'undefined') {
@@ -8,12 +9,19 @@ if (typeof window !== 'undefined') {
   })
 }
 
-export default boot(async ({ app, router }) => {
-  // Module registration happens here
-  // Training module will be imported and registered in Plan 02
-  // Placeholder for now to establish boot file order
+// Export manifests for MainLayout navigation
+export const modules = [
+  trainingManifest,
+  // Future modules added here:
+  // academyManifest,
+  // agoraManifest,
+]
 
-  // Future modules register like:
-  // const { manifest, registerModule } = await import('src/modules/training')
-  // registerModule(router)
+export default boot(({ router }) => {
+  // Register all module routes
+  registerTraining(router)
+
+  // Future modules:
+  // registerAcademy(router)
+  // registerAgora(router)
 })
