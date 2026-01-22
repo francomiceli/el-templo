@@ -13,7 +13,7 @@ This roadmap delivers the Training module for El Templo App: a SPOM-powered sess
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Backend/frontend scaffolding, database schema, shell architecture
-- [ ] **Phase 2: Authentication** - User registration, login, session persistence, branch/level assignment
+- [x] **Phase 2: Authentication** - User registration, login, session persistence, branch/level assignment
 - [ ] **Phase 3: Shell & Module System** - Module registry, global stores, Capacitor bridge
 - [ ] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
 - [ ] **Phase 5: Session Generation** - Daily session generation from SPOM week + member level
@@ -56,10 +56,10 @@ Plans:
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 02-01-PLAN.md — Backend JWT auth (register, login, /me endpoints)
-- [ ] 02-02-PLAN.md — Token storage composable and auth boot file
-- [ ] 02-03-PLAN.md — Login, Register, and Profile pages
-- [ ] 02-04-PLAN.md — Store enhancements, logout button, navigation guards
+- [x] 02-01-PLAN.md — Backend JWT auth (register, login, /me endpoints)
+- [x] 02-02-PLAN.md — Token storage composable and auth boot file
+- [x] 02-03-PLAN.md — Login, Register, and Profile pages
+- [x] 02-04-PLAN.md — Store enhancements, logout button, navigation guards
 
 Waves:
 - Wave 1: 02-01, 02-02 (parallel - backend + frontend infra)
@@ -196,7 +196,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete | 2026-01-22 |
-| 2. Authentication | 0/4 | Planned | - |
+| 2. Authentication | 4/4 | Complete | 2026-01-22 |
 | 3. Shell & Module System | 0/0 | Not started | - |
 | 4. SPOM Engine | 0/0 | Not started | - |
 | 5. Session Generation | 0/0 | Not started | - |
@@ -208,4 +208,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 2 planned*
+*Last updated: 2026-01-22 — Phase 2 complete*

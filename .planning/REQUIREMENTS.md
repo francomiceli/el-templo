@@ -9,11 +9,11 @@ Requirements for Training module release. Each maps to roadmap phases.
 
 ### Authentication
 
-- [ ] **AUTH-01**: Member can register with email and password
-- [ ] **AUTH-02**: Member can log in and maintain session across app restarts
-- [ ] **AUTH-03**: Member can log out from any screen
-- [ ] **AUTH-04**: Member is assigned to a branch on registration
-- [ ] **AUTH-05**: Member has a training level (starts at Alfa)
+- [x] **AUTH-01**: Member can register with email and password
+- [x] **AUTH-02**: Member can log in and maintain session across app restarts
+- [x] **AUTH-03**: Member can log out from any screen
+- [x] **AUTH-04**: Member is assigned to a branch on registration
+- [x] **AUTH-05**: Member has a training level (starts at Alfa)
 
 ### SPOM Engine
 
@@ -154,11 +154,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 2 | Pending |
-| AUTH-02 | Phase 2 | Pending |
-| AUTH-03 | Phase 2 | Pending |
-| AUTH-04 | Phase 2 | Pending |
-| AUTH-05 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Complete |
+| AUTH-02 | Phase 2 | Complete |
+| AUTH-03 | Phase 2 | Complete |
+| AUTH-04 | Phase 2 | Complete |
+| AUTH-05 | Phase 2 | Complete |
 | SPOM-01 | Phase 4 | Pending |
 | SPOM-02 | Phase 4 | Pending |
 | SPOM-03 | Phase 4 | Pending |
@@ -226,4 +226,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 1 complete (ARCH-01, ARCH-03, ARCH-04)*
+*Last updated: 2026-01-22 — Phase 2 complete (AUTH-01 through AUTH-05)*
