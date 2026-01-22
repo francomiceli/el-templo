@@ -88,7 +88,7 @@ onMounted(async () => {
     if (response.data.status === 'ok') {
       apiStatus.value = 'connected';
     }
-  } catch (error) {
+  } catch {
     apiStatus.value = 'offline (start backend with pnpm dev)';
   }
 });
