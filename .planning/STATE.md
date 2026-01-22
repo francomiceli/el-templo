@@ -59,6 +59,8 @@ Recent decisions affecting current work:
 | 01-03 | argon2 for password hashing | Industry-standard, resistant to GPU attacks |
 | 01-03 | Branch-first user model | branchId required, supports multi-location gym |
 | 01-03 | Manual migration application | drizzle-kit push env issues, direct MySQL CLI more reliable |
+| 02-01 | JWT 7-day expiry | Balance security and user convenience for mobile app |
+| 02-01 | Authenticate decorator pattern | Reusable across all protected routes via onRequest hook |
 | 02-02 | Capacitor packages in both locations | Needed for SPA build resolution, common Quasar+Capacitor pattern |
 | 02-02 | @capacitor/preferences v7 | Match Capacitor v7, avoid peer dependency mismatch |
 
