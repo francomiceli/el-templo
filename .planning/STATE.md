@@ -5,34 +5,35 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 2 - Authentication
+**Current focus:** Phase 3 - Shell & Module System
 
 ## Current Position
 
-Phase: 2 of 10 (Authentication)
-Plan: 4 of 4 in current phase (Phase complete)
-Status: Phase 2 complete
-Last activity: 2026-01-22 — Completed 02-03-PLAN.md (Login, Register, and Profile pages)
+Phase: 3 of 10 (Shell & Module System)
+Plan: 1 of 2 in current phase (In progress)
+Status: In progress
+Last activity: 2026-01-22 — Completed 03-01-PLAN.md (Module System Infrastructure)
 
-Progress: [████████░░] 87.5% (7/8 plans complete)
+Progress: [█████████░] 90% (9/10 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 5.1 min
-- Total execution time: 0.6 hours
+- Total plans completed: 9
+- Average duration: 4.6 min
+- Total execution time: 0.7 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 4 | 30min | 7.5min |
-| 02-authentication | 3 | 8.6min | 2.9min |
+| 02-authentication | 4 | 11min | 2.8min |
+| 03-shell-module-system | 1 | 2min | 2.0min |
 
 **Recent Trend:**
-- Last 3 plans: 3min, 3min, 2.6min
-- Trend: Consistent high velocity
+- Last 3 plans: 3min, 2.6min, 2min
+- Trend: Accelerating velocity
 
 *Updated after each plan completion*
 
@@ -65,6 +66,10 @@ Recent decisions affecting current work:
 | 02-02 | @capacitor/preferences v7 | Match Capacitor v7, avoid peer dependency mismatch |
 | 02-04 | isAuthenticated requires both token AND user | Prevents stale token from showing authenticated state |
 | 02-04 | Named routes for guards | Cleaner than path-based checking, allows route renaming |
+| 03-01 | Module routes in manifest are lazy-loaded | Routes already use dynamic imports, not async functions |
+| 03-01 | Boot order: axios -> auth -> modules | Modules depends on both API setup and auth restoration |
+| 03-01 | Vite chunk errors trigger page reload | Ensures users get fresh chunks after deployment |
+| 03-01 | Named layout route for dynamic nesting | Enables router.addRoute('layout', moduleRoute) pattern |
 
 ### Pending Todos
 
@@ -78,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22T18:02:29Z
-Stopped at: Completed 02-03-PLAN.md (Login, Register, and Profile pages)
+Last session: 2026-01-22T18:46:16Z
+Stopped at: Completed 03-01-PLAN.md (Module System Infrastructure)
 Resume file: None
