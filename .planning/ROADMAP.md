@@ -75,10 +75,15 @@ Waves:
   2. Module routes are lazy-loaded only when accessed
   3. Global Pinia stores (auth, user) are accessible from within module
   4. API client with auth interceptors works from module context
-**Plans**: TBD
+**Plans**: 2 plans in 2 waves
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Module infrastructure (types, boot file, router prep)
+- [ ] 03-02-PLAN.md — Training module with manifest, routes, and navigation
+
+Waves:
+- Wave 1: 03-01 (infrastructure)
+- Wave 2: 03-02 (Training module - depends on 03-01)
 
 ### Phase 4: SPOM Engine
 **Goal**: System has complete exercise database and periodization rules ready for session generation
@@ -197,7 +202,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete | 2026-01-22 |
 | 2. Authentication | 4/4 | Complete | 2026-01-22 |
-| 3. Shell & Module System | 0/0 | Not started | - |
+| 3. Shell & Module System | 0/2 | Planned | - |
 | 4. SPOM Engine | 0/0 | Not started | - |
 | 5. Session Generation | 0/0 | Not started | - |
 | 6. Weekly View | 0/0 | Not started | - |
@@ -208,4 +213,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 2 complete*
+*Last updated: 2026-01-22 — Phase 3 planned*
