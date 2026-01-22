@@ -41,7 +41,7 @@ async function testApi() {
   try {
     const response = await api.get('/health')
     apiStatus.value = `OK - ${response.data.status || 'healthy'}`
-  } catch (error) {
+  } catch {
     apiStatus.value = 'Error de conexion'
   } finally {
     loading.value = false

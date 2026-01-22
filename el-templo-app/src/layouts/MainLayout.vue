@@ -22,6 +22,7 @@
       <q-list>
         <q-item-label header>Menu</q-item-label>
 
+        <!-- Shell navigation -->
         <q-item clickable to="/" exact>
           <q-item-section avatar>
             <q-icon name="home" />
@@ -35,6 +36,22 @@
           </q-item-section>
           <q-item-section>Mi Perfil</q-item-section>
         </q-item>
+
+        <!-- Module navigation -->
+        <q-separator v-if="modules.length > 0" class="q-my-sm" />
+        <q-item-label v-if="modules.length > 0" header>Modulos</q-item-label>
+
+        <q-item
+          v-for="mod in modules"
+          :key="mod.name"
+          clickable
+          :to="mod.basePath"
+        >
+          <q-item-section avatar>
+            <q-icon :name="mod.icon" />
+          </q-item-section>
+          <q-item-section>{{ mod.label }}</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
@@ -45,24 +62,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { useQuasar } from 'quasar';
-import { useAuthStore } from 'stores/useAuthStore';
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
+import { useAuthStore } from 'stores/useAuthStore'
+import { modules } from 'boot/modules'
 
-const $q = useQuasar();
-const router = useRouter();
-const authStore = useAuthStore();
+const $q = useQuasar()
+const router = useRouter()
+const authStore = useAuthStore()
 
-const leftDrawerOpen = ref(false);
+const leftDrawerOpen = ref(false)
 
 function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
+  leftDrawerOpen.value = !leftDrawerOpen.value
 }
 
 async function onLogout() {
-  await authStore.logout();
-  $q.notify({ type: 'positive', message: 'Sesion cerrada' });
-  router.push('/login');
+  await authStore.logout()
+  $q.notify({ type: 'positive', message: 'Sesion cerrada' })
+  router.push('/login')
 }
 </script>
