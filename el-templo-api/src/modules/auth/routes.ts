@@ -1,0 +1,194 @@
+import { FastifyPluginAsync } from 'fastify';
+import { eq } from 'drizzle-orm';
+import argon2 from 'argon2';
+import { users } from '../../db/schema/users';
+import { branches } from '../../db/schema/branches';
+import { registerSchema, loginSchema } from './schemas';
+
+interface RegisterBody {
+  email: string;
+  password: string;
+  branchId: number;
+  firstName?: string;
+  lastName?: string;
+}
+
+interface LoginBody {
+  email: string;
+  password: string;
+}
+
+export const authRoutes: FastifyPluginAsync = async (fastify) => {
+  // POST /register
+  fastify.post<{ Body: RegisterBody }>(
+    '/register',
+    { schema: registerSchema },
+    async (request, reply) => {
+      const { email, password, branchId, firstName, lastName } = request.body;
+
+      // Check if email already exists
+      const existingUser = await fastify.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (existingUser.length > 0) {
+        return reply.code(409).send({ error: 'Conflict', message: 'Email already registered' });
+      }
+
+      // Verify branch exists
+      const branch = await fastify.db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(eq(branches.id, branchId))
+        .limit(1);
+
+      if (branch.length === 0) {
+        return reply.code(400).send({ error: 'Bad Request', message: 'Invalid branch ID' });
+      }
+
+      // Hash password and create user
+      const passwordHash = await argon2.hash(password);
+
+      const result = await fastify.db.insert(users).values({
+        email,
+        passwordHash,
+        branchId,
+        firstName: firstName || null,
+        lastName: lastName || null,
+        role: 'member',
+        level: 'alfa',
+      });
+
+      const userId = Number(result[0].insertId);
+
+      // Sign JWT
+      const token = fastify.jwt.sign({ userId, email, role: 'member' });
+
+      return {
+        token,
+        user: {
+          id: userId,
+          email,
+          role: 'member',
+          level: 'alfa',
+          branchId,
+        },
+      };
+    }
+  );
+
+  // POST /login
+  fastify.post<{ Body: LoginBody }>(
+    '/login',
+    { schema: loginSchema },
+    async (request, reply) => {
+      const { email, password } = request.body;
+
+      // Find user by email
+      const userResults = await fastify.db
+        .select({
+          id: users.id,
+          email: users.email,
+          passwordHash: users.passwordHash,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          level: users.level,
+          branchId: users.branchId,
+        })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (userResults.length === 0) {
+        return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid credentials' });
+      }
+
+      const user = userResults[0];
+
+      // Verify password
+      const validPassword = await argon2.verify(user.passwordHash, password);
+      if (!validPassword) {
+        return reply.code(401).send({ error: 'Unauthorized', message: 'Invalid credentials' });
+      }
+
+      // Get branch name
+      const branchResults = await fastify.db
+        .select({ name: branches.name })
+        .from(branches)
+        .where(eq(branches.id, user.branchId))
+        .limit(1);
+
+      const branchName = branchResults[0]?.name || null;
+
+      // Sign JWT
+      const token = fastify.jwt.sign({ userId: user.id, email: user.email, role: user.role });
+
+      return {
+        token,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          level: user.level,
+          branchId: user.branchId,
+          branchName,
+        },
+      };
+    }
+  );
+
+  // GET /me
+  fastify.get(
+    '/me',
+    { onRequest: [fastify.authenticate] },
+    async (request, reply) => {
+      const { userId } = request.user;
+
+      // Get user from database
+      const userResults = await fastify.db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          level: users.level,
+          branchId: users.branchId,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (userResults.length === 0) {
+        return reply.code(404).send({ error: 'Not Found', message: 'User not found' });
+      }
+
+      const user = userResults[0];
+
+      // Get branch name
+      const branchResults = await fastify.db
+        .select({ name: branches.name })
+        .from(branches)
+        .where(eq(branches.id, user.branchId))
+        .limit(1);
+
+      const branchName = branchResults[0]?.name || null;
+
+      return {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        level: user.level,
+        branchId: user.branchId,
+        branchName,
+      };
+    }
+  );
+};

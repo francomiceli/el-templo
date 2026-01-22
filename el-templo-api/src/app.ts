@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import databasePlugin from './plugins/database';
+import authPlugin from './plugins/auth';
+import { authRoutes } from './modules/auth/routes';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -14,6 +16,12 @@ export async function buildApp() {
 
   // Database plugin (decorates fastify.db)
   await app.register(databasePlugin);
+
+  // Auth plugin (decorates fastify.jwt and fastify.authenticate)
+  await app.register(authPlugin);
+
+  // Routes
+  await app.register(authRoutes, { prefix: '/api/auth' });
 
   // Health check endpoint
   app.get('/health', async () => {
