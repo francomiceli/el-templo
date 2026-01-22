@@ -1,16 +1,16 @@
 import { RouteRecordRaw } from 'vue-router';
 
 const routes: RouteRecordRaw[] = [
-  // Public routes (no layout) - pages created in 02-03
+  // Public routes (no layout)
   {
     path: '/login',
     name: 'login',
-    component: () => import('pages/ErrorNotFound.vue'), // Placeholder until LoginPage.vue exists
+    component: () => import('pages/LoginPage.vue'),
   },
   {
     path: '/register',
     name: 'register',
-    component: () => import('pages/ErrorNotFound.vue'), // Placeholder until RegisterPage.vue exists
+    component: () => import('pages/RegisterPage.vue'),
   },
 
   // Protected routes (with MainLayout)
@@ -26,7 +26,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'profile',
         name: 'profile',
-        component: () => import('pages/ErrorNotFound.vue'), // Placeholder until ProfilePage.vue exists
+        component: () => import('pages/ProfilePage.vue'),
       },
     ],
   },
