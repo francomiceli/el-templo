@@ -10,17 +10,17 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 2 of 10 (Authentication)
-Plan: 2 of 4 in current phase
+Plan: 4 of 4 in current phase
 Status: In progress
-Last activity: 2026-01-22 — Completed 02-02-PLAN.md (Token storage and auth boot)
+Last activity: 2026-01-22 — Completed 02-04-PLAN.md (Store enhancements and navigation guards)
 
-Progress: [██████░░░░] 62% (5/8 plans complete)
+Progress: [███████░░░] 75% (6/8 plans complete)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 6 min
+- Total plans completed: 6
+- Average duration: 5.5 min
 - Total execution time: 0.6 hours
 
 **By Phase:**
@@ -28,10 +28,10 @@ Progress: [██████░░░░] 62% (5/8 plans complete)
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-foundation | 4 | 30min | 7.5min |
-| 02-authentication | 1 | 3min | 3min |
+| 02-authentication | 2 | 6min | 3min |
 
 **Recent Trend:**
-- Last 3 plans: 5min, 5min, 3min
+- Last 3 plans: 5min, 3min, 3min
 - Trend: Consistent high velocity
 
 *Updated after each plan completion*
@@ -63,6 +63,8 @@ Recent decisions affecting current work:
 | 02-01 | Authenticate decorator pattern | Reusable across all protected routes via onRequest hook |
 | 02-02 | Capacitor packages in both locations | Needed for SPA build resolution, common Quasar+Capacitor pattern |
 | 02-02 | @capacitor/preferences v7 | Match Capacitor v7, avoid peer dependency mismatch |
+| 02-04 | isAuthenticated requires both token AND user | Prevents stale token from showing authenticated state |
+| 02-04 | Named routes for guards | Cleaner than path-based checking, allows route renaming |
 
 ### Pending Todos
 
@@ -76,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-22T17:53:35Z
-Stopped at: Completed 02-02-PLAN.md (Token storage and auth boot)
+Last session: 2026-01-22T17:58:47Z
+Stopped at: Completed 02-04-PLAN.md (Store enhancements and navigation guards)
 Resume file: None
