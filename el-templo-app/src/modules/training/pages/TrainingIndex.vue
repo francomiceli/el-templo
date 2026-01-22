@@ -29,17 +29,20 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import axios from 'axios'
 import { useAuthStore } from 'stores/useAuthStore'
-import { api } from 'boot/axios'
 
 const authStore = useAuthStore()
 const apiStatus = ref('No probado')
 const loading = ref(false)
 
+// Health endpoint is at root, not under /api
+const healthUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace('/api', '') + '/health'
+
 async function testApi() {
   loading.value = true
   try {
-    const response = await api.get('/health')
+    const response = await axios.get(healthUrl)
     apiStatus.value = `OK - ${response.data.status || 'healthy'}`
   } catch {
     apiStatus.value = 'Error de conexion'
