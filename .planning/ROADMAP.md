@@ -35,10 +35,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. MySQL database connects with schema for users, branches, and roles
   4. Role system distinguishes member, coach, admin, superadmin in data model
   5. Project structure supports future module boundaries (Academy/Agora paths exist)
-**Plans**: TBD
+**Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md — Scaffold Quasar frontend with Capacitor mode
+- [ ] 01-02-PLAN.md — Scaffold Fastify backend with Drizzle and health endpoint
+- [ ] 01-03-PLAN.md — Create database schema (users, branches) and seed data
+- [ ] 01-04-PLAN.md — Create Pinia stores and API client
 
 ### Phase 2: Authentication
 **Goal**: Members can securely create accounts, log in, and maintain sessions across app restarts
@@ -180,11 +183,11 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/0 | Not started | - |
+| 1. Foundation | 0/4 | Planned | - |
 | 2. Authentication | 0/0 | Not started | - |
 | 3. Shell & Module System | 0/0 | Not started | - |
 | 4. SPOM Engine | 0/0 | Not started | - |
