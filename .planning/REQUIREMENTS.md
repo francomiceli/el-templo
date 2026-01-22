@@ -154,76 +154,76 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| AUTH-05 | TBD | Pending |
-| SPOM-01 | TBD | Pending |
-| SPOM-02 | TBD | Pending |
-| SPOM-03 | TBD | Pending |
-| SPOM-04 | TBD | Pending |
-| SPOM-05 | TBD | Pending |
-| SPOM-06 | TBD | Pending |
-| SGEN-01 | TBD | Pending |
-| SGEN-02 | TBD | Pending |
-| SGEN-03 | TBD | Pending |
-| SGEN-04 | TBD | Pending |
-| SGEN-05 | TBD | Pending |
-| SGEN-06 | TBD | Pending |
-| SGEN-07 | TBD | Pending |
-| WEEK-01 | TBD | Pending |
-| WEEK-02 | TBD | Pending |
-| WEEK-03 | TBD | Pending |
-| WEEK-04 | TBD | Pending |
-| WEEK-05 | TBD | Pending |
-| PLAY-01 | TBD | Pending |
-| PLAY-02 | TBD | Pending |
-| PLAY-03 | TBD | Pending |
-| PLAY-04 | TBD | Pending |
-| PLAY-05 | TBD | Pending |
-| PLAY-06 | TBD | Pending |
-| PLAY-07 | TBD | Pending |
-| PLAY-08 | TBD | Pending |
-| PLAY-09 | TBD | Pending |
-| PLAY-10 | TBD | Pending |
-| TIME-01 | TBD | Pending |
-| TIME-02 | TBD | Pending |
-| TIME-03 | TBD | Pending |
-| TIME-04 | TBD | Pending |
-| TIME-05 | TBD | Pending |
-| TIME-06 | TBD | Pending |
-| TIME-07 | TBD | Pending |
-| COMP-01 | TBD | Pending |
-| COMP-02 | TBD | Pending |
-| COMP-03 | TBD | Pending |
-| COMP-04 | TBD | Pending |
-| COMP-05 | TBD | Pending |
-| COMP-06 | TBD | Pending |
-| EVNT-01 | TBD | Pending |
-| EVNT-02 | TBD | Pending |
-| EVNT-03 | TBD | Pending |
-| EVNT-04 | TBD | Pending |
-| EVNT-05 | TBD | Pending |
-| PROG-01 | TBD | Pending |
-| PROG-02 | TBD | Pending |
-| PROG-03 | TBD | Pending |
-| PROG-04 | TBD | Pending |
-| COACH-01 | TBD | Pending |
-| COACH-02 | TBD | Pending |
-| COACH-03 | TBD | Pending |
-| COACH-04 | TBD | Pending |
-| COACH-05 | TBD | Pending |
-| ARCH-01 | TBD | Pending |
-| ARCH-02 | TBD | Pending |
-| ARCH-03 | TBD | Pending |
-| ARCH-04 | TBD | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| AUTH-05 | Phase 2 | Pending |
+| SPOM-01 | Phase 4 | Pending |
+| SPOM-02 | Phase 4 | Pending |
+| SPOM-03 | Phase 4 | Pending |
+| SPOM-04 | Phase 4 | Pending |
+| SPOM-05 | Phase 4 | Pending |
+| SPOM-06 | Phase 4 | Pending |
+| SGEN-01 | Phase 5 | Pending |
+| SGEN-02 | Phase 5 | Pending |
+| SGEN-03 | Phase 5 | Pending |
+| SGEN-04 | Phase 5 | Pending |
+| SGEN-05 | Phase 5 | Pending |
+| SGEN-06 | Phase 5 | Pending |
+| SGEN-07 | Phase 5 | Pending |
+| WEEK-01 | Phase 6 | Pending |
+| WEEK-02 | Phase 6 | Pending |
+| WEEK-03 | Phase 6 | Pending |
+| WEEK-04 | Phase 6 | Pending |
+| WEEK-05 | Phase 6 | Pending |
+| PLAY-01 | Phase 7 | Pending |
+| PLAY-02 | Phase 7 | Pending |
+| PLAY-03 | Phase 7 | Pending |
+| PLAY-04 | Phase 7 | Pending |
+| PLAY-05 | Phase 7 | Pending |
+| PLAY-06 | Phase 7 | Pending |
+| PLAY-07 | Phase 7 | Pending |
+| PLAY-08 | Phase 7 | Pending |
+| PLAY-09 | Phase 7 | Pending |
+| PLAY-10 | Phase 7 | Pending |
+| TIME-01 | Phase 8 | Pending |
+| TIME-02 | Phase 8 | Pending |
+| TIME-03 | Phase 8 | Pending |
+| TIME-04 | Phase 8 | Pending |
+| TIME-05 | Phase 8 | Pending |
+| TIME-06 | Phase 8 | Pending |
+| TIME-07 | Phase 8 | Pending |
+| COMP-01 | Phase 9 | Pending |
+| COMP-02 | Phase 9 | Pending |
+| COMP-03 | Phase 9 | Pending |
+| COMP-04 | Phase 9 | Pending |
+| COMP-05 | Phase 9 | Pending |
+| COMP-06 | Phase 9 | Pending |
+| EVNT-01 | Phase 9 | Pending |
+| EVNT-02 | Phase 9 | Pending |
+| EVNT-03 | Phase 9 | Pending |
+| EVNT-04 | Phase 9 | Pending |
+| EVNT-05 | Phase 9 | Pending |
+| PROG-01 | Phase 10 | Pending |
+| PROG-02 | Phase 10 | Pending |
+| PROG-03 | Phase 10 | Pending |
+| PROG-04 | Phase 10 | Pending |
+| COACH-01 | Phase 10 | Pending |
+| COACH-02 | Phase 10 | Pending |
+| COACH-03 | Phase 10 | Pending |
+| COACH-04 | Phase 10 | Pending |
+| COACH-05 | Phase 10 | Pending |
+| ARCH-01 | Phase 1 | Pending |
+| ARCH-02 | Phase 3 | Pending |
+| ARCH-03 | Phase 1 | Pending |
+| ARCH-04 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 56 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 56
+- v1 requirements: 64 total
+- Mapped to phases: 64
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 after initial definition*
+*Last updated: 2026-01-22 after roadmap creation*
