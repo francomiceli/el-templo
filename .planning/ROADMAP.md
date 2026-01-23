@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Backend/frontend scaffolding, database schema, shell architecture
 - [x] **Phase 2: Authentication** - User registration, login, session persistence, branch/level assignment
 - [x] **Phase 3: Shell & Module System** - Module registry, global stores, Capacitor bridge
-- [ ] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
+- [x] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
 - [ ] **Phase 5: Session Generation** - Daily session generation from SPOM week + member level
 - [ ] **Phase 6: Weekly View** - 7-day calendar with session preview and completion status
 - [ ] **Phase 7: Day Player** - Block flow UI, exercise display, video placeholders
@@ -104,9 +104,9 @@ Waves:
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 04-01-PLAN.md — Database schema for 9 SPOM tables with indexes and constraints
-- [ ] 04-02-PLAN.md — Data import scripts with CSV parsing and batch inserts
-- [ ] 04-03-PLAN.md — API endpoints for SPOM week, exercise queries, and table versions
+- [x] 04-01-PLAN.md — Database schema for 9 SPOM tables with indexes and constraints
+- [x] 04-02-PLAN.md — Data import scripts with CSV parsing and batch inserts
+- [x] 04-03-PLAN.md — API endpoints for SPOM week, exercise queries, and table versions
 
 Waves:
 - Wave 1: 04-01 (schema design)
@@ -246,7 +246,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 1. Foundation | 4/4 | Complete | 2026-01-22 |
 | 2. Authentication | 4/4 | Complete | 2026-01-22 |
 | 3. Shell & Module System | 2/2 | Complete | 2026-01-22 |
-| 4. SPOM Engine | 0/3 | Planned, ready for execution | - |
+| 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
 | 5. Session Generation | 0/4 | Not started | - |
 | 6. Weekly View | 0/0 | Not started | - |
 | 7. Day Player | 0/0 | Not started | - |
@@ -257,4 +257,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-23 — Phase 4 plans created (3 plans in 2 waves)*
+*Last updated: 2026-01-23 — Phase 4 complete (3 plans executed, 4792 rows imported)*
