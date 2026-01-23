@@ -61,7 +61,105 @@ async function parseCSV<T>(filePath: string, options: { skipLines?: number } = {
 // Path to docs directory
 const DOCS_DIR = path.resolve(__dirname, '../../../docs');
 
-// Seeder functions (to be implemented in Task 2 and 3)
+// ============================================================
+// Reference Table Seeders (Task 2)
+// ============================================================
+
+/**
+ * Seed routes table with unique route codes from SPOM and Rotator files
+ * Returns a Map<code, id> for FK lookups
+ */
+async function seedRoutes(db: DB): Promise<Map<string, number>> {
+  console.log('Seeding routes...');
+
+  // All known route codes (combined from SPOM.csv and Rotador Semanal)
+  const routeCodes = [
+    'BL', 'DS', 'FL', 'FLR', 'HD/ID', 'HR', 'HS', 'HSPU', 'HT', 'L',
+    'MN/RP', 'MU', 'NC', 'OAP', 'OAPU', 'OAR', 'PHS', 'PL', 'PLPU',
+    'PS', 'QC', 'SS', 'SU', 'TTB'
+  ];
+
+  const routeData = routeCodes.map(code => ({ code }));
+  await db.insert(schema.routes).values(routeData);
+
+  // Build lookup map
+  const inserted = await db.select().from(schema.routes);
+  const routeMap = new Map<string, number>();
+  for (const route of inserted) {
+    routeMap.set(route.code, route.id);
+  }
+
+  const hash = computeHash(routeData);
+  console.log(`  Inserted ${routeCodes.length} routes (hash: ${hash})\n`);
+
+  return routeMap;
+}
+
+/**
+ * Seed intensity_rules from Intensidad.csv
+ * Maps intensity percentage to reps budget, difficulty, and exercise counts
+ */
+async function seedIntensityRules(db: DB): Promise<void> {
+  console.log('Seeding intensity rules...');
+
+  const filePath = path.join(DOCS_DIR, '[Planificaciones] - Base de Datos - SPOM - Intensidad.csv');
+  const rows = await parseCSV<{
+    '% Intensidad': string;
+    'Repeticiones por Bloque': string;
+    'Dificultad': string;
+    'Ejercicios por Bloque': string;
+  }>(filePath);
+
+  const intensityData = rows.map(row => {
+    // Parse "4 a 5" into min=4, max=5
+    const exerciseRange = row['Ejercicios por Bloque'].split(' a ');
+    return {
+      intensity: parseInt(row['% Intensidad'], 10),
+      repsBudget: parseInt(row['Repeticiones por Bloque'], 10),
+      difficulty: row['Dificultad'],
+      exerciseCountMin: parseInt(exerciseRange[0], 10),
+      exerciseCountMax: parseInt(exerciseRange[1] || exerciseRange[0], 10),
+    };
+  });
+
+  await db.insert(schema.intensityRules).values(intensityData);
+
+  const hash = computeHash(intensityData);
+  console.log(`  Inserted ${intensityData.length} intensity rules (hash: ${hash})\n`);
+}
+
+/**
+ * Seed contraction_rules from Contraccion.txt (JSON format)
+ * Defines CON/EXC/ISO distribution per intensity and exercise count
+ */
+async function seedContractionRules(db: DB): Promise<void> {
+  console.log('Seeding contraction rules...');
+
+  const filePath = path.join(DOCS_DIR, '[Planificaciones] - Base de Datos - Contracción.txt');
+  const jsonContent = fs.readFileSync(filePath, 'utf-8');
+  const rows = JSON.parse(jsonContent) as Array<{
+    intensidad: number;
+    totalEjercicios: number;
+    concentrico: number;
+    excentrico: number;
+    isometrico: number;
+  }>;
+
+  const contractionData = rows.map(row => ({
+    intensity: row.intensidad,
+    totalExercises: row.totalEjercicios,
+    concentrico: row.concentrico,
+    excentrico: row.excentrico,
+    isometrico: row.isometrico,
+  }));
+
+  await db.insert(schema.contractionRules).values(contractionData);
+
+  const hash = computeHash(contractionData);
+  console.log(`  Inserted ${contractionData.length} contraction rules (hash: ${hash})\n`);
+}
+
+// Seeder functions (to be implemented in Task 3)
 
 export async function seedSPOM(): Promise<void> {
   console.log('Starting SPOM seed...\n');
@@ -92,10 +190,15 @@ export async function seedSPOM(): Promise<void> {
     console.log('Cleared existing data.\n');
 
     // Seed in FK dependency order
-    // Task 2: Reference tables
-    // Task 3: Dependent tables
 
-    console.log('\nSeed complete. No seeder functions implemented yet.');
+    // Task 2: Reference tables
+    const routeMap = await seedRoutes(db);
+    await seedIntensityRules(db);
+    await seedContractionRules(db);
+
+    // Task 3: Dependent tables (TODO)
+
+    console.log('\nSeed complete.');
 
   } finally {
     await connection.end();
