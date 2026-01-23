@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 
 ## Current Position
 
-Phase: 3 of 10 (Shell & Module System) - Complete
-Plan: 0 of ~3 in Phase 4
-Status: Phase 3 complete, Phase 4 ready for planning with new documentation
-Last activity: 2026-01-23 — Reset to Phase 3, integrated new documentation from /docs/
+Phase: 4 of 11 (SPOM Engine)
+Plan: 1 of 3 in Phase 4
+Status: In progress
+Last activity: 2026-01-23 — Completed 04-01-PLAN.md (SPOM Database Schemas)
 
-Progress: [███░░░░░░░] 30% (3/10 phases complete)
+Progress: [███░░░░░░░] 27% (3/11 phases complete, 1/3 plans in Phase 4)
 
 ## Architecture Reset
 
@@ -28,14 +28,42 @@ Progress: [███░░░░░░░] 30% (3/10 phases complete)
 - Contraction type distribution required (CON/EXC/ISO counts per intensity)
 - SPOM lookup per route (week × route → intensity, wave, pattern)
 - Format compatibility system (Tabata, EMOM, AMRAP, Complex, etc.)
-- Level progression (Alfa sees alfa+delta, not just filtering)
+- Level grouping: ALFA_DELTA, SIGMA, OMEGA (3 groups from 5 levels)
+
+**New Documentation Analyzed (2026-01-23):**
+- `Documento de Planificación` parts 1-4: Block structure, SPOM integration, contraction by intensity
+- `system-specs/` parts 1-5: 47-point technical specification defining deterministic engine:
+  - Points 1-10: Objective, domain entities, IDs, normalization
+  - Points 11-21: SPOM resolution, category hierarchy, intensity→budget, contraction rules
+  - Points 22-31: Format taxonomy, compatibility matrix, parameter schema, exercise selection
+  - Points 32-40: Prescription (dose, rest, ladders, tempo), validation, coherence checks
+  - Points 41-47: Engine pipeline, determinism, logging/trace, test framework
+
+**Session Generation Engine (from system-specs):**
+The engine is a **deterministic pipeline** with 9 stages:
+1. Normalize tables (SPOM, Intensity, Contraction, Formats, Exercises, Rotator)
+2. Build week skeleton (days × level_groups × blocks)
+3. Resolve SPOM per block (route → pct, pattern, scope)
+4. Derive budget per block (pct → reps_budget, exercise_count, difficulty_bucket)
+5. Pick format (compatibility matrix → candidates → tie-breakers)
+6. Pick exercises (scope + bucket + level + contraction → filter → dedup → ranking)
+7. Prescribe (allocate doses, bind to format, ladders/tempo, rest, notes)
+8. Assemble blocks → days → week
+9. Validate (coherence, partial user scenarios, insufficiency summary)
+
+**Key invariants:**
+- SPOM is unique truth per (week, route) — no duplicates, no averaging
+- Budget is TOTAL per block, not per exercise
+- Contraction mix derived from pct, not chosen
+- Format never adds volume, only distributes budget
+- All decisions traceable via structured JSON logs
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 4.2 min
-- Total execution time: 0.7 hours
+- Total plans completed: 11
+- Average duration: 4.3 min
+- Total execution time: 0.8 hours
 
 **By Phase:**
 
@@ -44,10 +72,11 @@ Progress: [███░░░░░░░] 30% (3/10 phases complete)
 | 01-foundation | 4 | 30min | 7.5min |
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
+| 04-spom-engine | 1 | 6min | 6min |
 
 **Recent Trend:**
-- Last 3 plans: 2.6min, 2min, 3.5min
-- Trend: Stable high velocity
+- Last 3 plans: 2min, 3.5min, 6min
+- Trend: Stable velocity
 
 *Updated after each plan completion*
 
@@ -84,6 +113,15 @@ Recent decisions affecting current work:
 | 03-01 | Boot order: axios -> auth -> modules | Modules depends on both API setup and auth restoration |
 | 03-01 | Vite chunk errors trigger page reload | Ensures users get fresh chunks after deployment |
 | 03-01 | Named layout route for dynamic nesting | Enables router.addRoute('layout', moduleRoute) pattern |
+| 04-discuss | Migration script for data import | One-time import, admin panel deferred to Phase 11 |
+| 04-discuss | Global single row for SPOM week | All branches share same week, matches gym-wide model |
+| 04-discuss | Store level_code, compute group at runtime | No data loss, grouping logic centralized in code |
+| 04-discuss | Difficulty bucket: 1=low, 2=med, 3=high, NS=max | Confirmed mapping from domain expert |
+| 04-discuss | Routes reference table | Cleaner FKs, allows metadata, handles special chars |
+| 04-discuss | Wide table for format params | Simple queries, TypeScript provides type safety |
+| 04-01 | Route codes in reference table | Cleaner FKs than embedding route strings |
+| 04-01 | Difficulty as string column | Supports "Nivel Superior" values alongside numeric 1/2/3 |
+| 04-01 | CHECK constraint for singleton | MySQL enforces single row in spom_config |
 
 ### Pending Todos
 
@@ -98,11 +136,11 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Reset complete, Phase 4 ready for planning
-Resume file: None
+Stopped at: Completed 04-01-PLAN.md (SPOM Database Schemas)
+Resume file: `.planning/phases/04-spom-engine/04-01-SUMMARY.md`
 
 **Next steps:**
-1. Run `/gsd:plan-phase 4` to create detailed plans for SPOM Engine
-2. Execute Phase 4 plans
+1. Execute 04-02-PLAN.md (SPOM Data Import)
+2. Execute 04-03-PLAN.md (if exists)
 3. Run `/gsd:plan-phase 5` for Session Generation
 4. Execute Phase 5 plans
