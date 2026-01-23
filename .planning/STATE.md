@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 4 - SPOM Engine (redesigned based on new documentation)
+**Current focus:** Phase 4 - SPOM Engine (complete)
 
 ## Current Position
 
 Phase: 4 of 11 (SPOM Engine)
-Plan: 1 of 3 in Phase 4
-Status: In progress
-Last activity: 2026-01-23 — Completed 04-01-PLAN.md (SPOM Database Schemas)
+Plan: 3 of 3 in Phase 4
+Status: Phase complete
+Last activity: 2026-01-23 — Completed 04-03-PLAN.md (SPOM API Endpoints)
 
-Progress: [███░░░░░░░] 27% (3/11 phases complete, 1/3 plans in Phase 4)
+Progress: [████░░░░░░] 36% (4/11 phases complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 4.3 min
-- Total execution time: 0.8 hours
+- Total plans completed: 14
+- Average duration: 4.1 min
+- Total execution time: 0.95 hours
 
 **By Phase:**
 
@@ -72,10 +72,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 01-foundation | 4 | 30min | 7.5min |
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
-| 04-spom-engine | 1 | 6min | 6min |
+| 04-spom-engine | 3 | 12min | 4min |
 
 **Recent Trend:**
-- Last 3 plans: 2min, 3.5min, 6min
+- Last 3 plans: 04-01 (6min), 04-02 (3min), 04-03 (3min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
@@ -122,6 +122,7 @@ Recent decisions affecting current work:
 | 04-01 | Route codes in reference table | Cleaner FKs than embedding route strings |
 | 04-01 | Difficulty as string column | Supports "Nivel Superior" values alongside numeric 1/2/3 |
 | 04-01 | CHECK constraint for singleton | MySQL enforces single row in spom_config |
+| 04-03 | JSON Schema for validation | Consistent with existing auth module, no new dependency |
 
 ### Pending Todos
 
@@ -136,11 +137,9 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-23
-Stopped at: Completed 04-01-PLAN.md (SPOM Database Schemas)
-Resume file: `.planning/phases/04-spom-engine/04-01-SUMMARY.md`
+Stopped at: Completed 04-03-PLAN.md (SPOM API Endpoints) - Phase 4 complete
+Resume file: `.planning/phases/04-spom-engine/04-03-SUMMARY.md`
 
 **Next steps:**
-1. Execute 04-02-PLAN.md (SPOM Data Import)
-2. Execute 04-03-PLAN.md (if exists)
-3. Run `/gsd:plan-phase 5` for Session Generation
-4. Execute Phase 5 plans
+1. Run `/gsd:plan-phase 5` for Session Generation
+2. Execute Phase 5 plans
