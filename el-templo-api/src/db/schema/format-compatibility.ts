@@ -1,7 +1,7 @@
 import { mysqlTable, int, mysqlEnum, uniqueIndex } from 'drizzle-orm/mysql-core';
 import { formats } from './formats';
 
-export const blockEnum = mysqlEnum('block', ['nucleus', 'deuteros', 'plethora']);
+export const blockEnum = mysqlEnum('block', ['initium', 'nucleus', 'deuteros', 'athlos', 'epikos']);
 export const compatibilityLevelEnum = mysqlEnum('compat_level', ['alfa', 'delta', 'sigma', 'omega']);
 
 export const formatCompatibility = mysqlTable('format_compatibility', {
