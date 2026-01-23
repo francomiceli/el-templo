@@ -1,0 +1,2000 @@
+Punto 1 — Objetivo del sistema (especificación + 
+lógica) 
+1.1 Definición formal del objetivo 
+Objetivo: construir, para una semana W, un conjunto de sesiones (una por día operativo) 
+donde cada sesión está compuesta por bloques y, para cada bloque, se generan 
+prescripciones de ejercicios específicas por nivel/grupo de nivel, respetando las reglas 
+de: 
+ Distribución semanal de patrones (superior/inferior y variación) 
+ SPOM (ruta + intensidad % + patrón activo + categoría) 
+ Compatibilidad (intensidad ↔ dificultad ↔ contracción ↔ formato ↔ selección de 
+ejercicios) 
+ Presupuesto del bloque (volumen/reps o duración objetivo por bloque) 
+ Contrato de salida (estructura estandarizada, auditable y reproducible) 
+Entrada mínima: tablas/datasets del sistema (rotador semanal/plan por nivel, SPOM, 
+intensidades, formatos, base de ejercicios, reglas de contracción y niveles). 
+Salida mínima: WeekPlan completo, con trazabilidad por decisión. 
+1.2 Alcance exacto (qué produce y para quién) 
+El sistema debe producir todo completo: 
+ Semana W (ej. 19) 
+ Días: Lunes..Sábado (según configuración operativa; por defecto 6 días) 
+ Para cada día: 
+ Bloques: Initium, Nucleus, Deuteros 1, Deuteros 2, 
+Athlos/Epikós 
+ Para cada bloque: 
+ Ruta (route_code) 
+ Intensidad SPOM (pct) 
+ Patrón activo / categoría 
+ Formato (tipo + parámetros) 
+ Ejercicios seleccionados (por nivel) 
+ Prescripción (reps/duración/descanso/tempo/escalera/carga) 
+ Observaciones (opcional) 
+ Para cada grupo de nivel (según política): 
+ ALFA_DELTA, SIGMA, OMEGA 
+(En la práctica se emiten prescripciones al menos para 
+alfa/delta/sigma/omega; si Spartan/Olympic existen en DB, se habilitan como 
+niveles superiores opcionales.) 
+1.3 Lógica del sistema (principio rector) 
+El sistema es un pipeline determinista de restricciones. 
+Principio: no se eligen ejercicios; se resuelven restricciones hasta que los ejercicios 
+quedan determinados. 
+Orden lógico de resolución (obligatorio): 
+1. Estructura semanal: días y bloques (plantilla fija) 
+2. Asignación de rutas por día/bloque/nivel (rotador/planificación semanal) 
+3. SPOM: para cada ruta se resuelve % intensidad + patrón activo + categoría 
+4. Derivación de presupuesto de bloque desde % (reps/duración, cantidad de 
+ejercicios, dificultad) 
+5. Derivación de mezcla de contracción (CON/EXC/ISO) desde % (y #ejercicios) 
+6. Selección de formato por (bloque, nivel, %, tipo de esfuerzo) 
+7. Selección de ejercicios por filtros (ruta, patrón, nivel, dificultad, contracción, 
+equipo) 
+8. Prescripción: asignación de reps/duración/descanso que: 
+ cumple el presupuesto del bloque 
+ es compatible con el formato 
+ respeta el tipo de contracción y el nivel 
+9. Validación global (día y semana) + fallback si faltan candidatos 
+Resultado: una semana planificada que, dada la misma entrada, produce la misma salida. 
+1.4 Condiciones de éxito (acceptance criteria) 
+Una salida se considera válida si se cumplen todas: 
+(A) Completitud 
+ Existe plan para cada día configurado y para cada bloque obligatorio. 
+ Cada bloque tiene route_code, pct, pattern_active, format, y ≥1 ejercicio 
+por nivel objetivo. 
+(B) Coherencia SPOM 
+ pct y pattern_active coinciden con la entrada SPOM para esa semana y ruta. 
+(C) Coherencia Intensidad 
+ El bloque respeta: 
+ reps_budget o duration_budget esperado para ese % 
+ exercise_count_target esperado para ese % 
+ difficulty_bucket esperado para ese % 
+(D) Coherencia Contracción 
+ La distribución CON/EXC/ISO del bloque cumple el objetivo para ese % (con 
+tolerancia definida). 
+(E) Coherencia Formato 
+ El formato está permitido para ese bloque + nivel + intensidad. 
+ 
+ Los parámetros del formato son válidos (vueltas/duración/descanso/escalera 
+consistentes). 
+ 
+(F) Selección de ejercicios 
+ Cada ejercicio seleccionado pertenece a la ruta/patrón/categoría. 
+ 
+ El nivel del ejercicio es compatible con el nivel del plan. 
+ 
+ No hay duplicados inválidos ni colisiones prohibidas (reglas posteriores). 
+ 
+(G) Reproducibilidad 
+ Con mismos inputs y misma política de desempate (seed/orden), el output es 
+idéntico. 
+ 
+ 
+1.5 Salida requerida para auditoría (trace mínimo) 
+Para que un agente IA sea controlable, cada bloque debe emitir un DecisionTrace: 
+{ 
+  "block_trace": { 
+    "inputs": { 
+      "week": 19, 
+      "day": "Lunes", 
+      "block": "NUCLEUS", 
+      "route": "FL" 
+    }, 
+    "resolved": { 
+      "spom_pct": 95, 
+      "pattern_active": "SUP_PULL", 
+      "budget": {"reps_budget": 10, "exercise_count": [2,3], 
+"difficulty": 1}, 
+      "contraction_mix_target": {"CON":0,"EXC":1,"ISO":2}, 
+      "format_selected": {"name":"Tempo Sets", 
+"params":{"sets":3,"rest":60}} 
+    }, 
+    "filters_applied": { 
+      "route": "FL", 
+      "pattern_active": "SUP_PULL", 
+      "level_group": "ALFA_DELTA", 
+      "difficulty_bucket": 1, 
+      "contraction": ["EXC","ISO"] 
+    }, 
+    "selected_exercises": [ 
+      {"name":"FL STR ISO 3''", "level":"delta", 
+"contraction":"ISO"}, 
+      {"name":"FL PRESS TUCK EXC 2", "level":"alfa", 
+"contraction":"EXC"} 
+    ], 
+    "validation": {"status":"PASS", "warnings":[]} 
+  } 
+} 
+ 
+Esto es obligatorio para que el agente explique “por qué” sin improvisar. 
+ 
+1.6 Invariantes (reglas que no se rompen nunca) 
+ SPOM manda sobre todo: si SPOM dice FL 95, no existe salida válida con FL 65. 
+ 
+ El bloque Nucleus siempre existe. 
+ 
+ Las prescripciones son función de: (ruta, %, nivel, formato, 
+contracción); nunca de “preferencias”. 
+ 
+ El output debe ser serializable (JSON/CSV/PDF) sin perder información estructural. 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Punto 2 — Entidades del dominio (modelo de datos + 
+lógica) 
+A continuación defino las entidades núcleo del sistema. Para cada una: (a) propósito 
+lógico, (b) campos mínimos, (c) invariantes, (d) relaciones. Formato “ingeniería”: 
+concreto, sin narrativa. 
+ 
+2.1 WeekPlan 
+Propósito lógico 
+Unidad máxima de planificación. Agrega sesiones diarias y fija el contexto semanal (fuentes, 
+reglas, versión de datos). Es el contenedor que permite reproducibilidad. 
+Campos mínimos 
+{ 
+  "week_id": 19, 
+  "start_date": "2025-12-22", 
+  "timezone": "-03:00", 
+  "days_order": 
+["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"], 
+  "level_groups": ["ALFA_DELTA","SIGMA","OMEGA"], 
+  "day_plans": [ 
+    {"day":"Lunes","level_group":"ALFA_DELTA","ref":"..."}, 
+    {"day":"Lunes","level_group":"SIGMA","ref":"..."}, 
+    {"day":"Lunes","level_group":"OMEGA","ref":"..."} 
+  ], 
+  "data_version": { 
+    "spom_version": "2025-12", 
+    "exercise_db_version": "2025-12", 
+    "formats_version": "2025-12", 
+    "rules_version": "v1" 
+  }, 
+  "generation_meta": { 
+    "generator": "agent_id", 
+    "seed": 12345, 
+    "generated_at": "ISO8601" 
+  } 
+} 
+ 
+Invariantes 
+ week_id identifica de forma única el set de entradas SPOM/rotador. 
+ 
+ Debe existir DayPlan para todo (day, level_group) configurado. 
+ 
+ data_version y seed obligatorios si querés reproducibilidad. 
+ 
+Relaciones 
+ 1 WeekPlan → N DayPlan. 
+ 
+ 
+2.2 DayPlan 
+Propósito lógico 
+Representa una sesión diaria para un grupo de nivel. Define el orden de bloques y las rutas 
+asignadas a cada bloque para ese día. 
+Campos mínimos 
+{ 
+  "week_id": 19, 
+  "day": "Lunes", 
+  "level_group": "ALFA_DELTA", 
+  "blocks_order": 
+["INITIUM","NUCLEUS","DEUTEROS_1","DEUTEROS_2","ATHLOS_EPIKOS"], 
+  "blocks": [ 
+    {"type":"INITIUM","ref":"..."}, 
+    {"type":"NUCLEUS","ref":"..."}, 
+    {"type":"DEUTEROS_1","ref":"..."}, 
+    {"type":"DEUTEROS_2","ref":"..."}, 
+    {"type":"ATHLOS_EPIKOS","ref":"..."} 
+  ], 
+  "day_constraints": { 
+    "primary_focus": "SUP|INF", 
+    "notes": null 
+  } 
+} 
+Invariantes 
+ Tiene exactamente los bloques obligatorios (salvo que el modo operativo lo cambie 
+explícitamente). 
+ NUCLEUS no puede faltar. 
+ blocks_order define el render y la ejecución. 
+Relaciones 
+ 1 DayPlan → 1..N BlockPlan (por plantilla). 
+2.3 BlockPlan 
+Propósito lógico 
+Unidad de decisión central. Para un bloque: resuelve ruta + SPOM + presupuesto + 
+contracción + formato + ejercicios + prescripción. Debe ser auditable (trace). 
+Campos mínimos 
+{ 
+"week_id": 19, 
+"day": "Lunes", 
+"level_group": "ALFA_DELTA", 
+"block_type": "NUCLEUS", 
+"route": {"code":"FL","name":"Front Lever"}, 
+"pattern": {"active":"SUP_PULL","scope":"ESPECIFICO|GENERAL"}, 
+"intensity_profile": {"pct":95,"bucket":"HIGH_SPECIFIC"}, 
+"budget": { 
+"reps_budget": 10, 
+"duration_budget_sec": null, 
+"exercise_count_target": {"min":2,"max":3}, 
+"difficulty_bucket": 1 
+  }, 
+ 
+  "contraction_target": {"CON":0,"EXC":1,"ISO":2}, 
+ 
+  "format": {"name":"Tempo Sets","params":{"sets":3,"rest_sec":60}}, 
+ 
+  "prescriptions": [ 
+    { 
+      "level":"alfa", 
+      "items":[ 
+        {"exercise_ref":"...", "contraction":"ISO", 
+"dose":{"duration_sec":6}, "rest_sec":60} 
+      ] 
+    } 
+  ], 
+ 
+  "trace": {"ref":"..."}, 
+  "validation": {"status":"PASS","warnings":[]} 
+} 
+ 
+Invariantes 
+ route.code obligatorio excepto en Initium (si lo tratás como “sin ruta”). 
+ 
+ intensity_profile.pct debe venir de SPOM. 
+ 
+ budget coherente con %. 
+ 
+ prescriptions debe cubrir los niveles del level_group. 
+ 
+Relaciones 
+ 1 BlockPlan usa 1 Route, 1 Pattern, 1 IntensityProfile, 1 Format. 
+ 
+ 1 BlockPlan contiene N Prescription. 
+ 
+ 
+2.4 Route 
+Propósito lógico 
+Identificador del “movimiento objetivo”. Es la clave que vincula: 
+ SPOM (intensidad/patrón) 
+ Base de ejercicios (familia de variantes) 
+ Correlaciones (rutas compatibles) 
+Campos mínimos 
+{ 
+} 
+"code": "FL", 
+"name": "Front Lever", 
+"domain": "SUP|INF", 
+"default_category": "SUP_PULL", 
+"aliases": ["Front Lever"] 
+Invariantes 
+ code es canónico (no cambia). 
+ Debe mapear a al menos una categoría/patrón en SPOM. 
+Relaciones 
+ Route → 1..N Exercise (en DB). 
+ Route ↔ Pattern (vía SPOM). 
+ Route ↔ Route (vía correlación, opcional). 
+2.5 Pattern 
+Propósito lógico 
+Define scope biomecánico y área del estímulo. Funciona como restricción de selección. 
+Hay dos componentes: 
+ active: etiqueta usada por SPOM (SUP_PULL, INF_CADERA, etc.) 
+ scope: generalidad/especificidad (derivable del % o del tipo en SPOM) 
+Campos mínimos 
+{ 
+"active": "SUP_PULL", 
+"subtype": 
+"PULL_VERTICAL|PULL_HORIZONTAL|BENT|STRAIGHT|MIXED|null", 
+"scope": "GENERAL|SEMI|SPECIFIC", 
+"notes": null 
+} 
+Invariantes 
+ active pertenece a un enum cerrado. 
+ scope no es decorativo: impacta la cardinalidad de candidatos en Exercise DB. 
+Relaciones 
+ Pattern condiciona Exercise.category/subcategory. 
+2.6 IntensityProfile 
+Propósito lógico 
+Paquete de parámetros derivables de % que gobierna: 
+ volumen de bloque 
+ dificultad 
+ #ejercicios 
+ mezcla de contracción 
+ formatos permitidos (en combinación con block+level) 
+Campos mínimos 
+{ 
+} 
+"pct": 95, 
+"bucket": "LOW|MID|HIGH|MAX", 
+"specificity": "GENERAL|SPECIFIC", 
+"reps_budget": 10, 
+"exercise_count_target": {"min":2,"max":3}, 
+"difficulty_bucket": 1 
+Invariantes 
+ pct ∈ {55..95} según tu sistema (rangos reales de tabla). 
+ Los demás campos deben ser deterministas respecto de % (misma tabla -> misma 
+salida). 
+Relaciones 
+ IntensityProfile alimenta Budget, ContractionTarget, y ayuda a 
+seleccionar Format. 
+2.7 Exercise (registro de base de datos) 
+Propósito lógico 
+Candidato atómico seleccionable. Debe ser filtrable por 
+ruta/patrón/nivel/contracción/dificultad y “dosificable” (reps/duración). 
+Campos mínimos 
+{ 
+"exercise_id": "uuid-or-key", 
+"name": "FL STR ISO 3''", 
+"route_code": "FL", 
+"category": "SUP_PULL", 
+"subcategory": "PULL_STRAIGHT|PULL_VERTICAL|...", 
+"level": "alfa|delta|sigma|omega|spartan|olympic", 
+"difficulty_bucket": 1, 
+"contraction": "ISO|EXC|CON", 
+"dose_type": "REPS|DURATION", 
+"rep_min": 0, 
+"rep_max": 0, 
+"duration_sec": 6, 
+"equipment": ["rings","bar","parallettes","floor","wall"], 
+"flags": ["requires_spot","high_joint_stress", "..."], 
+"tags": ["frontlever","isometric"] 
+} 
+Invariantes 
+ route_code obligatorio. 
+ contraction obligatorio. 
+ Debe existir al menos un mecanismo de dosificación (dose_type + valores). 
+ level en enum cerrado. 
+Relaciones 
+ Exercise es seleccionado en PrescriptionItem. 
+ Exercise puede referenciar progresión/regresión (opcional) para fallback. 
+2.8 Format 
+Propósito lógico 
+Define la estructura temporal/organizacional del bloque (densidad y secuenciación). Es un 
+“template” que impone constraints a: 
+ distribución de reps/duración 
+ 
+ descansos 
+ 
+ #vueltas 
+ 
+ escalera 
+ 
+Campos mínimos 
+{ 
+  "name": "Singlet|Cluster|Tempo Sets|AMRAP Series|Tabata|EMOM|For 
+Time|...", 
+  "type": "DENSITY|TIMEBOX|LADDER|SETS", 
+  "params_schema": { 
+    "sets": "int?", 
+    "rounds": "int?", 
+    "work_sec": "int?", 
+    "rest_sec": "int?", 
+    "ladder": "string?" 
+  }, 
+  "compatibility": { 
+    "allowed_blocks": ["NUCLEUS","DEUTEROS_1","..."], 
+    "allowed_level_groups": ["ALFA_DELTA","SIGMA","OMEGA"], 
+    "allowed_intensity_buckets": ["LOW","MID","HIGH","MAX"] 
+  } 
+} 
+ 
+Invariantes 
+ compatibility debe permitir validación automática. 
+ 
+ params debe validar contra params_schema. 
+ 
+Relaciones 
+ Format es elegido por BlockPlan. 
+ 
+ Format guía la función de prescripción. 
+ 
+ 
+2.9 Prescription 
+Propósito lógico 
+Instanciación final ejecutable: lista de items (ejercicios) con dosis y descanso, por nivel. 
+Campos mínimos 
+{ 
+  "level": "alfa", 
+  "format_instance": {"name":"Tempo 
+Sets","params":{"sets":3,"rest_sec":60}}, 
+  "items": [ 
+    { 
+      "exercise_id": "X", 
+      "contraction": "ISO", 
+      "dose": {"duration_sec": 6, "reps": null}, 
+      "rest_sec": 60, 
+      "tempo": null, 
+      "notes": null 
+    } 
+  ], 
+  "block_totals": { 
+    "total_reps": null, 
+    "total_duration_sec": 180 
+  } 
+} 
+ 
+Invariantes 
+ Cada item debe referenciar un Exercise existente. 
+ 
+ dose debe ser consistente con Exercise.dose_type. 
+ 
+ block_totals debe aproximar el budget dentro de tolerancias definidas. 
+Relaciones 
+ Prescription pertenece a 1 BlockPlan. 
+ PrescriptionItem.exercise_id → Exercise. 
+2.10 Relaciones clave (mapa rápido) 
+ WeekPlan 1→N DayPlan 
+ DayPlan 1→N BlockPlan 
+ BlockPlan 1→1 Route 
+ BlockPlan 1→1 IntensityProfile (derivado de SPOM y tabla de intensidades) 
+ BlockPlan 1→1 Pattern (viene de SPOM + derivación de scope) 
+ BlockPlan 1→1 Format (por compatibilidad) 
+ BlockPlan 1→N Prescription 
+ Prescription 1→N Exercise (via items) 
+Lógica global del punto 2 (por qué esta partición) 
+ Route / Pattern / IntensityProfile forman el triángulo de intención (qué + cómo + 
+cuánto). 
+ Format es la plantilla de ejecución (estructura). 
+ Exercise es el catálogo filtrable. 
+ Prescription es la instanciación final. 
+ BlockPlan es la unidad de decisión y auditoría. 
+ DayPlan/WeekPlan agregan y permiten validación global y reproducibilidad. 
+Punto 3 — IDs, códigos y normalización (especificación 
++ lógica) 
+Objetivo del punto 
+Definir un lenguaje canónico (códigos/IDs/enums) para que el agente: 
+ pueda unir datasets (SPOM, rutas, ejercicios, formatos) sin ambigüedad 
+ pueda validar y serializar planes consistentemente 
+ no dependa de texto libre (nombres “humanos” solo display) 
+3.1 Principios de normalización (reglas 
+base) 
+3.1.1 Canonical First 
+ Todo objeto debe tener: 
+ code (canónico, corto, estable) 
+ id (único global si se requiere) 
+ display_name (solo UI, no lógico) 
+Nunca se usa display_name para matching. 
+3.1.2 Matching determinista por claves 
+ Join primario: 
+ Route.code ↔ SPOM.route_code ↔ Exercise.route_code 
+ Join secundario: 
+ Pattern.active ↔ Exercise.category 
+ Join terciario: 
+ Level.code ↔ Exercise.level 
+3.1.3 Normalización de texto 
+Toda string que se reciba como input humano se convierte a canónico con: 
+ trim 
+ upper 
+ reemplazo de múltiples espacios por uno 
+ normalización de separadores (-, _, /) 
+ diccionario de alias 
+3.2 IDs y claves por entidad 
+3.2.1 Route 
+ Clave canónica: route_code (string corta) 
+ Ejemplos: FL, PL, HSPU, PS, SU, MU, TTB, OAP, OAPU, FLR, MN_RP (normalizado) 
+Regla de normalización de ruta: 
+ Convertir / a _ para claves: 
+ MN/RP → MN_RP 
+ Mantener el display_name original para mostrar: 
+ display: "MN/RP" 
+ code: "MN_RP" 
+Invariante: route_code es único en el sistema. 
+3.2.2 Exercise 
+ Clave primaria: exercise_id (UUID o key estable) 
+ Claves lógicas: 
+ route_code 
+ level_code 
+ contraction_code 
+ category_code (+ subcategory_code) 
+ difficulty_bucket (int) 
+Regla: el exercise_id no debe codificar lógica (no deducir intensidad desde el nombre). 
+3.2.3 Format 
+ Clave canónica: format_code (string) 
+ Ejemplos: SINGLET, AMRAP_SERIES, TABATA, EMOM, HIIT, INTERVAL, etc. 
+ format_instance_id opcional (si versionás params) 
+3.2.4 WeekPlan / DayPlan / BlockPlan 
+ WeekPlan: week_id (int) + data_version_hash (string) 
+ DayPlan: day_id = week_id + day_code + level_group 
+ BlockPlan: block_id = day_id + block_type 
+Esto habilita: 
+ referencias estables 
+ trazabilidad 
+ caching por bloque 
+3.3 Enums canónicos (cerrados) 
+3.3.1 Días 
+DAY_CODE ∈ {MON,TUE,WED,THU,FRI,SAT} 
+MON=Lunes, TUE=Martes, ... 
+3.3.2 BlockType 
+BLOCK_TYPE ∈ {PHASE_PREVIA, INITIUM, NUCLEUS, DEUTEROS_1, 
+DEUTEROS_2, ATHLOS_EPIKOS} 
+Nota: si Athlos y Epikós son distintos en tu operación, separarlos en {ATHLOS, 
+EPIKOS}. 
+3.3.3 LevelGroup y Level 
+LEVEL_GROUP ∈ {ALFA_DELTA, SIGMA, OMEGA} 
+LEVEL_CODE ∈ {ALFA, DELTA, SIGMA, OMEGA, SPARTAN, OLYMPIC} 
+Regla: LEVEL_GROUP define el set mínimo de niveles a emitir. 
+ ALFA_DELTA → {ALFA, DELTA} 
+ SIGMA → {SIGMA} 
+ OMEGA → {OMEGA} 
+ SPARTAN/OLYMPIC opcional si el bloque/dataset lo usa. 
+3.3.4 Contracción 
+CONTRACTION_CODE ∈ {CON, EXC, ISO} 
+3.3.5 Intensidad 
+Dos representaciones: 
+ pct (int): 55, 60, 65, 70, 75, 80, 85, 90, 95 (según tablas reales) 
+ intensity_bucket (enum derivado): LOW|MID|HIGH|MAX 
+3.4 Categorías y patrones (normalización 
+jerárquica) 
+Tu sistema usa “patrón activo” como clave que se cruza con categorías. 
+3.4.1 CategoryCode (macro) 
+CATEGORY_CODE ∈ { 
+SUP_PUSH, 
+SUP_PULL, 
+INF_RODILLA, 
+INF_CADERA, 
+LOWER,         
+// si existe como agregado operativo 
+MOBILITY, 
+FLOW 
+} 
+3.4.2 SubcategoryCode (micro) 
+Para evitar texto libre, modelar como códigos compuestos: 
+ Para superior: 
+SUBCATEGORY_CODE ⊆ { 
+PUSH_VERTICAL, 
+PUSH_HORIZONTAL, 
+PULL_VERTICAL, 
+PULL_HORIZONTAL, 
+BENT_ARM, 
+STRAIGHT_ARM, 
+MIXED 
+} 
+ Para inferior: 
+SUBCATEGORY_CODE ⊆ { 
+HIP_DOMINANT, 
+KNEE_DOMINANT, 
+GENERAL_LOWER 
+} 
+3.4.3 Pattern.active (SPOM) → Category/Subcategory 
+Pattern.active debe ser un enum cerrado que mapea determinísticamente. 
+Ejemplo de mapping (extraído del SPOM de Semana 19): 
+ SUP PUSH → SUP_PUSH 
+ SUP PULL → SUP_PULL 
+ INF RODILLA → INF_RODILLA 
+ INF CADERA → INF_CADERA 
+(En tu tabla SPOM se ven estas familias y rutas asociadas). 
+[Planificaciones] - Semana 19 -… 
+Regla: el SPOM puede traer además “Patrón” descriptivo (ej. “Planche 
+específico”, “General Pull (horizontal + vertical)”); eso debe mapear a scope y/o 
+subcategory. 
+3.5 Scope / Especificidad (normalización) 
+Necesitás una codificación estable para lo que vos llamás “abarcativo vs específico”. 
+Definir: 
+SCOPE_CODE ∈ {GENERAL, SEMI, SPECIFIC} 
+Regla de derivación recomendada: 
+ si pct >= 90 → SPECIFIC 
+ si 70 <= pct < 90 → SEMI 
+ si pct <= 65 → GENERAL 
+Pero si SPOM incluye explícito “específico” vs “general”, esa etiqueta tiene prioridad. 
+3.6 Normalización de nombres 
+(display_name) 
+3.6.1 display_name no afecta lógica 
+ display_name se preserva para PDFs/UI. 
+ Cualquier comparación o join debe usar code. 
+3.6.2 Convención de nombres de ejercicios (solo display) 
+Si querés consistencia en outputs humanos, estandarizar: 
+<ROUTE> <VARIANTE> <CONTRACTION> <NIVEL/DETALLE> <DOSIS> 
+Ej: "FL PRESS TUCK EXC x2" 
+Pero reitero: la IA NO debe parsear esto para lógica; solo mostrarlo. 
+3.7 Tabla de alias (resolver colisiones) 
+Necesitás un diccionario central: 
+{ 
+"route_aliases": { 
+"MN/RP": "MN_RP", 
+"MN-RP": "MN_RP", 
+"Manna / Reverse Planche": "MN_RP" 
+}, 
+"category_aliases": { 
+"SUP PUSH": "SUP_PUSH", 
+"SUPPUSH": "SUP_PUSH", 
+"INF RODILLA": "INF_RODILLA" 
+}, 
+"level_aliases": { 
+"alpha": "ALFA", 
+"Δ": "DELTA" 
+} 
+} 
+Regla: si el input no matchea alias ni enum, el agente debe fallar con error explícito (no 
+inferir). 
+3.8 Lógica del punto 3 (por qué esto es 
+crítico) 
+El sistema depende de joins entre múltiples tablas: 
+ SPOM define % y patrón activo por ruta. 
+ La base de ejercicios etiqueta cada ejercicio por ruta/patrón/nivel/contracción. 
+ Formatos están restringidos por bloque/nivel/%. 
+Sin normalización: 
+ se rompen joins por diferencias como MN/RP vs MN_RP 
+ aparecen duplicados (“FL” vs “Front Lever”) 
+ el agente “inventa” equivalencias (inadmisible) 
+Con este punto, la generación pasa de “texto interpretado” a “sistema tipado”. 
+Punto 4 — Esquema de salida (contrato obligatorio del 
+agente) 
+Objetivo del punto 
+Definir un output contract mínimo, cerrado y validable. El agente debe emitir estos campos 
+sí o sí para que: 
+ se pueda renderizar a PDF/Sheets 
+ se pueda auditar (trace) 
+ se pueda validar con reglas (tests) 
+ se pueda re-generar idéntico (reproducibilidad) 
+4.1 Formato de salida recomendado 
+Formato primario: JSON (estructurado) 
+Formato secundario: CSV/Sheet derivable (flatten) 
+Formato terciario: PDF (render del JSON) 
+La “verdad” es el JSON. 
+4.2 Contrato mínimo: WeekPlan 
+{ 
+"schema_version": "v1", 
+"week_plan_id": "WP-19-2025-12-22-<hash>", 
+"week_id": 19, 
+"start_date": "2025-12-22", 
+"timezone": "-03:00", 
+"days_order": ["MON","TUE","WED","THU","FRI","SAT"], 
+"level_groups": ["ALFA_DELTA","SIGMA","OMEGA"], 
+"data_version": { 
+"spom_version": "YYYY-MM", 
+    "rotator_version": "YYYY-MM", 
+    "exercise_db_version": "YYYY-MM", 
+    "formats_version": "YYYY-MM", 
+    "rules_version": "v1", 
+    "source_hash": "<sha256-of-inputs-or-bundle>" 
+  }, 
+ 
+  "generation_meta": { 
+    "generator": "agent_name_or_id", 
+    "seed": 12345, 
+    "generated_at": "ISO8601", 
+    "mode": "FULL_WEEK" 
+  }, 
+ 
+  "day_plans": [ 
+    { "day_plan_id": "DP-...", "day_code": "MON", "level_group": 
+"ALFA_DELTA", "blocks": [] } 
+  ], 
+ 
+  "global_validation": { 
+    "status": "PASS|WARN|FAIL", 
+    "errors": [], 
+    "warnings": [] 
+  } 
+} 
+ 
+Campos obligatorios (WeekPlan) 
+ schema_version, week_plan_id 
+ 
+ week_id, start_date, timezone 
+ 
+ days_order, level_groups 
+ 
+ data_version.* (mínimo: source_hash) 
+ 
+ generation_meta.generator, seed, generated_at 
+ 
+ day_plans[] 
+ 
+ global_validation.status 
+ 
+ 
+4.3 Contrato: DayPlan (por día y grupo 
+de nivel) 
+{ 
+  "day_plan_id": "DP-19-MON-ALFA_DELTA", 
+  "week_id": 19, 
+  "day_code": "MON", 
+  "day_name": "Lunes", 
+  "level_group": "ALFA_DELTA", 
+ 
+  "blocks_order": 
+["INITIUM","NUCLEUS","DEUTEROS_1","DEUTEROS_2","ATHLOS_EPIKOS"], 
+ 
+  "day_constraints": { 
+    "primary_focus": "SUP|INF|null", 
+    "notes": null 
+  }, 
+ 
+  "blocks": [ 
+    { "block_id": "BP-...", "block_type": "NUCLEUS", "...": "..." } 
+  ], 
+ 
+  "day_validation": { 
+    "status": "PASS|WARN|FAIL", 
+    "errors": [], 
+    "warnings": [] 
+  } 
+} 
+ 
+Campos obligatorios (DayPlan) 
+ day_plan_id, week_id, day_code, level_group 
+ 
+ blocks_order 
+ 
+ blocks[] (incluye NUCLEUS) 
+ 
+ day_validation.status 
+ 
+ 
+4.4 Contrato: BlockPlan (unidad crítica) 
+{ 
+  "block_id": "BP-19-MON-ALFA_DELTA-NUCLEUS", 
+  "week_id": 19, 
+  "day_code": "MON", 
+  "level_group": "ALFA_DELTA", 
+  "block_type": "NUCLEUS", 
+ 
+  "route": { 
+    "route_code": "FL", 
+    "route_display": "Front Lever" 
+  }, 
+ 
+  "spom": { 
+    "spom_intensity_pct": 95, 
+    "pattern_active": "SUP_PULL", 
+    "pattern_display": "SUP PULL", 
+    "category_scope": "SPECIFIC|SEMI|GENERAL", 
+    "spom_source_ref": "SPOM:week19:FL" 
+  }, 
+ 
+  "budget": { 
+    "reps_budget": 10, 
+    "duration_budget_sec": null, 
+    "exercise_count_target": { "min": 2, "max": 3 }, 
+    "difficulty_bucket": 1 
+  }, 
+ 
+  "contraction_target": { 
+    "CON": 0, 
+    "EXC": 1, 
+    "ISO": 2, 
+    "tolerance": { "CON": 0, "EXC": 0, "ISO": 0 } 
+  }, 
+ 
+  "format": { 
+    "format_code": "TEMPO_SETS", 
+    "format_display": "Tempo Sets", 
+    "params": { 
+      "sets": 3, 
+      "rounds": null, 
+      "work_sec": null, 
+      "rest_sec": 60, 
+      "ladder": null, 
+      "notes": null 
+    }, 
+    "format_source_ref": "FORMATS:TEMPO_SETS" 
+  }, 
+ 
+  "prescriptions": [ 
+    { "level_code": "ALFA", "items": [], "block_totals": {} }, 
+    { "level_code": "DELTA", "items": [], "block_totals": {} } 
+  ], 
+ 
+  "trace": { 
+    "decision_trace_id": "TRACE-...", 
+    "inputs_used": { 
+      "rotator_ref": "ROTATOR:week19", 
+      "spom_ref": "SPOM:week19", 
+      "intensity_table_ref": "INTENSITY:vX", 
+      "format_rules_ref": "FORMATS:vX", 
+      "exercise_db_ref": "EXDB:vX" 
+    }, 
+    "filters_applied": { 
+      "route_code": "FL", 
+      "pattern_active": "SUP_PULL", 
+      "level_group": "ALFA_DELTA", 
+      "difficulty_bucket": 1, 
+      "allowed_contractions": ["EXC","ISO"] 
+    }, 
+    "selection_summary": { 
+      "candidate_count": 34, 
+      "selected_count": 3, 
+      "tie_breakers": ["priority_rank","variety_penalty"] 
+} 
+}, 
+"block_validation": { 
+"status": "PASS|WARN|FAIL", 
+"errors": [], 
+"warnings": [] 
+} 
+} 
+Campos obligatorios (BlockPlan) 
+Identidad 
+ block_id, week_id, day_code, level_group, block_type 
+Intención 
+ route.route_code 
+ spom.spom_intensity_pct 
+ spom.pattern_active 
+ spom.spom_source_ref 
+Planificación 
+ budget.reps_budget o budget.duration_budget_sec (uno debe existir) 
+ budget.exercise_count_target 
+ budget.difficulty_bucket 
+ contraction_target (CON/EXC/ISO) 
+ format.format_code + format.params 
+Ejecución 
+ prescriptions[] (una por nivel del grupo) 
+ 
+Auditoría 
+ trace.inputs_used 
+ 
+ trace.filters_applied 
+ 
+ trace.selection_summary.candidate_count 
+ 
+ block_validation.status 
+ 
+ 
+4.5 Contrato: Prescription (por nivel) 
+{ 
+  "level_code": "ALFA", 
+  "items": [ 
+    { 
+      "exercise_id": "EX-001234", 
+      "exercise_display": "FL STR ISO 3''", 
+      "route_code": "FL", 
+      "category_code": "SUP_PULL", 
+      "subcategory_code": "PULL_STRAIGHT", 
+      "contraction": "ISO", 
+ 
+      "dose": { 
+        "dose_type": "DURATION|REPS", 
+        "duration_sec": 6, 
+        "reps": null 
+      }, 
+ 
+      "rest_sec": 60, 
+      "tempo": null, 
+      "load": null, 
+      "scale": { 
+        "variant": null, 
+        "assistance": null 
+      }, 
+ 
+      "order": 1, 
+      "notes": null 
+    } 
+  ], 
+ 
+  "block_totals": { 
+    "total_reps": 10, 
+    "total_duration_sec": null, 
+    "contraction_counts": { "CON": 0, "EXC": 1, "ISO": 2 } 
+  }, 
+ 
+  "prescription_validation": { 
+    "status": "PASS|WARN|FAIL", 
+    "errors": [], 
+    "warnings": [] 
+  } 
+} 
+ 
+Campos obligatorios (PrescriptionItem) 
+ exercise_id 
+ 
+ route_code 
+ 
+ category_code 
+ 
+ contraction 
+ 
+ dose.dose_type + valor correspondiente 
+ 
+ rest_sec 
+ 
+ order 
+ 
+Campos obligatorios (Prescription) 
+ level_code 
+ 
+ items[] (≥1) 
+ 
+ block_totals.contraction_counts 
+ prescription_validation.status 
+4.6 Reglas de integridad (validación 
+automática) 
+Estas reglas son parte del contrato: si fallan, FAIL. 
+4.6.1 Integridad referencial 
+ Todo exercise_id debe existir en Exercise DB versión exercise_db_version. 
+ Todo route_code en BlockPlan debe existir en catálogo de rutas. 
+ Todo format_code debe existir en catálogo de formatos. 
+4.6.2 Coherencia SPOM 
+ spom_intensity_pct y pattern_active deben coincidir con SPOM para 
+(week_id, route_code). 
+4.6.3 Presupuesto 
+ Si reps_budget: 
+ sum(items.reps) debe cumplir reps_budget ± tolerance_reps 
+ Si duration_budget: 
+ sum(items.duration_sec * sets/rounds etc) debe cumplir 
+duration_budget ± tolerance_time 
+Tolerancias se definen en rules_version. 
+4.6.4 Contracción 
+ block_totals.contraction_counts debe cumplir contraction_target ± 
+tolerance. 
+4.6.5 Cobertura de niveles 
+ Si level_group=ALFA_DELTA: debe existir prescription para ALFA y DELTA. 
+ Si level_group=SIGMA: debe existir prescription para SIGMA. 
+ Si level_group=OMEGA: debe existir prescription para OMEGA. 
+4.7 Lógica del punto 4 (por qué estos 
+campos son “sí o sí”) 
+ Sin spom_source_ref y pattern_active no podés auditar “por qué se eligió 
+esto”. 
+ Sin budget no podés validar volumen/densidad. 
+ Sin contraction_target el agente puede “cumplir” el bloque con cualquier 
+mezcla y degradar el sistema. 
+ Sin format.params el output no es ejecutable. 
+ Sin trace.candidate_count y filters_applied no podés detectar roturas de 
+DB (ej. cuando quedan 0 candidatos por cambios de tags). 
+Punto 5 — Capa Semana (macroestructura) 
+Calendario semanal (Lunes–Sábado: estructura fija) 
+5.1 Propósito lógico de la capa semana 
+La capa semana define el marco temporal rígido dentro del cual el sistema opera. 
+No decide ejercicios, ni formatos, ni intensidades: 
+�
+�
+decide distribución y orden, para que el resto del sistema pueda ser determinista. 
+En términos de ingeniería: 
+La semana es un contenedor estructural invariante que garantiza: 
+ balance de estímulos 
+ neutralidad frente a asistencia parcial 
+ repetibilidad del método 
+5.2 Definición formal del calendario semanal 
+5.2.1 Días operativos 
+WEEK_DAYS = [MON, TUE, WED, THU, FRI, SAT] 
+ La semana tiene 6 días activos 
+ El domingo queda fuera del sistema (descanso implícito) 
+ El orden es fijo y no negociable 
+{ 
+} 
+"days_order": ["MON","TUE","WED","THU","FRI","SAT"] 
+5.3 Invariantes de la semana 
+Estas reglas nunca se rompen, independientemente del SPOM o de la planificación 
+puntual. 
+5.3.1 Invariantes estructurales 
+1. Cada día contiene una sesión completa 
+2. Cada sesión contiene los mismos bloques base (ver punto siguiente) 
+3. La semana contiene exactamente: 
+ 6 sesiones 
+ 6 Nucleus 
+ 6 Athlos/Epikós 
+5.4 Distribución primaria de estímulo (macro regla) 
+La semana se divide en dos grandes dominios: 
+SUPERIOR (SUP) 
+INFERIOR (INF) 
+Regla central (hard rule) 
+En una semana completa: - 3 días tienen NUCLEUS SUPERIOR - 3 días tienen NUCLEUS INFERIOR 
+Esto se expresa en el DayPlan: 
+{ 
+} 
+o 
+{ 
+"day_constraints": { 
+"primary_focus": "SUP" 
+} 
+"day_constraints": { 
+"primary_focus": "INF" 
+} 
+} 
+5.5 Lógica detrás del 3 / 3 (razón de sistema) 
+Esta regla no es fisiológica solamente, es sistémica. 
+Problema a resolver 
+Los alumnos no asisten todos los días. 
+Si la semana fuera: 
+ Lunes a miércoles: superior 
+ Jueves a sábado: inferior 
+�
+�
+alguien que entrena lunes, miércoles y viernes tendría un sesgo brutal. 
+Solución del sistema 
+Distribución intercalada y no trivial de SUP / INF. 
+Resultado: 
+ Cualquier combinación de 2–4 días tiene alta probabilidad de estímulo balanceado. 
+ El sistema es robusto a asistencia parcial. 
+5.6 Distribución concreta (plantilla semanal) 
+⚠
+Importante: 
+El sistema no fija días absolutos SUP/INF, fija reglas de distribución. 
+Ejemplo válido (uno de muchos): 
+MON  → SUP 
+TUE  → INF 
+WED  → SUP 
+THU  → INF 
+FRI  → SUP 
+SAT  → INF 
+Ejemplo alternativo (también válido): 
+MON  → INF 
+TUE  → SUP 
+WED  → INF 
+THU  → SUP 
+FRI  → INF 
+SAT  → SUP 
+Regla: 
+ El patrón puede rotar semana a semana 
+ Pero siempre se cumple 3/3 
+5.7 Relación con SPOM (muy importante) 
+La capa semana NO decide qué ruta va cada día. 
+Hace esto: 
+1. Marca cada día como SUP o INF (macro) 
+2. El rotador semanal + SPOM asignan rutas compatibles 
+Ejemplo lógico: 
+if day.primary_focus == SUP: 
+allowed_routes ⊆ SPOM.routes where category == SUP 
+Nunca al revés. 
+5.8 Interacción con grupos de nivel 
+La macroestructura semanal es común a todos los niveles. 
+Esto significa: 
+ Lunes es SUP para: 
+ 
+ ALFA_DELTA 
+ 
+ SIGMA 
+ 
+ OMEGA 
+ 
+Lo que cambia entre niveles: 
+ la ruta exacta 
+ 
+ la intensidad 
+ 
+ el scope 
+ 
+ la prescripción 
+ 
+Pero no el foco macro del día. 
+ 
+5.9 Representación mínima en datos 
+{ 
+  "week_structure": { 
+    "days": [ 
+      { "day_code": "MON", "primary_focus": "SUP" }, 
+      { "day_code": "TUE", "primary_focus": "INF" }, 
+      { "day_code": "WED", "primary_focus": "SUP" }, 
+      { "day_code": "THU", "primary_focus": "INF" }, 
+      { "day_code": "FRI", "primary_focus": "SUP" }, 
+      { "day_code": "SAT", "primary_focus": "INF" } 
+    ] 
+  } 
+} 
+ 
+ 
+5.10 Qué NO hace esta capa (límites claros) 
+La capa semana NO: 
+ elige rutas específicas 
+ elige intensidades 
+ elige ejercicios 
+ decide formatos 
+ ajusta volumen 
+Solo: 
+ estructura el tiempo 
+ balancea dominios 
+ habilita al resto del sistema 
+5.11 Lógica del punto 5 (resumen) 
+ La semana es una plantilla rígida 
+ El 3/3 SUP–INF es un invariante 
+ La distribución es anti-sesgo 
+ Todos los niveles comparten el mismo esqueleto 
+ Todo lo demás cuelga de esta capa 
+Punto 6 — Distribución de enfoque superior / inferior 
+Regla 3/3 + mecanismo anti-sesgo por asistencia 
+6.1 Propósito lógico del punto 
+Este punto define cómo se asigna el foco SUP / INF a cada día de la semana de forma 
+que: 
+ se cumpla el balance fisiológico mínimo 
+ el sistema sea robusto a asistencia parcial 
+ no exista dependencia de “qué días viene el alumno” 
+ el SPOM pueda operar sin crear sesgos ocultos 
+En términos de sistema: 
+Esta capa resuelve el problema de distribución temporal del estímulo, no de 
+contenido. 
+6.2 Regla primaria (hard rule) 
+En toda semana válida: - 3 días deben ser SUP (superior dominante) - 3 días deben ser INF (inferior dominante) 
+Esto es invariante, no negociable. 
+6.3 Definición formal de “día SUP / INF” 
+Un día se define como SUP o INF exclusivamente por el bloque NUCLEUS. 
+day.primary_focus =  
+SUP  ⇔ NUCLEUS ∈ categorías SUP 
+INF  ⇔ NUCLEUS ∈ categorías INF 
+�
+�
+Initium, Deuteros y Athlos/Epikós NO definen el foco del día. 
+6.4 Qué problema real resuelve (modelo de asistencia) 
+Suposición base (realista) 
+ Los alumnos: 
+ no vienen 6/6 
+ suelen venir 2–4 días 
+ eligen días “por conveniencia”, no por diseño 
+Si NO existiera esta regla 
+Ejemplo malo: 
+MON–WED → SUP 
+THU–SAT → INF 
+Un alumno que entrena: 
+ MON + WED + FRI 
+→ 2 SUP + 1 INF (sesgo) 
+ TUE + THU 
+→ 1 SUP + 1 INF (ok) 
+ MON + TUE 
+→ 2 SUP (sesgo) 
+�
+�
+el sistema se rompe por patrón de asistencia. 
+6.5 Regla anti-sesgo (principio central) 
+La distribución SUP / INF debe cumplir: 
+Para cualquier subconjunto de días de tamaño 2 a 4, 
+la probabilidad de recibir solo SUP o solo INF debe ser mínima. 
+En términos prácticos: 
+ No agrupar SUP consecutivos más allá de lo estrictamente necesario 
+ Intercalar SUP / INF 
+ Evitar patrones triviales (3 seguidos iguales) 
+6.6 Restricciones estructurales de distribución 
+Definimos un conjunto de restricciones duras: 
+R1 — Cardinalidad 
+count(SUP) = 3 
+count(INF) = 3 
+R2 — Separación 
+No pueden existir 3 días consecutivos con el mismo foco. 
+(2 consecutivos pueden existir, 3 no) 
+R3 — Cobertura temprana 
+En los primeros 3 días de la semana 
+debe haber al menos 1 SUP y 1 INF. 
+Esto protege a: 
+ alumnos que entrenan solo L–M–X 
+R4 — Cobertura tardía 
+En los últimos 3 días de la semana 
+debe haber al menos 1 SUP y 1 INF. 
+Protege a: 
+ alumnos que entrenan J–V–S 
+6.7 Plantillas válidas (espacio de soluciones) 
+Bajo estas reglas, no todas las combinaciones 3/3 son válidas. 
+Ejemplos válidos 
+SUP – INF – SUP – INF – SUP – INF 
+INF – SUP – INF – SUP – INF – SUP 
+SUP – INF – INF – SUP – SUP – INF 
+INF – SUP – SUP – INF – INF – SUP 
+Ejemplos inválidos 
+SUP – SUP – SUP – INF – INF – INF  
+❌
+ (R2) 
+SUP – SUP – INF – INF – SUP – INF  
+❌
+ (R3 violada) 
+INF – INF – SUP – SUP – INF – SUP  
+❌
+ (R3 violada) 
+6.8 Selección de plantilla (determinismo) 
+El sistema debe: 
+1. Tener un pool finito de plantillas válidas 
+2. Elegir una por semana según: 
+ week_id 
+ seed 
+ (opcional) rotación histórica 
+Ejemplo: 
+templates = VALID_SUP_INF_TEMPLATES 
+index = hash(week_id + seed) % templates.length 
+week_template = templates[index] 
+Esto garantiza: 
+ variabilidad semanal 
+ 
+ reproducibilidad 
+ 
+ ausencia de arbitrariedad 
+ 
+ 
+6.9 Relación con el Rotador Semanal 
+Importante: 
+ Esta capa NO asigna rutas 
+ 
+ Solo habilita dominios 
+ 
+if day.primary_focus == SUP: 
+  rotator.allowed_routes ⊆ {routes with category SUP} 
+else: 
+  rotator.allowed_routes ⊆ {routes with category INF} 
+ 
+El rotador decide: 
+ qué ruta exacta 
+ 
+ para qué nivel 
+ 
+ con qué intensidad 
+ 
+ 
+6.10 Representación mínima en datos 
+{ 
+  "week_focus_distribution": { 
+    "rule": "3_SUP_3_INF", 
+    "template_id": "ALT_01", 
+    "days": [ 
+      { "day": "MON", "focus": "SUP" }, 
+      { "day": "TUE", "focus": "INF" }, 
+      { "day": "WED", "focus": "SUP" }, 
+      { "day": "THU", "focus": "INF" }, 
+      { "day": "FRI", "focus": "SUP" }, 
+      { "day": "SAT", "focus": "INF" } 
+    ] 
+  } 
+} 
+ 
+ 
+6.11 Invariantes del punto 6 
+ El foco del día se define solo por NUCLEUS 
+ 
+ Siempre hay 3 SUP y 3 INF 
+ 
+ No hay 3 días iguales consecutivos 
+ 
+ Cualquier patrón de asistencia común queda cubierto 
+ 
+ Esta capa no conoce SPOM, solo dominios 
+ 
+ 
+6.12 Lógica del punto 6 (resumen) 
+ El sistema no asume asistencia perfecta 
+ 
+ La semana está diseñada para usuarios incompletos 
+ 
+ La regla 3/3 no es estética, es arquitectónica 
+ 
+ La intercalación es una defensa contra el azar humano 
+ 
+ Todo el sistema posterior depende de esta estabilidad 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Punto 7 — Rotador semanal 
+Cómo determina rutas por día y por nivel/grupo (especificación “a 
+fondo” + lógica) 
+7.1 Definición: qué es el Rotador 
+Semanal 
+El Rotador Semanal es un dataset/regla que, para una semana week_id, define la 
+asignación de RUTAS a los bloques por día y por grupo de nivel. 
+En términos de contrato: 
+Rotador = función determinista 
+Rotator(week_id) -> WeekRouteMatrix 
+Donde WeekRouteMatrix es una matriz que mapea: 
+ (day_code, level_group, block_type) -> route_code 
+Ejemplo real (Semana 19) en tu tabla “Planificación por Nivel”: 
+Para Lunes: 
+ ALFA/DELTA: NUCLEUS=FL, DEUTEROS_1=DS, DEUTEROS_2=HSPU, 
+ATHLOS/EPIKOS=PS 
+ SIGMA: NUCLEUS=FL, DEUTEROS_1=OAP, DEUTEROS_2=DS, ATHLOS/EPIKOS=HT 
+ OMEGA: NUCLEUS=FL, DEUTEROS_1=OAP, DEUTEROS_2=HSPU, 
+ATHLOS/EPIKOS=MN/RP 
+[Planificaciones] - Semana 19 -… 
+[Planificaciones] - Semana 19 -… 
+7.2 Rol exacto del Rotador en el pipeline 
+El Rotador opera antes de: 
+ SPOM (intensidad/patrón) 
+ presupuesto por intensidad 
+ contracción 
+ formato 
+ selección de ejercicios 
+Orden obligatorio (solo la parte relevante): 
+1. week_focus_distribution (SUP/INF por día; Punto 6) 
+2. Rotador asigna rutas por (día, nivel, bloque) 
+3. SPOM resuelve % y patrón activo por cada ruta asignada 
+[Planificaciones] - Semana 19 -… 
+Invariante: el rotador no decide intensidades; solo rutas. 
+7.3 Estructura de datos canónica: 
+WeekRouteMatrix 
+{ 
+"week_id": 19, 
+"rotator_version": "YYYY-MM", 
+"days": ["MON","TUE","WED","THU","FRI","SAT"], 
+"level_groups": ["ALFA_DELTA","SIGMA","OMEGA"], 
+"blocks": ["NUCLEUS","DEUTEROS_1","DEUTEROS_2","ATHLOS_EPIKOS"], 
+"matrix": { 
+"MON": { 
+"ALFA_DELTA": 
+{"NUCLEUS":"FL","DEUTEROS_1":"DS","DEUTEROS_2":"HSPU","ATHLOS_EPIKOS
+":"PS"}, 
+"SIGMA":      
+{"NUCLEUS":"FL","DEUTEROS_1":"OAP","DEUTEROS_2":"DS","ATHLOS_EPIKOS"
+:"HT"}, 
+"OMEGA":      
+{"NUCLEUS":"FL","DEUTEROS_1":"OAP","DEUTEROS_2":"HSPU","ATHLOS_EPIKO
+S":"MN_RP"} 
+} 
+} 
+} 
+Normalización obligatoria: rutas como MN/RP deben emitirse como MN_RP (canónico), 
+manteniendo display "MN/RP" para UI (Punto 3). 
+7.4 Cómo “determina” rutas: reglas 
+internas del Rotador 
+7.4.1 Regla base: tabla por semana (lookup) 
+En tu implementación actual, el rotador parece ser tabla (no generativo). 
+La lógica es: 
+route = WeekRouteMatrix[week_id][day][level_group][block_type] 
+Esto está explícito en el documento de Semana 19: por cada día y nivel aparecen 4 rutas 
+(Nucleus, Deuteros1, Deuteros2, Athlos/Epikós). 
+[Planificaciones] - Semana 19 -… 
+7.4.2 Regla de consistencia con foco SUP/INF (Punto 6) 
+El rotador debe respetar el primary_focus del día: 
+ si day.primary_focus = SUP ⇒ NUCLEUS debe ser ruta con categoría superior 
+(SUP PUSH o SUP PULL) 
+ si day.primary_focus = INF ⇒ NUCLEUS debe ser ruta inferior (INF RODILLA o 
+INF CADERA) 
+Esto se valida usando el SPOM (que etiqueta categoría/patrón activo de cada ruta). 
+[Planificaciones] - Semana 19 -… 
+Validator: 
+assert category(NUCLEUS.route_code, week_id) ∈ 
+allowed_categories_for_focus(day.primary_focus) 
+7.4.3 Regla de cardinalidad de rutas por sesión 
+En el rotador semanal, por cada (day, level_group) se asignan exactamente: 
+ 1 ruta para NUCLEUS 
+ 1 ruta para DEUTEROS_1 
+ 1 ruta para DEUTEROS_2 
+ 1 ruta para ATHLOS_EPIKOS 
+Ejemplo Lunes Semana 19 cumple ese patrón en los tres grupos. 
+[Planificaciones] - Semana 19 -… 
+7.5 Cómo varía “por nivel/grupo” 
+El rotador no usa el mismo set de rutas para todos los niveles. Observación estructural en 
+Semana 19: 
+ NUCLEUS puede mantenerse igual entre niveles (ej. Lunes: FL en los tres grupos). 
+[Planificaciones] - Semana 19 -… 
+ Los Deuteros y Athlos/Epikós se desplazan para: 
+ ajustar carga neural 
+ ajustar complejidad técnica 
+ mantener balance de patrones dentro del nivel 
+Esto se ve en Lunes: 
+ ALFA/DELTA: DEUTEROS_1=DS, DEUTEROS_2=HSPU, ATHLOS=PS 
+ SIGMA: cambia a DEUTEROS_1=OAP y ATHLOS=HT 
+ OMEGA: ATHLOS=MN/RP (ruta superior compleja) 
+[Planificaciones] - Semana 19 -… 
+Regla operativa inferida (para codificar): 
+ NUCLEUS tiende a ser “anchor” semanal del patrón 
+ DEUTEROS_* y ATHLOS_EPIKOS ajustan: 
+ exposición técnica por nivel 
+ complementariedad mecánica 
+ variación semanal sin romper foco 
+7.6 Relación Rotador ↔ SPOM (unión 
+obligatoria) 
+El rotador produce solo route_code. 
+Luego SPOM resuelve para esa semana y ruta: 
+ spom_intensity_pct 
+ pattern_active 
+ category 
+ scope descriptor (general/específico) 
+Ejemplo Semana 19 (SPOM): 
+ FL 95 (SUP PULL) 
+ PL 95 (SUP PUSH) 
+ PS 95 (INF RODILLA) 
+ HT 65 (INF CADERA) 
+ OAP 65 (SUP PULL) 
+[Planificaciones] - Semana 19 -… 
+Join determinista: 
+spom_entry = SPOM[week_id][route_code] 
+Invariante: toda ruta del rotador debe existir en SPOM para esa semana. Si no existe ⇒ 
+FAIL. 
+7.7 Reglas de calidad del rotador 
+(validaciones duras) 
+7.7.1 Validación de cobertura 
+Para cada week_id: 
+ existen 6 días × 3 level_groups × 4 bloques = 72 celdas (si no hay excepciones) 
+ ninguna celda es null 
+7.7.2 Validación de pertenencia al catálogo 
+ cada route_code ∈ catálogo de rutas 
+7.7.3 Validación de SPOM 
+ cada route_code tiene SPOM entry para esa semana 
+[Planificaciones] - Semana 19 -… 
+7.7.4 Validación de foco del día 
+ categoría de Nucleus coincide con primary_focus (Punto 6) 
+7.7.5 Validación de diversidad mínima semanal (por 
+level_group) 
+Regla recomendada (para evitar semanas degeneradas): 
+ no repetir la misma ruta como Nucleus más de K veces por semana dentro del 
+mismo level_group 
+ o garantizar cobertura de al menos N rutas distintas por patrón 
+(K y N se fijan en rules_version; esta regla es opcional pero útil para detectar errores 
+de rotador.) 
+7.8 Política de resolución cuando hay 
+conflicto (si el sistema evoluciona) 
+Si en el futuro el rotador se vuelve semi-generativo, necesitás prioridad: 
+1. Hard constraints: foco SUP/INF, existencia en SPOM, cobertura de bloques 
+2. Rotator matrix (si está presente) manda sobre heurística 
+3. Heurística (solo si faltan celdas en la matriz) 
+Para el estado actual (tu Semana 19), se asume modo tabla completa. 
+7.9 Salida específica que debe emitir el 
+agente (parte del trace) 
+Por cada BlockPlan, el agente debe incluir: 
+ rotator_source_ref = 
+"ROTATOR:week19:<day>:<level_group>:<block_type>" 
+ route_code asignado por rotador 
+ rotator_validation (PASS/FAIL) 
+Esto permite auditar: “esta ruta vino del rotador, no fue inventada”. 
+7.10 Lógica del Punto 7 (resumen 
+funcional) 
+ El rotador define qué rutas se entrenan: 
+ por día 
+ por nivel/grupo 
+ por bloque (Nucleus/Deuteros/Athlos) 
+ El rotador NO define: 
+ intensidades 
+ scope 
+ ejercicios 
+ El rotador debe ser validado contra: 
+ foco SUP/INF (Punto 6) 
+ SPOM (existencia + categoría) 
+[Planificaciones] - Semana 19 -… 
+ Es la capa que fija el “guion semanal” antes de que SPOM y la DB armen el “detalle 
+ejecutable”. 
+Punto 8 — Jerarquía por grupos de nivel 
+Alfa/Delta, Sigma, Omega: por qué y cómo se hereda/varía (a fondo, 
+estructural) 
+8.1 Definición: qué es “grupo de nivel” 
+en el sistema 
+Un grupo de nivel es una partición operativa que define: 
+1. Qué niveles reciben prescripción dentro de un mismo output 
+2. Qué variaciones del rotador aplican (rutas por bloque) 
+3. Qué grado de complejidad se permite en: 
+ formatos 
+ contracciones 
+ especificidad del scope 
+ progresiones/regresiones 
+En tu implementación actual aparecen 3 grupos: 
+LEVEL_GROUP ∈ { ALFA_DELTA, SIGMA, OMEGA } 
+Y dentro de cada grupo se emiten prescripciones mínimas: 
+ ALFA_DELTA ⇒ niveles {ALFA, DELTA} 
+ SIGMA ⇒ nivel {SIGMA} 
+ OMEGA ⇒ nivel {OMEGA} 
+8.2 Propósito lógico (por qué existen 
+grupos y no niveles aislados) 
+8.2.1 Razón de sistema (rendimiento y mantenibilidad) 
+Planificar por nivel individual (6 niveles × 6 días × 4 bloques) escala mal. 
+Agrupar permite: 
+ reutilizar decisiones a nivel bloque (ruta, % SPOM, patrón, presupuesto) 
+ variar solo lo que cambia realmente (ejercicios/dosis) 
+ mantener la clase ejecutable para grupos de alumnos 
+8.2.2 Razón operativa (clase con muchas personas) 
+En una clase real: 
+ Alfa y Delta comparten la mayoría de estructura (misma ruta/bloque) 
+ Sigma ya necesita un set más “técnico” 
+ Omega necesita exposición avanzada y a veces rutas distintas de soporte 
+Por eso el rotador lista explícitamente “Planificación por Nivel” en 3 columnas/grupos. 
+[Planificaciones] - Semana 19 -… 
+8.3 Qué se hereda y qué puede variar 
+(contrato de herencia) 
+Definimos una regla de herencia por capa: 
+8.3.1 Invariantes compartidos por todos los grupos (no 
+varían) 
+ Semana: calendario y foco SUP/INF (Puntos 5–6) 
+ Estructura de bloques por día (Initium/Nucleus/Deuteros/Athlos) 
+ SPOM por semana y por ruta (si la ruta es la misma) 
+8.3.2 Campos heredables (mismo valor a través de 
+grupos) 
+Si un bloque tiene la misma ruta en varios grupos, entonces estos campos se heredan: 
+ route_code 
+ spom_intensity_pct (vía SPOM) 
+ pattern_active (vía SPOM) 
+ budget derivado de % 
+ contraction_target derivado de % 
+Ejemplo: Lunes Nucleus = FL en los 3 grupos en Semana 19. Por lo tanto % y patrón activos 
+son los mismos para esos bloques. 
+[Planificaciones] - Semana 19 -… 
+[Planificaciones] - Semana 19 -… 
+8.3.3 Campos que típicamente varían por grupo 
+(aunque ruta sea igual) 
+ format (Omega puede usar formatos más técnicos) 
+ selección de ejercicios (Omega usa variantes más cercanas al gesto final) 
+ parámetros de prescripción (densidad, descanso, duración) 
+ tolerancias de validación (Omega puede tolerar menos “generalidad”) 
+8.3.4 Campos que pueden variar porque la ruta cambia 
+Cuando el rotador asigna rutas distintas por grupo, cambia todo el branch: 
+ SPOM entry 
+ patrón/categoría 
+ presupuesto y contracción target 
+ formatos y ejercicios 
+Esto se ve en Lunes Semana 19: Deuteros/Athlos cambian entre grupos. 
+[Planificaciones] - Semana 19 -… 
+8.4 Reglas de variación por grupo 
+(política del sistema) 
+Definimos reglas deterministas: qué está permitido que cambie. 
+8.4.1 Regla G1 — Complejidad permitida 
+Cada grupo tiene un “cap” de complejidad. 
+ALFA_DELTA: complejidad baja/estándar 
+SIGMA: complejidad media (técnica controlada) 
+OMEGA: complejidad alta (técnica específica) 
+Esto afecta: 
+ formatos permitidos 
+ densidad 
+ exposición excéntrica/isométrica avanzada 
+ cercanía al gesto final (scope específico) 
+8.4.2 Regla G2 — Especificidad mínima por grupo 
+Dado que vos definís scope por % de intensidad, el grupo define el “mínimo técnico” dentro 
+del scope. 
+Ejemplo si % = 65 (GENERAL): 
+ ALFA_DELTA: usar ejercicios en categoría general o semi-general 
+ SIGMA: sesgar a subcategorías relevantes (horizontal/vertical, knee/hip) 
+ OMEGA: sesgar a familias técnicas (bent/straight; glúteo/isquio) aunque siga siendo 
+“general” 
+Formal: 
+allowed_scope = scope_from_pct(pct) 
+preferred_scope_min_by_group = {ALFA_DELTA: GENERAL, SIGMA: SEMI, 
+OMEGA: SEMI} 
+selection ranks prefer closest-to-route within allowed_scope 
+8.4.3 Regla G3 — Contracción: progresión por grupo 
+La mezcla CON/EXC/ISO viene de %, pero el grupo define “qué variante” dentro de cada 
+contracción. 
+Ejemplo ISO: 
+ ALFA: ISO con asistencia / posiciones fáciles 
+ DELTA: ISO intermedio 
+ SIGMA: ISO con palancas más largas / control 
+ OMEGA: ISO final o near-final 
+Formal: 
+for each required contraction type: 
+choose exercises where exercise.level == target_level 
+and difficulty_bucket matches 
+8.4.4 Regla G4 — Athlos/Epikós: libertad controlada 
+Athlos/Epikós es el bloque donde más varía por grupo. 
+Motivo: 
+ En Omega, el “cierre” puede incluir rutas avanzadas (ej. MN/RP). 
+ En Alfa/Delta, el cierre tiende a ser más accesible, incluso si la semana tiene rutas 
+complejas. 
+Ejemplo: Lunes OMEGA Athlos = MN/RP, mientras ALFA/DELTA Athlos = PS. 
+[Planificaciones] - Semana 19 -… 
+Esto sugiere una regla práctica: 
+ ATHLOS_EPIKOS puede ser: 
+ ruta inferior para Alfa/Delta (robusta, accesible) 
+ ruta superior avanzada para Omega (si el sistema lo define) 
+8.5 Herencia formal (modelo “base + 
+overrides”) 
+Para implementación limpia, el agente debe usar: 
+1. BlockTemplate (base común por día/bloque) 
+2. GroupOverride (cambios por level_group) 
+3. LevelPrescription (variación dentro del grupo) 
+8.5.1 Estructura sugerida 
+{ 
+} 
+"block_template": { 
+"day_code": "MON", 
+"block_type": "NUCLEUS", 
+"route_code_base": "FL" 
+}, 
+"group_overrides": { 
+"ALFA_DELTA": {"route_code": "FL"}, 
+"SIGMA": {"route_code": "FL"}, 
+"OMEGA": {"route_code": "FL"} 
+}, 
+"level_prescriptions": { 
+"ALFA": {"...": "..."}, 
+"DELTA": {"...": "..."} 
+} 
+Cuando el rotador cambia la ruta por grupo, el override cambia route_code. 
+8.6 Validaciones específicas por grupo 
+(hard rules) 
+8.6.1 Cobertura de niveles 
+ ALFA_DELTA: deben existir prescripciones para ambos niveles 
+ SIGMA: debe existir SIGMA 
+ OMEGA: debe existir OMEGA 
+8.6.2 Límite de complejidad por grupo 
+El agente debe validar que: 
+ formatos usados ∈ formatos permitidos para ese grupo 
+ ejercicios seleccionados no exceden “difficulty_bucket + level” 
+Ejemplo (regla): 
+assert exercise.level <= max_level_allowed(level_group) 
+8.6.3 Coherencia de rotador 
+Si el rotador especifica rutas distintas por grupo, el agente no puede “alinearlas”. 
+Debe respetar exactamente la matriz del rotador. 
+[Planificaciones] - Semana 19 -… 
+8.7 Lógica del punto 8 (resumen) 
+ Los grupos existen para escala + operación 
+ La herencia funciona así: 
+ macroestructura común 
+ rotador puede variar rutas por grupo 
+ si la ruta coincide, SPOM/budget/contracción se heredan 
+ lo que cambia es formato, ejercicio y dosis (según complejidad del grupo) 
+ Athlos/Epikós es el bloque con más libertad de variación por grupo 
+ Implementación recomendada: base + overrides + prescripciones por nivel 
+Punto 9 — SPOM (motor de periodización) 
+Qué es una entrada SPOM (week_id, route, pct, patrón activo, categoría) 
+— a fondo, formal 
+9.1 Definición formal: “entrada SPOM” 
+Una entrada SPOM es un registro canónico que, para una semana y una ruta, define el 
+perfil de estímulo asociado a esa ruta en esa semana. 
+Contrato: 
+SPOMEntry = f(week_id, route_code) 
+retorna un paquete de propiedades que gobierna toda la planificación de esa 
+ruta durante esa semana. 
+Ejemplo real en tu Semana 19 (tabla SPOM): PL 95, HSPU 95, PHS 65, OAPU 65, FL 95, 
+TTB 95, PS 95, SU 95, etc. 
+[Planificaciones] - Semana 19 -… 
+9.2 Identidad y claves 
+9.2.1 Clave primaria (compuesta) 
+SPOM_KEY = (week_id, route_code) 
+ week_id (int) 
+ route_code (string canónica, Punto 3) 
+Ejemplo: (19, "FL") 
+9.2.2 Invariante de unicidad 
+Para un mismo (week_id, route_code) debe existir exactamente una entrada SPOM. 
+Si hay 0 o >1: 
+ 0 ⇒ FAIL (no se puede planificar) 
+ 1 ⇒ FAIL (ambiguo) 
+9.3 Campos obligatorios de una entrada 
+SPOM (mínimo viable) 
+Basado en tu tabla “SPOM” en Semana 19, una entrada SPOM tiene al menos: 
+{ 
+"week_id": 19, 
+"route_code": "FL", 
+"intensity_pct": 95, 
+"pattern_descriptor": "FL", 
+"pattern_active": "SUP_PULL", 
+"category": "SUP_PULL", 
+"route_name": "Front Lever" 
+} 
+En la tabla SPOM se observan explícitamente: 
+ Semana 
+ Ruta 
+ Intensidad 
+ Patrón 
+ Patrón Activo 
+ Categoría 
+ Ruta Nombre 
+[Planificaciones] - Semana 19 -… 
+Campos obligatorios (hard) 
+ week_id 
+ route_code 
+ intensity_pct 
+ pattern_active 
+ category 
+Campos opcionales (pero recomendados) 
+ pattern_descriptor (ej. “Planche específico”, “General Pull (horizontal + 
+vertical)”) 
+ route_name 
+9.4 Semántica de cada campo (qué 
+significa realmente) 
+9.4.1 intensity_pct 
+No representa “% de 1RM”. Representa el grado de exigencia y especificidad de esa ruta 
+en esa semana. 
+Se usa para derivar: 
+ presupuesto de reps/volumen por bloque (tabla intensidad) 
+ rango de dificultad 
+ cantidad de ejercicios por bloque 
+ mezcla de contracciones permitidas y objetivo 
+ compatibilidad de formatos 
+ scope de categorías permitidas (general vs específico) 
+Invariante: intensity_pct proviene exclusivamente de SPOM, nunca se “ajusta” en 
+runtime. 
+9.4.2 pattern_active 
+Es el macro-dominio biomecánico (y llave de unión con DB): 
+Valores observables en tu SPOM: 
+ SUP PUSH 
+ SUP PULL 
+ INF RODILLA 
+ INF CADERA 
+[Planificaciones] - Semana 19 -… 
+Normalizado (Punto 3): 
+ SUP_PUSH, SUP_PULL, INF_RODILLA, INF_CADERA 
+Función operativa: restringe el conjunto de ejercicios a un árbol de categorías. 
+9.4.3 category 
+En tu tabla se repite como columna “Categoría Ruta” y coincide con patrón activo (SUP 
+PUSH/PULL/INF...). 
+[Planificaciones] - Semana 19 -… 
+Regla de implementación recomendada: 
+ Tratar category como redundante/derivable de pattern_active 
+ Mantenerla igual para compatibilidad/trace 
+ Si difieren ⇒ FAIL (datos corruptos) 
+9.4.4 pattern_descriptor (Patrón) 
+Es el texto que describe el scope técnico (generalidad/especificidad) dentro del árbol de 
+categorías. 
+Ejemplos de Semana 19: 
+ “Planche específico” 
+ “HSPU específico” 
+ “General Pull (horizontal + vertical)” 
+ “Push Horizontal” 
+ “Hip Dominant” 
+ “Sentadilla” 
+[Planificaciones] - Semana 19 -… 
+Función operativa: mapear a subcategorías y/o scope_code. 
+9.5 Tipos de SPOMEntry (clasificación 
+interna) 
+Para que un agente no dependa de texto libre, el SPOMEntry debe proyectarse a un tipo 
+canónico: 
+{ 
+"scope_code": "GENERAL|SEMI|SPECIFIC|ULTRA", 
+"subpattern_code": 
+"PUSH_HORIZONTAL|PUSH_VERTICAL|PULL_HORIZONTAL|PULL_VERTICAL|KNEE_DO
+MINANT|HIP_DOMINANT|...", 
+"technical_family": "BENT_ARM|STRAIGHT_ARM|MIXED|null", 
+"route_specific": true|false 
+} 
+Regla de derivación (determinista) 
+Inputs: 
+ intensity_pct 
+ pattern_descriptor (si existe) 
+ route_code 
+Outputs: 
+ scope_code 
+ subpattern_code 
+ technical_family 
+ route_specific 
+9.5.1 Derivar scope_code desde intensidad 
+(Política base; si SPOM descriptor contradice, SPOM descriptor manda) 
+if pct >= 95: scope=ULTRA 
+else if pct >= 85: scope=SPECIFIC 
+else if pct >= 70: scope=SEMI 
+else: scope=GENERAL 
+9.5.2 Derivar subpatrón desde descriptor 
+Mapping típico: 
+ “Push Horizontal” -> PUSH_HORIZONTAL 
+ “Push Vertical” -> PUSH_VERTICAL 
+ “General Push (horizontal + vertical)” -> PUSH_GENERAL 
+ “Hip Dominant” -> HIP_DOMINANT 
+ “Knee Dominant” -> KNEE_DOMINANT 
+ “Planche específico” -> PUSH_HORIZONTAL + STRAIGHT_ARM + 
+ROUTE_SPECIFIC 
+ “Front Lever” -> PULL_HORIZONTAL + STRAIGHT_ARM + ROUTE_SPECIFIC 
+9.6 Función SPOM en el pipeline 
+(contrato funcional) 
+Definimos una función pura: 
+resolve_spom(week_id, route_code) -> SpomResolved 
+Salida SpomResolved: 
+{ 
+"week_id": 19, 
+"route_code": "FL", 
+"intensity_pct": 95, 
+"pattern_active": "SUP_PULL", 
+"scope_code": "ULTRA", 
+"subpattern_code": "PULL_HORIZONTAL", 
+"technical_family": "STRAIGHT_ARM", 
+"route_specific": true 
+} 
+Invariante: para inputs iguales, output igual. 
+9.7 Reglas de integridad (validadores 
+SPOM) 
+9.7.1 Enum checks 
+ pattern_active ∈ {SUP_PUSH, SUP_PULL, INF_RODILLA, INF_CADERA} 
+ intensity_pct ∈ set permitido por tabla de intensidades (ej. 55..95) 
+9.7.2 Scope coherente 
+Si pattern_descriptor contiene “específico” entonces: 
+ scope_code no puede ser GENERAL (debe ser SPECIFIC/ULTRA) 
+9.7.3 Unión con rotador 
+Para cada ruta listada en el rotador semanal: 
+ existe SPOMEntry (week_id, route_code) 
+Si falta alguna ⇒ FAIL global. 
+9.8 Lógica del punto 9 (resumen) 
+ SPOM es el motor central: define “qué tan específico y exigente” es cada ruta en 
+una semana. 
+ La entrada SPOM se identifica por (week_id, route_code). 
+ intensity_pct gobierna presupuesto, contracción, formatos y scope. 
+ pattern_active es la llave de unión con la jerarquía de categorías. 
+ pattern_descriptor aporta la subestructura (horizontal/vertical, hip/knee, 
+bent/straight, específico). 
+ El agente debe resolver SPOM a una representación canónica (scope_code, 
+subpattern_code, etc.) para operar sin texto libre. 
+Punto 10 — SPOM: Reglas de especificidad vs 
+generalidad 
+pct bajo/medio/alto → scope del patrón (a fondo, formal) 
+10.1 Propósito lógico 
+Transformar SPOM.intensity_pct en una restricción de selección: 
+ Define qué tan arriba o abajo en el árbol de categorías se permite seleccionar 
+ejercicios. 
+ Controla el tradeoff: 
+ Generalidad (base, volumen, transferencia) 
+ Especificidad (técnica, neural, gesto final) 
+En términos de sistema: 
+scope gobierna el conjunto candidato; 
+% gobierna el budget; 
+ambos salen del mismo SPOMEntry pero actúan en capas distintas. 
+10.2 Definición canónica: Scope 
+Definimos un enum cerrado: 
+SCOPE_CODE ∈ { GENERAL, SEMI, SPECIFIC, ULTRA } 
+Semántica: 
+ GENERAL: seleccionar desde la categoría raíz del patrón (máxima cobertura) 
+ SEMI: restringir a subcategorías biomecánicas (horizontal/vertical, knee/hip) 
+ SPECIFIC: restringir a familia técnica (bent/straight arm, músculo dominante) 
+ ULTRA: restringir a la ruta/skill específica (FL, PL, PS, HT…) 
+10.3 Input de la regla 
+Entradas mínimas para resolver scope: 
+ intensity_pct (obligatorio) 
+ pattern_active (obligatorio) 
+ pattern_descriptor (opcional, pero si existe tiene prioridad semántica) 
+ route_code (obligatorio) 
+10.4 Regla base: pct -> scope_code 
+10.4.1 Mapeo determinista por rangos 
+function scope_from_pct(pct): 
+if pct >= 95: return ULTRA 
+if pct >= 85: return SPECIFIC 
+if pct >= 70: return SEMI 
+return GENERAL 
+Esto te da el comportamiento que describiste: 
+ % alto ⇒ selección específica 
+ % bajo ⇒ selección amplia 
+10.5 Regla de override por descriptor 
+(SPOM manda) 
+Si pattern_descriptor existe, puede ajustar scope. 
+10.5.1 Override semántico 
+function scope_from_spom(pct, descriptor): 
+base = scope_from_pct(pct) 
+if descriptor contains "específico" or descriptor matches 
+route_name: 
+return max(base, SPECIFIC)    
+// no puede ser GENERAL si dice 
+específico 
+if descriptor contains "General": 
+return min(base, SEMI)        
+// no puede saltar a ULTRA si 
+dice general 
+return base 
+Invariante: el descriptor solo puede mover scope dentro de límites razonables, nunca 
+invalidar el % (ej. 95% no puede terminar GENERAL). 
+10.6 Proyección de scope a la jerarquía 
+de categorías (árbol) 
+Esto implementa lo que aclaraste: el mismo patrón tiene un árbol. 
+10.6.1 Representación del árbol (ejemplo canónico) 
+Para PUSH: 
+ROOT: SUP_PUSH 
+L1: PUSH_GENERAL 
+    L2: PUSH_HORIZONTAL 
+      L3: STRAIGHT_ARM 
+        L4: ROUTE=PL 
+      L3: BENT_ARM 
+    L2: PUSH_VERTICAL 
+ 
+Para PULL: 
+ROOT: SUP_PULL 
+  L1: PULL_GENERAL 
+    L2: PULL_HORIZONTAL 
+      L3: STRAIGHT_ARM 
+        L4: ROUTE=FL 
+      L3: BENT_ARM 
+    L2: PULL_VERTICAL 
+ 
+Para INFERIOR: 
+ROOT: INF 
+  L1: LOWER_GENERAL 
+    L2: KNEE_DOMINANT 
+      L3: QUAD_BIAS 
+        L4: ROUTE=PS 
+    L2: HIP_DOMINANT 
+      L3: GLUTE_HAM_BIAS 
+        L4: ROUTE=HT 
+ 
+ 
+10.7 Regla: scope_code -> allowed 
+node depth 
+Definimos niveles de profundidad permitidos: 
+GENERAL  -> depth ≤ 1 (root + general) 
+SEMI     -> depth ≤ 2 (incluye horizontal/vertical o knee/hip) 
+SPECIFIC -> depth ≤ 3 (incluye bent/straight o bias muscular) 
+ULTRA    -> depth = 4 (ruta específica) 
+ 
+ 
+10.8 Construcción del conjunto 
+candidato de ejercicios 
+10.8.1 Precondición de datos (lo que la DB debe tener) 
+Cada Exercise debe estar etiquetado con: 
+ pattern_active (macro) 
+ subpattern (horizontal/vertical, knee/hip) 
+ family (bent/straight, bias muscular) 
+ route_code (si es específico) 
+ opcional: specificity_level (0..4) para indexación rápida 
+Ejemplo: 
+{ 
+} 
+"exercise_id": "...", 
+"route_code": "FL", 
+"pattern_active": "SUP_PULL", 
+"subpattern": "PULL_HORIZONTAL", 
+"family": "STRAIGHT_ARM", 
+"specificity_level": 4 
+10.8.2 Filtro canónico (por scope) 
+Caso GENERAL 
+allowed = exercises where pattern_active == SUP_PULL 
+Caso SEMI 
+allowed = exercises where pattern_active == SUP_PULL 
+and subpattern in {PULL_HORIZONTAL, PULL_VERTICAL} 
+// si descriptor restringe, usar 1 sola 
+Caso SPECIFIC 
+allowed = exercises where pattern_active == SUP_PULL 
+and subpattern == PULL_HORIZONTAL 
+and family == STRAIGHT_ARM 
+Caso ULTRA 
+allowed = exercises where route_code == FL 
+Nota: en ULTRA, route_code manda incluso si el patrón active coincide con muchos 
+ejercicios. 
+10.9 Regla de “relacionales cercanos” (lo 
+que vos llamás “ejercicios relacionales”) 
+Cuando scope no es ULTRA, el sistema debe permitir “cercanos” dentro del árbol. 
+Formalización: 
+ Definimos una función distance(exercise, target_route) basada en el 
+árbol: 
+distance = 0 si route_code coincide 
+distance = 1 si family coincide 
+distance = 2 si subpattern coincide 
+distance = 3 si solo pattern_active coincide 
+Luego, para cada scope: 
+ GENERAL: permite distance ∈ {0,1,2,3} 
+ SEMI: permite distance ∈ {0,1,2} 
+ SPECIFIC: permite distance ∈ {0,1} 
+ ULTRA: permite distance = 0 
+Esto captura exactamente: 
+ % bajo: “más abarcativo” 
+ % alto: “más cercano al gesto” 
+10.10 Reglas adicionales por nivel 
+(intersección con scope) 
+El scope define el conjunto permitido. 
+El nivel define qué parte del conjunto es accesible. 
+Regla: 
+allowed_final = allowed_by_scope ∩ allowed_by_level 
+Ejemplo: 
+ pct = 95 (ULTRA) y level = ALFA 
+ allowed_by_scope: solo route_code = FL 
+ allowed_by_level: variantes FL etiquetadas ALFA (tuck, assisted, etc.) 
+ resultado: FL específico pero escalado 
+Esto evita el error: 
+ “ULTRA específico” ≠ “solo versión olímpica” 
+10.11 Determinismo y trazabilidad 
+El agente debe emitir en el trace: 
+ scope_code 
+ nodos habilitados del árbol (o filtros equivalentes) 
+ 
+ conteo de candidatos antes/después 
+ 
+Ejemplo: 
+{ 
+  "scope": "SPECIFIC", 
+  "filters": { 
+    "pattern_active": "SUP_PULL", 
+    "subpattern": "PULL_HORIZONTAL", 
+    "family": "STRAIGHT_ARM" 
+  }, 
+  "candidate_counts": { 
+    "after_pattern": 180, 
+    "after_subpattern": 95, 
+    "after_family": 34, 
+    "after_level": 12 
+  } 
+} 
+ 
+ 
+10.12 Invariantes del punto 10 
+ scope_code se deriva de pct (y opcionalmente descriptor) siempre igual 
+ 
+ A mayor pct ⇒ subconjunto candidato nunca puede ser más grande (monotonía) 
+ 
+ ULTRA implica route_code exacto 
+ 
+ scope controla qué se puede elegir; no prescribe volumen 
+ 
+ 
+10.13 Lógica del punto 10 (resumen) 
+ SPOM % define un scope_code 
+ 
+ scope_code mapea a profundidad del árbol de categorías 
+ Eso genera un conjunto candidato por filtros jerárquicos 
+ “Relacionales cercanos” es distancia en el árbol 

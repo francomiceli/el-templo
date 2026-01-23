@@ -1,0 +1,2000 @@
+ 
+ tolerance (P26) 
+ 
+ 
+32.3 Output contractual (mínimo) 
+Cada ExercisePrescription debe emitir: 
+{ 
+  "exercise_id": "...", 
+  "slot_index": 1, 
+  "contraction_code": "ISO", 
+  "dose": { 
+    "rep_equiv": 10, 
+    "reps": null, 
+    "seconds": 20 
+  }, 
+  "format_binding": { 
+    "format_name": "EMOM", 
+    "rounds": 8, 
+    "interval_sec": 60, 
+    "per_round": { 
+      "reps": null, 
+      "seconds": 2 
+} 
+}, 
+"rest": { 
+"rest_sec": null 
+} 
+} 
+Notas: 
+ dose.rep_equiv es la unidad de auditoría. 
+ dose.reps se usa solo si CON. 
+ dose.seconds se usa solo si ISO/EXC. 
+ format_binding puede ser null si formato “sets tradicionales” u otro modo. 
+32.4 Paso 0 — Normalización: “slotización” de ejercicios 
+Precondición: el set ya cubre contracciones. 
+Construir slots: 
+Slots = expand(ContractionMix) 
+# ej [EXC, ISO, CON, CON] 
+Asignar cada SelectedExercise a un slot compatible (ya viene así del P30). 
+Definir slot_index estable (1..N). 
+32.5 Paso 1 — Distribución del presupuesto reps_budget_total entre 
+ejercicios 
+Este paso decide cuántos rep_equiv recibe cada ejercicio. 
+32.5.1 Política base (determinista): reparto uniforme 
+base = floor(reps_budget_total / N) 
+rem  = reps_budget_total % N 
+dose_i = base (+1 para los primeros rem slots) 
+Ejemplo: 
+ budget=60, N=4 → base=15, rem=0 → [15,15,15,15] 
+ budget=20, N=3 → base=6, rem=2 → [7,7,6] 
+32.5.2 Ajuste por contracción (opcional, pero recomendado) 
+Si querés que ISO/EXC carguen distinto, definí multiplicadores (deterministas): 
+Ejemplo: 
+ ISO weight = 1.0 
+ EXC weight = 1.0 
+ CON weight = 1.0 
+Si en algún momento querés: 
+ ISO = 0.9 (menos) 
+ EXC = 1.1 (más) 
+Entonces: 
+dose_i = round( reps_budget_total * w_i / Σw ) 
+Nota: hoy no hace falta inventar weights; uniforme ya funciona. 
+32.5.3 Corrección final (suma exacta) 
+Después de asignar: 
+delta = reps_budget_total - Σdose_i 
+ajustar delta repartiendo +1/-1 en slots (orden estable) 
+32.6 Paso 2 — Convertir rep_equiv a unidad ejecutable por contracción 
+Para cada ejercicio con dose_rep_equiv: 
+ Si CON: 
+ reps = dose_rep_equiv 
+ Si ISO: 
+ seconds = dose_rep_equiv * 2 
+ Si EXC: 
+ seconds = dose_rep_equiv * 3 
+Formal: 
+if CON: reps = dose 
+if ISO: sec  = dose * 2 
+if EXC: sec  = dose * 3 
+32.7 Paso 3 — Encajar la dosis en el formato (binding) 
+Este paso depende del tipo de formato. 
+32.7.A Formatos “time window” (EMOM / AMRAP / 
+Tabata) 
+Estos formatos definen una ventana temporal y (en algunos casos) rounds/intervalos. 
+A1) EMOM 
+Inputs: 
+ rounds = duration_min (si interval=60) 
+ interval_sec (default 60) 
+Binding per-round 
+Para cada ejercicio del bloque hay 2 políticas posibles: 
+Política EMOM-1 (recomendada): “rotación de ejercicios” 
+ Cada round ejecuta 1 ejercicio, rotando lista. 
+ Entonces, un ejercicio aparece k veces. 
+ Dosis por aparición = dose / k 
+Formal: 
+k_i = count_rounds_assigned_to_exercise(i) 
+per_round_rep_equiv = dose_i / k_i 
+Esto requiere: 
+ un round_schedule (lista de length rounds) indicando cuál slot cae en cada round. 
+Regla determinista de schedule 
+round_schedule = cycle(slots_in_order) until rounds filled 
+Ej: 
+ slots = [EXC, ISO, CON, CON] y rounds=8 
+ schedule = [1,2,3,4,1,2,3,4] 
+Entonces: 
+ slot1 aparece 2 veces → cada vez hace la mitad de su dosis. 
+Conversión 
+ Si ISO: per_round_seconds = per_round_rep_equiv * 2 
+ Si EXC: per_round_seconds = per_round_rep_equiv * 3 
+ Si CON: per_round_reps = per_round_rep_equiv 
+Validación 
+ per_round debe quedar en valores realizables (no fracciones raras). 
+ Si queda fracción, redondear de forma determinista y compensar en última aparición. 
+Política EMOM-2: “cada round hace el set completo” 
+No recomendada salvo bloques N=1–2. 
+A2) AMRAP 
+AMRAP es “work window” sin estructura dura de reps por round. 
+Binding: 
+ La dosis se expresa como target por ventana, no por round. 
+Output: 
+ dose_total por ejercicio 
+ duration_min del bloque 
+Validación: 
+ el Punto 26 chequea densidad esperada con budget/duración 
+A3) Tabata 
+Tabata define intervalos fijos: 
+ work_sec, rest_sec, rounds 
+Binding: 
+ Similar a EMOM rotativo o fijo. 
+ Política determinista mínima: 
+ asignar 1 ejercicio por intervalo de trabajo, rotando slots. 
+ dosis se reparte por cantidad de apariciones. 
+32.7.B Formatos “sets/rest” (Singlet, Tempo Sets, 
+Cluster, etc.) 
+En estos formatos el plan define explícitamente: 
+ sets 
+ reps/seconds por set 
+ descanso 
+Binding requiere ParamSchema (ver anexo 26.A) o defaults. 
+Política determinista base: 
+1. Definir sets por intensidad o por formato default 
+2. Repartir dosis en sets: 
+per_set_rep_equiv = dose_i / sets 
+3. Convertir por contracción a reps/seconds por set 
+4. Definir rest_sec por formato default (o tabla) 
+Validación: 
+ total rep_equiv suma bien 
+ no se excede un cap de “per set” (si existe) 
+32.8 Paso 4 — Validación de consistencia (post-conditions) 
+Al terminar prescripción: 
+1. Σ rep_equiv == reps_budget_total ± tolerance 
+2. Cada ejercicio: 
+ tiene dose compatible con contracción 
+ tiene format_binding completo o null (pero ejecutable) 
+3. Si el formato tiene rounds/intervalos: 
+ 
+ schedule explícito 
+ 
+ per_round definido 
+ 
+4. Emitir PrescriptionTrace: 
+ 
+{ 
+  "prescription_trace": { 
+    "budget_total": 60, 
+    "N": 4, 
+    "allocation_policy": "UNIFORM", 
+    "format_binding_policy": "EMOM_ROTATION", 
+    "round_schedule": [1,2,3,4,1,2,3,4], 
+    "tolerance": 1 
+  } 
+} 
+ 
+ 
+32.9 Puntos de configuración (sin cambiar lógica) 
+ allocation_policy: UNIFORM | WEIGHTED_BY_CONTRACTION | 
+WEIGHTED_BY_DIFFICULTY 
+ 
+ format_binding_policy por formato: 
+ 
+ EMOM_ROTATION (default) 
+ 
+ EMOM_FIXED 
+ 
+ round_schedule_policy: CYCLIC | BLOCKED | ALT 
+ 
+ rounding_policy: FLOOR_THEN_COMPENSATE | 
+NEAREST_THEN_FIX_DELTA 
+ 
+ tolerance_rep_equiv: int 
+ 
+ 
+ 
+ 
+ 
+ 
+Punto 33 — H. Prescripción 
+(reps/duración/descanso/carga) 
+Descansos (por intensidad y por contracción) — dependiente de formato 
+33.1 Objetivo (definición formal) 
+Asignar rest en la prescripción de forma determinista, cumpliendo: 
+1. Compatibilidad con formato 
+2. Compatibilidad con intensidad (pct/SPOM) 
+3. Compatibilidad con tipo de esfuerzo (cuando el formato es “fixed rest”) 
+4. En formatos “time window” (EMOM/AMRAP/etc), el descanso es mínimo posible 
+(descanso implícito), no prescrito. 
+33.2 Clasificación de formatos según política de descanso 
+Definir una propiedad en la BD de formatos o en el FormatInstance: 
+ rest_policy = IMPLICIT_MIN 
+Descanso no se prescribe; es el remanente natural del intervalo/ventana. 
+ rest_policy = FIXED_PRESCRIBED 
+Descanso se prescribe explícitamente: singlet/doublet/series convencionales/etc. 
+ rest_policy = HYBRID 
+Hay descansos prescritos en microestructura, pero la macro es por tiempo (menos 
+común). 
+33.3 Regla global (invariante) 
+33.3.1 Formatos IMPLICIT_MIN 
+Ej: EMOM, AMRAP, Tabata, time-cap ladders. 
+Regla 
+ rest_sec no se fija como campo de prescripción. 
+ Se deriva al ejecutar: 
+ EMOM: rest = interval_sec - work_time_used 
+ Tabata: descanso fijo del formato (pero no ajustado por el motor) 
+ AMRAP: descanso autogestionado, no prescrito 
+Salida 
+"rest": { "rest_sec": null, "rest_policy": "IMPLICIT_MIN" } 
+Validación 
+ En lugar de “rest”, se valida densidad y budget (P26). 
+33.3.2 Formatos FIXED_PRESCRIBED 
+Ej: singlet, doublet, triplet, series convencionales (sets). 
+Regla 
+ rest_sec se prescribe explícitamente por: 
+1. intensidad (pct) 
+2. tipo de esfuerzo 
+3. contracción (ajuste fino) 
+Esto es donde entra “ciencia del deporte” como tablas deterministas. 
+33.4 Modelo de descanso prescrito (source of truth) 
+Crear una tabla canónica (configurable) llamada: 
+RestPrescriptionTable 
+Clave: 
+ intensity_bucket (ej: 55–65, 70–80, 85–95) 
+ 
+ effort_type_group (fuerza / potencia / hipertrofia / resistencia / técnica) 
+ 
+ opcional: contraction_code (CON/ISO/EXC) 
+ 
+Salida: 
+ rest_sec_range o rest_sec_default 
+ 
+ rest_sec_min, rest_sec_max 
+ 
+Ejemplo (estructura, no valores): 
+{ 
+  "version": "REST_v1", 
+  "rules": [ 
+    { 
+      "intensity_min": 90, 
+      "intensity_max": 95, 
+      "effort_group": "MAX_STRENGTH", 
+      "rest_sec_default": 180 
+    }, 
+    { 
+      "intensity_min": 80, 
+      "intensity_max": 85, 
+      "effort_group": "HYPERTROPHY", 
+      "rest_sec_default": 90 
+    } 
+  ], 
+  "contraction_adjustments": { 
+    "ISO": 1.0, 
+    "EXC": 1.1, 
+    "CON": 1.0 
+  } 
+} 
+ 
+ 
+33.5 Determinación de effort_group (cuando hay “esfuerzo”) 
+Como tu BD ya tiene effort_type, hay que mapearlo a un grupo estable: 
+Entidad: EffortGroupMap 
+ clave: effort_type 
+ valor: effort_group 
+Ej: 
+ “Fuerza Máxima” → MAX_STRENGTH 
+ “Resistencia” → ENDURANCE 
+ “Técnica” → SKILL_TECH 
+ etc. 
+Esto evita que el motor tenga que interpretar strings. 
+33.6 Algoritmo de descanso para FIXED_PRESCRIBED 
+Para cada ExercisePrescription en formato fijo: 
+1. Determinar effort_group desde effort_type 
+2. Tomar rest_sec_base desde RestPrescriptionTable usando intensidad y 
+esfuerzo 
+3. Ajustar por contracción: 
+rest_sec = round(rest_sec_base * 
+contraction_adjustment[contraction_code]) 
+4. Aplicar clamps del formato si existen: 
+ format_rest_min 
+ format_rest_max 
+33.7 Casos especiales (deterministas) 
+33.7.1 Doublet / Triplet 
+Si el formato define superserie: 
+ descanso entre ejercicios = 0 o muy bajo (configurable) 
+ descanso entre rondas = prescrito por tabla 
+Ejemplo de salida: 
+"rest": { 
+"between_exercises_sec": 0, 
+"between_rounds_sec": 120, 
+"policy": "FIXED_PRESCRIBED" 
+} 
+33.7.2 Series convencionales 
+ descanso entre sets = rest_sec 
+ descanso entre ejercicios = transition_sec (default 15–30) si necesitás reflejarlo 
+en app 
+33.8 Contrato mínimo de salida (rest) 
+Siempre emitir: 
+"rest": { 
+"rest_policy": "IMPLICIT_MIN | FIXED_PRESCRIBED", 
+"rest_sec": null, 
+"between_rounds_sec": null, 
+"between_exercises_sec": null 
+} 
+Reglas: 
+ Si rest_policy=IMPLICIT_MIN → todos null 
+ Si FIXED_PRESCRIBED → al menos un campo debe estar completo (rest_sec o 
+between_rounds) 
+33.9 Validación (post-conditions) 
+ Si rest_policy=FIXED_PRESCRIBED: 
+ rest_sec debe existir o el formato debe proveer estructura equivalente 
+ Si rest_policy=IMPLICIT_MIN: 
+ no se permite “inventar” descansos 
+ validar por P26 (densidad + budget) 
+33.10 Dependencias de datos mínimas para implementarlo 
+Para hacerlo 100% determinista te faltan 2 tablas (pueden ser JSON config dentro de la 
+app): 
+1. RestPrescriptionTable (intensidad × esfuerzo → descanso) 
+2. EffortGroupMap (effort_type → effort_group) 
+Sin eso, el motor puede: 
+ IMPLICIT_MIN perfecto (no requiere nada) 
+ FIXED_PRESCRIBED solo con defaults por intensidad (menos fino) 
+Punto 34 — H. Prescripción (reps / duración / descanso 
+/ carga) 
+Escaleras (ladders) y tempos — reglas de generación 
+34.1 Objetivo lógico 
+Definir cómo generar estructuras de trabajo no lineales (escaleras y tempos) que: 
+1. Acumulen exactamente el objetivo del bloque 
+→ Σ rep_equiv == reps_budget_total ± tolerance 
+2. Sean compatibles con intensidad, contracción y formato 
+3. Sean parametrizables y deterministas (no “creativas”) 
+4. No rompan las invariantes de fatiga, densidad y dificultad 
+Las escaleras y los tempos no cambian el presupuesto, solo la forma de distribuirlo en 
+el tiempo. 
+34.2 Definiciones canónicas 
+34.2.1 Ladder (Escalera) 
+Una ladder es una secuencia ordenada de pasos (steps[]) donde cada paso tiene una 
+dosis distinta: 
+step_1 → step_2 → … → step_k 
+Cada step ejecuta: 
+ reps (CON) 
+ o segundos (ISO / EXC) 
+y la suma total de todos los steps = dosis objetivo del ejercicio. 
+34.2.2 Tempo 
+Un tempo define: 
+ velocidad de ejecución 
+ distribución interna del tiempo bajo tensión (TUT) 
+ no cambia la cantidad de rep_equiv, solo cómo se ejecutan 
+Ejemplo: 
+ 3-1-1 (excéntrica / pausa / concéntrica) 
+34.3 Inputs del generador de escaleras 
+Por ejercicio: 
+ dose_rep_equiv (ya asignado en P32) 
+ contraction_code (CON / ISO / EXC) 
+ intensity_pct 
+ difficulty_relative 
+ format_type (si aplica) 
+ ladder_policy (derivada de intensidad o forzada por formato) 
+34.4 Tipos canónicos de escaleras (taxonomía cerrada) 
+Definir un enum LadderType: 
+1. ASCENDING 
+Ej: 1-2-3-4-5 
+2. DESCENDING 
+Ej: 5-4-3-2-1 
+3. PYRAMID 
+Ej: 1-2-3-2-1 
+4. INVERTED_PYRAMID 
+Ej: 5-4-3-4-5 
+5. OFFSET_ASCENDING 
+Ejercicio A: 1-2-3-4 
+Ejercicio B: 3-4-5-6 
+6. OFFSET_DESCENDING 
+7. WAVE 
+Ej: 2-4-3-5-4-6 
+8. FIXED_STEP_REPEAT 
+Ej: 3-3-3-3-3 
+Todas estas son equivalentes en presupuesto, solo cambia la distribución. 
+34.5 Regla fundamental (invariante) 
+La escalera se genera para encajar el presupuesto, nunca al revés. 
+Formal: 
+Σ step_rep_equiv == dose_rep_equiv 
+Si no se puede cumplir exactamente: 
+ aplicar rounding_policy 
+ compensar en último step 
+34.6 Generación de escaleras — algoritmo base 
+34.6.1 Paso 1 — Definir tamaño de step base 
+Definir base_step según intensidad y contracción. 
+Ejemplo determinista (estructura, no valores cerrados): 
+ intensidades altas → steps chicos 
+ intensidades medias → steps medianos 
+ intensidades bajas → steps grandes 
+Formal: 
+base_step = floor(dose_rep_equiv / desired_steps) 
+desired_steps puede venir de: 
+ formato 
+ intensidad 
+ default global (ej: 4–6) 
+34.6.2 Paso 2 — Construir la secuencia “ideal” 
+Ejemplo ASCENDING: 
+steps = [base, base+1, base+2, ...] 
+Ejemplo PYRAMID: 
+steps = [base, base+1, base+2, base+1, base] 
+Convertir cada step a rep_equiv. 
+34.6.3 Paso 3 — Ajuste fino para cerrar presupuesto 
+Calcular: 
+delta = dose_rep_equiv - Σsteps 
+Aplicar política determinista: 
+ si delta > 0: sumar +1 a los últimos steps 
+ si delta < 0: restar -1 a los últimos steps 
+ prioridad: últimos steps (fatiga ya acumulada) 
+34.7 Escaleras por contracción 
+34.7.1 CON (reps discretas) 
+ steps expresados en reps 
+ no se permiten fracciones 
+34.7.2 ISO 
+ steps expresados en rep_equiv 
+ conversión final: seconds = rep_equiv * 2 
+Ej: 
+"steps": [ 
+{"rep_equiv": 4, "seconds": 8}, 
+{"rep_equiv": 5, "seconds": 10} 
+] 
+34.7.3 EXC 
+ steps expresados en rep_equiv 
+ conversión final: seconds = rep_equiv * 3 
+34.8 Relación intensidad ↔ tipo de escalera (regla recomendada) 
+Sin fijar valores rígidos, solo zonas lógicas: 
+ 95–90 
+ preferir: DESCENDING, FIXED_STEP_REPEAT 
+ evitar: pirámides largas 
+ 85–80 
+ permitir: ASCENDING, DESCENDING 
+ pirámide corta 
+ 75–65 
+ permitir: PYRAMID, WAVE, offsets 
+ ≤60 
+ libertad total (variedad y acumulación) 
+Esto se expresa como preferencias, no hard rules. 
+34.9 Tempos — modelo lógico 
+34.9.1 Qué es un tempo en el sistema 
+Un tempo no altera: 
+ reps_budget 
+ rep_equiv 
+Un tempo sí altera: 
+ duración real del set 
+ densidad 
+ percepción de dificultad 
+34.9.2 Representación canónica de tempo 
+{ 
+} 
+"tempo": { 
+"eccentric_sec": 3, 
+"pause_sec": 1, 
+"concentric_sec": 1 
+} 
+ISO: 
+{ 
+"tempo": { 
+"isometric_sec": 10 
+} 
+} 
+34.10 Reglas de asignación de tempo 
+34.10.1 Por intensidad 
+ Intensidad alta → tempo controlado (más lento) 
+ Intensidad baja → tempo libre o dinámico 
+34.10.2 Por contracción 
+ ISO → tempo = duración 
+ EXC → tempo excéntrico explícito 
+ CON → tempo opcional (si no se define, default 1–0–1) 
+34.11 Compatibilidad escaleras × formatos 
+Formatos TIME WINDOW (EMOM / AMRAP) 
+ escalera se ejecuta a lo largo de múltiples rounds 
+ steps se reparten secuencialmente por aparición 
+Ej: 
+ EMOM 8’ 
+ steps = [3,4,5,6] 
+ schedule = [3,4,5,6,3,4,5,6] 
+Formatos SET-BASED 
+ escalera define los sets 
+ 
+ descanso entre steps = descanso del formato 
+ 
+ 
+34.12 Contrato de salida (ladder + tempo) 
+{ 
+  "exercise_id": "...", 
+  "ladder": { 
+    "type": "PYRAMID", 
+    "steps": [ 
+      {"rep_equiv": 4}, 
+      {"rep_equiv": 5}, 
+      {"rep_equiv": 6}, 
+      {"rep_equiv": 5}, 
+      {"rep_equiv": 4} 
+    ] 
+  }, 
+  "tempo": { 
+    "eccentric_sec": 3, 
+    "pause_sec": 1, 
+    "concentric_sec": 1 
+  } 
+} 
+ 
+ 
+34.13 Validaciones finales 
+1. Σ steps.rep_equiv == dose_rep_equiv ± tolerance 
+ 
+2. steps ≥ 1 rep_equiv 
+ 
+3. ningún step excede un max_step_cap (si existe) 
+ 
+4. tempo compatible con contracción 
+ 
+5. densidad compatible con formato (P26) 
+ 
+ 
+34.14 Parámetros configurables (sin tocar lógica) 
+ ladder_type_priority_by_intensity 
+ desired_steps_by_intensity 
+ rounding_policy 
+ max_step_cap 
+ default_tempos_by_intensity 
+ tempo_override_by_exercise 
+Punto 35 — H. Prescripción (reps / duración / descanso 
+/ carga) 
+Carga (lastre) vs variante — cuándo se usa cada uno 
+35.1 Objetivo lógico 
+Definir cuándo y cómo el sistema ajusta la dificultad sin cambiar el ejercicio base, 
+usando: 
+ carga externa (lastre) 
+ asistencia (bandas, apoyo) 
+ micro-variantes (ángulo, inclinación, ROM parcial) 
+Esto permite: 
+ respetar el ejercicio seleccionado (P30) 
+ no saltar de categoría ni nivel 
+ afinar la dosis cuando el ejercicio “queda corto” o “queda largo” 
+Clave: 
+La carga/ayuda es un ajuste fino, no un cambio de ejercicio. 
+35.2 Principio rector (invariante) 
+Nunca se usa carga o asistencia para reemplazar una progresión mal 
+elegida. 
+Formal: 
+ Si el ejercicio no entra en: 
+ route 
+ level_code 
+ difficulty_bucket 
+→ no se corrige con carga, se corrige volviendo a selección. 
+Carga/asistencia solo se usan cuando: 
+ el ejercicio ya es válido estructuralmente 
+ pero la dificultad percibida no calza con la intención del bloque 
+35.3 Clasificación de ajustes posibles 
+Definir AdjustmentType: 
+1. EXTERNAL_LOAD 
+Ej: chaleco, disco, kettlebell 
+2. ASSISTANCE 
+Ej: banda elástica, apoyo parcial, inclinación favorable 
+3. MICRO_VARIANT 
+Ej: lean mayor/menor, ROM reducido, altura distinta 
+35.4 Cuándo usar carga (lastre) 
+Condiciones necesarias 
+Usar carga solo si se cumplen todas: 
+1. El ejercicio ya está en el nivel correcto 
+2. difficulty_relative < difficulty_bucket 
+3. No existe una variante superior sin romper categoría o nivel 
+4. El formato permite control (no AMRAP caótico en alta intensidad) 
+Formal: 
+if exercise.valid 
+and difficulty_relative < target_bucket 
+and no_next_variant_without_jump 
+then allow EXTERNAL_LOAD 
+Ejemplos 
+ Push-ups nivel Sigma 2 → intensidad 80 → agregar 5–10% BW 
+ Front lever tuck sólido → no se salta a advanced tuck → se lastra suave 
+35.5 Cuándo usar asistencia (bandas / apoyo) 
+Condiciones necesarias 
+Usar asistencia si: 
+1. El ejercicio es correcto en patrón y ruta 
+2. Pero: 
+ el alumno está fatigado 
+ o la intensidad del día es técnica/control 
+3. No se quiere bajar de ejercicio (regresión “visible”) 
+Formal: 
+if exercise.valid 
+and (fatigue_high or technique_day) 
+then allow ASSISTANCE 
+Ejemplos: 
+ Bandita fina en Planche Lean 
+ Apoyo parcial en HSPU 
+35.6 Cuándo usar micro-variante 
+Micro-variantes son el ajuste preferido cuando existen. 
+Usar micro-variante si: 
+ el ejercicio ya define un eje ajustable 
+ no hace falta introducir implementos 
+Ejemplos: 
+ Lean +/– 
+ Altura de pies/manos 
+ ROM parcial 
+Regla: 
+MICRO_VARIANT > EXTERNAL_LOAD > ASSISTANCE 
+(orden de preferencia, no exclusión) 
+35.7 Qué no se debe hacer (reglas duras) 
+1. No usar carga para: 
+ “forzar” un ejercicio fuera de nivel 
+2. No usar asistencia para: 
+ 
+ convertir un ejercicio imposible en posible 
+ 
+3. No combinar: 
+ 
+ carga + asistencia en el mismo ejercicio 
+ 
+4. No usar ajustes si: 
+ 
+ el ejercicio ya coincide con bucket e intención 
+ 
+ 
+35.8 Representación en la prescripción (suggestive, no obligatoria) 
+La carga/asistencia no es hard-coded. 
+ Es una sugerencia de ajuste, ejecutable por el coach o por UI adaptativa. 
+Contrato: 
+{ 
+  "adjustment": { 
+    "type": "EXTERNAL_LOAD | ASSISTANCE | MICRO_VARIANT | NONE", 
+    "suggested_range": { 
+      "min": "5% BW", 
+      "max": "10% BW" 
+    }, 
+    "reason": "exercise_below_bucket_no_safe_variant" 
+  } 
+} 
+ 
+Si no se sugiere ajuste: 
+"adjustment": { "type": "NONE" } 
+ 
+ 
+35.9 Relación con intensidad y formato 
+Intensidad alta (90–95) 
+ Preferir: 
+ 
+ MICRO_VARIANT 
+ carga mínima 
+ Evitar: 
+ asistencia visible 
+Intensidad media (75–85) 
+ Permitir: 
+ carga progresiva 
+ asistencia fina 
+Intensidad baja / técnica 
+ Priorizar: 
+ asistencia 
+ control de forma 
+35.10 Validaciones 
+Antes de emitir ajuste: 
+1. exercise_id sigue siendo el mismo 
+2. route, pattern, level_code no cambian 
+3. ajuste no empuja fuera de difficulty_bucket 
+4. no contradice formato (ej: lastre pesado en Tabata alta densidad) 
+35.11 Por qué esto es sugerencia y no decisión dura 
+Porque: 
+ la fatiga real es contextual 
+ el entorno cambia (alumnos, equipamiento) 
+ el coach puede leer cosas que el sistema no 
+El motor propone, no impone. 
+Punto 36 — H. Prescripción 
+(reps/duración/descanso/carga) 
+Notas y observaciones (estándar de texto; campos estructurados) 
+36.1 Objetivo lógico 
+Definir un estándar único para comunicar instrucciones humanas (coach/alumno) sin 
+romper la estructura del plan. 
+Las notas deben: 
+1. ser estructuradas (parseables) 
+2. ser deterministas (generables por reglas) 
+3. permitir texto libre solo donde corresponde 
+4. separar: “lo ejecutable” vs “lo explicativo” 
+36.2 Principio rector 
+El agente no debe “inventar coaching”. 
+Solo debe emitir notas derivadas de reglas + metadata (contracción, formato, 
+intensidad, ajustes sugeridos). 
+36.3 Niveles de notas (scope) 
+Definir 4 scopes posibles: 
+1. WeekNote — observaciones macro (objetivo semanal, ruta foco, etc.) 
+2. DayNote — contexto del día (enfoque superior/inferior, advertencias de carga) 
+3. BlockNote — instrucciones de ejecución del bloque (formato, densidad, reglas) 
+4. ExerciseNote — cues mínimos por ejercicio + ajustes (lastre/banda/micro-variant) 
+Cada nota debe indicar su scope. 
+36.4 Modelo de datos (campos estructurados) 
+Contrato canónico Note: 
+{ 
+"scope": "WEEK | DAY | BLOCK | EXERCISE", 
+"entity_id": "week_id | day_id | block_id | exercise_id", 
+"note_type": "EXECUTION | SAFETY | SCALING | COACHING_CUE | 
+LOGISTICS | INTENT", 
+"priority": "P0 | P1 | P2", 
+"text": "string", 
+"tags": ["string"], 
+"data": { "key": "value" } 
+} 
+Reglas 
+ text es humano y breve 
+ data es machine-readable 
+ tags ayuda a UI/filtrado 
+36.5 Tipos de notas (taxonomía cerrada) 
+note_type permitido: 
+1. EXECUTION 
+Cómo ejecutar el formato: rounds, orden, descansos implícitos, etc. 
+2. INTENT 
+Qué buscar: técnica, densidad, control, esfuerzo 
+3. SAFETY 
+Restricciones: muñeca, lumbar, rango, dolor 
+4. SCALING 
+Reglas de ajuste: lastre/banda/micro-variant (P35) 
+5. COACHING_CUE 
+Cues mínimos estandarizados (no poesía) 
+6. LOGISTICS 
+Setup: barra/anillas/paralelas, transiciones, orden de estaciones 
+36.6 Estándar de texto (plantillas deterministas) 
+Las notas no se redactan libremente. Se instancian desde plantillas. 
+36.6.1 Plantillas por formato (BlockNote: EXECUTION) 
+Ejemplo EMOM: 
+ "EMOM {duration_min}': rotá {N} ejercicios en orden. Trabajo = 
+lo prescrito. Descanso = tiempo restante del minuto." 
+Ejemplo AMRAP: 
+ "AMRAP {duration_min}': acumulá reps/seg según prescripción. 
+Ritmo sostenido, evitá fallo técnico." 
+Ejemplo Singlet: 
+ "Singlet: {sets} series. Descanso fijo {rest_sec}s. Mantené 
+técnica; no sacrificar rango." 
+36.6.2 Plantillas por contracción (ExerciseNote: EXECUTION) 
+ CON: "Concéntrico controlado. Reps limpias. Sin rebotes." 
+ ISO: "Isometría: mantener posición estable {seconds}s. Sin 
+perder línea." 
+ EXC: "Excéntrica: bajar en {ecc_sec}s. Control total." 
+36.6.3 Plantillas por intensidad (BlockNote: INTENT) 
+ 90–95: "Intensidad alta: prioridad técnica + calidad. Evitar 
+fallo." 
+ 80–85: "Intensidad media: volumen controlado. Mantener 
+consistencia." 
+ ≤75: "Intensidad base: acumular trabajo. Densidad y ritmo." 
+36.6.4 Plantillas por ajuste sugerido (ExerciseNote: SCALING) 
+ lastre: "Si queda ligero, agregar lastre suave dentro del rango 
+sugerido." 
+ banda: "Si hay fatiga, usar banda fina para sostener técnica." 
+ micro-variant: "Ajustar ángulo/lean/ROM para encajar dificultad." 
+36.7 Reglas de generación de notas (motor) 
+El motor genera notas usando disparadores (triggers): 
+Triggers por Block 
+ format.rest_policy == IMPLICIT_MIN → BlockNote EXECUTION con 
+“descanso implícito” 
+ format.type == EMOM → BlockNote con rotación y orden 
+ ladder != null → BlockNote con “seguir escalera step-by-step” 
+ intensity_pct >= 90 → BlockNote INTENT de alta intensidad 
+ exercise_count_target >= 4 → Logistics: “setup por estaciones” (opcional) 
+Triggers por Exercise 
+ contraction_code == ISO → cue isométrico 
+ contraction_code == EXC → cue excéntrico 
+ adjustment.type != NONE → Scaling note con rango sugerido 
+ risk_tag present (si existe) → Safety note 
+36.8 Normalización y límites de texto 
+Reglas duras para evitar “charla”: 
+ text_max_len por scope: 
+ WEEK: 240 
+ DAY: 200 
+ BLOCK: 240 
+ EXERCISE: 160 
+ máximo de notas: 
+ por bloque: 3 
+ por ejercicio: 2 
+ prioridad: 
+ P0 = ejecución (siempre) 
+ P1 = scaling/safety si aplica 
+ P2 = coaching cues opcional 
+36.9 Ejemplo de salida completa (Block + Exercise) 
+BlockNote 
+{ 
+"scope": "BLOCK", 
+"entity_id": "W19-D1-B2", 
+"note_type": "EXECUTION", 
+"priority": "P0", 
+"text": "EMOM 8': rotá 4 ejercicios en orden. Trabajo = lo 
+prescrito. Descanso = tiempo restante del minuto.", 
+"tags": ["FORMAT_EMOM", "REST_IMPLICIT_MIN"], 
+"data": { "format": "EMOM", "duration_min": 8, "order_policy": 
+"CYCLIC" } 
+} 
+ExerciseNote (ISO + ajuste) 
+{ 
+"scope": "EXERCISE", 
+"entity_id": "FL:alfa:1:ISO:boat_tuck_iso", 
+"note_type": "SCALING", 
+"priority": "P1", 
+"text": "Si hay fatiga, usar banda fina para sostener la línea sin 
+colapsar la posición.", 
+"tags": ["SCALING_ASSISTANCE", "ISO"], 
+"data": { "adjustment": "ASSISTANCE", "suggested": "light_band" } 
+} 
+36.10 Validación (post-conditions) 
+ Todo BlockPlan debe tener al menos 1 nota P0 EXECUTION 
+ Ninguna nota puede contradecir campos estructurados (ej: decir “descanso fijo” si es 
+EMOM) 
+ Notas deben ser generables desde plantillas (no texto libre sin type) 
+ Si el motor no tiene datos suficientes → omite la nota, no inventa 
+36.11 Dependencias mínimas 
+Para implementar Punto 36 sin deuda: 
+ FormatInstance.rest_policy 
+ intensity_pct 
+ contraction_code 
+ Adjustment (P35) 
+ plantillas versionadas (NoteTemplates_v1.json) 
+Punto 37 — I. Reglas globales de coherencia 
+(validadores) 
+Coherencia por día (Nucleus dominante; complementos no contradicen) 
+37.1 Objetivo lógico 
+Validar que cada DayPlan tenga una identidad clara: 
+ Existe un Nucleus (bloque dominante del día) 
+ El resto de bloques (complementos) refuerzan o acompañan, pero: 
+ no compiten por el mismo recurso principal 
+ no contradicen la intención de intensidad/contracción/formato 
+ no “cambian el día” hacia otra ruta o patrón 
+Esto es un validador, no un generador: 
+ si falla → error o advertencia + recomendación de corrección 
+37.2 Definición formal: Nucleus vs Complementos 
+Para un DayPlan con bloques B1..Bk: 
+ Nucleus = argmax dominance_score(Bi) 
+ Complements = {Bj | j != nucleus_index} 
+37.2.1 Dominance score (determinista) 
+La dominancia se determina por un score fijo, ejemplo: 
+dominance_score(B) = 
+3 * is_primary_block(B) + 
+2 * reps_budget_total(B) + 
+2 * intensity_pct(B) + 
+1 * format_density_rank(B.format) + 
+1 * route_priority_rank(B.route) 
+Notas: 
+ is_primary_block puede venir por diseño (ej: Bloque 2 siempre es núcleo) 
+ format_density_rank: EMOM/AMRAP > sets suaves > movilidad 
+ route_priority_rank: depende del objetivo del día (del rotador) 
+Regla práctica: si el sistema ya marca un bloque como “principal”, se impone y el score 
+solo desempata. 
+37.3 Identidad del Nucleus (firma del día) 
+Definir una firma estructurada del Nucleus: 
+{ 
+"route": "FL", 
+"pattern": "PULL", 
+"scope_category": "Pull Horizontal > Straight Arm > Front Lever", 
+"intensity_pct": 85, 
+"format_type": "EMOM", 
+"contraction_mix": {"CON":2,"ISO":1,"EXC":1}, 
+"level_group": "Sigma" 
+} 
+Esta firma define qué es el día. 
+37.4 Reglas de coherencia para complementos (no contradicción) 
+Los complementos se validan contra la firma del Nucleus. 
+37.4.1 Regla R1 — No competir por la misma ruta dominante 
+Si un complemento comparte la misma route del Nucleus, solo se permite si: 
+ su intensity_pct es significativamente menor, o 
+ su objetivo es técnico/movilidad, o 
+ su patrón es accesorio y no saturante 
+Formal (ejemplo de umbral): 
+if complement.route == nucleus.route: 
+require complement.intensity_pct <= nucleus.intensity_pct - Δ 
+OR complement.block_type in {TECHNIQUE, MOBILITY, PREHAB} 
+Δ es configurable (ej 10–15). 
+37.4.2 Regla R2 — Complementos deben ser “supportive patterns” 
+Definir una tabla SupportMatrix por patrón del Nucleus: 
+Ejemplo conceptual: 
+ Nucleus PUSH → complementos válidos: 
+ CORE, SCAP, MOBILITY, LIGHT PULL (según día) 
+ Nucleus PULL → complementos válidos: 
+ CORE, SCAP, MOBILITY, LIGHT PUSH (según día) 
+ Nucleus INFERIOR → complementos válidos: 
+ CORE, CALVES, MOBILITY, LIGHT UPPER 
+Formal: 
+require complement.pattern_principal ∈ 
+SupportMatrix[nucleus.pattern_principal] 
+Esto evita que un día “PULL núcleo” tenga un complemento “PUSH pesado” que lo 
+contradiga. 
+37.4.3 Regla R3 — Coherencia de densidad (no 2 bloques “altísima densidad”) 
+Si el Nucleus es format_density_rank = HIGH (EMOM intenso, AMRAP largo, etc.), 
+entonces: 
+ como máximo 1 complemento puede ser densidad media 
+ el resto deben ser LOW (movilidad, técnica, activación) 
+Formal: 
+if nucleus.density == HIGH: 
+count(complements where density >= MED) <= 1 
+37.4.4 Regla R4 — Coherencia de contracción (no saturar el mismo modo) 
+Si el Nucleus es EXC-heavy o ISO-heavy, limitar complementos del mismo modo. 
+Ejemplo: 
+if nucleus.contraction_mix.EXC >= 2: 
+require complements_total_EXC <= cap_ex_c 
+Cap puede depender de intensidad y del día. 
+37.4.5 Regla R5 — Coherencia por “tejido” (si existe tagging) 
+Si existe tissue/joint load (P31), aplicar validación diaria: 
+ sumar load de todos los bloques 
+ imponer caps diarios por articulación/tejido según intensidad del día 
+Formal: 
+day_load[tag] = Σ block_load[tag] 
+require day_load[tag] <= day_cap[tag] 
+Si no existe tagging, usar proxy mínimo: 
+ difficulty_relative alto + intensidad alta → contribución mayor 
+37.5 Definición de “Complementos permitidos” (tipos) 
+Introducir BlockRole (si no existe): 
+ NUCLEUS 
+ ACCESSORY 
+ PREHAB_MOBILITY 
+ CONDITIONING (si aplica) 
+ SKILL_TECH 
+Validación: 
+ el día debe tener exactamente 1 NUCLEUS 
+ roles deben cumplir el support matrix 
+37.6 Output del validador (errores vs warnings) 
+Definir severidad: 
+ ERROR: contradicción estructural (rompe coherencia fuerte) 
+ 
+ ejemplo: 2 núcleos reales en rutas distintas con intensidad alta 
+ 
+ ejemplo: complemento PUSH pesado en día PULL núcleo sin soporte 
+permitido 
+ 
+ WARNING: subóptimo, pero ejecutable 
+ 
+ ejemplo: complemento comparte ruta pero a intensidad apenas menor 
+ 
+ ejemplo: densidad algo alta acumulada 
+ 
+Contrato: 
+{ 
+  "day_coherence_validation": { 
+    "nucleus_block_id": "W19-D1-B2", 
+    "signature": { "...": "..." }, 
+    "errors": [ 
+      { 
+        "code": "COMPETING_ROUTE", 
+        "block_id": "W19-D1-B3", 
+        "detail": "Complement shares route FL with intensity 80 vs 
+nucleus 85 (Δ=5 < required 10)" 
+      } 
+    ], 
+    "warnings": [ 
+      { 
+        "code": "DENSITY_STACKING", 
+        "block_id": "W19-D1-B4", 
+        "detail": "Second medium-density block detected under 
+high-density nucleus" 
+      } 
+    ], 
+    "suggested_fixes": [ 
+      { 
+        "action": "DOWNGRADE_INTENSITY", 
+        "target_block_id": "W19-D1-B3", 
+        "params": { "pct_delta": -10 } 
+      } 
+    ] 
+  } 
+} 
+37.7 Reglas mínimas (si querés implementar sin tags avanzados) 
+Si todavía no existe tagging de tejido/articulación: 
+Implementar mínimo viable con estos 3 validadores: 
+1. 1 Nucleus por día (por score o marcado) 
+2. No 2 bloques con intensidad alta + misma ruta 
+3. SupportMatrix por patrón (PUSH/PULL/INFERIOR) 
+Eso ya evita “días esquizofrénicos”. 
+37.8 Parámetros de configuración (versionables) 
+ Δ_intensity_same_route (default 10–15) 
+ SupportMatrix (por patrón) 
+ density_rank_map por formato 
+ max_medium_density_complements_when_nucleus_high 
+ contraction_caps por intensidad 
+Punto 38 — I. Reglas globales de coherencia 
+(validadores) 
+Coherencia por semana (balance de patrones, rutas repetidas, fatiga 
+acumulada) 
+38.1 Objetivo lógico 
+Validar que el WeekPlan sea globalmente coherente respecto a: 
+1. Balance de patrones (PUSH / PULL / INFERIOR; y subpatrones si aplica) 
+2. Repetición de rutas (FL/PL/HSPU/…): frecuencia y proximidad 
+3. Fatiga acumulada (por día y por semana), evitando stacking de estrés 
+Este módulo es un validador: 
+ consume el plan final ya construido 
+ emite errors/warnings/suggested_fixes 
+38.2 Modelo de entrada (lo mínimo que debe leer el validador) 
+Para cada día (Lun–Sáb): 
+ nucleus_signature (P37): route, pattern, intensity_pct, 
+format_density_rank, contraction_mix, level_group 
+ por bloque (opcional, si querés más fino): 
+ block_role 
+ reps_budget_total 
+ difficulty_bucket 
+38.3 Métricas semanales canónicas (se computan, no se declaran) 
+38.3.1 Conteo de Nucleus por patrón 
+count_pattern[PUSH|PULL|INFERIOR] = #days where nucleus.pattern == X 
+38.3.2 Conteo de Nucleus por ruta 
+count_route[FL|PL|HSPU|...] = #days where nucleus.route == R 
+38.3.3 Carga semanal (proxy determinista) 
+Si no existe tagging de tejido: 
+day_load = intensity_weight(intensity_pct) * 
+density_weight(format_density) * budget_weight(reps_budget_total) 
+week_load = Σ day_load 
+Definir pesos por tabla (no heurística libre): 
+ intensity_weight: creciente no lineal (90+ pesa más) 
+ density_weight: EMOM/AMRAP > series suaves > movilidad 
+ budget_weight: opcional si ya viene “normalizado” por intensidad 
+38.4 Validador A — Balance de patrones 
+38.4.1 Regla base 3/3 (upper/lower) 
+Si tu regla macro es “3 superior / 3 inferior”, expresarla formalmente: 
+ Superior = PUSH + PULL 
+ Inferior = INFERIOR 
+upper_days = count(PUSH) + count(PULL) 
+lower_days = count(INFERIOR) 
+require upper_days == 3 
+require lower_days == 3 
+Si hay semanas especiales (deload/skill), permitir override: 
+ weekly_pattern_policy = STANDARD_3_3 | CUSTOM 
+38.4.2 Balance interno del superior (PUSH vs PULL) 
+Regla recomendada: 
+abs(count(PUSH) - count(PULL)) <= 1 
+Severidad: 
+ WARNING si diferencia = 2 
+ ERROR si diferencia ≥ 3 
+38.5 Validador B — Repetición de rutas (frecuencia + proximidad) 
+38.5.1 Frecuencia máxima por semana 
+Definir route_week_cap por ruta (config): 
+Ejemplo (estructura): 
+ route_week_cap["PL"] = 2 
+ route_week_cap["FL"] = 2 
+ route_week_cap["HSPU"] = 2 
+ rutas menores (accesorios) podrían permitir más si no son nucleus 
+Regla: 
+count_route[R] <= route_week_cap[R] 
+Severidad: 
+ WARNING si excede por 1 
+ ERROR si excede por >1 
+38.5.2 Proximidad mínima entre apariciones 
+Evitar que la misma ruta sea núcleo en días muy cercanos (ej: Lunes + Martes). 
+Definir: 
+ min_gap_days_by_route[R] (config; típico 1 o 2) 
+Si days(R) = [d1, d2, ...]: 
+for i in 1..len-1: 
+require (d[i+1] - d[i]) >= min_gap_days_by_route[R] 
+Severidad: 
+ ERROR si gap=0 o 1 en intensidades altas 
+ WARNING si intensidades son bajas o complementarias 
+38.6 Validador C — Stacking de intensidad alta (semana “picos”) 
+Definir high_intensity_threshold (ej: ≥ 90). 
+Reglas: 
+1. Máximo de días high-intensity por semana 
+high_days = #days where nucleus.intensity_pct >= threshold 
+require high_days <= high_days_cap (config, típico 2) 
+2. No high-high consecutivo 
+for day d: 
+if is_high(d) and is_high(d+1): ERROR 
+3. No high con misma ruta en ventana corta 
+if route_same and (gap < min_gap_high): ERROR 
+38.7 Validador D — Fatiga acumulada (proxy) y “tendencias” 
+38.7.1 Semana no debe exceder presupuesto global 
+Si tu sistema tiene un “week_load_target” por ciclo (opcional), validar: 
+week_load ∈ [min_target, max_target] 
+Si no existe target, validar solo consistencia relativa: 
+ que no haya 4 días seguidos con load alto 
+38.7.2 Regla de “run” (rachas) 
+Definir load_bucket por día (LOW/MED/HIGH) usando day_load. 
+Reglas: 
+ no más de 2 HIGH seguidos 
+ no más de 3 MED+ seguidos 
+max_consecutive(HIGH) <= 2 
+max_consecutive(MED_OR_HIGH) <= 3 
+38.8 Validador E — Contracción semanal (acumulación por modo) 
+Si querés control fino: 
+ sumar contraction_mix de núcleos (y opcionalmente complementos) 
+week_CON = Σ nucleus.CON 
+week_EXC = Σ nucleus.EXC 
+week_ISO = Σ nucleus.ISO 
+Validar caps (config): 
+ EXC no debe dominar toda la semana 
+ ISO sostenido en rutas tipo PL/FL debe tener descanso 
+Regla ejemplo: 
+week_EXC <= exc_week_cap 
+38.9 Validador F — Anti-sesgo por asistencia (si aplica en tu sistema) 
+Como mencionaste “anti-sesgo por asistencia”, el validador semanal debe detectar si el 
+plan, en ejecución real, queda sesgado. 
+Modelo: 
+ attendance_prob[day] o historical_attendance[day] (si existe) 
+ 
+ calcular expected_pattern_exposure (exposición esperada) 
+ 
+Ej: 
+expected_push = Σ P(attend_day) * is_push_day 
+ 
+Validar que el “expected” no se desbalancee: 
+ si el sábado siempre falta gente y sábado es siempre inferior → inferior queda 
+subexpuesto 
+ 
+Salida: WARNING + sugerencia de rotación. 
+ 
+38.10 Salida del validador semanal (contrato) 
+{ 
+  "week_coherence_validation": { 
+    "week_id": "W19", 
+    "metrics": { 
+      "pattern_counts": {"PUSH": 2, "PULL": 1, "INFERIOR": 3}, 
+      "route_counts": {"FL": 2, "PL": 2, "HSPU": 0}, 
+      "high_intensity_days": 3, 
+      "week_load": 142 
+    }, 
+    "errors": [ 
+      { 
+        "code": "TOO_MANY_HIGH_DAYS", 
+        "detail": "high_intensity_days=3 > cap=2" 
+      }, 
+      { 
+        "code": "ROUTE_GAP_VIOLATION", 
+        "route": "PL", 
+        "days": ["Mon","Tue"], 
+        "detail": "gap=1 < min_gap=2" 
+      } 
+    ], 
+    "warnings": [ 
+      { 
+        "code": "PUSH_PULL_IMBALANCE", 
+        "detail": "abs(PUSH-PULL)=1 OK" 
+      } 
+    ], 
+    "suggested_fixes": [ 
+      { 
+        "action": "SWAP_DAY_ROUTEs", 
+        "params": { "day_a": "Tue", "day_b": "Thu" } 
+      }, 
+      { 
+        "action": "DOWNGRADE_INTENSITY", 
+        "params": { "day": "Tue", "pct_delta": -10 } 
+      } 
+    ] 
+  } 
+} 
+ 
+ 
+38.11 Parámetros configurables (versionados) 
+ weekly_pattern_policy 
+ 
+ route_week_cap[route] 
+ 
+ min_gap_days_by_route[route] 
+ 
+ high_intensity_threshold 
+ 
+ high_days_cap 
+ 
+ load_bucket_thresholds 
+ 
+ max_consecutive_high 
+ 
+ max_consecutive_med_or_high 
+ 
+ exc_week_cap, iso_week_cap (si aplican) 
+ 
+ attendance_model_enabled 
+ 
+38.12 Mínimo viable vs completo 
+Mínimo viable (sin datos extra): 
+ balance PUSH/PULL/INFERIOR por Nucleus 
+ route repetition cap + min gap 
+ high intensity cap + no consecutivos 
+Completo (requiere tags/historial): 
+ fatiga por tejido/articulación real (P31 tags) 
+ expected exposure por asistencia 
+ contracción semanal avanzada 
+Punto 39 — I. Reglas globales de coherencia 
+(validadores) 
+Reglas de “usuario parcial” (si alguien viene 2–3 días: no queda cojo) 
+39.1 Objetivo lógico 
+Validar que, para asistentes parciales típicos (2 o 3 días por semana), la exposición a 
+patrones/rutas: 
+1. no queda severamente desbalanceada (ej: solo PUSH) 
+2. no deja “agujeros” críticos (ej: nunca INFERIOR) 
+3. no repite siempre el mismo stress dominante 
+4. sigue siendo coherente con la intención del WeekPlan 
+Esto se modela como un conjunto de escenarios de asistencia y un validador que evalúa 
+el plan bajo esos escenarios. 
+39.2 Inputs mínimos del validador 
+Para cada día: 
+ day_id (Lun..Sáb) 
+ nucleus.pattern (PUSH/PULL/INFERIOR) 
+ nucleus.route (FL/PL/HSPU/…) 
+ nucleus.intensity_pct 
+ density_rank 
+ opcional (si existe): day_load_proxy 
+Además: 
+ attendance_model (si hay histórico por día) 
+ si no hay histórico: usar patrones genéricos “usuario parcial” 
+39.3 Escenarios de asistencia (set cerrado) 
+Definir un set de escenarios estándar para evaluar, por tamaño: 
+39.3.1 Escenarios de 2 días (2/6) 
+Evaluar combinaciones representativas (no todas las combinaciones C(6,2)=15 
+necesariamente, pero se puede evaluar todas porque es barato). 
+Recomendación: evaluar todas las combinaciones de 2 días (determinista): 
+S2 = all_combinations(days, 2) 
+39.3.2 Escenarios de 3 días (3/6) 
+Evaluar todas C(6,3)=20 o un subconjunto representativo. 
+Recomendación: evaluar todas: 
+S3 = all_combinations(days, 3) 
+Opcional: si querés ser más realista, ponderar por probabilidad de asistencia. 
+39.4 Métricas de “no queda cojo” (por escenario) 
+Para un escenario S (lista de días atendidos), computar: 
+39.4.1 Exposición de patrones 
+exp_pattern[PUSH|PULL|INFERIOR] = count over S of nucleus.pattern == 
+X 
+39.4.2 Exposición de rutas 
+exp_route[R] = count over S of nucleus.route == R 
+39.4.3 Carga acumulada del escenario 
+scenario_load = Σ day_load_proxy(d)  for d in S 
+39.4.4 Densidad e intensidad 
+ high_days_in_S 
+ avg_intensity 
+ max_consecutive_days_in_S (si el escenario tiene días contiguos) 
+39.5 Reglas mínimas de integridad (hard/soft) 
+Separar en HARD (error) vs SOFT (warning). 
+39.5.A Reglas HARD (no negociables) 
+R-H1 — Cobertura mínima de patrones (3 días) 
+Para escenarios de 3 días: 
+ no permitir exp_pattern[INFERIOR] == 0 
+ no permitir exp_pattern[PULL] == 0 si el resto es PUSH-only (evitar 
+hombro/codo monotemático) 
+Formal: 
+if |S| == 3: 
+require exp_pattern[INFERIOR] >= 1 
+require (exp_pattern[PULL] >= 1) OR (exp_pattern[PUSH] >= 1) 
+# (la segunda es trivial, pero se usa para detectar “solo uno”) 
+R-H2 — No 3 días del mismo patrón 
+if |S| == 3: 
+require max(exp_pattern.values) <= 2 
+R-H3 — No 2 días iguales en ruta en escenarios de 2 días (si ruta es 
+“heavy”) 
+Para escenarios de 2 días: 
+ si ambos días tienen la misma route y la intensidad es alta → error 
+Formal: 
+if |S| == 2 and route_same: 
+if min(intensity_pct(day1), intensity_pct(day2)) >= 
+high_threshold: 
+ERROR 
+39.5.B Reglas SOFT (warnings) 
+R-S1 — Cobertura deseable en 2 días 
+Para 2 días, idealmente: 
+ 1 superior + 1 inferior 
+Warning si ambos son superior (PUSH/PULL) o ambos inferior. 
+if |S| == 2: 
+warn if exp_pattern[INFERIOR] == 0 OR 
+exp_pattern[PUSH]+exp_pattern[PULL] == 0 
+R-S2 — Balance PUSH vs PULL dentro del superior 
+En escenarios sin inferior (si ocurre), exigir variedad dentro del superior: 
+ si exp_pattern[PUSH]=2 warning 
+ si exp_pattern[PULL]=2 warning 
+R-S3 — Densidad alta acumulada 
+Si un usuario parcial cae en 2 días muy densos/intensos seguidos: 
+ warning o error según umbral 
+warn if high_days_in_S >= 2 and days_are_consecutive 
+39.6 Ponderación por probabilidad (opcional, pero clave) 
+Dos modelos: 
+Modelo A — Uniforme 
+Todos los escenarios valen lo mismo. 
+Modelo B — Probabilístico (si tenés histórico) 
+P(attend_day) por día de la semana (por sucursal o global). 
+Entonces cada escenario tiene peso: 
+P(S) = Π_{d∈S} P(d) * Π_{d∉S} (1-P(d))   # o simplificado si solo 
+comparás escenarios del mismo tamaño 
+Salida: 
+ “peor caso” (worst-case) 
+ “caso típico ponderado” (expected-case) 
+39.7 Métrica agregada semanal (Score de robustez) 
+Definir un score de robustez semanal: 
+robustness_score = 1 - (weighted_violations / weighted_total) 
+Donde: 
+ error pesa más que warning 
+ escenarios más probables pesan más (si modelo B) 
+Esto permite comparar semanas. 
+39.8 Motor de sugerencias (fixes) — acciones permitidas 
+El validador debe sugerir cambios con acciones discretas: 
+1. SWAP_DAY_NUCLEUS(day_a, day_b) 
+2. SHIFT_ROUTE(day, from_route, to_route) (si rotador lo permite) 
+3. DOWNGRADE_INTENSITY(day, pct_delta) 
+4. UPGRADE_COMPLEMENT(day, add_pattern=INFERIOR_LIGHT) (si falta inferior 
+en muchos escenarios) 
+5. REASSIGN_DAY_ROLE(day, make_it_more_general) (bajar especificidad) 
+Regla: 
+ sugerir el cambio mínimo que reduce la mayor cantidad de violaciones. 
+39.9 Output contractual del validador (completo) 
+{ 
+"partial_user_validation": { 
+"week_id": "W19", 
+    "model": "UNIFORM | PROBABILISTIC", 
+    "params": { "high_threshold": 90 }, 
+    "summary": { 
+      "scenarios_2d": 15, 
+      "scenarios_3d": 20, 
+      "worst_case": { 
+        "scenario": ["Mon", "Wed", "Fri"], 
+        "errors": 1, 
+        "warnings": 2 
+      }, 
+      "robustness_score": 0.86 
+    }, 
+    "violations": [ 
+      { 
+        "scenario": ["Tue", "Thu", "Sat"], 
+        "severity": "ERROR", 
+        "code": "NO_INFERIOR_IN_3D", 
+        "detail": "Patterns: PUSH=2, PULL=1, INFERIOR=0" 
+      } 
+    ], 
+    "suggested_fixes": [ 
+      { 
+        "action": "SWAP_DAY_NUCLEUS", 
+        "params": { "day_a": "Sat", "day_b": "Wed" }, 
+        "expected_effect": { 
+          "errors_reduced": 4, 
+          "warnings_reduced": 7 
+        } 
+      } 
+    ] 
+  } 
+} 
+ 
+ 
+39.10 Mínimo viable (si no querés probabilidades ni carga) 
+Implementar solo: 
+ enumerar todos los escenarios 2d y 3d 
+ 
+ validar: 
+ 
+ 3d no puede ser 3 del mismo patrón 
+ 3d debe incluir al menos 1 INFERIOR 
+ 2d idealmente incluye 1 INFERIOR (warning) 
+ sugerir swaps simples 
+Eso ya cumple el objetivo “no queda cojo”. 
+39.11 Nota de integración con tu regla anti-sesgo 
+Este validador es exactamente el lugar donde vive el “anti-sesgo por asistencia”: 
+ si históricamente el usuario parcial tiende a (Lun-Mié-Vie), el plan debe ser robusto 
+para ese subconjunto. 
+ si el usuario parcial tiende a evitar sábados, no podés poner “lo único inferior” 
+siempre el sábado. 
+Punto 40 — I. Reglas globales de coherencia 
+(validadores) 
+Criterios de “falla” (qué hacer si no hay ejercicios candidatos 
+suficientes) 
+40.1 Objetivo lógico 
+Cuando el motor llega a un punto donde debe seleccionar N ejercicios para un BlockPlan, 
+puede ocurrir: 
+ el pool filtrado queda vacío 
+ el pool existe pero no alcanza para cubrir: 
+ contracciones requeridas 
+ difficulty_bucket 
+ diversidad / no duplicados 
+ restricciones de formato 
+Este punto define un protocolo determinista de: 
+1. detección de falla 
+2. clasificación de la falla 
+3. escalación de relajación de constraints (fallback ladder) 
+4. qué emitir en la salida (trace + severidad) 
+5. cuándo abortar vs cuándo degradar el plan 
+40.2 Definición formal: “candidate insufficiency” 
+Para un slot s (con requisitos Req_s) y una BD ExerciseDB: 
+Pool_s = filter(ExerciseDB, Req_s) 
+Falla de slot si: 
+|Pool_s| == 0 
+Falla de bloque si: 
+ existe algún slot con Pool=0 
+ o el algoritmo no puede construir un set de tamaño N cumpliendo constraints 
+globales (dedup/collision/pattern caps) 
+40.3 Clasificación de falla (tipos) 
+Definir FailureCode (enum cerrado): 
+1. NO_MATCH_ROUTE 
+No hay ejercicios con route_code requerido. 
+2. NO_MATCH_LEVEL 
+Hay ruta pero no hay para level_code/level_num. 
+3. NO_MATCH_CONTRACTION 
+Hay ruta+nivel pero no hay con contraction_code requerido. 
+4. NO_MATCH_DIFFICULTY_BUCKET 
+Hay candidatos pero todos fuera del bucket (muy fáciles o muy difíciles). 
+5. NO_MATCH_CATEGORY_SCOPE 
+SPOM scope demasiado específico (categoría) y pool queda vacío. 
+6. DEDUP_COLLISION_DEADLOCK 
+Hay candidatos individuales, pero al combinar se bloquean por 
+relates_to/colisiones. 
+7. FORMAT_INCOMPATIBLE 
+Hay ejercicios, pero el formato exige estructura que no se puede cumplir (ej: EMOM 
+con step sizes imposibles, o sets mínimos). 
+8. EQUIPMENT_MISSING (si hay equipamiento) 
+La restricción de equipamiento eliminó el pool. 
+40.4 Severidad: cuándo es ERROR vs WARNING 
+Definir FailureSeverity: 
+ HARD_ERROR 
+No se puede emitir bloque ejecutable sin violar invariantes estructurales. 
+ SOFT_DEGRADE 
+Se puede emitir bloque ejecutable con degradación controlada (relajar constraints). 
+Regla general: 
+ si falla ruta o nivel base → HARD_ERROR (porque rompe el objetivo del día) 
+ si falla contracción/dificultad/categoría → SOFT_DEGRADE primero 
+40.5 Política de fallback (orden de relajación de constraints) 
+Esto es el núcleo del punto: una escalera de fallback versionada. 
+40.5.1 Regla: relajar de menor impacto a mayor impacto 
+Orden recomendado (determinista): 
+Tier 0 — No tocar nada 
+Intento normal. 
+Tier 1 — Relajar diversidad / dedup (soft) 
+ permitir repetir category_secondary una vez más 
+ permitir colisión soft (solo en intensidades bajas/medias) 
+ mantener ruta, nivel, contracción, bucket 
+Tier 2 — Relajar difficulty_bucket (±1) 
+ permitir bucket más fácil o más difícil dentro del mismo level_code 
+ ejemplo: target=2, permitir 1 o 3 si existe 
+Tier 3 — Relajar subnivel (level_num) dentro del mismo level_code 
+ si pedías level_num=2, permitir 1 o 3 
+ sigue siendo el mismo grupo (alfa/delta/sigma/…) 
+Tier 4 — Relajar contracción (solo si el mix no se puede cubrir) 
+ regla: mantener al menos 1 ejercicio de cada contracción crítica si es posible 
+ priorizar: 
+ ISO ↔ CON (más cercano) 
+ EXC solo se sustituye si no existe (porque EXC suele ser más limitante) 
+Tier 5 — Ampliar scope de categoría SPOM (subir jerarquía) 
+ si SPOM pidió “Planche específico” y no hay candidatos, subir a: 
+ Push Straight Arm 
+ luego Push Horizontal 
+ luego Push General 
+Esto es exactamente tu lógica: % intensidad define scope, pero en falla el fallback sube el 
+scope. 
+Tier 6 — Sustituir el bloque por “General Support Block” 
+ bloque de soporte que mantiene patrón principal del día pero baja especificidad: 
+ core/scap/mobility predefinidos por patrón 
+ se usa solo si todo lo demás falla 
+Tier 7 — HARD_ERROR 
+ abortar bloque 
+40.6 Reglas específicas por tipo de falla (dispatch) 
+40.6.1 NO_MATCH_CATEGORY_SCOPE 
+Aplicar directamente Tier 5 (ampliar scope), antes que tocar nivel/contracción. 
+40.6.2 NO_MATCH_CONTRACTION 
+Aplicar Tier 4, pero con límite: 
+ si intensidad ≥ 90, no permitir cambiar EXC por CON libremente (o marcar warning 
+fuerte) 
+40.6.3 NO_MATCH_LEVEL 
+Si no hay en level_code, esto es grave. 
+Política: 
+ permitir fallback a grupo adyacente solo si existe regla explícita (ej: Sigma puede 
+heredar de Delta/Omega). 
+Si no lo definiste, entonces HARD_ERROR. 
+40.6.4 DEDUP_COLLISION_DEADLOCK 
+Aplicar Tier 1 primero: 
+ bajar severidad de dedup de hard→soft en intensidades bajas 
+ 
+ permitir elegir dentro de relates_to si el pool es mínimo (último recurso) 
+ 
+ 
+40.7 Criterio de “suficientes candidatos” (umbral mínimo) 
+Para evitar planes frágiles incluso si “hay 1 candidato”: 
+Definir: 
+ min_pool_per_slot (ej: 2) 
+ 
+ min_pool_total (ej: N*2) 
+ 
+Validación: 
+if |Pool_s| < min_pool_per_slot: flag "LOW_POOL_WARNING" 
+ 
+Esto no impide generar, pero queda trazado. 
+ 
+40.8 Emisión de trazas (obligatorio) 
+Cada bloque debe emitir un CandidateTrace: 
+{ 
+  "candidate_trace": { 
+    "block_id": "W19-D2-B2", 
+    "target": { 
+      "route": "PL", 
+      "level_group": "Sigma", 
+      "difficulty_bucket": 2, 
+      "contraction_mix": {"CON":2,"ISO":1,"EXC":1}, 
+      "scope_category": "Planche" 
+    }, 
+    "pools": [ 
+      {"slot": 1, "req": {"contraction":"EXC"}, "pool_size": 0}, 
+      {"slot": 2, "req": {"contraction":"ISO"}, "pool_size": 3} 
+    ], 
+    "fallback": { 
+      "applied": true, 
+      "tier_reached": 5, 
+      "actions": [ 
+        {"type":"SCOPE_WIDEN", "from":"Planche", "to":"Push Straight 
+Arm"}, 
+        {"type":"DIFFICULTY_RELAX", "from":2, "to":[1,2]} 
+      ] 
+    }, 
+    "result": { 
+      "status": "DEGRADED_SUCCESS", 
+      "selected_exercises": ["..."] 
+    }, 
+    "issues": [ 
+      {"severity":"WARNING","code":"LOW_POOL","detail":"slot EXC 
+pool was 0; substituted with ISO"} 
+    ] 
+  } 
+} 
+ 
+Estados posibles: 
+ SUCCESS 
+ 
+ DEGRADED_SUCCESS 
+ 
+ FAIL_HARD 
+ 
+ 
+40.9 Qué hacer si el bloque falla HARD (política de recuperación) 
+Si un bloque núcleo falla hard: 
+1. No reemplazar por cualquier cosa. 
+ 
+2. Intentar reconstrucción cambiando solo: 
+ 
+ scope (Tier 5) 
+ 
+ formato (si es FORMAT_INCOMPATIBLE) 
+3. Si sigue fallando: 
+ emitir General Support Block (Tier 6) solo si el día puede sobrevivir 
+ si el día queda sin nucleus → HARD_ERROR del DayPlan 
+Si un bloque complemento falla hard: 
+ se puede dropear el bloque (si la semana lo permite) y emitir warning. 
+40.10 Reglas de fallback por formato (cuando el formato es el problema) 
+Caso FORMAT_INCOMPATIBLE: 
+Orden: 
+1. Mantener ejercicios y cambiar formato a uno “más permisivo” del set permitido (P23) 
+ ejemplo: EMOM → AMRAP → Series convencionales 
+2. Mantener intensidad (budget) pero cambiar estructura temporal 
+3. Revalidar P26 
+Esto se formaliza como: 
+format_fallback_chain = ["EMOM", "AMRAP", "SINGLETS", "SERIES"] 
+(La cadena real sale de tu BD de formatos) 
+40.11 Tabla de políticas (resumen ejecutable) 
+Hard constraints (idealmente nunca se relajan) 
+ route_code del nucleus (salvo Tier 6 support) 
+ pattern_principal del día 
+ level_group (alfa/delta vs sigma/omega…) salvo regla explícita 
+ 
+Soft constraints (pueden relajarse) 
+ category scope (subir jerarquía) 
+ 
+ difficulty_bucket (±1) 
+ 
+ level_num (1–3 dentro del grupo) 
+ 
+ contraction_mix (si no hay cobertura) 
+ 
+ dedup/collision caps (en intensidades bajas) 
+ 
+ 
+40.12 Output final del validador (semana) 
+Además de trazas por bloque, emitir un summary semanal: 
+{ 
+  "insufficiency_summary": { 
+    "week_id": "W19", 
+    "degraded_blocks": 4, 
+    "hard_fail_blocks": 0, 
+    "top_failure_codes": [ 
+      {"code":"NO_MATCH_CONTRACTION", "count":2}, 
+      {"code":"NO_MATCH_CATEGORY_SCOPE", "count":2} 
+    ] 
+  } 
+} 
+ 
+ 
+40.13 Parámetros configurables (versionados) 
+ min_pool_per_slot 
+ 
+ min_pool_total 
+ 
+ fallback_tiers_enabled 
+ 
+ difficulty_relax_range (±1, ±2) 
+ 
+ allow_contraction_substitution_by_intensity 
+ scope_widen_chain_by_pattern (PUSH/PULL/INF) 
+ format_fallback_chain 
+ hard_constraints_locked list 
+Punto 41 — J. Motor de ejecución (pipeline) 
+Orden exacto del pipeline (inputs → transformaciones → outputs) 
+41.1 Objetivo lógico 
+Definir un pipeline totalmente ordenado y determinista que: 
+ consume tablas fuente (SPOM, Intensidad, Contracción, Formatos, Rotador, Rutas, 
+ExerciseDB, Correlación) 
+ genera WeekPlan completo 
+ aplica validaciones y fallback 
+ emite un output contractual estable + trazas 
+Este pipeline es el “motor” que un agente de IA o un backend debe ejecutar paso a paso. 
+41.2 Inputs (source tables + config) 
+41.2.1 Inputs base (por semana) 
+ week_id 
+ cycle_context (opcional: fase, objetivo) 
+41.2.2 Source of truth tables 
+ RotadorSemanal (rutas por día, por grupo de nivel) 
+ SPOM (week_id × route → pct + patrón/categoría activa) 
+ SPOM_Intensidad (pct → budgets: reps_budget, exercise_count_target, 
+difficulty_bucket, etc.) 
+ Contracción (pct → distribución C/E/I por exercise_count_target) 
+ Formatos (catálogo + compatibilidades) 
+ Rutas (códigos route + metadata) 
+ Correlación (normalización códigos, joins) 
+ ExerciseDB (ejercicios) 
+41.2.3 Config versionada (engine) 
+ thresholds (high intensity, caps, gaps) 
+ fallback policy tiers (P40) 
+ note templates (P36) 
+ deterministic tie-breakers (orden estable) 
+41.3 Outputs (contratos) 
+ WeekPlan (principal) 
+ WeekTrace (debug estructurado) 
+ ValidationReport (día/semana/usuario parcial/insuficiencia) 
+41.4 Pipeline completo (orden exacto) 
+A continuación el orden estricto (sin saltos), con entradas/salidas por etapa. 
+Stage 0 — Normalización y joins (preflight) 
+0.1 Normalizar IDs y códigos 
+Input: tablas crudas 
+Output: tablas normalizadas con enums estables 
+Acciones: 
+ mapear route_code vía Correlación 
+ normalizar level_code (alfa|delta|sigma|omega|spartan|olympic) 
+ normalizar pattern_principal (PUSH/PULL/INFERIOR) 
+ validar nombres canónicos (si hay duplicados → warning) 
+0.2 Validación de integridad de tablas 
+ claves únicas (exercise_id, format_id, etc.) 
+ joins posibles (SPOM.route_code ∈ Rutas) 
+ coverage mínima (cada route tiene ejercicios en algunos niveles) 
+Si falla: aborta semana (HARD_ERROR_TABLE_INTEGRITY) 
+Stage 1 — Construcción macro de semana (skeleton) 
+1.1 Crear WeekSkeleton 
+Input: week_id, calendario fijo Lun–Sáb 
+Output: WeekSkeleton(days[6]) 
+1.2 Resolver “rutas del día” desde Rotador 
+Input: RotadorSemanal + week_id + level_groups 
+Output: para cada day_id y level_group: route_plan 
+Se genera: 
+ DayRouteAssignment[day][level_group] = {primary_route, 
+secondary_routes(optional)} 
+Stage 2 — Inyección SPOM (periodización) 
+2.1 Resolver entrada SPOM por route 
+Input: SPOM (week_id, route) 
+Output: SpomEntry{route, pct, active_pattern, active_category_scope} 
+2.2 Resolver conflictos SPOM (si existen) 
+Input: posibles duplicados/roles 
+Output: 1 entry definitiva por route, con resolution_trace 
+Stage 3 — Derivación de perfiles por bloque (budgets) 
+Para cada DayPlan y cada level_group, por cada bloque definido por tu estructura (ej: 
+B1..Bk): 
+3.1 Determinar intensity_pct del bloque 
+Input: route del bloque → SPOM.pct 
+Output: block.intensity_pct 
+3.2 Consultar IntensityProfile (SPOM_Intensidad) 
+Input: pct 
+Output: 
+ reps_budget_total 
+ exercise_count_target 
+ difficulty_bucket 
+ (cualquier otra variable de tu tabla) 
+3.3 Derivar ContractionMix (Contracción) 
+Input: pct + exercise_count_target 
+Output: slots[] (ej: [CON, CON, ISO, EXC]) 
+Stage 4 — Resolver scope de categorías (SPOM → 
+categorías) 
+4.1 Construir CategoryScope 
+Input: SpomEntry.active_category_scope + jerarquía de categorías 
+Output: scope_filter (lista de categorías permitidas) 
+Regla: 
+ pct bajo → scope amplio 
+ pct alto → scope específico 
+ si SPOM ya trae categoría explícita, se respeta hasta que falle (P40) 
+Stage 5 — Selección de formatos 
+5.1 Obtener formatos permitidos 
+Input: (block_type, level_group, intensity_pct) 
+Output: FormatCandidates[] 
+5.2 Selección determinista 
+Input: candidatos + prioridades 
+Output: FormatInstance + format_trace 
+Tie-breakers (orden estable): 
+1. recommended_rank 
+2. simplicity_rank 
+3. format_id (lexicográfico) 
+5.3 Instanciar parámetros 
+Input: formato + intensidad + reglas internas (P25 + anexo P26) 
+Output: rounds/duración/sets/rest_policy/etc. 
+Stage 6 — Selección de ejercicios (core) 
+6.1 Construir filtros obligatorios por slot 
+Para cada slot de contracción: 
+Input: 
+ route_code 
+ level_group (+ level_num target si aplica) 
+ contraction_code (slot) 
+ difficulty_bucket 
+ category_scope 
+Output: Pool_s 
+6.2 Resolver insuficiencia (fallback ladder P40) 
+Input: Pool_s sizes 
+Output: o bien: 
+ PoolsResolved (con degradación) 
+ o FAIL_HARD 
+6.3 Elegir N ejercicios globalmente (P30–31) 
+Input: PoolsResolved + dedup rules + relates_to 
+Output: SelectedExercises[N] + selection_trace 
+Stage 7 — Prescripción (dosis + formato + descansos + 
+ladders/tempo) 
+7.1 Asignar dosis por ejercicio (P32) 
+Input: reps_budget_total + N 
+Output: dose_rep_equiv por ejercicio 
+7.2 Bindear dosis al formato (P32.7) 
+Input: FormatInstance 
+Output: per_round/per_set schedule, ladder integration si aplica 
+7.3 Descansos (P33) 
+Input: format.rest_policy 
+Output: rest fields (null o prescritos) 
+7.4 Ladders y tempos (P34) 
+Input: ladder_policy (por formato o intensidad) 
+Output: ladder steps + tempo fields 
+7.5 Carga vs variante (P35) 
+Input: difficulty mismatch (si existe) + flags 
+Output: adjustment suggestion (NONE/LOAD/ASSIST/MICRO) 
+7.6 Notas estructuradas (P36) 
+Input: FormatInstance + intensity + contraction + adjustment 
+Output: Notes[] por bloque/ejercicio 
+Stage 8 — Validación local (bloque y día) 
+8.1 Validación de ejecutabilidad del bloque 
+Checks: 
+ suma rep_equiv ok 
+ formato instanciado completo 
+ no nulls críticos 
+ schedule consistente 
+8.2 Coherencia por día (P37) 
+Input: nucleus + complementos 
+Output: day_validation report + suggested fixes 
+Stage 9 — Validación global semanal 
+9.1 Coherencia semanal (P38) 
+ balance patrones 
+ rutas repetidas 
+ stacking de alta intensidad 
+ fatiga proxy 
+9.2 Usuario parcial (P39) 
+ escenarios 2d/3d 
+ robustez 
+9.3 Resumen de insuficiencia (P40) 
+ degradaciones aplicadas 
+ pools bajos 
+Stage 10 — Post-procesamiento y export 
+10.1 Aplicar fixes automáticos (si el motor tiene permiso) 
+Política: 
+ solo fixes “seguros” (swap days, widen scope, lower intensity) si están habilitados. 
+Si no: 
+ reportar suggested fixes sin modificar. 
+10.2 Emitir contratos finales 
+ WeekPlan (ejecutable) 
+ WeekTrace (pipeline trace) 
+ ValidationReport 
+41.5 Contrato mínimo del WeekTrace (debug obligatorio) 
+{ 
+} 
+"week_trace": { 
+"week_id": "W19", 
+"engine_version": "ETP_ENGINE_v1", 
+"stages": [ 
+{"stage": 0, "status": "OK"}, 
+{"stage": 6, "status": "DEGRADED_SUCCESS", "details": "..."} 
+] 
+} 
+41.6 Determinismo (regla transversal) 
+En todo el pipeline: 
+ listas se ordenan por clave estable (exercise_id, format_id, etc.) 
+ los tie-breakers son explícitos 
+ toda degradación queda trazada (P40) 
+ no se permite aleatoriedad 
+Punto 42 — J. Motor de ejecución (pipeline) 
+Pseudocódigo por etapa (funciones puras) 
+Objetivo: describir el motor como composición de funciones puras (inputs 
+inmutables → outputs), con trazas explícitas y determinismo. 
+42.1 Tipos base (interfaces mínimas) 
+type WeekId = string 
+type DayId = enum { MON, TUE, WED, THU, FRI, SAT } 
+type LevelGroup = enum { ALFA_DELTA, SIGMA, OMEGA }  # (o el 
+grouping real que uses) 
+type RouteCode = string  # "FL" | "PL" | ... 
+type Pattern = enum { PUSH, PULL, INFERIOR } 
+type Contraction = enum { CON, EXC, ISO } 
+type SpomEntry = { 
+week_id: WeekId, 
+route: RouteCode, 
+pct: int,                       
+active_pattern: Pattern, 
+# 55..95 
+active_category_scope: string   # path canónico (jerárquico) 
+} 
+type IntensityProfile = { 
+pct: int, 
+reps_budget_total: int,         
+exercise_count_target: int,     
+difficulty_bucket: int          
+} 
+type ContractionMix = { 
+slots: list<Contraction>        
+} 
+type FormatInstance = { 
+format_id: string, 
+type: string,                   
+# en rep_equiv 
+# N 
+# 1..3 
+# len == exercise_count_target 
+# EMOM/AMRAP/SETS/... 
+  rest_policy: enum { IMPLICIT_MIN, FIXED_PRESCRIBED }, 
+  params: map<string, any>        # duration_min, rounds, rest_sec, 
+etc. 
+} 
+ 
+type Exercise = { 
+  exercise_id: string, 
+  route: RouteCode, 
+  pattern: Pattern, 
+  category_principal: string, 
+  category_secondary: string, 
+  level_code: string,             # alfa/delta/sigma/... 
+  level_num: int,                 # 1..3 
+  difficulty_relative: int,        # 1..3 
+  contraction: Contraction, 
+  effort_type: string, 
+  is_mobility: bool, 
+  relates_to: list<string> 
+} 
+ 
+type ExercisePrescription = { 
+  exercise_id: string, 
+  contraction: Contraction, 
+  dose_rep_equiv: int, 
+  seconds: int | null, 
+  reps: int | null, 
+  ladder: LadderSpec | null, 
+  tempo: TempoSpec | null, 
+  rest: RestSpec, 
+  adjustment: AdjustmentSpec, 
+  notes: list<Note> 
+} 
+ 
+type BlockPlan = { 
+  block_id: string, 
+  role: enum { NUCLEUS, ACCESSORY, PREHAB_MOBILITY, SKILL_TECH }, 
+  route: RouteCode, 
+  pattern: Pattern, 
+  pct: int, 
+  intensity_profile: IntensityProfile, 
+  category_scope: CategoryScope, 
+  contraction_mix: ContractionMix, 
+  format: FormatInstance, 
+  exercises: list<ExercisePrescription>, 
+  notes: list<Note>, 
+  traces: BlockTrace 
+} 
+ 
+type DayPlan = { day_id: DayId, level_group: LevelGroup, blocks: 
+list<BlockPlan>, traces: DayTrace } 
+type WeekPlan = { week_id: WeekId, days: list<DayPlan>, traces: 
+WeekTrace } 
+ 
+type EngineConfig = { 
+  version: string, 
+  thresholds: ..., 
+  fallback_policy: ..., 
+  tie_breakers: ... 
+} 
+ 
+type Tables = { 
+  rotator: RotatorTable, 
+  spom: SpomTable, 
+  intensity: IntensityTable, 
+  contraction: ContractionTable, 
+  formats: FormatTable, 
+  routes: RoutesTable, 
+  correlation: CorrelationTable, 
+  exercise_db: list<Exercise>, 
+  category_hierarchy: CategoryHierarchy 
+} 
+ 
+ 
+42.2 Principio de composición 
+build_week_plan(week_id, tables, config) = 
+  normalize_tables(tables, config) 
+  |> build_week_skeleton(week_id, tables, config) 
+  |> materialize_week(week_id, tables, config) 
+  |> validate_week(week_id, tables, config) 
+  |> finalize_export(week_id, tables, config) 
+ 
+|> = pipe (output de la izquierda entra como input a la derecha). 
+ 
+42.3 Stage 0 — normalize_tables 
+function normalize_tables(tables: Tables, config: EngineConfig) -> 
+TablesNormalized: 
+  # 0.1 normalizar route_code via correlation 
+  routes_norm = normalize_routes(tables.routes, tables.correlation) 
+ 
+  spom_norm = normalize_spom_codes(tables.spom, tables.correlation) 
+  rotator_norm = normalize_rotator_codes(tables.rotator, 
+tables.correlation) 
+ 
+  exdb_norm = normalize_exercise_db(tables.exercise_db, 
+tables.correlation) 
+ 
+  assert_integrity(routes_norm, spom_norm, rotator_norm, exdb_norm, 
+tables.formats) 
+ 
+  return TablesNormalized( 
+    rotator=rotator_norm, 
+    spom=spom_norm, 
+    intensity=tables.intensity, 
+    contraction=tables.contraction, 
+    formats=tables.formats, 
+    routes=routes_norm, 
+    exercise_db=exdb_norm, 
+    category_hierarchy=tables.category_hierarchy 
+  ) 
+ 
+ 
+42.4 Stage 1 — build_week_skeleton 
+function build_week_skeleton(week_id: WeekId, T: TablesNormalized, 
+config) -> WeekSkeleton: 
+  days = [MON, TUE, WED, THU, FRI, SAT] 
+ 
+  # Asignación macro por rotador 
+  assignments = {} 
+  for day in days: 
+for group in config.level_groups: 
+assignments[(day, group)] = resolve_rotator(T.rotator, 
+week_id, day, group) 
+return WeekSkeleton(week_id=week_id, days=days, 
+assignments=assignments) 
+resolve_rotator devuelve rutas por bloque (según tu estructura fija). 
+42.5 Stage 2 — resolve_spom (por ruta) 
+function resolve_spom(week_id: WeekId, route: RouteCode, T, config) -> (SpomEntry, Trace): 
+candidates = query_spom(T.spom, week_id, route) 
+if candidates.size == 0: 
+return FAIL_HARD("SPOM_MISSING", {week_id, route}) 
+if candidates.size == 1: 
+return (candidates[0], Trace(resolution="DIRECT")) 
+# conflicto: aplicar prioridad determinista 
+resolved = resolve_spom_conflicts(candidates, 
+config.spom_priority_rules) 
+return (resolved, Trace(resolution="CONFLICT_RESOLVED", 
+candidates=candidates)) 
+42.6 Stage 3 — derive_budget (pct → profile + 
+contraction mix) 
+function derive_budget(pct: int, T, config) -> (IntensityProfile, 
+ContractionMix, Trace): 
+profile = lookup_intensity_profile(T.intensity, pct) 
+if profile == null: 
+return FAIL_HARD("INTENSITY_PROFILE_MISSING", {pct}) 
+mix = lookup_contraction_mix(T.contraction, pct, 
+profile.exercise_count_target) 
+  if mix == null: 
+    return FAIL_HARD("CONTRACTION_MIX_MISSING", {pct, 
+profile.exercise_count_target}) 
+ 
+  return (profile, mix, Trace(profile=profile, mix=mix)) 
+ 
+ 
+42.7 Stage 4 — resolve_category_scope (SPOM → 
+jerarquía) 
+function resolve_category_scope(spom: SpomEntry, T, config) -> 
+(CategoryScope, Trace): 
+  # CategoryScope es una lista de paths permitidos o un matcher. 
+  scope = build_scope_matcher( 
+    hierarchy=T.category_hierarchy, 
+    active_scope=spom.active_category_scope, 
+    pct=spom.pct, 
+    config=config.scope_rules 
+  ) 
+ 
+  return (scope, Trace(active=spom.active_category_scope, 
+pct=spom.pct)) 
+ 
+ 
+42.8 Stage 5 — pick_format 
+function pick_format(block_ctx, T, config) -> (FormatInstance, 
+Trace): 
+  candidates = filter_formats( 
+    T.formats, 
+    block_type=block_ctx.block_type, 
+    level_group=block_ctx.level_group, 
+    pct=block_ctx.pct 
+  ) 
+ 
+  if candidates.empty: 
