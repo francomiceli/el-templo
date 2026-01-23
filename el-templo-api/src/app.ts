@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import databasePlugin from './plugins/database';
 import authPlugin from './plugins/auth';
+import spomPlugin from './plugins/spom';
 import { authRoutes } from './modules/auth/routes';
 
 export async function buildApp() {
@@ -19,6 +20,9 @@ export async function buildApp() {
 
   // Auth plugin (decorates fastify.jwt and fastify.authenticate)
   await app.register(authPlugin);
+
+  // SPOM plugin (SPOM data access endpoints)
+  await app.register(spomPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });
