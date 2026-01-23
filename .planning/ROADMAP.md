@@ -86,34 +86,44 @@ Waves:
 - Wave 2: 03-02 (Training module - depends on 03-01)
 
 ### Phase 4: SPOM Engine
-**Goal**: System has complete exercise database and periodization rules ready for session generation
+**Goal**: System has complete exercise database, periodization rules, weekly rotator, and format compatibility data imported from documentation
 **Depends on**: Phase 1
-**Requirements**: SPOM-01, SPOM-02, SPOM-03, SPOM-04, SPOM-05, SPOM-06
+**Requirements**: SPOM-01 through SPOM-09
 **Success Criteria** (what must be TRUE):
-  1. 1869 exercises imported with full metadata (pattern, category, position, effort type, level)
-  2. SPOM periodization rules imported from spreadsheet data
-  3. Admin can view and set current gym-wide SPOM week (1-52)
-  4. System knows active intensity wave (Senoidal/Shockwave/Triangular/Fractal)
-  5. Exercises can be queried by pattern + category + level + contraction type
+  1. SPOM rules imported (~1040 rows): week × route → intensity, wave, pattern, category
+  2. Weekly Rotator imported (~936 rows): week × day × level_group → block routes
+  3. Contraction rules imported (~20 rows): intensity × total_exercises → CON/EXC/ISO counts
+  4. Intensity rules imported (~9 rows): intensity → reps, difficulty, exercise_count
+  5. Format compatibility imported (~500 rows): format × block × level × intensity → compatibility
+  6. Exercises imported (~1870 rows) with: patron, category, esfuerzo (CON/EXC/ISO), nivel, ruta, difficulty
+  7. Admin can view and set current gym-wide SPOM week (1-52)
+  8. Exercises queryable by route + contraction type + level + difficulty
 **Plans**: TBD
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01: Database schema for SPOM tables
+- [ ] 04-02: Data import scripts from CSV/JSON
+- [ ] 04-03: API endpoints for admin SPOM management
 
 ### Phase 5: Session Generation
-**Goal**: System generates complete daily sessions algorithmically from SPOM state and member level
+**Goal**: System generates complete daily sessions with 5 blocks using rotator-driven route assignment and contraction-type distribution
 **Depends on**: Phase 4
-**Requirements**: SGEN-01, SGEN-02, SGEN-03, SGEN-04, SGEN-05, SGEN-06, SGEN-07
+**Requirements**: SGEN-01 through SGEN-09
 **Success Criteria** (what must be TRUE):
-  1. Member receives daily session based on current SPOM week and their level
-  2. Session has 4 distinct blocks: Initium, Nucleus, Deuteros, Athlos/Epikos
-  3. Exercise selection follows contraction-type rules based on intensity
-  4. Exercise count per block matches intensity mapping (4-5 at 55%, 2-3 at 95%)
-  5. Block patterns follow weekly rotation rules with Nucleus opposite to Athlos/Epikos
+  1. Member receives daily session based on SPOM week, day, and their level group
+  2. Session has 5 blocks: Initium, Nucleus, Deuteros 1, Deuteros 2, Athlos/Epikos
+  3. Block routes assigned from Weekly Rotator (week × day × level_group)
+  4. Each block's intensity determined by SPOM rules lookup (week × route)
+  5. Exercise count per block follows Intensity rules (2-3 at 95%, 3-5 at 65%)
+  6. Exercise selection follows Contraction distribution (CON/EXC/ISO counts)
+  7. Exercise difficulty matches block intensity level
+  8. Member level affects which exercise progressions are shown
+  9. Block format assigned from Format compatibility rules
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01: Session generator service
+- [ ] 05-02: Session storage schema and API endpoints
 
 ### Phase 6: Weekly View
 **Goal**: Members see their training week at a glance and can navigate to any day
@@ -131,13 +141,13 @@ Plans:
 - [ ] 06-01: TBD
 
 ### Phase 7: Day Player
-**Goal**: Members execute sessions through guided block-by-block flow with exercise display
+**Goal**: Members execute sessions through guided 5-block flow with exercise display and format indicators
 **Depends on**: Phase 6
-**Requirements**: PLAY-01, PLAY-02, PLAY-03, PLAY-04, PLAY-05, PLAY-06, PLAY-07, PLAY-08, PLAY-09, PLAY-10
+**Requirements**: PLAY-01 through PLAY-11
 **Success Criteria** (what must be TRUE):
-  1. Member sees session as sequential block flow with clear progression
-  2. Each block has distinct visual identity (Initium blue, Nucleus primary, Deuteros secondary, Athlos amber)
-  3. Each block displays exercise list with reps/duration and video placeholder
+  1. Member sees session as sequential 5-block flow with clear progression
+  2. Each block has distinct visual identity (Initium blue, Nucleus primary, Deuteros 1/2 secondary/tertiary, Athlos amber)
+  3. Each block displays exercise list with reps/duration, format type, and video placeholder
   4. Member taps "Complete Block" to progress to next block
   5. Screen stays awake during active session (no auto-lock)
 **Plans**: TBD
@@ -213,4 +223,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 3 complete*
+*Last updated: 2026-01-23 — Reset to Phase 3, updated Phase 4-5-7 for new documentation*

@@ -1,0 +1,22 @@
+[
+  { "intensidad": 55, "totalEjercicios": 4, "concentrico": 2, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 55, "totalEjercicios": 5, "concentrico": 3, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 60, "totalEjercicios": 4, "concentrico": 2, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 60, "totalEjercicios": 5, "concentrico": 2, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 65, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 65, "totalEjercicios": 4, "concentrico": 2, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 65, "totalEjercicios": 5, "concentrico": 2, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 70, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 70, "totalEjercicios": 4, "concentrico": 1, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 70, "totalEjercicios": 5, "concentrico": 2, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 75, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 75, "totalEjercicios": 4, "concentrico": 1, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 80, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 80, "totalEjercicios": 4, "concentrico": 1, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 85, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 85, "totalEjercicios": 4, "concentrico": 1, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 90, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 },
+  { "intensidad": 90, "totalEjercicios": 4, "concentrico": 1, "excentrico": 2, "isometrico": 1 },
+  { "intensidad": 95, "totalEjercicios": 2, "concentrico": 0, "excentrico": 0, "isometrico": 2 },
+  { "intensidad": 95, "totalEjercicios": 3, "concentrico": 1, "excentrico": 1, "isometrico": 1 }
+]

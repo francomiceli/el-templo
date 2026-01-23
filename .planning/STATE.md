@@ -5,16 +5,30 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 4 - SPOM Engine
+**Current focus:** Phase 4 - SPOM Engine (redesigned based on new documentation)
 
 ## Current Position
 
 Phase: 3 of 10 (Shell & Module System) - Complete
-Plan: 2 of 2 in current phase (Phase complete)
-Status: Phase 3 complete, ready for Phase 4
-Last activity: 2026-01-22 — Completed Phase 3 (Shell & Module System)
+Plan: 0 of ~3 in Phase 4
+Status: Phase 3 complete, Phase 4 ready for planning with new documentation
+Last activity: 2026-01-23 — Reset to Phase 3, integrated new documentation from /docs/
 
 Progress: [███░░░░░░░] 30% (3/10 phases complete)
+
+## Architecture Reset
+
+**Date:** 2026-01-23
+**Reason:** New documentation in `/docs/` fundamentally changes SPOM and session generation architecture
+**Backup:** `backup/phases-4-5-5.1` branch contains previous Phase 4-5 implementation
+
+**Key changes from new documentation:**
+- 5 blocks (not 4): Initium, Nucleus, Deuteros 1, Deuteros 2, Athlos/Epikos
+- Route-driven block assignment via Weekly Rotator (not day-based)
+- Contraction type distribution required (CON/EXC/ISO counts per intensity)
+- SPOM lookup per route (week × route → intensity, wave, pattern)
+- Format compatibility system (Tabata, EMOM, AMRAP, Complex, etc.)
+- Level progression (Alfa sees alfa+delta, not just filtering)
 
 ## Performance Metrics
 
@@ -77,12 +91,18 @@ None yet.
 
 ### Blockers/Concerns
 
-- **SPOM Rules:** Phase 4-5 require golden test datasets from domain expert before development starts (flagged in research)
+- ~~**SPOM Rules:** Phase 4-5 require golden test datasets from domain expert before development starts (flagged in research)~~ **RESOLVED** - New documentation in `/docs/` provides complete data
 - **Timer Accuracy:** Phase 8 needs real-device testing under various conditions (backgrounding, low battery, notifications)
 - **Coach Override Patterns:** Need domain-specific design clarification (per-member? per-branch? temporary or permanent?)
 
 ## Session Continuity
 
-Last session: 2026-01-22T19:02:00Z
-Stopped at: Phase 3 complete, verified
+Last session: 2026-01-23
+Stopped at: Reset complete, Phase 4 ready for planning
 Resume file: None
+
+**Next steps:**
+1. Run `/gsd:plan-phase 4` to create detailed plans for SPOM Engine
+2. Execute Phase 4 plans
+3. Run `/gsd:plan-phase 5` for Session Generation
+4. Execute Phase 5 plans

@@ -17,22 +17,27 @@ Requirements for Training module release. Each maps to roadmap phases.
 
 ### SPOM Engine
 
-- [ ] **SPOM-01**: System imports SPOM periodization rules from spreadsheet data
-- [ ] **SPOM-02**: System imports exercise database (1869 exercises) with metadata (pattern, category, position, effort type, level)
-- [ ] **SPOM-03**: System tracks current gym-wide SPOM week (1-52)
-- [ ] **SPOM-04**: System knows active intensity wave (Senoidal/Shockwave/Triangular/Fractal)
-- [ ] **SPOM-05**: System knows current route and active pattern
-- [ ] **SPOM-06**: Exercises are queryable by pattern + category + level + contraction type
+- [ ] **SPOM-01**: System imports SPOM rules (week × route → intensity, wave, pattern, category) from SPOM.csv (~1040 rows)
+- [ ] **SPOM-02**: System imports Weekly Rotator (week × day × level_group → Nucleus, Deuteros1, Deuteros2, Athlos/Epikos routes) from Rotador Semanal.csv (~936 rows)
+- [ ] **SPOM-03**: System imports Contraction rules (intensity × total_exercises → concentric/eccentric/isometric counts) from Contracción.txt (~20 rows)
+- [ ] **SPOM-04**: System imports Intensity rules (intensity → reps_per_block, difficulty, exercises_per_block) from Intensidad.csv (~9 rows)
+- [ ] **SPOM-05**: System imports Format compatibility rules (format × block × level × intensity → compatibility) from Formatos.csv (~500 rows)
+- [ ] **SPOM-06**: System imports Exercises with full metadata (patron, category, esfuerzo/contraction, nivel, ruta) from Ejercicios.csv (~1870 exercises)
+- [ ] **SPOM-07**: System tracks current gym-wide SPOM week (1-52)
+- [ ] **SPOM-08**: System knows active wave type (Senoidal/Shockwave/Triangular/Fractal) per route via SPOM rules
+- [ ] **SPOM-09**: Exercises are queryable by route + contraction type + level + difficulty
 
 ### Session Generation
 
-- [ ] **SGEN-01**: System generates daily session from current SPOM week + member level
-- [ ] **SGEN-02**: Session has 4 blocks: Initium (warmup), Nucleus (main), Deuteros (secondary), Athlos/Epikos (finisher)
-- [ ] **SGEN-03**: Exercise selection follows contraction-type rules based on intensity
-- [ ] **SGEN-04**: Exercise count per block follows intensity mapping (4-5 at 55%, 2-3 at 95%)
-- [ ] **SGEN-05**: Block patterns follow weekly rotation rules
-- [ ] **SGEN-06**: Athlos/Epikos direction is opposite to Nucleus direction
-- [ ] **SGEN-07**: Member level affects exercise difficulty shown (Alfa sees easier progressions)
+- [ ] **SGEN-01**: System generates daily session from SPOM week + day + member level group
+- [ ] **SGEN-02**: Session has 5 blocks: Initium (warmup), Nucleus (main), Deuteros 1 (secondary), Deuteros 2 (secondary), Athlos/Epikos (finisher)
+- [ ] **SGEN-03**: Block routes assigned from Weekly Rotator (week × day × level_group → routes)
+- [ ] **SGEN-04**: Each block's intensity from SPOM rules lookup (week × route → intensity)
+- [ ] **SGEN-05**: Exercise count per block follows Intensity rules (2-3 at 95%, 3-5 at 65%)
+- [ ] **SGEN-06**: Exercise selection follows Contraction distribution rules (CON/EXC/ISO counts by intensity)
+- [ ] **SGEN-07**: Exercise difficulty matches block intensity level (Nivel Superior at 85%+)
+- [ ] **SGEN-08**: Member level affects exercise progression shown (Alfa sees alfa+delta, Omega sees all)
+- [ ] **SGEN-09**: Block format assigned from Format compatibility rules (block × level × intensity)
 
 ### Weekly View
 
@@ -44,16 +49,17 @@ Requirements for Training module release. Each maps to roadmap phases.
 
 ### Day Player
 
-- [ ] **PLAY-01**: Member sees session as sequential block flow
+- [ ] **PLAY-01**: Member sees session as sequential 5-block flow
 - [ ] **PLAY-02**: Each block has distinct visual identity (color-coded per block type)
 - [ ] **PLAY-03**: Initium block: light blue accent, warmup exercises
 - [ ] **PLAY-04**: Nucleus block: primary color, main work
-- [ ] **PLAY-05**: Deuteros block: secondary accent, complementary work
-- [ ] **PLAY-06**: Athlos/Epikos block: amber accent, finisher
-- [ ] **PLAY-07**: Each block shows exercise list with reps/duration
-- [ ] **PLAY-08**: Video placeholder displayed for each exercise
-- [ ] **PLAY-09**: Member taps "Complete Block" to progress to next block
-- [ ] **PLAY-10**: Screen stays awake during active session
+- [ ] **PLAY-05**: Deuteros 1 block: secondary accent, complementary work
+- [ ] **PLAY-06**: Deuteros 2 block: tertiary accent, complementary work
+- [ ] **PLAY-07**: Athlos/Epikos block: amber accent, finisher
+- [ ] **PLAY-08**: Each block shows exercise list with reps/duration and format
+- [ ] **PLAY-09**: Video placeholder displayed for each exercise
+- [ ] **PLAY-10**: Member taps "Complete Block" to progress to next block
+- [ ] **PLAY-11**: Screen stays awake during active session
 
 ### Timer System
 
@@ -165,6 +171,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPOM-04 | Phase 4 | Pending |
 | SPOM-05 | Phase 4 | Pending |
 | SPOM-06 | Phase 4 | Pending |
+| SPOM-07 | Phase 4 | Pending |
+| SPOM-08 | Phase 4 | Pending |
+| SPOM-09 | Phase 4 | Pending |
 | SGEN-01 | Phase 5 | Pending |
 | SGEN-02 | Phase 5 | Pending |
 | SGEN-03 | Phase 5 | Pending |
@@ -172,6 +181,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SGEN-05 | Phase 5 | Pending |
 | SGEN-06 | Phase 5 | Pending |
 | SGEN-07 | Phase 5 | Pending |
+| SGEN-08 | Phase 5 | Pending |
+| SGEN-09 | Phase 5 | Pending |
 | WEEK-01 | Phase 6 | Pending |
 | WEEK-02 | Phase 6 | Pending |
 | WEEK-03 | Phase 6 | Pending |
@@ -187,6 +198,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLAY-08 | Phase 7 | Pending |
 | PLAY-09 | Phase 7 | Pending |
 | PLAY-10 | Phase 7 | Pending |
+| PLAY-11 | Phase 7 | Pending |
 | TIME-01 | Phase 8 | Pending |
 | TIME-02 | Phase 8 | Pending |
 | TIME-03 | Phase 8 | Pending |
@@ -220,10 +232,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ARCH-04 | Phase 1 | Complete |
 
 **Coverage:**
-- v1 requirements: 64 total
-- Mapped to phases: 64
+- v1 requirements: 70 total
+- Mapped to phases: 70
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-01-22*
-*Last updated: 2026-01-22 — Phase 3 complete (ARCH-02)*
+*Last updated: 2026-01-23 — Updated SPOM/SGEN/PLAY for new documentation*

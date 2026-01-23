@@ -1,0 +1,1492 @@
+Formato,Bloque,Nivel,Compatibilidad,Intensidad,Tipo
+Accumulate X,Nucleus,Alfa,1,55,Volume-based
+Accumulate X,Nucleus,Alfa,1,60,Volume-based
+Accumulate X,Nucleus,Delta,1,55,Volume-based
+Accumulate X,Nucleus,Delta,1,60,Volume-based
+Accumulate X,Nucleus,Sigma,1,55,Volume-based
+Accumulate X,Nucleus,Sigma,1,60,Volume-based
+Accumulate X,Nucleus,Omega,1,55,Volume-based
+Accumulate X,Nucleus,Omega,1,60,Volume-based
+Accumulate X,Deuteros,Alfa,1,55,Volume-based
+Accumulate X,Deuteros,Alfa,1,60,Volume-based
+Accumulate X,Deuteros,Delta,1,55,Volume-based
+Accumulate X,Deuteros,Delta,1,60,Volume-based
+Accumulate X,Deuteros,Sigma,1,55,Volume-based
+Accumulate X,Deuteros,Sigma,1,60,Volume-based
+Accumulate X,Deuteros,Omega,1,55,Volume-based
+Accumulate X,Deuteros,Omega,1,60,Volume-based
+AMRAP,Nucleus,Alfa,1,55,Time-based
+AMRAP,Nucleus,Alfa,1,60,Time-based
+AMRAP,Nucleus,Alfa,1,65,Time-based
+AMRAP,Nucleus,Alfa,1,70,Time-based
+AMRAP,Nucleus,Delta,1,55,Time-based
+AMRAP,Nucleus,Delta,1,60,Time-based
+AMRAP,Nucleus,Delta,1,65,Time-based
+AMRAP,Nucleus,Delta,1,70,Time-based
+AMRAP,Nucleus,Sigma,1,55,Time-based
+AMRAP,Nucleus,Sigma,1,60,Time-based
+AMRAP,Nucleus,Sigma,1,65,Time-based
+AMRAP,Nucleus,Sigma,1,70,Time-based
+AMRAP,Nucleus,Omega,1,55,Time-based
+AMRAP,Nucleus,Omega,1,60,Time-based
+AMRAP,Nucleus,Omega,1,65,Time-based
+AMRAP,Nucleus,Omega,1,70,Time-based
+AMRAP,Deuteros,Alfa,2,55,Time-based
+AMRAP,Deuteros,Alfa,2,60,Time-based
+AMRAP,Deuteros,Alfa,2,65,Time-based
+AMRAP,Deuteros,Alfa,2,70,Time-based
+AMRAP,Deuteros,Delta,1,55,Time-based
+AMRAP,Deuteros,Delta,1,60,Time-based
+AMRAP,Deuteros,Delta,1,65,Time-based
+AMRAP,Deuteros,Delta,1,70,Time-based
+AMRAP,Deuteros,Sigma,1,55,Time-based
+AMRAP,Deuteros,Sigma,1,60,Time-based
+AMRAP,Deuteros,Sigma,1,65,Time-based
+AMRAP,Deuteros,Sigma,1,70,Time-based
+AMRAP,Deuteros,Omega,1,55,Time-based
+AMRAP,Deuteros,Omega,1,60,Time-based
+AMRAP,Deuteros,Omega,1,65,Time-based
+AMRAP,Deuteros,Omega,1,70,Time-based
+AMRAP,Athlos,Alfa,2,55,Time-based
+AMRAP,Athlos,Alfa,2,60,Time-based
+AMRAP,Athlos,Alfa,2,65,Time-based
+AMRAP,Athlos,Alfa,2,70,Time-based
+AMRAP,Athlos,Delta,1,55,Time-based
+AMRAP,Athlos,Delta,1,60,Time-based
+AMRAP,Athlos,Delta,1,65,Time-based
+AMRAP,Athlos,Delta,1,70,Time-based
+AMRAP,Athlos,Sigma,1,55,Time-based
+AMRAP,Athlos,Sigma,1,60,Time-based
+AMRAP,Athlos,Sigma,1,65,Time-based
+AMRAP,Athlos,Sigma,1,70,Time-based
+AMRAP,Athlos,Omega,1,55,Time-based
+AMRAP,Athlos,Omega,1,60,Time-based
+AMRAP,Athlos,Omega,1,65,Time-based
+AMRAP,Athlos,Omega,1,70,Time-based
+AMRAP,Epikos,Alfa,2,55,Time-based
+AMRAP,Epikos,Alfa,2,60,Time-based
+AMRAP,Epikos,Alfa,2,65,Time-based
+AMRAP,Epikos,Alfa,2,70,Time-based
+AMRAP,Epikos,Delta,2,55,Time-based
+AMRAP,Epikos,Delta,2,60,Time-based
+AMRAP,Epikos,Delta,2,65,Time-based
+AMRAP,Epikos,Delta,2,70,Time-based
+AMRAP,Epikos,Sigma,1,55,Time-based
+AMRAP,Epikos,Sigma,1,60,Time-based
+AMRAP,Epikos,Sigma,1,65,Time-based
+AMRAP,Epikos,Sigma,1,70,Time-based
+AMRAP,Epikos,Omega,1,55,Time-based
+AMRAP,Epikos,Omega,1,60,Time-based
+AMRAP,Epikos,Omega,1,65,Time-based
+AMRAP,Epikos,Omega,1,70,Time-based
+AMRAP Series,Nucleus,Alfa,1,55,Time-based
+AMRAP Series,Nucleus,Alfa,1,60,Time-based
+AMRAP Series,Nucleus,Alfa,1,65,Time-based
+AMRAP Series,Nucleus,Alfa,1,70,Time-based
+AMRAP Series,Nucleus,Alfa,1,75,Time-based
+AMRAP Series,Nucleus,Alfa,1,80,Time-based
+AMRAP Series,Nucleus,Delta,1,55,Time-based
+AMRAP Series,Nucleus,Delta,1,60,Time-based
+AMRAP Series,Nucleus,Delta,1,65,Time-based
+AMRAP Series,Nucleus,Delta,1,70,Time-based
+AMRAP Series,Nucleus,Delta,1,75,Time-based
+AMRAP Series,Nucleus,Delta,1,80,Time-based
+AMRAP Series,Nucleus,Sigma,1,55,Time-based
+AMRAP Series,Nucleus,Sigma,1,60,Time-based
+AMRAP Series,Nucleus,Sigma,1,65,Time-based
+AMRAP Series,Nucleus,Sigma,1,70,Time-based
+AMRAP Series,Nucleus,Sigma,1,75,Time-based
+AMRAP Series,Nucleus,Sigma,1,80,Time-based
+AMRAP Series,Nucleus,Omega,1,55,Time-based
+AMRAP Series,Nucleus,Omega,1,60,Time-based
+AMRAP Series,Nucleus,Omega,1,65,Time-based
+AMRAP Series,Nucleus,Omega,1,70,Time-based
+AMRAP Series,Nucleus,Omega,1,75,Time-based
+AMRAP Series,Nucleus,Omega,1,80,Time-based
+AMRAP Series,Deuteros,Alfa,2,55,Time-based
+AMRAP Series,Deuteros,Alfa,2,60,Time-based
+AMRAP Series,Deuteros,Alfa,2,65,Time-based
+AMRAP Series,Deuteros,Alfa,2,70,Time-based
+AMRAP Series,Deuteros,Alfa,2,75,Time-based
+AMRAP Series,Deuteros,Alfa,2,80,Time-based
+AMRAP Series,Deuteros,Delta,1,55,Time-based
+AMRAP Series,Deuteros,Delta,1,60,Time-based
+AMRAP Series,Deuteros,Delta,1,65,Time-based
+AMRAP Series,Deuteros,Delta,1,70,Time-based
+AMRAP Series,Deuteros,Delta,1,75,Time-based
+AMRAP Series,Deuteros,Delta,1,80,Time-based
+AMRAP Series,Deuteros,Sigma,1,55,Time-based
+AMRAP Series,Deuteros,Sigma,1,60,Time-based
+AMRAP Series,Deuteros,Sigma,1,65,Time-based
+AMRAP Series,Deuteros,Sigma,1,70,Time-based
+AMRAP Series,Deuteros,Sigma,1,75,Time-based
+AMRAP Series,Deuteros,Sigma,1,80,Time-based
+AMRAP Series,Deuteros,Omega,1,55,Time-based
+AMRAP Series,Deuteros,Omega,1,60,Time-based
+AMRAP Series,Deuteros,Omega,1,65,Time-based
+AMRAP Series,Deuteros,Omega,1,70,Time-based
+AMRAP Series,Deuteros,Omega,1,75,Time-based
+AMRAP Series,Deuteros,Omega,1,80,Time-based
+AMRAP Series,Athlos,Alfa,2,55,Time-based
+AMRAP Series,Athlos,Alfa,2,60,Time-based
+AMRAP Series,Athlos,Alfa,2,65,Time-based
+AMRAP Series,Athlos,Alfa,2,70,Time-based
+AMRAP Series,Athlos,Alfa,2,75,Time-based
+AMRAP Series,Athlos,Alfa,2,80,Time-based
+AMRAP Series,Athlos,Delta,1,55,Time-based
+AMRAP Series,Athlos,Delta,1,60,Time-based
+AMRAP Series,Athlos,Delta,1,65,Time-based
+AMRAP Series,Athlos,Delta,1,70,Time-based
+AMRAP Series,Athlos,Delta,1,75,Time-based
+AMRAP Series,Athlos,Delta,1,80,Time-based
+AMRAP Series,Athlos,Sigma,1,55,Time-based
+AMRAP Series,Athlos,Sigma,1,60,Time-based
+AMRAP Series,Athlos,Sigma,1,65,Time-based
+AMRAP Series,Athlos,Sigma,1,70,Time-based
+AMRAP Series,Athlos,Sigma,1,75,Time-based
+AMRAP Series,Athlos,Sigma,1,80,Time-based
+AMRAP Series,Athlos,Omega,1,55,Time-based
+AMRAP Series,Athlos,Omega,1,60,Time-based
+AMRAP Series,Athlos,Omega,1,65,Time-based
+AMRAP Series,Athlos,Omega,1,70,Time-based
+AMRAP Series,Athlos,Omega,1,75,Time-based
+AMRAP Series,Athlos,Omega,1,80,Time-based
+AMRAP Series,Epikos,Alfa,2,55,Time-based
+AMRAP Series,Epikos,Alfa,2,60,Time-based
+AMRAP Series,Epikos,Alfa,2,65,Time-based
+AMRAP Series,Epikos,Alfa,2,70,Time-based
+AMRAP Series,Epikos,Alfa,2,75,Time-based
+AMRAP Series,Epikos,Alfa,2,80,Time-based
+AMRAP Series,Epikos,Delta,2,55,Time-based
+AMRAP Series,Epikos,Delta,2,60,Time-based
+AMRAP Series,Epikos,Delta,2,65,Time-based
+AMRAP Series,Epikos,Delta,2,70,Time-based
+AMRAP Series,Epikos,Delta,2,75,Time-based
+AMRAP Series,Epikos,Delta,2,80,Time-based
+AMRAP Series,Epikos,Sigma,1,55,Time-based
+AMRAP Series,Epikos,Sigma,1,60,Time-based
+AMRAP Series,Epikos,Sigma,1,65,Time-based
+AMRAP Series,Epikos,Sigma,1,70,Time-based
+AMRAP Series,Epikos,Sigma,1,75,Time-based
+AMRAP Series,Epikos,Sigma,1,80,Time-based
+AMRAP Series,Epikos,Omega,1,55,Time-based
+AMRAP Series,Epikos,Omega,1,60,Time-based
+AMRAP Series,Epikos,Omega,1,65,Time-based
+AMRAP Series,Epikos,Omega,1,70,Time-based
+AMRAP Series,Epikos,Omega,1,75,Time-based
+AMRAP Series,Epikos,Omega,1,80,Time-based
+Benchmark,Deuteros,Delta,2,80,Structure-based
+Benchmark,Deuteros,Delta,2,85,Structure-based
+Benchmark,Deuteros,Delta,2,90,Structure-based
+Benchmark,Deuteros,Sigma,1,80,Structure-based
+Benchmark,Deuteros,Sigma,1,85,Structure-based
+Benchmark,Deuteros,Sigma,1,90,Structure-based
+Benchmark,Deuteros,Omega,1,80,Structure-based
+Benchmark,Deuteros,Omega,1,85,Structure-based
+Benchmark,Deuteros,Omega,1,90,Structure-based
+Benchmark,Athlos,Alfa,3,80,Structure-based
+Benchmark,Athlos,Alfa,3,85,Structure-based
+Benchmark,Athlos,Alfa,3,90,Structure-based
+Benchmark,Athlos,Delta,2,80,Structure-based
+Benchmark,Athlos,Delta,2,85,Structure-based
+Benchmark,Athlos,Delta,2,90,Structure-based
+Benchmark,Athlos,Sigma,1,80,Structure-based
+Benchmark,Athlos,Sigma,1,85,Structure-based
+Benchmark,Athlos,Sigma,1,90,Structure-based
+Benchmark,Athlos,Omega,1,80,Structure-based
+Benchmark,Athlos,Omega,1,85,Structure-based
+Benchmark,Athlos,Omega,1,90,Structure-based
+Benchmark WOD,Nucleus,Delta,2,55,Structure-based
+Benchmark WOD,Nucleus,Delta,2,60,Structure-based
+Benchmark WOD,Nucleus,Sigma,2,55,Structure-based
+Benchmark WOD,Nucleus,Sigma,2,60,Structure-based
+Benchmark WOD,Nucleus,Omega,1,55,Structure-based
+Benchmark WOD,Nucleus,Omega,1,60,Structure-based
+Benchmark WOD,Athlos,Alfa,3,55,Structure-based
+Benchmark WOD,Athlos,Alfa,3,60,Structure-based
+Benchmark WOD,Athlos,Delta,2,55,Structure-based
+Benchmark WOD,Athlos,Delta,2,60,Structure-based
+Benchmark WOD,Athlos,Sigma,1,55,Structure-based
+Benchmark WOD,Athlos,Sigma,1,60,Structure-based
+Benchmark WOD,Athlos,Omega,1,55,Structure-based
+Benchmark WOD,Athlos,Omega,1,60,Structure-based
+Broken Ladder,Nucleus,Alfa,3,60,Hybrid
+Broken Ladder,Nucleus,Alfa,3,65,Hybrid
+Broken Ladder,Nucleus,Alfa,3,70,Hybrid
+Broken Ladder,Nucleus,Alfa,3,75,Hybrid
+Broken Ladder,Nucleus,Alfa,3,80,Hybrid
+Broken Ladder,Nucleus,Delta,2,60,Hybrid
+Broken Ladder,Nucleus,Delta,2,65,Hybrid
+Broken Ladder,Nucleus,Delta,2,70,Hybrid
+Broken Ladder,Nucleus,Delta,2,75,Hybrid
+Broken Ladder,Nucleus,Delta,2,80,Hybrid
+Broken Ladder,Nucleus,Sigma,1,60,Hybrid
+Broken Ladder,Nucleus,Sigma,1,65,Hybrid
+Broken Ladder,Nucleus,Sigma,1,70,Hybrid
+Broken Ladder,Nucleus,Sigma,1,75,Hybrid
+Broken Ladder,Nucleus,Sigma,1,80,Hybrid
+Broken Ladder,Nucleus,Omega,1,60,Hybrid
+Broken Ladder,Nucleus,Omega,1,65,Hybrid
+Broken Ladder,Nucleus,Omega,1,70,Hybrid
+Broken Ladder,Nucleus,Omega,1,75,Hybrid
+Broken Ladder,Nucleus,Omega,1,80,Hybrid
+Broken Ladder,Athlos,Delta,2,60,Hybrid
+Broken Ladder,Athlos,Delta,2,65,Hybrid
+Broken Ladder,Athlos,Delta,2,70,Hybrid
+Broken Ladder,Athlos,Delta,2,75,Hybrid
+Broken Ladder,Athlos,Delta,2,80,Hybrid
+Broken Ladder,Athlos,Sigma,1,60,Hybrid
+Broken Ladder,Athlos,Sigma,1,65,Hybrid
+Broken Ladder,Athlos,Sigma,1,70,Hybrid
+Broken Ladder,Athlos,Sigma,1,75,Hybrid
+Broken Ladder,Athlos,Sigma,1,80,Hybrid
+Broken Ladder,Athlos,Omega,1,60,Hybrid
+Broken Ladder,Athlos,Omega,1,65,Hybrid
+Broken Ladder,Athlos,Omega,1,70,Hybrid
+Broken Ladder,Athlos,Omega,1,75,Hybrid
+Broken Ladder,Athlos,Omega,1,80,Hybrid
+Broken Ladder,Epikos,Alfa,2,60,Hybrid
+Broken Ladder,Epikos,Alfa,2,65,Hybrid
+Broken Ladder,Epikos,Alfa,2,70,Hybrid
+Broken Ladder,Epikos,Alfa,2,75,Hybrid
+Broken Ladder,Epikos,Alfa,2,80,Hybrid
+Broken Ladder,Epikos,Delta,2,60,Hybrid
+Broken Ladder,Epikos,Delta,2,65,Hybrid
+Broken Ladder,Epikos,Delta,2,70,Hybrid
+Broken Ladder,Epikos,Delta,2,75,Hybrid
+Broken Ladder,Epikos,Delta,2,80,Hybrid
+Broken Ladder,Epikos,Sigma,1,60,Hybrid
+Broken Ladder,Epikos,Sigma,1,65,Hybrid
+Broken Ladder,Epikos,Sigma,1,70,Hybrid
+Broken Ladder,Epikos,Sigma,1,75,Hybrid
+Broken Ladder,Epikos,Sigma,1,80,Hybrid
+Broken Ladder,Epikos,Omega,1,60,Hybrid
+Broken Ladder,Epikos,Omega,1,65,Hybrid
+Broken Ladder,Epikos,Omega,1,70,Hybrid
+Broken Ladder,Epikos,Omega,1,75,Hybrid
+Broken Ladder,Epikos,Omega,1,80,Hybrid
+Buy-in / Cash-out,Initium,Alfa,3,55,Structure-based
+Buy-in / Cash-out,Initium,Alfa,3,60,Structure-based
+Buy-in / Cash-out,Initium,Alfa,3,65,Structure-based
+Buy-in / Cash-out,Initium,Alfa,3,70,Structure-based
+Buy-in / Cash-out,Initium,Delta,2,55,Structure-based
+Buy-in / Cash-out,Initium,Delta,2,60,Structure-based
+Buy-in / Cash-out,Initium,Delta,2,65,Structure-based
+Buy-in / Cash-out,Initium,Delta,2,70,Structure-based
+Buy-in / Cash-out,Initium,Sigma,1,55,Structure-based
+Buy-in / Cash-out,Initium,Sigma,1,60,Structure-based
+Buy-in / Cash-out,Initium,Sigma,1,65,Structure-based
+Buy-in / Cash-out,Initium,Sigma,1,70,Structure-based
+Buy-in / Cash-out,Initium,Omega,1,55,Structure-based
+Buy-in / Cash-out,Initium,Omega,1,60,Structure-based
+Buy-in / Cash-out,Initium,Omega,1,65,Structure-based
+Buy-in / Cash-out,Initium,Omega,1,70,Structure-based
+Buy-in / Cash-out,Athlos,Alfa,1,55,Structure-based
+Buy-in / Cash-out,Athlos,Alfa,1,60,Structure-based
+Buy-in / Cash-out,Athlos,Alfa,1,65,Structure-based
+Buy-in / Cash-out,Athlos,Alfa,1,70,Structure-based
+Buy-in / Cash-out,Athlos,Delta,1,55,Structure-based
+Buy-in / Cash-out,Athlos,Delta,1,60,Structure-based
+Buy-in / Cash-out,Athlos,Delta,1,65,Structure-based
+Buy-in / Cash-out,Athlos,Delta,1,70,Structure-based
+Buy-in / Cash-out,Athlos,Sigma,1,55,Structure-based
+Buy-in / Cash-out,Athlos,Sigma,1,60,Structure-based
+Buy-in / Cash-out,Athlos,Sigma,1,65,Structure-based
+Buy-in / Cash-out,Athlos,Sigma,1,70,Structure-based
+Buy-in / Cash-out,Athlos,Omega,1,55,Structure-based
+Buy-in / Cash-out,Athlos,Omega,1,60,Structure-based
+Buy-in / Cash-out,Athlos,Omega,1,65,Structure-based
+Buy-in / Cash-out,Athlos,Omega,1,70,Structure-based
+Buy-in / Cash-out,Epikos,Alfa,1,55,Structure-based
+Buy-in / Cash-out,Epikos,Alfa,1,60,Structure-based
+Buy-in / Cash-out,Epikos,Alfa,1,65,Structure-based
+Buy-in / Cash-out,Epikos,Alfa,1,70,Structure-based
+Buy-in / Cash-out,Epikos,Delta,1,55,Structure-based
+Buy-in / Cash-out,Epikos,Delta,1,60,Structure-based
+Buy-in / Cash-out,Epikos,Delta,1,65,Structure-based
+Buy-in / Cash-out,Epikos,Delta,1,70,Structure-based
+Buy-in / Cash-out,Epikos,Sigma,1,55,Structure-based
+Buy-in / Cash-out,Epikos,Sigma,1,60,Structure-based
+Buy-in / Cash-out,Epikos,Sigma,1,65,Structure-based
+Buy-in / Cash-out,Epikos,Sigma,1,70,Structure-based
+Buy-in / Cash-out,Epikos,Omega,1,55,Structure-based
+Buy-in / Cash-out,Epikos,Omega,1,60,Structure-based
+Buy-in / Cash-out,Epikos,Omega,1,65,Structure-based
+Buy-in / Cash-out,Epikos,Omega,1,70,Structure-based
+Chipper,Nucleus,Alfa,2,55,Volume-based
+Chipper,Nucleus,Alfa,2,60,Volume-based
+Chipper,Nucleus,Alfa,2,70,Volume-based
+Chipper,Nucleus,Alfa,2,75,Volume-based
+Chipper,Nucleus,Alfa,2,80,Volume-based
+Chipper,Nucleus,Delta,2,55,Volume-based
+Chipper,Nucleus,Delta,2,60,Volume-based
+Chipper,Nucleus,Delta,2,70,Volume-based
+Chipper,Nucleus,Delta,2,75,Volume-based
+Chipper,Nucleus,Delta,2,80,Volume-based
+Chipper,Nucleus,Sigma,1,55,Volume-based
+Chipper,Nucleus,Sigma,1,60,Volume-based
+Chipper,Nucleus,Sigma,1,70,Volume-based
+Chipper,Nucleus,Sigma,1,75,Volume-based
+Chipper,Nucleus,Sigma,1,80,Volume-based
+Chipper,Nucleus,Omega,1,55,Volume-based
+Chipper,Nucleus,Omega,1,60,Volume-based
+Chipper,Nucleus,Omega,1,70,Volume-based
+Chipper,Nucleus,Omega,1,75,Volume-based
+Chipper,Nucleus,Omega,1,80,Volume-based
+Chipper,Deuteros,Alfa,2,55,Volume-based
+Chipper,Deuteros,Alfa,2,60,Volume-based
+Chipper,Deuteros,Alfa,2,70,Volume-based
+Chipper,Deuteros,Alfa,2,75,Volume-based
+Chipper,Deuteros,Alfa,2,80,Volume-based
+Chipper,Deuteros,Delta,2,55,Volume-based
+Chipper,Deuteros,Delta,2,60,Volume-based
+Chipper,Deuteros,Delta,2,70,Volume-based
+Chipper,Deuteros,Delta,2,75,Volume-based
+Chipper,Deuteros,Delta,2,80,Volume-based
+Chipper,Deuteros,Sigma,1,55,Volume-based
+Chipper,Deuteros,Sigma,1,60,Volume-based
+Chipper,Deuteros,Sigma,1,70,Volume-based
+Chipper,Deuteros,Sigma,1,75,Volume-based
+Chipper,Deuteros,Sigma,1,80,Volume-based
+Chipper,Deuteros,Omega,1,55,Volume-based
+Chipper,Deuteros,Omega,1,60,Volume-based
+Chipper,Deuteros,Omega,1,70,Volume-based
+Chipper,Deuteros,Omega,1,75,Volume-based
+Chipper,Deuteros,Omega,1,80,Volume-based
+Chipper,Athlos,Delta,2,55,Volume-based
+Chipper,Athlos,Delta,2,60,Volume-based
+Chipper,Athlos,Delta,2,70,Volume-based
+Chipper,Athlos,Delta,2,75,Volume-based
+Chipper,Athlos,Delta,2,80,Volume-based
+Chipper,Athlos,Sigma,1,55,Volume-based
+Chipper,Athlos,Sigma,1,60,Volume-based
+Chipper,Athlos,Sigma,1,70,Volume-based
+Chipper,Athlos,Sigma,1,75,Volume-based
+Chipper,Athlos,Sigma,1,80,Volume-based
+Chipper,Athlos,Omega,1,55,Volume-based
+Chipper,Athlos,Omega,1,60,Volume-based
+Chipper,Athlos,Omega,1,70,Volume-based
+Chipper,Athlos,Omega,1,75,Volume-based
+Chipper,Athlos,Omega,1,80,Volume-based
+Circuito cooperativo,Epikos,Alfa,1,,
+Circuito cooperativo,Epikos,Delta,1,,
+Circuito cooperativo,Epikos,Sigma,1,,
+Circuito cooperativo,Epikos,Omega,1,,
+Cluster,Nucleus,Alfa,2,60,Technical
+Cluster,Nucleus,Alfa,2,65,Technical
+Cluster,Nucleus,Alfa,2,70,Technical
+Cluster,Nucleus,Alfa,2,75,Technical
+Cluster,Nucleus,Alfa,2,80,Technical
+Cluster,Nucleus,Alfa,2,85,Technical
+Cluster,Nucleus,Alfa,2,90,Technical
+Cluster,Nucleus,Alfa,2,95,Technical
+Cluster,Nucleus,Delta,1,60,Technical
+Cluster,Nucleus,Delta,1,65,Technical
+Cluster,Nucleus,Delta,1,70,Technical
+Cluster,Nucleus,Delta,1,75,Technical
+Cluster,Nucleus,Delta,1,80,Technical
+Cluster,Nucleus,Delta,1,85,Technical
+Cluster,Nucleus,Delta,1,90,Technical
+Cluster,Nucleus,Delta,1,95,Technical
+Cluster,Nucleus,Sigma,1,60,Technical
+Cluster,Nucleus,Sigma,1,65,Technical
+Cluster,Nucleus,Sigma,1,70,Technical
+Cluster,Nucleus,Sigma,1,75,Technical
+Cluster,Nucleus,Sigma,1,80,Technical
+Cluster,Nucleus,Sigma,1,85,Technical
+Cluster,Nucleus,Sigma,1,90,Technical
+Cluster,Nucleus,Sigma,1,95,Technical
+Cluster,Nucleus,Omega,1,60,Technical
+Cluster,Nucleus,Omega,1,65,Technical
+Cluster,Nucleus,Omega,1,70,Technical
+Cluster,Nucleus,Omega,1,75,Technical
+Cluster,Nucleus,Omega,1,80,Technical
+Cluster,Nucleus,Omega,1,85,Technical
+Cluster,Nucleus,Omega,1,90,Technical
+Cluster,Nucleus,Omega,1,95,Technical
+Cluster,Deuteros,Alfa,2,60,Technical
+Cluster,Deuteros,Alfa,2,65,Technical
+Cluster,Deuteros,Alfa,2,70,Technical
+Cluster,Deuteros,Alfa,2,75,Technical
+Cluster,Deuteros,Alfa,2,80,Technical
+Cluster,Deuteros,Alfa,2,85,Technical
+Cluster,Deuteros,Alfa,2,90,Technical
+Cluster,Deuteros,Alfa,2,95,Technical
+Cluster,Deuteros,Delta,1,60,Technical
+Cluster,Deuteros,Delta,1,65,Technical
+Cluster,Deuteros,Delta,1,70,Technical
+Cluster,Deuteros,Delta,1,75,Technical
+Cluster,Deuteros,Delta,1,80,Technical
+Cluster,Deuteros,Delta,1,85,Technical
+Cluster,Deuteros,Delta,1,90,Technical
+Cluster,Deuteros,Delta,1,95,Technical
+Cluster,Deuteros,Sigma,1,60,Technical
+Cluster,Deuteros,Sigma,1,65,Technical
+Cluster,Deuteros,Sigma,1,70,Technical
+Cluster,Deuteros,Sigma,1,75,Technical
+Cluster,Deuteros,Sigma,1,80,Technical
+Cluster,Deuteros,Sigma,1,85,Technical
+Cluster,Deuteros,Sigma,1,90,Technical
+Cluster,Deuteros,Sigma,1,95,Technical
+Cluster,Deuteros,Omega,1,60,Technical
+Cluster,Deuteros,Omega,1,65,Technical
+Cluster,Deuteros,Omega,1,70,Technical
+Cluster,Deuteros,Omega,1,75,Technical
+Cluster,Deuteros,Omega,1,80,Technical
+Cluster,Deuteros,Omega,1,85,Technical
+Cluster,Deuteros,Omega,1,90,Technical
+Cluster,Deuteros,Omega,1,95,Technical
+Cluster,Athlos,Alfa,2,60,Technical
+Cluster,Athlos,Alfa,2,65,Technical
+Cluster,Athlos,Alfa,2,70,Technical
+Cluster,Athlos,Alfa,2,75,Technical
+Cluster,Athlos,Alfa,2,80,Technical
+Cluster,Athlos,Alfa,2,85,Technical
+Cluster,Athlos,Alfa,2,90,Technical
+Cluster,Athlos,Alfa,2,95,Technical
+Cluster,Athlos,Delta,1,60,Technical
+Cluster,Athlos,Delta,1,65,Technical
+Cluster,Athlos,Delta,1,70,Technical
+Cluster,Athlos,Delta,1,75,Technical
+Cluster,Athlos,Delta,1,80,Technical
+Cluster,Athlos,Delta,1,85,Technical
+Cluster,Athlos,Delta,1,90,Technical
+Cluster,Athlos,Delta,1,95,Technical
+Cluster,Athlos,Sigma,1,60,Technical
+Cluster,Athlos,Sigma,1,65,Technical
+Cluster,Athlos,Sigma,1,70,Technical
+Cluster,Athlos,Sigma,1,75,Technical
+Cluster,Athlos,Sigma,1,80,Technical
+Cluster,Athlos,Sigma,1,85,Technical
+Cluster,Athlos,Sigma,1,90,Technical
+Cluster,Athlos,Sigma,1,95,Technical
+Cluster,Athlos,Omega,1,60,Technical
+Cluster,Athlos,Omega,1,65,Technical
+Cluster,Athlos,Omega,1,70,Technical
+Cluster,Athlos,Omega,1,75,Technical
+Cluster,Athlos,Omega,1,80,Technical
+Cluster,Athlos,Omega,1,85,Technical
+Cluster,Athlos,Omega,1,90,Technical
+Cluster,Athlos,Omega,1,95,Technical
+Complex,Nucleus,Alfa,2,60,Technical
+Complex,Nucleus,Alfa,2,65,Technical
+Complex,Nucleus,Alfa,2,70,Technical
+Complex,Nucleus,Alfa,2,75,Technical
+Complex,Nucleus,Alfa,2,80,Technical
+Complex,Nucleus,Delta,2,60,Technical
+Complex,Nucleus,Delta,2,65,Technical
+Complex,Nucleus,Delta,2,70,Technical
+Complex,Nucleus,Delta,2,75,Technical
+Complex,Nucleus,Delta,2,80,Technical
+Complex,Nucleus,Sigma,1,60,Technical
+Complex,Nucleus,Sigma,1,65,Technical
+Complex,Nucleus,Sigma,1,70,Technical
+Complex,Nucleus,Sigma,1,75,Technical
+Complex,Nucleus,Sigma,1,80,Technical
+Complex,Nucleus,Omega,1,60,Technical
+Complex,Nucleus,Omega,1,65,Technical
+Complex,Nucleus,Omega,1,70,Technical
+Complex,Nucleus,Omega,1,75,Technical
+Complex,Nucleus,Omega,1,80,Technical
+Complex,Deuteros,Delta,3,60,Technical
+Complex,Deuteros,Delta,3,65,Technical
+Complex,Deuteros,Delta,3,70,Technical
+Complex,Deuteros,Delta,3,75,Technical
+Complex,Deuteros,Delta,3,80,Technical
+Complex,Deuteros,Sigma,1,60,Technical
+Complex,Deuteros,Sigma,1,65,Technical
+Complex,Deuteros,Sigma,1,70,Technical
+Complex,Deuteros,Sigma,1,75,Technical
+Complex,Deuteros,Sigma,1,80,Technical
+Complex,Deuteros,Omega,1,60,Technical
+Complex,Deuteros,Omega,1,65,Technical
+Complex,Deuteros,Omega,1,70,Technical
+Complex,Deuteros,Omega,1,75,Technical
+Complex,Deuteros,Omega,1,80,Technical
+Complex,Athlos,Alfa,2,60,Technical
+Complex,Athlos,Alfa,2,65,Technical
+Complex,Athlos,Alfa,2,70,Technical
+Complex,Athlos,Alfa,2,75,Technical
+Complex,Athlos,Alfa,2,80,Technical
+Complex,Athlos,Delta,1,60,Technical
+Complex,Athlos,Delta,1,65,Technical
+Complex,Athlos,Delta,1,70,Technical
+Complex,Athlos,Delta,1,75,Technical
+Complex,Athlos,Delta,1,80,Technical
+Complex,Athlos,Sigma,1,60,Technical
+Complex,Athlos,Sigma,1,65,Technical
+Complex,Athlos,Sigma,1,70,Technical
+Complex,Athlos,Sigma,1,75,Technical
+Complex,Athlos,Sigma,1,80,Technical
+Complex,Athlos,Omega,1,60,Technical
+Complex,Athlos,Omega,1,65,Technical
+Complex,Athlos,Omega,1,70,Technical
+Complex,Athlos,Omega,1,75,Technical
+Complex,Athlos,Omega,1,80,Technical
+Complex,Epikos,Delta,2,60,Technical
+Complex,Epikos,Delta,2,65,Technical
+Complex,Epikos,Delta,2,70,Technical
+Complex,Epikos,Delta,2,75,Technical
+Complex,Epikos,Delta,2,80,Technical
+Complex,Epikos,Sigma,1,60,Technical
+Complex,Epikos,Sigma,1,65,Technical
+Complex,Epikos,Sigma,1,70,Technical
+Complex,Epikos,Sigma,1,75,Technical
+Complex,Epikos,Sigma,1,80,Technical
+Complex,Epikos,Omega,1,60,Technical
+Complex,Epikos,Omega,1,65,Technical
+Complex,Epikos,Omega,1,70,Technical
+Complex,Epikos,Omega,1,75,Technical
+Complex,Epikos,Omega,1,80,Technical
+Couplet,Initium,Alfa,3,55,Structure-based
+Couplet,Initium,Alfa,3,60,Structure-based
+Couplet,Initium,Delta,2,55,Structure-based
+Couplet,Initium,Delta,2,60,Structure-based
+Couplet,Initium,Sigma,1,55,Structure-based
+Couplet,Initium,Sigma,1,60,Structure-based
+Couplet,Initium,Omega,1,55,Structure-based
+Couplet,Initium,Omega,1,60,Structure-based
+Couplet,Deuteros,Alfa,1,55,Structure-based
+Couplet,Deuteros,Alfa,1,60,Structure-based
+Couplet,Deuteros,Delta,1,55,Structure-based
+Couplet,Deuteros,Delta,1,60,Structure-based
+Couplet,Deuteros,Sigma,1,55,Structure-based
+Couplet,Deuteros,Sigma,1,60,Structure-based
+Couplet,Deuteros,Omega,1,55,Structure-based
+Couplet,Deuteros,Omega,1,60,Structure-based
+Death By,Deuteros,Alfa,2,60,Volume-based
+Death By,Deuteros,Alfa,2,65,Volume-based
+Death By,Deuteros,Alfa,2,70,Volume-based
+Death By,Deuteros,Alfa,2,80,Volume-based
+Death By,Deuteros,Alfa,2,85,Volume-based
+Death By,Deuteros,Alfa,2,90,Volume-based
+Death By,Deuteros,Delta,2,60,Volume-based
+Death By,Deuteros,Delta,2,65,Volume-based
+Death By,Deuteros,Delta,2,70,Volume-based
+Death By,Deuteros,Delta,2,80,Volume-based
+Death By,Deuteros,Delta,2,85,Volume-based
+Death By,Deuteros,Delta,2,90,Volume-based
+Death By,Deuteros,Sigma,1,60,Volume-based
+Death By,Deuteros,Sigma,1,65,Volume-based
+Death By,Deuteros,Sigma,1,70,Volume-based
+Death By,Deuteros,Sigma,1,80,Volume-based
+Death By,Deuteros,Sigma,1,85,Volume-based
+Death By,Deuteros,Sigma,1,90,Volume-based
+Death By,Deuteros,Omega,1,60,Volume-based
+Death By,Deuteros,Omega,1,65,Volume-based
+Death By,Deuteros,Omega,1,70,Volume-based
+Death By,Deuteros,Omega,1,80,Volume-based
+Death By,Deuteros,Omega,1,85,Volume-based
+Death By,Deuteros,Omega,1,90,Volume-based
+Death By Unbroken,Nucleus,Alfa,1,70,Volume-based
+Death By Unbroken,Nucleus,Alfa,1,75,Volume-based
+Death By Unbroken,Nucleus,Alfa,1,80,Volume-based
+Death By Unbroken,Nucleus,Delta,1,70,Volume-based
+Death By Unbroken,Nucleus,Delta,1,75,Volume-based
+Death By Unbroken,Nucleus,Delta,1,80,Volume-based
+Death By Unbroken,Nucleus,Sigma,1,70,Volume-based
+Death By Unbroken,Nucleus,Sigma,1,75,Volume-based
+Death By Unbroken,Nucleus,Sigma,1,80,Volume-based
+Death By Unbroken,Nucleus,Omega,1,70,Volume-based
+Death By Unbroken,Nucleus,Omega,1,75,Volume-based
+Death By Unbroken,Nucleus,Omega,1,80,Volume-based
+Death By Unbroken,Athlos,Alfa,2,70,Volume-based
+Death By Unbroken,Athlos,Alfa,2,75,Volume-based
+Death By Unbroken,Athlos,Alfa,2,80,Volume-based
+Death By Unbroken,Athlos,Delta,1,70,Volume-based
+Death By Unbroken,Athlos,Delta,1,75,Volume-based
+Death By Unbroken,Athlos,Delta,1,80,Volume-based
+Death By Unbroken,Athlos,Sigma,1,70,Volume-based
+Death By Unbroken,Athlos,Sigma,1,75,Volume-based
+Death By Unbroken,Athlos,Sigma,1,80,Volume-based
+Death By Unbroken,Athlos,Omega,1,70,Volume-based
+Death By Unbroken,Athlos,Omega,1,75,Volume-based
+Death By Unbroken,Athlos,Omega,1,80,Volume-based
+Drop Set,Nucleus,Delta,2,80,Hybrid
+Drop Set,Nucleus,Delta,2,85,Hybrid
+Drop Set,Nucleus,Delta,2,90,Hybrid
+Drop Set,Nucleus,Sigma,2,80,Hybrid
+Drop Set,Nucleus,Sigma,2,85,Hybrid
+Drop Set,Nucleus,Sigma,2,90,Hybrid
+Drop Set,Nucleus,Omega,1,80,Hybrid
+Drop Set,Nucleus,Omega,1,85,Hybrid
+Drop Set,Nucleus,Omega,1,90,Hybrid
+EMOM,Initium,Alfa,2,55,Time-based
+EMOM,Initium,Alfa,2,60,Time-based
+EMOM,Initium,Alfa,2,65,Time-based
+EMOM,Initium,Alfa,2,70,Time-based
+EMOM,Initium,Alfa,2,80,Time-based
+EMOM,Initium,Alfa,2,85,Time-based
+EMOM,Initium,Alfa,2,90,Time-based
+EMOM,Initium,Delta,1,55,Time-based
+EMOM,Initium,Delta,1,60,Time-based
+EMOM,Initium,Delta,1,65,Time-based
+EMOM,Initium,Delta,1,70,Time-based
+EMOM,Initium,Delta,1,80,Time-based
+EMOM,Initium,Delta,1,85,Time-based
+EMOM,Initium,Delta,1,90,Time-based
+EMOM,Initium,Sigma,1,55,Time-based
+EMOM,Initium,Sigma,1,60,Time-based
+EMOM,Initium,Sigma,1,65,Time-based
+EMOM,Initium,Sigma,1,70,Time-based
+EMOM,Initium,Sigma,1,80,Time-based
+EMOM,Initium,Sigma,1,85,Time-based
+EMOM,Initium,Sigma,1,90,Time-based
+EMOM,Initium,Omega,1,55,Time-based
+EMOM,Initium,Omega,1,60,Time-based
+EMOM,Initium,Omega,1,65,Time-based
+EMOM,Initium,Omega,1,70,Time-based
+EMOM,Initium,Omega,1,80,Time-based
+EMOM,Initium,Omega,1,85,Time-based
+EMOM,Initium,Omega,1,90,Time-based
+EMOM,Nucleus,Alfa,1,55,Time-based
+EMOM,Nucleus,Alfa,1,60,Time-based
+EMOM,Nucleus,Alfa,1,65,Time-based
+EMOM,Nucleus,Alfa,1,70,Time-based
+EMOM,Nucleus,Alfa,1,80,Time-based
+EMOM,Nucleus,Alfa,1,85,Time-based
+EMOM,Nucleus,Alfa,1,90,Time-based
+EMOM,Nucleus,Delta,1,55,Time-based
+EMOM,Nucleus,Delta,1,60,Time-based
+EMOM,Nucleus,Delta,1,65,Time-based
+EMOM,Nucleus,Delta,1,70,Time-based
+EMOM,Nucleus,Delta,1,80,Time-based
+EMOM,Nucleus,Delta,1,85,Time-based
+EMOM,Nucleus,Delta,1,90,Time-based
+EMOM,Nucleus,Sigma,1,55,Time-based
+EMOM,Nucleus,Sigma,1,60,Time-based
+EMOM,Nucleus,Sigma,1,65,Time-based
+EMOM,Nucleus,Sigma,1,70,Time-based
+EMOM,Nucleus,Sigma,1,80,Time-based
+EMOM,Nucleus,Sigma,1,85,Time-based
+EMOM,Nucleus,Sigma,1,90,Time-based
+EMOM,Nucleus,Omega,1,55,Time-based
+EMOM,Nucleus,Omega,1,60,Time-based
+EMOM,Nucleus,Omega,1,65,Time-based
+EMOM,Nucleus,Omega,1,70,Time-based
+EMOM,Nucleus,Omega,1,80,Time-based
+EMOM,Nucleus,Omega,1,85,Time-based
+EMOM,Nucleus,Omega,1,90,Time-based
+EMOM,Deuteros,Alfa,1,55,Time-based
+EMOM,Deuteros,Alfa,1,60,Time-based
+EMOM,Deuteros,Alfa,1,65,Time-based
+EMOM,Deuteros,Alfa,1,70,Time-based
+EMOM,Deuteros,Alfa,1,80,Time-based
+EMOM,Deuteros,Alfa,1,85,Time-based
+EMOM,Deuteros,Alfa,1,90,Time-based
+EMOM,Deuteros,Delta,1,55,Time-based
+EMOM,Deuteros,Delta,1,60,Time-based
+EMOM,Deuteros,Delta,1,65,Time-based
+EMOM,Deuteros,Delta,1,70,Time-based
+EMOM,Deuteros,Delta,1,80,Time-based
+EMOM,Deuteros,Delta,1,85,Time-based
+EMOM,Deuteros,Delta,1,90,Time-based
+EMOM,Deuteros,Sigma,1,55,Time-based
+EMOM,Deuteros,Sigma,1,60,Time-based
+EMOM,Deuteros,Sigma,1,65,Time-based
+EMOM,Deuteros,Sigma,1,70,Time-based
+EMOM,Deuteros,Sigma,1,80,Time-based
+EMOM,Deuteros,Sigma,1,85,Time-based
+EMOM,Deuteros,Sigma,1,90,Time-based
+EMOM,Deuteros,Omega,1,55,Time-based
+EMOM,Deuteros,Omega,1,60,Time-based
+EMOM,Deuteros,Omega,1,65,Time-based
+EMOM,Deuteros,Omega,1,70,Time-based
+EMOM,Deuteros,Omega,1,80,Time-based
+EMOM,Deuteros,Omega,1,85,Time-based
+EMOM,Deuteros,Omega,1,90,Time-based
+EMOM,Athlos,Alfa,2,55,Time-based
+EMOM,Athlos,Alfa,2,60,Time-based
+EMOM,Athlos,Alfa,2,65,Time-based
+EMOM,Athlos,Alfa,2,70,Time-based
+EMOM,Athlos,Alfa,2,80,Time-based
+EMOM,Athlos,Alfa,2,85,Time-based
+EMOM,Athlos,Alfa,2,90,Time-based
+EMOM,Athlos,Delta,1,55,Time-based
+EMOM,Athlos,Delta,1,60,Time-based
+EMOM,Athlos,Delta,1,65,Time-based
+EMOM,Athlos,Delta,1,70,Time-based
+EMOM,Athlos,Delta,1,80,Time-based
+EMOM,Athlos,Delta,1,85,Time-based
+EMOM,Athlos,Delta,1,90,Time-based
+EMOM,Athlos,Sigma,1,55,Time-based
+EMOM,Athlos,Sigma,1,60,Time-based
+EMOM,Athlos,Sigma,1,65,Time-based
+EMOM,Athlos,Sigma,1,70,Time-based
+EMOM,Athlos,Sigma,1,80,Time-based
+EMOM,Athlos,Sigma,1,85,Time-based
+EMOM,Athlos,Sigma,1,90,Time-based
+EMOM,Athlos,Omega,1,55,Time-based
+EMOM,Athlos,Omega,1,60,Time-based
+EMOM,Athlos,Omega,1,65,Time-based
+EMOM,Athlos,Omega,1,70,Time-based
+EMOM,Athlos,Omega,1,80,Time-based
+EMOM,Athlos,Omega,1,85,Time-based
+EMOM,Athlos,Omega,1,90,Time-based
+EMOM + For Time,Nucleus,Delta,2,60,Hybrid
+EMOM + For Time,Nucleus,Delta,2,65,Hybrid
+EMOM + For Time,Nucleus,Delta,2,70,Hybrid
+EMOM + For Time,Nucleus,Sigma,2,60,Hybrid
+EMOM + For Time,Nucleus,Sigma,2,65,Hybrid
+EMOM + For Time,Nucleus,Sigma,2,70,Hybrid
+EMOM + For Time,Nucleus,Omega,1,60,Hybrid
+EMOM + For Time,Nucleus,Omega,1,65,Hybrid
+EMOM + For Time,Nucleus,Omega,1,70,Hybrid
+EMOM + For Time,Deuteros,Alfa,3,60,Hybrid
+EMOM + For Time,Deuteros,Alfa,3,65,Hybrid
+EMOM + For Time,Deuteros,Alfa,3,70,Hybrid
+EMOM + For Time,Deuteros,Delta,2,60,Hybrid
+EMOM + For Time,Deuteros,Delta,2,65,Hybrid
+EMOM + For Time,Deuteros,Delta,2,70,Hybrid
+EMOM + For Time,Deuteros,Sigma,1,60,Hybrid
+EMOM + For Time,Deuteros,Sigma,1,65,Hybrid
+EMOM + For Time,Deuteros,Sigma,1,70,Hybrid
+EMOM + For Time,Deuteros,Omega,1,60,Hybrid
+EMOM + For Time,Deuteros,Omega,1,65,Hybrid
+EMOM + For Time,Deuteros,Omega,1,70,Hybrid
+Every X Seconds,Initium,Alfa,2,60,Time-based
+Every X Seconds,Initium,Alfa,2,65,Time-based
+Every X Seconds,Initium,Alfa,2,70,Time-based
+Every X Seconds,Initium,Delta,2,60,Time-based
+Every X Seconds,Initium,Delta,2,65,Time-based
+Every X Seconds,Initium,Delta,2,70,Time-based
+Every X Seconds,Initium,Sigma,1,60,Time-based
+Every X Seconds,Initium,Sigma,1,65,Time-based
+Every X Seconds,Initium,Sigma,1,70,Time-based
+Every X Seconds,Initium,Omega,1,60,Time-based
+Every X Seconds,Initium,Omega,1,65,Time-based
+Every X Seconds,Initium,Omega,1,70,Time-based
+Every X Seconds,Epikos,Alfa,2,60,Time-based
+Every X Seconds,Epikos,Alfa,2,65,Time-based
+Every X Seconds,Epikos,Alfa,2,70,Time-based
+Every X Seconds,Epikos,Delta,2,60,Time-based
+Every X Seconds,Epikos,Delta,2,65,Time-based
+Every X Seconds,Epikos,Delta,2,70,Time-based
+Every X Seconds,Epikos,Sigma,1,60,Time-based
+Every X Seconds,Epikos,Sigma,1,65,Time-based
+Every X Seconds,Epikos,Sigma,1,70,Time-based
+Every X Seconds,Epikos,Omega,1,60,Time-based
+Every X Seconds,Epikos,Omega,1,65,Time-based
+Every X Seconds,Epikos,Omega,1,70,Time-based
+Flow Guiado,Nucleus,Delta,2,55,Technical
+Flow Guiado,Nucleus,Delta,2,60,Technical
+Flow Guiado,Nucleus,Sigma,2,55,Technical
+Flow Guiado,Nucleus,Sigma,2,60,Technical
+Flow Guiado,Nucleus,Omega,1,55,Technical
+Flow Guiado,Nucleus,Omega,1,60,Technical
+Flow Guiado,Deuteros,Alfa,2,55,Technical
+Flow Guiado,Deuteros,Alfa,2,60,Technical
+Flow Guiado,Deuteros,Delta,2,55,Technical
+Flow Guiado,Deuteros,Delta,2,60,Technical
+Flow Guiado,Deuteros,Sigma,1,55,Technical
+Flow Guiado,Deuteros,Sigma,1,60,Technical
+Flow Guiado,Deuteros,Omega,1,55,Technical
+Flow Guiado,Deuteros,Omega,1,60,Technical
+Flow Guiado,Athlos,Alfa,2,55,Technical
+Flow Guiado,Athlos,Alfa,2,60,Technical
+Flow Guiado,Athlos,Delta,1,55,Technical
+Flow Guiado,Athlos,Delta,1,60,Technical
+Flow Guiado,Athlos,Sigma,1,55,Technical
+Flow Guiado,Athlos,Sigma,1,60,Technical
+Flow Guiado,Athlos,Omega,1,55,Technical
+Flow Guiado,Athlos,Omega,1,60,Technical
+Flow Guiado,Epikos,Alfa,1,55,Technical
+Flow Guiado,Epikos,Alfa,1,60,Technical
+Flow Guiado,Epikos,Delta,1,55,Technical
+Flow Guiado,Epikos,Delta,1,60,Technical
+Flow Guiado,Epikos,Sigma,1,55,Technical
+Flow Guiado,Epikos,Sigma,1,60,Technical
+Flow Guiado,Epikos,Omega,1,55,Technical
+Flow Guiado,Epikos,Omega,1,60,Technical
+For Max (Carga),Nucleus,Alfa,2,90,Volume-based
+For Max (Carga),Nucleus,Alfa,2,95,Volume-based
+For Max (Carga),Nucleus,Delta,1,90,Volume-based
+For Max (Carga),Nucleus,Delta,1,95,Volume-based
+For Max (Carga),Nucleus,Sigma,1,90,Volume-based
+For Max (Carga),Nucleus,Sigma,1,95,Volume-based
+For Max (Carga),Nucleus,Omega,1,90,Volume-based
+For Max (Carga),Nucleus,Omega,1,95,Volume-based
+For Max (Reps),Deuteros,Alfa,2,55,Volume-based
+For Max (Reps),Deuteros,Alfa,2,60,Volume-based
+For Max (Reps),Deuteros,Alfa,2,80,Volume-based
+For Max (Reps),Deuteros,Alfa,2,85,Volume-based
+For Max (Reps),Deuteros,Alfa,2,90,Volume-based
+For Max (Reps),Deuteros,Delta,2,55,Volume-based
+For Max (Reps),Deuteros,Delta,2,60,Volume-based
+For Max (Reps),Deuteros,Delta,2,80,Volume-based
+For Max (Reps),Deuteros,Delta,2,85,Volume-based
+For Max (Reps),Deuteros,Delta,2,90,Volume-based
+For Max (Reps),Deuteros,Sigma,1,55,Volume-based
+For Max (Reps),Deuteros,Sigma,1,60,Volume-based
+For Max (Reps),Deuteros,Sigma,1,80,Volume-based
+For Max (Reps),Deuteros,Sigma,1,85,Volume-based
+For Max (Reps),Deuteros,Sigma,1,90,Volume-based
+For Max (Reps),Deuteros,Omega,1,55,Volume-based
+For Max (Reps),Deuteros,Omega,1,60,Volume-based
+For Max (Reps),Deuteros,Omega,1,80,Volume-based
+For Max (Reps),Deuteros,Omega,1,85,Volume-based
+For Max (Reps),Deuteros,Omega,1,90,Volume-based
+For Max (Tiempo),Athlos,Alfa,1,90,Time-based
+For Max (Tiempo),Athlos,Alfa,1,95,Time-based
+For Max (Tiempo),Athlos,Delta,1,90,Time-based
+For Max (Tiempo),Athlos,Delta,1,95,Time-based
+For Max (Tiempo),Athlos,Sigma,1,90,Time-based
+For Max (Tiempo),Athlos,Sigma,1,95,Time-based
+For Max (Tiempo),Athlos,Omega,1,90,Time-based
+For Max (Tiempo),Athlos,Omega,1,95,Time-based
+For Quality,Nucleus,Alfa,1,55,Technical
+For Quality,Nucleus,Alfa,1,60,Technical
+For Quality,Nucleus,Delta,1,55,Technical
+For Quality,Nucleus,Delta,1,60,Technical
+For Quality,Nucleus,Sigma,1,55,Technical
+For Quality,Nucleus,Sigma,1,60,Technical
+For Quality,Nucleus,Omega,1,55,Technical
+For Quality,Nucleus,Omega,1,60,Technical
+For Quality,Deuteros,Alfa,1,55,Technical
+For Quality,Deuteros,Alfa,1,60,Technical
+For Quality,Deuteros,Delta,1,55,Technical
+For Quality,Deuteros,Delta,1,60,Technical
+For Quality,Deuteros,Sigma,1,55,Technical
+For Quality,Deuteros,Sigma,1,60,Technical
+For Quality,Deuteros,Omega,1,55,Technical
+For Quality,Deuteros,Omega,1,60,Technical
+For Tech,Athlos,Alfa,2,80,Technical
+For Tech,Athlos,Alfa,2,85,Technical
+For Tech,Athlos,Alfa,2,90,Technical
+For Tech,Athlos,Alfa,2,95,Technical
+For Tech,Athlos,Delta,1,80,Technical
+For Tech,Athlos,Delta,1,85,Technical
+For Tech,Athlos,Delta,1,90,Technical
+For Tech,Athlos,Delta,1,95,Technical
+For Tech,Athlos,Sigma,1,80,Technical
+For Tech,Athlos,Sigma,1,85,Technical
+For Tech,Athlos,Sigma,1,90,Technical
+For Tech,Athlos,Sigma,1,95,Technical
+For Tech,Athlos,Omega,1,80,Technical
+For Tech,Athlos,Omega,1,85,Technical
+For Tech,Athlos,Omega,1,90,Technical
+For Tech,Athlos,Omega,1,95,Technical
+For Time,Initium,Alfa,2,55,
+For Time,Initium,Delta,1,55,
+For Time,Initium,Sigma,1,55,
+For Time,Initium,Omega,1,55,
+For Time,Nucleus,Alfa,1,55,
+For Time,Nucleus,Delta,1,55,
+For Time,Nucleus,Sigma,1,55,
+For Time,Nucleus,Omega,1,55,
+For Time,Deuteros,Alfa,1,55,
+For Time,Deuteros,Delta,1,55,
+For Time,Deuteros,Sigma,1,55,
+For Time,Deuteros,Omega,1,55,
+For Time,Initium,Alfa,2,60,
+For Time,Initium,Delta,1,60,
+For Time,Initium,Sigma,1,60,
+For Time,Initium,Omega,1,60,
+For Time,Nucleus,Alfa,1,60,
+For Time,Nucleus,Delta,1,60,
+For Time,Nucleus,Sigma,1,60,
+For Time,Nucleus,Omega,1,60,
+For Time,Deuteros,Alfa,1,60,
+For Time,Deuteros,Delta,1,60,
+For Time,Deuteros,Sigma,1,60,
+For Time,Deuteros,Omega,1,60,
+For Time,Initium,Alfa,2,65,
+For Time,Initium,Delta,1,65,
+For Time,Initium,Sigma,1,65,
+For Time,Initium,Omega,1,65,
+For Time,Nucleus,Alfa,1,65,
+For Time,Nucleus,Delta,1,65,
+For Time,Nucleus,Sigma,1,65,
+For Time,Nucleus,Omega,1,65,
+For Time,Deuteros,Alfa,1,65,
+For Time,Deuteros,Delta,1,65,
+For Time,Deuteros,Sigma,1,65,
+For Time,Deuteros,Omega,1,65,
+For Time,Initium,Alfa,2,70,
+For Time,Initium,Delta,1,70,
+For Time,Initium,Sigma,1,70,
+For Time,Initium,Omega,1,70,
+For Time,Nucleus,Alfa,1,70,
+For Time,Nucleus,Delta,1,70,
+For Time,Nucleus,Sigma,1,70,
+For Time,Nucleus,Omega,1,70,
+For Time,Deuteros,Alfa,1,70,
+For Time,Deuteros,Delta,1,70,
+For Time,Deuteros,Sigma,1,70,
+For Time,Deuteros,Omega,1,70,
+For Time,Initium,Alfa,2,75,
+For Time,Initium,Delta,1,75,
+For Time,Initium,Sigma,1,75,
+For Time,Initium,Omega,1,75,
+For Time,Nucleus,Alfa,1,75,
+For Time,Nucleus,Delta,1,75,
+For Time,Nucleus,Sigma,1,75,
+For Time,Nucleus,Omega,1,75,
+For Time,Deuteros,Alfa,1,75,
+For Time,Deuteros,Delta,1,75,
+For Time,Deuteros,Sigma,1,75,
+For Time,Deuteros,Omega,1,75,
+Hero WOD,Nucleus,Alfa,3,60,Structure-based
+Hero WOD,Nucleus,Alfa,3,65,Structure-based
+Hero WOD,Nucleus,Alfa,3,70,Structure-based
+Hero WOD,Nucleus,Alfa,3,75,Structure-based
+Hero WOD,Nucleus,Alfa,3,80,Structure-based
+Hero WOD,Nucleus,Alfa,3,90,Structure-based
+Hero WOD,Nucleus,Alfa,3,95,Structure-based
+Hero WOD,Nucleus,Delta,2,60,Structure-based
+Hero WOD,Nucleus,Delta,2,65,Structure-based
+Hero WOD,Nucleus,Delta,2,70,Structure-based
+Hero WOD,Nucleus,Delta,2,75,Structure-based
+Hero WOD,Nucleus,Delta,2,80,Structure-based
+Hero WOD,Nucleus,Delta,2,90,Structure-based
+Hero WOD,Nucleus,Delta,2,95,Structure-based
+Hero WOD,Nucleus,Sigma,1,60,Structure-based
+Hero WOD,Nucleus,Sigma,1,65,Structure-based
+Hero WOD,Nucleus,Sigma,1,70,Structure-based
+Hero WOD,Nucleus,Sigma,1,75,Structure-based
+Hero WOD,Nucleus,Sigma,1,80,Structure-based
+Hero WOD,Nucleus,Sigma,1,90,Structure-based
+Hero WOD,Nucleus,Sigma,1,95,Structure-based
+Hero WOD,Nucleus,Omega,1,60,Structure-based
+Hero WOD,Nucleus,Omega,1,65,Structure-based
+Hero WOD,Nucleus,Omega,1,70,Structure-based
+Hero WOD,Nucleus,Omega,1,75,Structure-based
+Hero WOD,Nucleus,Omega,1,80,Structure-based
+Hero WOD,Nucleus,Omega,1,90,Structure-based
+Hero WOD,Nucleus,Omega,1,95,Structure-based
+Hero WOD,Athlos,Delta,2,60,Structure-based
+Hero WOD,Athlos,Delta,2,65,Structure-based
+Hero WOD,Athlos,Delta,2,70,Structure-based
+Hero WOD,Athlos,Delta,2,75,Structure-based
+Hero WOD,Athlos,Delta,2,80,Structure-based
+Hero WOD,Athlos,Delta,2,90,Structure-based
+Hero WOD,Athlos,Delta,2,95,Structure-based
+Hero WOD,Athlos,Sigma,1,60,Structure-based
+Hero WOD,Athlos,Sigma,1,65,Structure-based
+Hero WOD,Athlos,Sigma,1,70,Structure-based
+Hero WOD,Athlos,Sigma,1,75,Structure-based
+Hero WOD,Athlos,Sigma,1,80,Structure-based
+Hero WOD,Athlos,Sigma,1,90,Structure-based
+Hero WOD,Athlos,Sigma,1,95,Structure-based
+Hero WOD,Athlos,Omega,1,60,Structure-based
+Hero WOD,Athlos,Omega,1,65,Structure-based
+Hero WOD,Athlos,Omega,1,70,Structure-based
+Hero WOD,Athlos,Omega,1,75,Structure-based
+Hero WOD,Athlos,Omega,1,80,Structure-based
+Hero WOD,Athlos,Omega,1,90,Structure-based
+Hero WOD,Athlos,Omega,1,95,Structure-based
+Hero WOD,Epikos,Sigma,1,60,Structure-based
+Hero WOD,Epikos,Sigma,1,65,Structure-based
+Hero WOD,Epikos,Sigma,1,70,Structure-based
+Hero WOD,Epikos,Sigma,1,75,Structure-based
+Hero WOD,Epikos,Sigma,1,80,Structure-based
+Hero WOD,Epikos,Sigma,1,90,Structure-based
+Hero WOD,Epikos,Sigma,1,95,Structure-based
+Hero WOD,Epikos,Omega,1,60,Structure-based
+Hero WOD,Epikos,Omega,1,65,Structure-based
+Hero WOD,Epikos,Omega,1,70,Structure-based
+Hero WOD,Epikos,Omega,1,75,Structure-based
+Hero WOD,Epikos,Omega,1,80,Structure-based
+Hero WOD,Epikos,Omega,1,90,Structure-based
+Hero WOD,Epikos,Omega,1,95,Structure-based
+HIIT,Initium,Alfa,1,80,Time-based
+HIIT,Initium,Alfa,1,85,Time-based
+HIIT,Initium,Alfa,1,90,Time-based
+HIIT,Initium,Delta,1,80,Time-based
+HIIT,Initium,Delta,1,85,Time-based
+HIIT,Initium,Delta,1,90,Time-based
+HIIT,Initium,Sigma,1,80,Time-based
+HIIT,Initium,Sigma,1,85,Time-based
+HIIT,Initium,Sigma,1,90,Time-based
+HIIT,Initium,Omega,1,80,Time-based
+HIIT,Initium,Omega,1,85,Time-based
+HIIT,Initium,Omega,1,90,Time-based
+"I Go, You Go",Initium,Alfa,3,55,
+"I Go, You Go",Initium,Delta,2,55,
+"I Go, You Go",Initium,Sigma,1,55,
+"I Go, You Go",Initium,Omega,1,55,
+"I Go, You Go",Epikos,Alfa,1,55,
+"I Go, You Go",Epikos,Delta,1,55,
+"I Go, You Go",Epikos,Sigma,1,55,
+"I Go, You Go",Epikos,Omega,1,55,
+"I Go, You Go",Initium,Alfa,3,60,
+"I Go, You Go",Initium,Delta,2,60,
+"I Go, You Go",Initium,Sigma,1,60,
+"I Go, You Go",Initium,Omega,1,60,
+"I Go, You Go",Epikos,Alfa,1,60,
+"I Go, You Go",Epikos,Delta,1,60,
+"I Go, You Go",Epikos,Sigma,1,60,
+"I Go, You Go",Epikos,Omega,1,60,
+"I Go, You Go",Initium,Alfa,3,65,
+"I Go, You Go",Initium,Delta,2,65,
+"I Go, You Go",Initium,Sigma,1,65,
+"I Go, You Go",Initium,Omega,1,65,
+"I Go, You Go",Epikos,Alfa,1,65,
+"I Go, You Go",Epikos,Delta,1,65,
+"I Go, You Go",Epikos,Sigma,1,65,
+"I Go, You Go",Epikos,Omega,1,65,
+"I Go, You Go",Initium,Alfa,3,70,
+"I Go, You Go",Initium,Delta,2,70,
+"I Go, You Go",Initium,Sigma,1,70,
+"I Go, You Go",Initium,Omega,1,70,
+"I Go, You Go",Epikos,Alfa,1,70,
+"I Go, You Go",Epikos,Delta,1,70,
+"I Go, You Go",Epikos,Sigma,1,70,
+"I Go, You Go",Epikos,Omega,1,70,
+"I Go, You Go",Initium,Alfa,3,75,
+"I Go, You Go",Initium,Delta,2,75,
+"I Go, You Go",Initium,Sigma,1,75,
+"I Go, You Go",Initium,Omega,1,75,
+"I Go, You Go",Epikos,Alfa,1,75,
+"I Go, You Go",Epikos,Delta,1,75,
+"I Go, You Go",Epikos,Sigma,1,75,
+"I Go, You Go",Epikos,Omega,1,75,
+"I Go, You Go",Initium,Alfa,3,80,
+"I Go, You Go",Initium,Delta,2,80,
+"I Go, You Go",Initium,Sigma,1,80,
+"I Go, You Go",Initium,Omega,1,80,
+"I Go, You Go",Epikos,Alfa,1,80,
+"I Go, You Go",Epikos,Delta,1,80,
+"I Go, You Go",Epikos,Sigma,1,80,
+"I Go, You Go",Epikos,Omega,1,80,
+Interval Training,Initium,Alfa,1,55,Time-based
+Interval Training,Initium,Alfa,1,60,Time-based
+Interval Training,Initium,Alfa,1,65,Time-based
+Interval Training,Initium,Alfa,1,70,Time-based
+Interval Training,Initium,Alfa,1,75,Time-based
+Interval Training,Initium,Alfa,1,80,Time-based
+Interval Training,Initium,Delta,1,55,Time-based
+Interval Training,Initium,Delta,1,60,Time-based
+Interval Training,Initium,Delta,1,65,Time-based
+Interval Training,Initium,Delta,1,70,Time-based
+Interval Training,Initium,Delta,1,75,Time-based
+Interval Training,Initium,Delta,1,80,Time-based
+Interval Training,Initium,Sigma,1,55,Time-based
+Interval Training,Initium,Sigma,1,60,Time-based
+Interval Training,Initium,Sigma,1,65,Time-based
+Interval Training,Initium,Sigma,1,70,Time-based
+Interval Training,Initium,Sigma,1,75,Time-based
+Interval Training,Initium,Sigma,1,80,Time-based
+Interval Training,Initium,Omega,1,55,Time-based
+Interval Training,Initium,Omega,1,60,Time-based
+Interval Training,Initium,Omega,1,65,Time-based
+Interval Training,Initium,Omega,1,70,Time-based
+Interval Training,Initium,Omega,1,75,Time-based
+Interval Training,Initium,Omega,1,80,Time-based
+Interval Training,Deuteros,Alfa,2,55,Time-based
+Interval Training,Deuteros,Alfa,2,60,Time-based
+Interval Training,Deuteros,Alfa,2,65,Time-based
+Interval Training,Deuteros,Alfa,2,70,Time-based
+Interval Training,Deuteros,Alfa,2,75,Time-based
+Interval Training,Deuteros,Alfa,2,80,Time-based
+Interval Training,Deuteros,Delta,2,55,Time-based
+Interval Training,Deuteros,Delta,2,60,Time-based
+Interval Training,Deuteros,Delta,2,65,Time-based
+Interval Training,Deuteros,Delta,2,70,Time-based
+Interval Training,Deuteros,Delta,2,75,Time-based
+Interval Training,Deuteros,Delta,2,80,Time-based
+Interval Training,Deuteros,Sigma,1,55,Time-based
+Interval Training,Deuteros,Sigma,1,60,Time-based
+Interval Training,Deuteros,Sigma,1,65,Time-based
+Interval Training,Deuteros,Sigma,1,70,Time-based
+Interval Training,Deuteros,Sigma,1,75,Time-based
+Interval Training,Deuteros,Sigma,1,80,Time-based
+Interval Training,Deuteros,Omega,1,55,Time-based
+Interval Training,Deuteros,Omega,1,60,Time-based
+Interval Training,Deuteros,Omega,1,65,Time-based
+Interval Training,Deuteros,Omega,1,70,Time-based
+Interval Training,Deuteros,Omega,1,75,Time-based
+Interval Training,Deuteros,Omega,1,80,Time-based
+Ladder,Nucleus,Alfa,2,55,Volume-based
+Ladder,Nucleus,Alfa,2,60,Volume-based
+Ladder,Nucleus,Delta,1,55,Volume-based
+Ladder,Nucleus,Delta,1,60,Volume-based
+Ladder,Nucleus,Sigma,1,55,Volume-based
+Ladder,Nucleus,Sigma,1,60,Volume-based
+Ladder,Nucleus,Omega,1,55,Volume-based
+Ladder,Nucleus,Omega,1,60,Volume-based
+Ladder,Athlos,Delta,2,55,Volume-based
+Ladder,Athlos,Delta,2,60,Volume-based
+Ladder,Athlos,Sigma,1,55,Volume-based
+Ladder,Athlos,Sigma,1,60,Volume-based
+Ladder,Athlos,Omega,1,55,Volume-based
+Ladder,Athlos,Omega,1,60,Volume-based
+Ladder Block,Athlos,Alfa,2,60,Volume-based
+Ladder Block,Athlos,Alfa,2,65,Volume-based
+Ladder Block,Athlos,Alfa,2,70,Volume-based
+Ladder Block,Athlos,Delta,1,60,Volume-based
+Ladder Block,Athlos,Delta,1,65,Volume-based
+Ladder Block,Athlos,Delta,1,70,Volume-based
+Ladder Block,Athlos,Sigma,1,60,Volume-based
+Ladder Block,Athlos,Sigma,1,65,Volume-based
+Ladder Block,Athlos,Sigma,1,70,Volume-based
+Ladder Block,Athlos,Omega,1,60,Volume-based
+Ladder Block,Athlos,Omega,1,65,Volume-based
+Ladder Block,Athlos,Omega,1,70,Volume-based
+Ladder corta,Deuteros,Alfa,1,90,Volume-based
+Ladder corta,Deuteros,Alfa,1,95,Volume-based
+Ladder corta,Deuteros,Delta,1,90,Volume-based
+Ladder corta,Deuteros,Delta,1,95,Volume-based
+Ladder corta,Deuteros,Sigma,1,90,Volume-based
+Ladder corta,Deuteros,Sigma,1,95,Volume-based
+Ladder corta,Deuteros,Omega,1,90,Volume-based
+Ladder corta,Deuteros,Omega,1,95,Volume-based
+On the 2:00 / 3:00,Initium,Alfa,3,80,Time-based
+On the 2:00 / 3:00,Initium,Alfa,3,85,Time-based
+On the 2:00 / 3:00,Initium,Alfa,3,90,Time-based
+On the 2:00 / 3:00,Initium,Alfa,3,95,Time-based
+On the 2:00 / 3:00,Initium,Delta,3,80,Time-based
+On the 2:00 / 3:00,Initium,Delta,3,85,Time-based
+On the 2:00 / 3:00,Initium,Delta,3,90,Time-based
+On the 2:00 / 3:00,Initium,Delta,3,95,Time-based
+On the 2:00 / 3:00,Initium,Sigma,2,80,Time-based
+On the 2:00 / 3:00,Initium,Sigma,2,85,Time-based
+On the 2:00 / 3:00,Initium,Sigma,2,90,Time-based
+On the 2:00 / 3:00,Initium,Sigma,2,95,Time-based
+On the 2:00 / 3:00,Initium,Omega,1,80,Time-based
+On the 2:00 / 3:00,Initium,Omega,1,85,Time-based
+On the 2:00 / 3:00,Initium,Omega,1,90,Time-based
+On the 2:00 / 3:00,Initium,Omega,1,95,Time-based
+Open Style,Nucleus,Delta,2,55,Hybrid
+Open Style,Nucleus,Delta,2,60,Hybrid
+Open Style,Nucleus,Delta,2,90,Hybrid
+Open Style,Nucleus,Delta,2,95,Hybrid
+Open Style,Nucleus,Sigma,2,55,Hybrid
+Open Style,Nucleus,Sigma,2,60,Hybrid
+Open Style,Nucleus,Sigma,2,90,Hybrid
+Open Style,Nucleus,Sigma,2,95,Hybrid
+Open Style,Nucleus,Omega,1,55,Hybrid
+Open Style,Nucleus,Omega,1,60,Hybrid
+Open Style,Nucleus,Omega,1,90,Hybrid
+Open Style,Nucleus,Omega,1,95,Hybrid
+Open Style,Athlos,Delta,2,55,Hybrid
+Open Style,Athlos,Delta,2,60,Hybrid
+Open Style,Athlos,Delta,2,90,Hybrid
+Open Style,Athlos,Delta,2,95,Hybrid
+Open Style,Athlos,Sigma,1,55,Hybrid
+Open Style,Athlos,Sigma,1,60,Hybrid
+Open Style,Athlos,Sigma,1,90,Hybrid
+Open Style,Athlos,Sigma,1,95,Hybrid
+Open Style,Athlos,Omega,1,55,Hybrid
+Open Style,Athlos,Omega,1,60,Hybrid
+Open Style,Athlos,Omega,1,90,Hybrid
+Open Style,Athlos,Omega,1,95,Hybrid
+Open Style,Epikos,Delta,2,55,Hybrid
+Open Style,Epikos,Delta,2,60,Hybrid
+Open Style,Epikos,Delta,2,90,Hybrid
+Open Style,Epikos,Delta,2,95,Hybrid
+Open Style,Epikos,Sigma,1,55,Hybrid
+Open Style,Epikos,Sigma,1,60,Hybrid
+Open Style,Epikos,Sigma,1,90,Hybrid
+Open Style,Epikos,Sigma,1,95,Hybrid
+Open Style,Epikos,Omega,1,55,Hybrid
+Open Style,Epikos,Omega,1,60,Hybrid
+Open Style,Epikos,Omega,1,90,Hybrid
+Open Style,Epikos,Omega,1,95,Hybrid
+Pyramid,Nucleus,Alfa,2,55,Volume-based
+Pyramid,Nucleus,Alfa,2,60,Volume-based
+Pyramid,Nucleus,Alfa,2,65,Volume-based
+Pyramid,Nucleus,Alfa,2,70,Volume-based
+Pyramid,Nucleus,Delta,1,55,Volume-based
+Pyramid,Nucleus,Delta,1,60,Volume-based
+Pyramid,Nucleus,Delta,1,65,Volume-based
+Pyramid,Nucleus,Delta,1,70,Volume-based
+Pyramid,Nucleus,Sigma,1,55,Volume-based
+Pyramid,Nucleus,Sigma,1,60,Volume-based
+Pyramid,Nucleus,Sigma,1,65,Volume-based
+Pyramid,Nucleus,Sigma,1,70,Volume-based
+Pyramid,Nucleus,Omega,1,55,Volume-based
+Pyramid,Nucleus,Omega,1,60,Volume-based
+Pyramid,Nucleus,Omega,1,65,Volume-based
+Pyramid,Nucleus,Omega,1,70,Volume-based
+Rest-Pause,Nucleus,Delta,2,60,Hybrid
+Rest-Pause,Nucleus,Delta,2,65,Hybrid
+Rest-Pause,Nucleus,Delta,2,70,Hybrid
+Rest-Pause,Nucleus,Delta,2,80,Hybrid
+Rest-Pause,Nucleus,Delta,2,85,Hybrid
+Rest-Pause,Nucleus,Delta,2,90,Hybrid
+Rest-Pause,Nucleus,Sigma,2,60,Hybrid
+Rest-Pause,Nucleus,Sigma,2,65,Hybrid
+Rest-Pause,Nucleus,Sigma,2,70,Hybrid
+Rest-Pause,Nucleus,Sigma,2,80,Hybrid
+Rest-Pause,Nucleus,Sigma,2,85,Hybrid
+Rest-Pause,Nucleus,Sigma,2,90,Hybrid
+Rest-Pause,Nucleus,Omega,1,60,Hybrid
+Rest-Pause,Nucleus,Omega,1,65,Hybrid
+Rest-Pause,Nucleus,Omega,1,70,Hybrid
+Rest-Pause,Nucleus,Omega,1,80,Hybrid
+Rest-Pause,Nucleus,Omega,1,85,Hybrid
+Rest-Pause,Nucleus,Omega,1,90,Hybrid
+Singlet,Initium,Alfa,2,80,Structure-based
+Singlet,Initium,Alfa,2,85,Structure-based
+Singlet,Initium,Alfa,2,90,Structure-based
+Singlet,Initium,Alfa,2,95,Structure-based
+Singlet,Initium,Delta,2,80,Structure-based
+Singlet,Initium,Delta,2,85,Structure-based
+Singlet,Initium,Delta,2,90,Structure-based
+Singlet,Initium,Delta,2,95,Structure-based
+Singlet,Initium,Sigma,1,80,Structure-based
+Singlet,Initium,Sigma,1,85,Structure-based
+Singlet,Initium,Sigma,1,90,Structure-based
+Singlet,Initium,Sigma,1,95,Structure-based
+Singlet,Initium,Omega,1,80,Structure-based
+Singlet,Initium,Omega,1,85,Structure-based
+Singlet,Initium,Omega,1,90,Structure-based
+Singlet,Initium,Omega,1,95,Structure-based
+Singlet,Deuteros,Alfa,1,80,Structure-based
+Singlet,Deuteros,Alfa,1,85,Structure-based
+Singlet,Deuteros,Alfa,1,90,Structure-based
+Singlet,Deuteros,Alfa,1,95,Structure-based
+Singlet,Deuteros,Delta,1,80,Structure-based
+Singlet,Deuteros,Delta,1,85,Structure-based
+Singlet,Deuteros,Delta,1,90,Structure-based
+Singlet,Deuteros,Delta,1,95,Structure-based
+Singlet,Deuteros,Sigma,1,80,Structure-based
+Singlet,Deuteros,Sigma,1,85,Structure-based
+Singlet,Deuteros,Sigma,1,90,Structure-based
+Singlet,Deuteros,Sigma,1,95,Structure-based
+Singlet,Deuteros,Omega,1,80,Structure-based
+Singlet,Deuteros,Omega,1,85,Structure-based
+Singlet,Deuteros,Omega,1,90,Structure-based
+Singlet,Deuteros,Omega,1,95,Structure-based
+Tabata,Initium,Alfa,1,70,Time-based
+Tabata,Initium,Alfa,1,75,Time-based
+Tabata,Initium,Alfa,1,80,Time-based
+Tabata,Initium,Delta,1,70,Time-based
+Tabata,Initium,Delta,1,75,Time-based
+Tabata,Initium,Delta,1,80,Time-based
+Tabata,Initium,Sigma,1,70,Time-based
+Tabata,Initium,Sigma,1,75,Time-based
+Tabata,Initium,Sigma,1,80,Time-based
+Tabata,Initium,Omega,1,70,Time-based
+Tabata,Initium,Omega,1,75,Time-based
+Tabata,Initium,Omega,1,80,Time-based
+Tabata,Deuteros,Alfa,2,70,Time-based
+Tabata,Deuteros,Alfa,2,75,Time-based
+Tabata,Deuteros,Alfa,2,80,Time-based
+Tabata,Deuteros,Delta,2,70,Time-based
+Tabata,Deuteros,Delta,2,75,Time-based
+Tabata,Deuteros,Delta,2,80,Time-based
+Tabata,Deuteros,Sigma,1,70,Time-based
+Tabata,Deuteros,Sigma,1,75,Time-based
+Tabata,Deuteros,Sigma,1,80,Time-based
+Tabata,Deuteros,Omega,1,70,Time-based
+Tabata,Deuteros,Omega,1,75,Time-based
+Tabata,Deuteros,Omega,1,80,Time-based
+Tabata,Epikos,Alfa,2,70,Time-based
+Tabata,Epikos,Alfa,2,75,Time-based
+Tabata,Epikos,Alfa,2,80,Time-based
+Tabata,Epikos,Delta,2,70,Time-based
+Tabata,Epikos,Delta,2,75,Time-based
+Tabata,Epikos,Delta,2,80,Time-based
+Tabata,Epikos,Sigma,1,70,Time-based
+Tabata,Epikos,Sigma,1,75,Time-based
+Tabata,Epikos,Sigma,1,80,Time-based
+Tabata,Epikos,Omega,1,70,Time-based
+Tabata,Epikos,Omega,1,75,Time-based
+Tabata,Epikos,Omega,1,80,Time-based
+Task Priority,Epikos,Alfa,2,55,
+Task Priority,Epikos,Alfa,2,60,
+Task Priority,Epikos,Delta,2,55,
+Task Priority,Epikos,Delta,2,60,
+Task Priority,Epikos,Sigma,1,55,
+Task Priority,Epikos,Sigma,1,60,
+Task Priority,Epikos,Omega,1,55,
+Task Priority,Epikos,Omega,1,60,
+Task Priority vs Time Priority,Nucleus,Delta,2,55,Hybrid
+Task Priority vs Time Priority,Nucleus,Delta,2,60,Hybrid
+Task Priority vs Time Priority,Nucleus,Sigma,2,55,Hybrid
+Task Priority vs Time Priority,Nucleus,Sigma,2,60,Hybrid
+Task Priority vs Time Priority,Nucleus,Omega,1,55,Hybrid
+Task Priority vs Time Priority,Nucleus,Omega,1,60,Hybrid
+Task Priority vs Time Priority,Athlos,Alfa,3,55,Hybrid
+Task Priority vs Time Priority,Athlos,Alfa,3,60,Hybrid
+Task Priority vs Time Priority,Athlos,Delta,2,55,Hybrid
+Task Priority vs Time Priority,Athlos,Delta,2,60,Hybrid
+Task Priority vs Time Priority,Athlos,Sigma,1,55,Hybrid
+Task Priority vs Time Priority,Athlos,Sigma,1,60,Hybrid
+Task Priority vs Time Priority,Athlos,Omega,1,55,Hybrid
+Task Priority vs Time Priority,Athlos,Omega,1,60,Hybrid
+Tempo Sets,Nucleus,Alfa,2,55,Technical
+Tempo Sets,Nucleus,Alfa,2,60,Technical
+Tempo Sets,Nucleus,Alfa,2,65,Technical
+Tempo Sets,Nucleus,Alfa,2,70,Technical
+Tempo Sets,Nucleus,Alfa,2,80,Technical
+Tempo Sets,Nucleus,Alfa,2,85,Technical
+Tempo Sets,Nucleus,Alfa,2,90,Technical
+Tempo Sets,Nucleus,Alfa,2,95,Technical
+Tempo Sets,Nucleus,Delta,2,55,Technical
+Tempo Sets,Nucleus,Delta,2,60,Technical
+Tempo Sets,Nucleus,Delta,2,65,Technical
+Tempo Sets,Nucleus,Delta,2,70,Technical
+Tempo Sets,Nucleus,Delta,2,80,Technical
+Tempo Sets,Nucleus,Delta,2,85,Technical
+Tempo Sets,Nucleus,Delta,2,90,Technical
+Tempo Sets,Nucleus,Delta,2,95,Technical
+Tempo Sets,Nucleus,Sigma,1,55,Technical
+Tempo Sets,Nucleus,Sigma,1,60,Technical
+Tempo Sets,Nucleus,Sigma,1,65,Technical
+Tempo Sets,Nucleus,Sigma,1,70,Technical
+Tempo Sets,Nucleus,Sigma,1,80,Technical
+Tempo Sets,Nucleus,Sigma,1,85,Technical
+Tempo Sets,Nucleus,Sigma,1,90,Technical
+Tempo Sets,Nucleus,Sigma,1,95,Technical
+Tempo Sets,Nucleus,Omega,1,55,Technical
+Tempo Sets,Nucleus,Omega,1,60,Technical
+Tempo Sets,Nucleus,Omega,1,65,Technical
+Tempo Sets,Nucleus,Omega,1,70,Technical
+Tempo Sets,Nucleus,Omega,1,80,Technical
+Tempo Sets,Nucleus,Omega,1,85,Technical
+Tempo Sets,Nucleus,Omega,1,90,Technical
+Tempo Sets,Nucleus,Omega,1,95,Technical
+Tempo Sets,Athlos,Alfa,2,55,Technical
+Tempo Sets,Athlos,Alfa,2,60,Technical
+Tempo Sets,Athlos,Alfa,2,65,Technical
+Tempo Sets,Athlos,Alfa,2,70,Technical
+Tempo Sets,Athlos,Alfa,2,80,Technical
+Tempo Sets,Athlos,Alfa,2,85,Technical
+Tempo Sets,Athlos,Alfa,2,90,Technical
+Tempo Sets,Athlos,Alfa,2,95,Technical
+Tempo Sets,Athlos,Delta,1,55,Technical
+Tempo Sets,Athlos,Delta,1,60,Technical
+Tempo Sets,Athlos,Delta,1,65,Technical
+Tempo Sets,Athlos,Delta,1,70,Technical
+Tempo Sets,Athlos,Delta,1,80,Technical
+Tempo Sets,Athlos,Delta,1,85,Technical
+Tempo Sets,Athlos,Delta,1,90,Technical
+Tempo Sets,Athlos,Delta,1,95,Technical
+Tempo Sets,Athlos,Sigma,1,55,Technical
+Tempo Sets,Athlos,Sigma,1,60,Technical
+Tempo Sets,Athlos,Sigma,1,65,Technical
+Tempo Sets,Athlos,Sigma,1,70,Technical
+Tempo Sets,Athlos,Sigma,1,80,Technical
+Tempo Sets,Athlos,Sigma,1,85,Technical
+Tempo Sets,Athlos,Sigma,1,90,Technical
+Tempo Sets,Athlos,Sigma,1,95,Technical
+Tempo Sets,Athlos,Omega,1,55,Technical
+Tempo Sets,Athlos,Omega,1,60,Technical
+Tempo Sets,Athlos,Omega,1,65,Technical
+Tempo Sets,Athlos,Omega,1,70,Technical
+Tempo Sets,Athlos,Omega,1,80,Technical
+Tempo Sets,Athlos,Omega,1,85,Technical
+Tempo Sets,Athlos,Omega,1,90,Technical
+Tempo Sets,Athlos,Omega,1,95,Technical
+Time Cap,Nucleus,Alfa,1,70,Time-based
+Time Cap,Nucleus,Alfa,1,75,Time-based
+Time Cap,Nucleus,Alfa,1,80,Time-based
+Time Cap,Nucleus,Delta,1,70,Time-based
+Time Cap,Nucleus,Delta,1,75,Time-based
+Time Cap,Nucleus,Delta,1,80,Time-based
+Time Cap,Nucleus,Sigma,1,70,Time-based
+Time Cap,Nucleus,Sigma,1,75,Time-based
+Time Cap,Nucleus,Sigma,1,80,Time-based
+Time Cap,Nucleus,Omega,1,70,Time-based
+Time Cap,Nucleus,Omega,1,75,Time-based
+Time Cap,Nucleus,Omega,1,80,Time-based
+Time Cap,Deuteros,Alfa,2,70,Time-based
+Time Cap,Deuteros,Alfa,2,75,Time-based
+Time Cap,Deuteros,Alfa,2,80,Time-based
+Time Cap,Deuteros,Delta,2,70,Time-based
+Time Cap,Deuteros,Delta,2,75,Time-based
+Time Cap,Deuteros,Delta,2,80,Time-based
+Time Cap,Deuteros,Sigma,1,70,Time-based
+Time Cap,Deuteros,Sigma,1,75,Time-based
+Time Cap,Deuteros,Sigma,1,80,Time-based
+Time Cap,Deuteros,Omega,1,70,Time-based
+Time Cap,Deuteros,Omega,1,75,Time-based
+Time Cap,Deuteros,Omega,1,80,Time-based
+Triplet,Deuteros,Alfa,2,60,Structure-based
+Triplet,Deuteros,Alfa,2,65,Structure-based
+Triplet,Deuteros,Alfa,2,70,Structure-based
+Triplet,Deuteros,Alfa,2,75,Structure-based
+Triplet,Deuteros,Alfa,2,80,Structure-based
+Triplet,Deuteros,Delta,2,60,Structure-based
+Triplet,Deuteros,Delta,2,65,Structure-based
+Triplet,Deuteros,Delta,2,70,Structure-based
+Triplet,Deuteros,Delta,2,75,Structure-based
+Triplet,Deuteros,Delta,2,80,Structure-based
+Triplet,Deuteros,Sigma,1,60,Structure-based
+Triplet,Deuteros,Sigma,1,65,Structure-based
+Triplet,Deuteros,Sigma,1,70,Structure-based
+Triplet,Deuteros,Sigma,1,75,Structure-based
+Triplet,Deuteros,Sigma,1,80,Structure-based
+Triplet,Deuteros,Omega,1,60,Structure-based
+Triplet,Deuteros,Omega,1,65,Structure-based
+Triplet,Deuteros,Omega,1,70,Structure-based
+Triplet,Deuteros,Omega,1,75,Structure-based
+Triplet,Deuteros,Omega,1,80,Structure-based
+Triplet,Athlos,Delta,2,60,Structure-based
+Triplet,Athlos,Delta,2,65,Structure-based
+Triplet,Athlos,Delta,2,70,Structure-based
+Triplet,Athlos,Delta,2,75,Structure-based
+Triplet,Athlos,Delta,2,80,Structure-based
+Triplet,Athlos,Sigma,1,60,Structure-based
+Triplet,Athlos,Sigma,1,65,Structure-based
+Triplet,Athlos,Sigma,1,70,Structure-based
+Triplet,Athlos,Sigma,1,75,Structure-based
+Triplet,Athlos,Sigma,1,80,Structure-based
+Triplet,Athlos,Omega,1,60,Structure-based
+Triplet,Athlos,Omega,1,65,Structure-based
+Triplet,Athlos,Omega,1,70,Structure-based
+Triplet,Athlos,Omega,1,75,Structure-based
+Triplet,Athlos,Omega,1,80,Structure-based
+Triplet,Epikos,Delta,2,60,Structure-based
+Triplet,Epikos,Delta,2,65,Structure-based
+Triplet,Epikos,Delta,2,70,Structure-based
+Triplet,Epikos,Delta,2,75,Structure-based
+Triplet,Epikos,Delta,2,80,Structure-based
+Triplet,Epikos,Sigma,1,60,Structure-based
+Triplet,Epikos,Sigma,1,65,Structure-based
+Triplet,Epikos,Sigma,1,70,Structure-based
+Triplet,Epikos,Sigma,1,75,Structure-based
+Triplet,Epikos,Sigma,1,80,Structure-based
+Triplet,Epikos,Omega,1,60,Structure-based
+Triplet,Epikos,Omega,1,65,Structure-based
+Triplet,Epikos,Omega,1,70,Structure-based
+Triplet,Epikos,Omega,1,75,Structure-based
+Triplet,Epikos,Omega,1,80,Structure-based
+Rounds for Time,Nucleus,Alfa,2,55,
+Rounds for Time,Nucleus,Delta,1,55,
+Rounds for Time,Nucleus,Sigma,1,55,
+Rounds for Time,Nucleus,Omega,1,55,
+Rounds for Time,Nucleus,Alfa,2,60,
+Rounds for Time,Nucleus,Delta,1,60,
+Rounds for Time,Nucleus,Sigma,1,60,
+Rounds for Time,Nucleus,Omega,1,60,
+Rounds for Time,Nucleus,Alfa,2,70,
+Rounds for Time,Nucleus,Delta,1,70,
+Rounds for Time,Nucleus,Sigma,1,70,
+Rounds for Time,Nucleus,Omega,1,70,
+Unbroken Reps,Deuteros,Delta,2,70,Technical
+Unbroken Reps,Deuteros,Delta,2,75,Technical
+Unbroken Reps,Deuteros,Delta,2,80,Technical
+Unbroken Reps,Deuteros,Sigma,1,70,Technical
+Unbroken Reps,Deuteros,Sigma,1,75,Technical
+Unbroken Reps,Deuteros,Sigma,1,80,Technical
+Unbroken Reps,Deuteros,Omega,1,70,Technical
+Unbroken Reps,Deuteros,Omega,1,75,Technical
+Unbroken Reps,Deuteros,Omega,1,80,Technical
+Unbroken Reps,Athlos,Delta,2,70,Technical
+Unbroken Reps,Athlos,Delta,2,75,Technical
+Unbroken Reps,Athlos,Delta,2,80,Technical
+Unbroken Reps,Athlos,Sigma,1,70,Technical
+Unbroken Reps,Athlos,Sigma,1,75,Technical
+Unbroken Reps,Athlos,Sigma,1,80,Technical
+Unbroken Reps,Athlos,Omega,1,70,Technical
+Unbroken Reps,Athlos,Omega,1,75,Technical
+Unbroken Reps,Athlos,Omega,1,80,Technical
+Wave Loading,Nucleus,Delta,3,70,Hybrid
+Wave Loading,Nucleus,Delta,3,75,Hybrid
+Wave Loading,Nucleus,Delta,3,80,Hybrid
+Wave Loading,Nucleus,Delta,3,90,Hybrid
+Wave Loading,Nucleus,Delta,3,95,Hybrid
+Wave Loading,Nucleus,Sigma,2,70,Hybrid
+Wave Loading,Nucleus,Sigma,2,75,Hybrid
+Wave Loading,Nucleus,Sigma,2,80,Hybrid
+Wave Loading,Nucleus,Sigma,2,90,Hybrid
+Wave Loading,Nucleus,Sigma,2,95,Hybrid
+Wave Loading,Nucleus,Omega,1,70,Hybrid
+Wave Loading,Nucleus,Omega,1,75,Hybrid
+Wave Loading,Nucleus,Omega,1,80,Hybrid
+Wave Loading,Nucleus,Omega,1,90,Hybrid
+Wave Loading,Nucleus,Omega,1,95,Hybrid
