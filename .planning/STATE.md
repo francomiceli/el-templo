@@ -72,10 +72,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 01-foundation | 4 | 30min | 7.5min |
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
-| 04-spom-engine | 3 | 12min | 4min |
+| 04-spom-engine | 3 | 14min | 4.7min |
 
 **Recent Trend:**
-- Last 3 plans: 04-01 (6min), 04-02 (3min), 04-03 (3min)
+- Last 3 plans: 04-01 (6min), 04-02 (5min), 04-03 (3min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
