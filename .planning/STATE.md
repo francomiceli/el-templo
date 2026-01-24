@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 5 of 11 (Session Generation)
-Plan: 1 of 3 in Phase 5
+Plan: 2 of 3 in Phase 5
 Status: In progress
-Last activity: 2026-01-24 — Completed 05-01-PLAN.md (Session Generator Core)
+Last activity: 2026-01-24 — Completed 05-02-PLAN.md (Session API Endpoints)
 
 Progress: [████░░░░░░] 36% (4/11 phases complete)
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 15
-- Average duration: 4.2 min
-- Total execution time: 1.05 hours
+- Total plans completed: 16
+- Average duration: 4.4 min
+- Total execution time: 1.17 hours
 
 **By Phase:**
 
@@ -73,10 +73,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
-| 05-session-generation | 1 | 6min | 6min |
+| 05-session-generation | 2 | 13min | 6.5min |
 
 **Recent Trend:**
-- Last 3 plans: 04-02 (5min), 04-03 (3min), 05-01 (6min)
+- Last 3 plans: 04-03 (3min), 05-01 (6min), 05-02 (7min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
@@ -127,6 +127,9 @@ Recent decisions affecting current work:
 | 05-01 | exerciseCountMin for determinism | Avoids randomness in exercise count selection |
 | 05-01 | Rest time scales with intensity | 30s (low) to 90s (high) matches training principles |
 | 05-01 | INITIUM fixed to MOV route | Mobility warmup doesn't use rotator |
+| 05-02 | JSON column for trace storage | Flexible, queryable in MySQL 8 |
+| 05-02 | Cascade delete on session FKs | Ensures cleanup of blocks/prescriptions |
+| 05-02 | Cache-first session retrieval | Check DB before generating to avoid duplicates |
 
 ### Pending Todos
 
@@ -141,9 +144,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed 05-01-PLAN.md (Session Generator Core)
-Resume file: `.planning/phases/05-session-generation/05-01-SUMMARY.md`
+Stopped at: Completed 05-02-PLAN.md (Session API Endpoints)
+Resume file: `.planning/phases/05-session-generation/05-02-SUMMARY.md`
 
 **Next steps:**
-1. Execute 05-02-PLAN.md (Session API Endpoints)
-2. Execute 05-03-PLAN.md (UAT checkpoint)
+1. Execute 05-03-PLAN.md (UAT checkpoint)
