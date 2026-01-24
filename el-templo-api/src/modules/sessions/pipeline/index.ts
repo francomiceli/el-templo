@@ -1,0 +1,95 @@
+/**
+ * Pipeline Orchestrator
+ *
+ * Runs all 7 stages in sequence for a single block,
+ * passing enriched context through each stage.
+ */
+
+import { MySql2Database } from 'drizzle-orm/mysql2';
+import * as schema from '../../../db/schema';
+import { SpomService } from '../../spom/service';
+import type { BlockContext, BlockContextComplete } from './context';
+import type { BlockPlan, TraceEvent } from '../types';
+import { createTraceEvent, appendTrace } from './context';
+
+// Import all stages
+import { resolveRotator } from './stage-1-rotator';
+import { resolveSpom } from './stage-2-spom';
+import { deriveBudget } from './stage-3-budget';
+import { deriveContraction } from './stage-4-contraction';
+import { selectFormat } from './stage-5-format';
+import { selectExercises } from './stage-6-exercises';
+import { generatePrescriptions } from './stage-7-prescription';
+
+/**
+ * Run the complete block pipeline
+ *
+ * Executes stages 1-7 in sequence, each enriching the context.
+ * Handles errors by adding ERROR trace event and re-throwing.
+ *
+ * @param initialContext - Starting context with week, day, levelGroup, role
+ * @param spomService - SPOM service for data lookups
+ * @param db - Database connection for direct queries
+ * @returns Complete BlockPlan with all fields populated
+ */
+export async function runBlockPipeline(
+  initialContext: BlockContext,
+  spomService: SpomService,
+  db: MySql2Database<typeof schema>
+): Promise<BlockPlan> {
+  let ctx: BlockContext | BlockContextComplete = initialContext;
+
+  try {
+    // Stage 1: Resolve route from rotator
+    const ctx1 = await resolveRotator(ctx, spomService);
+
+    // Stage 2: Resolve SPOM rule
+    const ctx2 = await resolveSpom(ctx1, spomService);
+
+    // Stage 3: Derive budget from intensity
+    const ctx3 = await deriveBudget(ctx2, spomService);
+
+    // Stage 4: Derive contraction mix
+    const ctx4 = await deriveContraction(ctx3, spomService);
+
+    // Stage 5: Select format
+    const ctx5 = await selectFormat(ctx4, db);
+
+    // Stage 6: Select exercises
+    const ctx6 = await selectExercises(ctx5, db);
+
+    // Stage 7: Generate prescriptions
+    const finalCtx = generatePrescriptions(ctx6);
+
+    // Assemble final BlockPlan
+    const blockPlan: BlockPlan = {
+      blockId: finalCtx.blockId,
+      role: finalCtx.role,
+      route: finalCtx.route,
+      pattern: finalCtx.pattern,
+      intensity: finalCtx.intensity,
+      repsBudget: finalCtx.repsBudget,
+      format: finalCtx.format,
+      exercises: finalCtx.prescriptions,
+      trace: finalCtx.trace,
+    };
+
+    return blockPlan;
+  } catch (error) {
+    // Add ERROR trace and re-throw
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorTrace = createTraceEvent(
+      ctx,
+      'PIPELINE_ERROR',
+      'ERROR',
+      {
+        stage: 'unknown',
+        error: errorMessage,
+      }
+    );
+    ctx = appendTrace(ctx, errorTrace);
+    throw error;
+  }
+}
+
+export { createInitialContext } from './context';
