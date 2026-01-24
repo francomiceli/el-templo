@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 5 of 11 (Session Generation)
-Plan: 4 of 4 in Phase 5
+Plan: 5 of 5 in Phase 5 (gap closure)
 Status: Phase complete
-Last activity: 2026-01-24 - Completed 05-04-PLAN.md (Trace Logging)
+Last activity: 2026-01-24 - Completed 05-05-PLAN.md (INITIUM Pipeline)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18
-- Average duration: 4.9 min
-- Total execution time: 1.5 hours
+- Total plans completed: 19
+- Average duration: 4.8 min
+- Total execution time: 1.6 hours
 
 **By Phase:**
 
@@ -73,11 +73,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
-| 05-session-generation | 4 | 29min | 7.25min |
+| 05-session-generation | 5 | 33min | 6.6min |
 
 **Recent Trend:**
-- Last 3 plans: 05-02 (7min), 05-03 (8min), 05-04 (8min)
-- Trend: Stable velocity
+- Last 3 plans: 05-03 (8min), 05-04 (8min), 05-05 (4min)
+- Trend: Stable velocity, gap closure plan was efficient
 
 *Updated after each plan completion*
 
@@ -126,7 +126,9 @@ Recent decisions affecting current work:
 | 04-03 | JSON Schema for validation | Consistent with existing auth module, no new dependency |
 | 05-01 | exerciseCountMin for determinism | Avoids randomness in exercise count selection |
 | 05-01 | Rest time scales with intensity | 30s (low) to 90s (high) matches training principles |
-| 05-01 | INITIUM fixed to MOV route | Mobility warmup doesn't use rotator |
+| 05-05 | INITIUM bypasses SPOM pipeline | Per spec line 266, 506: no route, no reps_budget |
+| 05-05 | INITIUM fixed intensity at 30% | Within INITIUM range (10-40%), appropriate for warmup |
+| 05-05 | INITIUM exercises from FLOW/Movilidad | Per spec line 584: prefer Technical > Structure-based |
 | 05-02 | JSON column for trace storage | Flexible, queryable in MySQL 8 |
 | 05-02 | Cascade delete on session FKs | Ensures cleanup of blocks/prescriptions |
 | 05-02 | Cache-first session retrieval | Check DB before generating to avoid duplicates |
@@ -150,14 +152,17 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed 05-04-PLAN.md (Trace Logging)
-Resume file: `.planning/phases/05-session-generation/05-04-SUMMARY.md`
+Stopped at: Completed 05-05-PLAN.md (INITIUM Pipeline - gap closure)
+Resume file: `.planning/phases/05-session-generation/05-05-SUMMARY.md`
 
-**Phase 5 complete.** All 4 plans executed:
+**Phase 5 complete.** All 5 plans executed:
 - 05-01: Pipeline stages with trace context
 - 05-02: Session persistence and API endpoints
 - 05-03: Fallback ladder and validation
 - 05-04: Pino-based trace logging
+- 05-05: INITIUM pipeline bypass (gap closure)
+
+**Gap closure:** UAT Issue #2 resolved - session generation now returns complete 5-block sessions.
 
 Next steps:
 1. Begin Phase 6 planning (Member Progress and Levels)
