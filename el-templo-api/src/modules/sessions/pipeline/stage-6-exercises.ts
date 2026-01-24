@@ -2,35 +2,23 @@
  * Stage 6: Exercise Selection
  *
  * Selects exercises for the block based on route, contraction type,
- * difficulty, and level. Uses deterministic ordering by id ASC.
+ * difficulty, and level. Uses fallback ladder when exact matches not found.
+ * Uses deterministic ordering by id ASC.
  *
  * Input: BlockContextWithFormat (has route, contractionMix, difficultyBucket, levelGroup)
  * Output: BlockContextWithExercises (adds exercises array)
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, lte, inArray } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import type { BlockContextWithFormat, BlockContextWithExercises } from './context';
 import type { LevelGroup, Contraction, SelectedExercise } from '../types';
 import { createTraceEvent, appendTrace } from './context';
-
-/** Map effort column value to contraction type */
-const EFFORT_TO_CONTRACTION: Record<string, Contraction> = {
-  CON: 'CON',
-  EXC: 'EXC',
-  ISO: 'ISO',
-};
-
-/** Map contraction type to effort column value */
-function contractionToEffort(contraction: Contraction): string {
-  return contraction; // Same values in this system
-}
+import { selectExercisesWithFallback } from '../fallback/exercise-fallback';
+import type { FallbackAction, ExerciseLevel } from '../fallback/types';
 
 /** Get allowed levels for a level group */
-function getAllowedLevels(
-  levelGroup: LevelGroup
-): ('alfa' | 'delta' | 'sigma' | 'omega' | 'spartan')[] {
+function getAllowedLevels(levelGroup: LevelGroup): ExerciseLevel[] {
   switch (levelGroup) {
     case 'alfa_delta':
       return ['alfa', 'delta'];
@@ -52,12 +40,30 @@ function parseDifficultyBucket(bucket: string): number {
 }
 
 /**
+ * Convert fallback action to trace event description
+ */
+function actionToTraceDescription(action: FallbackAction): string {
+  switch (action.type) {
+    case 'DIFFICULTY_RELAXED':
+      return `Relaxed difficulty from ${action.from} to ${action.to}`;
+    case 'SCOPE_WIDENED':
+      return `Widened scope from ${action.from} to ${action.to}`;
+    case 'LEVEL_WIDENED':
+      return `Widened levels from [${action.from.join(',')}] to [${action.to.join(',')}]`;
+    case 'CONTRACTION_SUBSTITUTED':
+      return `Substituted contraction from ${action.needed} to ${action.used}`;
+  }
+}
+
+/**
  * Select exercises for each contraction type in the mix
+ *
+ * Uses fallback ladder for graceful degradation when exact matches unavailable.
+ * If a contraction type completely fails, emit WARNING but continue with what's available.
  *
  * @param ctx - Context with format selected
  * @param db - Database connection for exercise lookup
  * @returns Context enriched with selected exercises
- * @throws Error if not enough exercises found for any contraction type
  */
 export async function selectExercises(
   ctx: BlockContextWithFormat,
@@ -67,6 +73,7 @@ export async function selectExercises(
   const maxDifficulty = parseDifficultyBucket(ctx.difficultyBucket);
   const selectedExercises: SelectedExercise[] = [];
   let updatedCtx = ctx;
+  let anyFailed = false;
 
   // Process each contraction type
   for (const contraction of ['CON', 'EXC', 'ISO'] as const) {
@@ -76,46 +83,70 @@ export async function selectExercises(
       continue; // Skip if no exercises needed for this type
     }
 
-    const effort = contractionToEffort(contraction);
+    // Use fallback ladder for exercise selection
+    const result = await selectExercisesWithFallback(
+      {
+        route: ctx.route,
+        contraction,
+        maxDifficulty,
+        allowedLevels,
+        count: requiredCount,
+        levelGroup: ctx.levelGroup,
+      },
+      db
+    );
 
-    // Query exercises matching criteria
-    const candidates = await db
-      .select({
-        id: schema.exercises.id,
-        name: schema.exercises.exercise,
-        difficulty: schema.exercises.difficulty,
-      })
-      .from(schema.exercises)
-      .where(and(
-        eq(schema.exercises.route, ctx.route),
-        eq(schema.exercises.effort, effort),
-        lte(schema.exercises.difficulty, maxDifficulty),
-        inArray(schema.exercises.level, allowedLevels)
-      ));
+    // Handle fallback result
+    if (result.status === 'failed') {
+      anyFailed = true;
 
-    if (candidates.length < requiredCount) {
-      throw new Error(
-        `Not enough exercises: need ${requiredCount} ${contraction}, found ${candidates.length} for route=${ctx.route}, effort=${effort}`
+      // Emit warning trace for failed contraction type
+      const warningTrace = createTraceEvent(
+        updatedCtx,
+        'EXERCISE_SELECTION_FAILED',
+        'WARNING',
+        {
+          contraction,
+          required: requiredCount,
+          found: 0,
+          route: ctx.route,
+          fallbackTier: result.tier,
+          actions: result.actions.map(actionToTraceDescription),
+        }
       );
+      updatedCtx = appendTrace(updatedCtx, warningTrace);
+      continue; // Continue with other contraction types
     }
 
-    // Sort deterministically by id ASC
-    const sorted = [...candidates].sort((a, b) => a.id - b.id);
+    // Add fallback traces if any relaxation was applied
+    if (result.status === 'fallback') {
+      for (const action of result.actions) {
+        const fallbackTrace = createTraceEvent(
+          updatedCtx,
+          'EXERCISE_FALLBACK',
+          'WARNING',
+          {
+            contraction,
+            tier: action.tier,
+            action: action.type,
+            description: actionToTraceDescription(action),
+          }
+        );
+        updatedCtx = appendTrace(updatedCtx, fallbackTrace);
+      }
+    }
 
-    // Select required count
-    const selected = sorted.slice(0, requiredCount);
-
-    // Add to results
-    for (const ex of selected) {
+    // Add selected exercises to results
+    for (const ex of result.data) {
       selectedExercises.push({
         exerciseId: ex.id,
         name: ex.name,
-        contraction,
+        contraction: ex.contraction,
         difficulty: ex.difficulty,
       });
     }
 
-    // Emit trace for this contraction type
+    // Emit success trace for this contraction type
     const traceEvent = createTraceEvent(
       updatedCtx,
       'EXERCISES_SELECTED',
@@ -123,11 +154,44 @@ export async function selectExercises(
       {
         contraction,
         required: requiredCount,
-        candidatesCount: candidates.length,
-        selected: selected.map(e => ({ id: e.id, name: e.name })),
+        selected: result.data.length,
+        fallbackTier: result.tier,
+        usedFallback: result.status === 'fallback',
+        exercises: result.data.map(e => ({ id: e.id, name: e.name })),
       }
     );
     updatedCtx = appendTrace(updatedCtx, traceEvent);
+  }
+
+  // If no exercises at all, throw error
+  if (selectedExercises.length === 0) {
+    const errorTrace = createTraceEvent(
+      updatedCtx,
+      'EXERCISE_SELECTION_TOTAL_FAILURE',
+      'ERROR',
+      {
+        route: ctx.route,
+        contractionMix: ctx.contractionMix,
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, errorTrace);
+    throw new Error(
+      `No exercises found for any contraction type: route=${ctx.route}, mix=${JSON.stringify(ctx.contractionMix)}`
+    );
+  }
+
+  // Emit summary trace if partial failure
+  if (anyFailed) {
+    const summaryTrace = createTraceEvent(
+      updatedCtx,
+      'EXERCISE_SELECTION_PARTIAL',
+      'WARNING',
+      {
+        totalRequired: ctx.contractionMix.CON + ctx.contractionMix.EXC + ctx.contractionMix.ISO,
+        totalSelected: selectedExercises.length,
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, summaryTrace);
   }
 
   return {
