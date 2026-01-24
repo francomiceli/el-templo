@@ -104,10 +104,11 @@ export async function runInitiumPipeline(
   updatedCtx = appendTrace(updatedCtx, paramsTrace);
 
   // Select format using fallback system
+  // Note: use intensity=55 (minimum with format compatibility entries, since INITIUM warmup intensity 30 has none)
   const formatRequirements: FormatRequirements = {
     block: 'initium',
     level: levelGroupToLevel(ctx.levelGroup),
-    intensity,
+    intensity: 55, // Minimum intensity with format compatibility entries
   };
 
   const formatResult = await selectFormatWithFallback(formatRequirements, db);

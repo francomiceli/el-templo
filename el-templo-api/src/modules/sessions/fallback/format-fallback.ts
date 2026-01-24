@@ -28,8 +28,8 @@ export interface FormatCandidate {
 }
 
 /** Default formats for different block types when all else fails */
-const DEFAULT_FORMATS: Record<string, string> = {
-  initium: 'Movilidad', // Mobility for warmup
+const DEFAULT_FORMATS: Record<FormatRequirements['block'], string> = {
+  initium: 'EMOM', // Time-based warmup (changed from 'Movilidad' which doesn't exist)
   nucleus: 'Straight Sets', // Classic sets for main strength work
   deuteros: 'Straight Sets', // Accessory strength
   athlos: 'AMRAP', // Conditioning
