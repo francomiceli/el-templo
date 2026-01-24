@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 5 - Session Generation (in progress)
+**Current focus:** Phase 5 - Session Generation (complete)
 
 ## Current Position
 
 Phase: 5 of 11 (Session Generation)
-Plan: 2 of 3 in Phase 5
-Status: In progress
-Last activity: 2026-01-24 — Completed 05-02-PLAN.md (Session API Endpoints)
+Plan: 3 of 3 in Phase 5
+Status: Phase complete
+Last activity: 2026-01-24 - Completed 05-03-PLAN.md (Fallback Ladder and Validation)
 
-Progress: [████░░░░░░] 36% (4/11 phases complete)
+Progress: [█████░░░░░] 45% (5/11 phases complete)
 
 ## Architecture Reset
 
@@ -26,15 +26,15 @@ Progress: [████░░░░░░] 36% (4/11 phases complete)
 - 5 blocks (not 4): Initium, Nucleus, Deuteros 1, Deuteros 2, Athlos/Epikos
 - Route-driven block assignment via Weekly Rotator (not day-based)
 - Contraction type distribution required (CON/EXC/ISO counts per intensity)
-- SPOM lookup per route (week × route → intensity, wave, pattern)
+- SPOM lookup per route (week x route -> intensity, wave, pattern)
 - Format compatibility system (Tabata, EMOM, AMRAP, Complex, etc.)
 - Level grouping: ALFA_DELTA, SIGMA, OMEGA (3 groups from 5 levels)
 
 **New Documentation Analyzed (2026-01-23):**
-- `Documento de Planificación` parts 1-4: Block structure, SPOM integration, contraction by intensity
+- `Documento de Planificacion` parts 1-4: Block structure, SPOM integration, contraction by intensity
 - `system-specs/` parts 1-5: 47-point technical specification defining deterministic engine:
   - Points 1-10: Objective, domain entities, IDs, normalization
-  - Points 11-21: SPOM resolution, category hierarchy, intensity→budget, contraction rules
+  - Points 11-21: SPOM resolution, category hierarchy, intensity->budget, contraction rules
   - Points 22-31: Format taxonomy, compatibility matrix, parameter schema, exercise selection
   - Points 32-40: Prescription (dose, rest, ladders, tempo), validation, coherence checks
   - Points 41-47: Engine pipeline, determinism, logging/trace, test framework
@@ -42,17 +42,17 @@ Progress: [████░░░░░░] 36% (4/11 phases complete)
 **Session Generation Engine (from system-specs):**
 The engine is a **deterministic pipeline** with 9 stages:
 1. Normalize tables (SPOM, Intensity, Contraction, Formats, Exercises, Rotator)
-2. Build week skeleton (days × level_groups × blocks)
-3. Resolve SPOM per block (route → pct, pattern, scope)
-4. Derive budget per block (pct → reps_budget, exercise_count, difficulty_bucket)
-5. Pick format (compatibility matrix → candidates → tie-breakers)
-6. Pick exercises (scope + bucket + level + contraction → filter → dedup → ranking)
+2. Build week skeleton (days x level_groups x blocks)
+3. Resolve SPOM per block (route -> pct, pattern, scope)
+4. Derive budget per block (pct -> reps_budget, exercise_count, difficulty_bucket)
+5. Pick format (compatibility matrix -> candidates -> tie-breakers)
+6. Pick exercises (scope + bucket + level + contraction -> filter -> dedup -> ranking)
 7. Prescribe (allocate doses, bind to format, ladders/tempo, rest, notes)
-8. Assemble blocks → days → week
+8. Assemble blocks -> days -> week
 9. Validate (coherence, partial user scenarios, insufficiency summary)
 
 **Key invariants:**
-- SPOM is unique truth per (week, route) — no duplicates, no averaging
+- SPOM is unique truth per (week, route) - no duplicates, no averaging
 - Budget is TOTAL per block, not per exercise
 - Contraction mix derived from pct, not chosen
 - Format never adds volume, only distributes budget
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16
-- Average duration: 4.4 min
-- Total execution time: 1.17 hours
+- Total plans completed: 17
+- Average duration: 4.5 min
+- Total execution time: 1.3 hours
 
 **By Phase:**
 
@@ -73,10 +73,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
-| 05-session-generation | 2 | 13min | 6.5min |
+| 05-session-generation | 3 | 21min | 7min |
 
 **Recent Trend:**
-- Last 3 plans: 04-03 (3min), 05-01 (6min), 05-02 (7min)
+- Last 3 plans: 05-01 (6min), 05-02 (7min), 05-03 (8min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
@@ -130,6 +130,9 @@ Recent decisions affecting current work:
 | 05-02 | JSON column for trace storage | Flexible, queryable in MySQL 8 |
 | 05-02 | Cascade delete on session FKs | Ensures cleanup of blocks/prescriptions |
 | 05-02 | Cache-first session retrieval | Check DB before generating to avoid duplicates |
+| 05-03 | 4-tier exercise fallback order | difficulty -> level -> scope -> contraction |
+| 05-03 | FallbackResult discriminated union | exact/fallback/failed for exhaustive handling |
+| 05-03 | 10% budget tolerance | Reps can exceed budget by 10% without error |
 
 ### Pending Todos
 
@@ -144,8 +147,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed 05-02-PLAN.md (Session API Endpoints)
-Resume file: `.planning/phases/05-session-generation/05-02-SUMMARY.md`
+Stopped at: Completed 05-03-PLAN.md (Fallback Ladder and Validation)
+Resume file: `.planning/phases/05-session-generation/05-03-SUMMARY.md`
 
-**Next steps:**
-1. Execute 05-03-PLAN.md (UAT checkpoint)
+**Phase 5 complete.** Next steps:
+1. Begin Phase 6 planning (Member Progress and Levels)
