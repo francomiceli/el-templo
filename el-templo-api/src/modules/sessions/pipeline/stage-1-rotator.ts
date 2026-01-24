@@ -12,9 +12,6 @@ import { SpomService } from '../../spom/service';
 import type { BlockContext, BlockContextWithRoute } from './context';
 import { createTraceEvent, appendTrace } from './context';
 
-/** Fixed route for INITIUM block (mobility warmup) */
-const INITIUM_ROUTE = 'MOV';
-
 /**
  * Resolve route code for a block from weekly rotator
  *
@@ -27,18 +24,6 @@ export async function resolveRotator(
   ctx: BlockContext,
   spomService: SpomService
 ): Promise<BlockContextWithRoute> {
-  // INITIUM has fixed MOV route (mobility warmup)
-  if (ctx.role === 'INITIUM') {
-    const traceEvent = createTraceEvent(ctx, 'ROUTE_RESOLVED', 'INFO', {
-      route: INITIUM_ROUTE,
-      source: 'fixed',
-    });
-    return {
-      ...appendTrace(ctx, traceEvent),
-      route: INITIUM_ROUTE,
-    };
-  }
-
   // Lookup rotator entry for this week/day/levelGroup
   const rotator = await spomService.getWeeklyRotator(
     ctx.week,

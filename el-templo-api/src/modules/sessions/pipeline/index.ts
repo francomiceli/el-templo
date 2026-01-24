@@ -21,6 +21,9 @@ import { selectFormat } from './stage-5-format';
 import { selectExercises } from './stage-6-exercises';
 import { generatePrescriptions } from './stage-7-prescription';
 
+// Import INITIUM special pipeline
+import { runInitiumPipeline } from './initium-pipeline';
+
 /**
  * Run the complete block pipeline
  *
@@ -37,6 +40,11 @@ export async function runBlockPipeline(
   spomService: SpomService,
   db: MySql2Database<typeof schema>
 ): Promise<BlockPlan> {
+  // INITIUM uses special pipeline (no SPOM lookup per spec)
+  if (initialContext.role === 'INITIUM') {
+    return runInitiumPipeline(initialContext, db);
+  }
+
   let ctx: BlockContext | BlockContextComplete = initialContext;
 
   try {
