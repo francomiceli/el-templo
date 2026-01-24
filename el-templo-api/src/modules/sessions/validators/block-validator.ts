@@ -16,12 +16,12 @@ export interface BlockValidationResult {
   readonly errors: readonly string[];
 }
 
-/** Block roles that allow certain formats */
+/** Block roles that allow certain formats (based on actual DB formats) */
 const FORMAT_COMPATIBILITY: Record<BlockRole, readonly string[]> = {
-  INITIUM: ['Movilidad', 'Straight Sets', 'Flow'],
-  NUCLEUS: ['Straight Sets', 'Clusters', 'Pyramid', 'Wave Loading', 'Rest-Pause'],
-  DEUTEROS_1: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets'],
-  DEUTEROS_2: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets'],
+  INITIUM: ['EMOM', 'Couplet', 'Buy-in', 'Straight Sets'], // Warmup formats
+  NUCLEUS: ['Straight Sets', 'Clusters', 'Pyramid', 'Wave Loading', 'Rest-Pause', 'EMOM'],
+  DEUTEROS_1: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets', 'EMOM'],
+  DEUTEROS_2: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets', 'EMOM'],
   ATHLOS_EPIKOS: ['AMRAP', 'EMOM', 'Tabata', 'For Time', 'Chipper'],
 };
 
@@ -50,17 +50,20 @@ export function validateBlock(block: BlockPlan): BlockValidationResult {
   }
 
   // Check 2: Total reps within budget (+10% tolerance)
-  const totalReps = block.exercises.reduce((sum, ex) => sum + ex.reps, 0);
-  const maxAllowed = block.repsBudget * (1 + BUDGET_TOLERANCE);
+  // Skip for INITIUM - per spec line 506, INITIUM doesn't use reps_budget (warmup/skill prep)
+  if (block.role !== 'INITIUM') {
+    const totalReps = block.exercises.reduce((sum, ex) => sum + ex.reps, 0);
+    const maxAllowed = block.repsBudget * (1 + BUDGET_TOLERANCE);
 
-  if (totalReps > maxAllowed) {
-    errors.push(
-      `Total reps (${totalReps}) exceeds budget (${block.repsBudget}) by more than 10%`
-    );
-  } else if (totalReps > block.repsBudget) {
-    warnings.push(
-      `Total reps (${totalReps}) slightly exceeds budget (${block.repsBudget})`
-    );
+    if (totalReps > maxAllowed) {
+      errors.push(
+        `Total reps (${totalReps}) exceeds budget (${block.repsBudget}) by more than 10%`
+      );
+    } else if (totalReps > block.repsBudget) {
+      warnings.push(
+        `Total reps (${totalReps}) slightly exceeds budget (${block.repsBudget})`
+      );
+    }
   }
 
   // Check 3: All exercises have non-zero prescription
@@ -84,8 +87,8 @@ export function validateBlock(block: BlockPlan): BlockValidationResult {
     );
   }
 
-  // Check 5: Reps budget is reasonable
-  if (block.repsBudget <= 0) {
+  // Check 5: Reps budget is reasonable (skip for INITIUM which uses 0)
+  if (block.role !== 'INITIUM' && block.repsBudget <= 0) {
     errors.push(`Invalid reps budget: ${block.repsBudget}`);
   }
 
