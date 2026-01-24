@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 4 - SPOM Engine (complete)
+**Current focus:** Phase 5 - Session Generation (in progress)
 
 ## Current Position
 
-Phase: 4 of 11 (SPOM Engine)
-Plan: 3 of 3 in Phase 4
-Status: Phase complete
-Last activity: 2026-01-23 — Completed 04-03-PLAN.md (SPOM API Endpoints)
+Phase: 5 of 11 (Session Generation)
+Plan: 1 of 3 in Phase 5
+Status: In progress
+Last activity: 2026-01-24 — Completed 05-01-PLAN.md (Session Generator Core)
 
 Progress: [████░░░░░░] 36% (4/11 phases complete)
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14
-- Average duration: 4.1 min
-- Total execution time: 0.95 hours
+- Total plans completed: 15
+- Average duration: 4.2 min
+- Total execution time: 1.05 hours
 
 **By Phase:**
 
@@ -73,9 +73,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
+| 05-session-generation | 1 | 6min | 6min |
 
 **Recent Trend:**
-- Last 3 plans: 04-01 (6min), 04-02 (5min), 04-03 (3min)
+- Last 3 plans: 04-02 (5min), 04-03 (3min), 05-01 (6min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
@@ -123,6 +124,9 @@ Recent decisions affecting current work:
 | 04-01 | Difficulty as string column | Supports "Nivel Superior" values alongside numeric 1/2/3 |
 | 04-01 | CHECK constraint for singleton | MySQL enforces single row in spom_config |
 | 04-03 | JSON Schema for validation | Consistent with existing auth module, no new dependency |
+| 05-01 | exerciseCountMin for determinism | Avoids randomness in exercise count selection |
+| 05-01 | Rest time scales with intensity | 30s (low) to 90s (high) matches training principles |
+| 05-01 | INITIUM fixed to MOV route | Mobility warmup doesn't use rotator |
 
 ### Pending Todos
 
@@ -136,10 +140,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-23
-Stopped at: Completed 04-03-PLAN.md (SPOM API Endpoints) - Phase 4 complete
-Resume file: `.planning/phases/04-spom-engine/04-03-SUMMARY.md`
+Last session: 2026-01-24
+Stopped at: Completed 05-01-PLAN.md (Session Generator Core)
+Resume file: `.planning/phases/05-session-generation/05-01-SUMMARY.md`
 
 **Next steps:**
-1. Run `/gsd:plan-phase 5` for Session Generation
-2. Execute Phase 5 plans
+1. Execute 05-02-PLAN.md (Session API Endpoints)
+2. Execute 05-03-PLAN.md (UAT checkpoint)
