@@ -465,7 +465,8 @@ async function seedExercises(db: DB): Promise<void> {
     exercise: row['Ejercicio'] || '',
     exercise2: row['Ejercicio 2'] || null,
     position: row['Posicion'] || null,
-    effort: row['Esfuerzo'] || '',
+    // Strip trailing period from effort (CSV has "ISO.", "CON.", "EXC.")
+    effort: (row['Esfuerzo'] || '').replace(/\.$/, ''),
     level: levelMap[row['Nivel']?.toLowerCase()] || null,
     codeNumber: row['Código Numérico'] ? parseInt(row['Código Numérico'], 10) : null,
     difficulty: parseInt(row['Dificultad Relativa'], 10) || 1,
