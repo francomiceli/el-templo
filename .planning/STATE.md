@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 5 of 11 (Session Generation)
-Plan: 3 of 3 in Phase 5
+Plan: 4 of 4 in Phase 5
 Status: Phase complete
-Last activity: 2026-01-24 - Completed 05-03-PLAN.md (Fallback Ladder and Validation)
+Last activity: 2026-01-24 - Completed 05-04-PLAN.md (Trace Logging)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 17
-- Average duration: 4.5 min
-- Total execution time: 1.3 hours
+- Total plans completed: 18
+- Average duration: 4.9 min
+- Total execution time: 1.5 hours
 
 **By Phase:**
 
@@ -73,10 +73,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 02-authentication | 4 | 11min | 2.8min |
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
-| 05-session-generation | 3 | 21min | 7min |
+| 05-session-generation | 4 | 29min | 7.25min |
 
 **Recent Trend:**
-- Last 3 plans: 05-01 (6min), 05-02 (7min), 05-03 (8min)
+- Last 3 plans: 05-02 (7min), 05-03 (8min), 05-04 (8min)
 - Trend: Stable velocity
 
 *Updated after each plan completion*
@@ -133,6 +133,9 @@ Recent decisions affecting current work:
 | 05-03 | 4-tier exercise fallback order | difficulty -> level -> scope -> contraction |
 | 05-03 | FallbackResult discriminated union | exact/fallback/failed for exhaustive handling |
 | 05-03 | 10% budget tolerance | Reps can exceed budget by 10% without error |
+| 05-04 | Pino logger for structured logging | JSON-native, performant, child logger inheritance |
+| 05-04 | Optional trace persistence | PERSIST_TRACES env var avoids database bloat |
+| 05-04 | Child logger pattern | Context inheritance for weekId, dayId, blockId |
 
 ### Pending Todos
 
@@ -147,8 +150,14 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-24
-Stopped at: Completed 05-03-PLAN.md (Fallback Ladder and Validation)
-Resume file: `.planning/phases/05-session-generation/05-03-SUMMARY.md`
+Stopped at: Completed 05-04-PLAN.md (Trace Logging)
+Resume file: `.planning/phases/05-session-generation/05-04-SUMMARY.md`
 
-**Phase 5 complete.** Next steps:
+**Phase 5 complete.** All 4 plans executed:
+- 05-01: Pipeline stages with trace context
+- 05-02: Session persistence and API endpoints
+- 05-03: Fallback ladder and validation
+- 05-04: Pino-based trace logging
+
+Next steps:
 1. Begin Phase 6 planning (Member Progress and Levels)
