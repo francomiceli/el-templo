@@ -9,3 +9,6 @@ export * from './formats';
 export * from './format-compatibility';
 export * from './exercises';
 export * from './spom-config';
+export * from './sessions';
+export * from './session-blocks';
+export * from './session-prescriptions';
