@@ -6,6 +6,7 @@
  */
 
 import type { Logger } from 'pino';
+import type { TraceEvent as DomainTraceEvent } from '../types';
 import type {
   TraceEvent,
   TraceSeverity,
@@ -85,14 +86,22 @@ export function emitTrace(logger: Logger, event: TraceEvent): TraceEvent {
  * Summarizes all events for a block, counting warnings,
  * errors, and fallbacks applied.
  *
+ * Accepts either the trace/types TraceEvent or the domain TraceEvent
+ * to allow flexibility with existing pipeline code.
+ *
  * @param blockId - Block identifier
  * @param events - All trace events for the block
  * @returns BlockTrace with summary statistics
  */
-export function aggregateBlockTrace(blockId: string, events: TraceEvent[]): BlockTrace {
+export function aggregateBlockTrace(
+  blockId: string,
+  events: readonly (TraceEvent | DomainTraceEvent)[]
+): BlockTrace {
+  // Cast to work with both types (they share severity and code fields)
+  const typedEvents = events as readonly TraceEvent[];
   return {
     blockId,
-    events,
+    events: typedEvents,
     summary: {
       totalEvents: events.length,
       warnings: events.filter((e) => e.severity === 'WARNING').length,

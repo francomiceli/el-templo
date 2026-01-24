@@ -12,3 +12,4 @@ export * from './spom-config';
 export * from './sessions';
 export * from './session-blocks';
 export * from './session-prescriptions';
+export * from './session-traces';

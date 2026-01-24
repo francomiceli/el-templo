@@ -6,6 +6,11 @@
  *
  * Also handles session persistence via saveSession, getSessionByDayId,
  * and getSessionWithDetails methods.
+ *
+ * Logging:
+ * - Uses Pino for structured JSON logging
+ * - All session-level events are logged with timing
+ * - Optional trace persistence to session_traces table (PERSIST_TRACES=true)
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
@@ -15,6 +20,9 @@ import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext } from './pipeline';
 import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription } from './types';
 import { validateSessionForTrace } from './validators/session-validator';
+import { createSessionLogger } from './trace/logger';
+import { aggregateBlockTrace, aggregateSessionTrace } from './trace/emitter';
+import type { BlockTrace, SessionTrace } from './trace/types';
 
 /** All block roles in execution order */
 const BLOCK_ROLES: BlockRole[] = [
@@ -56,8 +64,16 @@ export class SessionGeneratorService {
    */
   async generateDailySession(input: GenerateSessionInput): Promise<DaySession> {
     const { week, day, levelGroup } = input;
+    const startTime = Date.now();
+    const dayId = `W${week}-${day}-${levelGroup}`;
+
+    // Create Pino logger with session context
+    const logger = createSessionLogger(week, dayId, levelGroup);
+    logger.info({ event: 'SESSION_STARTED', week, day, levelGroup }, 'Starting session generation');
+
     const sessionTrace: TraceEvent[] = [];
     const blocks: BlockPlan[] = [];
+    const blockTraces: BlockTrace[] = [];
 
     // Check if DEUTEROS_2 should be skipped
     const rotator = await this.spomService.getWeeklyRotator(week, day, levelGroup);
@@ -97,8 +113,11 @@ export class SessionGeneratorService {
 
       blocks.push(blockPlan);
 
+      // Aggregate block trace for session summary
+      blockTraces.push(aggregateBlockTrace(blockPlan.blockId, [...blockPlan.trace]));
+
       // Collect block trace into session trace
-      sessionTrace.push({
+      const blockCompleteEvent: TraceEvent = {
         ts: new Date().toISOString(),
         severity: 'INFO',
         code: 'BLOCK_COMPLETED',
@@ -115,11 +134,21 @@ export class SessionGeneratorService {
           format: blockPlan.format.name,
           exerciseCount: blockPlan.exercises.length,
         },
-      });
-    }
+      };
+      sessionTrace.push(blockCompleteEvent);
 
-    // Generate session ID
-    const dayId = `W${week}-${day}-${levelGroup}`;
+      // Log block completion via Pino
+      logger.info({
+        event: 'BLOCK_COMPLETED',
+        blockId: blockPlan.blockId,
+        role,
+        route: blockPlan.route,
+        intensity: blockPlan.intensity,
+        format: blockPlan.format.name,
+        exerciseCount: blockPlan.exercises.length,
+        traceEvents: blockPlan.trace.length,
+      }, `Block ${role} completed`);
+    }
 
     // Final session summary trace
     sessionTrace.push({
@@ -187,6 +216,24 @@ export class SessionGeneratorService {
       decision: validation,
     });
 
+    // Calculate generation duration
+    const durationMs = Date.now() - startTime;
+
+    // Aggregate full session trace with timing
+    const fullSessionTrace: SessionTrace = aggregateSessionTrace(dayId, blockTraces, durationMs);
+
+    // Log session completion via Pino with full summary
+    logger.info({
+      event: 'SESSION_COMPLETE',
+      dayId,
+      blocksGenerated: blocks.length,
+      totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
+      totalTraceEvents: fullSessionTrace.summary.totalEvents,
+      warnings: fullSessionTrace.summary.totalWarnings,
+      errors: fullSessionTrace.summary.totalErrors,
+      durationMs,
+    }, `Session ${dayId} generated in ${durationMs}ms`);
+
     // Return session with updated trace
     return {
       ...daySession,
@@ -200,10 +247,18 @@ export class SessionGeneratorService {
    * Uses transaction to ensure atomicity. Inserts session, blocks,
    * and prescriptions in order with proper FK relationships.
    *
+   * If PERSIST_TRACES=true environment variable is set, also persists
+   * detailed trace data to session_traces table for analytics.
+   *
    * @param session - Generated DaySession to persist
+   * @param options - Optional save options
+   * @param options.generationDurationMs - Generation time for trace persistence
    * @returns Object containing the new sessionId
    */
-  async saveSession(session: DaySession): Promise<{ sessionId: number }> {
+  async saveSession(
+    session: DaySession,
+    options?: { generationDurationMs?: number }
+  ): Promise<{ sessionId: number }> {
     // Insert session row
     const [sessionResult] = await this.db
       .insert(schema.sessions)
@@ -256,6 +311,29 @@ export class SessionGeneratorService {
 
         await this.db.insert(schema.sessionPrescriptions).values(prescriptionValues);
       }
+    }
+
+    // Optional: Persist trace data to session_traces table for analytics
+    if (process.env.PERSIST_TRACES === 'true') {
+      // Aggregate block traces for summary stats
+      const blockTracesSummary: BlockTrace[] = session.blocks.map((block) =>
+        aggregateBlockTrace(block.blockId, [...block.trace])
+      );
+
+      const sessionTraceData = aggregateSessionTrace(
+        session.dayId,
+        blockTracesSummary,
+        options?.generationDurationMs ?? 0
+      );
+
+      await this.db.insert(schema.sessionTraces).values({
+        sessionId,
+        traceJson: sessionTraceData,
+        eventCount: sessionTraceData.summary.totalEvents,
+        warningCount: sessionTraceData.summary.totalWarnings,
+        errorCount: sessionTraceData.summary.totalErrors,
+        generationMs: sessionTraceData.summary.generationDurationMs,
+      });
     }
 
     return { sessionId };
