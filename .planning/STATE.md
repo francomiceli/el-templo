@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 5 - Session Generation (complete)
+**Current focus:** Phase 6 - Weekly View (not started)
 
 ## Current Position
 
-Phase: 5 of 11 (Session Generation)
-Plan: 5 of 5 in Phase 5 (gap closure)
-Status: Phase complete
-Last activity: 2026-01-24 - Completed 05-05-PLAN.md (INITIUM Pipeline)
+Phase: 6 of 11 (Weekly View)
+Plan: 0 of TBD in Phase 6
+Status: Ready for planning
+Last activity: 2026-01-24 - Phase 5 complete (all gaps closed, verified)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -165,4 +165,4 @@ Resume file: `.planning/phases/05-session-generation/05-05-SUMMARY.md`
 **Gap closure:** UAT Issue #2 resolved - session generation now returns complete 5-block sessions.
 
 Next steps:
-1. Begin Phase 6 planning (Member Progress and Levels)
+1. Begin Phase 6 planning (Weekly View)
