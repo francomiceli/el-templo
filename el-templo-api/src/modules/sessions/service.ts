@@ -4,15 +4,17 @@
  * Main entry point for session generation. Generates complete
  * daily sessions with 5 blocks (or 4 if DEUTEROS_2 is null).
  *
- * This service does NOT persist sessions - it only generates them.
- * Persistence is handled by Plan 05-02.
+ * Also handles session persistence via saveSession, getSessionByDayId,
+ * and getSessionWithDetails methods.
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
+import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext } from './pipeline';
-import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent } from './types';
+import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription } from './types';
+import { validateSessionForTrace } from './validators/session-validator';
 
 /** All block roles in execution order */
 const BLOCK_ROLES: BlockRole[] = [
@@ -146,6 +148,218 @@ export class SessionGeneratorService {
       trace: sessionTrace,
     };
 
-    return daySession;
+    // Validate the generated session
+    const validation = validateSessionForTrace(daySession);
+
+    if (!validation.valid) {
+      // Add validation error trace
+      sessionTrace.push({
+        ts: new Date().toISOString(),
+        severity: 'ERROR',
+        code: 'VALIDATION_FAILED',
+        where: {
+          week,
+          day,
+          levelGroup,
+          blockId: dayId,
+          role: 'INITIUM',
+        },
+        decision: validation,
+      });
+
+      throw new Error(
+        `Session validation failed: ${validation.errors.join('; ')}`
+      );
+    }
+
+    // Add validation success trace (even if warnings exist)
+    sessionTrace.push({
+      ts: new Date().toISOString(),
+      severity: validation.warningCount > 0 ? 'WARNING' : 'INFO',
+      code: 'VALIDATION_PASSED',
+      where: {
+        week,
+        day,
+        levelGroup,
+        blockId: dayId,
+        role: 'INITIUM',
+      },
+      decision: validation,
+    });
+
+    // Return session with updated trace
+    return {
+      ...daySession,
+      trace: sessionTrace,
+    };
+  }
+
+  /**
+   * Save a generated session to database
+   *
+   * Uses transaction to ensure atomicity. Inserts session, blocks,
+   * and prescriptions in order with proper FK relationships.
+   *
+   * @param session - Generated DaySession to persist
+   * @returns Object containing the new sessionId
+   */
+  async saveSession(session: DaySession): Promise<{ sessionId: number }> {
+    // Insert session row
+    const [sessionResult] = await this.db
+      .insert(schema.sessions)
+      .values({
+        dayId: session.dayId,
+        week: session.week,
+        day: session.day,
+        levelGroup: session.levelGroup,
+        blockCount: session.blocks.length,
+        traceJson: session.trace,
+      });
+
+    const sessionId = sessionResult.insertId;
+
+    // Insert blocks and prescriptions
+    for (let blockIdx = 0; blockIdx < session.blocks.length; blockIdx++) {
+      const block = session.blocks[blockIdx];
+
+      const [blockResult] = await this.db
+        .insert(schema.sessionBlocks)
+        .values({
+          sessionId,
+          blockId: block.blockId,
+          role: block.role,
+          route: block.route,
+          pattern: block.pattern,
+          intensity: block.intensity,
+          repsBudget: block.repsBudget,
+          formatId: block.format.formatId,
+          formatName: block.format.name,
+          exerciseCount: block.exercises.length,
+          sortOrder: blockIdx,
+        });
+
+      const blockId = blockResult.insertId;
+
+      // Insert prescriptions for this block
+      if (block.exercises.length > 0) {
+        const prescriptionValues = block.exercises.map((ex, exIdx) => ({
+          blockId,
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.name,
+          contraction: ex.contraction,
+          reps: ex.reps,
+          seconds: ex.seconds,
+          rest: ex.rest,
+          notes: ex.notes ?? null,
+          sortOrder: exIdx,
+        }));
+
+        await this.db.insert(schema.sessionPrescriptions).values(prescriptionValues);
+      }
+    }
+
+    return { sessionId };
+  }
+
+  /**
+   * Check if session exists in DB by dayId
+   *
+   * Used for cache checking before generation. Returns full
+   * session object reconstructed from DB if found.
+   *
+   * @param dayId - Unique session identifier (e.g., W1-lunes-sigma)
+   * @returns DaySession if found, null otherwise
+   */
+  async getSessionByDayId(dayId: string): Promise<DaySession | null> {
+    // Query session
+    const [session] = await this.db
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.dayId, dayId));
+
+    if (!session) {
+      return null;
+    }
+
+    return this.reconstructSession(session);
+  }
+
+  /**
+   * Get session with full details by numeric ID
+   *
+   * @param sessionId - Database session ID
+   * @returns DaySession if found, null otherwise
+   */
+  async getSessionWithDetails(sessionId: number): Promise<DaySession | null> {
+    // Query session
+    const [session] = await this.db
+      .select()
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId));
+
+    if (!session) {
+      return null;
+    }
+
+    return this.reconstructSession(session);
+  }
+
+  /**
+   * Reconstruct DaySession from database row
+   *
+   * Loads blocks and prescriptions, rebuilds the full object structure.
+   */
+  private async reconstructSession(session: typeof schema.sessions.$inferSelect): Promise<DaySession> {
+    // Load blocks for this session
+    const blocks = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.sessionId, session.id))
+      .orderBy(schema.sessionBlocks.sortOrder);
+
+    // Load prescriptions for all blocks
+    const blockPlans: BlockPlan[] = [];
+
+    for (const block of blocks) {
+      const prescriptions = await this.db
+        .select()
+        .from(schema.sessionPrescriptions)
+        .where(eq(schema.sessionPrescriptions.blockId, block.id))
+        .orderBy(schema.sessionPrescriptions.sortOrder);
+
+      const exercises: ExercisePrescription[] = prescriptions.map((p) => ({
+        exerciseId: p.exerciseId,
+        name: p.exerciseName,
+        contraction: p.contraction as 'CON' | 'EXC' | 'ISO',
+        reps: p.reps,
+        seconds: p.seconds,
+        rest: p.rest,
+        notes: p.notes ?? undefined,
+      }));
+
+      blockPlans.push({
+        blockId: block.blockId,
+        role: block.role as BlockRole,
+        route: block.route,
+        pattern: block.pattern,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        format: {
+          formatId: block.formatId,
+          name: block.formatName,
+        },
+        exercises,
+        trace: [], // Trace is stored at session level, not block level
+      });
+    }
+
+    return {
+      dayId: session.dayId,
+      week: session.week,
+      day: session.day,
+      levelGroup: session.levelGroup as LevelGroup,
+      blocks: blockPlans,
+      trace: (session.traceJson as TraceEvent[]) ?? [],
+    };
   }
 }

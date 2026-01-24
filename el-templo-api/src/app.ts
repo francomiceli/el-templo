@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import databasePlugin from './plugins/database';
 import authPlugin from './plugins/auth';
 import spomPlugin from './plugins/spom';
+import sessionsPlugin from './plugins/sessions';
 import { authRoutes } from './modules/auth/routes';
 
 export async function buildApp() {
@@ -23,6 +24,9 @@ export async function buildApp() {
 
   // SPOM plugin (SPOM data access endpoints)
   await app.register(spomPlugin);
+
+  // Sessions plugin (session generation and retrieval)
+  await app.register(sessionsPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });
