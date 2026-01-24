@@ -5,7 +5,7 @@
  * Checks block count, block validity, deduplication, intensity progression.
  */
 
-import type { DaySession, BlockPlan, BlockRole } from '../types';
+import type { DaySession, BlockRole } from '../types';
 import { validateBlock, BlockValidationResult } from './block-validator';
 
 /** Validation result for a complete session */
