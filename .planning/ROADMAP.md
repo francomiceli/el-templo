@@ -132,10 +132,10 @@ Waves:
 **Plans**: 4 plans in 3 waves
 
 Plans:
-- [ ] 05-01-PLAN.md — Session generator core (9-stage pipeline: skeleton, SPOM resolve, budget, format, exercises, prescription)
+- [ ] 05-01-PLAN.md — Session generator core (7-stage pipeline: rotator, SPOM, budget, contraction, format, exercises, prescription)
 - [ ] 05-02-PLAN.md — Session storage schema and API endpoints (sessions, blocks, prescriptions)
 - [ ] 05-03-PLAN.md — Fallback and validation system (scope widening, contraction substitution, coherence checks)
-- [ ] 05-04-PLAN.md — Decision trace logging (BlockTrace, WeekTrace for auditing)
+- [ ] 05-04-PLAN.md — Decision trace logging (Pino structured logging, BlockTrace, SessionTrace)
 
 Waves:
 - Wave 1: 05-01 (core generator)
@@ -247,7 +247,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 2. Authentication | 4/4 | Complete | 2026-01-22 |
 | 3. Shell & Module System | 2/2 | Complete | 2026-01-22 |
 | 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
-| 5. Session Generation | 0/4 | Not started | - |
+| 5. Session Generation | 0/4 | Planned | - |
 | 6. Weekly View | 0/0 | Not started | - |
 | 7. Day Player | 0/0 | Not started | - |
 | 8. Timer System | 0/0 | Not started | - |
@@ -257,4 +257,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-23 — Phase 4 complete (3 plans executed, 4792 rows imported)*
+*Last updated: 2026-01-24 — Phase 5 planned (4 plans in 3 waves)*
