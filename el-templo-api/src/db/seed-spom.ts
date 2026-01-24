@@ -327,7 +327,7 @@ async function seedFormats(db: DB): Promise<Map<string, number>> {
   }>(filePath);
 
   // Extract unique format names with their type
-  const formatMap = new Map<string, string>();
+  const formatMap = new Map<string, string | null>();
   for (const row of rows) {
     const name = row['Formato']?.trim();
     if (name && !formatMap.has(name)) {
