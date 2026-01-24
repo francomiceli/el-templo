@@ -107,6 +107,15 @@ export class SpomService {
     return entry;
   }
 
+  // Get route by ID - converts route FK to route code for session generation
+  async getRouteById(routeId: number): Promise<{ id: number; code: string; displayName: string | null } | null> {
+    const [route] = await this.db
+      .select()
+      .from(schema.routes)
+      .where(eq(schema.routes.id, routeId));
+    return route ?? null;
+  }
+
   // Table row counts for version info
   async getTableCounts() {
     const counts: Record<string, number> = {};
