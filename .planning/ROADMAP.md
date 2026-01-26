@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Shell & Module System** - Module registry, global stores, Capacitor bridge
 - [x] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
 - [x] **Phase 5: Session Generation** - Daily session generation from SPOM week + member level
-- [ ] **Phase 6: Weekly View** - 7-day calendar with session preview and completion status
+- [x] **Phase 6: Weekly View** - 7-day calendar with session preview and completion status
 - [ ] **Phase 7: Day Player** - Block flow UI, exercise display, video placeholders
 - [ ] **Phase 8: Timer System** - EMOM, AMRAP, For Time timers with background handling
 - [ ] **Phase 9: Session Completion & Logging** - RPE input, session summary, full event audit trail
@@ -157,11 +157,11 @@ Waves:
 **Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 06-01-PLAN.md — Types, Pinia store, and date navigation composable (foundation)
-- [ ] 06-02-PLAN.md — WeekCarousel and DayCard components (day navigation)
-- [ ] 06-03-PLAN.md — BlockList, BlockCard, and StartSessionButton (block display)
-- [ ] 06-04-PLAN.md — WeeklyView page assembly and route updates
-- [ ] 06-05-PLAN.md — Human verification checkpoint
+- [x] 06-01-PLAN.md — Types, Pinia store, and date navigation composable (foundation)
+- [x] 06-02-PLAN.md — WeekCarousel and DayCard components (day navigation)
+- [x] 06-03-PLAN.md — BlockList, BlockCard, and StartSessionButton (block display)
+- [x] 06-04-PLAN.md — WeeklyView page assembly and route updates
+- [x] 06-05-PLAN.md — Human verification checkpoint
 
 Waves:
 - Wave 1: 06-01 (foundation - types, store, date utils)
@@ -261,7 +261,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 3. Shell & Module System | 2/2 | Complete | 2026-01-22 |
 | 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
 | 5. Session Generation | 5/5 | Complete | 2026-01-24 |
-| 6. Weekly View | 0/5 | Planning complete | - |
+| 6. Weekly View | 5/5 | Complete | 2026-01-26 |
 | 7. Day Player | 0/0 | Not started | - |
 | 8. Timer System | 0/0 | Not started | - |
 | 9. Session Completion & Logging | 0/0 | Not started | - |
@@ -270,4 +270,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-26 — Phase 6 planning complete (5 plans in 4 waves)*
+*Last updated: 2026-01-26 — Phase 6 complete (swipeable day cards with integrated blocks)*
