@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 6 of 11 (Weekly View)
-Plan: 3 of TBD in Phase 6
+Plan: 2 of TBD in Phase 6
 Status: In progress
-Last activity: 2026-01-26 - Completed 06-03-PLAN.md (block display components)
+Last activity: 2026-01-26 - Completed 06-02-PLAN.md (week carousel components)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -143,6 +143,10 @@ Recent decisions affecting current work:
 | 06-01 | Store receives data, doesn't fetch | Separation of concerns - composables handle API calls |
 | 06-01 | ISO week format (Monday-Sunday) | Standard European format for weekly navigation |
 | 06-01 | YYYY-MM-DD date strings | API compatibility and unambiguous dates |
+| 06-02 | CSS scroll-snap over JS carousel | Native browser behavior provides better performance and smoother UX |
+| 06-02 | IntersectionObserver 50% threshold | Card is considered centered when 50% visible |
+| 06-02 | Map-based session storage | Using Map<string, Session|null> in composable allows O(1) lookups |
+| 06-02 | Auto vs smooth scroll behavior | Use 'auto' on mount for immediate positioning, 'smooth' on interaction |
 | 06-03 | Role-based block color classes | Visual identity for block types (INITIUM blue, NUCLEUS purple, etc.) |
 | 06-03 | getBlockColorClass utility exported | Centralizes color mapping for reuse across components |
 | 06-03 | Default-opened expansion items | Immediate exercise visibility without extra click |
@@ -161,16 +165,16 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-26
-Stopped at: Completed 06-03-PLAN.md (block display components)
-Resume file: `.planning/phases/06-weekly-view/06-03-SUMMARY.md`
+Stopped at: Completed 06-02-PLAN.md (week carousel components)
+Resume file: `.planning/phases/06-weekly-view/06-02-SUMMARY.md`
 
-**Phase 6 in progress.** Plans 06-01, 06-02, 06-03 complete:
+**Phase 6 in progress.** Plans 06-01, 06-02 complete:
 - TypeScript types for Session, Block, Prescription, DayState, WeekDay (06-01)
 - Pinia store and date utilities (06-01)
 - useWeekData composable for API fetching (06-02)
 - DayCard component with state-based styling (06-02)
-- BlockCard, BlockList, StartSessionButton components (06-03)
+- WeekCarousel component with scroll-snap and IntersectionObserver (06-02)
 
 Next steps:
-1. Continue Phase 6 with WeekGrid integration
-2. Connect components into complete Weekly View page
+1. Continue Phase 6 with block display components
+2. Build complete Weekly View page integration
