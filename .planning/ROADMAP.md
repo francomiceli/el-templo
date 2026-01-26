@@ -217,6 +217,7 @@ Plans:
   4. Coach can view list of members in their branch with training history
   5. Coach can promote member to next level, changes are logged
   6. Coach can override specific blocks with GENERAL patterns (Animal Flow, Cardio, etc.)
+  7. Coach/member can mark specific days as rest days (no session generated)
 **Plans**: TBD
 
 Plans:
