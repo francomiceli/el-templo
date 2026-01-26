@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 6 of 11 (Weekly View)
-Plan: 1 of TBD in Phase 6
+Plan: 3 of TBD in Phase 6
 Status: In progress
-Last activity: 2026-01-26 - Completed 06-01-PLAN.md (data foundation)
+Last activity: 2026-01-26 - Completed 06-03-PLAN.md (block display components)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20
-- Average duration: 4.7 min
+- Total plans completed: 22
+- Average duration: 4.3 min
 - Total execution time: 1.6 hours
 
 **By Phase:**
@@ -74,11 +74,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
 | 05-session-generation | 5 | 33min | 6.6min |
-| 06-weekly-view | 1 | 3min | 3.0min |
+| 06-weekly-view | 3 | 8min | 2.7min |
 
 **Recent Trend:**
-- Last 3 plans: 05-04 (8min), 05-05 (4min), 06-01 (3min)
-- Trend: Excellent velocity, data foundation tasks very efficient
+- Last 3 plans: 06-01 (3min), 06-02 (3min), 06-03 (2min)
+- Trend: Exceptional velocity, component creation highly efficient
 
 *Updated after each plan completion*
 
@@ -143,6 +143,10 @@ Recent decisions affecting current work:
 | 06-01 | Store receives data, doesn't fetch | Separation of concerns - composables handle API calls |
 | 06-01 | ISO week format (Monday-Sunday) | Standard European format for weekly navigation |
 | 06-01 | YYYY-MM-DD date strings | API compatibility and unambiguous dates |
+| 06-03 | Role-based block color classes | Visual identity for block types (INITIUM blue, NUCLEUS purple, etc.) |
+| 06-03 | getBlockColorClass utility exported | Centralizes color mapping for reuse across components |
+| 06-03 | Default-opened expansion items | Immediate exercise visibility without extra click |
+| 06-03 | Bottom padding accounts for fixed CTA | BlockList padding prevents last block hiding behind Start button |
 
 ### Pending Todos
 
@@ -157,13 +161,16 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-26
-Stopped at: Completed 06-01-PLAN.md (data foundation)
-Resume file: `.planning/phases/06-weekly-view/06-01-SUMMARY.md`
+Stopped at: Completed 06-03-PLAN.md (block display components)
+Resume file: `.planning/phases/06-weekly-view/06-03-SUMMARY.md`
 
-**Phase 6 in progress.** Plan 06-01 complete:
-- TypeScript types for Session, Block, Prescription, DayState, WeekDay
-- Pinia store for week state management
-- Date utilities with Spanish locale support
+**Phase 6 in progress.** Plans 06-01, 06-02, 06-03 complete:
+- TypeScript types for Session, Block, Prescription, DayState, WeekDay (06-01)
+- Pinia store and date utilities (06-01)
+- useWeekData composable for API fetching (06-02)
+- DayCard component with state-based styling (06-02)
+- BlockCard, BlockList, StartSessionButton components (06-03)
 
 Next steps:
-1. Continue Phase 6 with UI components (DayCard, WeekGrid)
+1. Continue Phase 6 with WeekGrid integration
+2. Connect components into complete Weekly View page
