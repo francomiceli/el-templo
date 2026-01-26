@@ -1,31 +1,32 @@
-import { ref } from 'vue';
-import axios from 'axios';
+import { ref, type Ref } from 'vue';
+import { api } from 'src/boot/axios';
 import type { Session } from '../types/session';
-import { isSunday } from './useDateNavigation';
 
 /**
  * Composable for fetching week session data from API
  *
- * Handles parallel fetching of sessions for all 7 days of the week,
- * with proper error handling and Sunday skipping.
+ * Fetches all sessions for a week in a single API call.
  */
 
 interface UseWeekDataReturn {
-  sessions: Map<string, Session | null>;
-  loading: boolean;
-  error: string | null;
+  sessions: Ref<Map<string, Session | null>>;
+  loading: Ref<boolean>;
+  error: Ref<string | null>;
   fetchWeekSessions: (dates: string[]) => Promise<void>;
+}
+
+interface WeeklyResponse {
+  sessions: Record<string, Session | null>;
 }
 
 /**
  * Fetch session data for a week of dates
  *
- * API endpoint: GET /api/sessions/daily?date=YYYY-MM-DD
+ * API endpoint: GET /api/sessions/weekly?weekStart=YYYY-MM-DD
  *
  * Behavior:
- * - Skips Sundays entirely (API returns 400 for domingo)
- * - Uses Promise.all for parallel fetching
- * - Gracefully handles individual fetch failures (sets session to null)
+ * - Single API call for all 7 days
+ * - Sundays return null (rest days)
  * - Returns Map of date -> Session|null
  *
  * @example
@@ -38,9 +39,9 @@ export function useWeekData(): UseWeekDataReturn {
   const error = ref<string | null>(null);
 
   /**
-   * Fetch sessions for multiple dates in parallel
+   * Fetch sessions for a week starting from the first date
    *
-   * @param dates - Array of date strings in YYYY-MM-DD format
+   * @param dates - Array of date strings in YYYY-MM-DD format (first should be Monday)
    */
   async function fetchWeekSessions(dates: string[]): Promise<void> {
     loading.value = true;
@@ -48,51 +49,33 @@ export function useWeekData(): UseWeekDataReturn {
     sessions.value.clear();
 
     try {
-      // Create fetch promises for all non-Sunday dates
-      const fetchPromises = dates.map(async (date) => {
-        // Skip Sundays - they're rest days
-        if (isSunday(date)) {
-          return { date, session: null };
-        }
+      // Use the first date (Monday) as week start
+      const weekStart = dates[0];
 
-        try {
-          const response = await axios.get<Session>('/api/sessions/daily', {
-            params: { date },
-          });
-          return { date, session: response.data };
-        } catch (err: unknown) {
-          // Gracefully handle individual fetch failures
-          // Log error but don't throw - allow other fetches to complete
-          const axiosError = err as { response?: { status?: number; data?: { error?: string } } };
-          console.warn(`Failed to fetch session for ${date}:`, axiosError.response?.data?.error || 'Unknown error');
-          return { date, session: null };
-        }
+      const response = await api.get<WeeklyResponse>('/sessions/weekly', {
+        params: { weekStart },
       });
 
-      // Wait for all fetches to complete
-      const results = await Promise.all(fetchPromises);
-
-      // Build sessions map
+      // Build sessions map from response
       const newSessions = new Map<string, Session | null>();
-      results.forEach(({ date, session }) => {
+      for (const [date, session] of Object.entries(response.data.sessions)) {
         newSessions.set(date, session);
-      });
+      }
 
       sessions.value = newSessions;
     } catch (err: unknown) {
-      // This catch handles unexpected errors in the overall fetch logic
       const axiosError = err as { response?: { data?: { error?: string } } };
       error.value = axiosError.response?.data?.error || 'Error fetching week sessions';
-      throw err;
+      console.error('Failed to fetch week sessions:', err);
     } finally {
       loading.value = false;
     }
   }
 
   return {
-    sessions: sessions.value,
-    loading: loading.value,
-    error: error.value,
+    sessions,
+    loading,
+    error,
     fetchWeekSessions,
   };
 }

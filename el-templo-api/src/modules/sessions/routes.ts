@@ -7,9 +7,11 @@ import {
   getDailySessionSchema,
   generateSessionSchema,
   getSessionByIdSchema,
+  getWeeklySessionsSchema,
   type GetDailySessionInput,
   type GenerateSessionInput,
   type GetSessionByIdParams,
+  type GetWeeklySessionsInput,
 } from './schemas';
 import type { LevelGroup, DaySession } from './types';
 
@@ -57,7 +59,7 @@ function sessionToResponse(session: DaySession) {
       pattern: block.pattern,
       intensity: block.intensity,
       repsBudget: block.repsBudget,
-      format: block.format,
+      format: block.format?.name || block.format,
       sortOrder: idx,
       exercises: block.exercises.map((ex, exIdx) => ({
         exerciseId: ex.exerciseId,
@@ -150,6 +152,103 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     await sessionService.saveSession(session);
 
     return sessionToResponse(session);
+  });
+
+  // GET /sessions/weekly - Get member's sessions for a full week
+  fastify.get<{ Querystring: GetWeeklySessionsInput }>('/weekly', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      ...getWeeklySessionsSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            sessions: {
+              type: 'object',
+              additionalProperties: {
+                oneOf: [
+                  { type: 'null' },
+                  {
+                    type: 'object',
+                    properties: {
+                      dayId: { type: 'string' },
+                      week: { type: 'integer' },
+                      day: { type: 'string' },
+                      levelGroup: { type: 'string' },
+                      blockCount: { type: 'integer' },
+                      blocks: { type: 'array' },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { weekStart } = request.query;
+    const { userId } = request.user;
+
+    // 1. Get member's level from database
+    const [user] = await fastify.db
+      .select({ level: schema.users.level })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    // 2. Compute levelGroup from level
+    const levelGroup = levelToLevelGroup(user.level);
+
+    // 3. Get current SPOM week
+    const week = await spomService.getCurrentWeek();
+
+    // 4. Generate dates for the week (Mon-Sun)
+    const monday = new Date(weekStart + 'T00:00:00');
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      weekDates.push(`${year}-${month}-${day}`);
+    }
+
+    // 5. Fetch/generate sessions for each day (skip Sunday)
+    const sessionsMap: Record<string, ReturnType<typeof sessionToResponse> | null> = {};
+
+    for (const date of weekDates) {
+      const dayName = dateToDayName(date);
+
+      // Skip Sunday
+      if (dayName === 'domingo') {
+        sessionsMap[date] = null;
+        continue;
+      }
+
+      const dayId = `W${week}-${dayName}-${levelGroup}`;
+
+      // Check cache first
+      let session = await sessionService.getSessionByDayId(dayId);
+
+      if (!session) {
+        // Generate and save
+        session = await sessionService.generateDailySession({
+          week,
+          day: dayName,
+          levelGroup,
+        });
+        await sessionService.saveSession(session);
+      }
+
+      sessionsMap[date] = sessionToResponse(session);
+    }
+
+    return { sessions: sessionsMap };
   });
 
   // POST /sessions/generate - Admin: generate specific session

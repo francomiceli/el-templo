@@ -10,16 +10,13 @@
       </div>
     </div>
 
-    <!-- Week carousel (horizontal scrolling days) -->
-    <WeekCarousel />
-
     <!-- Loading state while fetching sessions -->
-    <div v-if="loading" class="flex flex-center q-pa-xl">
+    <div v-if="loading" class="weekly-view__loading">
       <q-spinner-dots color="primary" size="50px" />
     </div>
 
     <!-- Error state -->
-    <div v-else-if="error" class="q-pa-md">
+    <div v-else-if="error" class="weekly-view__error q-pa-md">
       <q-banner class="bg-negative text-white" rounded>
         <template #avatar>
           <q-icon name="error" />
@@ -35,41 +32,23 @@
       </q-banner>
     </div>
 
-    <!-- Block list for selected day -->
-    <BlockList
-      v-else-if="selectedDayBlocks"
-      :blocks="selectedDayBlocks"
-      :loading="loading"
-    />
-
-    <!-- Empty state when no session for selected day -->
-    <div v-else class="flex flex-center column q-pa-xl text-center">
-      <q-icon name="event_busy" size="64px" color="grey-5" class="q-mb-md" />
-      <div class="text-h6 text-grey-6">No hay sesión para este día</div>
-      <div class="text-caption text-grey-5 q-mt-sm">
-        {{ selectedDayEmptyMessage }}
-      </div>
-    </div>
-
-    <!-- Start session button (shows only for today and not completed) -->
-    <StartSessionButton
-      :visible="showStartButton"
-      :disabled="isTodayCompleted"
+    <!-- Week carousel with full-height day cards (blocks included) -->
+    <WeekCarousel
+      v-else
+      class="weekly-view__carousel"
       @start="handleStartSession"
     />
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useWeekStore } from '../stores/weekStore';
 import { useWeekData } from '../composables/useWeekData';
-import { getWeekDates, formatDayName, isToday, getDateState } from '../composables/useDateNavigation';
+import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
 import type { WeekDay } from '../types/session';
 import WeekCarousel from '../components/WeekCarousel.vue';
-import BlockList from '../components/BlockList.vue';
-import StartSessionButton from '../components/StartSessionButton.vue';
 
 /**
  * Main Weekly View page
@@ -108,7 +87,7 @@ async function loadWeekData() {
     const weekDays: WeekDay[] = dates.map((date) => {
       const dateObj = new Date(date + 'T00:00:00');
       const dayOfWeek = dateObj.getDay();
-      const session = sessions.get(date) || null;
+      const session = sessions.value.get(date) || null;
 
       // TODO: Get completed dates from user activity store
       // For now, assume no days are completed
@@ -189,53 +168,12 @@ const weekRangeLabel = computed(() => {
 });
 
 /**
- * Blocks for currently selected day
- */
-const selectedDayBlocks = computed(() => {
-  return weekStore.selectedDay?.session?.blocks || null;
-});
-
-/**
- * Empty state message based on selected day
- */
-const selectedDayEmptyMessage = computed(() => {
-  const selectedDay = weekStore.selectedDay;
-  if (!selectedDay) return 'Selecciona un día';
-
-  if (selectedDay.state === 'rest') {
-    return 'Domingo es día de descanso';
-  }
-
-  return 'Intenta con otro día';
-});
-
-/**
- * Show start button only when today is selected
- */
-const showStartButton = computed(() => {
-  if (!weekStore.selectedDate) return false;
-  return isToday(weekStore.selectedDate);
-});
-
-/**
- * Check if today's session has been completed
- */
-const isTodayCompleted = computed(() => {
-  const selectedDay = weekStore.selectedDay;
-  return selectedDay?.state === 'completed';
-});
-
-/**
  * Navigate to Day Player when Start button clicked
  */
-function handleStartSession() {
-  if (!weekStore.selectedDate) return;
-
+function handleStartSession(date: string) {
   router.push({
     name: 'day-player',
-    params: {
-      date: weekStore.selectedDate,
-    },
+    params: { date },
   });
 }
 
@@ -257,11 +195,21 @@ onMounted(() => {
     background: white;
     border-bottom: 1px solid #e0e0e0;
   }
-}
 
-// Ensure BlockList fills remaining space
-.weekly-view :deep(.block-list) {
-  flex: 1;
-  overflow-y: auto;
+  &__carousel {
+    flex: 1;
+    min-height: 0; // Allow flex child to shrink below content size
+  }
+
+  &__loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__error {
+    flex: 1;
+  }
 }
 </style>

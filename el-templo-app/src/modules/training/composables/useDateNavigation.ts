@@ -98,9 +98,19 @@ export function formatShortDate(date: string | Date): string {
  * @example
  * isToday('2026-01-26') // => true (if today is Jan 26, 2026)
  */
+/**
+ * Get today's date in YYYY-MM-DD format using local timezone
+ */
+function getTodayLocal(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function isToday(date: string): boolean {
-  const today = new Date().toISOString().split('T')[0];
-  return date === today;
+  return date === getTodayLocal();
 }
 
 /**
@@ -150,8 +160,8 @@ export function getDateState(date: string, completedDates: string[]): DayState {
     return 'completed';
   }
 
-  // Compare with today
-  const today = new Date().toISOString().split('T')[0];
+  // Compare with today (using local timezone)
+  const today = getTodayLocal();
 
   if (date === today) {
     return 'today';

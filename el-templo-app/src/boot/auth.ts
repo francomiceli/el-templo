@@ -24,7 +24,7 @@ export default boot(async () => {
         role: response.data.role,
       });
       userStore.setProfile(response.data);
-    } catch (error) {
+    } catch {
       // Token invalid or expired, clear it
       authStore.clearAuth();
       await removeToken();

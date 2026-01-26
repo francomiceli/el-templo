@@ -1,78 +1,87 @@
 <template>
-  <div
-    class="day-card"
-    :class="cardClasses"
-    @click="handleClick"
-  >
+  <div class="day-card" :class="cardClasses">
+    <!-- Day Header -->
     <div class="day-card__header">
-      <div class="day-card__day-name">{{ day.dayName }}</div>
-      <div class="day-card__date">{{ formatDate(day.date) }}</div>
-    </div>
-
-    <div v-if="day.session" class="day-card__content">
-      <div class="day-card__block-count">
-        {{ day.session.blockCount }} bloques
+      <div class="day-card__header-left">
+        <span class="day-card__day-name">{{ day.dayName }}</span>
+        <span class="day-card__separator">·</span>
+        <span class="day-card__date">{{ formatDate(day.date) }}</span>
       </div>
-      <div class="day-card__route">
-        {{ getRouteName(day.session) }}
+      <div v-if="day.session" class="day-card__header-right">
+        <span class="day-card__route">{{ getSessionRouteName(day.session) }}</span>
       </div>
     </div>
 
-    <div v-else-if="day.state === 'rest'" class="day-card__content">
-      <div class="day-card__rest-label">Descanso</div>
+    <!-- Rest day content -->
+    <div v-if="day.state === 'rest'" class="day-card__rest">
+      <q-icon name="self_improvement" size="64px" color="grey-5" />
+      <div class="text-h6 text-grey-6 q-mt-md">Descanso</div>
+      <div class="text-caption text-grey-5 q-mt-sm">
+        Domingo es tu día de recuperación
+      </div>
     </div>
 
-    <div v-else class="day-card__content">
-      <div class="day-card__no-session text-grey-6">Sin sesión</div>
+    <!-- No session content -->
+    <div v-else-if="!day.session" class="day-card__empty">
+      <q-icon name="event_busy" size="64px" color="grey-5" />
+      <div class="text-h6 text-grey-6 q-mt-md">Sin sesión</div>
+      <div class="text-caption text-grey-5 q-mt-sm">
+        No hay entrenamiento programado
+      </div>
+    </div>
+
+    <!-- Session blocks (scrollable) -->
+    <div v-else class="day-card__blocks">
+      <BlockCard v-for="block in sortedBlocks" :key="block.blockId" :block="block"
+        :color-class="getBlockColorClass(block.role)" />
+    </div>
+
+    <!-- Start button (only for today with session) -->
+    <div v-if="showStartButton" class="day-card__footer">
+      <q-btn color="primary" size="lg" class="start-button" unelevated :disable="day.state === 'completed'"
+        @click="handleStart">
+        <q-icon name="play_arrow" size="24px" class="q-mr-sm" />
+        <span class="text-weight-bold">
+          {{ day.state === 'completed' ? 'Sesión Completada' : 'Comenzar' }}
+        </span>
+      </q-btn>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { WeekDay } from '../types/session';
-import { formatShortDate } from '../composables/useDateNavigation';
-
-/**
- * Individual day card component for weekly carousel
- *
- * Displays a single day with state-based styling:
- * - today + selected: prominent border, bg, shadow, scale
- * - today not selected: border, light bg
- * - completed: green bg, white text
- * - past: dimmed, grey bg
- * - future: dimmed, light grey bg
- * - rest (Sunday): grey bg, no interaction
- */
+import type { WeekDay, Block } from '../types/session';
+import { formatShortDate, isToday } from '../composables/useDateNavigation';
+import { getRouteName } from '../utils/routeNames';
+import { getBlockColorClass } from '../utils/blockColors';
+import BlockCard from './BlockCard.vue';
 
 interface Props {
-  /** Week day data including date, state, and session */
   day: WeekDay;
-  /** Whether this day is currently selected/centered */
   isSelected?: boolean;
-}
-
-interface Emits {
-  (e: 'select', date: string): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSelected: false,
 });
 
-const emit = defineEmits<Emits>();
+const emit = defineEmits<{
+  start: [date: string];
+}>();
 
 /**
- * Determine CSS classes based on day state and selection
+ * CSS classes based on day state
  */
 const cardClasses = computed(() => {
   const classes: string[] = [];
   const { state } = props.day;
 
-  // State-based styling
-  if (state === 'today' && props.isSelected) {
-    classes.push('day-card--today-selected');
-  } else if (state === 'today') {
+  if (props.isSelected) {
+    classes.push('day-card--selected');
+  }
+
+  if (state === 'today') {
     classes.push('day-card--today');
   } else if (state === 'completed') {
     classes.push('day-card--completed');
@@ -88,107 +97,141 @@ const cardClasses = computed(() => {
 });
 
 /**
- * Handle card click - emit select event unless it's a rest day
+ * Sort blocks by sortOrder
  */
-function handleClick() {
-  if (props.day.state !== 'rest') {
-    emit('select', props.day.date);
-  }
-}
+const sortedBlocks = computed(() => {
+  if (!props.day.session?.blocks) return [];
+  return [...props.day.session.blocks].sort((a: Block, b: Block) => a.sortOrder - b.sortOrder);
+});
 
 /**
- * Format date string to DD/MM
+ * Show start button only for today with a session
+ */
+const showStartButton = computed(() => {
+  return isToday(props.day.date) && props.day.session !== null;
+});
+
+/**
+ * Format date for display
  */
 function formatDate(date: string): string {
   return formatShortDate(date);
 }
 
 /**
- * Extract route name from session for display
+ * Get route name from session
  */
-function getRouteName(session: typeof props.day.session): string {
+function getSessionRouteName(session: typeof props.day.session): string {
   if (!session || session.blocks.length === 0) {
     return '';
   }
-  // Get route from first block (usually NUCLEUS or main block)
   const mainBlock = session.blocks.find(b => b.role === 'NUCLEUS') || session.blocks[0];
-  return mainBlock.route.toUpperCase();
+  return getRouteName(mainBlock.route);
+}
+
+/**
+ * Handle start button click
+ */
+function handleStart() {
+  emit('start', props.day.date);
 }
 </script>
 
 <style scoped lang="scss">
 .day-card {
-  min-width: 120px;
-  max-width: 140px;
-  padding: 16px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  flex-shrink: 0;
+  height: 100%;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 
   &__header {
+    flex-shrink: 0;
+    padding: 12px 16px;
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: stretch;
+    justify-content: space-between;
+    border-bottom: 1px solid #f0f0f0;
+    background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+  }
+
+  &__header-left {
+    flex: 1;
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+  }
+
+  &__header-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
   }
 
   &__day-name {
-    font-weight: 600;
-    font-size: 16px;
-    line-height: 1.2;
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+  }
+
+  &__separator {
+    margin: 0 8px;
+    color: #ccc;
+    font-weight: 300;
   }
 
   &__date {
     font-size: 14px;
-    opacity: 0.8;
-  }
-
-  &__content {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 14px;
-  }
-
-  &__block-count {
-    font-weight: 500;
+    color: #666;
   }
 
   &__route {
-    font-size: 12px;
+    font-size: 14px;
+    color: var(--q-primary);
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    opacity: 0.9;
+    text-align: right;
   }
 
-  &__rest-label {
-    font-style: italic;
-    opacity: 0.8;
+  &__blocks {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    -webkit-overflow-scrolling: touch;
   }
 
-  &__no-session {
-    font-size: 13px;
-    font-style: italic;
+  &__rest,
+  &__empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    text-align: center;
   }
 
-  // State-based styling using Quasar colors
-  &--today-selected {
-    border: 2px solid var(--q-primary);
-    background-color: rgba(var(--q-primary-rgb), 0.1);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-    transform: scale(1.05);
-
-    .day-card__day-name {
-      color: var(--q-primary);
-    }
+  &__footer {
+    flex-shrink: 0;
+    padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top,
+        rgba(255, 255, 255, 1) 0%,
+        rgba(255, 255, 255, 0.95) 100%);
+    border-top: 1px solid #f0f0f0;
   }
 
+  // State variations
   &--today {
-    border: 2px solid var(--q-primary);
-    background-color: #f5f5f5;
+    .day-card__header {
+      background: linear-gradient(135deg, rgba(var(--q-primary-rgb), 0.05) 0%, #ffffff 100%);
+    }
 
     .day-card__day-name {
       color: var(--q-primary);
@@ -196,45 +239,32 @@ function getRouteName(session: typeof props.day.session): string {
   }
 
   &--completed {
-    background-color: var(--q-positive);
-    color: white;
+    .day-card__header {
+      background: linear-gradient(135deg, rgba(var(--q-positive-rgb), 0.1) 0%, #ffffff 100%);
+    }
 
-    .day-card__day-name,
-    .day-card__date,
-    .day-card__route {
-      color: white;
+    .day-card__day-name {
+      color: var(--q-positive);
     }
   }
 
   &--past {
-    opacity: 0.7;
-    background-color: #e0e0e0;
-  }
-
-  &--future {
-    opacity: 0.7;
-    background-color: #f5f5f5;
+    opacity: 0.85;
   }
 
   &--rest {
-    background-color: #e0e0e0;
-    color: #757575;
-    cursor: default;
+    background: #f5f5f5;
 
-    &:hover {
-      transform: none;
+    .day-card__header {
+      background: transparent;
     }
   }
+}
 
-  // Hover effect (except for rest days)
-  &:not(.day-card--rest):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-
-  // Today selected has higher hover effect
-  &--today-selected:hover {
-    transform: scale(1.05) translateY(-2px);
-  }
+.start-button {
+  width: 100%;
+  height: 52px;
+  border-radius: 26px;
+  font-size: 16px;
 }
 </style>

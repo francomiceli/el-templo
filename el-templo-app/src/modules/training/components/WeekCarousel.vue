@@ -1,186 +1,270 @@
 <template>
   <div class="week-carousel">
+    <!-- Day indicator dots -->
+    <div class="week-carousel__dots">
+      <button
+        v-for="(day, index) in weekStore.weekDays"
+        :key="day.date"
+        class="week-carousel__dot"
+        :class="{
+          'week-carousel__dot--active': day.date === weekStore.selectedDate,
+          'week-carousel__dot--today': day.state === 'today',
+          'week-carousel__dot--rest': day.state === 'rest',
+        }"
+        @click="scrollToDay(index)"
+      >
+        <span class="week-carousel__dot-label">{{ day.dayName.charAt(0) }}</span>
+      </button>
+    </div>
+
+    <!-- Swipeable day cards -->
     <div
       ref="carouselRef"
       class="week-carousel__container"
+      @scroll="handleScroll"
     >
-      <DayCard
-        v-for="day in weekStore.weekDays"
+      <div
+        v-for="(day, index) in weekStore.weekDays"
         :key="day.date"
-        :day="day"
-        :is-selected="day.date === weekStore.selectedDate"
-        :data-date="day.date"
-        class="week-carousel__card"
-        @select="handleDaySelect"
-      />
+        class="week-carousel__slide"
+        :class="{ 'week-carousel__slide--center': index === centerIndex }"
+        :data-index="index"
+      >
+        <DayCard
+          :day="day"
+          :is-selected="day.date === weekStore.selectedDate"
+          @start="handleStart"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useWeekStore } from '../stores/weekStore';
 import DayCard from './DayCard.vue';
 
-/**
- * Horizontal scrollable week carousel
- *
- * Features:
- * - CSS scroll-snap for smooth card snapping
- * - Auto-centers today's card on mount
- * - IntersectionObserver detects centered card
- * - Adjacent days peek at sides with reduced opacity
- * - Updates store.selectedDate when card becomes centered
- */
+const emit = defineEmits<{
+  start: [date: string];
+}>();
 
 const weekStore = useWeekStore();
 const carouselRef = ref<HTMLElement | null>(null);
-let observer: IntersectionObserver | null = null;
+const centerIndex = ref(0);
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Handle day card selection
- * Scrolls the selected card into view
+ * Handle scroll events to detect centered card
  */
-function handleDaySelect(date: string) {
-  weekStore.selectDate(date);
+function handleScroll() {
+  if (!carouselRef.value) return;
 
-  // Scroll selected card into view
-  if (carouselRef.value) {
-    const cardElement = carouselRef.value.querySelector(`[data-date="${date}"]`);
-    if (cardElement) {
-      cardElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
+  // Debounce scroll detection
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
+  }
+
+  scrollTimeout = setTimeout(() => {
+    detectCenteredCard();
+  }, 100);
+}
+
+/**
+ * Get all slide elements
+ */
+function getSlides(): HTMLElement[] {
+  if (!carouselRef.value) return [];
+  return Array.from(carouselRef.value.querySelectorAll('.week-carousel__slide'));
+}
+
+/**
+ * Detect which card is centered based on scroll position
+ */
+function detectCenteredCard() {
+  if (!carouselRef.value) return;
+
+  const container = carouselRef.value;
+  const slides = getSlides();
+  if (slides.length === 0) return;
+
+  const containerCenter = container.scrollLeft + container.offsetWidth / 2;
+
+  // Find the slide whose center is closest to the container's center
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+
+  slides.forEach((slide, index) => {
+    const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+    const distance = Math.abs(slideCenter - containerCenter);
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  });
+
+  if (closestIndex !== centerIndex.value) {
+    centerIndex.value = closestIndex;
+    const day = weekStore.weekDays[closestIndex];
+    if (day && day.date !== weekStore.selectedDate) {
+      weekStore.selectDate(day.date);
     }
   }
 }
 
 /**
- * Setup IntersectionObserver to detect which card is centered
- *
- * When a card crosses the center threshold (50%), it becomes selected
- * and updates the store's selectedDate.
+ * Scroll to a specific day by index
  */
-function setupIntersectionObserver() {
+function scrollToDay(index: number, behavior: 'smooth' | 'instant' | 'auto' = 'smooth') {
   if (!carouselRef.value) return;
 
-  // Clean up existing observer
-  if (observer) {
-    observer.disconnect();
+  const container = carouselRef.value;
+  const slides = getSlides();
+  const slide = slides[index];
+
+  if (!slide) return;
+
+  // Calculate scroll position to center the slide
+  const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+  const containerCenter = container.offsetWidth / 2;
+  const scrollPosition = slideCenter - containerCenter;
+
+  container.scrollTo({
+    left: Math.max(0, scrollPosition),
+    behavior,
+  });
+
+  centerIndex.value = index;
+  const day = weekStore.weekDays[index];
+  if (day) {
+    weekStore.selectDate(day.date);
   }
-
-  // Create observer that triggers when card is centered
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        // When card crosses 50% visibility threshold (centered)
-        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-          const cardElement = entry.target as HTMLElement;
-          const date = cardElement.getAttribute('data-date');
-          if (date && date !== weekStore.selectedDate) {
-            weekStore.selectDate(date);
-          }
-        }
-      });
-    },
-    {
-      root: carouselRef.value,
-      threshold: [0, 0.5, 1],
-      rootMargin: '0px',
-    }
-  );
-
-  // Observe all day cards
-  const cards = carouselRef.value.querySelectorAll('.week-carousel__card');
-  cards.forEach((card) => observer?.observe(card));
 }
 
 /**
- * Center today's card on component mount
+ * Scroll to today on mount
  */
-function centerTodayCard() {
-  if (!carouselRef.value) return;
-
+function scrollToToday() {
   const todayIndex = weekStore.todayIndex;
-  if (todayIndex === -1) {
-    // Today not in current week, center middle card
-    const cards = carouselRef.value.querySelectorAll('.week-carousel__card');
-    const middleCard = cards[Math.floor(cards.length / 2)];
-    if (middleCard) {
-      (middleCard as HTMLElement).scrollIntoView({
-        behavior: 'auto',
-        block: 'nearest',
-        inline: 'center',
-      });
-    }
-    return;
+  if (todayIndex >= 0) {
+    // Use 'auto' for instant scroll on mount
+    nextTick(() => {
+      scrollToDay(todayIndex, 'auto');
+    });
+  } else {
+    // Default to first day if today not in week
+    nextTick(() => {
+      scrollToDay(0, 'auto');
+    });
   }
+}
 
-  // Find today's card and scroll to it
-  const todayDate = weekStore.weekDays[todayIndex]?.date;
-  if (todayDate) {
-    const todayCard = carouselRef.value.querySelector(`[data-date="${todayDate}"]`);
-    if (todayCard) {
-      // Set as selected immediately
-      weekStore.selectDate(todayDate);
-
-      // Scroll to center (use 'auto' for immediate positioning on mount)
-      (todayCard as HTMLElement).scrollIntoView({
-        behavior: 'auto',
-        block: 'nearest',
-        inline: 'center',
-      });
-    }
-  }
+/**
+ * Handle start button from DayCard
+ */
+function handleStart(date: string) {
+  emit('start', date);
 }
 
 // Setup on mount
 onMounted(() => {
-  // Wait for next tick to ensure DOM is ready
-  setTimeout(() => {
-    centerTodayCard();
-    setupIntersectionObserver();
-  }, 100);
+  setTimeout(scrollToToday, 100);
 });
 
-// Cleanup observer on unmount
+// Cleanup
 onUnmounted(() => {
-  if (observer) {
-    observer.disconnect();
-    observer = null;
+  if (scrollTimeout) {
+    clearTimeout(scrollTimeout);
   }
 });
 
-// Re-setup observer when weekDays change
+// Re-center when weekDays change
 watch(
   () => weekStore.weekDays.length,
   () => {
-    setTimeout(() => {
-      setupIntersectionObserver();
-      centerTodayCard();
-    }, 100);
+    if (weekStore.weekDays.length > 0) {
+      setTimeout(scrollToToday, 100);
+    }
   }
 );
 </script>
 
 <style scoped lang="scss">
 .week-carousel {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   overflow: hidden;
-  position: relative;
+
+  &__dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+
+  &__dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #e0e0e0;
+    background: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+
+    &:hover {
+      border-color: #bdbdbd;
+    }
+
+    &--active {
+      border-color: var(--q-primary);
+      background: var(--q-primary);
+
+      .week-carousel__dot-label {
+        color: white;
+      }
+    }
+
+    &--today:not(.week-carousel__dot--active) {
+      border-color: var(--q-primary);
+
+      .week-carousel__dot-label {
+        color: var(--q-primary);
+      }
+    }
+
+    &--rest {
+      border-color: #e0e0e0;
+      background: #f5f5f5;
+
+      .week-carousel__dot-label {
+        color: #9e9e9e;
+      }
+    }
+  }
+
+  &__dot-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+  }
 
   &__container {
+    flex: 1;
     display: flex;
     gap: 16px;
-    padding: 20px 24px;
+    padding: 8px 0;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
 
-    // Hide scrollbar but keep functionality
+    // Hide scrollbar
     scrollbar-width: none;
     -ms-overflow-style: none;
 
@@ -188,49 +272,42 @@ watch(
       display: none;
     }
 
-    // Add padding to allow centering of first/last cards
-    &::before,
-    &::after {
-      content: '';
-      flex-shrink: 0;
-      width: calc(50vw - 70px); // Half viewport minus half card width
-    }
+    // Padding for peek effect
+    padding-left: calc((100% - 85%) / 2);
+    padding-right: calc((100% - 85%) / 2);
   }
 
-  &__card {
+  &__slide {
+    flex-shrink: 0;
+    width: 85%;
+    height: 100%;
     scroll-snap-align: center;
     scroll-snap-stop: always;
+    transition: transform 0.3s ease, opacity 0.3s ease;
 
-    // Peek effect - adjacent cards have reduced opacity
+    // Non-centered cards are smaller (80% height effect via scale)
+    transform: scale(0.92);
     opacity: 0.7;
-    transition: opacity 0.3s ease, transform 0.3s ease;
 
-    // Card in center is fully opaque
-    &[data-centered="true"] {
+    &--center {
+      transform: scale(1);
       opacity: 1;
     }
   }
+}
 
-  // Fade effect on edges
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 40px;
-    pointer-events: none;
-    z-index: 1;
-  }
+// Desktop adjustments
+@media (min-width: 768px) {
+  .week-carousel {
+    &__container {
+      padding-left: calc((100% - 60%) / 2);
+      padding-right: calc((100% - 60%) / 2);
+    }
 
-  &::before {
-    left: 0;
-    background: linear-gradient(to right, white, transparent);
-  }
-
-  &::after {
-    right: 0;
-    background: linear-gradient(to left, white, transparent);
+    &__slide {
+      width: 60%;
+      max-width: 500px;
+    }
   }
 }
 </style>

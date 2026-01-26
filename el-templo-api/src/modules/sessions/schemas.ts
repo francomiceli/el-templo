@@ -45,3 +45,17 @@ export const getSessionByIdSchema = {
 export interface GetSessionByIdParams {
   id: number;
 }
+
+export const getWeeklySessionsSchema = {
+  querystring: {
+    type: 'object',
+    required: ['weekStart'],
+    properties: {
+      weekStart: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+    }
+  }
+};
+
+export interface GetWeeklySessionsInput {
+  weekStart: string; // Monday date in YYYY-MM-DD format
+}

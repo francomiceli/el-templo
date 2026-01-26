@@ -57,7 +57,7 @@ export const useWeekStore = defineStore('week', () => {
    *
    * @param dates - Array of date strings in YYYY-MM-DD format
    */
-  async function fetchWeekSessions(dates: string[]) {
+  async function fetchWeekSessions(_dates: string[]) {
     loading.value = true;
     error.value = null;
 

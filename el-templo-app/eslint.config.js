@@ -3,6 +3,7 @@ import globals from 'globals'
 import pluginVue from 'eslint-plugin-vue'
 import pluginQuasar from '@quasar/app-vite/eslint'
 import prettierSkipFormatting from '@vue/eslint-config-prettier/skip-formatting'
+import tseslint from 'typescript-eslint'
 
 export default [
   {
@@ -33,6 +34,44 @@ export default [
    *   -> Above, plus rules to enforce subjective community defaults to ensure consistency.
    */
   ...pluginVue.configs['flat/essential'],
+
+  // TypeScript ESLint for .ts files only
+  {
+    files: ['**/*.ts'],
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+      },
+    },
+    rules: {
+      ...tseslint.configs.recommended.find(c => c.rules)?.rules,
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off', // Use TypeScript version instead
+    },
+  },
+
+  // Vue files: vue-eslint-parser handles file, TypeScript parser handles <script>
+  {
+    files: ['**/*.vue'],
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off',
+    },
+  },
 
   {
     languageOptions: {

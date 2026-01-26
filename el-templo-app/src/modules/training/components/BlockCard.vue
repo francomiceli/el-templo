@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Block, BlockRole, Prescription } from '../types/session';
+import { getRouteName } from '../utils/routeNames';
 
 interface Props {
   block: Block;
@@ -57,19 +58,7 @@ const props = withDefaults(defineProps<Props>(), {
   colorClass: 'bg-grey-1',
 });
 
-/**
- * Get color class based on block role
- */
-export function getBlockColorClass(role: BlockRole): string {
-  const colorMap: Record<BlockRole, string> = {
-    INITIUM: 'bg-light-blue-1',
-    NUCLEUS: 'bg-purple-1',
-    DEUTEROS_1: 'bg-cyan-1',
-    DEUTEROS_2: 'bg-deep-purple-1',
-    ATHLOS_EPIKOS: 'bg-amber-1',
-  };
-  return colorMap[role] || 'bg-grey-1';
-}
+// getBlockColorClass is exported from utils/blockColors.ts for external use
 
 /**
  * Format block role for display
@@ -92,13 +81,13 @@ const blockCaption = computed(() => {
   const parts: string[] = [];
 
   if (props.block.route) {
-    parts.push(props.block.route.toUpperCase());
+    parts.push(getRouteName(props.block.route));
   }
 
   const exerciseCount = props.block.exercises.length;
   parts.push(`${exerciseCount} ejercicio${exerciseCount !== 1 ? 's' : ''}`);
 
-  if (props.block.format) {
+  if (props.block.format && typeof props.block.format === 'string') {
     parts.push(props.block.format);
   }
 
