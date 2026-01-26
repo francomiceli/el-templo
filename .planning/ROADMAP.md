@@ -154,10 +154,20 @@ Waves:
   3. Today is highlighted, completed days show checkmark, rest days have distinct state
   4. Member can tap any day to preview that session
   5. Member can tap today to start the Day Player
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 06-01: TBD
+- [ ] 06-01-PLAN.md — Types, Pinia store, and date navigation composable (foundation)
+- [ ] 06-02-PLAN.md — WeekCarousel and DayCard components (day navigation)
+- [ ] 06-03-PLAN.md — BlockList, BlockCard, and StartSessionButton (block display)
+- [ ] 06-04-PLAN.md — WeeklyView page assembly and route updates
+- [ ] 06-05-PLAN.md — Human verification checkpoint
+
+Waves:
+- Wave 1: 06-01 (foundation - types, store, date utils)
+- Wave 2: 06-02, 06-03 (parallel - carousel components + block components)
+- Wave 3: 06-04 (page assembly - depends on 06-02 + 06-03)
+- Wave 4: 06-05 (human verification checkpoint)
 
 ### Phase 7: Day Player
 **Goal**: Members execute sessions through guided 5-block flow with exercise display and format indicators
@@ -251,7 +261,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 3. Shell & Module System | 2/2 | Complete | 2026-01-22 |
 | 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
 | 5. Session Generation | 5/5 | Complete | 2026-01-24 |
-| 6. Weekly View | 0/0 | Not started | - |
+| 6. Weekly View | 0/5 | Planning complete | - |
 | 7. Day Player | 0/0 | Not started | - |
 | 8. Timer System | 0/0 | Not started | - |
 | 9. Session Completion & Logging | 0/0 | Not started | - |
@@ -260,4 +270,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-24 — Phase 5 complete (gap closure executed, verified)*
+*Last updated: 2026-01-26 — Phase 6 planning complete (5 plans in 4 waves)*
