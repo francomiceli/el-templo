@@ -5,7 +5,6 @@
     :caption="blockCaption"
     expand-separator
     header-class="text-weight-medium"
-    default-opened
   >
     <template #header>
       <q-item-section>
