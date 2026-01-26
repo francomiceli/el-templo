@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 6 of 11 (Weekly View)
-Plan: 2 of TBD in Phase 6
+Plan: 4 of 5 in Phase 6
 Status: In progress
-Last activity: 2026-01-26 - Completed 06-02-PLAN.md (week carousel components)
+Last activity: 2026-01-26 - Completed 06-04-PLAN.md (weekly view page integration)
 
-Progress: [█████░░░░░] 45% (5/11 phases complete)
+Progress: [█████░░░░░] 50% (5/11 phases complete, 80% of Phase 6 complete)
 
 ## Architecture Reset
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 22
-- Average duration: 4.3 min
+- Total plans completed: 23
+- Average duration: 4.1 min
 - Total execution time: 1.6 hours
 
 **By Phase:**
@@ -74,11 +74,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
 | 05-session-generation | 5 | 33min | 6.6min |
-| 06-weekly-view | 3 | 8min | 2.7min |
+| 06-weekly-view | 4 | 10min | 2.5min |
 
 **Recent Trend:**
-- Last 3 plans: 06-01 (3min), 06-02 (3min), 06-03 (2min)
-- Trend: Exceptional velocity, component creation highly efficient
+- Last 3 plans: 06-02 (3min), 06-03 (2min), 06-04 (2min)
+- Trend: Exceptional velocity, page composition highly efficient
 
 *Updated after each plan completion*
 
@@ -151,6 +151,10 @@ Recent decisions affecting current work:
 | 06-03 | getBlockColorClass utility exported | Centralizes color mapping for reuse across components |
 | 06-03 | Default-opened expansion items | Immediate exercise visibility without extra click |
 | 06-03 | Bottom padding accounts for fixed CTA | BlockList padding prevents last block hiding behind Start button |
+| 06-04 | WeeklyView as default /training route | Primary interface for members accessing training module |
+| 06-04 | Start button visibility tied to isToday | Button only shows when selectedDate matches today |
+| 06-04 | DayPlayerPlaceholder for Phase 7 continuity | Enables end-to-end flow testing, Phase 7 will replace |
+| 06-04 | Week data fetching on mount | loadWeekData() in onMounted hook for immediate session display |
 
 ### Pending Todos
 
@@ -165,16 +169,18 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-26
-Stopped at: Completed 06-02-PLAN.md (week carousel components)
-Resume file: `.planning/phases/06-weekly-view/06-02-SUMMARY.md`
+Stopped at: Completed 06-04-PLAN.md (weekly view page integration)
+Resume file: `.planning/phases/06-weekly-view/06-04-SUMMARY.md`
 
-**Phase 6 in progress.** Plans 06-01, 06-02 complete:
+**Phase 6 nearly complete.** Plans 06-01 through 06-04 complete:
 - TypeScript types for Session, Block, Prescription, DayState, WeekDay (06-01)
 - Pinia store and date utilities (06-01)
 - useWeekData composable for API fetching (06-02)
-- DayCard component with state-based styling (06-02)
-- WeekCarousel component with scroll-snap and IntersectionObserver (06-02)
+- DayCard and WeekCarousel components with scroll-snap (06-02)
+- BlockCard, BlockList, StartSessionButton components (06-03)
+- WeeklyView page integrating all components (06-04)
+- Day Player route stub for Phase 7 continuation (06-04)
 
 Next steps:
-1. Continue Phase 6 with block display components
-2. Build complete Weekly View page integration
+1. Complete Phase 6 with plan 06-05 (UAT/polish if planned)
+2. Begin Phase 7 - Day Player implementation
