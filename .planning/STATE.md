@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 6 of 11 (Weekly View)
-Plan: 0 of TBD in Phase 6
-Status: Ready for planning
-Last activity: 2026-01-24 - Phase 5 complete (all gaps closed, verified)
+Plan: 1 of TBD in Phase 6
+Status: In progress
+Last activity: 2026-01-26 - Completed 06-01-PLAN.md (data foundation)
 
 Progress: [█████░░░░░] 45% (5/11 phases complete)
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19
-- Average duration: 4.8 min
+- Total plans completed: 20
+- Average duration: 4.7 min
 - Total execution time: 1.6 hours
 
 **By Phase:**
@@ -74,10 +74,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 03-shell-module-system | 2 | 5min | 2.5min |
 | 04-spom-engine | 3 | 14min | 4.7min |
 | 05-session-generation | 5 | 33min | 6.6min |
+| 06-weekly-view | 1 | 3min | 3.0min |
 
 **Recent Trend:**
-- Last 3 plans: 05-03 (8min), 05-04 (8min), 05-05 (4min)
-- Trend: Stable velocity, gap closure plan was efficient
+- Last 3 plans: 05-04 (8min), 05-05 (4min), 06-01 (3min)
+- Trend: Excellent velocity, data foundation tasks very efficient
 
 *Updated after each plan completion*
 
@@ -138,6 +139,10 @@ Recent decisions affecting current work:
 | 05-04 | Pino logger for structured logging | JSON-native, performant, child logger inheritance |
 | 05-04 | Optional trace persistence | PERSIST_TRACES env var avoids database bloat |
 | 05-04 | Child logger pattern | Context inheritance for weekId, dayId, blockId |
+| 06-01 | Composition API pattern for stores | Consistency with useAuthStore |
+| 06-01 | Store receives data, doesn't fetch | Separation of concerns - composables handle API calls |
+| 06-01 | ISO week format (Monday-Sunday) | Standard European format for weekly navigation |
+| 06-01 | YYYY-MM-DD date strings | API compatibility and unambiguous dates |
 
 ### Pending Todos
 
@@ -151,18 +156,14 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-24
-Stopped at: Completed 05-05-PLAN.md (INITIUM Pipeline - gap closure)
-Resume file: `.planning/phases/05-session-generation/05-05-SUMMARY.md`
+Last session: 2026-01-26
+Stopped at: Completed 06-01-PLAN.md (data foundation)
+Resume file: `.planning/phases/06-weekly-view/06-01-SUMMARY.md`
 
-**Phase 5 complete.** All 5 plans executed:
-- 05-01: Pipeline stages with trace context
-- 05-02: Session persistence and API endpoints
-- 05-03: Fallback ladder and validation
-- 05-04: Pino-based trace logging
-- 05-05: INITIUM pipeline bypass (gap closure)
-
-**Gap closure:** UAT Issue #2 resolved - session generation now returns complete 5-block sessions.
+**Phase 6 in progress.** Plan 06-01 complete:
+- TypeScript types for Session, Block, Prescription, DayState, WeekDay
+- Pinia store for week state management
+- Date utilities with Spanish locale support
 
 Next steps:
-1. Begin Phase 6 planning (Weekly View)
+1. Continue Phase 6 with UI components (DayCard, WeekGrid)
