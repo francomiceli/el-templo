@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 7 - Day Player
+**Current focus:** Phase 8 - Timer System
 
 ## Current Position
 
-Phase: 7 of 12 (Day Player) - COMPLETE
-Plan: 5 of 5 in Phase 7
-Status: Complete
-Last activity: 2026-01-27 - Completed Phase 7 UAT with 10 bug fixes
+Phase: 8 of 12 (Timer System) - IN PROGRESS
+Plan: 1 of 4 in Phase 8
+Status: In progress
+Last activity: 2026-01-27 - Completed 08-01-PLAN.md (Timer Format Parser)
 
-Progress: [██████░░░░] 58% (7/12 phases complete)
+Progress: [██████░░░░] 61% (29/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28
+- Total plans completed: 29
 - Average duration: 4.2 min
-- Total execution time: 2.6 hours
+- Total execution time: 2.7 hours
 
 **By Phase:**
 
@@ -76,10 +76,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
+| 08-timer-system | 1 | 8min | 8.0min |
 
 **Recent Trend:**
-- Last 3 plans: 07-03 (3min), 07-04 (3min), 07-05 (45min - UAT with bug fixes)
-- Trend: UAT phase took longer due to iterative bug fixing (10 issues resolved)
+- Last 3 plans: 07-04 (3min), 07-05 (45min - UAT with bug fixes), 08-01 (8min - TDD)
+- Trend: TDD with test infrastructure setup added time, back to normal velocity
 
 *Updated after each plan completion*
 
@@ -173,6 +174,12 @@ Recent decisions affecting current work:
 | 07-04 | Navigation guard with Quasar dialog | Consistent UX, non-blocking async confirmation |
 | 07-04 | Session from weekStore.weekDays.find() | Reuse loaded data, avoid duplicate API calls |
 | 07-04 | Wake lock on splash complete | User intent confirmed, prevents screen sleep |
+| 08-01 | String union type for ProtocolType | Better tree-shaking than enum for modern TypeScript |
+| 08-01 | Case-insensitive format matching | Tolerates user input variations ("EMOM" vs "emom") |
+| 08-01 | Tabata/HIIT as STRAIGHT_SETS | Fixed intervals prescribed in exercises, no protocol timer needed |
+| 08-01 | Exercise count determines EMOM rounds | Most logical mapping - 1 exercise per EMOM interval |
+| 08-01 | Default 10 minutes for AMRAP | Standard AMRAP duration, configurable in timer composables |
+| 08-01 | Default 60 seconds for EMOM interval | Standard "Every Minute On the Minute" definition |
 
 ### Pending Todos
 
@@ -187,22 +194,22 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed Phase 7 (Day Player)
-Resume file: `.planning/phases/07-day-player/07-05-SUMMARY.md`
+Stopped at: Completed 08-01-PLAN.md (Timer Format Parser)
+Resume file: `.planning/phases/08-timer-system/08-01-SUMMARY.md`
 
-**Phase 7 complete.** UAT passed with 10 bug fixes:
-- Capacitor v8 upgrade for keep-awake plugin
-- Dialog plugin registration
-- Nucleus completion flow fix
-- Deuteros vertical layout
-- Block transition splashes
-- F5 refresh handling
-- Cleanup pattern for composables
+**Phase 8-01 complete.** TDD implementation:
+- Installed vitest test framework
+- Created format parser mapping ~45 format names to 4 protocol types
+- 53 tests passing with 100% coverage
+- Established TDD workflow pattern for frontend utilities
+
+**Phase 7 complete** with UAT and 10 bug fixes.
 
 **Issues identified for future:**
 - Level display shows "ALFA_DELTA" instead of user's level (Phase 9)
 - Same sessions for Alfa/Delta users (Phase 9)
+- Timer accuracy testing needed on real devices (Phase 8 continuation)
 
 Next steps:
-1. Begin Phase 8 (Timer System)
+1. Continue Phase 8 (Timer System) - Plans 08-02, 08-03, 08-04
 2. Phase 9 (Level-Specific Sessions) addresses session differentiation
