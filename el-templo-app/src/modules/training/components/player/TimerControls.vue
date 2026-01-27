@@ -2,7 +2,7 @@
   <div v-if="!isComplete" class="timer-controls">
     <!-- Not started state: Show "Iniciar Timer" button -->
     <q-btn
-      v-if="!isRunning && !wasStopped"
+      v-if="!isRunning && !wasStarted"
       class="full-width"
       :color="buttonColor"
       size="lg"
@@ -38,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { getBlockAccentColor } from '../../utils/blockColors';
 import type { BlockRole } from '../../types/session';
 
@@ -47,6 +47,8 @@ interface Props {
   isRunning: boolean;
   /** Timer has finished (hide controls) */
   isComplete: boolean;
+  /** Whether the timer has been started (distinguishes "not started" from "stopped") */
+  wasStarted: boolean;
   /** Block role for accent color */
   blockRole: BlockRole;
 }
@@ -63,12 +65,6 @@ const emit = defineEmits<{
 }>();
 
 /**
- * Tracks whether the timer was previously started and stopped
- * Used to distinguish "not started" from "stopped after start"
- */
-const wasStopped = ref(false);
-
-/**
  * Button color based on block role
  */
 const buttonColor = computed(() => getBlockAccentColor(props.blockRole));
@@ -77,7 +73,6 @@ const buttonColor = computed(() => getBlockAccentColor(props.blockRole));
  * Handle initial timer start
  */
 function handleStart() {
-  wasStopped.value = true;
   emit('start');
 }
 
@@ -101,7 +96,6 @@ function handlePlay() {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px 0;
 }
 
 .stop-button,
