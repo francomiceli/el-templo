@@ -18,11 +18,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: SPOM Engine** - Exercise database import, periodization rules, weekly state tracking
 - [x] **Phase 5: Session Generation** - Daily session generation from SPOM week + member level
 - [x] **Phase 6: Weekly View** - 7-day calendar with session preview and completion status
-- [ ] **Phase 7: Day Player** - Block flow UI, exercise display, video placeholders
+- [x] **Phase 7: Day Player** - Block flow UI, exercise display, video placeholders
 - [ ] **Phase 8: Timer System** - EMOM, AMRAP, For Time timers with background handling
-- [ ] **Phase 9: Session Completion & Logging** - RPE input, session summary, full event audit trail
-- [ ] **Phase 10: Progression & Coach Functions** - Level display, RPE trends, coach promotion, block overrides
-- [ ] **Phase 11: Admin Panel** - Superadmin SPOM management, session overrides, data re-import
+- [ ] **Phase 9: Level-Specific Sessions** - Differentiate exercises by user level (Alfa vs Delta vs Sigma)
+- [ ] **Phase 10: Session Completion & Logging** - RPE input, session summary, full event audit trail
+- [ ] **Phase 11: Progression & Coach Functions** - Level display, RPE trends, coach promotion, block overrides
+- [ ] **Phase 12: Admin Panel** - Superadmin SPOM management, session overrides, data re-import
 
 ## Phase Details
 
@@ -182,11 +183,11 @@ Waves:
 **Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 07-01-PLAN.md — Session player store, wake lock, composables, utilities
-- [ ] 07-02-PLAN.md — VideoPlaceholder, ProgressBar, ExerciseCard components
-- [ ] 07-03-PLAN.md — BlockHeader, ExerciseList, DeuterosChoice, SplashScreen components
-- [ ] 07-04-PLAN.md — DayPlayer page assembly and route update
-- [ ] 07-05-PLAN.md — Human verification checkpoint
+- [x] 07-01-PLAN.md — Session player store, wake lock, composables, utilities
+- [x] 07-02-PLAN.md — VideoPlaceholder, ProgressBar, ExerciseCard components
+- [x] 07-03-PLAN.md — BlockHeader, ExerciseList, DeuterosChoice, SplashScreen components
+- [x] 07-04-PLAN.md — DayPlayer page assembly and route update
+- [x] 07-05-PLAN.md — Human verification checkpoint
 
 Waves:
 - Wave 1: 07-01 (foundation - store, composables, utilities)
@@ -210,9 +211,24 @@ Waves:
 Plans:
 - [ ] 08-01: TBD
 
-### Phase 9: Session Completion & Logging
-**Goal**: Members complete sessions with RPE input and system maintains full audit trail
+### Phase 9: Level-Specific Sessions
+**Goal**: Sessions differentiate exercises by user's actual level, not just level group
 **Depends on**: Phase 8
+**Requirements**: LSESS-01, LSESS-02, LSESS-03
+**Success Criteria** (what must be TRUE):
+  1. Alfa users get easier exercises than Delta users for the same route/day
+  2. Session generation pipeline receives user's actual level (not just levelGroup)
+  3. Exercise selection prioritizes exercises matching user's level before falling back
+  4. Display shows user's level (Alfa, Delta, Sigma, Omega) not levelGroup (ALFA_DELTA)
+  5. Same route is worked on same day for Alfa/Delta (shared weekly rotator)
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: TBD
+
+### Phase 10: Session Completion & Logging
+**Goal**: Members complete sessions with RPE input and system maintains full audit trail
+**Depends on**: Phase 9
 **Requirements**: COMP-01, COMP-02, COMP-03, COMP-04, COMP-05, COMP-06, EVNT-01, EVNT-02, EVNT-03, EVNT-04, EVNT-05
 **Success Criteria** (what must be TRUE):
   1. After all blocks, member sees closure screen with session summary
@@ -224,11 +240,11 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 10-01: TBD
 
-### Phase 10: Progression & Coach Functions
+### Phase 11: Progression & Coach Functions
 **Goal**: Members track level progression, coaches manage their branch members
-**Depends on**: Phase 9
+**Depends on**: Phase 10
 **Requirements**: PROG-01, PROG-02, PROG-03, PROG-04, COACH-01, COACH-02, COACH-03, COACH-04, COACH-05
 **Success Criteria** (what must be TRUE):
   1. Member can see their current level (Alfa/Delta/Sigma/Omega/Spartan)
@@ -241,11 +257,11 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 11-01: TBD
 
-### Phase 11: Admin Panel
+### Phase 12: Admin Panel
 **Goal**: Superadmins can manage SPOM data, override sessions, and configure system
-**Depends on**: Phase 10
+**Depends on**: Phase 11
 **Requirements**: ADMIN-01 through ADMIN-06 (to be defined)
 **Success Criteria** (what must be TRUE):
   1. Superadmin can view and update current SPOM week
@@ -257,12 +273,12 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 12-01: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -272,12 +288,13 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
 | 5. Session Generation | 5/5 | Complete | 2026-01-24 |
 | 6. Weekly View | 5/5 | Complete | 2026-01-26 |
-| 7. Day Player | 0/5 | Planning complete | - |
+| 7. Day Player | 5/5 | Complete | 2026-01-27 |
 | 8. Timer System | 0/0 | Not started | - |
-| 9. Session Completion & Logging | 0/0 | Not started | - |
-| 10. Progression & Coach Functions | 0/0 | Not started | - |
-| 11. Admin Panel | 0/0 | Not started | - |
+| 9. Level-Specific Sessions | 0/0 | Not started | - |
+| 10. Session Completion & Logging | 0/0 | Not started | - |
+| 11. Progression & Coach Functions | 0/0 | Not started | - |
+| 12. Admin Panel | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-26 — Phase 7 planned (5 plans in 4 waves)*
+*Last updated: 2026-01-27 — Phase 7 complete, Phase 9 (Level-Specific Sessions) added*
