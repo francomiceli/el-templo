@@ -1,0 +1,220 @@
+<template>
+  <div class="exercise-list">
+    <q-expansion-item
+      v-for="(exercise, index) in exercises"
+      :key="exercise.exerciseId"
+      :model-value="index === selectedIndex"
+      :class="[
+        'exercise-item',
+        { 'exercise-item--selected': index === selectedIndex }
+      ]"
+      header-class="exercise-header"
+      expand-icon-class="text-grey-6"
+      @update:model-value="(expanded) => handleExpand(index, expanded)"
+    >
+      <!-- Exercise header (collapsed view) -->
+      <template #header>
+        <q-item-section>
+          <q-item-label class="text-body1 text-weight-medium">
+            {{ exercise.exerciseName }}
+          </q-item-label>
+          <q-item-label caption class="text-caption text-grey-7">
+            {{ formatQuickInfo(exercise) }}
+          </q-item-label>
+        </q-item-section>
+        <q-item-section side>
+          <q-badge
+            :color="getContractionColor(exercise.contraction)"
+            :label="exercise.contraction"
+            class="text-weight-medium"
+          />
+        </q-item-section>
+      </template>
+
+      <!-- Exercise detail (expanded view) -->
+      <q-card flat class="exercise-detail" :style="accentBorderStyle">
+        <q-card-section class="q-pa-md">
+          <div class="row q-col-gutter-sm">
+            <!-- Prescription info -->
+            <div class="col-6">
+              <div class="detail-label text-caption text-grey-7">Dosis</div>
+              <div class="detail-value text-body1 text-weight-medium">
+                {{ formatDose(exercise) }}
+              </div>
+            </div>
+
+            <!-- Rest time -->
+            <div class="col-6">
+              <div class="detail-label text-caption text-grey-7">Descanso</div>
+              <div class="detail-value text-body1 text-weight-medium">
+                {{ exercise.rest }}s
+              </div>
+            </div>
+
+            <!-- Contraction type -->
+            <div class="col-6">
+              <div class="detail-label text-caption text-grey-7">Contraccion</div>
+              <div class="detail-value text-body1 text-weight-medium">
+                {{ formatContraction(exercise.contraction) }}
+              </div>
+            </div>
+
+            <!-- Sort order (position in block) -->
+            <div class="col-6">
+              <div class="detail-label text-caption text-grey-7">Posicion</div>
+              <div class="detail-value text-body1 text-weight-medium">
+                {{ index + 1 }} de {{ exercises.length }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes if present -->
+          <div v-if="exercise.notes" class="q-mt-md">
+            <div class="detail-label text-caption text-grey-7">Notas</div>
+            <div class="detail-value text-body2 text-grey-8">
+              {{ exercise.notes }}
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-expansion-item>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { Prescription } from '../../types/session';
+import { getBlockCSSColor } from '../../utils/blockColors';
+import type { BlockRole } from '../../types/session';
+
+interface Props {
+  /** Array of exercises to display */
+  exercises: Prescription[];
+  /** Block role for accent color */
+  blockRole: BlockRole;
+  /** Currently selected exercise index */
+  selectedIndex: number;
+}
+
+interface Emits {
+  (e: 'update:selectedIndex', index: number): void;
+}
+
+const props = defineProps<Props>();
+const emit = defineEmits<Emits>();
+
+/**
+ * Handle expansion item toggle - implements accordion behavior
+ * Only one exercise can be expanded at a time
+ */
+function handleExpand(index: number, expanded: boolean): void {
+  if (expanded) {
+    // When expanding an item, emit its index
+    emit('update:selectedIndex', index);
+  }
+  // When collapsing, we don't change selection (keep video playing)
+  // The user must expand another exercise to change selection
+}
+
+/**
+ * Dynamic border style using accent color
+ */
+const accentBorderStyle = computed(() => ({
+  borderLeft: `3px solid ${getBlockCSSColor(props.blockRole)}`,
+}));
+
+/**
+ * Format quick info for collapsed header
+ */
+function formatQuickInfo(exercise: Prescription): string {
+  const parts: string[] = [];
+
+  if (exercise.reps !== null) {
+    parts.push(`${exercise.reps} reps`);
+  } else if (exercise.seconds !== null) {
+    parts.push(`${exercise.seconds}s`);
+  }
+
+  parts.push(`${exercise.rest}s desc.`);
+
+  return parts.join(' - ');
+}
+
+/**
+ * Format dose (reps or duration)
+ */
+function formatDose(exercise: Prescription): string {
+  if (exercise.reps !== null) {
+    return `${exercise.reps} repeticiones`;
+  } else if (exercise.seconds !== null) {
+    return `${exercise.seconds} segundos`;
+  }
+  return '-';
+}
+
+/**
+ * Format contraction type for display
+ */
+function formatContraction(contraction: string): string {
+  const contractionNames: Record<string, string> = {
+    CON: 'Concentrica',
+    EXC: 'Excentrica',
+    ISO: 'Isometrica',
+  };
+  return contractionNames[contraction] || contraction;
+}
+
+/**
+ * Get badge color based on contraction type
+ */
+function getContractionColor(contraction: string): string {
+  const colorMap: Record<string, string> = {
+    CON: 'blue-grey',
+    EXC: 'teal',
+    ISO: 'orange',
+  };
+  return colorMap[contraction] || 'grey';
+}
+</script>
+
+<style scoped lang="scss">
+.exercise-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.exercise-item {
+  background: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  transition: background-color 0.2s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &--selected {
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+.exercise-header {
+  padding: 12px 16px;
+}
+
+.exercise-detail {
+  margin: 0 8px 8px 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 0 8px 8px 0;
+}
+
+.detail-label {
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.7rem;
+}
+
+.detail-value {
+  line-height: 1.4;
+}
+</style>
