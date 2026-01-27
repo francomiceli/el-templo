@@ -195,6 +195,15 @@ export function useSessionPlayer(session: Session) {
       await store.saveCompletedBlock(session.dayId, block.role);
     }
 
+    // Special case: After NUCLEUS, advance to index 2 to trigger Deuteros choice
+    // (even though playableBlocks doesn't have a block at index 2 yet)
+    if (block.role === 'NUCLEUS' && !deuterosChoice.value) {
+      currentBlockIndex.value = 2;
+      selectedExerciseIndex.value = 0;
+      await store.saveCurrentBlockIndex(session.dayId, currentBlockIndex.value);
+      return; // Wait for Deuteros choice
+    }
+
     // Advance to next block
     if (currentBlockIndex.value < playableBlocks.value.length - 1) {
       currentBlockIndex.value++;

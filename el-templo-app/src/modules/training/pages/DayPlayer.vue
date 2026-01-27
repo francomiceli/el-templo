@@ -109,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
 
@@ -395,14 +395,6 @@ onBeforeRouteLeave((_to, _from, next) => {
   }
 });
 
-// Beforeunload handler for browser close/refresh
-function handleBeforeUnload(e: BeforeUnloadEvent): void {
-  if (hasUnsavedProgress.value) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-}
-
 // Initialize player state when session becomes available
 watch(session, async (newSession) => {
   if (newSession && !isInitialized.value) {
@@ -423,15 +415,8 @@ watch(session, async (newSession) => {
   }
 }, { immediate: true });
 
-// Lifecycle hooks
-onMounted(() => {
-  window.addEventListener('beforeunload', handleBeforeUnload);
-});
-
-onUnmounted(() => {
-  window.removeEventListener('beforeunload', handleBeforeUnload);
-  // Timer and wake lock cleanup handled by composables
-});
+// Note: beforeunload handler removed as it's disruptive on page reload
+// Navigation guard (onBeforeRouteLeave) handles in-app navigation protection
 </script>
 
 <style scoped lang="scss">
