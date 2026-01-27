@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 
 ## Current Position
 
-Phase: 8 of 12 (Timer System) - IN PROGRESS
-Plan: 3 of 4 in Phase 8
-Status: In progress
-Last activity: 2026-01-27 - Completed 08-03-PLAN.md (Timer UI Components)
+Phase: 8 of 12 (Timer System) - COMPLETE
+Plan: 4 of 4 in Phase 8
+Status: Phase complete
+Last activity: 2026-01-27 - Completed 08-04-PLAN.md (DayPlayer Timer Integration)
 
-Progress: [██████░░░░] 65% (31/48 plans complete)
+Progress: [██████░░░░] 67% (32/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 31
-- Average duration: 4.3 min
-- Total execution time: 2.9 hours
+- Total plans completed: 32
+- Average duration: 4.2 min
+- Total execution time: 3.0 hours
 
 **By Phase:**
 
@@ -76,11 +76,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
-| 08-timer-system | 3 | 22min | 7.3min |
+| 08-timer-system | 4 | 25min | 6.3min |
 
 **Recent Trend:**
-- Last 3 plans: 08-01 (8min - TDD), 08-02 (12min - composables), 08-03 (2min - UI components)
-- Trend: Phase 8 averaging ~7min per plan (TDD + composable + UI)
+- Last 3 plans: 08-02 (12min - composables), 08-03 (2min - UI components), 08-04 (3min - DayPlayer integration)
+- Trend: Phase 8 complete at 25min total, 6.3min avg per plan
 
 *Updated after each plan completion*
 
@@ -185,6 +185,10 @@ Recent decisions affecting current work:
 | 08-02 | cleanup() method for composables | Per Phase 7: no onUnmounted inside composables, expose cleanup() instead |
 | 08-02 | STRAIGHT_SETS as no-op timer | Returns zero values, avoids conditional logic in consuming components |
 | 08-02 | 100ms polling interval | Smooth display (10x/sec) without battery drain |
+| 08-04 | Protocol timer managed by DayPlayer, not useSessionPlayer | Session player handles session-level concerns; protocol timers are per-block and UI-coupled |
+| 08-04 | Timer recreated on block advance via watch | Each block may have different protocol type; clean lifecycle per block |
+| 08-04 | handleTimerComplete() separate from completeBlock() | Timer-triggered completion needs timer cleanup before block advance |
+| 08-04 | @capacitor/app installed for background detection | appStateChange listener needed to auto-stop protocol timer on background |
 
 ### Pending Todos
 
@@ -199,26 +203,22 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 08-03-PLAN.md (Timer UI Components)
-Resume file: `.planning/phases/08-timer-system/08-03-SUMMARY.md`
+Stopped at: Completed 08-04-PLAN.md (DayPlayer Timer Integration)
+Resume file: `.planning/phases/08-timer-system/08-04-SUMMARY.md`
 
-**Phase 8-03 complete.** Timer UI components:
-- BlockHeader modified to flex layout with timer display (left: name+route, right: timer)
-- TimerControls component with start/stop/play button states
-- All timer props optional - fully backward compatible with Phase 7
-- Monospace font with smooth color transitions for timer text
-
-**Phase 8-02 complete.** Core timer composables with drift correction and audio/haptic cues.
-
-**Phase 8-01 complete.** TDD implementation with vitest for format parser.
+**Phase 8 COMPLETE.** Timer System fully integrated:
+- 08-01: Timer format parsing with TDD (vitest)
+- 08-02: Core timer composables (useProtocolTimer, useTimerAudio) with drift correction
+- 08-03: Timer UI components (BlockHeader update, TimerControls)
+- 08-04: DayPlayer integration with background detection, auto-completion, conditional controls
 
 **Phase 7 complete** with UAT and 10 bug fixes.
 
 **Issues identified for future:**
 - Level display shows "ALFA_DELTA" instead of user's level (Phase 9)
 - Same sessions for Alfa/Delta users (Phase 9)
-- Timer accuracy testing needed on real devices (Phase 8 continuation)
+- Timer accuracy testing needed on real devices
 
 Next steps:
-1. Continue Phase 8 (Timer System) - Plans 08-03 (Timer UI), 08-04 (Block Integration)
-2. Phase 9 (Level-Specific Sessions) addresses session differentiation
+1. Phase 9 (Level-Specific Sessions) addresses session differentiation
+2. Real-device timer testing when hardware available
