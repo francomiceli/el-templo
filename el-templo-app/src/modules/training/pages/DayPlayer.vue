@@ -291,11 +291,6 @@ function onSplashComplete(): void {
 function onDeuterosSelect(choice: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   if (player.value) {
     player.value.selectDeuteros(choice);
-
-    // Show transition to selected Deuteros block
-    transitionCompletedBlock.value = 'Nucleus';
-    transitionNextBlock.value = 'Deuteros';
-    showBlockTransition.value = true;
   }
 }
 
@@ -358,14 +353,11 @@ async function completeBlock(): Promise<void> {
     return;
   }
 
-  // If going to Deuteros choice, don't show transition splash
-  if (player.value.needsDeuterosChoice.value) {
-    return;
-  }
-
-  // Show transition splash for next block
+  // Show transition splash for next block (including before Deuteros choice)
   transitionCompletedBlock.value = completedName;
-  transitionNextBlock.value = nextName;
+  transitionNextBlock.value = player.value.needsDeuterosChoice.value
+    ? 'Elige Deuteros'
+    : nextName;
   showBlockTransition.value = true;
 }
 
