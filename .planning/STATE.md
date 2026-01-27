@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 7 of 11 (Day Player)
-Plan: 1 of 5 in Phase 7
+Plan: 2 of 5 in Phase 7
 Status: In progress
-Last activity: 2026-01-27 - Completed 07-01-PLAN.md (Day Player foundation layer)
+Last activity: 2026-01-27 - Completed 07-02-PLAN.md (Day Player core display components)
 
-Progress: [██████░░░░] 55% (6/11 phases complete, 20% of Phase 7 complete)
+Progress: [██████░░░░] 58% (6/11 phases complete, 40% of Phase 7 complete)
 
 ## Architecture Reset
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24
-- Average duration: 4.1 min
+- Total plans completed: 25
+- Average duration: 4.0 min
 - Total execution time: 1.7 hours
 
 **By Phase:**
@@ -75,11 +75,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 04-spom-engine | 3 | 14min | 4.7min |
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
-| 07-day-player | 1 | 4min | 4.0min |
+| 07-day-player | 2 | 6min | 3.0min |
 
 **Recent Trend:**
-- Last 3 plans: 06-03 (2min), 06-04 (2min), 07-01 (4min)
-- Trend: Strong velocity continues, infrastructure tasks take slightly longer
+- Last 3 plans: 06-04 (2min), 07-01 (4min), 07-02 (2min)
+- Trend: Strong velocity continues, component tasks completing quickly
 
 *Updated after each plan completion*
 
@@ -162,6 +162,9 @@ Recent decisions affecting current work:
 | 07-01 | Type declarations for optional plugin | TypeScript compiles even when plugin not installed |
 | 07-01 | Timer persistence every 10 seconds | Balance between data safety and storage write frequency |
 | 07-01 | 4-block playable flow | User picks one Deuteros, so only 4 blocks to complete |
+| 07-02 | All 4 iOS video attributes required | autoplay, loop, muted, playsinline for Safari autoplay |
+| 07-02 | Progress bar divides by 4, not 5 | User completes 4 blocks (chooses one Deuteros) |
+| 07-02 | ExerciseCard shows reps OR seconds | Exercise is either rep-based or time-based, never both |
 
 ### Pending Todos
 
@@ -176,16 +179,14 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 07-01-PLAN.md (Day Player foundation layer)
-Resume file: `.planning/phases/07-day-player/07-01-SUMMARY.md`
+Stopped at: Completed 07-02-PLAN.md (Day Player core display components)
+Resume file: `.planning/phases/07-day-player/07-02-SUMMARY.md`
 
-**Phase 7 in progress.** Plan 07-01 complete:
-- Session player store with Capacitor persistence (sessionPlayerStore.ts)
-- Screen wake lock composable for web and native (useWakeLock.ts)
-- Session player composable managing 4-block flow (useSessionPlayer.ts)
-- Block accent colors and time formatting utilities
-- Type declarations for optional KeepAwake plugin
+**Phase 7 in progress.** Plan 07-02 complete:
+- VideoPlaceholder component with iOS-compatible autoplay (104 lines)
+- ProgressBar component for 4-block session progress (84 lines)
+- ExerciseCard component for exercise detail display (151 lines)
 
 Next steps:
-1. Continue Phase 7 with plan 07-02 (Splash screen and DayPlayer page)
-2. Complete remaining plans: 07-03 (block view), 07-04 (exercise view), 07-05 (UAT)
+1. Continue Phase 7 with plan 07-03 (block view components)
+2. Complete remaining plans: 07-04 (exercise view), 07-05 (UAT)
