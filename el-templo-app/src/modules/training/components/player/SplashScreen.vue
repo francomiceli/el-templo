@@ -4,22 +4,22 @@
     :class="{ 'fade-out': isFading }"
   >
     <div class="splash-content column items-center q-gutter-y-md">
-      <!-- Logo placeholder -->
+      <!-- Logo/Icon -->
       <div class="logo-container">
-        <q-icon name="fitness_center" size="80px" color="white" />
+        <q-icon :name="iconName" size="80px" color="white" />
       </div>
 
-      <!-- Session info -->
+      <!-- Session info or completed block -->
       <div class="session-info text-center">
         <div class="text-h6 text-white text-weight-medium">
-          {{ sessionLabel }}
+          {{ topLabel }}
         </div>
       </div>
 
-      <!-- Motivational message -->
+      <!-- Motivational message or next block -->
       <div class="motivation text-center">
         <div class="text-h5 text-white text-weight-bold">
-          Vamos a entrenar!
+          {{ mainMessage }}
         </div>
       </div>
 
@@ -42,16 +42,56 @@ interface SessionInfo {
 }
 
 interface Props {
-  /** Session metadata to display */
-  sessionInfo: SessionInfo;
+  /** Session metadata to display (for initial splash) */
+  sessionInfo?: SessionInfo;
+  /** Completed block name (for transition splash) */
+  completedBlock?: string;
+  /** Next block name (for transition splash) */
+  nextBlock?: string;
+  /** Splash duration in ms (default: 2500) */
+  duration?: number;
 }
 
 interface Emits {
   (e: 'complete'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  duration: 2500,
+});
 const emit = defineEmits<Emits>();
+
+/** Whether this is a block transition (vs initial splash) */
+const isTransition = computed(() => !!props.nextBlock || !!props.completedBlock);
+
+/** Icon to display */
+const iconName = computed(() => {
+  if (isTransition.value) {
+    return 'check_circle';
+  }
+  return 'fitness_center';
+});
+
+/** Top label text */
+const topLabel = computed(() => {
+  if (props.completedBlock) {
+    return `${props.completedBlock} completado!`;
+  }
+  if (props.sessionInfo) {
+    const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1);
+    const group = props.sessionInfo.levelGroup.toUpperCase().replace('_', ' ');
+    return `${day} - ${group}`;
+  }
+  return '';
+});
+
+/** Main message text */
+const mainMessage = computed(() => {
+  if (props.nextBlock) {
+    return `Siguiente: ${props.nextBlock}`;
+  }
+  return 'Vamos a entrenar!';
+});
 
 /** Fade-out animation state */
 const isFading = ref(false);
@@ -60,24 +100,15 @@ const isFading = ref(false);
 let splashTimer: ReturnType<typeof setTimeout> | null = null;
 let fadeTimer: ReturnType<typeof setTimeout> | null = null;
 
-/**
- * Format session info as "Lunes - ALFA_DELTA"
- */
-const sessionLabel = computed(() => {
-  const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1);
-  const group = props.sessionInfo.levelGroup.toUpperCase().replace('_', ' ');
-  return `${day} - ${group}`;
-});
-
 onMounted(() => {
-  // Start fade out after 2.5 seconds
+  // Start fade out after duration
   splashTimer = setTimeout(() => {
     isFading.value = true;
     // Complete after fade animation (0.5s)
     fadeTimer = setTimeout(() => {
       emit('complete');
     }, 500);
-  }, 2500);
+  }, props.duration);
 });
 
 onUnmounted(() => {

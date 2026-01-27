@@ -1,10 +1,19 @@
 <template>
   <q-page class="day-player">
-    <!-- Splash Screen Overlay -->
+    <!-- Initial Splash Screen Overlay -->
     <SplashScreen
       v-if="showSplash && session"
       :session-info="sessionInfo"
       @complete="onSplashComplete"
+    />
+
+    <!-- Block Transition Splash -->
+    <SplashScreen
+      v-else-if="showBlockTransition"
+      :completed-block="transitionCompletedBlock"
+      :next-block="transitionNextBlock"
+      :duration="1500"
+      @complete="onTransitionComplete"
     />
 
     <!-- Loading State -->
@@ -160,6 +169,11 @@ const session = computed(() => weekDay.value?.session ?? null);
 const splashDismissed = ref(false);
 const isInitialized = ref(false);
 
+// Block transition splash state
+const showBlockTransition = ref(false);
+const transitionCompletedBlock = ref('');
+const transitionNextBlock = ref('');
+
 // Session player composable (created when session is available)
 const player = computed(() => {
   if (!session.value) return null;
@@ -277,7 +291,48 @@ function onSplashComplete(): void {
 function onDeuterosSelect(choice: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   if (player.value) {
     player.value.selectDeuteros(choice);
+
+    // Show transition to selected Deuteros block
+    transitionCompletedBlock.value = 'Nucleus';
+    transitionNextBlock.value = 'Deuteros';
+    showBlockTransition.value = true;
   }
+}
+
+/** Get display name for a block role */
+function getBlockDisplayName(role: string): string {
+  const names: Record<string, string> = {
+    INITIUM: 'Initium',
+    NUCLEUS: 'Nucleus',
+    DEUTEROS_1: 'Deuteros',
+    DEUTEROS_2: 'Deuteros',
+    ATHLOS_EPIKOS: 'Athlos',
+  };
+  return names[role] || role;
+}
+
+/** Get the next block after completing current one */
+function getNextBlockName(): string {
+  if (!player.value) return '';
+
+  const currentRole = player.value.currentBlock.value?.role;
+  if (!currentRole) return '';
+
+  // If completing NUCLEUS, next is Deuteros choice (no specific block yet)
+  if (currentRole === 'NUCLEUS' && !player.value.deuterosChoice.value) {
+    return 'Deuteros';
+  }
+
+  // Otherwise, look at playable blocks to find next
+  const blocks = player.value.playableBlocks.value;
+  const currentIndex = player.value.currentBlockIndex.value;
+  const nextBlock = blocks[currentIndex + 1];
+
+  if (nextBlock) {
+    return getBlockDisplayName(nextBlock.role);
+  }
+
+  return '';
 }
 
 async function completeBlock(): Promise<void> {
@@ -290,13 +345,34 @@ async function completeBlock(): Promise<void> {
     return;
   }
 
+  // Get current block name before completing
+  const completedName = currentBlockName.value;
+  const nextName = getNextBlockName();
+
   // Complete current block
   await player.value.completeBlock();
 
   // Check if session just completed
   if (player.value.isSessionComplete.value) {
     await finishSession();
+    return;
   }
+
+  // If going to Deuteros choice, don't show transition splash
+  if (player.value.needsDeuterosChoice.value) {
+    return;
+  }
+
+  // Show transition splash for next block
+  transitionCompletedBlock.value = completedName;
+  transitionNextBlock.value = nextName;
+  showBlockTransition.value = true;
+}
+
+function onTransitionComplete(): void {
+  showBlockTransition.value = false;
+  transitionCompletedBlock.value = '';
+  transitionNextBlock.value = '';
 }
 
 async function finishSession(): Promise<void> {
