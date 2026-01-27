@@ -19,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 5: Session Generation** - Daily session generation from SPOM week + member level
 - [x] **Phase 6: Weekly View** - 7-day calendar with session preview and completion status
 - [x] **Phase 7: Day Player** - Block flow UI, exercise display, video placeholders
-- [ ] **Phase 8: Timer System** - EMOM, AMRAP, For Time timers with background handling
+- [x] **Phase 8: Timer System** - EMOM, AMRAP, For Time timers with background handling
 - [ ] **Phase 9: Level-Specific Sessions** - Differentiate exercises by user level (Alfa vs Delta vs Sigma)
 - [ ] **Phase 10: Session Completion & Logging** - RPE input, session summary, full event audit trail
 - [ ] **Phase 11: Progression & Coach Functions** - Level display, RPE trends, coach promotion, block overrides
@@ -209,11 +209,11 @@ Waves:
 **Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 08-01-PLAN.md — Timer format parser (TDD: map format names to protocol types)
-- [ ] 08-02-PLAN.md — Protocol timer composables + audio/haptic cues
-- [ ] 08-03-PLAN.md — BlockHeader timer display + TimerControls component
-- [ ] 08-04-PLAN.md — DayPlayer timer integration (wiring, auto-complete, background)
-- [ ] 08-05-PLAN.md — Human verification checkpoint
+- [x] 08-01-PLAN.md — Timer format parser (TDD: map format names to protocol types)
+- [x] 08-02-PLAN.md — Protocol timer composables + audio/haptic cues
+- [x] 08-03-PLAN.md — BlockHeader timer display + TimerControls component
+- [x] 08-04-PLAN.md — DayPlayer timer integration (wiring, auto-complete, background)
+- [x] 08-05-PLAN.md — Action bar layout fixes (gap closure: mobile overlap + desktop width)
 
 Waves:
 - Wave 1: 08-01, 08-02 (parallel - format parser + timer composables)
@@ -299,7 +299,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 5. Session Generation | 5/5 | Complete | 2026-01-24 |
 | 6. Weekly View | 5/5 | Complete | 2026-01-26 |
 | 7. Day Player | 5/5 | Complete | 2026-01-27 |
-| 8. Timer System | 0/0 | Not started | - |
+| 8. Timer System | 5/5 | Complete | 2026-01-27 |
 | 9. Level-Specific Sessions | 0/0 | Not started | - |
 | 10. Session Completion & Logging | 0/0 | Not started | - |
 | 11. Progression & Coach Functions | 0/0 | Not started | - |
@@ -307,4 +307,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-27 — Phase 7 complete, Phase 9 (Level-Specific Sessions) added*
+*Last updated: 2026-01-27 — Phase 8 complete with UAT gap closure*
