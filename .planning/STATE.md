@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 8 of 12 (Timer System) - COMPLETE
-Plan: 4 of 4 in Phase 8
-Status: Phase complete
-Last activity: 2026-01-27 - Completed 08-04-PLAN.md (DayPlayer Timer Integration)
+Plan: 5 of 5 in Phase 8
+Status: Phase complete (including gap closure)
+Last activity: 2026-01-27 - Completed 08-05-PLAN.md (Action Bar Layout Fixes)
 
-Progress: [██████░░░░] 67% (32/48 plans complete)
+Progress: [██████░░░░] 69% (33/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32
-- Average duration: 4.2 min
+- Total plans completed: 33
+- Average duration: 4.1 min
 - Total execution time: 3.0 hours
 
 **By Phase:**
@@ -76,11 +76,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
-| 08-timer-system | 4 | 25min | 6.3min |
+| 08-timer-system | 5 | 27min | 5.4min |
 
 **Recent Trend:**
-- Last 3 plans: 08-02 (12min - composables), 08-03 (2min - UI components), 08-04 (3min - DayPlayer integration)
-- Trend: Phase 8 complete at 25min total, 6.3min avg per plan
+- Last 3 plans: 08-03 (2min - UI components), 08-04 (3min - DayPlayer integration), 08-05 (2min - layout fixes)
+- Trend: Phase 8 complete at 27min total, 5.4min avg per plan
 
 *Updated after each plan completion*
 
@@ -189,6 +189,9 @@ Recent decisions affecting current work:
 | 08-04 | Timer recreated on block advance via watch | Each block may have different protocol type; clean lifecycle per block |
 | 08-04 | handleTimerComplete() separate from completeBlock() | Timer-triggered completion needs timer cleanup before block advance |
 | 08-04 | @capacitor/app installed for background detection | appStateChange listener needed to auto-stop protocol timer on background |
+| 08-05 | 160px padding-bottom for action bar clearance | Worst-case stacked action bar height ~170px (timer + Listo + padding + safe-area), 160px sufficient |
+| 08-05 | 500px max-width for desktop action bar | Reasonable button width, centered with auto margins, collapses to full-width on mobile |
+| 08-05 | Remove component padding when parent provides spacing | TimerControls redundant 16px padding removed, parent provides padding |
 
 ### Pending Todos
 
@@ -203,14 +206,15 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 08-04-PLAN.md (DayPlayer Timer Integration)
-Resume file: `.planning/phases/08-timer-system/08-04-SUMMARY.md`
+Stopped at: Completed 08-05-PLAN.md (Action Bar Layout Fixes)
+Resume file: `.planning/phases/08-timer-system/08-05-SUMMARY.md`
 
 **Phase 8 COMPLETE.** Timer System fully integrated:
 - 08-01: Timer format parsing with TDD (vitest)
 - 08-02: Core timer composables (useProtocolTimer, useTimerAudio) with drift correction
 - 08-03: Timer UI components (BlockHeader update, TimerControls)
 - 08-04: DayPlayer integration with background detection, auto-completion, conditional controls
+- 08-05: Layout fixes for mobile/desktop (gap closure)
 
 **Phase 7 complete** with UAT and 10 bug fixes.
 
