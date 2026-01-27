@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 7 of 11 (Day Player)
-Plan: 2 of 5 in Phase 7
+Plan: 3 of 5 in Phase 7
 Status: In progress
-Last activity: 2026-01-27 - Completed 07-02-PLAN.md (Day Player core display components)
+Last activity: 2026-01-27 - Completed 07-03-PLAN.md (Block interaction components)
 
-Progress: [██████░░░░] 58% (6/11 phases complete, 40% of Phase 7 complete)
+Progress: [██████░░░░] 60% (6/11 phases complete, 60% of Phase 7 complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25
-- Average duration: 4.0 min
-- Total execution time: 1.7 hours
+- Total plans completed: 26
+- Average duration: 3.9 min
+- Total execution time: 1.8 hours
 
 **By Phase:**
 
@@ -75,10 +75,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 04-spom-engine | 3 | 14min | 4.7min |
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
-| 07-day-player | 2 | 6min | 3.0min |
+| 07-day-player | 3 | 9min | 3.0min |
 
 **Recent Trend:**
-- Last 3 plans: 06-04 (2min), 07-01 (4min), 07-02 (2min)
+- Last 3 plans: 07-01 (4min), 07-02 (2min), 07-03 (3min)
 - Trend: Strong velocity continues, component tasks completing quickly
 
 *Updated after each plan completion*
@@ -165,6 +165,10 @@ Recent decisions affecting current work:
 | 07-02 | All 4 iOS video attributes required | autoplay, loop, muted, playsinline for Safari autoplay |
 | 07-02 | Progress bar divides by 4, not 5 | User completes 4 blocks (chooses one Deuteros) |
 | 07-02 | ExerciseCard shows reps OR seconds | Exercise is either rep-based or time-based, never both |
+| 07-03 | Accordion emits selectedIndex for parent video sync | Parent controls video display, accordion signals selection changes |
+| 07-03 | SplashScreen uses 2.5s display + 0.5s fade | 3s total matches spec, fade provides polish |
+| 07-03 | DeuterosChoice uses CSS scroll-snap with 85% width | Native scroll best performance, 85% shows peek of next card |
+| 07-03 | Contraction badges colored by type | Visual distinction: CON=blue-grey, EXC=teal, ISO=orange |
 
 ### Pending Todos
 
@@ -179,14 +183,15 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 07-02-PLAN.md (Day Player core display components)
-Resume file: `.planning/phases/07-day-player/07-02-SUMMARY.md`
+Stopped at: Completed 07-03-PLAN.md (Block interaction components)
+Resume file: `.planning/phases/07-day-player/07-03-SUMMARY.md`
 
-**Phase 7 in progress.** Plan 07-02 complete:
-- VideoPlaceholder component with iOS-compatible autoplay (104 lines)
-- ProgressBar component for 4-block session progress (84 lines)
-- ExerciseCard component for exercise detail display (151 lines)
+**Phase 7 in progress.** Plan 07-03 complete:
+- BlockHeader component with accent color border (56 lines)
+- SplashScreen with auto-proceed after 3s (129 lines)
+- ExerciseList with accordion behavior (220 lines)
+- DeuterosChoice with swipeable selection (313 lines)
 
 Next steps:
-1. Continue Phase 7 with plan 07-03 (block view components)
-2. Complete remaining plans: 07-04 (exercise view), 07-05 (UAT)
+1. Continue Phase 7 with plan 07-04 (DayPlayer page assembly)
+2. Complete remaining plans: 07-05 (UAT)
