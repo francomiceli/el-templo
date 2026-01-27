@@ -1,4 +1,4 @@
-import { ref, computed, onUnmounted, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore';
 import type { Session, Block, BlockRole } from '../types/session';
 
@@ -279,12 +279,16 @@ export function useSessionPlayer(session: Session) {
     completedBlocks.value = [];
   }
 
-  // Cleanup on unmount
-  onUnmounted(() => {
+  /**
+   * Cleanup function - call when component unmounts
+   * Note: Not using onUnmounted internally because composable may be
+   * called from computed() which is outside setup context
+   */
+  function cleanup(): void {
     pauseTimer();
     // Persist final state
     void persistTimerState();
-  });
+  }
 
   return {
     // State
@@ -317,5 +321,6 @@ export function useSessionPlayer(session: Session) {
     // Lifecycle
     initialize,
     clearProgress,
+    cleanup,
   };
 }

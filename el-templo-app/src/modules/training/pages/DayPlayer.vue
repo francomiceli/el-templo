@@ -118,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
 
@@ -535,6 +535,13 @@ watch(session, async (newSession) => {
 // Load week data on mount if store is empty (handles F5 refresh)
 onMounted(() => {
   loadWeekDataIfEmpty();
+});
+
+// Cleanup player on unmount
+onUnmounted(() => {
+  if (player.value) {
+    player.value.cleanup();
+  }
 });
 </script>
 
