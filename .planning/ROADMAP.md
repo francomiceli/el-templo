@@ -170,7 +170,7 @@ Waves:
 - Wave 4: 06-05 (human verification checkpoint)
 
 ### Phase 7: Day Player
-**Goal**: Members execute sessions through guided 5-block flow with exercise display and format indicators
+**Goal**: Members execute sessions through guided 4-block flow (after Deuteros choice) with exercise display, video placeholders, and block completion
 **Depends on**: Phase 6
 **Requirements**: PLAY-01 through PLAY-11
 **Success Criteria** (what must be TRUE):
@@ -179,10 +179,20 @@ Waves:
   3. Each block displays exercise list with reps/duration, format type, and video placeholder
   4. Member taps "Complete Block" to progress to next block
   5. Screen stays awake during active session (no auto-lock)
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Session player store, wake lock, composables, utilities
+- [ ] 07-02-PLAN.md — VideoPlaceholder, ProgressBar, ExerciseCard components
+- [ ] 07-03-PLAN.md — BlockHeader, ExerciseList, DeuterosChoice, SplashScreen components
+- [ ] 07-04-PLAN.md — DayPlayer page assembly and route update
+- [ ] 07-05-PLAN.md — Human verification checkpoint
+
+Waves:
+- Wave 1: 07-01 (foundation - store, composables, utilities)
+- Wave 2: 07-02, 07-03 (parallel - core components + block components)
+- Wave 3: 07-04 (page assembly - depends on 07-02 + 07-03)
+- Wave 4: 07-05 (human verification checkpoint)
 
 ### Phase 8: Timer System
 **Goal**: Members can execute timed protocols (EMOM, AMRAP, For Time) with reliable background operation
@@ -262,7 +272,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 4. SPOM Engine | 3/3 | Complete | 2026-01-23 |
 | 5. Session Generation | 5/5 | Complete | 2026-01-24 |
 | 6. Weekly View | 5/5 | Complete | 2026-01-26 |
-| 7. Day Player | 0/0 | Not started | - |
+| 7. Day Player | 0/5 | Planning complete | - |
 | 8. Timer System | 0/0 | Not started | - |
 | 9. Session Completion & Logging | 0/0 | Not started | - |
 | 10. Progression & Coach Functions | 0/0 | Not started | - |
@@ -270,4 +280,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-26 — Phase 6 complete (swipeable day cards with integrated blocks)*
+*Last updated: 2026-01-26 — Phase 7 planned (5 plans in 4 waves)*
