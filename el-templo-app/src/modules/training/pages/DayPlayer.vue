@@ -89,6 +89,9 @@
             :block-name="currentBlockName"
             :block-role="currentBlock.role"
             :route="currentBlock.route"
+            :show-timer="hasTimer && timerStarted"
+            :timer-display="protocolTimer?.displayText.value"
+            :timer-color-class="protocolTimer?.timerColorClass.value"
           />
 
           <!-- Exercise List -->
@@ -101,15 +104,40 @@
           />
         </div>
 
-        <!-- Complete Block Button -->
+        <!-- Action Area: Complete Block or Timer Controls -->
         <div class="day-player__action">
+          <!-- Straight Sets: existing Complete Block button -->
           <q-btn
+            v-if="!hasTimer"
             color="primary"
             unelevated
             :label="completeButtonLabel"
             class="full-width"
             size="lg"
             @click="completeBlock"
+          />
+
+          <!-- Timed blocks: Timer controls (start/stop/play) -->
+          <TimerControls
+            v-else
+            :is-running="protocolTimer?.isRunning.value ?? false"
+            :is-complete="protocolTimer?.isComplete.value ?? false"
+            :block-role="currentBlock?.role ?? 'NUCLEUS'"
+            @start="onTimerStart"
+            @stop="onTimerStop"
+            @play="onTimerResume"
+          />
+
+          <!-- For Time: show "Listo!" button while timer is running -->
+          <q-btn
+            v-if="hasTimer && protocolType === 'FOR_TIME' && timerStarted && protocolTimer?.isRunning.value"
+            color="positive"
+            unelevated
+            label="Listo!"
+            class="full-width q-mt-sm"
+            size="lg"
+            icon="check"
+            @click="onForTimeDone"
           />
         </div>
       </template>
@@ -129,9 +157,12 @@ import ProgressBar from '../components/player/ProgressBar.vue';
 import VideoPlaceholder from '../components/player/VideoPlaceholder.vue';
 import BlockHeader from '../components/player/BlockHeader.vue';
 import ExerciseList from '../components/player/ExerciseList.vue';
+import TimerControls from '../components/player/TimerControls.vue';
 
 // Composables and Stores
 import { useSessionPlayer } from '../composables/useSessionPlayer';
+import { useProtocolTimer, type ProtocolTimerReturn } from '../composables/useProtocolTimer';
+import { useTimerAudio } from '../composables/useTimerAudio';
 import { useWakeLock } from '../composables/useWakeLock';
 import { useWeekStore } from '../stores/weekStore';
 import { useWeekData } from '../composables/useWeekData';
@@ -139,7 +170,12 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 
 // Utils
 import { getRouteName } from '../utils/routeNames';
+import { parseProtocolType, getProtocolParams } from '../utils/timerFormats';
 import type { WeekDay } from '../types/session';
+
+// Capacitor
+import { App } from '@capacitor/app';
+import type { PluginListenerHandle } from '@capacitor/core';
 
 /**
  * Day Player Page
@@ -177,6 +213,25 @@ const isInitialized = ref(false);
 const showBlockTransition = ref(false);
 const transitionCompletedBlock = ref('');
 const transitionNextBlock = ref('');
+
+// Protocol timer state
+const timerAudio = useTimerAudio();
+const protocolTimer = ref<ProtocolTimerReturn | null>(null);
+const timerStarted = ref(false);
+let appStateListener: PluginListenerHandle | null = null;
+
+/**
+ * Protocol type of the current block (EMOM, AMRAP, FOR_TIME, STRAIGHT_SETS)
+ */
+const protocolType = computed(() => {
+  if (!currentBlock.value) return 'STRAIGHT_SETS';
+  return parseProtocolType(currentBlock.value.format);
+});
+
+/**
+ * Whether the current block uses a protocol timer (not STRAIGHT_SETS)
+ */
+const hasTimer = computed(() => protocolType.value !== 'STRAIGHT_SETS');
 
 // Session player composable (created when session is available)
 const player = computed(() => {
@@ -413,6 +468,90 @@ function onTransitionComplete(): void {
   transitionNextBlock.value = '';
 }
 
+// Protocol timer event handlers
+
+/**
+ * Start protocol timer on user tap ("Iniciar Timer")
+ */
+function onTimerStart(): void {
+  timerAudio.unlockAudio(); // Unlock audio on first user interaction
+  protocolTimer.value?.start();
+  timerStarted.value = true;
+}
+
+/**
+ * Stop/pause protocol timer
+ */
+function onTimerStop(): void {
+  protocolTimer.value?.stop();
+}
+
+/**
+ * Resume protocol timer after stop
+ */
+function onTimerResume(): void {
+  protocolTimer.value?.resume();
+}
+
+/**
+ * Handle "Listo!" button for FOR_TIME protocol
+ * Stops timer and auto-completes the block
+ */
+function onForTimeDone(): void {
+  protocolTimer.value?.stop();
+  handleTimerComplete();
+}
+
+/**
+ * Handle timer auto-completion (EMOM/AMRAP finish, or FOR_TIME "Listo!")
+ * Same flow as completeBlock but triggered by timer events
+ */
+async function handleTimerComplete(): Promise<void> {
+  if (!player.value) return;
+
+  const completedName = currentBlockName.value;
+  const nextName = getNextBlockName();
+
+  // Cleanup current timer
+  protocolTimer.value?.cleanup();
+  protocolTimer.value = null;
+  timerStarted.value = false;
+
+  await player.value.completeBlock();
+
+  if (player.value.isSessionComplete.value) {
+    await finishSession();
+    return;
+  }
+
+  // Show transition splash
+  transitionCompletedBlock.value = completedName;
+  transitionNextBlock.value = player.value.needsDeuterosChoice.value
+    ? 'Elige Deuteros'
+    : nextName;
+  showBlockTransition.value = true;
+}
+
+/**
+ * Create a protocol timer for the given block (if it's timed)
+ */
+function createProtocolTimerForBlock(): void {
+  // Cleanup old timer
+  protocolTimer.value?.cleanup();
+  protocolTimer.value = null;
+  timerStarted.value = false;
+
+  // Create new timer for new block (if timed)
+  const block = player.value?.currentBlock.value;
+  if (block) {
+    const params = getProtocolParams(block);
+    if (params.type !== 'STRAIGHT_SETS') {
+      protocolTimer.value = useProtocolTimer(params, timerAudio);
+      protocolTimer.value.onComplete(() => handleTimerComplete());
+    }
+  }
+}
+
 async function finishSession(): Promise<void> {
   // Release wake lock
   await wakeLock.releaseWakeLock();
@@ -532,16 +671,38 @@ watch(session, async (newSession) => {
 // Note: beforeunload handler removed as it's disruptive on page reload
 // Navigation guard (onBeforeRouteLeave) handles in-app navigation protection
 
-// Load week data on mount if store is empty (handles F5 refresh)
-onMounted(() => {
-  loadWeekDataIfEmpty();
+// Watch block index to recreate protocol timer when advancing blocks
+watch(() => player.value?.currentBlockIndex.value, (newIndex, oldIndex) => {
+  if (newIndex !== undefined && newIndex !== oldIndex) {
+    createProtocolTimerForBlock();
+  }
 });
 
-// Cleanup player on unmount
+// Load week data on mount if store is empty (handles F5 refresh)
+// Also register background detection for protocol timer auto-stop
+onMounted(async () => {
+  loadWeekDataIfEmpty();
+
+  // Background detection - auto-stop protocol timer when app goes to background
+  try {
+    appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
+      if (!isActive && protocolTimer.value?.isRunning.value) {
+        protocolTimer.value.stop();
+      }
+      // Session timer keeps running (per phase 8 context decision)
+    });
+  } catch {
+    // App plugin not available on web - that's fine
+  }
+});
+
+// Cleanup player and protocol timer on unmount
 onUnmounted(() => {
   if (player.value) {
     player.value.cleanup();
   }
+  protocolTimer.value?.cleanup();
+  appStateListener?.remove();
 });
 </script>
 
