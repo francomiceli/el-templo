@@ -128,7 +128,7 @@ interface Emits {
   (e: 'select', choice: DeuterosChoice): void;
 }
 
-const props = defineProps<Props>();
+defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 /** Currently selected option */
