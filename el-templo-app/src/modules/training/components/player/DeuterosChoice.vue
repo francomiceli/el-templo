@@ -5,9 +5,6 @@
       <div class="text-h5 text-weight-bold">
         Elige tu bloque Deuteros
       </div>
-      <div class="text-body2 text-grey-7 q-mt-xs">
-        Desliza para ver las opciones
-      </div>
     </div>
 
     <!-- Swipeable cards container -->
@@ -32,18 +29,12 @@
         <div class="card-content q-pa-md">
           <div class="exercises-preview">
             <div
-              v-for="(exercise, index) in getPreviewExercises(deuteros1)"
+              v-for="(exercise, index) in deuteros1.exercises"
               :key="exercise.exerciseId"
               class="exercise-preview-item text-body2"
             >
               <span class="text-grey-7">{{ index + 1 }}.</span>
               {{ exercise.exerciseName }}
-            </div>
-            <div
-              v-if="deuteros1.exercises.length > 3"
-              class="more-exercises text-caption text-grey-6 q-mt-xs"
-            >
-              +{{ deuteros1.exercises.length - 3 }} mas
             </div>
           </div>
           <div class="exercise-count q-mt-sm text-caption text-grey-7">
@@ -80,18 +71,12 @@
         <div class="card-content q-pa-md">
           <div class="exercises-preview">
             <div
-              v-for="(exercise, index) in getPreviewExercises(deuteros2)"
+              v-for="(exercise, index) in deuteros2.exercises"
               :key="exercise.exerciseId"
               class="exercise-preview-item text-body2"
             >
               <span class="text-grey-7">{{ index + 1 }}.</span>
               {{ exercise.exerciseName }}
-            </div>
-            <div
-              v-if="deuteros2.exercises.length > 3"
-              class="more-exercises text-caption text-grey-6 q-mt-xs"
-            >
-              +{{ deuteros2.exercises.length - 3 }} mas
             </div>
           </div>
           <div class="exercise-count q-mt-sm text-caption text-grey-7">
@@ -126,7 +111,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import type { Block, BlockRole, Prescription } from '../../types/session';
+import type { Block, BlockRole } from '../../types/session';
 import { getBlockColorClass, getBlockCSSColor } from '../../utils/blockColors';
 import { getRouteName } from '../../utils/routeNames';
 
@@ -163,13 +148,6 @@ function confirm(): void {
   if (selected.value) {
     emit('select', selected.value);
   }
-}
-
-/**
- * Get first 3 exercises for preview
- */
-function getPreviewExercises(block: Block): Prescription[] {
-  return block.exercises.slice(0, 3);
 }
 
 /**
@@ -218,46 +196,28 @@ const buttonColor = computed(() => {
 .cards-container {
   flex: 1;
   display: flex;
+  flex-direction: column;
   gap: 16px;
   padding: 16px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
 }
 
 .deuteros-card {
-  flex-shrink: 0;
-  width: 85%;
-  min-width: 280px;
-  max-width: 350px;
   border-radius: 16px;
   overflow: hidden;
-  scroll-snap-align: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   position: relative;
 
-  &:first-child {
-    margin-left: auto;
-  }
-
-  &:last-child {
-    margin-right: auto;
-  }
-
   &--selected {
-    transform: scale(1.02);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    outline: 3px solid currentColor;
   }
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.99);
   }
 }
 
@@ -286,10 +246,6 @@ const buttonColor = computed(() => {
   &:last-child {
     border-bottom: none;
   }
-}
-
-.more-exercises {
-  font-style: italic;
 }
 
 .exercise-count {
