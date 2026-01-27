@@ -10,7 +10,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: 'training/session/:date',
     name: 'day-player',
-    component: () => import('./pages/DayPlayerPlaceholder.vue'),
+    component: () => import('./pages/DayPlayer.vue'),
     meta: { requiresAuth: true }
   }
 ]
