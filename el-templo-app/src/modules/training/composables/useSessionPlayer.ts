@@ -100,6 +100,13 @@ export function useSessionPlayer(session: Session) {
   });
 
   /**
+   * Format string of the current block (for protocol timer creation)
+   */
+  const currentBlockFormat = computed<string | null>(() => {
+    return currentBlock.value?.format ?? null;
+  });
+
+  /**
    * Progress as fraction (0-1)
    */
   const progress = computed(() => {
@@ -219,6 +226,17 @@ export function useSessionPlayer(session: Session) {
     }
   }
 
+  /**
+   * Auto-complete the current block (triggered by protocol timer completion)
+   *
+   * Same behavior as completeBlock() but exists as a separate method
+   * for clarity — protocol timers call this, manual "Complete Block"
+   * buttons call completeBlock().
+   */
+  async function completeBlockAuto(): Promise<void> {
+    return completeBlock();
+  }
+
   // Deuteros selection
 
   /**
@@ -303,6 +321,7 @@ export function useSessionPlayer(session: Session) {
     // Computed
     playableBlocks,
     currentBlock,
+    currentBlockFormat,
     progress,
     needsDeuterosChoice,
     isSessionComplete,
@@ -315,6 +334,7 @@ export function useSessionPlayer(session: Session) {
 
     // Block/exercise navigation
     completeBlock,
+    completeBlockAuto,
     selectDeuteros,
     selectExercise,
 
