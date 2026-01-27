@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 8 of 12 (Timer System) - IN PROGRESS
-Plan: 1 of 4 in Phase 8
+Plan: 2 of 4 in Phase 8
 Status: In progress
-Last activity: 2026-01-27 - Completed 08-01-PLAN.md (Timer Format Parser)
+Last activity: 2026-01-27 - Completed 08-02-PLAN.md (Protocol Timer Composables)
 
-Progress: [██████░░░░] 61% (29/48 plans complete)
+Progress: [██████░░░░] 63% (30/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29
-- Average duration: 4.2 min
-- Total execution time: 2.7 hours
+- Total plans completed: 30
+- Average duration: 4.3 min
+- Total execution time: 2.9 hours
 
 **By Phase:**
 
@@ -76,11 +76,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 05-session-generation | 5 | 33min | 6.6min |
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
-| 08-timer-system | 1 | 8min | 8.0min |
+| 08-timer-system | 2 | 20min | 10.0min |
 
 **Recent Trend:**
-- Last 3 plans: 07-04 (3min), 07-05 (45min - UAT with bug fixes), 08-01 (8min - TDD)
-- Trend: TDD with test infrastructure setup added time, back to normal velocity
+- Last 3 plans: 07-05 (45min - UAT with bug fixes), 08-01 (8min - TDD), 08-02 (12min)
+- Trend: Phase 8 consistently ~10min per plan (TDD + composable implementation)
 
 *Updated after each plan completion*
 
@@ -180,6 +180,11 @@ Recent decisions affecting current work:
 | 08-01 | Exercise count determines EMOM rounds | Most logical mapping - 1 exercise per EMOM interval |
 | 08-01 | Default 10 minutes for AMRAP | Standard AMRAP duration, configurable in timer composables |
 | 08-01 | Default 60 seconds for EMOM interval | Standard "Every Minute On the Minute" definition |
+| 08-02 | Web Audio API over MP3 files | OscillatorNode generates beeps programmatically, no external file dependencies |
+| 08-02 | Haptic feedback with try/catch | Graceful web fallback when Capacitor Haptics not available |
+| 08-02 | cleanup() method for composables | Per Phase 7: no onUnmounted inside composables, expose cleanup() instead |
+| 08-02 | STRAIGHT_SETS as no-op timer | Returns zero values, avoids conditional logic in consuming components |
+| 08-02 | 100ms polling interval | Smooth display (10x/sec) without battery drain |
 
 ### Pending Todos
 
@@ -194,14 +199,17 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 08-01-PLAN.md (Timer Format Parser)
-Resume file: `.planning/phases/08-timer-system/08-01-SUMMARY.md`
+Stopped at: Completed 08-02-PLAN.md (Protocol Timer Composables)
+Resume file: `.planning/phases/08-timer-system/08-02-SUMMARY.md`
 
-**Phase 8-01 complete.** TDD implementation:
-- Installed vitest test framework
-- Created format parser mapping ~45 format names to 4 protocol types
-- 53 tests passing with 100% coverage
-- Established TDD workflow pattern for frontend utilities
+**Phase 8-02 complete.** Core timer composables:
+- Created useTimerAudio with Web Audio API beeps and Capacitor haptics
+- Created useProtocolTimer with EMOM/AMRAP/FOR_TIME/STRAIGHT_SETS modes
+- Drift-correcting timing pattern using Date.now() anchors
+- Timer color warnings (amber at 10s, red at 5s)
+- cleanup() method pattern for composable lifecycle
+
+**Phase 8-01 complete.** TDD implementation with vitest.
 
 **Phase 7 complete** with UAT and 10 bug fixes.
 
@@ -211,5 +219,5 @@ Resume file: `.planning/phases/08-timer-system/08-01-SUMMARY.md`
 - Timer accuracy testing needed on real devices (Phase 8 continuation)
 
 Next steps:
-1. Continue Phase 8 (Timer System) - Plans 08-02, 08-03, 08-04
+1. Continue Phase 8 (Timer System) - Plans 08-03 (Timer UI), 08-04 (Block Integration)
 2. Phase 9 (Level-Specific Sessions) addresses session differentiation
