@@ -118,7 +118,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
 
@@ -134,9 +134,12 @@ import ExerciseList from '../components/player/ExerciseList.vue';
 import { useSessionPlayer } from '../composables/useSessionPlayer';
 import { useWakeLock } from '../composables/useWakeLock';
 import { useWeekStore } from '../stores/weekStore';
+import { useWeekData } from '../composables/useWeekData';
+import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
 
 // Utils
 import { getRouteName } from '../utils/routeNames';
+import type { WeekDay } from '../types/session';
 
 /**
  * Day Player Page
@@ -155,6 +158,7 @@ const router = useRouter();
 const $q = useQuasar();
 const weekStore = useWeekStore();
 const wakeLock = useWakeLock();
+const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData();
 
 // Route parameter
 const dateParam = computed(() => route.params.date as string);
@@ -181,7 +185,49 @@ const player = computed(() => {
 });
 
 // Computed display states
-const isLoading = computed(() => !session.value && !weekDay.value);
+const isLoading = computed(() => weekLoading.value || (!session.value && !weekDay.value));
+
+/**
+ * Load week data from API if store is empty (e.g., after page refresh)
+ */
+async function loadWeekDataIfEmpty() {
+  // Skip if store already has data for the requested date
+  if (weekDay.value) return;
+
+  // Skip if already loading
+  if (weekLoading.value) return;
+
+  try {
+    // Get dates for current week (Monday-Sunday)
+    const dates = getWeekDates();
+
+    // Fetch sessions for all days
+    await fetchWeekSessions(dates);
+
+    // Build WeekDay objects combining calendar info + session data
+    const weekDays: WeekDay[] = dates.map((date) => {
+      const dateObj = new Date(date + 'T00:00:00');
+      const dayOfWeek = dateObj.getDay();
+      const sessionData = weekSessions.value.get(date) || null;
+
+      // TODO: Get completed dates from user activity store
+      const completedDates: string[] = [];
+
+      return {
+        date,
+        dayName: formatDayName(date),
+        dayOfWeek,
+        state: getDateState(date, completedDates),
+        session: sessionData,
+      };
+    });
+
+    // Update store with week data
+    weekStore.setWeekDays(weekDays);
+  } catch (err) {
+    console.error('Failed to load week data:', err);
+  }
+}
 
 const showSplash = computed(() =>
   !splashDismissed.value && session.value !== null
@@ -485,6 +531,11 @@ watch(session, async (newSession) => {
 
 // Note: beforeunload handler removed as it's disruptive on page reload
 // Navigation guard (onBeforeRouteLeave) handles in-app navigation protection
+
+// Load week data on mount if store is empty (handles F5 refresh)
+onMounted(() => {
+  loadWeekDataIfEmpty();
+});
 </script>
 
 <style scoped lang="scss">
