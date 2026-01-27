@@ -206,10 +206,20 @@ Waves:
   4. Straight Sets mode shows exercise list with sets/reps, no timer
   5. Timer can be paused and resumed, continues when app is backgrounded
   6. Audio/haptic cues fire at timer transitions
-**Plans**: TBD
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — Timer format parser (TDD: map format names to protocol types)
+- [ ] 08-02-PLAN.md — Protocol timer composables + audio/haptic cues
+- [ ] 08-03-PLAN.md — BlockHeader timer display + TimerControls component
+- [ ] 08-04-PLAN.md — DayPlayer timer integration (wiring, auto-complete, background)
+- [ ] 08-05-PLAN.md — Human verification checkpoint
+
+Waves:
+- Wave 1: 08-01, 08-02 (parallel - format parser + timer composables)
+- Wave 2: 08-03 (UI components - depends on 08-01 + 08-02)
+- Wave 3: 08-04 (page integration - depends on all prior)
+- Wave 4: 08-05 (human verification checkpoint)
 
 ### Phase 9: Level-Specific Sessions
 **Goal**: Sessions differentiate exercises by user's actual level, not just level group
