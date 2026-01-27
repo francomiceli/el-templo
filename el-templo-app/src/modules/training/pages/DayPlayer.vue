@@ -122,6 +122,7 @@
             v-else
             :is-running="protocolTimer?.isRunning.value ?? false"
             :is-complete="protocolTimer?.isComplete.value ?? false"
+            :was-started="timerStarted"
             :block-role="currentBlock?.role ?? 'NUCLEUS'"
             @start="onTimerStart"
             @stop="onTimerStop"
@@ -146,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
 
@@ -165,6 +166,7 @@ import { useProtocolTimer, type ProtocolTimerReturn } from '../composables/usePr
 import { useTimerAudio } from '../composables/useTimerAudio';
 import { useWakeLock } from '../composables/useWakeLock';
 import { useWeekStore } from '../stores/weekStore';
+import { useSessionPlayerStore } from '../stores/sessionPlayerStore';
 import { useWeekData } from '../composables/useWeekData';
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
 
@@ -193,6 +195,7 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const weekStore = useWeekStore();
+const sessionPlayerStore = useSessionPlayerStore();
 const wakeLock = useWakeLock();
 const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData();
 
@@ -216,7 +219,7 @@ const transitionNextBlock = ref('');
 
 // Protocol timer state
 const timerAudio = useTimerAudio();
-const protocolTimer = ref<ProtocolTimerReturn | null>(null);
+const protocolTimer = shallowRef<ProtocolTimerReturn | null>(null);
 const timerStarted = ref(false);
 let appStateListener: PluginListenerHandle | null = null;
 
@@ -477,12 +480,36 @@ function onTimerStart(): void {
   timerAudio.unlockAudio(); // Unlock audio on first user interaction
   protocolTimer.value?.start();
   timerStarted.value = true;
+
+  // Persist protocol timer state for reload recovery
+  const dayId = session.value?.dayId;
+  if (dayId) {
+    void sessionPlayerStore.saveProgress(dayId, {
+      protocolTimerStartedAt: Date.now(),
+      protocolTimerAccumulatedMs: 0,
+    });
+  }
 }
 
 /**
  * Stop/pause protocol timer
  */
 function onTimerStop(): void {
+  // Calculate accumulated ms before stopping
+  const dayId = session.value?.dayId;
+  if (dayId) {
+    void sessionPlayerStore.loadProgress(dayId).then((progress) => {
+      const startedAt = progress.protocolTimerStartedAt;
+      const prevAccumulated = progress.protocolTimerAccumulatedMs;
+      const newAccumulated = startedAt
+        ? prevAccumulated + (Date.now() - startedAt)
+        : prevAccumulated;
+      void sessionPlayerStore.saveProgress(dayId, {
+        protocolTimerStartedAt: null,
+        protocolTimerAccumulatedMs: newAccumulated,
+      });
+    });
+  }
   protocolTimer.value?.stop();
 }
 
@@ -491,6 +518,14 @@ function onTimerStop(): void {
  */
 function onTimerResume(): void {
   protocolTimer.value?.resume();
+
+  // Persist new start timestamp
+  const dayId = session.value?.dayId;
+  if (dayId) {
+    void sessionPlayerStore.saveProgress(dayId, {
+      protocolTimerStartedAt: Date.now(),
+    });
+  }
 }
 
 /**
@@ -517,6 +552,15 @@ async function handleTimerComplete(): Promise<void> {
   protocolTimer.value = null;
   timerStarted.value = false;
 
+  // Clear protocol timer persistence
+  const dayId = session.value?.dayId;
+  if (dayId) {
+    void sessionPlayerStore.saveProgress(dayId, {
+      protocolTimerStartedAt: null,
+      protocolTimerAccumulatedMs: 0,
+    });
+  }
+
   await player.value.completeBlock();
 
   if (player.value.isSessionComplete.value) {
@@ -530,6 +574,41 @@ async function handleTimerComplete(): Promise<void> {
     ? 'Elige Deuteros'
     : nextName;
   showBlockTransition.value = true;
+}
+
+/**
+ * Restore protocol timer state after page reload
+ * Calculates total elapsed ms from persisted timestamps and resumes the timer
+ */
+async function restoreProtocolTimer(dayId: string): Promise<void> {
+  const progress = await sessionPlayerStore.loadProgress(dayId);
+  const { protocolTimerStartedAt, protocolTimerAccumulatedMs } = progress;
+
+  // No timer was active
+  if (!protocolTimerStartedAt && protocolTimerAccumulatedMs === 0) return;
+
+  // Create the timer for current block
+  const block = player.value?.currentBlock.value;
+  if (!block) return;
+
+  const params = getProtocolParams(block);
+  if (params.type === 'STRAIGHT_SETS') return;
+
+  protocolTimer.value = useProtocolTimer(params, timerAudio);
+  protocolTimer.value.onComplete(() => handleTimerComplete());
+
+  if (protocolTimerStartedAt) {
+    // Timer was running — calculate total offset and resume
+    const totalMs = protocolTimerAccumulatedMs + (Date.now() - protocolTimerStartedAt);
+    protocolTimer.value.startWithOffset(totalMs);
+    timerStarted.value = true;
+  } else if (protocolTimerAccumulatedMs > 0) {
+    // Timer was stopped — restore in stopped state with correct display
+    protocolTimer.value.startWithOffset(protocolTimerAccumulatedMs);
+    // Immediately stop so user sees Play button with correct time
+    protocolTimer.value.stop();
+    timerStarted.value = true;
+  }
 }
 
 /**
@@ -659,17 +738,18 @@ watch(session, async (newSession) => {
       if (player.value.elapsedSeconds.value > 0 ||
           player.value.completedBlocks.value.length > 0) {
         splashDismissed.value = true;
-        // Resume timer
+        // Resume session timer
         player.value.startTimer();
         wakeLock.requestWakeLock();
+
+        // Restore protocol timer if it was active
+        await restoreProtocolTimer(newSession.dayId);
       }
     }
     isInitialized.value = true;
   }
 }, { immediate: true });
 
-// Note: beforeunload handler removed as it's disruptive on page reload
-// Navigation guard (onBeforeRouteLeave) handles in-app navigation protection
 
 // Watch block index to recreate protocol timer when advancing blocks
 watch(() => player.value?.currentBlockIndex.value, (newIndex, oldIndex) => {
@@ -703,6 +783,7 @@ onUnmounted(() => {
   }
   protocolTimer.value?.cleanup();
   appStateListener?.remove();
+
 });
 </script>
 
@@ -751,7 +832,7 @@ onUnmounted(() => {
 .day-player__content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 80px; // Space for fixed button
+  padding-bottom: 160px; // Space for fixed button (increased for stacked timer controls)
 }
 
 .day-player__action {
@@ -764,5 +845,8 @@ onUnmounted(() => {
   background: white;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   z-index: 100;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>
