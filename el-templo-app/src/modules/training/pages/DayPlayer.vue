@@ -169,6 +169,7 @@ import { useWeekStore } from '../stores/weekStore';
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore';
 import { useWeekData } from '../composables/useWeekData';
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
+import { useUserStore } from 'src/stores/useUserStore';
 
 // Utils
 import { getRouteName } from '../utils/routeNames';
@@ -196,6 +197,7 @@ const router = useRouter();
 const $q = useQuasar();
 const weekStore = useWeekStore();
 const sessionPlayerStore = useSessionPlayerStore();
+const userStore = useUserStore();
 const wakeLock = useWakeLock();
 const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData();
 
@@ -303,11 +305,11 @@ const showDeuterosChoice = computed(() => {
 // Session info for splash screen
 const sessionInfo = computed(() => {
   if (!session.value) {
-    return { day: '', levelGroup: '' };
+    return { day: '', level: '' };
   }
   return {
     day: session.value.day,
-    levelGroup: session.value.levelGroup,
+    level: userStore.profile?.level ?? session.value.levelGroup ?? '',
   };
 });
 
