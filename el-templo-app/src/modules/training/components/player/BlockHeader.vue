@@ -4,8 +4,10 @@
       <div class="block-name text-h5 text-weight-bold text-uppercase">
         {{ blockName }}
       </div>
-      <div v-if="route" class="block-route text-caption text-grey-7">
-        {{ route }}
+      <div v-if="route || intensity" class="block-route text-caption text-grey-7">
+        <span v-if="route">{{ route }}</span>
+        <span v-if="route && intensity"> · </span>
+        <span v-if="intensity">{{ intensity }}%</span>
       </div>
     </div>
     <div v-if="showTimer && timerDisplay" class="block-header__right">
@@ -28,6 +30,8 @@ interface Props {
   blockRole: BlockRole;
   /** Optional route name to show below block name */
   route?: string;
+  /** Optional intensity percentage (e.g., 85 for 85%) */
+  intensity?: number;
   /** Formatted time text (e.g., "3/8 — 0:42", "4:23") */
   timerDisplay?: string;
   /** CSS class for timer color ('text-grey-8', 'text-amber', 'text-red') */

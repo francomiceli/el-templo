@@ -74,13 +74,17 @@ function formatRole(role: BlockRole): string {
 }
 
 /**
- * Build caption showing route, exercise count, and format
+ * Build caption showing route, intensity, exercise count, and format
  */
 const blockCaption = computed(() => {
   const parts: string[] = [];
 
   if (props.block.route) {
     parts.push(getRouteName(props.block.route));
+  }
+
+  if (props.block.intensity) {
+    parts.push(`${props.block.intensity}%`);
   }
 
   const exerciseCount = props.block.exercises.length;

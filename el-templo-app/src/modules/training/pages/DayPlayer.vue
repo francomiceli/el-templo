@@ -89,6 +89,7 @@
             :block-name="currentBlockName"
             :block-role="currentBlock.role"
             :route="currentBlock.route"
+            :intensity="currentBlock.intensity"
             :show-timer="hasTimer && timerStarted"
             :timer-display="protocolTimer?.displayText.value"
             :timer-color-class="protocolTimer?.timerColorClass.value"
