@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 9 of 12 (Level-Specific Sessions) - IN PROGRESS
-Plan: 2 of 4 in Phase 9
-Status: Plan 09-02 complete
-Last activity: 2026-01-28 - Completed 09-02-PLAN.md (Exercise Selection by Member Level)
+Plan: 3 of 4 in Phase 9
+Status: Plan 09-03 complete
+Last activity: 2026-01-28 - Completed 09-03-PLAN.md (Backend API Integration)
 
-Progress: [██████░░░░] 73% (35/48 plans complete)
+Progress: [██████░░░░] 75% (36/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 35
+- Total plans completed: 36
 - Average duration: 4.0 min
-- Total execution time: 3.2 hours
+- Total execution time: 3.3 hours
 
 **By Phase:**
 
@@ -77,11 +77,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
 | 08-timer-system | 5 | 27min | 5.4min |
-| 09-level-specific-sessions | 2 | 4min | 2.0min |
+| 09-level-specific-sessions | 3 | 8min | 2.7min |
 
 **Recent Trend:**
-- Last 3 plans: 08-05 (2min - layout fixes), 09-04 (2min - level display fix), 09-02 (2min - exercise selection)
-- Trend: Pipeline refactors continue at ~2min per plan
+- Last 3 plans: 09-04 (2min - level display fix), 09-02 (2min - exercise selection), 09-03 (4min - API integration)
+- Trend: Phase 9 level-specific changes running at 2-4min per plan
 
 *Updated after each plan completion*
 
@@ -200,6 +200,10 @@ Recent decisions affecting current work:
 | 09-02 | High-intensity level shift at 90%+ | Intensity >= 90% advances exercises one level up with difficulty=1 |
 | 09-02 | Spartan maps to omega for format compatibility | format_compatibility table has no spartan row |
 | 09-02 | getExpandedLevels uses tier - 2 indexing | Tier 0-1 use exact level, Tier 2 is first widening tier |
+| 09-03 | Extract memberLevel from user.level in all API endpoints | User's actual level (alfa, delta, sigma, omega, spartan) determines their specific session |
+| 09-03 | dayId format uses memberLevel, not levelGroup | W${week}-${day}-${memberLevel} ensures unique cache keys per member level |
+| 09-03 | Admin generate endpoint defaults memberLevel from levelGroup | Backward compatibility for admin tools that don't specify memberLevel |
+| 09-03 | sessionToResponse includes memberLevel | Frontend needs to display user's actual level (not just levelGroup) |
 | 09-04 | Use userStore.profile.level as primary source for level display | User store is populated on login and is reliable source of truth for user attributes |
 | 09-04 | Fallback to session.levelGroup if user profile not loaded | Edge case handling for potential race conditions or partial data scenarios |
 
@@ -216,22 +220,23 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-28
-Stopped at: Completed 09-02-PLAN.md (Exercise Selection by Member Level)
-Resume file: `.planning/phases/09-level-specific-sessions/09-02-SUMMARY.md`
+Stopped at: Completed 09-03-PLAN.md (Backend API Integration)
+Resume file: `.planning/phases/09-level-specific-sessions/09-03-SUMMARY.md`
 
 **Phase 8 COMPLETE.** Timer System fully integrated.
 
 **Phase 9 IN PROGRESS:**
-- 09-01: Type System Foundation (memberLevel in BlockContext)
-- 09-02: Exercise Selection by Member Level (Tier 0 exact match, high-intensity shift)
-- 09-04: Level display fix (SplashScreen shows user's actual level)
-- Remaining: Plan 09-03 for service integration
+- 09-01: Type System Foundation (memberLevel in BlockContext) ✓
+- 09-02: Exercise Selection by Member Level (Tier 0 exact match, high-intensity shift) ✓
+- 09-03: Backend API Integration (routes pass memberLevel from user.level) ✓
+- 09-04: Level display fix (SplashScreen shows user's actual level) ✓
+- Remaining: None - Phase 9 backend complete
 
 **Issues identified for future:**
 - ~~Level display shows "ALFA_DELTA" instead of user's level~~ **RESOLVED** (09-04)
-- ~~Same sessions for Alfa/Delta users~~ **IN PROGRESS** (09-01, 09-02 complete, 09-03 needed)
+- ~~Same sessions for Alfa/Delta users~~ **RESOLVED** (09-01, 09-02, 09-03 complete)
 - Timer accuracy testing needed on real devices
 
 Next steps:
-1. Complete Phase 9 plan 09-03 for service integration (wire memberLevel through routes.ts)
+1. Phase 9 backend work complete - ready for Phase 10
 2. Real-device timer testing when hardware available
