@@ -58,14 +58,15 @@ const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
 
 /**
  * Get expanded levels for fallback
+ * Tier 0-1 use exact member level, Tier 2+ widens to level group
  */
 function getExpandedLevels(
   levelGroup: LevelGroup,
   tier: number
 ): readonly ExerciseLevel[] {
   const expansions = LEVEL_WIDENING[levelGroup];
-  const index = Math.min(tier - 1, expansions.length - 1);
-  return expansions[index] ?? expansions[expansions.length - 1];
+  const index = Math.min(tier - 2, expansions.length - 1);
+  return expansions[Math.max(0, index)] ?? expansions[expansions.length - 1];
 }
 
 /**
@@ -163,15 +164,16 @@ export async function selectExercisesWithFallback(
     allowedLevels,
     count,
     levelGroup,
+    memberLevel,
   } = requirements;
 
   const actions: FallbackAction[] = [];
   let currentDifficulty = maxDifficulty;
-  let currentLevels = allowedLevels;
+  let currentLevels: readonly ExerciseLevel[] = [memberLevel];
   let currentContraction = contraction;
   let currentRoute = route;
 
-  // Tier 0: Exact match
+  // Tier 0: Exact match — use member's specific level only
   let pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels);
 
   if (pool.length >= count) {
