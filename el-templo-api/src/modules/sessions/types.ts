@@ -8,6 +8,9 @@
 /** Level group - aggregation of individual levels for session generation */
 export type LevelGroup = 'alfa_delta' | 'sigma' | 'omega';
 
+/** Individual exercise level - member's actual training level */
+export type ExerciseLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
+
 /** Block roles in a training session (5 blocks total) */
 export type BlockRole = 'INITIUM' | 'NUCLEUS' | 'DEUTEROS_1' | 'DEUTEROS_2' | 'ATHLOS_EPIKOS';
 
@@ -22,6 +25,7 @@ export interface TraceWhere {
   readonly week: number;
   readonly day: string;
   readonly levelGroup: LevelGroup;
+  readonly memberLevel?: ExerciseLevel;
   readonly blockId: string;
   readonly role: BlockRole;
 }
@@ -90,6 +94,7 @@ export interface DaySession {
   readonly week: number;
   readonly day: string;
   readonly levelGroup: LevelGroup;
+  readonly memberLevel: ExerciseLevel;
   readonly blocks: readonly BlockPlan[];
   readonly trace: readonly TraceEvent[];
 }
