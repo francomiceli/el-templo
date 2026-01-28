@@ -33,6 +33,7 @@ function roleToBlock(role: BlockRole): 'initium' | 'nucleus' | 'deuteros' | 'ath
 }
 
 /** Map LevelGroup to individual level for format lookup */
+// DEPRECATED: No longer used, replaced by ctx.memberLevel
 function levelGroupToLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' | 'omega' {
   // Use representative level from each group
   switch (levelGroup) {
@@ -74,7 +75,8 @@ export async function selectFormat(
   db: MySql2Database<typeof schema>
 ): Promise<BlockContextWithFormat> {
   const block = roleToBlock(ctx.role);
-  const level = levelGroupToLevel(ctx.levelGroup);
+  // Use memberLevel directly; map spartan to omega for format lookup (no spartan in format_compatibility)
+  const level = ctx.memberLevel === 'spartan' ? 'omega' : ctx.memberLevel;
 
   // Use fallback ladder for format selection
   const result = await selectFormatWithFallback(

@@ -18,7 +18,7 @@ import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext } from './pipeline';
-import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription } from './types';
+import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel } from './types';
 import { validateSessionForTrace } from './validators/session-validator';
 import { createSessionLogger } from './trace/logger';
 import { aggregateBlockTrace, aggregateSessionTrace } from './trace/emitter';
@@ -38,6 +38,7 @@ export interface GenerateSessionInput {
   week: number;
   day: string;
   levelGroup: LevelGroup;
+  memberLevel: ExerciseLevel;
 }
 
 /**
@@ -63,13 +64,13 @@ export class SessionGeneratorService {
    * @returns Complete DaySession with all blocks
    */
   async generateDailySession(input: GenerateSessionInput): Promise<DaySession> {
-    const { week, day, levelGroup } = input;
+    const { week, day, levelGroup, memberLevel } = input;
     const startTime = Date.now();
-    const dayId = `W${week}-${day}-${levelGroup}`;
+    const dayId = `W${week}-${day}-${memberLevel}`;
 
     // Create Pino logger with session context
     const logger = createSessionLogger(week, dayId, levelGroup);
-    logger.info({ event: 'SESSION_STARTED', week, day, levelGroup }, 'Starting session generation');
+    logger.info({ event: 'SESSION_STARTED', week, day, levelGroup, memberLevel }, 'Starting session generation');
 
     const sessionTrace: TraceEvent[] = [];
     const blocks: BlockPlan[] = [];
@@ -91,7 +92,8 @@ export class SessionGeneratorService {
             week,
             day,
             levelGroup,
-            blockId: `W${week}-${day}-${levelGroup}-${role}`,
+            memberLevel,
+            blockId: `W${week}-${day}-${memberLevel}-${role}`,
             role,
           },
           decision: {
@@ -102,7 +104,7 @@ export class SessionGeneratorService {
       }
 
       // Create initial context for this block
-      const initialContext = createInitialContext(week, day, levelGroup, role);
+      const initialContext = createInitialContext(week, day, levelGroup, memberLevel, role);
 
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(
@@ -125,6 +127,7 @@ export class SessionGeneratorService {
           week,
           day,
           levelGroup,
+          memberLevel,
           blockId: blockPlan.blockId,
           role,
         },
@@ -159,6 +162,7 @@ export class SessionGeneratorService {
         week,
         day,
         levelGroup,
+        memberLevel,
         blockId: dayId,
         role: 'INITIUM', // Placeholder for session-level trace
       },
@@ -173,6 +177,7 @@ export class SessionGeneratorService {
       week,
       day,
       levelGroup,
+      memberLevel,
       blocks,
       trace: sessionTrace,
     };
@@ -190,6 +195,7 @@ export class SessionGeneratorService {
           week,
           day,
           levelGroup,
+          memberLevel,
           blockId: dayId,
           role: 'INITIUM',
         },
@@ -210,6 +216,7 @@ export class SessionGeneratorService {
         week,
         day,
         levelGroup,
+        memberLevel,
         blockId: dayId,
         role: 'INITIUM',
       },
@@ -431,11 +438,16 @@ export class SessionGeneratorService {
       });
     }
 
+    // Extract memberLevel from dayId (format: W1-lunes-alfa)
+    const dayIdParts = session.dayId.split('-');
+    const memberLevel = dayIdParts[2] as ExerciseLevel;
+
     return {
       dayId: session.dayId,
       week: session.week,
       day: session.day,
       levelGroup: session.levelGroup as LevelGroup,
+      memberLevel,
       blocks: blockPlans,
       trace: (session.traceJson as TraceEvent[]) ?? [],
     };
