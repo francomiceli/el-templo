@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 
 ## Current Position
 
-Phase: 8 of 12 (Timer System) - COMPLETE
-Plan: 5 of 5 in Phase 8
-Status: Phase complete (including gap closure)
-Last activity: 2026-01-27 - Completed 08-05-PLAN.md (Action Bar Layout Fixes)
+Phase: 9 of 12 (Level-Specific Sessions) - IN PROGRESS
+Plan: 4 of 4 in Phase 9
+Status: Plan 09-04 complete
+Last activity: 2026-01-27 - Completed 09-04-PLAN.md (Level Display Fix)
 
-Progress: [██████░░░░] 69% (33/48 plans complete)
+Progress: [██████░░░░] 71% (34/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 33
-- Average duration: 4.1 min
-- Total execution time: 3.0 hours
+- Total plans completed: 34
+- Average duration: 4.0 min
+- Total execution time: 3.1 hours
 
 **By Phase:**
 
@@ -77,10 +77,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
 | 08-timer-system | 5 | 27min | 5.4min |
+| 09-level-specific-sessions | 1 | 2min | 2.0min |
 
 **Recent Trend:**
-- Last 3 plans: 08-03 (2min - UI components), 08-04 (3min - DayPlayer integration), 08-05 (2min - layout fixes)
-- Trend: Phase 8 complete at 27min total, 5.4min avg per plan
+- Last 3 plans: 08-04 (3min - DayPlayer integration), 08-05 (2min - layout fixes), 09-04 (2min - level display fix)
+- Trend: Fast UI fixes continue at ~2min per plan
 
 *Updated after each plan completion*
 
@@ -192,6 +193,8 @@ Recent decisions affecting current work:
 | 08-05 | 160px padding-bottom for action bar clearance | Worst-case stacked action bar height ~170px (timer + Listo + padding + safe-area), 160px sufficient |
 | 08-05 | 500px max-width for desktop action bar | Reasonable button width, centered with auto margins, collapses to full-width on mobile |
 | 08-05 | Remove component padding when parent provides spacing | TimerControls redundant 16px padding removed, parent provides padding |
+| 09-04 | Use userStore.profile.level as primary source for level display | User store is populated on login and is reliable source of truth for user attributes |
+| 09-04 | Fallback to session.levelGroup if user profile not loaded | Edge case handling for potential race conditions or partial data scenarios |
 
 ### Pending Todos
 
@@ -206,23 +209,20 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 08-05-PLAN.md (Action Bar Layout Fixes)
-Resume file: `.planning/phases/08-timer-system/08-05-SUMMARY.md`
+Stopped at: Completed 09-04-PLAN.md (Level Display Fix)
+Resume file: `.planning/phases/09-level-specific-sessions/09-04-SUMMARY.md`
 
-**Phase 8 COMPLETE.** Timer System fully integrated:
-- 08-01: Timer format parsing with TDD (vitest)
-- 08-02: Core timer composables (useProtocolTimer, useTimerAudio) with drift correction
-- 08-03: Timer UI components (BlockHeader update, TimerControls)
-- 08-04: DayPlayer integration with background detection, auto-completion, conditional controls
-- 08-05: Layout fixes for mobile/desktop (gap closure)
+**Phase 8 COMPLETE.** Timer System fully integrated.
 
-**Phase 7 complete** with UAT and 10 bug fixes.
+**Phase 9 IN PROGRESS:**
+- 09-04: Level display fix (SplashScreen shows user's actual level from user store)
+- Remaining: Plans 09-01, 09-02, 09-03 for level-specific session generation
 
 **Issues identified for future:**
-- Level display shows "ALFA_DELTA" instead of user's level (Phase 9)
-- Same sessions for Alfa/Delta users (Phase 9)
+- ~~Level display shows "ALFA_DELTA" instead of user's level~~ **RESOLVED** (09-04)
+- Same sessions for Alfa/Delta users (Phase 9 plans 01-03)
 - Timer accuracy testing needed on real devices
 
 Next steps:
-1. Phase 9 (Level-Specific Sessions) addresses session differentiation
+1. Complete Phase 9 plans 01-03 for level-specific session generation
 2. Real-device timer testing when hardware available
