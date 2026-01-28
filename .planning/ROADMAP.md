@@ -231,10 +231,17 @@ Waves:
   3. Exercise selection prioritizes exercises matching user's level before falling back
   4. Display shows user's level (Alfa, Delta, Sigma, Omega) not levelGroup (ALFA_DELTA)
   5. Same route is worked on same day for Alfa/Delta (shared weekly rotator)
-**Plans**: TBD
+**Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — Types + context enrichment (add memberLevel to BlockContext, types, fallback types)
+- [ ] 09-02-PLAN.md — Exercise & format selection (level-specific Tier 0, high-intensity shift, format fix)
+- [ ] 09-03-PLAN.md — API routes + service wiring (dayId per level, memberLevel threading)
+- [ ] 09-04-PLAN.md — UI level display fix (SplashScreen shows actual level from auth store)
+
+Waves:
+- Wave 1: 09-01, 09-04 (parallel - backend types + frontend display)
+- Wave 2: 09-02, 09-03 (parallel - exercise selection + API wiring, both depend on 09-01)
 
 ### Phase 10: Session Completion & Logging
 **Goal**: Members complete sessions with RPE input and system maintains full audit trail
@@ -300,7 +307,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Weekly View | 5/5 | Complete | 2026-01-26 |
 | 7. Day Player | 5/5 | Complete | 2026-01-27 |
 | 8. Timer System | 5/5 | Complete | 2026-01-27 |
-| 9. Level-Specific Sessions | 0/0 | Not started | - |
+| 9. Level-Specific Sessions | 0/4 | Planned | - |
 | 10. Session Completion & Logging | 0/0 | Not started | - |
 | 11. Progression & Coach Functions | 0/0 | Not started | - |
 | 12. Admin Panel | 0/0 | Not started | - |
