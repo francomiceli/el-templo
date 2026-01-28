@@ -69,11 +69,38 @@ export async function selectExercises(
   ctx: BlockContextWithFormat,
   db: MySql2Database<typeof schema>
 ): Promise<BlockContextWithExercises> {
+  const LEVEL_PROGRESSION: readonly ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+
   const allowedLevels = getAllowedLevels(ctx.levelGroup);
-  const maxDifficulty = parseDifficultyBucket(ctx.difficultyBucket);
   const selectedExercises: SelectedExercise[] = [];
   let updatedCtx = ctx;
   let anyFailed = false;
+
+  // Determine target level (may shift up for high-intensity blocks)
+  let targetLevel: ExerciseLevel = ctx.memberLevel;
+  let maxDifficulty = parseDifficultyBucket(ctx.difficultyBucket);
+
+  if (ctx.intensity >= 90) {
+    const currentIndex = LEVEL_PROGRESSION.indexOf(ctx.memberLevel);
+    if (currentIndex < LEVEL_PROGRESSION.length - 1) {
+      targetLevel = LEVEL_PROGRESSION[currentIndex + 1];
+      maxDifficulty = 1; // Use lowest difficulty from upper level
+
+      // Add trace event for the shift
+      const shiftTrace = createTraceEvent(
+        updatedCtx,
+        'HIGH_INTENSITY_LEVEL_SHIFT',
+        'INFO',
+        {
+          fromLevel: ctx.memberLevel,
+          toLevel: targetLevel,
+          intensity: ctx.intensity,
+          reason: `Intensity ${ctx.intensity}% >= 90% triggers level shift`,
+        }
+      );
+      updatedCtx = appendTrace(updatedCtx, shiftTrace);
+    }
+  }
 
   // Process each contraction type
   for (const contraction of ['CON', 'EXC', 'ISO'] as const) {
@@ -89,9 +116,10 @@ export async function selectExercises(
         route: ctx.route,
         contraction,
         maxDifficulty,
-        allowedLevels,
+        allowedLevels, // For Tier 2+ fallback
         count: requiredCount,
         levelGroup: ctx.levelGroup,
+        memberLevel: targetLevel, // For Tier 0 exact match (may be shifted up)
       },
       db
     );
