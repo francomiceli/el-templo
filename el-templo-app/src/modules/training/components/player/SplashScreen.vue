@@ -37,8 +37,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 interface SessionInfo {
   /** Day name (e.g., "Lunes", "Martes") */
   day: string;
-  /** Level group (e.g., "ALFA_DELTA", "SIGMA") */
-  levelGroup: string;
+  /** Member's level (e.g., "alfa", "delta", "sigma", "omega") */
+  level: string;
 }
 
 interface Props {
@@ -79,8 +79,8 @@ const topLabel = computed(() => {
   }
   if (props.sessionInfo) {
     const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1);
-    const group = props.sessionInfo.levelGroup.toUpperCase().replace('_', ' ');
-    return `${day} - ${group}`;
+    const level = props.sessionInfo.level.toUpperCase();
+    return `${day} - ${level}`;
   }
   return '';
 });
