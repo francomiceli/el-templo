@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 9 of 12 (Level-Specific Sessions) - IN PROGRESS
-Plan: 4 of 4 in Phase 9
-Status: Plan 09-04 complete
-Last activity: 2026-01-27 - Completed 09-04-PLAN.md (Level Display Fix)
+Plan: 1 of 4 in Phase 9
+Status: Plan 09-01 complete
+Last activity: 2026-01-27 - Completed 09-01-PLAN.md (Type System Foundation)
 
 Progress: [██████░░░░] 71% (34/48 plans complete)
 
@@ -193,6 +193,9 @@ Recent decisions affecting current work:
 | 08-05 | 160px padding-bottom for action bar clearance | Worst-case stacked action bar height ~170px (timer + Listo + padding + safe-area), 160px sufficient |
 | 08-05 | 500px max-width for desktop action bar | Reasonable button width, centered with auto margins, collapses to full-width on mobile |
 | 08-05 | Remove component padding when parent provides spacing | TimerControls redundant 16px padding removed, parent provides padding |
+| 09-01 | memberLevel required in DaySession, optional in TraceWhere | New sessions always have member level, old trace events may not for backward compatibility |
+| 09-01 | blockId format uses memberLevel instead of levelGroup | Ensures unique blockId per member level (Alfa and Delta get different sessions) |
+| 09-01 | ExerciseLevel consolidated to single source | Defined in types.ts, re-exported from fallback/types.ts for backward compatibility |
 | 09-04 | Use userStore.profile.level as primary source for level display | User store is populated on login and is reliable source of truth for user attributes |
 | 09-04 | Fallback to session.levelGroup if user profile not loaded | Edge case handling for potential race conditions or partial data scenarios |
 
@@ -209,8 +212,8 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-27
-Stopped at: Completed 09-04-PLAN.md (Level Display Fix)
-Resume file: `.planning/phases/09-level-specific-sessions/09-04-SUMMARY.md`
+Stopped at: Completed 09-01-PLAN.md (Type System Foundation)
+Resume file: `.planning/phases/09-level-specific-sessions/09-01-SUMMARY.md`
 
 **Phase 8 COMPLETE.** Timer System fully integrated.
 
