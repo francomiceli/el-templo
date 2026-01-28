@@ -16,6 +16,7 @@ import type {
   FormatInstance,
   SelectedExercise,
   ExercisePrescription,
+  ExerciseLevel,
 } from '../types';
 
 /** Base context with required initial fields */
@@ -23,6 +24,7 @@ export interface BlockContext {
   readonly week: number;
   readonly day: string;
   readonly levelGroup: LevelGroup;
+  readonly memberLevel: ExerciseLevel;
   readonly blockId: string;
   readonly role: BlockRole;
   readonly trace: readonly TraceEvent[];
@@ -75,6 +77,7 @@ export interface BlockContextComplete extends BlockContextWithExercises {
  * @param week - SPOM week number
  * @param day - Day of week (lunes, martes, etc.)
  * @param levelGroup - Aggregated level group
+ * @param memberLevel - Member's individual level
  * @param role - Block role (INITIUM, NUCLEUS, etc.)
  * @returns Initial BlockContext ready for pipeline
  */
@@ -82,14 +85,16 @@ export function createInitialContext(
   week: number,
   day: string,
   levelGroup: LevelGroup,
+  memberLevel: ExerciseLevel,
   role: BlockRole
 ): BlockContext {
-  const blockId = `W${week}-${day}-${levelGroup}-${role}`;
+  const blockId = `W${week}-${day}-${memberLevel}-${role}`;
 
   return {
     week,
     day,
     levelGroup,
+    memberLevel,
     blockId,
     role,
     trace: [],
@@ -121,6 +126,7 @@ export function createTraceEvent(
       week: ctx.week,
       day: ctx.day,
       levelGroup: ctx.levelGroup,
+      memberLevel: ctx.memberLevel,
       blockId: ctx.blockId,
       role: ctx.role,
     },
