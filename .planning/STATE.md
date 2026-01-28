@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 9 of 12 (Level-Specific Sessions) - IN PROGRESS
-Plan: 1 of 4 in Phase 9
-Status: Plan 09-01 complete
-Last activity: 2026-01-27 - Completed 09-01-PLAN.md (Type System Foundation)
+Plan: 2 of 4 in Phase 9
+Status: Plan 09-02 complete
+Last activity: 2026-01-28 - Completed 09-02-PLAN.md (Exercise Selection by Member Level)
 
-Progress: [██████░░░░] 71% (34/48 plans complete)
+Progress: [██████░░░░] 73% (35/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34
+- Total plans completed: 35
 - Average duration: 4.0 min
-- Total execution time: 3.1 hours
+- Total execution time: 3.2 hours
 
 **By Phase:**
 
@@ -77,11 +77,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 06-weekly-view | 4 | 10min | 2.5min |
 | 07-day-player | 5 | 57min | 11.4min |
 | 08-timer-system | 5 | 27min | 5.4min |
-| 09-level-specific-sessions | 1 | 2min | 2.0min |
+| 09-level-specific-sessions | 2 | 4min | 2.0min |
 
 **Recent Trend:**
-- Last 3 plans: 08-04 (3min - DayPlayer integration), 08-05 (2min - layout fixes), 09-04 (2min - level display fix)
-- Trend: Fast UI fixes continue at ~2min per plan
+- Last 3 plans: 08-05 (2min - layout fixes), 09-04 (2min - level display fix), 09-02 (2min - exercise selection)
+- Trend: Pipeline refactors continue at ~2min per plan
 
 *Updated after each plan completion*
 
@@ -196,6 +196,10 @@ Recent decisions affecting current work:
 | 09-01 | memberLevel required in DaySession, optional in TraceWhere | New sessions always have member level, old trace events may not for backward compatibility |
 | 09-01 | blockId format uses memberLevel instead of levelGroup | Ensures unique blockId per member level (Alfa and Delta get different sessions) |
 | 09-01 | ExerciseLevel consolidated to single source | Defined in types.ts, re-exported from fallback/types.ts for backward compatibility |
+| 09-02 | Tier 0 uses exact member level for exercise matching | Changed from allowedLevels to [memberLevel] - Alfa and Delta now get different exercises |
+| 09-02 | High-intensity level shift at 90%+ | Intensity >= 90% advances exercises one level up with difficulty=1 |
+| 09-02 | Spartan maps to omega for format compatibility | format_compatibility table has no spartan row |
+| 09-02 | getExpandedLevels uses tier - 2 indexing | Tier 0-1 use exact level, Tier 2 is first widening tier |
 | 09-04 | Use userStore.profile.level as primary source for level display | User store is populated on login and is reliable source of truth for user attributes |
 | 09-04 | Fallback to session.levelGroup if user profile not loaded | Edge case handling for potential race conditions or partial data scenarios |
 
@@ -211,21 +215,23 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-27
-Stopped at: Completed 09-01-PLAN.md (Type System Foundation)
-Resume file: `.planning/phases/09-level-specific-sessions/09-01-SUMMARY.md`
+Last session: 2026-01-28
+Stopped at: Completed 09-02-PLAN.md (Exercise Selection by Member Level)
+Resume file: `.planning/phases/09-level-specific-sessions/09-02-SUMMARY.md`
 
 **Phase 8 COMPLETE.** Timer System fully integrated.
 
 **Phase 9 IN PROGRESS:**
-- 09-04: Level display fix (SplashScreen shows user's actual level from user store)
-- Remaining: Plans 09-01, 09-02, 09-03 for level-specific session generation
+- 09-01: Type System Foundation (memberLevel in BlockContext)
+- 09-02: Exercise Selection by Member Level (Tier 0 exact match, high-intensity shift)
+- 09-04: Level display fix (SplashScreen shows user's actual level)
+- Remaining: Plan 09-03 for service integration
 
 **Issues identified for future:**
 - ~~Level display shows "ALFA_DELTA" instead of user's level~~ **RESOLVED** (09-04)
-- Same sessions for Alfa/Delta users (Phase 9 plans 01-03)
+- ~~Same sessions for Alfa/Delta users~~ **IN PROGRESS** (09-01, 09-02 complete, 09-03 needed)
 - Timer accuracy testing needed on real devices
 
 Next steps:
-1. Complete Phase 9 plans 01-03 for level-specific session generation
+1. Complete Phase 9 plan 09-03 for service integration (wire memberLevel through routes.ts)
 2. Real-device timer testing when hardware available
