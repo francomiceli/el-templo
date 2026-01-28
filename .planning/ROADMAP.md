@@ -234,10 +234,10 @@ Waves:
 **Plans**: 4 plans in 2 waves
 
 Plans:
-- [ ] 09-01-PLAN.md — Types + context enrichment (add memberLevel to BlockContext, types, fallback types)
-- [ ] 09-02-PLAN.md — Exercise & format selection (level-specific Tier 0, high-intensity shift, format fix)
-- [ ] 09-03-PLAN.md — API routes + service wiring (dayId per level, memberLevel threading)
-- [ ] 09-04-PLAN.md — UI level display fix (SplashScreen shows actual level from auth store)
+- [x] 09-01-PLAN.md — Types + context enrichment (add memberLevel to BlockContext, types, fallback types)
+- [x] 09-02-PLAN.md — Exercise & format selection (level-specific Tier 0, high-intensity shift, format fix)
+- [x] 09-03-PLAN.md — API routes + service wiring (dayId per level, memberLevel threading)
+- [x] 09-04-PLAN.md — UI level display fix (SplashScreen shows actual level from auth store)
 
 Waves:
 - Wave 1: 09-01, 09-04 (parallel - backend types + frontend display)
@@ -307,11 +307,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 6. Weekly View | 5/5 | Complete | 2026-01-26 |
 | 7. Day Player | 5/5 | Complete | 2026-01-27 |
 | 8. Timer System | 5/5 | Complete | 2026-01-27 |
-| 9. Level-Specific Sessions | 0/4 | Planned | - |
+| 9. Level-Specific Sessions | 4/4 | Complete | 2026-01-28 |
 | 10. Session Completion & Logging | 0/0 | Not started | - |
 | 11. Progression & Coach Functions | 0/0 | Not started | - |
 | 12. Admin Panel | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-27 — Phase 8 complete with UAT gap closure*
+*Last updated: 2026-01-28 — Phase 9 complete (level-specific sessions)*
