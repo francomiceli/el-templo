@@ -5,10 +5,10 @@
  * are traced for auditability in the pipeline.
  */
 
-import type { Contraction, LevelGroup } from '../types';
+import type { Contraction, LevelGroup, ExerciseLevel } from '../types';
 
-/** Valid exercise levels matching the database enum */
-export type ExerciseLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
+/** Re-export ExerciseLevel for backward compatibility */
+export type { ExerciseLevel } from '../types';
 
 /**
  * Fallback result discriminated union
@@ -79,6 +79,7 @@ export interface ExerciseRequirements {
   readonly allowedLevels: readonly ExerciseLevel[];
   readonly count: number;
   readonly levelGroup: LevelGroup;
+  readonly memberLevel: ExerciseLevel;
 }
 
 /**
