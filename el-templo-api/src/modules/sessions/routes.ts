@@ -13,7 +13,7 @@ import {
   type GetSessionByIdParams,
   type GetWeeklySessionsInput,
 } from './schemas';
-import type { LevelGroup, DaySession } from './types';
+import type { LevelGroup, DaySession, ExerciseLevel } from './types';
 
 /**
  * Map individual level to level group for session generation
@@ -51,6 +51,7 @@ function sessionToResponse(session: DaySession) {
     week: session.week,
     day: session.day,
     levelGroup: session.levelGroup,
+    memberLevel: session.memberLevel,
     blockCount: session.blocks.length,
     blocks: session.blocks.map((block, idx) => ({
       blockId: block.blockId,
@@ -92,6 +93,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             week: { type: 'integer' },
             day: { type: 'string' },
             levelGroup: { type: 'string' },
+            memberLevel: { type: 'string' },
             blockCount: { type: 'integer' },
             blocks: { type: 'array' },
           },
@@ -118,8 +120,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    // 2. Compute levelGroup from level
-    const levelGroup = levelToLevelGroup(user.level);
+    // 2. Extract memberLevel and compute levelGroup
+    const memberLevel = user.level as ExerciseLevel;
+    const levelGroup = levelToLevelGroup(memberLevel);
 
     // 3. Get current SPOM week
     const week = await spomService.getCurrentWeek();
@@ -132,8 +135,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'No sessions on Sunday' });
     }
 
-    // 5. Build dayId
-    const dayId = `W${week}-${dayName}-${levelGroup}`;
+    // 5. Build dayId with memberLevel
+    const dayId = `W${week}-${dayName}-${memberLevel}`;
 
     // 6. Check DB cache
     const cached = await sessionService.getSessionByDayId(dayId);
@@ -146,6 +149,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       week,
       day: dayName,
       levelGroup,
+      memberLevel,
     });
 
     // 8. Save to database (explicit persistence)
@@ -175,6 +179,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
                       week: { type: 'integer' },
                       day: { type: 'string' },
                       levelGroup: { type: 'string' },
+                      memberLevel: { type: 'string' },
                       blockCount: { type: 'integer' },
                       blocks: { type: 'array' },
                     },
@@ -200,8 +205,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    // 2. Compute levelGroup from level
-    const levelGroup = levelToLevelGroup(user.level);
+    // 2. Extract memberLevel and compute levelGroup
+    const memberLevel = user.level as ExerciseLevel;
+    const levelGroup = levelToLevelGroup(memberLevel);
 
     // 3. Get current SPOM week
     const week = await spomService.getCurrentWeek();
@@ -230,7 +236,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         continue;
       }
 
-      const dayId = `W${week}-${dayName}-${levelGroup}`;
+      const dayId = `W${week}-${dayName}-${memberLevel}`;
 
       // Check cache first
       let session = await sessionService.getSessionByDayId(dayId);
@@ -241,6 +247,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           week,
           day: dayName,
           levelGroup,
+          memberLevel,
         });
         await sessionService.saveSession(session);
       }
@@ -264,6 +271,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             week: { type: 'integer' },
             day: { type: 'string' },
             levelGroup: { type: 'string' },
+            memberLevel: { type: 'string' },
             blockCount: { type: 'integer' },
             blocks: { type: 'array' },
           },
@@ -284,8 +292,12 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { week, day, levelGroup } = request.body;
 
+    // Extract optional memberLevel from request body, or derive from levelGroup
+    const memberLevel = (request.body as any).memberLevel ??
+      (levelGroup === 'alfa_delta' ? 'delta' : levelGroup === 'sigma' ? 'sigma' : 'omega') as ExerciseLevel;
+
     // Check if already exists in cache
-    const dayId = `W${week}-${day}-${levelGroup}`;
+    const dayId = `W${week}-${day}-${memberLevel}`;
     const existing = await sessionService.getSessionByDayId(dayId);
     if (existing) {
       return sessionToResponse(existing);
@@ -296,6 +308,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       week,
       day,
       levelGroup,
+      memberLevel,
     });
 
     // Save to database (explicit persistence)
@@ -317,6 +330,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             week: { type: 'integer' },
             day: { type: 'string' },
             levelGroup: { type: 'string' },
+            memberLevel: { type: 'string' },
             blockCount: { type: 'integer' },
             blocks: { type: 'array' },
           },
