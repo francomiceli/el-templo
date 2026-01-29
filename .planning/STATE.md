@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 10 of 12 (Session Completion & Logging)
-Plan: 2 of 4 in Phase 10 (partial - Wave 1)
+Plan: 2 of 4 in Phase 10 (Wave 1 complete)
 Status: In progress
-Last activity: 2026-01-29 - Completed 10-02-PLAN.md (CelebrationScreen)
+Last activity: 2026-01-29 - Completed 10-01-PLAN.md (Backend Completion API)
 
-Progress: [████████░░] 79% (38/48 plans complete)
+Progress: [████████░░] 81% (39/48 plans complete)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 38
+- Total plans completed: 39
 - Average duration: 3.8 min
-- Total execution time: 3.4 hours
+- Total execution time: 3.5 hours
 
 **By Phase:**
 
@@ -80,8 +80,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 
 **Recent Trend:**
-- Last 4 plans: 09-02 (2min - exercise selection), 09-03 (4min - API wiring), 09-04 (2min - UI fix), 10-02 (1min - celebration screen)
-- Trend: Simple UI components completing in 1-2min
+- Last 4 plans: 09-04 (2min - UI fix), 10-02 (1min - celebration screen), 10-01 (4min - backend API)
+- Trend: Wave 1 completing efficiently
 
 *Updated after each plan completion*
 
@@ -209,6 +209,8 @@ Recent decisions affecting current work:
 | 10-02 | 3.5s display + 0.5s fade = 4s total duration | Within CONTEXT.md 3-4 second spec, provides meaningful celebration |
 | 10-02 | Trophy icon (emoji_events) with amber color | Universally recognized achievement symbol |
 | 10-02 | Spinner dots indicate transition to summary | User knows something is coming, prevents confusion |
+| 10-01 | Check-then-update pattern for upsert | Clear logic, explicit control over insert vs update paths |
+| 10-01 | COUNT DISTINCT date for totalDaysTrained | Simple SQL, handles same-day re-completions correctly |
 
 ### Pending Todos
 
@@ -223,16 +225,17 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-29
-Stopped at: Completed 10-02-PLAN.md (CelebrationScreen)
-Resume file: `.planning/phases/10-session-completion/10-02-SUMMARY.md`
+Stopped at: Completed 10-01-PLAN.md (Backend Completion API)
+Resume file: `.planning/phases/10-session-completion/10-01-SUMMARY.md`
 
 **Phase 10 IN PROGRESS.** Session Completion & Logging:
+- 10-01: Backend completion API (complete) - completed_sessions table, POST /sessions/complete
 - 10-02: CelebrationScreen component (complete)
-- Remaining: 10-01 (completed sessions table), 10-03 (player integration), 10-04 (summary screen)
+- Remaining: 10-03 (RPE input), 10-04 (wiring)
 
 **Issues identified for future:**
 - Timer accuracy testing needed on real devices
 
 Next steps:
-1. Complete remaining Phase 10 plans (10-01, 10-03, 10-04)
+1. Complete remaining Phase 10 plans (10-03, 10-04)
 2. Real-device timer testing when hardware available
