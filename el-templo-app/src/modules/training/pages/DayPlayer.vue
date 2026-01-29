@@ -16,6 +16,22 @@
       @complete="onTransitionComplete"
     />
 
+    <!-- Celebration Screen (after completing all blocks) -->
+    <CelebrationScreen
+      v-else-if="showCelebration"
+      @complete="onCelebrationComplete"
+    />
+
+    <!-- Session Summary (after celebration) -->
+    <SessionSummary
+      v-else-if="showSummary && session"
+      :date="dateParam"
+      :blocks-completed="player?.completedBlocks.value ?? []"
+      :total-days-trained="totalDaysTrained"
+      :is-submitting="isSubmitting"
+      @finish="onSummaryFinish"
+    />
+
     <!-- Loading State -->
     <div v-else-if="isLoading" class="day-player__loading flex flex-center">
       <q-spinner-dots color="primary" size="60px" />
@@ -35,7 +51,7 @@
     </div>
 
     <!-- Main Player Content -->
-    <template v-else-if="session && player">
+    <template v-else-if="session && player && !showCelebration && !showSummary">
       <!-- Deuteros Choice Screen -->
       <DeuterosChoice
         v-if="showDeuterosChoice && deuteros1Block && deuteros2Block"
@@ -160,12 +176,15 @@ import VideoPlaceholder from '../components/player/VideoPlaceholder.vue';
 import BlockHeader from '../components/player/BlockHeader.vue';
 import ExerciseList from '../components/player/ExerciseList.vue';
 import TimerControls from '../components/player/TimerControls.vue';
+import CelebrationScreen from '../components/player/CelebrationScreen.vue';
+import SessionSummary from '../components/player/SessionSummary.vue';
 
 // Composables and Stores
 import { useSessionPlayer } from '../composables/useSessionPlayer';
 import { useProtocolTimer, type ProtocolTimerReturn } from '../composables/useProtocolTimer';
 import { useTimerAudio } from '../composables/useTimerAudio';
 import { useWakeLock } from '../composables/useWakeLock';
+import { useSessionCompletion } from '../composables/useSessionCompletion';
 import { useWeekStore } from '../stores/weekStore';
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore';
 import { useWeekData } from '../composables/useWeekData';
@@ -202,6 +221,13 @@ const userStore = useUserStore();
 const wakeLock = useWakeLock();
 const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData();
 
+// Session completion composable
+const {
+  isSubmitting,
+  totalDaysTrained,
+  completeSession,
+} = useSessionCompletion();
+
 // Route parameter
 const dateParam = computed(() => route.params.date as string);
 
@@ -219,6 +245,11 @@ const isInitialized = ref(false);
 const showBlockTransition = ref(false);
 const transitionCompletedBlock = ref('');
 const transitionNextBlock = ref('');
+
+// Completion flow state
+const showCelebration = ref(false);
+const showSummary = ref(false);
+const sessionStartedAt = ref<string | null>(null);
 
 // Protocol timer state
 const timerAudio = useTimerAudio();
@@ -388,6 +419,7 @@ const hasUnsavedProgress = computed(() => {
 // Event handlers
 function onSplashComplete(): void {
   splashDismissed.value = true;
+  sessionStartedAt.value = new Date().toISOString(); // Track when session started
   // Start timer and request wake lock
   if (player.value) {
     player.value.startTimer();
@@ -635,30 +667,62 @@ function createProtocolTimerForBlock(): void {
 }
 
 async function finishSession(): Promise<void> {
+  if (!session.value || !player.value) return;
+
   // Release wake lock
   await wakeLock.releaseWakeLock();
 
-  // Clear progress
-  if (player.value) {
-    await player.value.clearProgress();
-  }
+  // Show celebration screen (auto-advances to summary)
+  showCelebration.value = true;
+}
 
-  // Mark day as completed in week store
-  if (dateParam.value) {
-    weekStore.markDayCompleted(dateParam.value);
-  }
+function onCelebrationComplete(): void {
+  showCelebration.value = false;
+  showSummary.value = true;
+}
 
-  // Show completion toast
-  $q.notify({
-    type: 'positive',
-    message: 'Sesion completada!',
-    icon: 'check_circle',
-    position: 'top',
-    timeout: 2000,
+async function onSummaryFinish(data: { rpe: number | null; notes: string | null }): Promise<void> {
+  if (!session.value || !player.value) return;
+
+  const result = await completeSession({
+    dayId: session.value.dayId,
+    date: dateParam.value,
+    startedAt: sessionStartedAt.value ?? new Date().toISOString(),
+    rpe: data.rpe,
+    notes: data.notes,
+    blocksCompleted: player.value.completedBlocks.value,
   });
 
-  // Navigate back to weekly view
-  router.push({ name: 'training' });
+  if (result) {
+    // Clear local progress
+    await player.value.clearProgress();
+
+    // Mark day as completed in week store
+    if (dateParam.value) {
+      weekStore.markDayCompleted(dateParam.value);
+    }
+
+    // Show success toast
+    $q.notify({
+      type: 'positive',
+      message: 'Sesion guardada!',
+      icon: 'check_circle',
+      position: 'top',
+      timeout: 2000,
+    });
+
+    // Navigate back to weekly view
+    router.push({ name: 'training' });
+  } else {
+    // Show error toast
+    $q.notify({
+      type: 'negative',
+      message: 'Error al guardar. Intenta de nuevo.',
+      icon: 'error',
+      position: 'top',
+      timeout: 3000,
+    });
+  }
 }
 
 function onExerciseSelect(index: number): void {
