@@ -1,0 +1,142 @@
+<template>
+  <div class="rpe-trend-chart">
+    <LineChart
+      :chart-data="chartData"
+      :options="chartOptions"
+      :height="200"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+/**
+ * RpeTrendChart component
+ *
+ * Displays a line chart showing RPE (Rate of Perceived Exertion) trend over time.
+ * Uses Chart.js with tree-shaken imports for optimal bundle size.
+ * Brand colors: bronze line (#b8956c), navy points (#2c3e5c).
+ */
+import { computed } from 'vue';
+import { LineChart } from 'vue-chart-3';
+import {
+  Chart,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler,
+} from 'chart.js';
+import type { ChartData, ChartOptions } from 'chart.js';
+
+// Register only needed Chart.js components (tree-shaking)
+Chart.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Filler
+);
+
+interface Props {
+  /** X-axis labels (dates or session identifiers) */
+  labels: string[];
+  /** Y-axis data points (RPE values 1-10, null for missing) */
+  data: (number | null)[];
+}
+
+const props = defineProps<Props>();
+
+// Brand colors
+const BRONZE = '#b8956c';
+const NAVY = '#2c3e5c';
+
+/**
+ * Chart data configuration
+ */
+const chartData = computed<ChartData<'line'>>(() => ({
+  labels: props.labels,
+  datasets: [
+    {
+      label: 'RPE',
+      data: props.data,
+      borderColor: BRONZE,
+      backgroundColor: `${BRONZE}1A`, // 10% opacity
+      fill: true,
+      tension: 0.3,
+      spanGaps: true,
+      pointBackgroundColor: NAVY,
+      pointBorderColor: BRONZE,
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+    },
+  ],
+}));
+
+/**
+ * Chart options configuration
+ */
+const chartOptions = computed<ChartOptions<'line'>>(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false,
+    },
+    tooltip: {
+      backgroundColor: NAVY,
+      titleColor: '#fff',
+      bodyColor: '#fff',
+      padding: 10,
+      displayColors: false,
+      callbacks: {
+        label: (context) => {
+          const value = context.parsed.y;
+          return value !== null ? `RPE: ${value}` : 'Sin datos';
+        },
+      },
+    },
+  },
+  scales: {
+    y: {
+      min: 1,
+      max: 10,
+      ticks: {
+        stepSize: 2,
+        color: NAVY,
+        font: {
+          size: 11,
+        },
+      },
+      grid: {
+        color: `${BRONZE}20`, // 12% opacity
+      },
+    },
+    x: {
+      ticks: {
+        color: NAVY,
+        font: {
+          size: 10,
+        },
+        maxRotation: 45,
+        minRotation: 45,
+      },
+      grid: {
+        display: false,
+      },
+    },
+  },
+}));
+</script>
+
+<style scoped lang="scss">
+.rpe-trend-chart {
+  width: 100%;
+  height: 200px;
+  padding: 8px 0;
+}
+</style>
