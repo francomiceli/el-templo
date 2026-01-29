@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-21)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 11 - V1 Visual Update
+**Current focus:** Phase 12 - Progression & Coach Functions
 
 ## Current Position
 
-Phase: 11 of 13 (V1 Visual Update)
-Plan: 7 of 7 in Phase 11
+Phase: 12 of 13 (Progression & Coach Functions)
+Plan: 2 of 5 in Phase 12
 Status: In progress
-Last activity: 2026-01-29 - Completed 11-05-PLAN.md (weekly view brand styling)
+Last activity: 2026-01-29 - Completed 12-02-PLAN.md (frontend progression foundation)
 
-Progress: [█████████░] 96% (49/51 plans complete)
+Progress: [█████████░] 98% (51/52 plans complete)
 
 ## Architecture Reset
 
@@ -80,10 +80,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
+| 12-progression-coach-functions | 2 | 4min | 2.0min |
 
 **Recent Trend:**
-- Last 4 plans: 11-02 (1min - Greek letters), 11-06 (5min - app icons), 11-03 (2min - core components)
-- Trend: Phase 11 visual update in progress - fast utility tasks
+- Last 4 plans: 11-06 (5min - app icons), 11-03 (2min - core components), 12-01 (API endpoints), 12-02 (4min - frontend foundation)
+- Trend: Phase 12 progression module started - chart libs + store + API composable
 
 *Updated after each plan completion*
 
@@ -234,6 +235,9 @@ Recent decisions affecting current work:
 | 11-03 | Navy gradient with symmetric endpoints | Smooth visual transition for SplashScreen |
 | 11-03 | Bronze accent at 20%/40% opacity | Subtle brand presence for logo container |
 | 11-03 | Remove Quasar color class for CSS override | Allow custom bronze color on block-route |
+| 12-02 | vue-chart-3 over vue-chartjs | Better Vue 3 Composition API support |
+| 12-02 | Optimistic update for evaluation pending | setEvaluationPending updates local state immediately |
+| 12-02 | Quasar Notify for API errors | User-facing error messages with Spanish text |
 
 ### Pending Todos
 
@@ -247,11 +251,16 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-29 15:58 UTC
-Stopped at: Completed 11-03-PLAN.md (Day Player core components brand styling)
+Last session: 2026-01-29 20:12 UTC
+Stopped at: Completed 12-02-PLAN.md (frontend progression foundation)
 Resume file: None
 
-**Phase 11 ADDED.** V1 Visual Update:
+**Phase 12 STARTED.** Progression & Coach Functions:
+- 12-01: API endpoints for progression stats and evaluation requests
+- 12-02: Frontend foundation (chart libs, Pinia store, API composable)
+- Next: 12-03 ProgressionPage component, 12-04 RPE chart, 12-05 evaluation request UI
+
+**Phase 11 COMPLETED.** V1 Visual Update:
 - Brand identity application: Navy blue (#2c3e5c) + Bronze (#b8956c) color palette
 - Typography: Serif headings, Greek letters for levels (α Δ Σ Ω)
 - Visual theme: Marble/cream textures, classical Greek aesthetic
