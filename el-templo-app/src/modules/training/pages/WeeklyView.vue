@@ -2,10 +2,10 @@
   <q-page class="weekly-view">
     <!-- Header with week info -->
     <div class="weekly-view__header q-pa-md">
-      <div class="text-h5 text-weight-bold text-center">
+      <div class="weekly-view__title text-h5 text-weight-bold text-center">
         Semana {{ weekNumber }}
       </div>
-      <div class="text-subtitle2 text-grey-7 text-center">
+      <div class="weekly-view__subtitle text-subtitle2 text-center">
         {{ weekRangeLabel }}
       </div>
     </div>
@@ -184,6 +184,9 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+// Import brand variables
+@import 'src/css/quasar.variables.scss';
+
 .weekly-view {
   display: flex;
   flex-direction: column;
@@ -192,8 +195,35 @@ onMounted(() => {
 
   &__header {
     flex-shrink: 0;
-    background: white;
-    border-bottom: 1px solid #e0e0e0;
+    background-color: $cream;
+    border-bottom: 2px solid $secondary;
+    position: relative;
+
+    // Marble texture overlay
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.3;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
+  }
+
+  &__title {
+    color: $primary;
+    position: relative;
+    z-index: 1;
+  }
+
+  &__subtitle {
+    color: $secondary;
+    position: relative;
+    z-index: 1;
   }
 
   &__carousel {
