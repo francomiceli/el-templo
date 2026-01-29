@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SessionGeneratorService } from './service';
 import { SpomService } from '../spom/service';
@@ -8,10 +8,12 @@ import {
   generateSessionSchema,
   getSessionByIdSchema,
   getWeeklySessionsSchema,
+  completeSessionSchema,
   type GetDailySessionInput,
   type GenerateSessionInput,
   type GetSessionByIdParams,
   type GetWeeklySessionsInput,
+  type CompleteSessionInput,
 } from './schemas';
 import type { LevelGroup, DaySession, ExerciseLevel } from './types';
 
@@ -352,5 +354,110 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     return sessionToResponse(session);
+  });
+
+  // POST /sessions/complete - Record completed session (upsert by dayId+userId)
+  fastify.post<{ Body: CompleteSessionInput }>('/complete', {
+    onRequest: [fastify.authenticate],
+    schema: {
+      ...completeSessionSchema,
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean' },
+            completedSessionId: { type: 'integer' },
+            totalDaysTrained: { type: 'integer' },
+          },
+        },
+        400: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        404: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { userId } = request.user;
+    const {
+      dayId,
+      date,
+      startedAt,
+      rpe,
+      notes,
+      blocksCompleted,
+    } = request.body;
+
+    // Get user's branchId
+    const [user] = await fastify.db
+      .select({ branchId: schema.users.branchId })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+
+    if (!user) {
+      return reply.status(404).send({ error: 'User not found' });
+    }
+
+    // Check if completion already exists for this user+dayId (upsert)
+    const [existing] = await fastify.db
+      .select({ id: schema.completedSessions.id })
+      .from(schema.completedSessions)
+      .where(
+        and(
+          eq(schema.completedSessions.userId, userId),
+          eq(schema.completedSessions.dayId, dayId)
+        )
+      );
+
+    let completedSessionId: number;
+
+    if (existing) {
+      // Update existing record
+      await fastify.db
+        .update(schema.completedSessions)
+        .set({
+          date,
+          startedAt: new Date(startedAt),
+          completedAt: new Date(),
+          rpe,
+          notes,
+          blocksCompleted,
+        })
+        .where(eq(schema.completedSessions.id, existing.id));
+      completedSessionId = existing.id;
+    } else {
+      // Insert new record
+      const [result] = await fastify.db.insert(schema.completedSessions).values({
+        userId,
+        dayId,
+        date,
+        branchId: user.branchId,
+        startedAt: new Date(startedAt),
+        completedAt: new Date(),
+        rpe,
+        notes,
+        blocksCompleted,
+      });
+      completedSessionId = result.insertId;
+    }
+
+    // Query total days trained (unique dates with completed sessions)
+    const [countResult] = await fastify.db
+      .select({ count: sql<number>`COUNT(DISTINCT date)` })
+      .from(schema.completedSessions)
+      .where(eq(schema.completedSessions.userId, userId));
+
+    return {
+      success: true,
+      completedSessionId,
+      totalDaysTrained: countResult?.count ?? 1,
+    };
   });
 };
