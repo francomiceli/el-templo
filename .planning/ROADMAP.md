@@ -22,8 +22,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 8: Timer System** - EMOM, AMRAP, For Time timers with background handling
 - [x] **Phase 9: Level-Specific Sessions** - Differentiate exercises by user level (Alfa vs Delta vs Sigma)
 - [x] **Phase 10: Session Completion & Logging** - RPE input, session summary, full event audit trail
-- [ ] **Phase 11: Progression & Coach Functions** - Level display, RPE trends, coach promotion, block overrides
-- [ ] **Phase 12: Admin Panel** - Superadmin SPOM management, session overrides, data re-import
+- [ ] **Phase 11: V1 Visual Update** - Brand identity, color palette, typography, Greek theme styling
+- [ ] **Phase 12: Progression & Coach Functions** - Level display, RPE trends, coach promotion, block overrides
+- [ ] **Phase 13: Admin Panel** - Superadmin SPOM management, session overrides, data re-import
 
 ## Phase Details
 
@@ -267,9 +268,36 @@ Waves:
 - Wave 2: 10-03 (summary UI - depends on 10-01 for types, 10-02 for events)
 - Wave 3: 10-04 (integration + checkpoint - depends on all prior)
 
-### Phase 11: Progression & Coach Functions
-**Goal**: Members track level progression, coaches manage their branch members
+### Phase 11: V1 Visual Update
+**Goal**: Apply El Templo brand identity to the app - Greek temple aesthetic with navy/bronze palette and classical typography
 **Depends on**: Phase 10
+**Requirements**: VIS-01 through VIS-06
+**Success Criteria** (what must be TRUE):
+  1. Color palette updated: Navy blue (#2c3e5c) primary, Bronze (#b8956c) secondary, Cream (#f5f0e8) backgrounds
+  2. Typography: Serif font for headings (block names, titles), clean sans-serif for body
+  3. Greek letters replace level names in UI: Alfa→α, Delta→Δ, Sigma→Σ, Omega→Ω
+  4. App icon and splash use temple logo assets
+  5. Block headers, exercise cards, and summary screens styled with brand identity
+  6. Marble/cream texture backgrounds applied to key screens
+**Plans**: 7 plans in 3 waves
+
+Plans:
+- [ ] 11-01-PLAN.md — Brand foundation: SCSS variables, Cinzel font, marble texture mixin
+- [ ] 11-02-PLAN.md — Greek letter level display utility
+- [ ] 11-03-PLAN.md — Day Player components: SplashScreen, BlockHeader, ExerciseCard brand styling
+- [ ] 11-04-PLAN.md — Completion screens: SessionSummary, CelebrationScreen brand styling
+- [ ] 11-05-PLAN.md — Weekly View: WeeklyView page and DayCard brand styling
+- [ ] 11-06-PLAN.md — App icons and splash screens from brand assets
+- [ ] 11-07-PLAN.md — Human verification checkpoint
+
+Waves:
+- Wave 1: 11-01, 11-02, 11-06 (parallel - foundation + utility + icons)
+- Wave 2: 11-03, 11-04, 11-05 (parallel - all depend on 11-01)
+- Wave 3: 11-07 (human verification - depends on all prior)
+
+### Phase 12: Progression & Coach Functions
+**Goal**: Members track level progression, coaches manage their branch members
+**Depends on**: Phase 11
 **Requirements**: PROG-01, PROG-02, PROG-03, PROG-04, COACH-01, COACH-02, COACH-03, COACH-04, COACH-05
 **Success Criteria** (what must be TRUE):
   1. Member can see their current level (Alfa/Delta/Sigma/Omega/Spartan)
@@ -282,11 +310,11 @@ Waves:
 **Plans**: TBD
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 12-01: TBD
 
-### Phase 12: Admin Panel
+### Phase 13: Admin Panel
 **Goal**: Superadmins can manage SPOM data, override sessions, and configure system
-**Depends on**: Phase 11
+**Depends on**: Phase 12
 **Requirements**: ADMIN-01 through ADMIN-06 (to be defined)
 **Success Criteria** (what must be TRUE):
   1. Superadmin can view and update current SPOM week
@@ -298,12 +326,12 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 13-01: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> 12 -> 13
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -317,9 +345,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 8. Timer System | 5/5 | Complete | 2026-01-27 |
 | 9. Level-Specific Sessions | 4/4 | Complete | 2026-01-28 |
 | 10. Session Completion & Logging | 4/4 | Complete | 2026-01-29 |
-| 11. Progression & Coach Functions | 0/0 | Not started | - |
-| 12. Admin Panel | 0/0 | Not started | - |
+| 11. V1 Visual Update | 0/7 | Not started | - |
+| 12. Progression & Coach Functions | 0/0 | Not started | - |
+| 13. Admin Panel | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-29 — Phase 10 complete (4 plans, 19/19 verified)*
+*Last updated: 2026-01-29 — Phase 11 planned (7 plans in 3 waves)*
