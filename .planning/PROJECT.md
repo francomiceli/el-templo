@@ -24,21 +24,27 @@ Members know exactly what to train today, complete guided sessions with block st
 - [ ] Coach can view members in their branch
 
 **SPOM Engine**
-- [ ] System imports SPOM periodization rules from spreadsheet data
+- [ ] System imports SPOM rules (week × route → intensity, wave, pattern, category) ~1040 rows
+- [ ] System imports Weekly Rotator (week × day × level_group → block routes) ~936 rows
+- [ ] System imports Contraction rules (intensity × exercises → CON/EXC/ISO counts) ~20 rows
+- [ ] System imports Intensity rules (intensity → reps_budget, difficulty, exercise_count) ~9 rows
+- [ ] System imports Format compatibility (format × block × level × intensity) ~500 rows
 - [ ] System tracks current gym-wide SPOM week (1-52)
-- [ ] System knows active intensity wave (Senoidal/Shockwave/Triangular/Fractal)
-- [ ] System knows current route and active pattern
 
 **Exercise Database**
-- [ ] System imports 1869 exercises with metadata (pattern, category, position, effort type, level)
-- [ ] Exercises are queryable by pattern + category + level + contraction type
+- [ ] System imports ~1870 exercises with: patron, category, esfuerzo (CON/EXC/ISO), nivel, ruta, difficulty
+- [ ] Exercises are queryable by route + contraction type + level + difficulty bucket
 
 **Session Generation**
-- [ ] System generates daily session from: current SPOM week + member level
-- [ ] Session has 4 blocks: Initium (warmup), Nucleus (main), Deuteros (secondary), Athlos/Epikos (finisher)
-- [ ] Exercise selection follows contraction-type rules based on intensity
-- [ ] Exercise count per block follows intensity mapping (4-5 at 55%, 2-3 at 95%)
-- [ ] Block patterns follow weekly rotation rules (Nucleus direction opposite to Athlos/Epikos)
+- [ ] System generates daily session from: SPOM week + day + member level group
+- [ ] Session has 5 blocks: Initium, Nucleus, Deuteros 1, Deuteros 2, Athlos/Epikos
+- [ ] Block routes assigned from Weekly Rotator (week × day × level_group → routes)
+- [ ] Each block's intensity from SPOM rules lookup (week × route → intensity)
+- [ ] Exercise count per block follows Intensity rules (2-3 at 95%, 4-5 at 55%)
+- [ ] Exercise selection follows Contraction distribution (CON/EXC/ISO counts by intensity)
+- [ ] Exercise difficulty matches block intensity level (bucket 1=easy, 3=hard)
+- [ ] Block format assigned from Format compatibility rules
+- [ ] Level groups: ALFA_DELTA (Alfa+Delta), SIGMA, OMEGA
 
 **Weekly View**
 - [ ] Member sees 7-day week view (Lun-Dom)
@@ -47,12 +53,13 @@ Members know exactly what to train today, complete guided sessions with block st
 - [ ] Member can tap any day to preview or play session
 
 **Day Player**
-- [ ] Member sees session as sequential block flow with distinct visual identity per block
-- [ ] Initium: light blue accent, warmup exercises
-- [ ] Nucleus: primary color, main work
-- [ ] Deuteros: secondary accent, complementary work
-- [ ] Athlos/Epikos: amber accent, finisher
-- [ ] Each block shows exercise list with reps/duration
+- [ ] Member sees session as sequential 5-block flow with distinct visual identity per block
+- [ ] Initium: light blue accent, warmup exercises (GENERAL patterns)
+- [ ] Nucleus: primary color, main work (SUP_PUSH/SUP_PULL/INF_RODILLA/INF_CADERA)
+- [ ] Deuteros 1: secondary accent, complementary work
+- [ ] Deuteros 2: tertiary accent, complementary work
+- [ ] Athlos/Epikos: amber accent, finisher (opposite direction of Nucleus)
+- [ ] Each block shows exercise list with reps/duration and format type
 - [ ] Member taps "Complete Block" to progress
 - [ ] Video placeholder displayed for each exercise (replaced with real videos over time)
 
@@ -98,12 +105,23 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Out of Scope
 
-**Data Sources:**
-- SPOM rules and exercise database exist in `[Planificaciones] - Base de Datos.xlsx`
-- 1869 exercises across 9 patterns (PUSH, PULL, LOWER, CORE, FLOW, CARDIO, KL, MOVILIDAD, PLYO)
-- 5 member levels: Alfa, Delta, Sigma, Omega, Spartan
+**Data Sources (in `/docs/`):**
+- `[Planificaciones] - Base de Datos - SPOM.csv` — 1040 rows: week × route → intensity, wave, pattern, category
+- `[Planificaciones] - Base de Datos - Rotador Semanal.csv` — 936 rows: week × day × level_group → routes
+- `[Planificaciones] - Base de Datos - Ejercicios.csv` — 1870 exercises with full metadata
+- `[Planificaciones] - Base de Datos - Formatos.csv` — 500+ rows: format × block × level × intensity → compatibility
+- `[Planificaciones] - Base de Datos - Contracción.txt` — 20 rows: intensity × exercises → CON/EXC/ISO counts
+- `[Planificaciones] - Base de Datos - SPOM - Intensidad.csv` — 9 rows: intensity → reps, difficulty, exercise_count
+- `Documento de Planificación` (parts 1-4) — Block structure, SPOM integration, contraction rules
+- `system-specs/` (parts 1-5) — 47-point technical specification for deterministic session generation engine
+
+**Domain Model:**
+- 5 member levels: Alfa, Delta, Sigma, Omega, Spartan (grouped as ALFA_DELTA, SIGMA, OMEGA)
 - 4 intensity waves: Senoidal, Shockwave, Triangular, Fractal
-- Intensity range: 55% - 95%
+- Intensity range: 55% - 95% (9 discrete values)
+- 5 blocks per session: Initium, Nucleus, Deuteros 1, Deuteros 2, Athlos/Epikos
+- 4 root categories: SUP_PUSH, SUP_PULL, INF_RODILLA, INF_CADERA
+- 3 contraction types: CON (concentric), EXC (eccentric), ISO (isometric)
 - 6 training days per week (Mon-Sat)
 
 **User Types:**
@@ -111,7 +129,8 @@ Members know exactly what to train today, complete guided sessions with block st
 - Remote members: train independently, need full guidance from app (videos, timers, clear instructions)
 
 **Operational Model:**
-- Gym-wide SPOM: everyone follows same week/route/intensity
+- Gym-wide SPOM: everyone follows same week
+- Route assignment comes from Weekly Rotator (per day × level_group)
 - New members join at current gym week (not week 1)
 - Member level determines exercise difficulty within same session structure
 - Level advancement: RPE threshold → request evaluation, or coach manual promotion
@@ -127,6 +146,27 @@ Members know exactly what to train today, complete guided sessions with block st
 - **Video Content**: Placeholders initially, real videos recorded and replaced incrementally
 - **Data Import**: Must parse and import existing Excel spreadsheet, not rebuild from scratch
 - **Multi-branch Ready**: Architecture must support multiple branches from day one, even if launching with one
+
+## Development Guidelines
+
+### Database Schema Review (Mandatory)
+
+Before any planning phase creates new database tables, the orchestrator **must**:
+
+1. **Present a detailed schema proposal** showing:
+   - Each column name and type
+   - What the column stores (with example values)
+   - Why it's needed (business justification)
+   - Expected size/growth implications
+
+2. **Wait for explicit approval** before including table creation in the execution plan
+
+3. **Challenge assumptions** — ask whether each column is truly necessary:
+   - Is this data needed for current requirements, or speculative future use?
+   - Can this be derived from existing data instead of stored?
+   - Is the granularity appropriate (e.g., do we need timestamps for every micro-event?)
+
+This prevents over-engineering database schemas and ensures storage decisions align with actual business needs.
 
 ## Key Decisions
 
