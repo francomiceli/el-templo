@@ -193,8 +193,13 @@ function onFinish(): void {
 }
 
 .session-summary__header {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 100%);
   color: white;
+
+  .text-h5 {
+    font-family: 'Cinzel', Georgia, serif;
+    letter-spacing: 0.05em;
+  }
 }
 
 .session-summary__content {
@@ -215,7 +220,8 @@ function onFinish(): void {
 .days-stats-row {
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, rgba(25, 118, 210, 0.1) 0%, rgba(25, 118, 210, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(245, 240, 232, 0.8) 0%, rgba(232, 224, 212, 0.6) 100%);
+  border: 1px solid rgba(184, 149, 108, 0.3);
   border-radius: 16px;
   padding: 24px 16px;
 }
@@ -233,7 +239,7 @@ function onFinish(): void {
 }
 
 .blocks-section {
-  background: #fafafa;
+  background: #f5f0e8;
   border-radius: 12px;
   padding: 16px;
 }
