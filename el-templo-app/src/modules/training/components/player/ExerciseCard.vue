@@ -132,20 +132,22 @@ const hasTime = computed(() => props.exercise.seconds !== null);
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
-  color: #212121;
+  color: #2c3e5c;
 }
 
 .exercise-card__metric-label {
   font-size: 12px;
-  color: #757575;
-  text-transform: capitalize;
+  color: #b8956c;
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.05em;
 }
 
 .exercise-card__notes {
   font-size: 13px;
   font-style: italic;
-  color: #757575;
+  color: #4a5568;
   padding-top: 8px;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid rgba(44, 62, 92, 0.1);
 }
 </style>
