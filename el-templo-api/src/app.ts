@@ -4,6 +4,7 @@ import databasePlugin from './plugins/database';
 import authPlugin from './plugins/auth';
 import spomPlugin from './plugins/spom';
 import sessionsPlugin from './plugins/sessions';
+import progressionPlugin from './plugins/progression';
 import { authRoutes } from './modules/auth/routes';
 
 export async function buildApp() {
@@ -27,6 +28,9 @@ export async function buildApp() {
 
   // Sessions plugin (session generation and retrieval)
   await app.register(sessionsPlugin);
+
+  // Progression plugin (member stats and evaluation requests)
+  await app.register(progressionPlugin);
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });
