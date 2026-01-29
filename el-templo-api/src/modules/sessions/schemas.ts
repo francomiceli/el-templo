@@ -59,3 +59,32 @@ export const getWeeklySessionsSchema = {
 export interface GetWeeklySessionsInput {
   weekStart: string; // Monday date in YYYY-MM-DD format
 }
+
+// Session completion types
+
+export interface CompleteSessionInput {
+  dayId: string;
+  date: string; // YYYY-MM-DD
+  startedAt: string; // ISO 8601
+  rpe: number | null; // 1-10 or null
+  notes: string | null;
+  blocksCompleted: string[]; // Array of block roles like ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS_EPIKOS"]
+}
+
+export const completeSessionSchema = {
+  body: {
+    type: 'object',
+    required: ['dayId', 'date', 'startedAt', 'blocksCompleted'],
+    properties: {
+      dayId: { type: 'string' },
+      date: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' },
+      startedAt: { type: 'string' },
+      rpe: { type: ['integer', 'null'], minimum: 1, maximum: 10 },
+      notes: { type: ['string', 'null'] },
+      blocksCompleted: {
+        type: 'array',
+        items: { type: 'string' },
+      },
+    },
+  },
+};
