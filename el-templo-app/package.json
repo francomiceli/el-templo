@@ -26,9 +26,11 @@
     "@fontsource/cinzel": "^5.2.8",
     "@quasar/extras": "^1.16.4",
     "axios": "^1.13.2",
+    "chart.js": "^4.5.1",
     "pinia": "^3.0.4",
     "quasar": "^2.16.0",
     "vue": "^3.5.22",
+    "vue-chart-3": "^4.0.1",
     "vue-router": "^4.0.0"
   },
   "devDependencies": {
