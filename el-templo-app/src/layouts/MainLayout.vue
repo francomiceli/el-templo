@@ -29,43 +29,32 @@
       <q-list>
         <q-item-label header class="drawer-header">Menu</q-item-label>
 
-        <!-- Shell navigation -->
-        <q-item clickable to="/" exact>
+        <q-item clickable to="/mi-camino" @click="leftDrawerOpen = false">
           <q-item-section avatar>
-            <q-icon name="home" />
+            <q-icon name="trending_up">
+              <q-badge
+                v-if="progressionStore.evaluationEligible"
+                floating
+                rounded
+                color="secondary"
+              />
+            </q-icon>
           </q-item-section>
-          <q-item-section>Inicio</q-item-section>
+          <q-item-section>Mi Camino</q-item-section>
         </q-item>
 
-        <q-item clickable to="/profile">
+        <q-item clickable to="/training" @click="leftDrawerOpen = false">
+          <q-item-section avatar>
+            <q-icon name="fitness_center" />
+          </q-item-section>
+          <q-item-section>Entrenamiento</q-item-section>
+        </q-item>
+
+        <q-item clickable to="/profile" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="person" />
           </q-item-section>
           <q-item-section>Mi Perfil</q-item-section>
-        </q-item>
-
-        <!-- Module navigation -->
-        <q-separator v-if="modules.length > 0" class="q-my-sm" />
-        <q-item-label v-if="modules.length > 0" header>Modulos</q-item-label>
-
-        <q-item
-          v-for="mod in modules"
-          :key="mod.name"
-          clickable
-          :to="mod.basePath"
-        >
-          <q-item-section avatar>
-            <q-icon :name="mod.icon" />
-          </q-item-section>
-          <q-item-section>
-            {{ mod.label }}
-            <q-badge
-              v-if="mod.name === 'progression' && progressionStore.evaluationEligible"
-              floating
-              rounded
-              color="secondary"
-            />
-          </q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -82,7 +71,6 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
-import { modules } from 'boot/modules'
 
 const $q = useQuasar()
 const router = useRouter()

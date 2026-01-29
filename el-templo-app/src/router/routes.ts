@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'home',
-        component: () => import('pages/IndexPage.vue'),
+        redirect: '/mi-camino',
       },
       {
         path: 'profile',
