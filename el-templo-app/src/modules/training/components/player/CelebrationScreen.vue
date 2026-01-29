@@ -5,12 +5,12 @@
   >
     <div class="celebration-content column items-center q-gutter-y-md">
       <!-- Animated trophy icon -->
-      <div class="icon-container" :class="{ 'pulse-animation': !isFading }">
-        <q-icon name="emoji_events" size="100px" color="amber" />
+      <div class="trophy-container" :class="{ 'pulse-animation': !isFading }">
+        <q-icon name="emoji_events" size="100px" class="trophy-icon" />
       </div>
 
       <!-- Congratulations text -->
-      <div class="text-h4 text-white text-weight-bold text-center">
+      <div class="completion-message text-h4 text-white text-weight-bold text-center">
         Sesion Completada!
       </div>
 
@@ -71,7 +71,7 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .celebration-screen {
   z-index: 9999;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 50%, #1a2a3e 100%);
   transition: opacity 0.5s ease-out;
 
   &.fade-out {
@@ -84,15 +84,25 @@ onUnmounted(() => {
   padding: 24px;
 }
 
-.icon-container {
+.trophy-container {
   width: 140px;
   height: 140px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: radial-gradient(circle, rgba(184, 149, 108, 0.3) 0%, rgba(184, 149, 108, 0.1) 100%);
+  border: 2px solid rgba(184, 149, 108, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 24px;
+}
+
+.trophy-icon {
+  color: #b8956c;
+}
+
+.completion-message {
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.05em;
 }
 
 .pulse-animation {
