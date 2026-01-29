@@ -79,9 +79,27 @@
             </div>
           </div>
           <div class="day-player__header-right">
-            <div class="day-player__timer text-h6 text-weight-bold">
+            <div class="day-player__timer text-h6 text-weight-bold q-mr-sm">
               {{ formattedTime }}
             </div>
+            <q-btn
+              flat
+              round
+              dense
+              icon="more_vert"
+              color="grey-8"
+            >
+              <q-menu>
+                <q-list style="min-width: 150px">
+                  <q-item clickable v-close-popup @click="restartSession">
+                    <q-item-section avatar>
+                      <q-icon name="refresh" />
+                    </q-item-section>
+                    <q-item-section>Reiniciar</q-item-section>
+                  </q-item>
+                </q-list>
+              </q-menu>
+            </q-btn>
           </div>
         </div>
 
@@ -733,6 +751,44 @@ function onExerciseSelect(index: number): void {
 
 function navigateBack(): void {
   router.push({ name: 'training' });
+}
+
+async function restartSession(): Promise<void> {
+  $q.dialog({
+    title: 'Reiniciar Sesion',
+    message: 'Se perdera todo el progreso actual. Estas seguro?',
+    cancel: {
+      label: 'Cancelar',
+      flat: true,
+    },
+    ok: {
+      label: 'Reiniciar',
+      color: 'negative',
+    },
+    persistent: true,
+  }).onOk(async () => {
+    if (player.value && session.value) {
+      // Stop any active timer
+      if (protocolTimer.value) {
+        protocolTimer.value.cleanup();
+        protocolTimer.value = null;
+      }
+
+      // Clear stored progress
+      await player.value.clearProgress();
+
+      // Reset state
+      splashDismissed.value = false;
+      sessionStartedAt.value = null;
+      showCelebration.value = false;
+      showSummary.value = false;
+      timerStarted.value = false;
+
+      // Re-initialize player (force recreation via session change)
+      isInitialized.value = false;
+      await player.value.initialize();
+    }
+  });
 }
 
 async function handleBackNavigation(): Promise<void> {
