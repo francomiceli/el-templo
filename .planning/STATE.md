@@ -12,9 +12,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 Phase: 11 of 13 (V1 Visual Update)
 Plan: 7 of 7 in Phase 11
 Status: In progress
-Last activity: 2026-01-29 - Completed 11-04-PLAN.md (session completion screens)
+Last activity: 2026-01-29 - Completed 11-03-PLAN.md (Day Player core components brand styling)
 
-Progress: [█████████░] 92% (47/51 plans complete)
+Progress: [█████████░] 94% (48/51 plans complete)
 
 ## Architecture Reset
 
@@ -79,10 +79,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 08-timer-system | 5 | 27min | 5.4min |
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 | 10-session-completion | 4 | 35min | 8.8min |
-| 11-v1-visual-update | 6 | 10min | 1.7min |
+| 11-v1-visual-update | 7 | 12min | 1.7min |
 
 **Recent Trend:**
-- Last 4 plans: 11-01 (2min - brand foundation), 11-02 (1min - Greek letters), 11-06 (5min - app icons)
+- Last 4 plans: 11-02 (1min - Greek letters), 11-06 (5min - app icons), 11-03 (2min - core components)
 - Trend: Phase 11 visual update in progress - fast utility tasks
 
 *Updated after each plan completion*
@@ -231,6 +231,9 @@ Recent decisions affecting current work:
 | 11-06 | Cream (#f5f0e8) for light mode background | Brand color for app icon and splash screen |
 | 11-06 | Navy (#1a2a3e) for dark mode background | Dark brand color for night mode splash |
 | 11-06 | Capacitor v7.4.5 for iOS/Android | Match existing Capacitor core version |
+| 11-03 | Navy gradient with symmetric endpoints | Smooth visual transition for SplashScreen |
+| 11-03 | Bronze accent at 20%/40% opacity | Subtle brand presence for logo container |
+| 11-03 | Remove Quasar color class for CSS override | Allow custom bronze color on block-route |
 
 ### Pending Todos
 
@@ -244,8 +247,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-29 15:57 UTC
-Stopped at: Completed 11-04-PLAN.md (session completion screens)
+Last session: 2026-01-29 15:58 UTC
+Stopped at: Completed 11-03-PLAN.md (Day Player core components brand styling)
 Resume file: None
 
 **Phase 11 ADDED.** V1 Visual Update:
