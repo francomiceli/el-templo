@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 11 of 13 (V1 Visual Update)
-Plan: 2 of 7 in Phase 11
+Plan: 6 of 7 in Phase 11
 Status: In progress
-Last activity: 2026-01-29 - Completed 11-01-PLAN.md (brand foundation)
+Last activity: 2026-01-29 - Completed 11-06-PLAN.md (app icons and splash screens)
 
-Progress: [████████░░] 87% (42/48 plans complete)
+Progress: [█████████░] 90% (46/51 plans complete)
 
 ## Architecture Reset
 
@@ -79,10 +79,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 08-timer-system | 5 | 27min | 5.4min |
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 | 10-session-completion | 4 | 35min | 8.8min |
-| 11-v1-visual-update | 2 | 3min | 1.5min |
+| 11-v1-visual-update | 6 | 10min | 1.7min |
 
 **Recent Trend:**
-- Last 4 plans: 10-04 (28min - completion wiring), 11-01 (2min - brand foundation), 11-02 (1min - Greek letters)
+- Last 4 plans: 11-01 (2min - brand foundation), 11-02 (1min - Greek letters), 11-06 (5min - app icons)
 - Trend: Phase 11 visual update in progress - fast utility tasks
 
 *Updated after each plan completion*
@@ -228,6 +228,9 @@ Recent decisions affecting current work:
 | 11-02 | Lowercase alpha (α) for visual distinction | Differentiates from uppercase Delta (Δ) |
 | 11-02 | Spartan maps to Omega | Both are highest tier, share same Greek letter Ω |
 | 11-02 | Case-insensitive with graceful fallback | Unknown levels return original input instead of throwing |
+| 11-06 | Cream (#f5f0e8) for light mode background | Brand color for app icon and splash screen |
+| 11-06 | Navy (#1a2a3e) for dark mode background | Dark brand color for night mode splash |
+| 11-06 | Capacitor v7.4.5 for iOS/Android | Match existing Capacitor core version |
 
 ### Pending Todos
 
@@ -241,8 +244,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-29 15:51 UTC
-Stopped at: Completed 11-01-PLAN.md (brand foundation - colors, fonts, textures)
+Last session: 2026-01-29 15:54 UTC
+Stopped at: Completed 11-06-PLAN.md (app icons and splash screens)
 Resume file: None
 
 **Phase 11 ADDED.** V1 Visual Update:
