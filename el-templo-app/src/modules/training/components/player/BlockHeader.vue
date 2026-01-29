@@ -4,7 +4,7 @@
       <div class="block-name text-h5 text-weight-bold text-uppercase">
         {{ blockName }}
       </div>
-      <div v-if="route || intensity" class="block-route text-caption text-grey-7">
+      <div v-if="route || intensity" class="block-route text-caption">
         <span v-if="route">{{ route }}</span>
         <span v-if="route && intensity"> · </span>
         <span v-if="intensity">{{ intensity }}%</span>
@@ -76,12 +76,17 @@ const headerStyle = computed(() => {
 }
 
 .block-name {
-  letter-spacing: 0.05em;
+  font-family: 'Cinzel', Georgia, serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   line-height: 1.3;
 }
 
 .block-route {
   margin-top: 2px;
+  color: #b8956c;
+  font-weight: 500;
+  letter-spacing: 0.05em;
 }
 
 .block-timer {
