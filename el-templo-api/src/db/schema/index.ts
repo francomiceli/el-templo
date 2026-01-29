@@ -14,3 +14,4 @@ export * from './session-blocks';
 export * from './session-prescriptions';
 export * from './session-traces';
 export * from './completed-sessions';
+export * from './evaluation-requests';
