@@ -39,13 +39,59 @@
 
     <!-- Content State -->
     <div v-else class="mi-camino__content">
-      <!-- Level Display (centered at top) -->
-      <LevelDisplay
-        v-if="progressionStore.level"
-        :greek-letter="progressionStore.level.greekLetter"
-        :level-name="progressionStore.level.displayName"
-        class="mi-camino__level"
-      />
+      <!-- Welcome Header -->
+      <div class="mi-camino__welcome">
+        <div class="mi-camino__welcome-text">
+          <p class="mi-camino__greeting">Bienvenido,</p>
+          <h1 class="mi-camino__name">{{ userName }}</h1>
+          <p class="mi-camino__date">{{ todayFormatted }}</p>
+        </div>
+        <LevelDisplay
+          v-if="progressionStore.level"
+          :greek-letter="progressionStore.level.greekLetter"
+          :level-name="progressionStore.level.displayName"
+          class="mi-camino__level-badge"
+        />
+      </div>
+
+      <!-- Today's Training CTA -->
+      <q-card class="mi-camino__today-card" flat bordered>
+        <q-card-section class="mi-camino__today-content">
+          <div class="mi-camino__today-info">
+            <q-icon
+              :name="todayCompleted ? 'check_circle' : 'fitness_center'"
+              :color="todayCompleted ? 'positive' : 'secondary'"
+              size="40px"
+            />
+            <div class="mi-camino__today-text">
+              <p class="mi-camino__today-title">
+                {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
+              </p>
+              <p class="mi-camino__today-subtitle">
+                {{ todayCompleted ? 'Buen trabajo!' : 'Lista para comenzar' }}
+              </p>
+            </div>
+          </div>
+          <q-btn
+            v-if="!todayCompleted"
+            color="secondary"
+            text-color="primary"
+            unelevated
+            no-caps
+            label="Entrenar"
+            icon-right="arrow_forward"
+            to="/training"
+          />
+          <q-btn
+            v-else
+            flat
+            color="primary"
+            no-caps
+            label="Ver Detalles"
+            to="/training"
+          />
+        </q-card-section>
+      </q-card>
 
       <!-- Training Stats (4 cards in grid) -->
       <TrainingStats
@@ -103,13 +149,47 @@
 import { computed, onMounted } from 'vue';
 import { useProgressionStore } from '../stores/progressionStore';
 import { useProgressionApi } from '../composables/useProgressionApi';
+import { useUserStore } from 'src/stores/useUserStore';
+import { useWeekStore } from 'src/modules/training/stores/weekStore';
 import LevelDisplay from '../components/LevelDisplay.vue';
 import TrainingStats from '../components/TrainingStats.vue';
 import RpeTrendChart from '../components/RpeTrendChart.vue';
 import EvaluationRequest from '../components/EvaluationRequest.vue';
 
 const progressionStore = useProgressionStore();
+const userStore = useUserStore();
+const weekStore = useWeekStore();
 const { fetchStats, requestEvaluation } = useProgressionApi();
+
+/**
+ * User's display name
+ */
+const userName = computed(() => {
+  return userStore.profile?.name || userStore.profile?.email?.split('@')[0] || 'Atleta';
+});
+
+/**
+ * Today's date formatted in Spanish
+ */
+const todayFormatted = computed(() => {
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  };
+  const date = new Date().toLocaleDateString('es-ES', options);
+  // Capitalize first letter
+  return date.charAt(0).toUpperCase() + date.slice(1);
+});
+
+/**
+ * Check if today's session is completed
+ */
+const todayCompleted = computed(() => {
+  const today = new Date().toISOString().split('T')[0];
+  const todayDay = weekStore.weekDays.find(d => d.date === today);
+  return todayDay?.completed ?? false;
+});
 
 /**
  * Check if this is a new user with no training data
@@ -198,6 +278,80 @@ onMounted(() => {
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  &__welcome {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  &__welcome-text {
+    flex: 1;
+  }
+
+  &__greeting {
+    font-size: 14px;
+    color: rgba($primary, 0.6);
+    margin: 0 0 2px;
+  }
+
+  &__name {
+    font-family: 'Cinzel', serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0 0 4px;
+  }
+
+  &__date {
+    font-size: 13px;
+    color: rgba($primary, 0.7);
+    margin: 0;
+  }
+
+  &__level-badge {
+    flex-shrink: 0;
+    margin-left: 16px;
+  }
+
+  &__today-card {
+    background-color: white;
+    border-color: rgba($secondary, 0.3);
+    border-radius: 12px;
+  }
+
+  &__today-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__today-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__today-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__today-title {
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__today-subtitle {
+    font-size: 13px;
+    color: rgba($primary, 0.6);
+    margin: 0;
   }
 
   &__level {
