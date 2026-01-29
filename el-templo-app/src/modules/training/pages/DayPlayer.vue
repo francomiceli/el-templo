@@ -26,7 +26,8 @@
     <SessionSummary
       v-else-if="showSummary && session"
       :date="dateParam"
-      :blocks-completed="player?.completedBlocks.value ?? []"
+      :blocks-data="blocksDataForSummary"
+      :days-completed-this-week="daysCompletedThisWeek"
       :total-days-trained="totalDaysTrained"
       :is-submitting="isSubmitting"
       @finish="onSummaryFinish"
@@ -268,6 +269,27 @@ const transitionNextBlock = ref('');
 const showCelebration = ref(false);
 const showSummary = ref(false);
 const sessionStartedAt = ref<string | null>(null);
+
+/**
+ * Count days completed this week from weekStore
+ */
+const daysCompletedThisWeek = computed(() => {
+  return weekStore.weekDays.filter(day => day.state === 'completed').length;
+});
+
+/**
+ * Block data for summary screen (role + exercises)
+ */
+const blocksDataForSummary = computed(() => {
+  if (!player.value) return [];
+  const completedRoles = player.value.completedBlocks.value;
+  return player.value.playableBlocks.value
+    .filter(block => completedRoles.includes(block.role))
+    .map(block => ({
+      role: block.role,
+      exercises: (block.exercises ?? []).map(ex => ({ name: ex.name })),
+    }));
+});
 
 // Protocol timer state
 const timerAudio = useTimerAudio();
