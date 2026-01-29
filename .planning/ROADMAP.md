@@ -296,21 +296,30 @@ Waves:
 - Wave 3: 11-07 (human verification - depends on all prior)
 
 ### Phase 12: Progression & Coach Functions
-**Goal**: Members track level progression, coaches manage their branch members
+**Goal**: Members can track their level progression with RPE trends and request coach evaluation when eligible (coach management deferred to future phase)
 **Depends on**: Phase 11
-**Requirements**: PROG-01, PROG-02, PROG-03, PROG-04, COACH-01, COACH-02, COACH-03, COACH-04, COACH-05
+**Requirements**: PROG-01, PROG-02, PROG-03, PROG-04 (COACH-01 through COACH-05 deferred)
 **Success Criteria** (what must be TRUE):
-  1. Member can see their current level (Alfa/Delta/Sigma/Omega/Spartan)
-  2. System tracks member RPE history and shows trends over time
-  3. When RPE threshold met over defined period, member can request coach evaluation
-  4. Coach can view list of members in their branch with training history
-  5. Coach can promote member to next level, changes are logged
-  6. Coach can override specific blocks with GENERAL patterns (Animal Flow, Cardio, etc.)
-  7. Coach/member can mark specific days as rest days (no session generated)
-**Plans**: TBD
+  1. Member can see their current level (Alfa/Delta/Sigma/Omega/Spartan) with Greek letter display
+  2. System tracks member RPE history and shows trends over time via line chart
+  3. Member sees training stats: total sessions, days trained, weekly sessions, streak
+  4. When RPE threshold met (<=6 for 2 weeks), member can request coach evaluation
+  5. Navigation shows badge when member is eligible for evaluation
+  6. Pending evaluation requests are tracked and displayed
+**Plans**: 5 plans in 4 waves
 
 Plans:
-- [ ] 12-01: TBD
+- [ ] 12-01-PLAN.md — Backend foundation: evaluation_requests schema, progression routes and service
+- [ ] 12-02-PLAN.md — Frontend foundation: install vue-chart-3, progression store, API composable
+- [ ] 12-03-PLAN.md — Mi Camino components: LevelDisplay, TrainingStats, RpeTrendChart, EvaluationRequest
+- [ ] 12-04-PLAN.md — Page assembly: MiCamino page, routes, navigation badge
+- [ ] 12-05-PLAN.md — Human verification checkpoint
+
+Waves:
+- Wave 1: 12-01, 12-02 (parallel - backend + frontend foundation)
+- Wave 2: 12-03 (components - depends on 12-01, 12-02)
+- Wave 3: 12-04 (page assembly - depends on 12-03)
+- Wave 4: 12-05 (human verification - depends on all prior)
 
 ### Phase 13: Admin Panel
 **Goal**: Superadmins can manage SPOM data, override sessions, and configure system
@@ -346,9 +355,9 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10
 | 9. Level-Specific Sessions | 4/4 | Complete | 2026-01-28 |
 | 10. Session Completion & Logging | 4/4 | Complete | 2026-01-29 |
 | 11. V1 Visual Update | 0/7 | Not started | - |
-| 12. Progression & Coach Functions | 0/0 | Not started | - |
+| 12. Progression & Coach Functions | 0/5 | Not started | - |
 | 13. Admin Panel | 0/0 | Not started | - |
 
 ---
 *Roadmap created: 2026-01-22*
-*Last updated: 2026-01-29 — Phase 11 planned (7 plans in 3 waves)*
+*Last updated: 2026-01-29 — Phase 12 planned (5 plans in 4 waves)*
