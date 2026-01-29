@@ -272,9 +272,15 @@ const sessionStartedAt = ref<string | null>(null);
 
 /**
  * Count days completed this week from weekStore
+ * Includes +1 for today's session being completed now
  */
 const daysCompletedThisWeek = computed(() => {
-  return weekStore.weekDays.filter(day => day.state === 'completed').length;
+  const alreadyCompleted = weekStore.weekDays.filter(day => day.state === 'completed').length;
+  // Add 1 for today if not already counted as completed
+  const todayAlreadyCounted = weekStore.weekDays.some(
+    day => day.date === dateParam.value && day.state === 'completed'
+  );
+  return todayAlreadyCounted ? alreadyCompleted : alreadyCompleted + 1;
 });
 
 /**
@@ -287,7 +293,7 @@ const blocksDataForSummary = computed(() => {
     .filter(block => completedRoles.includes(block.role))
     .map(block => ({
       role: block.role,
-      exercises: (block.exercises ?? []).map(ex => ({ name: ex.name })),
+      exercises: (block.exercises ?? []).map(ex => ({ name: ex.exerciseName })),
     }));
 });
 
@@ -750,6 +756,9 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
       position: 'top',
       timeout: 2000,
     });
+
+    // Brief pause so user sees updated totalDaysTrained in summary
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
     // Navigate back to weekly view
     router.push({ name: 'training' });
