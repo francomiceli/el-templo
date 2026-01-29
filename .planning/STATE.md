@@ -12,9 +12,9 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 Phase: 11 of 13 (V1 Visual Update)
 Plan: 2 of 7 in Phase 11
 Status: In progress
-Last activity: 2026-01-29 - Completed 11-02-PLAN.md (Greek letter utility)
+Last activity: 2026-01-29 - Completed 11-01-PLAN.md (brand foundation)
 
-Progress: [████████░░] 86% (43/~50 plans complete)
+Progress: [████████░░] 87% (42/48 plans complete)
 
 ## Architecture Reset
 
@@ -79,10 +79,10 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 08-timer-system | 5 | 27min | 5.4min |
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 | 10-session-completion | 4 | 35min | 8.8min |
-| 11-v1-visual-update | 2 | 2min | 1min |
+| 11-v1-visual-update | 2 | 3min | 1.5min |
 
 **Recent Trend:**
-- Last 4 plans: 10-03 (2min - summary UI), 10-04 (28min - completion wiring), 11-01 (1min - brand colors), 11-02 (1min - Greek letters)
+- Last 4 plans: 10-04 (28min - completion wiring), 11-01 (2min - brand foundation), 11-02 (1min - Greek letters)
 - Trend: Phase 11 visual update in progress - fast utility tasks
 
 *Updated after each plan completion*
@@ -222,6 +222,9 @@ Recent decisions affecting current work:
 | 10-04 | weekStore.markDayCompleted() after API success | Updates Weekly View state so completed day shows checkmark immediately |
 | 10-04 | Restart requires confirmation dialog | Prevents accidental data loss, warns user progress will be cleared |
 | 10-04 | Reset timerStarted and isInitialized on restart | Ensures player state fully resets, prevents inconsistent state |
+| 11-01 | Navy (#2c3e5c) primary, bronze (#b8956c) secondary | El Templo classical Greek brand colors |
+| 11-01 | @fontsource/cinzel for headings | Self-hosted serif font, no CDN dependency |
+| 11-01 | SVG feTurbulence for marble texture | Inline SVG avoids external image files |
 | 11-02 | Lowercase alpha (α) for visual distinction | Differentiates from uppercase Delta (Δ) |
 | 11-02 | Spartan maps to Omega | Both are highest tier, share same Greek letter Ω |
 | 11-02 | Case-insensitive with graceful fallback | Unknown levels return original input instead of throwing |
@@ -238,8 +241,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-29 15:50 UTC
-Stopped at: Completed 11-02-PLAN.md (Greek letter level display utility)
+Last session: 2026-01-29 15:51 UTC
+Stopped at: Completed 11-01-PLAN.md (brand foundation - colors, fonts, textures)
 Resume file: None
 
 **Phase 11 ADDED.** V1 Visual Update:
