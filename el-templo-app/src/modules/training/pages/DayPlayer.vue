@@ -28,7 +28,7 @@
       :date="dateParam"
       :blocks-data="blocksDataForSummary"
       :days-completed-this-week="daysCompletedThisWeek"
-      :total-days-trained="totalDaysTrained"
+      :total-days-trained="displayTotalDaysTrained"
       :is-submitting="isSubmitting"
       @finish="onSummaryFinish"
     />
@@ -281,6 +281,13 @@ const daysCompletedThisWeek = computed(() => {
     day => day.date === dateParam.value && day.state === 'completed'
   );
   return todayAlreadyCounted ? alreadyCompleted : alreadyCompleted + 1;
+});
+
+/**
+ * Display total days trained (at least 1 for current session)
+ */
+const displayTotalDaysTrained = computed(() => {
+  return totalDaysTrained.value || 1;
 });
 
 /**
@@ -756,9 +763,6 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
       position: 'top',
       timeout: 2000,
     });
-
-    // Brief pause so user sees updated totalDaysTrained in summary
-    await new Promise(resolve => setTimeout(resolve, 1200));
 
     // Navigate back to weekly view
     router.push({ name: 'training' });
