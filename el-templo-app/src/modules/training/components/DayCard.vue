@@ -138,6 +138,9 @@ function handleStart() {
 </script>
 
 <style scoped lang="scss">
+// Import brand variables
+@import 'src/css/quasar.variables.scss';
+
 .day-card {
   display: flex;
   flex-direction: column;
@@ -146,7 +149,7 @@ function handleStart() {
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 
   &__header {
     flex-shrink: 0;
@@ -176,7 +179,7 @@ function handleStart() {
   &__day-name {
     font-size: 20px;
     font-weight: 700;
-    color: #333;
+    color: $primary;
   }
 
   &__separator {
@@ -187,12 +190,13 @@ function handleStart() {
 
   &__date {
     font-size: 14px;
-    color: #666;
+    color: $primary;
+    opacity: 0.7;
   }
 
   &__route {
     font-size: 14px;
-    color: var(--q-primary);
+    color: $secondary;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -227,14 +231,32 @@ function handleStart() {
     border-top: 1px solid #f0f0f0;
   }
 
-  // State variations
+  // Selected state - bronze accent
+  &--selected {
+    border: 2px solid $secondary;
+    box-shadow: 0 8px 30px rgba($secondary, 0.25);
+  }
+
+  // Today indicator - navy styling
   &--today {
     .day-card__header {
-      background: linear-gradient(135deg, rgba(var(--q-primary-rgb), 0.05) 0%, #ffffff 100%);
+      background: linear-gradient(135deg, rgba($primary, 0.05) 0%, #ffffff 100%);
     }
 
     .day-card__day-name {
-      color: var(--q-primary);
+      color: $primary;
+    }
+
+    // Today badge
+    &::after {
+      content: '';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background-color: $primary;
+      border-radius: 50%;
     }
   }
 
@@ -252,11 +274,17 @@ function handleStart() {
     opacity: 0.85;
   }
 
+  // Rest day - cream background
   &--rest {
-    background: #f5f5f5;
+    background: $cream;
 
     .day-card__header {
       background: transparent;
+    }
+
+    .day-card__day-name {
+      color: $primary;
+      opacity: 0.6;
     }
   }
 }
