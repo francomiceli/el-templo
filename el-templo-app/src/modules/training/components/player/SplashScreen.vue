@@ -33,6 +33,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { getLevelGreek, formatLevelName } from '../../utils/levelDisplay';
 
 interface SessionInfo {
   /** Day name (e.g., "Lunes", "Martes") */
@@ -79,8 +80,9 @@ const topLabel = computed(() => {
   }
   if (props.sessionInfo) {
     const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1);
-    const level = props.sessionInfo.level.toUpperCase();
-    return `${day} - ${level}`;
+    const greek = getLevelGreek(props.sessionInfo.level);
+    const levelName = formatLevelName(props.sessionInfo.level);
+    return `${day} - ${greek} ${levelName}`;
   }
   return '';
 });
@@ -121,7 +123,7 @@ onUnmounted(() => {
 <style scoped lang="scss">
 .splash-screen {
   z-index: 9999;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 50%, #1a2a3e 100%);
   transition: opacity 0.5s ease-out;
 
   &.fade-out {
@@ -138,7 +140,8 @@ onUnmounted(() => {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(184, 149, 108, 0.2);
+  border: 2px solid rgba(184, 149, 108, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,6 +155,8 @@ onUnmounted(() => {
 .motivation {
   margin-top: 16px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.05em;
 }
 
 .loading-dots {
