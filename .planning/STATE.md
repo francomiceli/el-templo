@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-01-21)
 ## Current Position
 
 Phase: 12 of 13 (Progression & Coach Functions)
-Plan: 2 of 5 in Phase 12
+Plan: 3 of 5 in Phase 12
 Status: In progress
-Last activity: 2026-01-29 - Completed 12-01-PLAN.md (backend progression API)
+Last activity: 2026-01-29 - Completed 12-03-PLAN.md (Mi Camino page components)
 
-Progress: [█████████░] 98% (52/53 plans complete)
+Progress: [█████████░] 98% (53/54 plans complete)
 
 ## Architecture Reset
 
@@ -80,11 +80,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 09-level-specific-sessions | 4 | 11min | 2.8min |
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
-| 12-progression-coach-functions | 2 | 7min | 3.5min |
+| 12-progression-coach-functions | 3 | 9min | 3.0min |
 
 **Recent Trend:**
-- Last 4 plans: 11-03 (2min - core components), 12-02 (4min - frontend foundation), 12-01 (3min - backend API)
-- Trend: Phase 12 progression module - both API and frontend foundation complete
+- Last 4 plans: 12-02 (4min - frontend foundation), 12-01 (3min - backend API), 12-03 (2min - page components)
+- Trend: Phase 12 progression module - API, foundation, and page components complete
 
 *Updated after each plan completion*
 
@@ -242,6 +242,8 @@ Recent decisions affecting current work:
 | 12-01 | Streak breaks if no today/yesterday session | Calendar-based streak, consecutive days only |
 | 12-01 | Eligibility threshold RPE <= 6 | Average RPE for last 2 weeks must be 6 or below |
 | 12-01 | Spanish error messages for evaluation | "Ya tienes una solicitud pendiente", "No cumples los requisitos" |
+| 12-03 | Tree-shaken Chart.js imports | Avoid chart.js/auto for smaller bundle, register only needed modules |
+| 12-03 | Brand colors as constants in chart config | Hex values for reusability outside SCSS context |
 
 ### Pending Todos
 
@@ -255,14 +257,15 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-29 23:11 UTC
-Stopped at: Completed 12-01-PLAN.md (backend progression API)
+Last session: 2026-01-29 23:16 UTC
+Stopped at: Completed 12-03-PLAN.md (Mi Camino page components)
 Resume file: None
 
 **Phase 12 IN PROGRESS.** Progression & Coach Functions:
 - 12-01: COMPLETE - API endpoints for progression stats and evaluation requests
 - 12-02: COMPLETE - Frontend foundation (chart libs, Pinia store, API composable)
-- Next: 12-03 ProgressionPage component with Mi Camino UI
+- 12-03: COMPLETE - Mi Camino page components (LevelDisplay, TrainingStats, RpeTrendChart, EvaluationRequest)
+- Next: 12-04 Mi Camino page assembly and routing
 
 **Phase 11 COMPLETED.** V1 Visual Update:
 - Brand identity application: Navy blue (#2c3e5c) + Bronze (#b8956c) color palette
