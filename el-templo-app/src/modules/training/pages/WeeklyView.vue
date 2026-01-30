@@ -106,7 +106,12 @@ async function loadWeekData() {
     weekStore.setWeekDays(weekDays);
 
     // Auto-select today (or first non-Sunday if today is not in current week)
-    const today = new Date().toISOString().split('T')[0];
+    // Use local timezone to match week date generation
+    const now = new Date();
+    const todayYear = now.getFullYear();
+    const todayMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const todayDay = String(now.getDate()).padStart(2, '0');
+    const today = `${todayYear}-${todayMonth}-${todayDay}`;
     const todayInWeek = dates.includes(today);
 
     if (todayInWeek) {

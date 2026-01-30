@@ -37,8 +37,13 @@ export const useWeekStore = defineStore('week', () => {
    * Returns -1 if today is not in the current week
    */
   const todayIndex = computed(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return weekDays.value.findIndex(day => day.date === today);
+    // Use local timezone to match week date generation
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const today = `${year}-${month}-${day}`;
+    return weekDays.value.findIndex(d => d.date === today);
   });
 
   /**
