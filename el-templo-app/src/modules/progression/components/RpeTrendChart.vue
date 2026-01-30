@@ -24,6 +24,7 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  LineController,
   Title,
   Tooltip,
   Filler,
@@ -36,6 +37,7 @@ Chart.register(
   LinearScale,
   PointElement,
   LineElement,
+  LineController,
   Title,
   Tooltip,
   Filler

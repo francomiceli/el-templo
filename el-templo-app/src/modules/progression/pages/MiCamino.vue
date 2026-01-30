@@ -67,9 +67,24 @@
               <p class="mi-camino__today-title">
                 {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
               </p>
-              <p class="mi-camino__today-subtitle">
-                {{ todayCompleted ? 'Buen trabajo!' : 'Lista para comenzar' }}
+              <p v-if="!todayCompleted" class="mi-camino__today-subtitle">
+                Lista para comenzar
               </p>
+              <!-- Session summary when completed -->
+              <div v-else class="mi-camino__session-summary">
+                <span v-if="progressionStore.todaySession?.durationMinutes" class="mi-camino__summary-item">
+                  <q-icon name="timer" size="14px" />
+                  {{ progressionStore.todaySession.durationMinutes }} min
+                </span>
+                <span v-if="progressionStore.todaySession?.rpe" class="mi-camino__summary-item">
+                  <q-icon name="speed" size="14px" />
+                  RPE {{ progressionStore.todaySession.rpe }}
+                </span>
+                <span v-if="progressionStore.todaySession?.notes" class="mi-camino__summary-item mi-camino__summary-notes">
+                  <q-icon name="notes" size="14px" />
+                  {{ progressionStore.todaySession.notes }}
+                </span>
+              </div>
             </div>
           </div>
           <q-btn
@@ -80,14 +95,6 @@
             no-caps
             label="Entrenar"
             icon-right="arrow_forward"
-            to="/training"
-          />
-          <q-btn
-            v-else
-            flat
-            color="primary"
-            no-caps
-            label="Ver Detalles"
             to="/training"
           />
         </q-card-section>
@@ -150,7 +157,6 @@ import { computed, onMounted } from 'vue';
 import { useProgressionStore } from '../stores/progressionStore';
 import { useProgressionApi } from '../composables/useProgressionApi';
 import { useUserStore } from 'src/stores/useUserStore';
-import { useWeekStore } from 'src/modules/training/stores/weekStore';
 import LevelDisplay from '../components/LevelDisplay.vue';
 import TrainingStats from '../components/TrainingStats.vue';
 import RpeTrendChart from '../components/RpeTrendChart.vue';
@@ -158,14 +164,17 @@ import EvaluationRequest from '../components/EvaluationRequest.vue';
 
 const progressionStore = useProgressionStore();
 const userStore = useUserStore();
-const weekStore = useWeekStore();
 const { fetchStats, requestEvaluation } = useProgressionApi();
 
 /**
  * User's display name
  */
 const userName = computed(() => {
-  return userStore.profile?.name || userStore.profile?.email?.split('@')[0] || 'Atleta';
+  const profile = userStore.profile;
+  if (profile?.firstName) {
+    return profile.lastName ? `${profile.firstName} ${profile.lastName}` : profile.firstName;
+  }
+  return profile?.email?.split('@')[0] || 'Atleta';
 });
 
 /**
@@ -184,16 +193,10 @@ const todayFormatted = computed(() => {
 
 /**
  * Check if today's session is completed
+ * Uses progressionStore.todaySession from API (more reliable than weekStore)
  */
 const todayCompleted = computed(() => {
-  // Use local timezone to match week date generation
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const today = `${year}-${month}-${day}`;
-  const todayDay = weekStore.weekDays.find(d => d.date === today);
-  return todayDay?.completed ?? false;
+  return progressionStore.todaySession?.completed ?? false;
 });
 
 /**
@@ -357,6 +360,31 @@ onMounted(() => {
     font-size: 13px;
     color: rgba($primary, 0.6);
     margin: 0;
+  }
+
+  &__session-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  &__summary-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: rgba($primary, 0.7);
+    background: rgba($secondary, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  &__summary-notes {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__level {

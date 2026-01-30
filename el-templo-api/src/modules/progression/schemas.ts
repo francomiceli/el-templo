@@ -35,6 +35,15 @@ export const progressionStatsResponseSchema = {
         requestedAt: { type: ['string', 'null'] },
       },
     },
+    todaySession: {
+      type: ['object', 'null'],
+      properties: {
+        completed: { type: 'boolean' },
+        rpe: { type: ['number', 'null'] },
+        notes: { type: ['string', 'null'] },
+        durationMinutes: { type: ['number', 'null'] },
+      },
+    },
   },
 };
 

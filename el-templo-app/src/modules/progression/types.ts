@@ -30,9 +30,17 @@ export interface EvaluationStatus {
   requestedAt: string | null;
 }
 
+export interface TodaySession {
+  completed: boolean;
+  rpe: number | null;
+  notes: string | null;
+  durationMinutes: number | null;
+}
+
 export interface ProgressionResponse {
   level: ProgressionLevel;
   stats: ProgressionStats;
   rpeTrend: RpeTrend;
   evaluation: EvaluationStatus;
+  todaySession: TodaySession | null;
 }

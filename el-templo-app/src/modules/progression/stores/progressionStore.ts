@@ -5,6 +5,7 @@ import type {
   ProgressionStats,
   RpeTrend,
   EvaluationStatus,
+  TodaySession,
   ProgressionResponse,
 } from '../types';
 
@@ -27,6 +28,9 @@ export const useProgressionStore = defineStore('progression', () => {
 
   /** Evaluation eligibility and request status */
   const evaluation = ref<EvaluationStatus | null>(null);
+
+  /** Today's completed session (if any) */
+  const todaySession = ref<TodaySession | null>(null);
 
   /** Loading state for async operations */
   const loading = ref(false);
@@ -54,6 +58,7 @@ export const useProgressionStore = defineStore('progression', () => {
     stats.value = response.stats;
     rpeTrend.value = response.rpeTrend;
     evaluation.value = response.evaluation;
+    todaySession.value = response.todaySession;
     error.value = null;
   }
 
@@ -98,6 +103,7 @@ export const useProgressionStore = defineStore('progression', () => {
     stats.value = null;
     rpeTrend.value = null;
     evaluation.value = null;
+    todaySession.value = null;
     loading.value = false;
     error.value = null;
   }
@@ -108,6 +114,7 @@ export const useProgressionStore = defineStore('progression', () => {
     stats,
     rpeTrend,
     evaluation,
+    todaySession,
     loading,
     error,
     // Computed

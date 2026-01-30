@@ -50,6 +50,8 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
     const twoWeeksAgoStr = twoWeeksAgo.toISOString().split('T')[0];
     const fourWeeksAgoStr = fourWeeksAgo.toISOString().split('T')[0];
 
+    const todayStr = today.toISOString().split('T')[0];
+
     // Parallel queries for performance
     const [
       totalResult,
@@ -58,6 +60,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
       rpeDataResult,
       allSessionsResult,
       pendingRequestResult,
+      todaySessionResult,
     ] = await Promise.all([
       // Total sessions and unique days
       fastify.db
@@ -120,6 +123,20 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
           eq(schema.evaluationRequests.userId, userId),
           eq(schema.evaluationRequests.status, 'pending')
         )),
+
+      // Today's completed session (if any)
+      fastify.db
+        .select({
+          rpe: schema.completedSessions.rpe,
+          notes: schema.completedSessions.notes,
+          startedAt: schema.completedSessions.startedAt,
+          completedAt: schema.completedSessions.completedAt,
+        })
+        .from(schema.completedSessions)
+        .where(and(
+          eq(schema.completedSessions.userId, userId),
+          eq(schema.completedSessions.date, todayStr)
+        )),
     ]);
 
     // Extract results
@@ -127,6 +144,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
     const eligible = checkEligibility(avgRpe);
     const currentStreak = calculateStreak(allSessionsResult);
     const pendingRequest = pendingRequestResult[0] ?? null;
+    const todaySession = todaySessionResult[0] ?? null;
 
     // Build response
     return {
@@ -152,6 +170,14 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
         pendingRequest: !!pendingRequest,
         requestedAt: pendingRequest?.requestedAt?.toISOString() ?? null,
       },
+      todaySession: todaySession ? {
+        completed: true,
+        rpe: todaySession.rpe,
+        notes: todaySession.notes,
+        durationMinutes: todaySession.startedAt && todaySession.completedAt
+          ? Math.round((new Date(todaySession.completedAt).getTime() - new Date(todaySession.startedAt).getTime()) / 60000)
+          : null,
+      } : null,
     };
   });
 
