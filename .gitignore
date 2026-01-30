@@ -1,1 +1,4 @@
 .planning/intel/
+
+# AWS infrastructure variables (contains IPs, instance IDs)
+deploy/.aws-vars

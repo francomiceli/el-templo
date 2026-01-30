@@ -1,15 +1,7 @@
 <template>
   <q-page class="conceptos-page">
     <div class="conceptos-page__header">
-      <q-btn
-        flat
-        round
-        dense
-        icon="arrow_back"
-        color="grey-8"
-        @click="$router.back()"
-      />
-      <div class="conceptos-page__title text-h5">Conceptos</div>
+      <!--       <q-btn flat round dense icon="arrow_back" color="grey-8" @click="$router.back()" /> -->
     </div>
 
     <div class="conceptos-page__subtitle text-subtitle1 text-grey-7">
@@ -18,12 +10,7 @@
 
     <q-list class="conceptos-page__content">
       <!-- Bloques Section -->
-      <q-expansion-item
-        group="conceptos"
-        icon="view_module"
-        label="Bloques"
-        header-class="conceptos-section-header"
-      >
+      <q-expansion-item group="conceptos" icon="view_module" label="Bloques" header-class="conceptos-section-header">
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
@@ -68,12 +55,7 @@
       </q-expansion-item>
 
       <!-- Rutas Section -->
-      <q-expansion-item
-        group="conceptos"
-        icon="route"
-        label="Rutas"
-        header-class="conceptos-section-header"
-      >
+      <q-expansion-item group="conceptos" icon="route" label="Rutas" header-class="conceptos-section-header">
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
@@ -128,12 +110,7 @@
       </q-expansion-item>
 
       <!-- Formatos Section -->
-      <q-expansion-item
-        group="conceptos"
-        icon="timer"
-        label="Formatos"
-        header-class="conceptos-section-header"
-      >
+      <q-expansion-item group="conceptos" icon="timer" label="Formatos" header-class="conceptos-section-header">
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
@@ -186,12 +163,7 @@
       </q-expansion-item>
 
       <!-- Intensidad Section -->
-      <q-expansion-item
-        group="conceptos"
-        icon="speed"
-        label="Intensidad"
-        header-class="conceptos-section-header"
-      >
+      <q-expansion-item group="conceptos" icon="speed" label="Intensidad" header-class="conceptos-section-header">
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
@@ -261,7 +233,7 @@
 .conceptos-page__header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 8px 16px;
   gap: 8px;
 }
 

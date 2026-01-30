@@ -1,4 +1,16 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment-specific .env file
+const envFile = process.env.NODE_ENV === 'production'
+  ? '.env.production'
+  : '.env.development';
+
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+
+// Fallback to .env if specific file doesn't exist
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 import { buildApp } from './app';
 
 async function start() {
