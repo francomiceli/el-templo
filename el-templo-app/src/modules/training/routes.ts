@@ -12,6 +12,12 @@ const routes: RouteRecordRaw[] = [
     name: 'day-player',
     component: () => import('./pages/DayPlayer.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: 'training/saberes',
+    name: 'saberes',
+    component: () => import('./pages/Saberes.vue'),
+    meta: { requiresAuth: true }
   }
 ]
 

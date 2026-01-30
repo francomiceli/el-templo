@@ -50,6 +50,13 @@
           <q-item-section>Entrenamiento</q-item-section>
         </q-item>
 
+        <q-item clickable to="/training/saberes" @click="leftDrawerOpen = false">
+          <q-item-section avatar>
+            <q-icon name="menu_book" />
+          </q-item-section>
+          <q-item-section>Saberes</q-item-section>
+        </q-item>
+
         <q-item clickable to="/profile" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="person" />
