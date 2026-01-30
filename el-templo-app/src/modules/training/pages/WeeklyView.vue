@@ -184,46 +184,30 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 // Import brand variables
 @import 'src/css/quasar.variables.scss';
 
 .weekly-view {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  // Calculate height minus the header (50px default Quasar toolbar)
+  height: calc(100vh - 50px);
   overflow: hidden;
 
   &__header {
     flex-shrink: 0;
     background-color: $cream;
-    border-bottom: 2px solid $secondary;
     position: relative;
-
-    // Marble texture overlay
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-      opacity: 0.3;
-      pointer-events: none;
-      mix-blend-mode: multiply;
-    }
+    padding-bottom: 8px;
   }
 
   &__title {
     color: $primary;
-    position: relative;
-    z-index: 1;
   }
 
   &__subtitle {
-    color: $secondary;
-    position: relative;
-    z-index: 1;
+    color: color.adjust($secondary, $lightness: -10%);
   }
 
   &__carousel {

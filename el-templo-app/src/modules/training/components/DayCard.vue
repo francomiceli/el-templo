@@ -2,12 +2,13 @@
   <div class="day-card" :class="cardClasses">
     <!-- Day Header -->
     <div class="day-card__header">
-      <div class="day-card__header-left">
-        <span class="day-card__day-name">{{ day.dayName }}</span>
-        <span class="day-card__separator">·</span>
-        <span class="day-card__date">{{ formatDate(day.date) }}</span>
+      <div class="day-card__header-top">
+        <div class="day-card__header-left">
+          <span class="day-card__day-name">{{ day.dayName }}</span>
+          <span class="day-card__date">{{ formatDate(day.date) }}</span>
+        </div>
       </div>
-      <div v-if="day.session" class="day-card__header-right">
+      <div v-if="day.session" class="day-card__header-subtitle">
         <span class="day-card__route">{{ getSessionRouteName(day.session) }}</span>
       </div>
     </div>
@@ -32,8 +33,18 @@
 
     <!-- Session blocks (scrollable) -->
     <div v-else class="day-card__blocks">
-      <BlockCard v-for="block in sortedBlocks" :key="block.blockId" :block="block"
-        :color-class="getBlockColorClass(block.role)" />
+      <template v-for="(item, index) in groupedBlocks" :key="index">
+        <BlockCard
+          v-if="item.type === 'block'"
+          :block="item.block"
+          :color-class="getBlockColorClass(item.block.role)"
+        />
+        <BlockChoiceCard
+          v-else-if="item.type === 'choice'"
+          :title="item.title"
+          :options="item.options"
+        />
+      </template>
     </div>
 
     <!-- Start button (only for today with session) -->
@@ -56,6 +67,7 @@ import { formatShortDate, isToday } from '../composables/useDateNavigation';
 import { getRouteName } from '../utils/routeNames';
 import { getBlockColorClass } from '../utils/blockColors';
 import BlockCard from './BlockCard.vue';
+import BlockChoiceCard from './BlockChoiceCard.vue';
 
 interface Props {
   day: WeekDay;
@@ -105,6 +117,63 @@ const sortedBlocks = computed(() => {
 });
 
 /**
+ * Choice option type for BlockChoiceCard
+ */
+interface ChoiceOption {
+  id: string;
+  label: string;
+  block: Block;
+}
+
+/**
+ * Group blocks for display - combines DEUTEROS_1 and DEUTEROS_2 into a choice
+ */
+const groupedBlocks = computed(() => {
+  const blocks = sortedBlocks.value;
+  const deuteros1 = blocks.find(b => b.role === 'DEUTEROS_1');
+  const deuteros2 = blocks.find(b => b.role === 'DEUTEROS_2');
+
+  // Build display items in order
+  type DisplayItem =
+    | { type: 'block'; block: Block }
+    | { type: 'choice'; title: string; options: ChoiceOption[] };
+  const items: DisplayItem[] = [];
+
+  // Add blocks in their original order, inserting deuteros choice at DEUTEROS_1's position
+  let choiceInserted = false;
+  for (const block of blocks) {
+    if (block.role === 'DEUTEROS_1' && deuteros1 && deuteros2 && !choiceInserted) {
+      items.push({
+        type: 'choice',
+        title: 'Deuteros',
+        options: [
+          { id: 'DEUTEROS_1', label: 'Opción 1', block: deuteros1 },
+          { id: 'DEUTEROS_2', label: 'Opción 2', block: deuteros2 },
+        ],
+      });
+      choiceInserted = true;
+    } else if (block.role === 'DEUTEROS_2') {
+      // Skip - already included in the choice
+      continue;
+    } else if (block.role !== 'DEUTEROS_1') {
+      items.push({ type: 'block', block });
+    }
+  }
+
+  // Edge case: if only one deuteros exists, show it as regular block
+  if (deuteros1 && !deuteros2) {
+    const insertIndex = blocks.findIndex(b => b.role === 'DEUTEROS_1');
+    items.splice(insertIndex, 0, { type: 'block', block: deuteros1 });
+  }
+  if (deuteros2 && !deuteros1) {
+    const insertIndex = blocks.findIndex(b => b.role === 'DEUTEROS_2');
+    items.splice(insertIndex, 0, { type: 'block', block: deuteros2 });
+  }
+
+  return items;
+});
+
+/**
  * Show start button only for today with a session
  */
 const showStartButton = computed(() => {
@@ -138,6 +207,7 @@ function handleStart() {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 // Import brand variables
 @import 'src/css/quasar.variables.scss';
 
@@ -145,68 +215,67 @@ function handleStart() {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: white;
+  min-height: 0; // Critical for flex child to respect parent height
+  background: $cream;
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  position: relative; // For today badge positioning
 
   &__header {
     flex-shrink: 0;
-    padding: 12px 16px;
+    padding: 16px;
     display: flex;
-    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+    border-bottom: 1px solid rgba($secondary, 0.25);
+    background: linear-gradient(135deg, rgba($secondary, 0.1) 0%, $cream 100%);
+  }
+
+  &__header-top {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #f0f0f0;
-    background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
   }
 
   &__header-left {
-    flex: 1;
     display: flex;
     align-items: baseline;
+    gap: 10px;
     min-width: 0;
   }
 
-  &__header-right {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    min-width: 0;
+  &__header-subtitle {
+    margin-top: 2px;
   }
 
   &__day-name {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 700;
     color: $primary;
-  }
-
-  &__separator {
-    margin: 0 8px;
-    color: #ccc;
-    font-weight: 300;
+    font-family: 'Cinzel', serif;
   }
 
   &__date {
     font-size: 14px;
-    color: $primary;
-    opacity: 0.7;
+    color: color.adjust($primary, $lightness: -5%);
+    font-weight: 500;
   }
 
   &__route {
-    font-size: 14px;
-    color: $secondary;
+    font-size: 16px;
+    color: color.adjust($secondary, $lightness: -15%);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    text-align: right;
+    letter-spacing: 0.3px;
   }
 
   &__blocks {
     flex: 1;
+    min-height: 0; // Critical for flex child to allow scrolling
     overflow-y: auto;
     padding: 16px;
+    background-color: $cream;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -226,9 +295,9 @@ function handleStart() {
     padding: 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
     background: linear-gradient(to top,
-        rgba(255, 255, 255, 1) 0%,
-        rgba(255, 255, 255, 0.95) 100%);
-    border-top: 1px solid #f0f0f0;
+        $cream 0%,
+        rgba($cream, 0.95) 100%);
+    border-top: 1px solid rgba($secondary, 0.2);
   }
 
   // Selected state - bronze accent
@@ -237,32 +306,20 @@ function handleStart() {
     box-shadow: 0 8px 30px rgba($secondary, 0.25);
   }
 
-  // Today indicator - navy styling
+  // Today indicator - enhanced styling
   &--today {
     .day-card__header {
-      background: linear-gradient(135deg, rgba($primary, 0.05) 0%, #ffffff 100%);
+      background: linear-gradient(135deg, rgba($primary, 0.12) 0%, rgba($cream, 0.95) 100%);
     }
 
     .day-card__day-name {
       color: $primary;
     }
-
-    // Today badge
-    &::after {
-      content: '';
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      width: 8px;
-      height: 8px;
-      background-color: $primary;
-      border-radius: 50%;
-    }
   }
 
   &--completed {
     .day-card__header {
-      background: linear-gradient(135deg, rgba(var(--q-positive-rgb), 0.1) 0%, #ffffff 100%);
+      background: linear-gradient(135deg, rgba(var(--q-positive-rgb), 0.1) 0%, $cream 100%);
     }
 
     .day-card__day-name {
@@ -294,5 +351,15 @@ function handleStart() {
   height: 52px;
   border-radius: 26px;
   font-size: 16px;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.08em;
+  background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 8%) 50%, mix($primary, $secondary, 70%) 100%) !important;
+  box-shadow: 0 4px 12px rgba($primary, 0.3);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 6px 16px rgba($primary, 0.4);
+    transform: translateY(-1px);
+  }
 }
 </style>

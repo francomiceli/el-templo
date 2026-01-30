@@ -8,12 +8,21 @@
   >
     <template #header>
       <q-item-section>
-        <q-item-label class="text-weight-medium text-body1">
+        <q-item-label class="block-role-name text-body1">
           {{ formatRole(block.role) }}
         </q-item-label>
-        <q-item-label caption class="text-caption">
-          {{ blockCaption }}
-        </q-item-label>
+        <div class="block-meta">
+          <div class="block-meta__row">
+            <span v-if="block.route" class="block-meta__route">{{ getRouteName(block.route) }}</span>
+            <span v-if="block.intensity" class="block-meta__intensity">
+              <span class="block-meta__label">INT</span> {{ block.intensity }}%
+            </span>
+          </div>
+          <div class="block-meta__row block-meta__row--secondary">
+            <span class="block-meta__exercises">{{ block.exercises.length }} ejercicio{{ block.exercises.length !== 1 ? 's' : '' }}</span>
+            <span v-if="block.format && typeof block.format === 'string'" class="block-meta__format">{{ block.format }}</span>
+          </div>
+        </div>
       </q-item-section>
     </template>
 
@@ -21,21 +30,12 @@
       <q-card-section class="q-pa-sm">
         <div class="exercise-list">
           <div
-            v-for="(exercise, index) in block.exercises"
+            v-for="exercise in block.exercises"
             :key="exercise.exerciseId"
-            class="exercise-item q-py-xs"
+            class="exercise-item"
           >
-            <div class="row items-center no-wrap">
-              <div class="col-auto q-mr-sm text-caption text-grey-7">
-                {{ index + 1 }}.
-              </div>
-              <div class="col">
-                <div class="text-body2">{{ exercise.exerciseName }}</div>
-                <div class="text-caption text-grey-7">
-                  {{ formatPrescription(exercise) }}
-                </div>
-              </div>
-            </div>
+            <span class="exercise-name">{{ exercise.exerciseName }}</span>
+            <span class="exercise-prescription">{{ formatPrescriptionInline(exercise) }}</span>
           </div>
         </div>
       </q-card-section>
@@ -54,7 +54,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  colorClass: 'bg-grey-1',
+  colorClass: 'block-bg--default',
 });
 
 // getBlockColorClass is exported from utils/blockColors.ts for external use
@@ -68,7 +68,8 @@ function formatRole(role: BlockRole): string {
     NUCLEUS: 'Nucleus',
     DEUTEROS_1: 'Deuteros 1',
     DEUTEROS_2: 'Deuteros 2',
-    ATHLOS_EPIKOS: 'Athlos Epikos',
+    ATHLOS: 'Athlos',
+    EPIKOS: 'Epikos',
   };
   return roleNames[role] || role;
 }
@@ -98,33 +99,32 @@ const blockCaption = computed(() => {
 });
 
 /**
- * Format prescription for display (reps or duration + rest)
+ * Format prescription inline (compact format for exercise list)
+ * Returns: "8 · CON" or "30s ISO"
  */
-function formatPrescription(exercise: Prescription): string {
+function formatPrescriptionInline(exercise: Prescription): string {
+  // For isometric exercises, show duration with ISO
+  if (exercise.contraction === 'ISO' && exercise.seconds) {
+    return `${exercise.seconds}s ISO`;
+  }
+
+  // For rep-based exercises, show count and contraction type
   const parts: string[] = [];
-
-  // Reps or duration
-  if (exercise.reps !== null) {
-    parts.push(`${exercise.reps} reps`);
-  } else if (exercise.seconds !== null) {
-    parts.push(`${exercise.seconds}s`);
+  if (exercise.reps) {
+    parts.push(`${exercise.reps}`);
   }
-
-  // Rest period
-  if (exercise.rest > 0) {
-    parts.push(`descanso ${exercise.rest}s`);
-  }
-
-  // Contraction type
   if (exercise.contraction) {
     parts.push(exercise.contraction);
   }
 
-  return parts.join(' • ');
+  return parts.join(' · ');
 }
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
+@import 'src/css/quasar.variables.scss';
+
 .block-card {
   border-radius: 8px;
   margin-bottom: 8px;
@@ -133,19 +133,118 @@ function formatPrescription(exercise: Prescription): string {
   &:hover {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
+
+  // Nucleus block gets more visual weight
+  &.block-bg--nucleus {
+    border: 2px solid rgba($primary, 0.25);
+    box-shadow: 0 2px 12px rgba($primary, 0.12);
+
+    :deep(.q-expansion-item__container) {
+      background: linear-gradient(135deg, rgba($primary, 0.06) 0%, $cream 100%);
+    }
+
+    .block-role-name {
+      font-size: 17px;
+    }
+  }
+}
+
+.block-role-name {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: $primary;
+}
+
+.block-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    &--secondary {
+      opacity: 0.85;
+    }
+  }
+
+  &__route {
+    font-size: 13px;
+    font-weight: 600;
+    color: color.adjust($secondary, $lightness: -12%);
+  }
+
+  &__intensity {
+    font-size: 12px;
+    font-weight: 600;
+    color: $primary;
+    background: rgba($primary, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  &__label {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba($primary, 0.6);
+    margin-right: 2px;
+  }
+
+  &__exercises {
+    font-size: 12px;
+    color: color.adjust($secondary, $lightness: -8%);
+  }
+
+  &__format {
+    font-size: 11px;
+    color: color.adjust($secondary, $lightness: -5%);
+    background: rgba($secondary, 0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
 }
 
 .exercise-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .exercise-item {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: color.adjust($primary, $lightness: -5%);
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
 
   &:last-child {
     border-bottom: none;
   }
+}
+
+.exercise-name {
+  font-weight: 500;
+  flex: 1;
+}
+
+.exercise-prescription {
+  font-size: 11px;
+  color: color.adjust($secondary, $lightness: -8%);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+// Ensure inner card uses cream background
+:deep(.q-card) {
+  background-color: $cream !important;
 }
 </style>
