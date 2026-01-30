@@ -255,13 +255,19 @@ None yet.
 ### Blockers/Concerns
 
 - ~~**SPOM Rules:** Phase 4-5 require golden test datasets from domain expert before development starts (flagged in research)~~ **RESOLVED** - New documentation in `/docs/` provides complete data
-- **Timer Accuracy:** Phase 8 needs real-device testing under various conditions (backgrounding, low battery, notifications)
+- ~~**Timer Accuracy:** Phase 8 needs real-device testing under various conditions (backgrounding, low battery, notifications)~~ **RESOLVED** - Timers removed per quick-001
 - **Coach Override Patterns:** Need domain-specific design clarification (per-member? per-branch? temporary or permanent?)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 001 | Remove timers, add Saberes link and format info | 2026-01-30 | c126e52 | [001-remove-timers-add-saberes-info](./quick/001-remove-timers-add-saberes-info/) |
 
 ## Session Continuity
 
-Last session: 2026-01-29 23:21 UTC
-Stopped at: Completed 12-04-PLAN.md (Mi Camino page assembly)
+Last session: 2026-01-30
+Stopped at: Completed quick-001 (Remove timers, add Saberes and format info)
 Resume file: None
 
 **Phase 12 IN PROGRESS.** Progression & Coach Functions:
