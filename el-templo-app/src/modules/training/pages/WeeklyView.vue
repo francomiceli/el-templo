@@ -222,6 +222,7 @@ onMounted(() => {
 
   &__subtitle {
     font-size: 14px;
+    font-weight: 500;
     color: color.adjust($secondary, $lightness: -10%);
   }
 
