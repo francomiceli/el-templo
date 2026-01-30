@@ -2,12 +2,9 @@
   <q-page class="weekly-view">
     <!-- Header with week info -->
     <div class="weekly-view__header q-pa-md">
-      <div class="weekly-view__title text-h5 text-weight-bold text-center">
-        Semana {{ weekNumber }}
-      </div>
-      <div class="weekly-view__subtitle text-subtitle2 text-center">
-        {{ weekRangeLabel }}
-      </div>
+      <span class="weekly-view__title">Semana {{ weekNumber }}</span>
+      <span class="weekly-view__separator">·</span>
+      <span class="weekly-view__subtitle">{{ weekRangeLabel }}</span>
     </div>
 
     <!-- Loading state while fetching sessions -->
@@ -205,13 +202,26 @@ onMounted(() => {
     background-color: $cream;
     position: relative;
     padding-bottom: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    gap: 8px;
   }
 
   &__title {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    font-weight: 700;
     color: $primary;
   }
 
+  &__separator {
+    color: rgba($primary, 0.4);
+    font-size: 16px;
+  }
+
   &__subtitle {
+    font-size: 14px;
     color: color.adjust($secondary, $lightness: -10%);
   }
 
