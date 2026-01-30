@@ -2,3 +2,5 @@
 
 # AWS infrastructure variables (contains IPs, instance IDs)
 deploy/.aws-vars
+awscliv2.zip
+aws/
