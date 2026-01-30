@@ -1,11 +1,23 @@
 import { boot } from 'quasar/wrappers';
 import axios, { AxiosInstance } from 'axios';
+import { Capacitor } from '@capacitor/core';
+import { Preferences } from '@capacitor/preferences';
 
 declare module '@vue/runtime-core' {
   interface ComponentCustomProperties {
     $axios: AxiosInstance;
     $api: AxiosInstance;
   }
+}
+
+const TOKEN_KEY = 'authToken';
+
+async function getToken(): Promise<string | null> {
+  if (Capacitor.isNativePlatform()) {
+    const { value } = await Preferences.get({ key: TOKEN_KEY });
+    return value;
+  }
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 // Create API instance with base URL from environment
@@ -17,10 +29,10 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - add auth token to requests
+// Request interceptor - add auth token to requests (async for Capacitor Preferences)
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('authToken');
+  async (config) => {
+    const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -34,10 +46,14 @@ api.interceptors.request.use(
 // Response interceptor - handle 401 unauthorized
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      // Clear auth state and redirect to login
-      localStorage.removeItem('authToken');
+      // Clear auth state
+      if (Capacitor.isNativePlatform()) {
+        await Preferences.remove({ key: TOKEN_KEY });
+      } else {
+        localStorage.removeItem(TOKEN_KEY);
+      }
       // Don't redirect if already on login page
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
