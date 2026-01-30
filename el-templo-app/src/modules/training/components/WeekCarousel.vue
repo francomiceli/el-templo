@@ -190,26 +190,30 @@ watch(
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .week-carousel {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0; // Critical for flex child to respect parent height
   overflow: hidden;
 
   &__dots {
     display: flex;
     justify-content: center;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 4px 16px 16px;
     flex-shrink: 0;
+    background: $cream;
   }
 
   &__dot {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: 2px solid #e0e0e0;
-    background: white;
+    border: 2px solid rgba($secondary, 0.3);
+    background: $cream;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -217,32 +221,32 @@ watch(
     transition: all 0.2s ease;
 
     &:hover {
-      border-color: #bdbdbd;
+      border-color: $secondary;
     }
 
     &--active {
-      border-color: var(--q-primary);
-      background: var(--q-primary);
+      border-color: $primary;
+      background: $primary;
 
       .week-carousel__dot-label {
-        color: white;
+        color: $cream;
       }
     }
 
     &--today:not(.week-carousel__dot--active) {
-      border-color: var(--q-primary);
+      border-color: $primary;
 
       .week-carousel__dot-label {
-        color: var(--q-primary);
+        color: $primary;
       }
     }
 
     &--rest {
-      border-color: #e0e0e0;
-      background: #f5f5f5;
+      border-color: rgba($secondary, 0.2);
+      background: rgba($secondary, 0.08);
 
       .week-carousel__dot-label {
-        color: #9e9e9e;
+        color: rgba($primary, 0.4);
       }
     }
   }
@@ -250,12 +254,13 @@ watch(
   &__dot-label {
     font-size: 12px;
     font-weight: 600;
-    color: #666;
+    color: $primary;
     text-transform: uppercase;
   }
 
   &__container {
     flex: 1;
+    min-height: 0; // Critical for flex child to respect parent height
     display: flex;
     gap: 16px;
     padding: 8px 0;

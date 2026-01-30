@@ -9,7 +9,7 @@ import type { Session, Block, BlockRole } from '../types/session';
  * - INITIUM (warmup)
  * - NUCLEUS (main work)
  * - One of DEUTEROS_1 or DEUTEROS_2 (user's choice)
- * - ATHLOS_EPIKOS (challenge)
+ * - ATHLOS or EPIKOS (challenge - alternates by week)
  */
 export interface SessionPlayerState {
   /** Current block index in the playable blocks array (0-3) */
@@ -52,14 +52,16 @@ export function useSessionPlayer(session: Session) {
   const completedBlocks = ref<BlockRole[]>([]);
   const isInitialized = ref(false);
 
-  // Timer interval reference
+  // Timer state: timestamp-based for accuracy across reloads
   let timerInterval: ReturnType<typeof setInterval> | null = null;
+  let accumulatedSeconds = 0; // seconds from previous start/pause cycles
+  let anchorTime = 0;         // Date.now() when timer was last started
 
   /**
    * Get the 4 playable blocks based on Deuteros choice
    *
    * Before choice: Returns INITIUM, NUCLEUS only (user must choose Deuteros)
-   * After choice: Returns INITIUM, NUCLEUS, chosen DEUTEROS, ATHLOS_EPIKOS
+   * After choice: Returns INITIUM, NUCLEUS, chosen DEUTEROS, ATHLOS/EPIKOS
    */
   const playableBlocks = computed<Block[]>(() => {
     const blocks = session.blocks;
@@ -69,7 +71,8 @@ export function useSessionPlayer(session: Session) {
     const nucleus = blocks.find(b => b.role === 'NUCLEUS');
     const deuteros1 = blocks.find(b => b.role === 'DEUTEROS_1');
     const deuteros2 = blocks.find(b => b.role === 'DEUTEROS_2');
-    const athlos = blocks.find(b => b.role === 'ATHLOS_EPIKOS');
+    // ATHLOS or EPIKOS (alternates by week)
+    const athlosOrEpikos = blocks.find(b => b.role === 'ATHLOS' || b.role === 'EPIKOS');
 
     // Build playable sequence
     const result: Block[] = [];
@@ -84,9 +87,9 @@ export function useSessionPlayer(session: Session) {
       result.push(deuteros2);
     }
 
-    // Add Athlos only if Deuteros is chosen
-    if (deuterosChoice.value && athlos) {
-      result.push(athlos);
+    // Add Athlos/Epikos only if Deuteros is chosen
+    if (deuterosChoice.value && athlosOrEpikos) {
+      result.push(athlosOrEpikos);
     }
 
     return result;
@@ -149,15 +152,21 @@ export function useSessionPlayer(session: Session) {
   // Timer management
 
   /**
-   * Start the session timer
+   * Start the session timer using Date.now() anchor for accuracy across reloads
    */
   function startTimer(): void {
     if (timerInterval) return; // Already running
 
     isTimerRunning.value = true;
+    anchorTime = Date.now();
     timerInterval = setInterval(() => {
-      elapsedSeconds.value++;
+      elapsedSeconds.value = accumulatedSeconds + Math.floor((Date.now() - anchorTime) / 1000);
     }, 1000);
+
+    // Persist the start timestamp
+    void store.saveProgress(session.dayId, {
+      sessionTimerStartedAt: anchorTime,
+    });
   }
 
   /**
@@ -168,24 +177,18 @@ export function useSessionPlayer(session: Session) {
       clearInterval(timerInterval);
       timerInterval = null;
     }
-    isTimerRunning.value = false;
-  }
+    if (isTimerRunning.value) {
+      // Capture accumulated seconds before stopping
+      accumulatedSeconds = elapsedSeconds.value;
+      isTimerRunning.value = false;
 
-  // State persistence
-
-  /**
-   * Save current timer state to persistent storage
-   */
-  async function persistTimerState(): Promise<void> {
-    await store.saveElapsedSeconds(session.dayId, elapsedSeconds.value);
-  }
-
-  // Watch elapsed seconds and persist periodically (every 10 seconds)
-  watch(elapsedSeconds, async (newValue) => {
-    if (newValue % 10 === 0) {
-      await persistTimerState();
+      // Persist final elapsed + clear start timestamp
+      void store.saveProgress(session.dayId, {
+        elapsedSeconds: accumulatedSeconds,
+        sessionTimerStartedAt: null,
+      });
     }
-  });
+  }
 
   // Block completion
 
@@ -220,8 +223,7 @@ export function useSessionPlayer(session: Session) {
 
     // Check if session is complete
     if (isSessionComplete.value) {
-      pauseTimer();
-      await persistTimerState();
+      pauseTimer(); // pauseTimer now persists elapsed + clears startedAt
       // Note: clearProgress is called by the page after showing completion UI
     }
   }
@@ -279,7 +281,16 @@ export function useSessionPlayer(session: Session) {
     currentBlockIndex.value = progress.currentBlockIndex;
     completedBlocks.value = [...progress.completedBlocks];
     deuterosChoice.value = progress.deuterosChoice;
-    elapsedSeconds.value = progress.elapsedSeconds;
+
+    // Restore elapsed time: if timer was running (startedAt set),
+    // compute real elapsed from timestamp instead of stale snapshot
+    if (progress.sessionTimerStartedAt) {
+      const sinceStart = Math.floor((Date.now() - progress.sessionTimerStartedAt) / 1000);
+      accumulatedSeconds = progress.elapsedSeconds + sinceStart;
+    } else {
+      accumulatedSeconds = progress.elapsedSeconds;
+    }
+    elapsedSeconds.value = accumulatedSeconds;
 
     isInitialized.value = true;
   }
@@ -303,9 +314,7 @@ export function useSessionPlayer(session: Session) {
    * called from computed() which is outside setup context
    */
   function cleanup(): void {
-    pauseTimer();
-    // Persist final state
-    void persistTimerState();
+    pauseTimer(); // pauseTimer now persists elapsed + clears startedAt
   }
 
   return {

@@ -68,7 +68,7 @@ export interface CompleteSessionInput {
   startedAt: string; // ISO 8601
   rpe: number | null; // 1-10 or null
   notes: string | null;
-  blocksCompleted: string[]; // Array of block roles like ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS_EPIKOS"]
+  blocksCompleted: string[]; // Array of block roles like ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"]
 }
 
 export const completeSessionSchema = {

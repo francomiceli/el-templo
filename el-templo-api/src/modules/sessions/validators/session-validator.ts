@@ -27,7 +27,8 @@ const INTENSITY_RANGES: Record<BlockRole, { min: number; max: number }> = {
   NUCLEUS: { min: 60, max: 95 },
   DEUTEROS_1: { min: 50, max: 85 },
   DEUTEROS_2: { min: 50, max: 85 },
-  ATHLOS_EPIKOS: { min: 30, max: 70 },
+  ATHLOS: { min: 30, max: 70 },
+  EPIKOS: { min: 30, max: 70 },
 };
 
 /**
@@ -116,11 +117,11 @@ export function validateSession(session: DaySession): SessionValidationResult {
     );
   }
 
-  // Check 7: ATHLOS_EPIKOS should be last
+  // Check 7: Final block should be ATHLOS or EPIKOS
   const lastBlock = session.blocks[session.blocks.length - 1];
-  if (lastBlock && lastBlock.role !== 'ATHLOS_EPIKOS') {
+  if (lastBlock && lastBlock.role !== 'ATHLOS' && lastBlock.role !== 'EPIKOS') {
     sessionWarnings.push(
-      `Last block is ${lastBlock.role}, expected ATHLOS_EPIKOS`
+      `Last block is ${lastBlock.role}, expected ATHLOS or EPIKOS`
     );
   }
 

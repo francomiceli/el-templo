@@ -27,15 +27,17 @@ function roleToBlock(role: BlockRole): 'initium' | 'nucleus' | 'deuteros' | 'ath
     case 'DEUTEROS_1':
     case 'DEUTEROS_2':
       return 'deuteros';
-    case 'ATHLOS_EPIKOS':
-      return 'athlos'; // Default to athlos for the combined block
+    case 'ATHLOS':
+      return 'athlos';
+    case 'EPIKOS':
+      return 'epikos';
   }
 }
 
 /** Map LevelGroup to individual level for format lookup */
-// DEPRECATED: No longer used, replaced by ctx.memberLevel
-function levelGroupToLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' | 'omega' {
-  // Use representative level from each group
+function levelGroupToFormatLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' | 'omega' {
+  // Use representative level from each group for consistent format selection
+  // This ensures alfa and delta get the same format (both use 'delta' for lookup)
   switch (levelGroup) {
     case 'alfa_delta':
       return 'delta'; // Use delta as representative (higher of the two)
@@ -53,6 +55,8 @@ function actionToTraceDescription(action: FallbackAction): string {
   switch (action.type) {
     case 'DIFFICULTY_RELAXED':
       return `Relaxed intensity from ${action.from} (+/- 5 range)`;
+    case 'EFFORT_RELAXED':
+      return `Included exercises with empty effort for ${action.contraction}`;
     case 'SCOPE_WIDENED':
       return `Widened scope from ${action.from} to ${action.to}`;
     case 'LEVEL_WIDENED':
@@ -75,8 +79,8 @@ export async function selectFormat(
   db: MySql2Database<typeof schema>
 ): Promise<BlockContextWithFormat> {
   const block = roleToBlock(ctx.role);
-  // Use memberLevel directly; map spartan to omega for format lookup (no spartan in format_compatibility)
-  const level = ctx.memberLevel === 'spartan' ? 'omega' : ctx.memberLevel;
+  // Use levelGroup representative for format lookup (ensures alfa and delta get same format)
+  const level = levelGroupToFormatLevel(ctx.levelGroup);
 
   // Use fallback ladder for format selection
   const result = await selectFormatWithFallback(

@@ -1,0 +1,40 @@
+### 1. Análisis de Sensaciones: "El Olimpo Moderno"
+
+La estética actual comunica *orden, disciplina y atemporalidad*. Al trasladarlo a una App, buscamos que el usuario sienta que está entrando a un espacio sagrado de entrenamiento. La combinación de mármol y azul profundo evoca sabiduría (Atenea) y fuerza oceánica (Poseidón), alejándose del estilo "neón y negro" genérico de otros gimnasios.
+
+---
+
+### 2. Paleta de Colores Técnica
+
+Usaremos una base orgánica con acentos metálicos y un contraste profundo para la lectura.
+
+| Color | Código HEX | Función |
+| --- | --- | --- |
+| *Crema Mármol* | #F2EBE1 | Fondo principal (Sustituye al blanco puro para dar calidez). |
+| *Azul Profundo* | #24364A | Textos principales, botones de acción y barras de navegación. |
+| *Oro Mate* | #B08D6E | Bordes de tarjetas (como en tus imágenes), iconos y estados activos. |
+| *Arena Suave* | #DBCAB4 | Fondos de tarjetas de ejercicios o elementos secundarios. |
+| *Gris Piedra* | #8E8E8E | Textos de apoyo o unidades de medida (segundos/reps). |
+
+---
+
+### 3. Sistema Tipográfico
+
+Para la App, necesitamos legibilidad extrema en pantallas pequeñas sin perder el toque "Grecia".
+
+* *Títulos (Headers):* Cinzel o Playfair Display. Son fuentes con remates (Serif) que imitan las inscripciones en piedra tallada. Úsalas en *Negrita* y con un interlineado generoso (Letter spacing) para que se vea premium.
+* *Cuerpo de Texto y Datos:* Montserrat o Inter. Necesitamos una Sans Serif geométrica y limpia para los nombres de los ejercicios (ej: "Dragon Squat") y los números, asegurando que se lean bien mientras el usuario entrena y está en movimiento.
+
+---
+
+### 4. Estética de Interfaz (UI) y Texturas
+
+* *Contenedores:* En lugar de sombras pesadas, usa los *bordes finos de 1px en Oro Mate* con esquinas redondeadas suaves (como se ve en tus tarjetas de niveles ).
+* *Texturas:* Aplicar un "overlay" sutil de textura de mármol o piedra al fondo (#F2EBE1) con una opacidad muy baja (5-10%) para que la pantalla no se vea plana.
+* *Iconografía:* Usa iconos de línea fina (Outline) en el Azul Profundo. Si quieres un detalle especial, los iconos de las secciones podrían ser siluetas tipo "cerámica griega" estilizadas.
+
+---
+
+### Sugerencia de Diseñador:
+
+Dado que es una App de Calistenia, la jerarquía visual es clave. Podríamos usar el *Azul Profundo* para el "Modo Entrenamiento" (para enfocar la vista) y el *Crema/Beige* para la parte social o de progreso.

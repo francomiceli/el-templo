@@ -12,7 +12,18 @@ export type LevelGroup = 'alfa_delta' | 'sigma' | 'omega';
 export type ExerciseLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
 
 /** Block roles in a training session (5 blocks total) */
-export type BlockRole = 'INITIUM' | 'NUCLEUS' | 'DEUTEROS_1' | 'DEUTEROS_2' | 'ATHLOS_EPIKOS';
+export type BlockRole = 'INITIUM' | 'NUCLEUS' | 'DEUTEROS_1' | 'DEUTEROS_2' | 'ATHLOS' | 'EPIKOS';
+
+/** Final block type - alternates by week */
+export type FinalBlockRole = 'ATHLOS' | 'EPIKOS';
+
+/**
+ * Determine the final block type based on week parity
+ * Odd weeks = ATHLOS, Even weeks = EPIKOS
+ */
+export function getFinalBlockRole(week: number): FinalBlockRole {
+  return week % 2 === 1 ? 'ATHLOS' : 'EPIKOS';
+}
 
 /** Contraction types for exercise classification */
 export type Contraction = 'CON' | 'EXC' | 'ISO';

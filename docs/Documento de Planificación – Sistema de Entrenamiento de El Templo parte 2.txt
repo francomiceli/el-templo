@@ -1,0 +1,212 @@
+Paso 2 – Distribución base por nivel 
+
+
+Niveles Alfa / Delta – Distribución fija y variada 
+ Se garantiza alternancia y exposición a los 4 grupos de patrones por semana, 
+distribuidos entre los 4 bloques principales. 
+ Cada día tiene combinaciones cruzadas para evitar redundancia. 
+Ejemplo día (Alfa/Delta): 
+ Nucleus (Superior Push) 
+ Deuteros 1 (Inferior Hip) 
+ Deuteros 2 (Superior Pull) 
+ Athlos/Epikos (Inferior Knee) 
+Esto se repite con rotación de patrones dentro del grupo, sin repetir el mismo 
+patrón exacto en la semana. 
+SPOM 
+
+
+Nivel Sigma – Distribución repetida por tipo 
+ Los patrones se repiten dentro del grupo, aumentando la frecuencia específica. 
+ Permite mayor profundidad técnica sin necesidad de alternancia total. 
+Ejemplo día (Sigma): 
+ Nucleus (Superior Pull – FL) 
+ Deuteros 1 (Inferior Knee – L) 
+ Deuteros 2 (Superior Pull – TTB) 
+ Athlos/Epikos (Inferior Knee – QC) 
+Dentro del grupo se puede repetir patrón o mantener familia. 
+SPOM 
+
+
+Nivel Omega – Distribución concentrada por día 
+ El día puede ser todo Superior o todo Inferior 
+ No es necesario alternar entre patrones en un mismo día. 
+ Se trabaja con densidad técnica total, orientada al rendimiento. 
+Ejemplo día 100% Superior: 
+ Nucleus (Superior Pull – OAP) 
+ Deuteros 1 (Superior Push – PL) 
+ Deuteros 2 (Superior Pull – MN/RP) 
+ Athlos/Epikos (Superior Pull – MU) 
+Ejemplo día 100% Inferior: 
+ Nucleus (Inferior Knee – PS) 
+ Deuteros 1 (Inferior Hip – NC) 
+ Deuteros 2 (Inferior Knee – SS) 
+ Athlos/Epikos (Inferior Knee – SU) 
+Los viernes y sabados es el unico que rompe la simetria para mantener el balance 
+estructural. 
+SPOM 
+
+
+Integración del SPOM (Sistema de Periodización y 
+Organización del  Movimiento) 
+El SPOM (Sistema de Periodización y Organización del Movimiento) es la estructura central 
+que define la planificación semanal, mensual y anual del entrenamiento en El Templo, 
+asegurando un progreso coherente, eficiente y alineado al nivel técnico y físico de cada 
+individuo. 
+
+
+¿Qué aporta el SPOM? 
+ Periodización anual (52 semanas) con ondas de carga específicas por patrón. 
+ Asignación clara de patrones semanales (Push, Pull, Inferior) con su grado de 
+especificidad. 
+ Definición del % de intensidad semanal que determina volumen total y dificultad 
+de los ejercicios. 
+ Criterio unificado de selección de ejercicios desde la base de datos. 
+ Guía precisa de progresión técnica y física según nivel. 
+ 
+ 
+ 
+ 
+
+
+Ondas de Carga Integradas al SPOM 
+Cada patrón (Push, Pull, Inferior) tiene su periodización de intensidad anual en forma de 
+ondas. Estas pueden adoptar estructuras como: 
+ Senoidal 
+ Shockwave 
+ Triangular 
+ Fractal 
+Estas ondas definen la intensidad (% relativo) semanal, que determina cuántas 
+repeticiones totales se deben ejecutar en cada bloque. 
+
+
+Tabla de Intensidad y Repeticiones Totales por Bloque 
+% Intensidad 
+Repeticiones Totales por 
+Bloque 
+55% 
+60% 
+65% 
+70% 
+75% 
+80% 
+85% 
+90% 
+95% 
+200 
+175 
+150 
+125 
+100 
+75 
+50 
+25 
+15 
+Estas repeticiones se distribuyen entre los ejercicios del bloque según el tipo de estímulo 
+buscado (resistencia, fuerza, técnica). 
+
+
+Integración con la Planificación Semanal 
+El SPOM se aplica a los bloques semanales (como Nucleus, Deuteros, Athlos/Epikos) de la 
+siguiente forma: 
+1. Asignación de Patrón Semanal 
+Cada semana tiene asignado uno o varios patrones principales: 
+ Push 
+ Pull 
+ Inferior 
+El SPOM define si el patrón es: 
+ General (ej. Push General) 
+ Específico por plano (ej. Push Horizontal) 
+ Específico por tipo de brazo (ej. Straight Arm) 
+ Específico por objetivo técnico (ej. Planche) 
+Esto determina el nivel de especificidad para la selección de ejercicios. 
+2. Coincidencia con Categorías de la Base de Datos 
+Los patrones definidos por el SPOM están directamente relacionados con las categorías 
+jerárquicas de la base de datos de ejercicios: 
+
+
+PUSH 
+ Push General 
+ Push Horizontal / Vertical 
+ Push Horizontal: Bent Arm / Straight Arm 
+ Planche (específico) 
+
+
+PULL 
+ Pull General 
+ Pull Horizontal / Vertical 
+ Pull Horizontal: Bent Arm / Straight Arm 
+ Front Lever (específico) 
+
+
+INFERIOR 
+ Inferior General 
+ Knee Dominant / Hip Dominant 
+ Knee Dominant: Glúteo / Cuádriceps → Pistol Squat 
+ Hip Dominant: Glúteo / Isquiosurales → Hip Thrust 
+Esta estructura permite escalar de categorías amplias a técnicas específicas, de forma 
+adaptada a la intensidad de la semana y al nivel del alumno. 
+
+
+Distribución por Niveles: Alfa, Delta, Sigma, Omega, Spartan 
+Cada nivel trabaja dentro de rangos específicos de intensidad, con su correspondiente 
+dificultad relativa: 
+Nivel 
+Alfa 
+Delta 
+Intensidad 
+55%-65% Alfa 1 
+65%-75% Alfa 2 
+75%-85% Alfa 3 
+Subniveles 
+85%-95% Delta 1 
+55%-65% Delta 1 
+65%-75% Delta 2 
+75%-85% Delta 3 
+85%-95% Sigma 1 
+Sigma 55%-65% Delta 3 
+65%-75% Sigma 1 
+75%-85% Sigma 2 
+85%-95% Omega 1 
+Omega 55%-65% Sigma 2 
+65%-75% Omega 1 
+75%-85% Omega 2 
+85%-95% Spartan 1 
+Spartan 55%-65% Omega 2 
+65%-75% Spartan 1 
+75%-85% Spartan 2 
+85%-95% Olympic (Competición) 
+Esta clasificación asegura que cada bloque semanal tenga la dificultad justa según el nivel 
+técnico y adaptativo del alumno. 
+
+
+Aplicación Semanal del SPOM 
+1. El SPOM define los patrones para la semana. 
+2. Cada bloque (Nucleus, Deuteros, Athlos) adopta esos patrones. 
+3. Se consulta la intensidad semanal definida por el SPOM. 
+4. Se distribuyen las repeticiones totales del bloque según ese % de intensidad. 
+5. Se seleccionan ejercicios desde la base de datos, según el nivel de 
+especificidad requerido. 
+
+
+Ejemplo: 
+Semana 15 – Intensidad: 70% – Patrón: Pull Horizontal, Straight Arm → Se 
+eligen ejercicios de front lever o similares. Total del bloque: 125 repeticiones 
+divididas entre 3-4 ejercicios. 
+
+
+Flexibilidad del Sistema 
+ Los entrenadores pueden ajustar manualmente bloques generales para recuperar, 
+aflojar o refinar técnica. 
+ La alternancia superior/inferior se mantiene en los bloques (ej. lunes superior, martes 
+inferior). 
+ Athlos/Epikos se complementan con lógica de carga adaptativa. 
+✅
+Conclusión 
+La integración del SPOM al sistema de planificación semanal de El Templo garantiza: 
+ Progresión metódica y controlada. 
+ Adaptabilidad por nivel. 
+ Selección precisa y específica de ejercicios. 
+ Optimización del volumen e intensidad de cada bloque. 
+ Coherencia entre visión técnica, planificación y ejecución. 
+El SPOM no solo ordena el año: sostiene la evolución del alumno, del método y del 
+sistema en su totalidad. 

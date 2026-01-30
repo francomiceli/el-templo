@@ -29,6 +29,7 @@ export type FallbackResult<T> =
  */
 export type FallbackAction =
   | { type: 'DIFFICULTY_RELAXED'; tier: number; from: number; to: number }
+  | { type: 'EFFORT_RELAXED'; tier: number; contraction: Contraction }
   | { type: 'LEVEL_WIDENED'; tier: number; from: readonly ExerciseLevel[]; to: readonly ExerciseLevel[] }
   | { type: 'SCOPE_WIDENED'; tier: number; from: string; to: string }
   | { type: 'CONTRACTION_SUBSTITUTED'; tier: number; needed: Contraction; used: Contraction };
@@ -80,6 +81,8 @@ export interface ExerciseRequirements {
   readonly count: number;
   readonly levelGroup: LevelGroup;
   readonly memberLevel: ExerciseLevel;
+  /** Exercise names to exclude (for deduplication across contractions) */
+  readonly excludeNames?: Set<string>;
 }
 
 /**

@@ -13,7 +13,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, lte, inArray, like } from 'drizzle-orm';
+import { eq, and, lte, inArray, like, or } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import type {
   FallbackResult,
@@ -70,14 +70,15 @@ function getExpandedLevels(
 }
 
 /**
- * Query exercises with given criteria
+ * Query exercises with given criteria (exact contraction match)
  */
 async function queryExercises(
   db: MySql2Database<typeof schema>,
   route: string,
   contraction: Contraction,
   maxDifficulty: number,
-  allowedLevels: readonly ExerciseLevel[]
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>
 ): Promise<ExerciseCandidate[]> {
   const results = await db
     .select({
@@ -93,11 +94,68 @@ async function queryExercises(
       inArray(schema.exercises.level, [...allowedLevels])
     ));
 
-  return results.map(r => ({
+  // Filter out excluded names (for deduplication across contractions)
+  const filtered = excludeNames && excludeNames.size > 0
+    ? results.filter(r => !excludeNames.has(r.name))
+    : results;
+
+  return filtered.map(r => ({
     id: r.id,
     name: r.name,
     difficulty: r.difficulty,
     contraction,
+  }));
+}
+
+/**
+ * Query exercises including those with empty effort field
+ * Prefers exact contraction match, but includes empty effort as fallback
+ * This allows using exercises from the same level before widening to other levels
+ */
+async function queryExercisesIncludingEmptyEffort(
+  db: MySql2Database<typeof schema>,
+  route: string,
+  contraction: Contraction,
+  maxDifficulty: number,
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>
+): Promise<ExerciseCandidate[]> {
+  const results = await db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      difficulty: schema.exercises.difficulty,
+      effort: schema.exercises.effort,
+    })
+    .from(schema.exercises)
+    .where(and(
+      eq(schema.exercises.route, route),
+      or(
+        eq(schema.exercises.effort, contraction),
+        eq(schema.exercises.effort, '')
+      ),
+      lte(schema.exercises.difficulty, maxDifficulty),
+      inArray(schema.exercises.level, [...allowedLevels])
+    ));
+
+  // Filter out excluded names (for deduplication across contractions)
+  const filtered = excludeNames && excludeNames.size > 0
+    ? results.filter(r => !excludeNames.has(r.name))
+    : results;
+
+  // Sort: exact contraction matches first (by id for determinism), then empty effort (by id)
+  const sorted = [...filtered].sort((a, b) => {
+    const aExact = a.effort === contraction ? 0 : 1;
+    const bExact = b.effort === contraction ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
+    return a.id - b.id;
+  });
+
+  return sorted.map(r => ({
+    id: r.id,
+    name: r.name,
+    difficulty: r.difficulty,
+    contraction, // Assign the requested contraction type
   }));
 }
 
@@ -109,7 +167,8 @@ async function queryExercisesWithScopeWidening(
   route: string,
   contraction: Contraction,
   maxDifficulty: number,
-  allowedLevels: readonly ExerciseLevel[]
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>
 ): Promise<ExerciseCandidate[]> {
   // Extract parent category from route (e.g., "PRESS-H" -> "PRESS")
   const parentRoute = route.split('-')[0];
@@ -133,7 +192,12 @@ async function queryExercisesWithScopeWidening(
       inArray(schema.exercises.level, [...allowedLevels])
     ));
 
-  return results.map(r => ({
+  // Filter out excluded names (for deduplication across contractions)
+  const filtered = excludeNames && excludeNames.size > 0
+    ? results.filter(r => !excludeNames.has(r.name))
+    : results;
+
+  return filtered.map(r => ({
     id: r.id,
     name: r.name,
     difficulty: r.difficulty,
@@ -165,6 +229,7 @@ export async function selectExercisesWithFallback(
     count,
     levelGroup,
     memberLevel,
+    excludeNames,
   } = requirements;
 
   const actions: FallbackAction[] = [];
@@ -174,7 +239,7 @@ export async function selectExercisesWithFallback(
   let currentRoute = route;
 
   // Tier 0: Exact match — use member's specific level only
-  let pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels);
+  let pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
 
   if (pool.length >= count) {
     // Sort deterministically by id ASC and take first N
@@ -193,7 +258,7 @@ export async function selectExercisesWithFallback(
     const originalDifficulty = currentDifficulty;
     currentDifficulty = 999; // Allow any difficulty
 
-    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels);
+    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
 
     actions.push({
       type: 'DIFFICULTY_RELAXED',
@@ -214,12 +279,37 @@ export async function selectExercisesWithFallback(
     }
   }
 
+  // Tier 1.5: Include exercises with empty effort (same level, before widening to other levels)
+  // This helps when exercises exist but lack contraction tags
+  {
+    pool = await queryExercisesIncludingEmptyEffort(
+      db, currentRoute, contraction, currentDifficulty, currentLevels, excludeNames
+    );
+
+    if (pool.length >= count) {
+      actions.push({
+        type: 'EFFORT_RELAXED',
+        tier: 1.5,
+        contraction,
+      });
+
+      // Already sorted by exact match first, then by id
+      const selected = pool.slice(0, count);
+      return {
+        status: 'fallback',
+        data: selected,
+        tier: 1.5,
+        actions,
+      };
+    }
+  }
+
   // Tier 2: Widen level filter
   if (policy.maxTier >= 2 && policy.relaxationOrder.includes('level')) {
     const originalLevels = currentLevels;
     currentLevels = getExpandedLevels(levelGroup, 2);
 
-    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels);
+    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
 
     actions.push({
       type: 'LEVEL_WIDENED',
@@ -245,7 +335,7 @@ export async function selectExercisesWithFallback(
     const originalRoute = currentRoute;
 
     pool = await queryExercisesWithScopeWidening(
-      db, currentRoute, currentContraction, currentDifficulty, currentLevels
+      db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames
     );
 
     if (pool.length > 0) {
@@ -276,7 +366,7 @@ export async function selectExercisesWithFallback(
     const substitutes = CONTRACTION_SUBSTITUTION[contraction];
 
     for (const substitute of substitutes) {
-      pool = await queryExercises(db, route, substitute, currentDifficulty, currentLevels);
+      pool = await queryExercises(db, route, substitute, currentDifficulty, currentLevels, excludeNames);
 
       if (pool.length >= count) {
         actions.push({

@@ -14,7 +14,8 @@ export type BlockRole =
   | 'NUCLEUS'         // Main work block
   | 'DEUTEROS_1'      // First secondary block
   | 'DEUTEROS_2'      // Second secondary block
-  | 'ATHLOS_EPIKOS';  // Epic challenge block
+  | 'ATHLOS'          // Challenge block (odd weeks)
+  | 'EPIKOS';         // Epic challenge block (even weeks)
 
 /**
  * Individual exercise prescription within a block

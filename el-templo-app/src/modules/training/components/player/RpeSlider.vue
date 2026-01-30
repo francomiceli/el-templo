@@ -1,6 +1,6 @@
 <template>
   <div class="rpe-slider">
-    <div class="rpe-slider__label text-subtitle2 text-grey-7 q-mb-sm">
+    <div class="rpe-slider__label text-subtitle2 q-mb-sm">
       Esfuerzo Percibido (RPE)
     </div>
 
@@ -88,8 +88,18 @@ watch(() => props.modelValue, (newValue) => {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .rpe-slider {
   padding: 16px 8px;
+  background: rgba($secondary, 0.05);
+  border-radius: 12px;
+}
+
+.rpe-slider__label {
+  color: $primary;
+  font-family: 'Cinzel', serif;
+  letter-spacing: 0.05em;
 }
 
 .rpe-slider__description {

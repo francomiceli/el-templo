@@ -19,19 +19,25 @@ import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext } from './pipeline';
 import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel } from './types';
+import { getFinalBlockRole } from './types';
 import { validateSessionForTrace } from './validators/session-validator';
 import { createSessionLogger } from './trace/logger';
 import { aggregateBlockTrace, aggregateSessionTrace } from './trace/emitter';
 import type { BlockTrace, SessionTrace } from './trace/types';
 
-/** All block roles in execution order */
-const BLOCK_ROLES: BlockRole[] = [
-  'INITIUM',
-  'NUCLEUS',
-  'DEUTEROS_1',
-  'DEUTEROS_2',
-  'ATHLOS_EPIKOS',
-];
+/**
+ * Get block roles in execution order for a given week
+ * Final block alternates: odd weeks = ATHLOS, even weeks = EPIKOS
+ */
+function getBlockRoles(week: number): BlockRole[] {
+  return [
+    'INITIUM',
+    'NUCLEUS',
+    'DEUTEROS_1',
+    'DEUTEROS_2',
+    getFinalBlockRole(week),
+  ];
+}
 
 /** Input for session generation */
 export interface GenerateSessionInput {
@@ -57,7 +63,8 @@ export class SessionGeneratorService {
   /**
    * Generate a complete daily session
    *
-   * Creates 5 blocks (INITIUM through ATHLOS_EPIKOS).
+   * Creates 5 blocks (INITIUM through ATHLOS/EPIKOS).
+   * Final block alternates: odd weeks = ATHLOS, even weeks = EPIKOS.
    * DEUTEROS_2 is skipped if rotator has null route.
    *
    * @param input - Week, day, and level group
@@ -81,7 +88,8 @@ export class SessionGeneratorService {
     const skipDeuteros2 = !rotator || rotator.deuteros2RouteId === null;
 
     // Generate each block in sequence (determinism requires sequential execution)
-    for (const role of BLOCK_ROLES) {
+    const blockRoles = getBlockRoles(week);
+    for (const role of blockRoles) {
       // Skip DEUTEROS_2 if no route assigned
       if (role === 'DEUTEROS_2' && skipDeuteros2) {
         sessionTrace.push({
@@ -393,6 +401,7 @@ export class SessionGeneratorService {
    * Reconstruct DaySession from database row
    *
    * Loads blocks and prescriptions, rebuilds the full object structure.
+   * Transforms legacy ATHLOS_EPIKOS to ATHLOS or EPIKOS based on week.
    */
   private async reconstructSession(session: typeof schema.sessions.$inferSelect): Promise<DaySession> {
     // Load blocks for this session
@@ -422,9 +431,15 @@ export class SessionGeneratorService {
         notes: p.notes ?? undefined,
       }));
 
+      // Transform legacy ATHLOS_EPIKOS to correct role based on week
+      let role: BlockRole = block.role as BlockRole;
+      if (block.role === 'ATHLOS_EPIKOS') {
+        role = getFinalBlockRole(session.week);
+      }
+
       blockPlans.push({
         blockId: block.blockId,
-        role: block.role as BlockRole,
+        role,
         route: block.route,
         pattern: block.pattern,
         intensity: block.intensity,

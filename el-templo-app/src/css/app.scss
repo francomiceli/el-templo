@@ -69,3 +69,120 @@ h1, h2, h3, h4, h5, h6,
 .marble-bg--navy {
   @include marble-texture(#1a2a3e, 0.15);
 }
+
+// =============================================================================
+// El Templo Global White Elimination
+// =============================================================================
+
+// Brand colors
+$brand-navy: #2c3e5c;
+$brand-bronze: #b8956c;
+$brand-cream: #f5f0e8;
+
+// Override white backgrounds globally
+body {
+  background-color: $brand-cream !important;
+}
+
+// Q-page default background
+.q-page {
+  background-color: $brand-cream;
+}
+
+// Q-card backgrounds
+.q-card {
+  background-color: $brand-cream;
+}
+
+// Q-drawer backgrounds
+.q-drawer {
+  background-color: $brand-cream;
+}
+
+// Q-item backgrounds
+.q-item {
+  &:not(.q-item--dark) {
+    background-color: transparent;
+  }
+}
+
+// Q-list backgrounds
+.q-list {
+  background-color: transparent;
+}
+
+// Q-expansion-item content
+.q-expansion-item__content {
+  background-color: $brand-cream;
+}
+
+// =============================================================================
+// El Templo Block Background Classes
+// =============================================================================
+
+// Block backgrounds - all use bronze gradients at different intensities
+// Using !important to override Quasar defaults
+.block-bg--initium {
+  background: linear-gradient(135deg, rgba($brand-bronze, 0.08) 0%, rgba($brand-bronze, 0.15) 100%) !important;
+}
+
+.block-bg--nucleus {
+  background: linear-gradient(135deg, rgba($brand-navy, 0.08) 0%, rgba($brand-bronze, 0.15) 100%) !important;
+}
+
+.block-bg--deuteros-1 {
+  background: linear-gradient(135deg, rgba($brand-bronze, 0.10) 0%, rgba($brand-bronze, 0.18) 100%) !important;
+}
+
+.block-bg--deuteros-2 {
+  background: linear-gradient(135deg, rgba($brand-bronze, 0.10) 0%, rgba($brand-bronze, 0.18) 100%) !important;
+}
+
+.block-bg--athlos {
+  background: linear-gradient(135deg, rgba($brand-bronze, 0.15) 0%, rgba($brand-bronze, 0.25) 100%) !important;
+}
+
+.block-bg--default {
+  background: linear-gradient(135deg, rgba($brand-bronze, 0.06) 0%, rgba($brand-bronze, 0.12) 100%) !important;
+}
+
+// Ensure q-expansion-item uses cream, not white
+.q-expansion-item {
+  background-color: transparent;
+
+  .q-item {
+    background-color: inherit;
+  }
+}
+
+// =============================================================================
+// El Templo Extended Cinzel Usage
+// =============================================================================
+
+// Block names should always use Cinzel
+.block-name,
+.block-role-name {
+  font-family: $heading-font;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+// Buttons with brand styling
+.btn-brand {
+  font-family: $heading-font;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+// Q-btn with class for Cinzel
+.q-btn.cinzel-btn {
+  font-family: $heading-font;
+  letter-spacing: 0.05em;
+}
+
+// Session start buttons
+.session-start-btn {
+  font-family: $heading-font;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}

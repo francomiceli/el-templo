@@ -46,7 +46,7 @@ async function attemptAutoplay(): Promise<void> {
 
   try {
     await videoRef.value.play();
-  } catch (error) {
+  } catch {
     // Autoplay was blocked - video will show first frame
     // User interaction will be required to play
     console.debug('Autoplay blocked, user interaction required');

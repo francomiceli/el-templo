@@ -20,21 +20,13 @@
         </template>
         {{ error }}
         <template #action>
-          <q-btn
-            flat
-            label="Reintentar"
-            @click="loadWeekData"
-          />
+          <q-btn flat label="Reintentar" @click="loadWeekData" />
         </template>
       </q-banner>
     </div>
 
     <!-- Week carousel with full-height day cards (blocks included) -->
-    <WeekCarousel
-      v-else
-      class="weekly-view__carousel"
-      @start="handleStartSession"
-    />
+    <WeekCarousel v-else class="weekly-view__carousel" @start="handleStartSession" />
   </q-page>
 </template>
 
@@ -222,7 +214,7 @@ onMounted(() => {
 
   &__subtitle {
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 600;
     color: color.adjust($secondary, $lightness: -10%);
   }
 

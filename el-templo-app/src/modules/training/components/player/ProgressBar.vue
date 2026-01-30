@@ -60,8 +60,11 @@ const currentBlockColor = computed(() => getBlockAccentColor(props.currentBlock)
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .session-progress {
   padding: 8px 16px;
+  background: $cream;
 }
 
 .session-progress__labels {
@@ -72,13 +75,14 @@ const currentBlockColor = computed(() => getBlockAccentColor(props.currentBlock)
 
 .session-progress__label {
   font-size: 10px;
-  color: #9e9e9e;
+  color: rgba($primary, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-family: 'Cinzel', serif;
 }
 
 .session-progress__label--completed {
-  color: #4caf50;
+  color: $secondary;
   font-weight: 600;
 }
 </style>

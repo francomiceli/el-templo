@@ -1,11 +1,6 @@
 <template>
-  <q-expansion-item
-    :class="['block-card', colorClass]"
-    :label="block.role"
-    :caption="blockCaption"
-    expand-separator
-    header-class="text-weight-medium"
-  >
+  <q-expansion-item :class="['block-card', colorClass]" :label="block.role" :caption="blockCaption" expand-separator
+    header-class="text-weight-medium">
     <template #header>
       <q-item-section>
         <q-item-label class="block-role-name text-body1">
@@ -13,14 +8,17 @@
         </q-item-label>
         <div class="block-meta">
           <div class="block-meta__row">
-            <span v-if="block.route" class="block-meta__route">{{ getRouteName(block.route) }}</span>
-            <span v-if="block.intensity" class="block-meta__intensity">
+            <span v-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{ getRouteName(block.route)
+              }}</span>
+            <span v-if="block.intensity && block.route != 'INITIUM'" class="block-meta__intensity">
               <span class="block-meta__label">INT</span> {{ block.intensity }}%
             </span>
           </div>
           <div class="block-meta__row block-meta__row--secondary">
-            <span class="block-meta__exercises">{{ block.exercises.length }} ejercicio{{ block.exercises.length !== 1 ? 's' : '' }}</span>
-            <span v-if="block.format && typeof block.format === 'string'" class="block-meta__format">{{ block.format }}</span>
+            <span class="block-meta__exercises">{{ block.exercises.length }} ejercicio{{ block.exercises.length !== 1 ?
+              's' : '' }}</span>
+            <span v-if="block.format && typeof block.format === 'string'" class="block-meta__format">{{ block.format
+              }}</span>
           </div>
         </div>
       </q-item-section>
@@ -29,11 +27,7 @@
     <q-card class="q-ma-sm">
       <q-card-section class="q-pa-sm">
         <div class="exercise-list">
-          <div
-            v-for="exercise in block.exercises"
-            :key="exercise.exerciseId"
-            class="exercise-item"
-          >
+          <div v-for="exercise in block.exercises" :key="exercise.exerciseId" class="exercise-item">
             <span class="exercise-name">{{ exercise.exerciseName }}</span>
             <span class="exercise-prescription">{{ formatPrescriptionInline(exercise) }}</span>
           </div>

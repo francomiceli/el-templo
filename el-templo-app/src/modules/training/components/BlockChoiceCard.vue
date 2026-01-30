@@ -1,10 +1,6 @@
 <template>
-  <q-expansion-item
-    class="block-choice-card block-bg--deuteros-1"
-    :label="title"
-    expand-separator
-    header-class="text-weight-medium"
-  >
+  <q-expansion-item class="block-choice-card block-bg--deuteros-1" :label="title" expand-separator
+    header-class="text-weight-medium">
     <template #header>
       <q-item-section>
         <q-item-label class="choice-role-name text-body1">
@@ -41,11 +37,7 @@
             </span>
           </div>
           <div class="exercise-list">
-            <div
-              v-for="exercise in option.block.exercises"
-              :key="exercise.exerciseId"
-              class="exercise-item"
-            >
+            <div v-for="exercise in option.block.exercises" :key="exercise.exerciseId" class="exercise-item">
               <span class="exercise-name">{{ exercise.exerciseName }}</span>
               <span class="exercise-prescription">{{ formatPrescription(exercise) }}</span>
             </div>

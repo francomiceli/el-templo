@@ -165,27 +165,30 @@ function formatContraction(contraction: string): string {
 }
 
 /**
- * Get badge color based on contraction type
+ * Get badge color based on contraction type - uses brand colors
  */
 function getContractionColor(contraction: string): string {
+  // Use brand colors with different opacity effects via Quasar color modifiers
   const colorMap: Record<string, string> = {
-    CON: 'blue-grey',
-    EXC: 'teal',
-    ISO: 'orange',
+    CON: 'primary',     // Navy - concentric
+    EXC: 'secondary',   // Bronze - eccentric
+    ISO: 'primary',     // Navy - isometric
   };
-  return colorMap[contraction] || 'grey';
+  return colorMap[contraction] || 'primary';
 }
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .exercise-list {
   display: flex;
   flex-direction: column;
 }
 
 .exercise-item {
-  background: white;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: $cream;
+  border-bottom: 1px solid rgba($secondary, 0.15);
   transition: background-color 0.2s ease;
 
   &:last-child {
@@ -193,7 +196,7 @@ function getContractionColor(contraction: string): string {
   }
 
   &--selected {
-    background: rgba(0, 0, 0, 0.02);
+    background: rgba($secondary, 0.08);
   }
 }
 
@@ -203,7 +206,7 @@ function getContractionColor(contraction: string): string {
 
 .exercise-detail {
   margin: 0 8px 8px 8px;
-  background: rgba(0, 0, 0, 0.02);
+  background: rgba($secondary, 0.05);
   border-radius: 0 8px 8px 0;
 }
 

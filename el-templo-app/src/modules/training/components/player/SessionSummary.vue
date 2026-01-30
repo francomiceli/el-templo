@@ -150,20 +150,15 @@ function getBlockName(role: string): string {
     NUCLEUS: 'Nucleus',
     DEUTEROS_1: 'Deuteros 1',
     DEUTEROS_2: 'Deuteros 2',
-    ATHLOS_EPIKOS: 'Athlos',
+    ATHLOS: 'Athlos',
+    EPIKOS: 'Epikos',
   };
   return names[role] || role;
 }
 
-function getBlockColor(role: string): string {
-  const colors: Record<string, string> = {
-    INITIUM: 'light-blue',
-    NUCLEUS: 'purple',
-    DEUTEROS_1: 'teal',
-    DEUTEROS_2: 'deep-orange',
-    ATHLOS_EPIKOS: 'amber-8',
-  };
-  return colors[role] || 'grey';
+function getBlockColor(_role: string): string {
+  // All blocks use bronze in session summary
+  return 'secondary';
 }
 
 function getBlockIcon(role: string): string {
@@ -172,7 +167,8 @@ function getBlockIcon(role: string): string {
     NUCLEUS: 'star',
     DEUTEROS_1: 'layers',
     DEUTEROS_2: 'layers',
-    ATHLOS_EPIKOS: 'local_fire_department',
+    ATHLOS: 'local_fire_department',
+    EPIKOS: 'local_fire_department',
   };
   return icons[role] || 'view_module';
 }
@@ -187,8 +183,10 @@ function onFinish(): void {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .session-summary {
-  background: white;
+  background: $cream;
   z-index: 9998;
 }
 
@@ -212,7 +210,7 @@ function onFinish(): void {
   bottom: 0;
   left: 0;
   right: 0;
-  background: white;
+  background: $cream;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }

@@ -46,6 +46,8 @@ function actionToTraceDescription(action: FallbackAction): string {
   switch (action.type) {
     case 'DIFFICULTY_RELAXED':
       return `Relaxed difficulty from ${action.from} to ${action.to}`;
+    case 'EFFORT_RELAXED':
+      return `Included exercises with empty effort for ${action.contraction}`;
     case 'SCOPE_WIDENED':
       return `Widened scope from ${action.from} to ${action.to}`;
     case 'LEVEL_WIDENED':
@@ -60,6 +62,7 @@ function actionToTraceDescription(action: FallbackAction): string {
  *
  * Uses fallback ladder for graceful degradation when exact matches unavailable.
  * If a contraction type completely fails, emit WARNING but continue with what's available.
+ * Deduplicates exercises by name across contraction types to prevent repeats.
  *
  * @param ctx - Context with format selected
  * @param db - Database connection for exercise lookup
@@ -75,6 +78,9 @@ export async function selectExercises(
   const selectedExercises: SelectedExercise[] = [];
   let updatedCtx = ctx;
   let anyFailed = false;
+
+  // Track already-selected exercise names to prevent duplicates across contractions
+  const excludedNames: Set<string> = new Set();
 
   // Determine target level (may shift up for high-intensity blocks)
   let targetLevel: ExerciseLevel = ctx.memberLevel;
@@ -110,7 +116,7 @@ export async function selectExercises(
       continue; // Skip if no exercises needed for this type
     }
 
-    // Use fallback ladder for exercise selection
+    // Use fallback ladder for exercise selection, excluding already-selected names
     const result = await selectExercisesWithFallback(
       {
         route: ctx.route,
@@ -120,6 +126,7 @@ export async function selectExercises(
         count: requiredCount,
         levelGroup: ctx.levelGroup,
         memberLevel: targetLevel, // For Tier 0 exact match (may be shifted up)
+        excludeNames: excludedNames, // Prevent duplicate exercise names
       },
       db
     );
@@ -164,7 +171,7 @@ export async function selectExercises(
       }
     }
 
-    // Add selected exercises to results
+    // Add selected exercises to results and track names for deduplication
     for (const ex of result.data) {
       selectedExercises.push({
         exerciseId: ex.id,
@@ -172,6 +179,8 @@ export async function selectExercises(
         contraction: ex.contraction,
         difficulty: ex.difficulty,
       });
+      // Add to excluded names for subsequent contraction queries
+      excludedNames.add(ex.name);
     }
 
     // Emit success trace for this contraction type

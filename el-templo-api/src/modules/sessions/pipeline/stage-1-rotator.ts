@@ -49,7 +49,9 @@ export async function resolveRotator(
     case 'DEUTEROS_2':
       routeId = rotator.deuteros2RouteId;
       break;
-    case 'ATHLOS_EPIKOS':
+    case 'ATHLOS':
+    case 'EPIKOS':
+      // Both ATHLOS and EPIKOS use the same route from rotator
       routeId = rotator.athlosRouteId;
       break;
     default:

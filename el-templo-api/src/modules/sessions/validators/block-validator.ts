@@ -22,7 +22,10 @@ const FORMAT_COMPATIBILITY: Record<BlockRole, readonly string[]> = {
   NUCLEUS: ['Straight Sets', 'Clusters', 'Pyramid', 'Wave Loading', 'Rest-Pause', 'EMOM'],
   DEUTEROS_1: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets', 'EMOM'],
   DEUTEROS_2: ['Straight Sets', 'Supersets', 'Giant Sets', 'Drop Sets', 'EMOM'],
-  ATHLOS_EPIKOS: ['AMRAP', 'EMOM', 'Tabata', 'For Time', 'Chipper'],
+  // ATHLOS: Time-based dominant (per spec: Time-based > Hybrid > Volume-based)
+  ATHLOS: ['AMRAP', 'EMOM', 'Tabata', 'For Time', 'Chipper'],
+  // EPIKOS: Hybrid dominant (per spec: Hybrid > Structure-based > Time-based)
+  EPIKOS: ['AMRAP', 'EMOM', 'Tabata', 'For Time', 'Chipper', 'Complex', 'I Go You Go'],
 };
 
 /** Budget tolerance percentage (10% overage allowed) */
