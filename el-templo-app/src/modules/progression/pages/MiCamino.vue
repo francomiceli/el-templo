@@ -10,12 +10,7 @@
     <div v-else-if="progressionStore.error" class="mi-camino__error">
       <q-icon name="error_outline" class="mi-camino__error-icon" />
       <p class="mi-camino__error-text">{{ progressionStore.error }}</p>
-      <q-btn
-        color="primary"
-        unelevated
-        no-caps
-        @click="fetchStats"
-      >
+      <q-btn color="primary" unelevated no-caps @click="fetchStats">
         Reintentar
       </q-btn>
     </div>
@@ -27,12 +22,7 @@
       <p class="mi-camino__empty-text">
         Completa tu primera sesion de entrenamiento para ver tu progreso aqui.
       </p>
-      <q-btn
-        color="primary"
-        unelevated
-        no-caps
-        to="/training"
-      >
+      <q-btn color="primary" unelevated no-caps to="/training">
         Ir a Entrenar
       </q-btn>
     </div>
@@ -46,23 +36,16 @@
           <h1 class="mi-camino__name">{{ userName }}</h1>
           <p class="mi-camino__date">{{ todayFormatted }}</p>
         </div>
-        <LevelDisplay
-          v-if="progressionStore.level"
-          :greek-letter="progressionStore.level.greekLetter"
-          :level-name="progressionStore.level.displayName"
-          class="mi-camino__level-badge"
-        />
+        <LevelDisplay v-if="progressionStore.level" :greek-letter="progressionStore.level.greekLetter"
+          :level-name="progressionStore.level.displayName" class="mi-camino__level-badge" />
       </div>
 
       <!-- Today's Training CTA -->
       <q-card class="mi-camino__today-card" flat bordered>
         <q-card-section class="mi-camino__today-content">
           <div class="mi-camino__today-info">
-            <q-icon
-              :name="todayCompleted ? 'check_circle' : 'fitness_center'"
-              :color="todayCompleted ? 'positive' : 'secondary'"
-              size="40px"
-            />
+            <q-icon :name="todayCompleted ? 'check_circle' : 'fitness_center'"
+              :color="todayCompleted ? 'positive' : 'secondary'" size="40px" />
             <div class="mi-camino__today-text">
               <p class="mi-camino__today-title">
                 {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
@@ -80,63 +63,40 @@
                   <q-icon name="speed" size="14px" />
                   RPE {{ progressionStore.todaySession.rpe }}
                 </span>
-                <span v-if="progressionStore.todaySession?.notes" class="mi-camino__summary-item mi-camino__summary-notes">
+                <span v-if="progressionStore.todaySession?.notes"
+                  class="mi-camino__summary-item mi-camino__summary-notes">
                   <q-icon name="notes" size="14px" />
                   {{ progressionStore.todaySession.notes }}
                 </span>
               </div>
             </div>
           </div>
-          <q-btn
-            v-if="!todayCompleted"
-            color="secondary"
-            text-color="primary"
-            unelevated
-            no-caps
-            label="Entrenar"
-            icon-right="arrow_forward"
-            to="/training"
-          />
+          <q-btn v-if="!todayCompleted" color="secondary" text-color="primary" unelevated no-caps label="Entrenar"
+            icon-right="arrow_forward" to="/training" />
         </q-card-section>
       </q-card>
 
       <!-- Training Stats (4 cards in grid) -->
-      <TrainingStats
-        v-if="progressionStore.stats"
-        :stats="progressionStore.stats"
-        class="mi-camino__stats"
-      />
+      <TrainingStats v-if="progressionStore.stats" :stats="progressionStore.stats" class="mi-camino__stats" />
 
-      <!-- RPE Trend Chart in a Card -->
-      <q-card
-        v-if="progressionStore.rpeTrend"
-        class="mi-camino__chart-card"
-        flat
-        bordered
-      >
+      <!-- RPE Trend Chart in a Card (only shown if user has submitted RPE) -->
+      <q-card v-if="hasRpeData" class="mi-camino__chart-card" flat bordered>
         <q-card-section>
           <div class="mi-camino__chart-header">
             <h3 class="mi-camino__chart-title">Tendencia de Esfuerzo</h3>
             <div class="mi-camino__chart-average">
-              Promedio: <strong>{{ progressionStore.rpeTrend.averageRpe.toFixed(1) }}</strong>
+              Promedio: <strong>{{ progressionStore.rpeTrend?.averageRpe.toFixed(1) }}</strong>
             </div>
           </div>
-          <RpeTrendChart
-            :labels="progressionStore.rpeTrend.labels"
-            :data="progressionStore.rpeTrend.data"
-          />
+          <RpeTrendChart :labels="progressionStore.rpeTrend?.labels ?? []" :data="progressionStore.rpeTrend?.data ?? []" />
         </q-card-section>
       </q-card>
 
       <!-- Evaluation Request (bottom) -->
-      <EvaluationRequest
-        v-if="progressionStore.evaluation"
-        :eligible="progressionStore.evaluation.eligible"
+      <EvaluationRequest v-if="progressionStore.evaluation" :eligible="progressionStore.evaluation.eligible"
         :pending="progressionStore.evaluation.pendingRequest"
-        :average-rpe="progressionStore.evaluation.averageRpeLast2Weeks"
-        class="mi-camino__evaluation"
-        @request="handleRequestEvaluation"
-      />
+        :average-rpe="progressionStore.evaluation.averageRpeLast2Weeks" class="mi-camino__evaluation"
+        @request="handleRequestEvaluation" />
     </div>
   </q-page>
 </template>
@@ -170,11 +130,7 @@ const { fetchStats, requestEvaluation } = useProgressionApi();
  * User's display name
  */
 const userName = computed(() => {
-  const profile = userStore.profile;
-  if (profile?.firstName) {
-    return profile.lastName ? `${profile.firstName} ${profile.lastName}` : profile.firstName;
-  }
-  return profile?.email?.split('@')[0] || 'Atleta';
+  return userStore.profile?.name || userStore.profile?.email?.split('@')[0] || 'Atleta';
 });
 
 /**
@@ -209,6 +165,16 @@ const isEmptyState = computed(() => {
   }
   // Also empty if no data loaded at all (shouldn't happen normally)
   return !progressionStore.level && !progressionStore.stats && !progressionStore.error;
+});
+
+/**
+ * Check if user has any RPE data to display the trend chart
+ */
+const hasRpeData = computed(() => {
+  const data = progressionStore.rpeTrend?.data;
+  if (!data || data.length === 0) return false;
+  // Check if at least one RPE value is not null
+  return data.some(rpe => rpe !== null);
 });
 
 /**
