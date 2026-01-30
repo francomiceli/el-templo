@@ -228,6 +228,7 @@ function handleStart() {
     padding: 16px;
     display: flex;
     flex-direction: column;
+    align-items: center;
     gap: 4px;
     border-bottom: 1px solid rgba($secondary, 0.25);
     background: linear-gradient(135deg, rgba($secondary, 0.1) 0%, $cream 100%);
