@@ -10,11 +10,15 @@ import { authRoutes } from './modules/auth/routes';
 export async function buildApp() {
   const app = Fastify({ logger: true });
 
-  // CORS for local development
+  // CORS configuration
   await app.register(cors, {
     origin: process.env.NODE_ENV === 'development'
       ? ['http://localhost:9000', 'capacitor://localhost', 'http://localhost']
-      : (process.env.FRONTEND_URL || 'https://app.eltemplo.com'),
+      : [
+          process.env.FRONTEND_URL || 'https://app.eltemplo.com',
+          'capacitor://localhost',  // Android Capacitor
+          'http://localhost',       // iOS Capacitor
+        ],
   });
 
   // Database plugin (decorates fastify.db)
