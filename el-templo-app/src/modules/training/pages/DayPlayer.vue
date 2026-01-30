@@ -54,16 +54,17 @@
     <!-- Main Player Content -->
     <template v-else-if="session && player && !showCelebration && !showSummary">
       <!-- Deuteros Choice Screen -->
-      <DeuterosChoice
+      <BlockChoice
         v-if="showDeuterosChoice && deuteros1Block && deuteros2Block"
-        :deuteros1="deuteros1Block"
-        :deuteros2="deuteros2Block"
+        title="Elige tu bloque Deuteros"
+        :options="deuterosOptions"
+        confirm-button-prefix="Comenzar"
         @select="onDeuterosSelect"
       />
 
       <!-- Normal Block View -->
       <template v-else>
-        <!-- Header with info and timer -->
+        <!-- Header with info -->
         <div class="day-player__header">
           <div class="day-player__header-left">
             <q-btn
@@ -125,9 +126,7 @@
             :block-role="currentBlock.role"
             :route="currentBlock.route"
             :intensity="currentBlock.intensity"
-            :show-timer="hasTimer && timerStarted"
-            :timer-display="protocolTimer?.displayText.value"
-            :timer-color-class="protocolTimer?.timerColorClass.value"
+            :format="currentBlock.format"
           />
 
           <!-- Exercise List -->
@@ -140,41 +139,15 @@
           />
         </div>
 
-        <!-- Action Area: Complete Block or Timer Controls -->
+        <!-- Action Area: Complete Block button -->
         <div class="day-player__action">
-          <!-- Straight Sets: existing Complete Block button -->
           <q-btn
-            v-if="!hasTimer"
             color="primary"
             unelevated
             :label="completeButtonLabel"
             class="full-width"
             size="lg"
             @click="completeBlock"
-          />
-
-          <!-- Timed blocks: Timer controls (start/stop/play) -->
-          <TimerControls
-            v-else
-            :is-running="protocolTimer?.isRunning.value ?? false"
-            :is-complete="protocolTimer?.isComplete.value ?? false"
-            :was-started="timerStarted"
-            :block-role="currentBlock?.role ?? 'NUCLEUS'"
-            @start="onTimerStart"
-            @stop="onTimerStop"
-            @play="onTimerResume"
-          />
-
-          <!-- For Time: show "Listo!" button while timer is running -->
-          <q-btn
-            v-if="hasTimer && protocolType === 'FOR_TIME' && timerStarted && protocolTimer?.isRunning.value"
-            color="positive"
-            unelevated
-            label="Listo!"
-            class="full-width q-mt-sm"
-            size="lg"
-            icon="check"
-            @click="onForTimeDone"
           />
         </div>
       </template>
@@ -183,41 +156,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { useQuasar } from 'quasar';
 
 // Components
 import SplashScreen from '../components/player/SplashScreen.vue';
-import DeuterosChoice from '../components/player/DeuterosChoice.vue';
+import BlockChoice from '../components/player/BlockChoice.vue';
 import ProgressBar from '../components/player/ProgressBar.vue';
 import VideoPlaceholder from '../components/player/VideoPlaceholder.vue';
 import BlockHeader from '../components/player/BlockHeader.vue';
 import ExerciseList from '../components/player/ExerciseList.vue';
-import TimerControls from '../components/player/TimerControls.vue';
 import CelebrationScreen from '../components/player/CelebrationScreen.vue';
 import SessionSummary from '../components/player/SessionSummary.vue';
 
 // Composables and Stores
 import { useSessionPlayer } from '../composables/useSessionPlayer';
-import { useProtocolTimer, type ProtocolTimerReturn } from '../composables/useProtocolTimer';
-import { useTimerAudio } from '../composables/useTimerAudio';
 import { useWakeLock } from '../composables/useWakeLock';
 import { useSessionCompletion } from '../composables/useSessionCompletion';
 import { useWeekStore } from '../stores/weekStore';
-import { useSessionPlayerStore } from '../stores/sessionPlayerStore';
 import { useWeekData } from '../composables/useWeekData';
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
 import { useUserStore } from 'src/stores/useUserStore';
 
 // Utils
 import { getRouteName } from '../utils/routeNames';
-import { parseProtocolType, getProtocolParams } from '../utils/timerFormats';
 import type { WeekDay } from '../types/session';
-
-// Capacitor
-import { App } from '@capacitor/app';
-import type { PluginListenerHandle } from '@capacitor/core';
 
 /**
  * Day Player Page
@@ -235,7 +199,6 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const weekStore = useWeekStore();
-const sessionPlayerStore = useSessionPlayerStore();
 const userStore = useUserStore();
 const wakeLock = useWakeLock();
 const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData();
@@ -303,25 +266,6 @@ const blocksDataForSummary = computed(() => {
       exercises: (block.exercises ?? []).map(ex => ({ name: ex.exerciseName })),
     }));
 });
-
-// Protocol timer state
-const timerAudio = useTimerAudio();
-const protocolTimer = shallowRef<ProtocolTimerReturn | null>(null);
-const timerStarted = ref(false);
-let appStateListener: PluginListenerHandle | null = null;
-
-/**
- * Protocol type of the current block (EMOM, AMRAP, FOR_TIME, STRAIGHT_SETS)
- */
-const protocolType = computed(() => {
-  if (!currentBlock.value) return 'STRAIGHT_SETS';
-  return parseProtocolType(currentBlock.value.format);
-});
-
-/**
- * Whether the current block uses a protocol timer (not STRAIGHT_SETS)
- */
-const hasTimer = computed(() => protocolType.value !== 'STRAIGHT_SETS');
 
 // Session player composable (created when session is available)
 const player = computed(() => {
@@ -430,7 +374,8 @@ const currentBlockName = computed(() => {
     NUCLEUS: 'Nucleus',
     DEUTEROS_1: 'Deuteros',
     DEUTEROS_2: 'Deuteros',
-    ATHLOS_EPIKOS: 'Athlos',
+    ATHLOS: 'Athlos',
+    EPIKOS: 'Epikos',
   };
   return names[role] || role;
 });
@@ -447,6 +392,26 @@ const completedBlocks = computed(() => player.value?.completedBlocks.value ?? []
 const selectedExerciseIndex = computed(() => player.value?.selectedExerciseIndex.value ?? 0);
 const deuteros1Block = computed(() => player.value?.deuteros1Block.value ?? null);
 const deuteros2Block = computed(() => player.value?.deuteros2Block.value ?? null);
+
+// Deuteros options for BlockChoice component
+const deuterosOptions = computed(() => {
+  const options = [];
+  if (deuteros1Block.value) {
+    options.push({
+      id: 'DEUTEROS_1',
+      label: 'Deuteros 1',
+      block: deuteros1Block.value,
+    });
+  }
+  if (deuteros2Block.value) {
+    options.push({
+      id: 'DEUTEROS_2',
+      label: 'Deuteros 2',
+      block: deuteros2Block.value,
+    });
+  }
+  return options;
+});
 
 // Complete button label
 const completeButtonLabel = computed(() => {
@@ -480,9 +445,9 @@ function onSplashComplete(): void {
   wakeLock.requestWakeLock();
 }
 
-function onDeuterosSelect(choice: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
-  if (player.value) {
-    player.value.selectDeuteros(choice);
+function onDeuterosSelect(choiceId: string): void {
+  if (player.value && (choiceId === 'DEUTEROS_1' || choiceId === 'DEUTEROS_2')) {
+    player.value.selectDeuteros(choiceId);
   }
 }
 
@@ -493,7 +458,8 @@ function getBlockDisplayName(role: string): string {
     NUCLEUS: 'Nucleus',
     DEUTEROS_1: 'Deuteros',
     DEUTEROS_2: 'Deuteros',
-    ATHLOS_EPIKOS: 'Athlos',
+    ATHLOS: 'Athlos',
+    EPIKOS: 'Epikos',
   };
   return names[role] || role;
 }
@@ -557,166 +523,6 @@ function onTransitionComplete(): void {
   showBlockTransition.value = false;
   transitionCompletedBlock.value = '';
   transitionNextBlock.value = '';
-}
-
-// Protocol timer event handlers
-
-/**
- * Start protocol timer on user tap ("Iniciar Timer")
- */
-function onTimerStart(): void {
-  timerAudio.unlockAudio(); // Unlock audio on first user interaction
-  protocolTimer.value?.start();
-  timerStarted.value = true;
-
-  // Persist protocol timer state for reload recovery
-  const dayId = session.value?.dayId;
-  if (dayId) {
-    void sessionPlayerStore.saveProgress(dayId, {
-      protocolTimerStartedAt: Date.now(),
-      protocolTimerAccumulatedMs: 0,
-    });
-  }
-}
-
-/**
- * Stop/pause protocol timer
- */
-function onTimerStop(): void {
-  // Calculate accumulated ms before stopping
-  const dayId = session.value?.dayId;
-  if (dayId) {
-    void sessionPlayerStore.loadProgress(dayId).then((progress) => {
-      const startedAt = progress.protocolTimerStartedAt;
-      const prevAccumulated = progress.protocolTimerAccumulatedMs;
-      const newAccumulated = startedAt
-        ? prevAccumulated + (Date.now() - startedAt)
-        : prevAccumulated;
-      void sessionPlayerStore.saveProgress(dayId, {
-        protocolTimerStartedAt: null,
-        protocolTimerAccumulatedMs: newAccumulated,
-      });
-    });
-  }
-  protocolTimer.value?.stop();
-}
-
-/**
- * Resume protocol timer after stop
- */
-function onTimerResume(): void {
-  protocolTimer.value?.resume();
-
-  // Persist new start timestamp
-  const dayId = session.value?.dayId;
-  if (dayId) {
-    void sessionPlayerStore.saveProgress(dayId, {
-      protocolTimerStartedAt: Date.now(),
-    });
-  }
-}
-
-/**
- * Handle "Listo!" button for FOR_TIME protocol
- * Stops timer and auto-completes the block
- */
-function onForTimeDone(): void {
-  protocolTimer.value?.stop();
-  handleTimerComplete();
-}
-
-/**
- * Handle timer auto-completion (EMOM/AMRAP finish, or FOR_TIME "Listo!")
- * Same flow as completeBlock but triggered by timer events
- */
-async function handleTimerComplete(): Promise<void> {
-  if (!player.value) return;
-
-  const completedName = currentBlockName.value;
-  const nextName = getNextBlockName();
-
-  // Cleanup current timer
-  protocolTimer.value?.cleanup();
-  protocolTimer.value = null;
-  timerStarted.value = false;
-
-  // Clear protocol timer persistence
-  const dayId = session.value?.dayId;
-  if (dayId) {
-    void sessionPlayerStore.saveProgress(dayId, {
-      protocolTimerStartedAt: null,
-      protocolTimerAccumulatedMs: 0,
-    });
-  }
-
-  await player.value.completeBlock();
-
-  if (player.value.isSessionComplete.value) {
-    await finishSession();
-    return;
-  }
-
-  // Show transition splash
-  transitionCompletedBlock.value = completedName;
-  transitionNextBlock.value = player.value.needsDeuterosChoice.value
-    ? 'Elige Deuteros'
-    : nextName;
-  showBlockTransition.value = true;
-}
-
-/**
- * Restore protocol timer state after page reload
- * Calculates total elapsed ms from persisted timestamps and resumes the timer
- */
-async function restoreProtocolTimer(dayId: string): Promise<void> {
-  const progress = await sessionPlayerStore.loadProgress(dayId);
-  const { protocolTimerStartedAt, protocolTimerAccumulatedMs } = progress;
-
-  // No timer was active
-  if (!protocolTimerStartedAt && protocolTimerAccumulatedMs === 0) return;
-
-  // Create the timer for current block
-  const block = player.value?.currentBlock.value;
-  if (!block) return;
-
-  const params = getProtocolParams(block);
-  if (params.type === 'STRAIGHT_SETS') return;
-
-  protocolTimer.value = useProtocolTimer(params, timerAudio);
-  protocolTimer.value.onComplete(() => handleTimerComplete());
-
-  if (protocolTimerStartedAt) {
-    // Timer was running — calculate total offset and resume
-    const totalMs = protocolTimerAccumulatedMs + (Date.now() - protocolTimerStartedAt);
-    protocolTimer.value.startWithOffset(totalMs);
-    timerStarted.value = true;
-  } else if (protocolTimerAccumulatedMs > 0) {
-    // Timer was stopped — restore in stopped state with correct display
-    protocolTimer.value.startWithOffset(protocolTimerAccumulatedMs);
-    // Immediately stop so user sees Play button with correct time
-    protocolTimer.value.stop();
-    timerStarted.value = true;
-  }
-}
-
-/**
- * Create a protocol timer for the given block (if it's timed)
- */
-function createProtocolTimerForBlock(): void {
-  // Cleanup old timer
-  protocolTimer.value?.cleanup();
-  protocolTimer.value = null;
-  timerStarted.value = false;
-
-  // Create new timer for new block (if timed)
-  const block = player.value?.currentBlock.value;
-  if (block) {
-    const params = getProtocolParams(block);
-    if (params.type !== 'STRAIGHT_SETS') {
-      protocolTimer.value = useProtocolTimer(params, timerAudio);
-      protocolTimer.value.onComplete(() => handleTimerComplete());
-    }
-  }
 }
 
 async function finishSession(): Promise<void> {
@@ -803,12 +609,6 @@ async function restartSession(): Promise<void> {
     persistent: true,
   }).onOk(async () => {
     if (player.value && session.value) {
-      // Stop any active timer
-      if (protocolTimer.value) {
-        protocolTimer.value.cleanup();
-        protocolTimer.value = null;
-      }
-
       // Clear stored progress
       await player.value.clearProgress();
 
@@ -817,7 +617,6 @@ async function restartSession(): Promise<void> {
       sessionStartedAt.value = null;
       showCelebration.value = false;
       showSummary.value = false;
-      timerStarted.value = false;
 
       // Re-initialize player (force recreation via session change)
       isInitialized.value = false;
@@ -899,58 +698,33 @@ watch(session, async (newSession) => {
         // Resume session timer
         player.value.startTimer();
         wakeLock.requestWakeLock();
-
-        // Restore protocol timer if it was active
-        await restoreProtocolTimer(newSession.dayId);
       }
     }
     isInitialized.value = true;
   }
 }, { immediate: true });
 
-
-// Watch block index to recreate protocol timer when advancing blocks
-watch(() => player.value?.currentBlockIndex.value, (newIndex, oldIndex) => {
-  if (newIndex !== undefined && newIndex !== oldIndex) {
-    createProtocolTimerForBlock();
-  }
-});
-
 // Load week data on mount if store is empty (handles F5 refresh)
-// Also register background detection for protocol timer auto-stop
 onMounted(async () => {
   loadWeekDataIfEmpty();
-
-  // Background detection - auto-stop protocol timer when app goes to background
-  try {
-    appStateListener = await App.addListener('appStateChange', ({ isActive }) => {
-      if (!isActive && protocolTimer.value?.isRunning.value) {
-        protocolTimer.value.stop();
-      }
-      // Session timer keeps running (per phase 8 context decision)
-    });
-  } catch {
-    // App plugin not available on web - that's fine
-  }
 });
 
-// Cleanup player and protocol timer on unmount
+// Cleanup player on unmount
 onUnmounted(() => {
   if (player.value) {
     player.value.cleanup();
   }
-  protocolTimer.value?.cleanup();
-  appStateListener?.remove();
-
 });
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
 .day-player {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #fafafa;
+  background: $cream;
 }
 
 .day-player__loading,
@@ -964,8 +738,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: white;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: $cream;
+  border-bottom: 1px solid rgba($secondary, 0.2);
 }
 
 .day-player__header-left {
@@ -990,7 +764,7 @@ onUnmounted(() => {
 .day-player__content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 160px; // Space for fixed button (increased for stacked timer controls)
+  padding-bottom: 100px; // Space for fixed button
 }
 
 .day-player__action {
@@ -1000,8 +774,8 @@ onUnmounted(() => {
   right: 0;
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  background: white;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: $cream;
+  border-top: 1px solid rgba($secondary, 0.2);
   z-index: 100;
   max-width: 500px;
   margin-left: auto;

@@ -13,8 +13,10 @@ export interface SessionProgress {
   completedBlocks: BlockRole[];
   /** User's choice between DEUTEROS_1 and DEUTEROS_2 (null until chosen) */
   deuterosChoice: 'DEUTEROS_1' | 'DEUTEROS_2' | null;
-  /** Total elapsed time in seconds for the session */
+  /** Accumulated elapsed seconds (from previous start/pause cycles) */
   elapsedSeconds: number;
+  /** Timestamp (Date.now()) when the session timer was last started, null if paused */
+  sessionTimerStartedAt: number | null;
 }
 
 /** Storage key prefix for session progress */
@@ -42,6 +44,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
       completedBlocks: [],
       deuterosChoice: null,
       elapsedSeconds: 0,
+      sessionTimerStartedAt: null,
     };
   }
 

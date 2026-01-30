@@ -10,17 +10,35 @@
         <span v-if="intensity">{{ intensity }}%</span>
       </div>
     </div>
-    <div v-if="showTimer && timerDisplay" class="block-header__right">
-      <div class="block-timer text-h5 text-weight-bold" :class="timerColorClass">
-        {{ timerDisplay }}
-      </div>
+    <div v-if="formatExplanation" class="block-header__right">
+      <q-btn
+        flat
+        round
+        dense
+        icon="info_outline"
+        color="grey-7"
+        @click="showFormatDialog = true"
+      />
+      <q-dialog v-model="showFormatDialog">
+        <q-card style="min-width: 280px; max-width: 400px;">
+          <q-card-section class="row items-center q-pb-none">
+            <div class="text-h6">{{ formatExplanation.name }}</div>
+            <q-space />
+            <q-btn icon="close" flat round dense v-close-popup />
+          </q-card-section>
+          <q-card-section>
+            {{ formatExplanation.description }}
+          </q-card-section>
+        </q-card>
+      </q-dialog>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { getBlockCSSColor } from '../../utils/blockColors';
+import { getFormatExplanation } from '../../utils/formatExplanations';
 import type { BlockRole } from '../../types/session';
 
 interface Props {
@@ -32,15 +50,20 @@ interface Props {
   route?: string;
   /** Optional intensity percentage (e.g., 85 for 85%) */
   intensity?: number;
-  /** Formatted time text (e.g., "3/8 — 0:42", "4:23") */
-  timerDisplay?: string;
-  /** CSS class for timer color ('text-grey-8', 'text-amber', 'text-red') */
-  timerColorClass?: string;
-  /** Whether to show timer (false for Straight Sets) */
-  showTimer?: boolean;
+  /** Optional format string (e.g., "EMOM", "AMRAP") */
+  format?: string;
 }
 
 const props = defineProps<Props>();
+
+const showFormatDialog = ref(false);
+
+/**
+ * Get format explanation if available
+ */
+const formatExplanation = computed(() => {
+  return getFormatExplanation(props.format);
+});
 
 /**
  * Dynamic style object for header with accent color border and background
@@ -87,12 +110,5 @@ const headerStyle = computed(() => {
   color: #b8956c;
   font-weight: 500;
   letter-spacing: 0.05em;
-}
-
-.block-timer {
-  font-family: 'Roboto Mono', monospace;
-  letter-spacing: 0.05em;
-  line-height: 1.3;
-  transition: color 0.3s ease;
 }
 </style>
