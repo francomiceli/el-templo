@@ -55,21 +55,6 @@ h1, h2, h3, h4, h5, h6,
   }
 }
 
-// Ready-to-use marble background class
-.marble-bg {
-  @include marble-texture();
-}
-
-// Darker cream marble variant
-.marble-bg--dark {
-  @include marble-texture(#e8e0d4, 0.35);
-}
-
-// Navy-tinted marble variant for dark mode accents
-.marble-bg--navy {
-  @include marble-texture(#1a2a3e, 0.15);
-}
-
 // =============================================================================
 // El Templo Global White Elimination
 // =============================================================================
@@ -167,22 +152,3 @@ body {
   letter-spacing: 0.08em;
 }
 
-// Buttons with brand styling
-.btn-brand {
-  font-family: $heading-font;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-// Q-btn with class for Cinzel
-.q-btn.cinzel-btn {
-  font-family: $heading-font;
-  letter-spacing: 0.05em;
-}
-
-// Session start buttons
-.session-start-btn {
-  font-family: $heading-font;
-  letter-spacing: 0.08em;
-  font-weight: 500;
-}

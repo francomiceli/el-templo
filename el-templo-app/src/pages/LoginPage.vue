@@ -35,13 +35,15 @@
             </template>
           </q-input>
 
-          <q-btn
-            type="submit"
-            color="primary"
-            label="Entrar"
-            :loading="loading"
-            class="full-width"
-          />
+          <div class="row justify-center q-mt-md">
+            <q-btn
+              type="submit"
+              color="primary"
+              label="Entrar"
+              :loading="loading"
+              class="full-width"
+            />
+          </div>
         </q-form>
       </q-card-section>
 

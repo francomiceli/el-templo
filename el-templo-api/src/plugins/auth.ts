@@ -18,14 +18,16 @@ declare module 'fastify' {
 const authPlugin: FastifyPluginAsync = async (fastify) => {
   const secret = process.env.JWT_SECRET;
 
-  if (!secret && process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable is required in production');
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is required');
   }
 
+  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+
   await fastify.register(jwt, {
-    secret: secret || 'development-secret-change-in-prod',
+    secret,
     sign: {
-      expiresIn: '7d',
+      expiresIn,
     },
   });
 

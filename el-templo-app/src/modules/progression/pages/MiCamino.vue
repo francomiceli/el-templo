@@ -127,10 +127,10 @@ const userStore = useUserStore();
 const { fetchStats, requestEvaluation } = useProgressionApi();
 
 /**
- * User's display name
+ * User's display name - uses fullName computed from userStore
  */
 const userName = computed(() => {
-  return userStore.profile?.name || userStore.profile?.email?.split('@')[0] || 'Atleta';
+  return userStore.fullName || 'Atleta';
 });
 
 /**
