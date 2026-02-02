@@ -11,20 +11,27 @@ declare module 'fastify' {
 }
 
 const databasePlugin: FastifyPluginAsync = async (fastify) => {
-  const connection = await mysql.createConnection({
+  // Read config inside async function (after dotenv has loaded)
+  // NOT at module import time - tsx watch doesn't handle dotenv auto-injection correctly
+  const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'eltemplo',
+    waitForConnections: true,
+    connectionLimit: 10,
+    idleTimeout: 60000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
   });
 
-  const db = drizzle(connection, { schema, mode: 'default' });
+  const db = drizzle(pool, { schema, mode: 'default' });
 
   fastify.decorate('db', db);
 
   fastify.addHook('onClose', async () => {
-    await connection.end();
+    await pool.end();
   });
 
   fastify.log.info('Database connected');
