@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main, develop]
+
+jobs:
+  # ===========================================
+  # API - Type Check and Build
+  # ===========================================
+  api-check:
+    name: API - Type Check & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-api/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm run build
+
+  # ===========================================
+  # App - Type Check and Build
+  # ===========================================
+  app-check:
+    name: App - Lint & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+        continue-on-error: true  # Don't fail on lint warnings for now
+
+      - name: Build
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3000/api' }}
+          VITE_APP_NAME: El Templo

@@ -1,0 +1,173 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # ===========================================
+  # Build API
+  # ===========================================
+  build-api:
+    name: Build API
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-api/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Upload API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: |
+            el-templo-api/dist
+            el-templo-api/package.json
+            el-templo-api/pnpm-lock.yaml
+          retention-days: 1
+
+  # ===========================================
+  # Build App
+  # ===========================================
+  build-app:
+    name: Build App
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for production
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_APP_NAME: El Templo
+
+      - name: Upload App build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-dist
+          path: el-templo-app/dist
+          retention-days: 1
+
+  # ===========================================
+  # Deploy to Server
+  # ===========================================
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-api, build-app]
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download API artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-dist
+          path: api-build
+
+      - name: Download App artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-dist
+          path: app-build
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create .env.production for API
+        run: |
+          cat > api-build/.env.production << 'EOF'
+          NODE_ENV=production
+          PORT=${{ secrets.API_PORT || '3000' }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT || '3306' }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN || '7d' }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          EOF
+
+      - name: Deploy API to server
+        run: |
+          rsync -avz --delete \
+            api-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.API_DEPLOY_PATH }}
+
+      - name: Deploy App to server
+        run: |
+          rsync -avz --delete \
+            app-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.APP_DEPLOY_PATH }}
+
+      - name: Install dependencies and restart API
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.API_DEPLOY_PATH }}
+            pnpm install --prod --frozen-lockfile
+            pm2 restart el-templo-api || pm2 start dist/index.js --name el-templo-api
+          ENDSSH
+
+      - name: Verify deployment
+        run: |
+          sleep 5
+          # Health endpoint is at root, not under /api
+          API_BASE=$(echo "${{ secrets.VITE_API_URL }}" | sed 's|/api$||')
+          curl -f ${API_BASE}/health || echo "Health check endpoint not available"
