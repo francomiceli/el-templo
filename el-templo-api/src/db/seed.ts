@@ -1,20 +1,22 @@
 import 'dotenv/config';
 import * as argon2 from 'argon2';
-import { drizzle } from 'drizzle-orm/mysql2';
-import mysql from 'mysql2/promise';
 import { branches, users } from './schema';
+import { createSingleConnection } from './index';
+
+// Get passwords from environment variables
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
+const SEED_DEFAULT_PASSWORD = process.env.SEED_DEFAULT_PASSWORD;
+
+if (!SEED_ADMIN_PASSWORD || !SEED_DEFAULT_PASSWORD) {
+  console.error('❌ Missing required environment variables:');
+  if (!SEED_ADMIN_PASSWORD) console.error('  - SEED_ADMIN_PASSWORD');
+  if (!SEED_DEFAULT_PASSWORD) console.error('  - SEED_DEFAULT_PASSWORD');
+  console.error('\nSet these in your .env file before running the seed script.');
+  process.exit(1);
+}
 
 async function seed() {
-  // Create database connection
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'eltemplo',
-  });
-
-  const db = drizzle(connection);
+  const { db, connection } = await createSingleConnection();
 
   console.log('🌱 Seeding database...');
 
@@ -33,13 +35,13 @@ async function seed() {
     { name: 'El Templo Mogotes', code: 'MOGOTES' },
   ];
 
-  const insertedBranches = await db.insert(branches).values(branchesData);
+  await db.insert(branches).values(branchesData);
   const branchIds = Array.from({ length: 5 }, (_, i) => i + 1);
   console.log(`✓ Created ${branchesData.length} branches`);
 
-  // Hash default password
-  const defaultPasswordHash = await argon2.hash('templo123');
-  const adminPasswordHash = await argon2.hash('admin123');
+  // Hash passwords from environment variables (validated at startup)
+  const defaultPasswordHash = await argon2.hash(SEED_DEFAULT_PASSWORD!);
+  const adminPasswordHash = await argon2.hash(SEED_ADMIN_PASSWORD!);
 
   // Insert superadmin
   console.log('Creating superadmin...');
@@ -52,7 +54,7 @@ async function seed() {
     branchId: branchIds[0], // Centro
     level: 'spartan',
   });
-  console.log('✓ Created superadmin (admin@eltemplo.com / admin123)');
+  console.log('✓ Created superadmin (admin@eltemplo.com)');
 
   // Insert coaches (1 per branch)
   console.log('Creating coaches...');
@@ -67,7 +69,7 @@ async function seed() {
   }));
 
   await db.insert(users).values(coaches);
-  console.log(`✓ Created ${coaches.length} coaches (password: templo123)`);
+  console.log(`✓ Created ${coaches.length} coaches`);
 
   // Insert members (4 per branch)
   console.log('Creating members...');
@@ -85,16 +87,16 @@ async function seed() {
   );
 
   await db.insert(users).values(members);
-  console.log(`✓ Created ${members.length} members (password: templo123)`);
+  console.log(`✓ Created ${members.length} members`);
 
-  // Summary
+  // Summary (without exposing passwords)
   console.log('\n✅ Seeding complete!');
   console.log(`
 Summary:
 - 5 branches
-- 1 superadmin (admin@eltemplo.com / admin123)
-- 5 coaches (coach1-5@eltemplo.com / templo123)
-- 20 members (member1-20@eltemplo.com / templo123)
+- 1 superadmin (admin@eltemplo.com)
+- 5 coaches (coach1-5@eltemplo.com)
+- 20 members (member1-20@eltemplo.com)
 
 Total users: 26
   `);

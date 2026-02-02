@@ -1,24 +1,31 @@
 import { drizzle } from 'drizzle-orm/mysql2';
 import mysql from 'mysql2/promise';
 import * as schema from './schema';
+import { dbConfig, poolConfig } from './config';
 
+/**
+ * Create a database connection pool with Drizzle ORM
+ * Used by the main application
+ */
 export async function createDbConnection() {
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'eltemplo',
-    waitForConnections: true,
-    connectionLimit: 10,
-    idleTimeout: 60000,
-    enableKeepAlive: true,
-    keepAliveInitialDelay: 10000,
-  });
+  const pool = mysql.createPool(poolConfig);
 
   return {
     db: drizzle(pool, { schema, mode: 'default' }),
-    connection: pool,
+    pool,
+  };
+}
+
+/**
+ * Create a single database connection (for scripts/seeds)
+ * Lighter weight than a pool for one-off operations
+ */
+export async function createSingleConnection() {
+  const connection = await mysql.createConnection(dbConfig);
+
+  return {
+    db: drizzle(connection),
+    connection,
   };
 }
 
