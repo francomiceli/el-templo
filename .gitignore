@@ -2,6 +2,9 @@
 
 # AWS infrastructure variables (contains IPs, instance IDs)
 deploy/.aws-vars
+
+# CREDENTIALS files
 deploy/.credentials
-awscliv2.zip
-aws/
+
+# Build artifacts
+build/
