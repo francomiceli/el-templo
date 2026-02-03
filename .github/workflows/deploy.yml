@@ -169,7 +169,7 @@ jobs:
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
             cd ${{ secrets.API_DEPLOY_PATH }}
             pnpm install --prod --frozen-lockfile
-            pm2 restart el-templo-api || pm2 start dist/index.js --name el-templo-api
+            pm2 restart eltemplo-api || pm2 start dist/index.js --name eltemplo-api
           ENDSSH
 
       - name: Verify deployment
