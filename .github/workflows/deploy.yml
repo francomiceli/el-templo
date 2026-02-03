@@ -123,6 +123,9 @@ jobs:
           name: app-dist
           path: app-build
 
+      - name: Install rsync
+        run: sudo apt-get update && sudo apt-get install -y rsync
+
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
