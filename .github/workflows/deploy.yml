@@ -123,7 +123,7 @@ jobs:
           name: app-dist
           path: app-build
 
-      - name: Install rsync
+      - name: Install rsync (local)
         run: sudo apt-get update && sudo apt-get install -y rsync
 
       - name: Setup SSH key
@@ -132,6 +132,10 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Install rsync on server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || sudo apt-get update && sudo apt-get install -y rsync'
 
       - name: Create .env.production for API
         run: |
