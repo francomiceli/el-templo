@@ -184,11 +184,23 @@ Current PM2 app name is `eltemplo-api`. If different, update `deploy.yml`.
 
 ## Current Status
 
-As of 2026-02-02:
+As of 2026-02-03:
 
 - ✅ Workflow files committed (`.github/workflows/ci.yml`, `deploy.yml`)
-- ⏳ GitHub Secrets need to be configured
-- ⏳ First CI/CD deployment pending
+- ✅ GitHub Secrets configured
+- ✅ First CI/CD deployment successful
+
+### Deployment History
+
+| Date | Commit | Status | Notes |
+|------|--------|--------|-------|
+| 2026-02-03 04:43 | `97a8f04` | ✅ Success | First successful CI/CD deploy |
+
+### Issues Fixed During Setup
+
+1. **rsync not installed on GitHub runner** - Added `apt-get install rsync`
+2. **rsync not installed on EC2 server** - Added SSH step to install rsync
+3. **PM2 app name mismatch** - Changed from `el-templo-api` to `eltemplo-api`
 
 ---
 
