@@ -2,7 +2,7 @@
  * Stage 6: Exercise Selection
  *
  * Selects exercises for the block based on route, contraction type,
- * difficulty, and level. Uses fallback ladder when exact matches not found.
+ * linear difficulty (1-12), and level. Uses fallback ladder when exact matches not found.
  * Uses deterministic ordering by id ASC.
  *
  * Input: BlockContextWithFormat (has route, contractionMix, difficultyBucket, levelGroup)
@@ -29,14 +29,76 @@ function getAllowedLevels(levelGroup: LevelGroup): ExerciseLevel[] {
   }
 }
 
-/** Parse difficulty bucket string to numeric max */
-function parseDifficultyBucket(bucket: string): number {
-  // Difficulty bucket values: "1", "2", "3", "Nivel Superior"
-  if (bucket === 'Nivel Superior') {
-    return 999; // Allow any difficulty
+/**
+ * Linear difficulty base values per level
+ * Used to calculate maxDificultadLineal from level and bucket
+ */
+const LEVEL_LINEAR_BASE: Record<ExerciseLevel, number> = {
+  alfa: 0,     // Alfa: 1-3 (base 0 + bucket)
+  delta: 3,    // Delta: 4-6 (base 3 + bucket)
+  sigma: 6,    // Sigma: 7-8 (base 6 + bucket)
+  omega: 8,    // Omega: 9-10 (base 8 + bucket)
+  spartan: 10, // Spartan: 11-12 (base 10 + bucket)
+};
+
+/**
+ * Level progression for Nivel Superior mapping
+ */
+const LEVEL_PROGRESSION: readonly ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+
+/**
+ * Calculate linear difficulty target based on member level, intensity, and difficulty bucket
+ *
+ * Maps the old bucket system (1-3, "Nivel Superior") to the linear scale (1-12):
+ * - Bucket 1/2/3 at member level -> level's linear difficulty range
+ * - "Nivel Superior" or intensity >= 85% -> next level's first difficulty
+ *
+ * @returns { maxDificultadLineal, targetLevel } for exercise selection
+ */
+function getLinearDifficultyTarget(
+  memberLevel: ExerciseLevel,
+  intensity: number,
+  difficultyBucket: string
+): { maxDificultadLineal: number; targetLevel: ExerciseLevel } {
+  const isNivelSuperior = difficultyBucket === 'Nivel Superior' || difficultyBucket === 'Nivel Superior 1';
+  const currentIndex = LEVEL_PROGRESSION.indexOf(memberLevel);
+
+  // Nivel Superior (at intensity >= 85%): shift to next level's first difficulty
+  if (isNivelSuperior && intensity >= 85) {
+    if (currentIndex < LEVEL_PROGRESSION.length - 1) {
+      const nextLevel = LEVEL_PROGRESSION[currentIndex + 1];
+      // Next level's first linear difficulty = base + 1
+      return {
+        maxDificultadLineal: LEVEL_LINEAR_BASE[nextLevel] + 1,
+        targetLevel: nextLevel,
+      };
+    }
+    // Spartan stays at spartan, max difficulty
+    return {
+      maxDificultadLineal: LEVEL_LINEAR_BASE.spartan + 2, // 12
+      targetLevel: 'spartan',
+    };
   }
-  const num = parseInt(bucket, 10);
-  return isNaN(num) ? 3 : num;
+
+  // High intensity (>= 90%) without explicit Nivel Superior bucket: also shift up
+  if (intensity >= 90) {
+    if (currentIndex < LEVEL_PROGRESSION.length - 1) {
+      const nextLevel = LEVEL_PROGRESSION[currentIndex + 1];
+      return {
+        maxDificultadLineal: LEVEL_LINEAR_BASE[nextLevel] + 1,
+        targetLevel: nextLevel,
+      };
+    }
+  }
+
+  // Normal case: use bucket within current level's range
+  const bucket = parseInt(difficultyBucket, 10);
+  const effectiveBucket = isNaN(bucket) ? 3 : bucket;
+
+  return {
+    maxDificultadLineal: LEVEL_LINEAR_BASE[memberLevel] + effectiveBucket,
+    targetLevel: memberLevel,
+  };
 }
 
 /**
@@ -72,8 +134,6 @@ export async function selectExercises(
   ctx: BlockContextWithFormat,
   db: MySql2Database<typeof schema>
 ): Promise<BlockContextWithExercises> {
-  const LEVEL_PROGRESSION: readonly ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-
   const allowedLevels = getAllowedLevels(ctx.levelGroup);
   const selectedExercises: SelectedExercise[] = [];
   let updatedCtx = ctx;
@@ -82,30 +142,31 @@ export async function selectExercises(
   // Track already-selected exercise names to prevent duplicates across contractions
   const excludedNames: Set<string> = new Set();
 
-  // Determine target level (may shift up for high-intensity blocks)
-  let targetLevel: ExerciseLevel = ctx.memberLevel;
-  let maxDifficulty = parseDifficultyBucket(ctx.difficultyBucket);
+  // Calculate linear difficulty target (handles Nivel Superior and high-intensity shifts)
+  const { maxDificultadLineal, targetLevel } = getLinearDifficultyTarget(
+    ctx.memberLevel,
+    ctx.intensity,
+    ctx.difficultyBucket
+  );
 
-  if (ctx.intensity >= 90) {
-    const currentIndex = LEVEL_PROGRESSION.indexOf(ctx.memberLevel);
-    if (currentIndex < LEVEL_PROGRESSION.length - 1) {
-      targetLevel = LEVEL_PROGRESSION[currentIndex + 1];
-      maxDifficulty = 1; // Use lowest difficulty from upper level
-
-      // Add trace event for the shift
-      const shiftTrace = createTraceEvent(
-        updatedCtx,
-        'HIGH_INTENSITY_LEVEL_SHIFT',
-        'INFO',
-        {
-          fromLevel: ctx.memberLevel,
-          toLevel: targetLevel,
-          intensity: ctx.intensity,
-          reason: `Intensity ${ctx.intensity}% >= 90% triggers level shift`,
-        }
-      );
-      updatedCtx = appendTrace(updatedCtx, shiftTrace);
-    }
+  // Add trace if level was shifted
+  if (targetLevel !== ctx.memberLevel) {
+    const shiftTrace = createTraceEvent(
+      updatedCtx,
+      'HIGH_INTENSITY_LEVEL_SHIFT',
+      'INFO',
+      {
+        fromLevel: ctx.memberLevel,
+        toLevel: targetLevel,
+        intensity: ctx.intensity,
+        maxDificultadLineal,
+        difficultyBucket: ctx.difficultyBucket,
+        reason: ctx.difficultyBucket.includes('Nivel Superior')
+          ? `Nivel Superior at ${ctx.intensity}% maps to ${targetLevel} level`
+          : `Intensity ${ctx.intensity}% >= 90% triggers level shift`,
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, shiftTrace);
   }
 
   // Process each contraction type
@@ -121,7 +182,7 @@ export async function selectExercises(
       {
         route: ctx.route,
         contraction,
-        maxDifficulty,
+        maxDificultadLineal, // Linear difficulty scale (1-12)
         allowedLevels, // For Tier 2+ fallback
         count: requiredCount,
         levelGroup: ctx.levelGroup,
@@ -177,7 +238,7 @@ export async function selectExercises(
         exerciseId: ex.id,
         name: ex.name,
         contraction: ex.contraction,
-        difficulty: ex.difficulty,
+        difficulty: ex.dificultadLineal, // Use linear difficulty
       });
       // Add to excluded names for subsequent contraction queries
       excludedNames.add(ex.name);

@@ -76,7 +76,8 @@ export const DEFAULT_FORMAT_POLICY: FallbackPolicy = {
 export interface ExerciseRequirements {
   readonly route: string;
   readonly contraction: Contraction;
-  readonly maxDifficulty: number;
+  /** Linear difficulty scale (1-12) - max allowed difficulty for exercise selection */
+  readonly maxDificultadLineal: number;
   readonly allowedLevels: readonly ExerciseLevel[];
   readonly count: number;
   readonly levelGroup: LevelGroup;

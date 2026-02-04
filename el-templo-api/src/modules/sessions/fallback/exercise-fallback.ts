@@ -4,9 +4,12 @@
  * Implements tiered fallback for exercise selection when exact matches
  * aren't available. All fallback decisions are recorded for traceability.
  *
+ * Uses linear difficulty scale (1-12) for filtering:
+ * - Alfa: 1-3, Delta: 4-6, Sigma: 7-8, Omega: 9-10, Spartan: 11-12
+ *
  * Fallback Tiers:
- * 0: Exact match (route + contraction + difficulty + level)
- * 1: Relax difficulty (difficulty >= 1 instead of exact bucket)
+ * 0: Exact match (route + contraction + linear difficulty + level)
+ * 1: Relax difficulty (allow any dificultad_lineal)
  * 2: Widen level filter (include lower levels)
  * 3: Widen scope (search parent category if route yields nothing)
  * 4: Substitute contraction (if no ISO, try EXC, then CON)
@@ -28,7 +31,8 @@ import type { Contraction, LevelGroup } from '../types';
 export interface ExerciseCandidate {
   readonly id: number;
   readonly name: string;
-  readonly difficulty: number;
+  /** Linear difficulty on 1-12 scale */
+  readonly dificultadLineal: number;
   readonly contraction: Contraction;
 }
 
@@ -71,12 +75,13 @@ function getExpandedLevels(
 
 /**
  * Query exercises with given criteria (exact contraction match)
+ * Uses dificultad_lineal column for difficulty filtering (1-12 scale)
  */
 async function queryExercises(
   db: MySql2Database<typeof schema>,
   route: string,
   contraction: Contraction,
-  maxDifficulty: number,
+  maxDificultadLineal: number,
   allowedLevels: readonly ExerciseLevel[],
   excludeNames?: Set<string>
 ): Promise<ExerciseCandidate[]> {
@@ -84,13 +89,13 @@ async function queryExercises(
     .select({
       id: schema.exercises.id,
       name: schema.exercises.exercise,
-      difficulty: schema.exercises.difficulty,
+      dificultadLineal: schema.exercises.dificultadLineal,
     })
     .from(schema.exercises)
     .where(and(
       eq(schema.exercises.route, route),
       eq(schema.exercises.effort, contraction),
-      lte(schema.exercises.difficulty, maxDifficulty),
+      lte(schema.exercises.dificultadLineal, maxDificultadLineal),
       inArray(schema.exercises.level, [...allowedLevels])
     ));
 
@@ -102,7 +107,7 @@ async function queryExercises(
   return filtered.map(r => ({
     id: r.id,
     name: r.name,
-    difficulty: r.difficulty,
+    dificultadLineal: r.dificultadLineal,
     contraction,
   }));
 }
@@ -116,7 +121,7 @@ async function queryExercisesIncludingEmptyEffort(
   db: MySql2Database<typeof schema>,
   route: string,
   contraction: Contraction,
-  maxDifficulty: number,
+  maxDificultadLineal: number,
   allowedLevels: readonly ExerciseLevel[],
   excludeNames?: Set<string>
 ): Promise<ExerciseCandidate[]> {
@@ -124,7 +129,7 @@ async function queryExercisesIncludingEmptyEffort(
     .select({
       id: schema.exercises.id,
       name: schema.exercises.exercise,
-      difficulty: schema.exercises.difficulty,
+      dificultadLineal: schema.exercises.dificultadLineal,
       effort: schema.exercises.effort,
     })
     .from(schema.exercises)
@@ -134,7 +139,7 @@ async function queryExercisesIncludingEmptyEffort(
         eq(schema.exercises.effort, contraction),
         eq(schema.exercises.effort, '')
       ),
-      lte(schema.exercises.difficulty, maxDifficulty),
+      lte(schema.exercises.dificultadLineal, maxDificultadLineal),
       inArray(schema.exercises.level, [...allowedLevels])
     ));
 
@@ -154,7 +159,7 @@ async function queryExercisesIncludingEmptyEffort(
   return sorted.map(r => ({
     id: r.id,
     name: r.name,
-    difficulty: r.difficulty,
+    dificultadLineal: r.dificultadLineal,
     contraction, // Assign the requested contraction type
   }));
 }
@@ -166,7 +171,7 @@ async function queryExercisesWithScopeWidening(
   db: MySql2Database<typeof schema>,
   route: string,
   contraction: Contraction,
-  maxDifficulty: number,
+  maxDificultadLineal: number,
   allowedLevels: readonly ExerciseLevel[],
   excludeNames?: Set<string>
 ): Promise<ExerciseCandidate[]> {
@@ -182,13 +187,13 @@ async function queryExercisesWithScopeWidening(
     .select({
       id: schema.exercises.id,
       name: schema.exercises.exercise,
-      difficulty: schema.exercises.difficulty,
+      dificultadLineal: schema.exercises.dificultadLineal,
     })
     .from(schema.exercises)
     .where(and(
       like(schema.exercises.route, `${parentRoute}%`),
       eq(schema.exercises.effort, contraction),
-      lte(schema.exercises.difficulty, maxDifficulty),
+      lte(schema.exercises.dificultadLineal, maxDificultadLineal),
       inArray(schema.exercises.level, [...allowedLevels])
     ));
 
@@ -200,7 +205,7 @@ async function queryExercisesWithScopeWidening(
   return filtered.map(r => ({
     id: r.id,
     name: r.name,
-    difficulty: r.difficulty,
+    dificultadLineal: r.dificultadLineal,
     contraction,
   }));
 }
@@ -224,7 +229,7 @@ export async function selectExercisesWithFallback(
   const {
     route,
     contraction,
-    maxDifficulty,
+    maxDificultadLineal,
     allowedLevels,
     count,
     levelGroup,
@@ -233,13 +238,13 @@ export async function selectExercisesWithFallback(
   } = requirements;
 
   const actions: FallbackAction[] = [];
-  let currentDifficulty = maxDifficulty;
+  let currentDificultadLineal = maxDificultadLineal;
   let currentLevels: readonly ExerciseLevel[] = [memberLevel];
   let currentContraction = contraction;
   let currentRoute = route;
 
   // Tier 0: Exact match — use member's specific level only
-  let pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
+  let pool = await queryExercises(db, currentRoute, currentContraction, currentDificultadLineal, currentLevels, excludeNames);
 
   if (pool.length >= count) {
     // Sort deterministically by id ASC and take first N
@@ -255,16 +260,16 @@ export async function selectExercisesWithFallback(
 
   // Tier 1: Relax difficulty
   if (policy.maxTier >= 1 && policy.relaxationOrder.includes('difficulty')) {
-    const originalDifficulty = currentDifficulty;
-    currentDifficulty = 999; // Allow any difficulty
+    const originalDificultadLineal = currentDificultadLineal;
+    currentDificultadLineal = 999; // Allow any difficulty
 
-    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
+    pool = await queryExercises(db, currentRoute, currentContraction, currentDificultadLineal, currentLevels, excludeNames);
 
     actions.push({
       type: 'DIFFICULTY_RELAXED',
       tier: 1,
-      from: originalDifficulty,
-      to: currentDifficulty,
+      from: originalDificultadLineal,
+      to: currentDificultadLineal,
     });
 
     if (pool.length >= count) {
@@ -283,7 +288,7 @@ export async function selectExercisesWithFallback(
   // This helps when exercises exist but lack contraction tags
   {
     pool = await queryExercisesIncludingEmptyEffort(
-      db, currentRoute, contraction, currentDifficulty, currentLevels, excludeNames
+      db, currentRoute, contraction, currentDificultadLineal, currentLevels, excludeNames
     );
 
     if (pool.length >= count) {
@@ -309,7 +314,7 @@ export async function selectExercisesWithFallback(
     const originalLevels = currentLevels;
     currentLevels = getExpandedLevels(levelGroup, 2);
 
-    pool = await queryExercises(db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames);
+    pool = await queryExercises(db, currentRoute, currentContraction, currentDificultadLineal, currentLevels, excludeNames);
 
     actions.push({
       type: 'LEVEL_WIDENED',
@@ -335,7 +340,7 @@ export async function selectExercisesWithFallback(
     const originalRoute = currentRoute;
 
     pool = await queryExercisesWithScopeWidening(
-      db, currentRoute, currentContraction, currentDifficulty, currentLevels, excludeNames
+      db, currentRoute, currentContraction, currentDificultadLineal, currentLevels, excludeNames
     );
 
     if (pool.length > 0) {
@@ -366,7 +371,7 @@ export async function selectExercisesWithFallback(
     const substitutes = CONTRACTION_SUBSTITUTION[contraction];
 
     for (const substitute of substitutes) {
-      pool = await queryExercises(db, route, substitute, currentDifficulty, currentLevels, excludeNames);
+      pool = await queryExercises(db, route, substitute, currentDificultadLineal, currentLevels, excludeNames);
 
       if (pool.length >= count) {
         actions.push({
