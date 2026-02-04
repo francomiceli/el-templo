@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 13 (Session Generation Review & Improvement)
-Plan: Not started
-Status: **Defining requirements**
-Last activity: 2026-02-04 - Milestone v2.0 started (Admin App)
+Plan: 02 of ? (Block Specifications)
+Status: **In progress**
+Last activity: 2026-02-04 - Completed 13-02-PLAN.md (Block Specifications + Exercise Count Cap)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] ~5% (Phase 13 early stage)
 
 ## Architecture Reset
 
@@ -83,8 +83,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
 
 **Recent Trend:**
-- Last 4 plans: 12-01 (3min - backend API), 12-02 (4min - frontend foundation), 12-03 (2min - page components), 12-04 (3min - page assembly)
-- Trend: Phase 12 progression module - page and navigation complete
+- Last 4 plans: 12-03 (2min - page components), 12-04 (3min - page assembly), 13-01 (~min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap)
+- Trend: Phase 13 session generation review - documentation and pipeline improvements
 
 *Updated after each plan completion*
 
@@ -247,6 +247,8 @@ Recent decisions affecting current work:
 | 12-04 | Module manifest follows training pattern | Consistent with existing module system |
 | 12-04 | Badge uses floating rounded style | Subtle indicator without text, bronze color |
 | 12-04 | Empty state on totalSessions=0 | Guides new users to training module |
+| 13-02 | Non-Initium exercise cap at 3 | Coach-built examples show max 3 per block (warmup excepted) |
+| 13-02 | Initium has no cap | Warmup block needs flexibility (2-4 exercises per intensity rules) |
 
 ### Pending Todos
 
@@ -267,7 +269,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Starting v2.0 Admin App milestone. Defining Phase 13 requirements.
+Stopped at: Completed 13-02-PLAN.md - Block specifications documented, exercise count cap implemented
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
