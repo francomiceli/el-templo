@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 13 (Session Generation Review & Improvement)
-Plan: 01 of 5 (Linear Difficulty Scale)
+Plan: 04 of 5 (Initium Contextual Enhancement)
 Status: **Complete**
-Last activity: 2026-02-04 - Completed 13-01-PLAN.md (Linear Difficulty Scale)
+Last activity: 2026-02-04 - Completed 13-04-PLAN.md (Initium Contextual Enhancement)
 
-Progress: [██░░░░░░░░] ~5% (Phase 13 early stage)
+Progress: [████████░░] ~80% (Phase 13 near completion)
 
 ## Architecture Reset
 
@@ -83,8 +83,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
 
 **Recent Trend:**
-- Last 4 plans: 12-04 (3min - page assembly), 13-01 (7min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap)
-- Trend: Phase 13 session generation review - documentation and pipeline improvements
+- Last 4 plans: 13-01 (7min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap), 13-04 (12min - Initium contextual)
+- Trend: Phase 13 session generation review - contextual selection improvements
 
 *Updated after each plan completion*
 
@@ -252,6 +252,9 @@ Recent decisions affecting current work:
 | 13-01 | dificultadLineal column | Stored in exercises table for direct query |
 | 13-02 | Non-Initium exercise cap at 3 | Coach-built examples show max 3 per block (warmup excepted) |
 | 13-02 | Initium has no cap | Warmup block needs flexibility (2-4 exercises per intensity rules) |
+| 13-04 | Use existing mobilityRelated column | Exercises CSV already has route codes for mobility areas |
+| 13-04 | Map routes to mobility routes | ROUTE_TO_MOBILITY_ROUTES constant for warmup relevance |
+| 13-04 | Contextual fallback to generic | Graceful degradation when not enough contextual exercises |
 
 ### Pending Todos
 
@@ -272,7 +275,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 13-01-PLAN.md - Linear difficulty scale (1-12) implemented in pipeline
+Stopped at: Completed 13-04-PLAN.md - Initium contextual enhancement using mobilityRelated column
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
