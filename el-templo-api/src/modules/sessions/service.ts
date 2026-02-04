@@ -83,9 +83,30 @@ export class SessionGeneratorService {
     const blocks: BlockPlan[] = [];
     const blockTraces: BlockTrace[] = [];
 
-    // Check if DEUTEROS_2 should be skipped
+    // Check if DEUTEROS_2 should be skipped and resolve Nucleus route for contextual Initium
     const rotator = await this.spomService.getWeeklyRotator(week, day, levelGroup);
     const skipDeuteros2 = !rotator || rotator.deuteros2RouteId === null;
+
+    // Resolve Nucleus route for contextual Initium selection (13-04)
+    let nucleusRoute: string | undefined;
+    if (rotator && rotator.nucleusRouteId) {
+      const route = await this.spomService.getRouteById(rotator.nucleusRouteId);
+      if (route) {
+        nucleusRoute = route.code;
+        logger.info({
+          event: 'NUCLEUS_ROUTE_RESOLVED',
+          nucleusRoute,
+          nucleusRouteId: rotator.nucleusRouteId,
+        }, `Resolved Nucleus route for contextual Initium: ${nucleusRoute}`);
+      }
+    }
+
+    if (!nucleusRoute) {
+      logger.warn({
+        event: 'NUCLEUS_ROUTE_MISSING',
+        reason: !rotator ? 'No rotator entry' : 'No nucleusRouteId',
+      }, 'Nucleus route not available for contextual Initium selection');
+    }
 
     // Generate each block in sequence (determinism requires sequential execution)
     const blockRoles = getBlockRoles(week);
@@ -112,7 +133,15 @@ export class SessionGeneratorService {
       }
 
       // Create initial context for this block
-      const initialContext = createInitialContext(week, day, levelGroup, memberLevel, role);
+      // Pass nucleusRoute to INITIUM for contextual exercise selection (13-04)
+      const initialContext = createInitialContext(
+        week,
+        day,
+        levelGroup,
+        memberLevel,
+        role,
+        role === 'INITIUM' ? nucleusRoute : undefined
+      );
 
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(

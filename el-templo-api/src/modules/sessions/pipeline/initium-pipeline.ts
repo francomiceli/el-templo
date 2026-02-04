@@ -7,16 +7,75 @@
  * - Does NOT use reps_budget (warmup/skill prep)
  * - Uses fixed warmup intensity (~30%)
  * - Selects exercises from FLOW pattern or Movilidad category
+ *
+ * Contextual enhancement (13-04):
+ * - Uses nucleusRoute to select exercises contextual to day's main stimulus
+ * - If Nucleus is push-dominant -> shoulder/chest mobility exercises
+ * - If Nucleus is pull-dominant -> back/scapular activation exercises
+ * - If Nucleus is lower body -> hip/leg mobility exercises
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, or, like, and, lte } from 'drizzle-orm';
+import { eq, or, like, and, lte, isNotNull } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import type { BlockContext } from './context';
 import type { BlockPlan, ContractionMix, LevelGroup } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { selectFormatWithFallback } from '../fallback/format-fallback';
 import type { FormatRequirements } from '../fallback/types';
+
+/**
+ * Map Nucleus routes to related mobility routes for contextual Initium selection.
+ *
+ * The mobilityRelated column in exercises contains route codes (FL, PL, MN, etc.)
+ * that indicate which mobility areas the exercise targets.
+ *
+ * Route groupings based on movement patterns:
+ * - Upper push (HS, HSPU, PHS, OAPU, PLPU): shoulder, chest activation
+ * - Upper pull (MU, OAP, OAR, BL): back, scapular work
+ * - Lower knee-dominant (SU, SS, PS): quad, ankle mobility
+ * - Lower hip-dominant (FL, PL, DS): hip, glute activation
+ * - Core/anti-extension (TTB, L, NC, HT): spine, core stability
+ */
+const ROUTE_TO_MOBILITY_ROUTES: Record<string, string[]> = {
+  // Upper push patterns -> FL (front lever prep = shoulder/core)
+  'HS': ['FL', 'MN'],
+  'HSPU': ['FL', 'MN'],
+  'PHS': ['FL', 'MN'],
+  'OAPU': ['FL', 'MN'],
+  'PLPU': ['FL', 'MN'],
+
+  // Upper pull patterns -> PL (planche prep = scapular), BL (back lever)
+  'MU': ['PL', 'FL'],
+  'OAP': ['PL', 'FL'],
+  'OAR': ['PL', 'FL'],
+  'BL': ['PL', 'FL'],
+
+  // Lower knee-dominant -> LS (lunges), related lower body
+  'SU': ['LS ( LUNGES )', 'PL'],
+  'SS': ['LS ( LUNGES )', 'PL'],
+  'PS': ['LS ( LUNGES )', 'PL'],
+  'QC': ['LS ( LUNGES )', 'PL'],
+
+  // Lower hip-dominant -> FL, PL (hip mobility)
+  'FL': ['PL', 'MN'],
+  'FLR': ['PL', 'MN'],
+  'PL': ['FL', 'MN'],
+  'DS': ['FL', 'PL'],
+
+  // Core patterns -> TTB/HF (core), MN (midline)
+  'TTB': ['TTB / HF', 'MN'],
+  'L': ['TTB / HF', 'FL'],
+  'NC': ['TTB / HF', 'MN'],
+  'HT': ['MN', 'FL'],
+
+  // Handstand variations -> MN, FL
+  'HR': ['MN', 'FL'],
+  'HD/ID': ['MN', 'FL'],
+
+  // Other routes
+  'MN/RP': ['MN', 'FL'],
+};
 
 /** Get allowed exercise levels for a level group */
 function getAllowedLevels(levelGroup: LevelGroup): ('alfa' | 'delta' | 'sigma' | 'omega' | 'spartan')[] {
@@ -132,31 +191,134 @@ export async function runInitiumPipeline(
   );
   updatedCtx = appendTrace(updatedCtx, formatTrace);
 
-  // Select exercises for INITIUM (FLOW pattern or Movilidad category)
+  // Select exercises for INITIUM with contextual enhancement
   const allowedLevels = getAllowedLevels(ctx.levelGroup);
+  const nucleusRoute = ctx.nucleusRoute;
 
-  const exerciseResults = await db
-    .select({
-      id: schema.exercises.id,
-      name: schema.exercises.exercise,
-      effort: schema.exercises.effort,
-      difficulty: schema.exercises.difficulty,
-      pattern: schema.exercises.pattern,
-      category: schema.exercises.category,
-    })
-    .from(schema.exercises)
-    .where(
-      and(
-        or(
-          like(schema.exercises.pattern, '%FLOW%'),
-          eq(schema.exercises.category, 'Movilidad')
-        ),
-        or(...allowedLevels.map(level => eq(schema.exercises.level, level))),
-        lte(schema.exercises.difficulty, 3) // Easy warmup exercises
+  // Step 1: Try contextual selection if nucleusRoute is provided
+  let exerciseResults: {
+    id: number;
+    name: string;
+    effort: string;
+    difficulty: number;
+    pattern: string;
+    category: string;
+    mobilityRelated: string | null;
+  }[] = [];
+  let usedContextual = false;
+
+  if (nucleusRoute) {
+    const relatedMobilityRoutes = ROUTE_TO_MOBILITY_ROUTES[nucleusRoute] || [];
+
+    // Trace contextual selection attempt
+    const contextAttemptTrace = createTraceEvent(
+      updatedCtx,
+      'INITIUM_CONTEXTUAL_ATTEMPT',
+      'INFO',
+      {
+        nucleusRoute,
+        relatedMobilityRoutes,
+        hasMapping: relatedMobilityRoutes.length > 0,
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, contextAttemptTrace);
+
+    if (relatedMobilityRoutes.length > 0) {
+      // Query exercises where mobilityRelated matches any of the related routes
+      const contextualExercises = await db
+        .select({
+          id: schema.exercises.id,
+          name: schema.exercises.exercise,
+          effort: schema.exercises.effort,
+          difficulty: schema.exercises.difficulty,
+          pattern: schema.exercises.pattern,
+          category: schema.exercises.category,
+          mobilityRelated: schema.exercises.mobilityRelated,
+        })
+        .from(schema.exercises)
+        .where(
+          and(
+            or(
+              like(schema.exercises.pattern, '%FLOW%'),
+              eq(schema.exercises.category, 'Movilidad')
+            ),
+            or(...allowedLevels.map(level => eq(schema.exercises.level, level))),
+            lte(schema.exercises.difficulty, 3), // Easy warmup exercises
+            isNotNull(schema.exercises.mobilityRelated),
+            or(...relatedMobilityRoutes.map(route =>
+              like(schema.exercises.mobilityRelated, `%${route}%`)
+            ))
+          )
+        )
+        .orderBy(schema.exercises.id) // Deterministic ordering
+        .limit(exerciseCount);
+
+      if (contextualExercises.length >= exerciseCount) {
+        exerciseResults = contextualExercises;
+        usedContextual = true;
+
+        const contextSuccessTrace = createTraceEvent(
+          updatedCtx,
+          'INITIUM_CONTEXTUAL_SUCCESS',
+          'INFO',
+          {
+            nucleusRoute,
+            foundCount: contextualExercises.length,
+            requiredCount: exerciseCount,
+            exercises: contextualExercises.map(e => ({
+              id: e.id,
+              name: e.name,
+              mobilityRelated: e.mobilityRelated,
+            })),
+          }
+        );
+        updatedCtx = appendTrace(updatedCtx, contextSuccessTrace);
+      } else {
+        // Not enough contextual matches, will fall back to generic
+        const contextFallbackTrace = createTraceEvent(
+          updatedCtx,
+          'INITIUM_CONTEXTUAL_FALLBACK',
+          'INFO',
+          {
+            nucleusRoute,
+            foundCount: contextualExercises.length,
+            requiredCount: exerciseCount,
+            reason: 'Not enough contextual exercises, falling back to generic selection',
+          }
+        );
+        updatedCtx = appendTrace(updatedCtx, contextFallbackTrace);
+      }
+    }
+  }
+
+  // Step 2: Fallback to generic FLOW/Movilidad selection if contextual didn't work
+  if (!usedContextual) {
+    const genericExercises = await db
+      .select({
+        id: schema.exercises.id,
+        name: schema.exercises.exercise,
+        effort: schema.exercises.effort,
+        difficulty: schema.exercises.difficulty,
+        pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
+        mobilityRelated: schema.exercises.mobilityRelated,
+      })
+      .from(schema.exercises)
+      .where(
+        and(
+          or(
+            like(schema.exercises.pattern, '%FLOW%'),
+            eq(schema.exercises.category, 'Movilidad')
+          ),
+          or(...allowedLevels.map(level => eq(schema.exercises.level, level))),
+          lte(schema.exercises.difficulty, 3) // Easy warmup exercises
+        )
       )
-    )
-    .orderBy(schema.exercises.id) // Deterministic ordering
-    .limit(exerciseCount);
+      .orderBy(schema.exercises.id) // Deterministic ordering
+      .limit(exerciseCount);
+
+    exerciseResults = genericExercises;
+  }
 
   if (exerciseResults.length === 0) {
     throw new Error('No INITIUM exercises found (FLOW pattern or Movilidad category)');
@@ -168,11 +330,14 @@ export async function runInitiumPipeline(
     'INFO',
     {
       count: exerciseResults.length,
+      usedContextual,
+      nucleusRoute: nucleusRoute || null,
       exercises: exerciseResults.map(e => ({
         id: e.id,
         name: e.name,
         pattern: e.pattern,
         category: e.category,
+        mobilityRelated: e.mobilityRelated,
       })),
     }
   );

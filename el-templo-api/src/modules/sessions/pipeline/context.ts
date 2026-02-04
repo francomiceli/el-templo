@@ -28,6 +28,8 @@ export interface BlockContext {
   readonly blockId: string;
   readonly role: BlockRole;
   readonly trace: readonly TraceEvent[];
+  /** Day's Nucleus route for contextual Initium selection */
+  readonly nucleusRoute?: string;
 }
 
 /** Context with route resolved (after stage 1) */
@@ -79,6 +81,7 @@ export interface BlockContextComplete extends BlockContextWithExercises {
  * @param levelGroup - Aggregated level group
  * @param memberLevel - Member's individual level
  * @param role - Block role (INITIUM, NUCLEUS, etc.)
+ * @param nucleusRoute - Optional Nucleus route for contextual Initium selection
  * @returns Initial BlockContext ready for pipeline
  */
 export function createInitialContext(
@@ -86,7 +89,8 @@ export function createInitialContext(
   day: string,
   levelGroup: LevelGroup,
   memberLevel: ExerciseLevel,
-  role: BlockRole
+  role: BlockRole,
+  nucleusRoute?: string
 ): BlockContext {
   const blockId = `W${week}-${day}-${memberLevel}-${role}`;
 
@@ -98,6 +102,7 @@ export function createInitialContext(
     blockId,
     role,
     trace: [],
+    nucleusRoute,
   };
 }
 
