@@ -4,6 +4,9 @@
  * Generates exercise prescriptions by distributing reps budget
  * inversely proportional to difficulty (easier exercises get more reps).
  *
+ * For specific formats (AMRAP, EMOM, Buy-in/Cash-out, Complex, Chipper),
+ * format-specific prescribers are used to generate appropriate structures.
+ *
  * Input: BlockContextWithExercises (has exercises, repsBudget, intensity)
  * Output: BlockContextComplete (adds prescriptions array)
  */
@@ -11,6 +14,7 @@
 import type { BlockContextWithExercises, BlockContextComplete } from './context';
 import type { ExercisePrescription, SelectedExercise } from '../types';
 import { createTraceEvent, appendTrace } from './context';
+import { prescribeByFormat } from './format-prescribers';
 
 /** Calculate rest time based on intensity (lower intensity = shorter rest) */
 function calculateRest(intensity: number): number {
@@ -46,13 +50,16 @@ function calculateInverseDifficultyWeights(exercises: readonly SelectedExercise[
  * Easier exercises get more reps, harder exercises get fewer.
  * ISO exercises use seconds instead of reps.
  *
+ * For specific formats (AMRAP, EMOM, Buy-in/Cash-out, Complex, Chipper),
+ * format-specific prescribers are used to generate appropriate structures.
+ *
  * @param ctx - Context with exercises selected
  * @returns Complete context with prescriptions
  */
 export function generatePrescriptions(
   ctx: BlockContextWithExercises
 ): BlockContextComplete {
-  const { exercises, repsBudget, intensity } = ctx;
+  const { exercises, repsBudget, intensity, format } = ctx;
   const exerciseCount = exercises.length;
 
   if (exerciseCount === 0) {
@@ -75,7 +82,36 @@ export function generatePrescriptions(
 
   const restTime = calculateRest(intensity);
 
-  // Calculate inverse difficulty weights for rep distribution
+  // Try format-specific prescription first
+  const formatPrescriptions = prescribeByFormat(format.name, {
+    exercises,
+    repsBudget,
+    intensity,
+    restTime,
+  });
+
+  if (formatPrescriptions) {
+    // Format-specific logic was applied
+    const traceEvent = createTraceEvent(
+      ctx,
+      'PRESCRIPTIONS_GENERATED',
+      'INFO',
+      {
+        exerciseCount: formatPrescriptions.length,
+        repsBudget,
+        format: format.name,
+        distributionMethod: 'format_specific',
+        restTime,
+      }
+    );
+
+    return {
+      ...appendTrace(ctx, traceEvent),
+      prescriptions: formatPrescriptions,
+    };
+  }
+
+  // Fall back to standard inverse difficulty distribution
   const weights = calculateInverseDifficultyWeights(exercises);
 
   // Distribute reps based on weights (easier exercises get more)
@@ -112,6 +148,7 @@ export function generatePrescriptions(
     {
       exerciseCount,
       repsBudget,
+      format: format.name,
       distributionMethod: 'inverse_difficulty',
       weights: weights.map((w, i) => ({
         exerciseId: exercises[i].exerciseId,
