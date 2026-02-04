@@ -265,6 +265,12 @@ Recent decisions affecting current work:
 | 13-05 | Contraction rule three-tier fallback | Exact lookup → nearby counts → default mix, scales to actual exercise count for robustness |
 | 13-05 | Initium budget 80-100 reps varying by week | Matches coach patterns, maintains warmup flexibility instead of fixed budget |
 | 13-05 | Difficulty in prescription response | Add dificultadLineal to API response for frontend display and user education |
+| 13-06 | Buy-in/Cash-out 40/60 split | Bookend exercise gets 40% (20% start + 20% end), middle share 60% |
+| 13-06 | AMRAP 30-rep cap per round | Prevents excessive single-round work |
+| 13-06 | EMOM intensity-based reps | 12 at <70%, 10 at 70-79%, 8 at 80%+ |
+| 13-06 | Complex no inter-exercise rest | Only rest after last exercise |
+| 13-06 | Chipper inverse difficulty | Higher reps for easier exercises |
+| 13-06 | INITIUM skip in verification | Uses specialized warmup pipeline |
 | 13-07 | For Time: no prescribed rest | Athletes move continuously, timing their own completion |
 | 13-07 | Tabata: 20s/10s fixed | Standard Tabata protocol, not configurable |
 | 13-07 | Interval: intensity-scaled | 80%+ gets shorter work/longer rest |
