@@ -1,241 +1,123 @@
-# Requirements: El Templo App (Training Module)
+# Requirements: El Templo App (Admin App Module)
 
-**Defined:** 2026-01-22
-**Core Value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
+**Defined:** 2026-02-04
+**Core Value:** Coaches and admins can review, validate, and manage algorithm-generated sessions while the system produces accurate, SPOM-compliant sessions automatically.
 
-## v1 Requirements
+## v2.0 Requirements (Phase 13)
 
-Requirements for Training module release. Each maps to roadmap phases.
+Requirements for Session Generation Review & Improvement.
 
-### Authentication
+### Difficulty System (DIFF)
 
-- [x] **AUTH-01**: Member can register with email and password
-- [x] **AUTH-02**: Member can log in and maintain session across app restarts
-- [x] **AUTH-03**: Member can log out from any screen
-- [x] **AUTH-04**: Member is assigned to a branch on registration
-- [x] **AUTH-05**: Member has a training level (starts at Alfa)
+- [ ] **DIFF-01**: Add "Dificultad Lineal" column to Ejercicios.csv mapping: Alfa 1-3, Delta 4-6, Sigma 7-8, Omega 9-10, Spartan 11-12
+- [ ] **DIFF-02**: Update exercises database table with Dificultad Lineal values
+- [ ] **DIFF-03**: Algorithm uses linear difficulty scale for exercise selection
+- [ ] **DIFF-04**: "Nivel Superior 1" maps to next level's first difficulty (Alfa→4, Delta→7, Sigma→9, Omega→11)
+- [ ] **DIFF-05**: Block difficulty average within ±0.5 of target
 
-### SPOM Engine
+### Block Specifications (BLOCK)
 
-- [ ] **SPOM-01**: System imports SPOM rules (week × route → intensity, wave, pattern, category) from SPOM.csv (~1040 rows)
-- [ ] **SPOM-02**: System imports Weekly Rotator (week × day × level_group → Nucleus, Deuteros1, Deuteros2, Athlos/Epikos routes) from Rotador Semanal.csv (~936 rows)
-- [ ] **SPOM-03**: System imports Contraction rules (intensity × total_exercises → concentric/eccentric/isometric counts) from Contracción.txt (~20 rows)
-- [ ] **SPOM-04**: System imports Intensity rules (intensity → reps_per_block, difficulty, exercises_per_block) from Intensidad.csv (~9 rows)
-- [ ] **SPOM-05**: System imports Format compatibility rules (format × block × level × intensity → compatibility) from Formatos.csv (~500 rows)
-- [ ] **SPOM-06**: System imports Exercises with full metadata (patron, category, esfuerzo/contraction, nivel, ruta) from Ejercicios.csv (~1870 exercises)
-- [ ] **SPOM-07**: System tracks current gym-wide SPOM week (1-52)
-- [ ] **SPOM-08**: System knows active wave type (Senoidal/Shockwave/Triangular/Fractal) per route via SPOM rules
-- [ ] **SPOM-09**: Exercises are queryable by route + contraction type + level + difficulty
+- [ ] **BLOCK-01**: Document Initium block specifications (no route, FLOW/Movilidad, contextual to day)
+- [ ] **BLOCK-02**: Document Nucleus block specifications (main work, all levels planned together, Alpha-Delta correlation)
+- [ ] **BLOCK-03**: Document Deuteros 1 block specifications (secondary work, upper/lower body choice)
+- [ ] **BLOCK-04**: Document Deuteros 2 block specifications (secondary work, upper/lower body choice)
+- [ ] **BLOCK-05**: Document Athlos/Epikos block specifications (Athlos=structured, Epikos=playful, alternating)
+- [ ] **BLOCK-06**: Exercise count capped at 3 for all blocks except Initium
 
-### Session Generation
+### Exercise Selection (EXER)
 
-- [ ] **SGEN-01**: System generates daily session from SPOM week + day + member level group
-- [ ] **SGEN-02**: Session has 5 blocks: Initium (warmup), Nucleus (main), Deuteros 1 (secondary), Deuteros 2 (secondary), Athlos/Epikos (finisher)
-- [ ] **SGEN-03**: Block routes assigned from Weekly Rotator (week × day × level_group → routes)
-- [ ] **SGEN-04**: Each block's intensity from SPOM rules lookup (week × route → intensity)
-- [ ] **SGEN-05**: Exercise count per block follows Intensity rules (2-3 at 95%, 3-5 at 65%)
-- [ ] **SGEN-06**: Exercise selection follows Contraction distribution rules (CON/EXC/ISO counts by intensity)
-- [ ] **SGEN-07**: Exercise difficulty matches block intensity level (Nivel Superior at 85%+)
-- [ ] **SGEN-08**: Member level affects exercise progression shown (Alfa sees alfa+delta, Omega sees all)
-- [ ] **SGEN-09**: Block format assigned from Format compatibility rules (block × level × intensity)
+- [ ] **EXER-01**: Filters apply correctly: route, pattern, category, contraction, level, difficulty
+- [ ] **EXER-02**: High intensity = strict filters, low intensity = loose filters
+- [ ] **EXER-03**: No exercise repeated within same level's session
+- [ ] **EXER-04**: Exercise selection respects contraction distribution from Contracción rules
 
-### Weekly View
+### Algorithm Validation (ALGO)
 
-- [ ] **WEEK-01**: Member sees 7-day week view (Lun-Dom)
-- [ ] **WEEK-02**: Each day shows session name and intensity indicator
-- [ ] **WEEK-03**: Completed days show checkmark, today is highlighted, rest days have special state
-- [ ] **WEEK-04**: Member can tap any day to preview session
-- [ ] **WEEK-05**: Member can tap today to start Day Player
+- [ ] **ALGO-01**: Analyze 19 example weeks (Semana 3-21) to extract patterns and rules
+- [ ] **ALGO-02**: Routes from Weekly Rotator match for all weeks/days/levels
+- [ ] **ALGO-03**: Intensities from SPOM lookup match for all routes
+- [ ] **ALGO-04**: Contraction distribution follows Contracción rules exactly
+- [ ] **ALGO-05**: Algorithm generates valid sessions for future weeks
 
-### Day Player
+### Initium Special Logic (INIT)
 
-- [ ] **PLAY-01**: Member sees session as sequential 5-block flow
-- [ ] **PLAY-02**: Each block has distinct visual identity (color-coded per block type)
-- [ ] **PLAY-03**: Initium block: light blue accent, warmup exercises
-- [ ] **PLAY-04**: Nucleus block: primary color, main work
-- [ ] **PLAY-05**: Deuteros 1 block: secondary accent, complementary work
-- [ ] **PLAY-06**: Deuteros 2 block: tertiary accent, complementary work
-- [ ] **PLAY-07**: Athlos/Epikos block: amber accent, finisher
-- [ ] **PLAY-08**: Each block shows exercise list with reps/duration and format
-- [ ] **PLAY-09**: Video placeholder displayed for each exercise
-- [ ] **PLAY-10**: Member taps "Complete Block" to progress to next block
-- [ ] **PLAY-11**: Screen stays awake during active session
+- [ ] **INIT-01**: Initium bypasses SPOM pipeline (no route lookup)
+- [ ] **INIT-02**: Initium uses FLOW/Movilidad pattern exercises
+- [ ] **INIT-03**: Initium exercise selection is contextual to day's main stimulus
 
-### Timer System
+### Format Assignment (FORM)
 
-- [ ] **TIME-01**: EMOM timer: 60s countdown, auto-reset, displays current round
-- [ ] **TIME-02**: AMRAP timer: countdown from set duration, member logs rounds completed
-- [ ] **TIME-03**: For Time timer: counts up, member hits "Done" when finished
-- [ ] **TIME-04**: Straight Sets mode: no timer, just exercise list with sets/reps
-- [ ] **TIME-05**: Timer can be paused and resumed
-- [ ] **TIME-06**: Timer continues when app is backgrounded (mobile)
-- [ ] **TIME-07**: Audio/haptic cues at timer transitions
+- [ ] **FORM-01**: Format selected from Formatos compatibility table
+- [ ] **FORM-02**: Format compatible with block, level, and intensity
 
-### Session Completion
+## Future Requirements (v2.x)
 
-- [ ] **COMP-01**: After all blocks, member sees closure screen
-- [ ] **COMP-02**: RPE input via slider or buttons (1-10 scale)
-- [ ] **COMP-03**: Optional notes field for member comments
-- [ ] **COMP-04**: Session summary shows blocks completed, total duration, exercises performed
-- [ ] **COMP-05**: Member hits "Finish Session" to record completion
-- [ ] **COMP-06**: Session is saved with date, branch, and all block data
+Deferred to later phases within Admin App module.
 
-### Event Logging
+### Session Editor UI
 
-- [ ] **EVNT-01**: Every interaction is timestamped (block_started, block_completed, timer events)
-- [ ] **EVNT-02**: Session record includes session_id, date, branch, member_id
-- [ ] **EVNT-03**: Block records include started_at, completed_at, skipped boolean
-- [ ] **EVNT-04**: Timer results recorded (rounds for AMRAP, time for For Time)
-- [ ] **EVNT-05**: RPE score and notes stored with session
+- **EDIT-01**: Coach can view algorithm-generated session
+- **EDIT-02**: Coach can modify exercises within a block
+- **EDIT-03**: Coach can modify reps/duration for exercises
+- **EDIT-04**: Coach can modify format for a block
+- **EDIT-05**: Coach validates session as "effective"
 
-### Level Progression
+### Coach Management
 
-- [ ] **PROG-01**: Member can see their current level (Alfa/Delta/Sigma/Omega/Spartan)
-- [ ] **PROG-02**: System tracks member's RPE history over time
-- [ ] **PROG-03**: When RPE threshold met over defined period, member can request coach evaluation
-- [ ] **PROG-04**: Level changes are logged with date and reason
+- **COACH-01**: Coach can view members in their branch
+- **COACH-02**: Coach can see member's training history
+- **COACH-03**: Coach can promote member to next level
+- **COACH-04**: Coach can approve evaluation requests
 
-### Coach Functions
+### SPOM Management
 
-- [ ] **COACH-01**: Coach can view list of members in their branch
-- [ ] **COACH-02**: Coach can see member's training history
-- [ ] **COACH-03**: Coach can see member's RPE trends over time
-- [ ] **COACH-04**: Coach can promote member to next level
-- [ ] **COACH-05**: Coach can override specific blocks with GENERAL patterns (Animal Flow, Cardio, Plyometrics, Kettlebell, Core, Movilidad)
-
-### Shell Architecture
-
-- [x] **ARCH-01**: Shell (temple-nest) provides auth, global state, navigation, event bus
-- [x] **ARCH-02**: Training module registers via manifest system
-- [x] **ARCH-03**: Module boundaries designed for future Academy/Agora addition
-- [x] **ARCH-04**: Role system supports member, coach, admin, superadmin
-
-## v2 Requirements
-
-Deferred to future release. Tracked but not in current roadmap.
-
-### Enhanced Media
-
-- **MEDIA-01**: Real exercise videos replace placeholders (incremental)
-- **MEDIA-02**: Video quality adapts to connection speed
-
-### Notifications
-
-- **NOTF-01**: Push notification when daily session is available
-- **NOTF-02**: Reminder notification if session not completed by evening
-
-### Offline Mode
-
-- **OFFL-01**: Sessions can be viewed offline (cached)
-- **OFFL-02**: Session completion syncs when back online
-
-### Wearables
-
-- **WEAR-01**: Heart rate integration from smartwatch
-- **WEAR-02**: Timer sync to wearable display
+- **SPOM-01**: Admin can view and update current SPOM week
+- **SPOM-02**: Admin can re-import data tables
+- **SPOM-03**: Admin actions are logged with timestamp
 
 ## Out of Scope
 
-Explicitly excluded. Documented to prevent scope creep.
-
 | Feature | Reason |
 |---------|--------|
-| Workout library browsing | Undermines SPOM structure; members follow generated sessions |
-| Custom workout builder | Conflicts with periodization methodology |
-| Calorie/macro tracking | Creates shame/guilt spiral per research; not core to training |
-| Social feed | Belongs in Agora module (future milestone) |
-| Public leaderboards | Can demotivate; levels already stratify fairly |
-| Streak-shaming notifications | Research shows anxiety/guilt; positive framing only |
-| Achievement spam | Dilutes meaning; reserve for real milestones |
-| Manual exercise logging | Tedious; session is pre-generated |
-| Per-set weight/rep tracking | Overcomplicates; not needed for SPOM intensity model |
-| AI chat/coaching | Dilutes real coach relationship |
-| Academy module | Requires Training foundation + Sigma gate (future milestone) |
-| Agora module | Requires Academy foundation (future milestone) |
-| Multi-tenant SaaS | Current scope is single-tenant |
+| Manual session creation from scratch | Coach modifies generated sessions, doesn't build from zero |
+| Per-member custom sessions | Members follow level-appropriate generated sessions |
+| Real-time collaboration | Single coach edits at a time is sufficient |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | Phase 2 | Complete |
-| AUTH-02 | Phase 2 | Complete |
-| AUTH-03 | Phase 2 | Complete |
-| AUTH-04 | Phase 2 | Complete |
-| AUTH-05 | Phase 2 | Complete |
-| SPOM-01 | Phase 4 | Complete |
-| SPOM-02 | Phase 4 | Complete |
-| SPOM-03 | Phase 4 | Complete |
-| SPOM-04 | Phase 4 | Complete |
-| SPOM-05 | Phase 4 | Complete |
-| SPOM-06 | Phase 4 | Complete |
-| SPOM-07 | Phase 4 | Complete |
-| SPOM-08 | Phase 4 | Complete |
-| SPOM-09 | Phase 4 | Complete |
-| SGEN-01 | Phase 5 | Complete |
-| SGEN-02 | Phase 5 | Complete |
-| SGEN-03 | Phase 5 | Complete |
-| SGEN-04 | Phase 5 | Complete |
-| SGEN-05 | Phase 5 | Complete |
-| SGEN-06 | Phase 5 | Complete |
-| SGEN-07 | Phase 5 | Complete |
-| SGEN-08 | Phase 5 | Complete |
-| SGEN-09 | Phase 5 | Complete |
-| WEEK-01 | Phase 6 | Pending |
-| WEEK-02 | Phase 6 | Pending |
-| WEEK-03 | Phase 6 | Pending |
-| WEEK-04 | Phase 6 | Pending |
-| WEEK-05 | Phase 6 | Pending |
-| PLAY-01 | Phase 7 | Pending |
-| PLAY-02 | Phase 7 | Pending |
-| PLAY-03 | Phase 7 | Pending |
-| PLAY-04 | Phase 7 | Pending |
-| PLAY-05 | Phase 7 | Pending |
-| PLAY-06 | Phase 7 | Pending |
-| PLAY-07 | Phase 7 | Pending |
-| PLAY-08 | Phase 7 | Pending |
-| PLAY-09 | Phase 7 | Pending |
-| PLAY-10 | Phase 7 | Pending |
-| PLAY-11 | Phase 7 | Pending |
-| TIME-01 | Phase 8 | Pending |
-| TIME-02 | Phase 8 | Pending |
-| TIME-03 | Phase 8 | Pending |
-| TIME-04 | Phase 8 | Pending |
-| TIME-05 | Phase 8 | Pending |
-| TIME-06 | Phase 8 | Pending |
-| TIME-07 | Phase 8 | Pending |
-| COMP-01 | Phase 9 | Pending |
-| COMP-02 | Phase 9 | Pending |
-| COMP-03 | Phase 9 | Pending |
-| COMP-04 | Phase 9 | Pending |
-| COMP-05 | Phase 9 | Pending |
-| COMP-06 | Phase 9 | Pending |
-| EVNT-01 | Phase 9 | Pending |
-| EVNT-02 | Phase 9 | Pending |
-| EVNT-03 | Phase 9 | Pending |
-| EVNT-04 | Phase 9 | Pending |
-| EVNT-05 | Phase 9 | Pending |
-| PROG-01 | Phase 10 | Pending |
-| PROG-02 | Phase 10 | Pending |
-| PROG-03 | Phase 10 | Pending |
-| PROG-04 | Phase 10 | Pending |
-| COACH-01 | Phase 10 | Pending |
-| COACH-02 | Phase 10 | Pending |
-| COACH-03 | Phase 10 | Pending |
-| COACH-04 | Phase 10 | Pending |
-| COACH-05 | Phase 10 | Pending |
-| ARCH-01 | Phase 1 | Complete |
-| ARCH-02 | Phase 3 | Complete |
-| ARCH-03 | Phase 1 | Complete |
-| ARCH-04 | Phase 1 | Complete |
+| DIFF-01 | Phase 13 | Pending |
+| DIFF-02 | Phase 13 | Pending |
+| DIFF-03 | Phase 13 | Pending |
+| DIFF-04 | Phase 13 | Pending |
+| DIFF-05 | Phase 13 | Pending |
+| BLOCK-01 | Phase 13 | Pending |
+| BLOCK-02 | Phase 13 | Pending |
+| BLOCK-03 | Phase 13 | Pending |
+| BLOCK-04 | Phase 13 | Pending |
+| BLOCK-05 | Phase 13 | Pending |
+| BLOCK-06 | Phase 13 | Pending |
+| EXER-01 | Phase 13 | Pending |
+| EXER-02 | Phase 13 | Pending |
+| EXER-03 | Phase 13 | Pending |
+| EXER-04 | Phase 13 | Pending |
+| ALGO-01 | Phase 13 | Pending |
+| ALGO-02 | Phase 13 | Pending |
+| ALGO-03 | Phase 13 | Pending |
+| ALGO-04 | Phase 13 | Pending |
+| ALGO-05 | Phase 13 | Pending |
+| INIT-01 | Phase 13 | Pending |
+| INIT-02 | Phase 13 | Pending |
+| INIT-03 | Phase 13 | Pending |
+| FORM-01 | Phase 13 | Pending |
+| FORM-02 | Phase 13 | Pending |
 
 **Coverage:**
-- v1 requirements: 70 total
-- Mapped to phases: 70
-- Unmapped: 0
+- Phase 13 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-01-22*
-*Last updated: 2026-01-23 — Updated SPOM/SGEN/PLAY for new documentation*
+*Requirements defined: 2026-02-04*
+*Last updated: 2026-02-04 after v2.0 milestone start*
