@@ -70,6 +70,7 @@ export function generatePrescriptions(
       reps,
       seconds: 0, // Time-based exercises not implemented in this phase
       rest: restTime,
+      dificultadLineal: exercise.difficulty, // Carry over for validation
     };
   });
 

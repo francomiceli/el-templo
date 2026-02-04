@@ -84,6 +84,8 @@ export interface ExercisePrescription {
   readonly seconds: number;
   readonly rest: number;
   readonly notes?: string;
+  /** Linear difficulty scale (1-12) for validation */
+  readonly dificultadLineal?: number;
 }
 
 /** Complete block plan output */

@@ -83,7 +83,7 @@ export async function runValidation(
         exercises: generatedBlock.exercises.map((p: ExercisePrescription) => ({
           name: p.name,
           contraction: p.contraction,
-          dificultadLineal: (p as unknown as { dificultadLineal?: number }).dificultadLineal,
+          dificultadLineal: p.dificultadLineal,
         })),
       } : null;
 
