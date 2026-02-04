@@ -17,8 +17,8 @@ import { MySql2Database } from 'drizzle-orm/mysql2';
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
-import { runBlockPipeline, createInitialContext } from './pipeline';
-import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel } from './types';
+import { runBlockPipeline, createInitialContext, type BlockPipelineOptions } from './pipeline';
+import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel, FormatInstance } from './types';
 import { getFinalBlockRole } from './types';
 import { validateSessionForTrace } from './validators/session-validator';
 import { createSessionLogger } from './trace/logger';
@@ -109,6 +109,9 @@ export class SessionGeneratorService {
     }
 
     // Generate each block in sequence (determinism requires sequential execution)
+    // Track DEUTEROS_1 format to enforce consistency with DEUTEROS_2
+    let deuteros1Format: FormatInstance | undefined;
+
     const blockRoles = getBlockRoles(week);
     for (const role of blockRoles) {
       // Skip DEUTEROS_2 if no route assigned
@@ -143,12 +146,25 @@ export class SessionGeneratorService {
         role === 'INITIUM' ? nucleusRoute : undefined
       );
 
+      // Build pipeline options
+      // DEUTEROS_2 must use same format as DEUTEROS_1 for consistency
+      const pipelineOptions: BlockPipelineOptions | undefined =
+        role === 'DEUTEROS_2' && deuteros1Format
+          ? { forcedFormat: deuteros1Format }
+          : undefined;
+
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(
         initialContext,
         this.spomService,
-        this.db
+        this.db,
+        pipelineOptions
       );
+
+      // Capture DEUTEROS_1's format for DEUTEROS_2 consistency
+      if (role === 'DEUTEROS_1') {
+        deuteros1Format = blockPlan.format;
+      }
 
       blocks.push(blockPlan);
 
@@ -350,6 +366,7 @@ export class SessionGeneratorService {
           seconds: ex.seconds,
           rest: ex.rest,
           notes: ex.notes ?? null,
+          difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
           sortOrder: exIdx,
         }));
 
@@ -458,6 +475,7 @@ export class SessionGeneratorService {
         seconds: p.seconds,
         rest: p.rest,
         notes: p.notes ?? undefined,
+        dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week

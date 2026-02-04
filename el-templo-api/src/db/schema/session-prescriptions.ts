@@ -12,6 +12,7 @@ export const sessionPrescriptions = mysqlTable('session_prescriptions', {
   seconds: int('seconds').notNull(),
   rest: int('rest').notNull(),
   notes: varchar('notes', { length: 255 }),
+  difficulty: int('difficulty'), // Linear difficulty 1-12 for display to users
   sortOrder: int('sort_order').notNull(), // ordering within block
 }, (table) => [
   index('session_prescriptions_block_idx').on(table.blockId),

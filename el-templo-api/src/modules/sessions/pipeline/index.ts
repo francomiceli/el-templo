@@ -24,6 +24,15 @@ import { generatePrescriptions } from './stage-7-prescription';
 // Import INITIUM special pipeline
 import { runInitiumPipeline } from './initium-pipeline';
 
+/** Options for block pipeline execution */
+export interface BlockPipelineOptions {
+  /** Force a specific format (used for Deuteros consistency) */
+  forcedFormat?: {
+    formatId: number;
+    name: string;
+  };
+}
+
 /**
  * Run the complete block pipeline
  *
@@ -33,12 +42,14 @@ import { runInitiumPipeline } from './initium-pipeline';
  * @param initialContext - Starting context with week, day, levelGroup, role
  * @param spomService - SPOM service for data lookups
  * @param db - Database connection for direct queries
+ * @param options - Optional pipeline options (e.g., forced format)
  * @returns Complete BlockPlan with all fields populated
  */
 export async function runBlockPipeline(
   initialContext: BlockContext,
   spomService: SpomService,
-  db: MySql2Database<typeof schema>
+  db: MySql2Database<typeof schema>,
+  options?: BlockPipelineOptions
 ): Promise<BlockPlan> {
   // INITIUM uses special pipeline (no SPOM lookup per spec)
   if (initialContext.role === 'INITIUM') {
@@ -60,8 +71,27 @@ export async function runBlockPipeline(
     // Stage 4: Derive contraction mix
     const ctx4 = await deriveContraction(ctx3, spomService);
 
-    // Stage 5: Select format
-    const ctx5 = await selectFormat(ctx4, db);
+    // Stage 5: Select format (or use forced format for Deuteros consistency)
+    let ctx5;
+    if (options?.forcedFormat) {
+      // Skip format selection, use forced format (for DEUTEROS_2 to match DEUTEROS_1)
+      const formatTrace = createTraceEvent(
+        ctx4,
+        'FORMAT_FORCED',
+        'INFO',
+        {
+          reason: 'Deuteros blocks must share same format',
+          formatId: options.forcedFormat.formatId,
+          formatName: options.forcedFormat.name,
+        }
+      );
+      ctx5 = {
+        ...appendTrace(ctx4, formatTrace),
+        format: options.forcedFormat,
+      };
+    } else {
+      ctx5 = await selectFormat(ctx4, db);
+    }
 
     // Stage 6: Select exercises
     const ctx6 = await selectExercises(ctx5, db);

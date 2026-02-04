@@ -134,8 +134,9 @@ export async function runInitiumPipeline(
   const intensity = 30; // Low warmup intensity (INITIUM range: 10-40%)
   const pattern = 'FLOW'; // Mobility/warmup pattern
   const category = 'Movilidad'; // Warmup category
-  const repsBudget = 0; // Not used per spec line 506
-  const exerciseCount = 3; // Fixed warmup exercise count
+  // Warmup needs volume - alternate between 80 and 100 based on week parity
+  const repsBudget = ctx.week % 2 === 0 ? 100 : 80;
+  const exerciseCount = 4; // 3-4 exercises for warmup variety
   const difficultyBucket = '3'; // Easy warmup exercises (bucket 3 = low difficulty)
 
   // INITIUM uses simple contraction mix (focus on concentric for warmup)
@@ -343,19 +344,28 @@ export async function runInitiumPipeline(
   );
   updatedCtx = appendTrace(updatedCtx, exercisesTrace);
 
-  // Generate simple warmup prescriptions
+  // Generate warmup prescriptions with proper volume distribution
+  // Assume 2 series for warmup - reps shown are per series
+  const series = 2;
+  const totalRepsPerExercise = Math.floor(repsBudget / exerciseResults.length);
+  const repsPerSeries = Math.floor(totalRepsPerExercise / series);
+
   const prescriptions = exerciseResults.map(ex => {
-    // Map 'effort' (CON/EXC/ISO) to contraction type
-    const effort = ex.effort as 'CON' | 'EXC' | 'ISO';
+    // Map 'effort' (CON/EXC/ISO) to contraction type, default to CON for warmup
+    const effort = (ex.effort?.toUpperCase() || 'CON') as 'CON' | 'EXC' | 'ISO';
+
+    // ISO exercises use seconds instead of reps
+    const isIsometric = effort === 'ISO';
 
     return {
       exerciseId: ex.id,
       name: ex.name,
       contraction: effort,
-      reps: 10, // Standard warmup reps
-      seconds: 0, // Not time-based
+      reps: isIsometric ? 0 : repsPerSeries,
+      seconds: isIsometric ? 30 : 0, // 30 seconds for isometric holds
       rest: 30, // Short warmup rest
       notes: 'Warmup - focus on form and activation',
+      dificultadLineal: ex.difficulty,
     };
   });
 
@@ -365,7 +375,9 @@ export async function runInitiumPipeline(
     'INFO',
     {
       count: prescriptions.length,
-      repsPerExercise: 10,
+      repsBudget,
+      series,
+      repsPerSeries,
       restSeconds: 30,
     }
   );
