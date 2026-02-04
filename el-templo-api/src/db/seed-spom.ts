@@ -58,8 +58,8 @@ async function parseCSV<T>(filePath: string, options: { skipLines?: number } = {
   });
 }
 
-// Path to docs directory
-const DOCS_DIR = path.resolve(__dirname, '../../../docs');
+// Path to docs directory (session-logic subdirectory contains CSV files)
+const DOCS_DIR = path.resolve(__dirname, '../../../docs/session-logic');
 
 // ============================================================
 // Reference Table Seeders (Task 2)
@@ -429,6 +429,7 @@ async function seedFormatCompatibility(db: DB, formatMap: Map<string, number>): 
 /**
  * Seed exercises from Ejercicios.csv
  * Large table with full exercise metadata
+ * Includes dificultadLineal column (1-12 scale)
  */
 async function seedExercises(db: DB): Promise<void> {
   console.log('Seeding exercises...');
@@ -445,6 +446,7 @@ async function seedExercises(db: DB): Promise<void> {
     'Nivel': string;
     'Código Numérico': string;
     'Dificultad Relativa': string;
+    'Dificultad Lineal': string;
     'Ruta': string;
     'Movilidad Relacionada A': string;
   }>(filePath);
@@ -470,6 +472,8 @@ async function seedExercises(db: DB): Promise<void> {
     level: levelMap[row['Nivel']?.toLowerCase()] || null,
     codeNumber: row['Código Numérico'] ? parseInt(row['Código Numérico'], 10) : null,
     difficulty: parseInt(row['Dificultad Relativa'], 10) || 1,
+    // Linear difficulty scale 1-12: Alfa 1-3, Delta 4-6, Sigma 7-8, Omega 9-10, Spartan 11-12
+    dificultadLineal: parseInt(row['Dificultad Lineal'], 10) || 1,
     route: row['Ruta'] || '',
     mobilityRelated: row['Movilidad Relacionada A'] || null,
   }));
