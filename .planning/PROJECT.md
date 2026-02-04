@@ -2,7 +2,16 @@
 
 ## What This Is
 
-A modular fitness super-app for El Templo gym built on a central shell (temple-nest) that orchestrates pluggable modules. v1 delivers the Training module: algorithmically-generated daily sessions using the SPOM (Sistema de Periodización y Organización del Movimiento) framework, with full tracking, level progression, and multi-branch support. The app serves gym members tracking their coached sessions and remote members training independently with full guidance.
+A modular fitness super-app for El Templo gym built on a central shell (temple-nest) that orchestrates pluggable modules. v1 delivered the Training module: algorithmically-generated daily sessions using the SPOM (Sistema de Periodización y Organización del Movimiento) framework, with full tracking, level progression, and multi-branch support. v2 adds the Admin App: a coach/admin interface for session review, validation, and management.
+
+## Current Milestone: v2.0 Admin App
+
+**Goal:** Enable coaches and admins to review algorithm-generated sessions, validate or modify blocks, and manage the SPOM system.
+
+**Target features (Phase 1):**
+- Review and improve session generation algorithm accuracy
+- Compare algorithm output vs coach-built session examples
+- Fix discrepancies between generated sessions and expected output
 
 ## Core Value
 

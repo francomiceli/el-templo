@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-01-21)
+See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 12 - Progression & Coach Functions
+**Current focus:** v2.0 Admin App - Phase 13 (Session Generation Review)
 
 ## Current Position
 
-Phase: 12 of 13 (Progression & Coach Functions)
-Plan: 4 of 5 in Phase 12
-Status: In progress
-Last activity: 2026-01-29 - Completed 12-04-PLAN.md (Mi Camino page assembly)
+Phase: 13 (Session Generation Review & Improvement)
+Plan: Not started
+Status: **Defining requirements**
+Last activity: 2026-02-04 - Milestone v2.0 started (Admin App)
 
-Progress: [█████████░] 98% (54/55 plans complete)
+Progress: [░░░░░░░░░░] 0%
 
 ## Architecture Reset
 
@@ -266,33 +266,24 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-30
-Stopped at: Completed quick-001 (Remove timers, add Saberes and format info)
+Last session: 2026-02-04
+Stopped at: Starting v2.0 Admin App milestone. Defining Phase 13 requirements.
 Resume file: None
 
-**Phase 12 IN PROGRESS.** Progression & Coach Functions:
-- 12-01: COMPLETE - API endpoints for progression stats and evaluation requests
-- 12-02: COMPLETE - Frontend foundation (chart libs, Pinia store, API composable)
-- 12-03: COMPLETE - Mi Camino page components (LevelDisplay, TrainingStats, RpeTrendChart, EvaluationRequest)
-- 12-04: COMPLETE - Mi Camino page assembly with navigation badge
-- Next: 12-05 Coach admin endpoints and UI
+**MILESTONE v1 COMPLETE** (2026-02-03)
 
-**Phase 11 COMPLETED.** V1 Visual Update:
-- Brand identity application: Navy blue (#2c3e5c) + Bronze (#b8956c) color palette
-- Typography: Serif headings, Greek letters for levels (α Δ Σ Ω)
-- Visual theme: Marble/cream textures, classical Greek aesthetic
-- Scope: Enhance existing UI components with brand identity (not replace functionality)
+Member app delivered:
+- Authentication & user management
+- SPOM engine with deterministic session generation
+- Weekly view with day navigation
+- Day player with block flow and exercise display
+- Session completion with RPE tracking
+- Brand identity (navy/bronze, Greek letters, marble textures)
+- Progression tracking (Mi Camino) with evaluation requests
 
-**Brand Assets Available:**
-- `docs/brand-visual/El Templo Indoor Calisthenics LOGO.png` - Full logo with temple + text
-- `docs/brand-visual/El Templo Indoor Calisthenics ICON BIG.png` - Temple icon only
-- `docs/brand-visual/block level.png`, `block level alt.jpeg` - UI mockups for aesthetic direction
+**MILESTONE v2.0 IN PROGRESS** — Admin App
 
-**Key Approach:**
-- Keep existing ExerciseCard metrics, badges, block headers with timers
-- Apply brand colors, typography, textures to existing components
-- Mockups are aesthetic reference, not literal implementation targets
-
-Next steps:
-1. Run `/gsd:plan-phase 11` to break down into plans
-2. Real-device timer testing when hardware available
+Phase 13: Session Generation Review & Improvement
+- Review session-logic documentation
+- Compare algorithm vs coach-built sessions
+- Fix generation discrepancies
