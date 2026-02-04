@@ -27,14 +27,16 @@ This roadmap delivers the Admin App module for El Templo. v2.0 Phase 13 focuses 
   6. Block difficulty average validated within +/-0.5 of target
   7. Contraction distribution matches Contraccion rules exactly
   8. Algorithm generates valid sessions that follow patterns observed in 19 example weeks
-**Plans**: 5 plans in 3 waves
+**Plans**: 7 plans in 4 waves
 
 Plans:
-- [ ] 13-01-PLAN.md — Difficulty System Foundation (linear difficulty 1-12, DB migration, pipeline update)
-- [ ] 13-02-PLAN.md — Block Specifications Documentation (document all blocks, exercise count cap)
-- [ ] 13-03-PLAN.md — Validation Suite (parse coach examples, comparison logic, initial validation)
-- [ ] 13-04-PLAN.md — Initium Contextual Enhancement (relate warmup to day's Nucleus)
+- [x] 13-01-PLAN.md — Difficulty System Foundation (linear difficulty 1-12, DB migration, pipeline update)
+- [x] 13-02-PLAN.md — Block Specifications Documentation (document all blocks, exercise count cap)
+- [x] 13-03-PLAN.md — Validation Suite (parse coach examples, comparison logic, initial validation)
+- [x] 13-04-PLAN.md — Initium Contextual Enhancement (relate warmup to day's Nucleus)
 - [ ] 13-05-PLAN.md — Algorithm Integration & Final Validation (fix discrepancies, human verification)
+- [ ] 13-06-PLAN.md — HIGH Priority Format Prescribers (Buy-in/Cash-out, AMRAP, EMOM, Complex, Chipper)
+- [ ] 13-07-PLAN.md — MEDIUM Priority Format Prescribers (For Time, Tabata, Interval, Cluster, Ladder, etc.)
 
 ## Progress
 
