@@ -102,6 +102,27 @@ function levelGroupToLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' |
   }
 }
 
+/** Map day name to index for deterministic variety */
+function dayToIndex(day: string): number {
+  const days: Record<string, number> = {
+    'lunes': 0, 'martes': 1, 'miercoles': 2,
+    'jueves': 3, 'viernes': 4, 'sabado': 5,
+  };
+  return days[day.toLowerCase()] ?? 0;
+}
+
+/**
+ * Calculate exercise pool offset for variety across sessions.
+ * Same week+day always produces same offset (deterministic).
+ * Different week or day produces different exercises.
+ */
+function calculateExerciseOffset(week: number, day: string): number {
+  const dayIndex = dayToIndex(day);
+  // Offset rotates through exercise pool based on week and day
+  // Multiply by prime numbers to spread distribution
+  return (week * 7 + dayIndex * 3) % 20;
+}
+
 /**
  * Run INITIUM-specific pipeline
  *
@@ -138,6 +159,10 @@ export async function runInitiumPipeline(
   const repsBudget = ctx.week % 2 === 0 ? 100 : 80;
   const exerciseCount = 4; // 3-4 exercises for warmup variety
   const difficultyBucket = '3'; // Easy warmup exercises (bucket 3 = low difficulty)
+
+  // Calculate offset for exercise variety across sessions
+  const exerciseOffset = calculateExerciseOffset(ctx.week, ctx.day);
+  const exercisePoolSize = 20; // Query larger pool for rotation
 
   // INITIUM uses simple contraction mix (focus on concentric for warmup)
   const contractionMix: ContractionMix = {
@@ -226,7 +251,8 @@ export async function runInitiumPipeline(
 
     if (relatedMobilityRoutes.length > 0) {
       // Query exercises where mobilityRelated matches any of the related routes
-      const contextualExercises = await db
+      // Query larger pool for variety rotation
+      const contextualPool = await db
         .select({
           id: schema.exercises.id,
           name: schema.exercises.exercise,
@@ -252,7 +278,11 @@ export async function runInitiumPipeline(
           )
         )
         .orderBy(schema.exercises.id) // Deterministic ordering
-        .limit(exerciseCount);
+        .limit(exercisePoolSize);
+
+      // Apply offset for variety: rotate through pool based on week/day
+      const startIdx = exerciseOffset % Math.max(contextualPool.length - exerciseCount + 1, 1);
+      const contextualExercises = contextualPool.slice(startIdx, startIdx + exerciseCount);
 
       if (contextualExercises.length >= exerciseCount) {
         exerciseResults = contextualExercises;
@@ -264,7 +294,10 @@ export async function runInitiumPipeline(
           'INFO',
           {
             nucleusRoute,
-            foundCount: contextualExercises.length,
+            poolSize: contextualPool.length,
+            exerciseOffset,
+            startIdx,
+            selectedCount: contextualExercises.length,
             requiredCount: exerciseCount,
             exercises: contextualExercises.map(e => ({
               id: e.id,
@@ -282,7 +315,8 @@ export async function runInitiumPipeline(
           'INFO',
           {
             nucleusRoute,
-            foundCount: contextualExercises.length,
+            poolSize: contextualPool.length,
+            selectedCount: contextualExercises.length,
             requiredCount: exerciseCount,
             reason: 'Not enough contextual exercises, falling back to generic selection',
           }
@@ -294,7 +328,8 @@ export async function runInitiumPipeline(
 
   // Step 2: Fallback to generic FLOW/Movilidad selection if contextual didn't work
   if (!usedContextual) {
-    const genericExercises = await db
+    // Query larger pool for variety rotation
+    const genericPool = await db
       .select({
         id: schema.exercises.id,
         name: schema.exercises.exercise,
@@ -316,9 +351,11 @@ export async function runInitiumPipeline(
         )
       )
       .orderBy(schema.exercises.id) // Deterministic ordering
-      .limit(exerciseCount);
+      .limit(exercisePoolSize);
 
-    exerciseResults = genericExercises;
+    // Apply offset for variety: rotate through pool based on week/day
+    const startIdx = exerciseOffset % Math.max(genericPool.length - exerciseCount + 1, 1);
+    exerciseResults = genericPool.slice(startIdx, startIdx + exerciseCount);
   }
 
   if (exerciseResults.length === 0) {
@@ -333,6 +370,9 @@ export async function runInitiumPipeline(
       count: exerciseResults.length,
       usedContextual,
       nucleusRoute: nucleusRoute || null,
+      exerciseOffset,
+      week: ctx.week,
+      day: ctx.day,
       exercises: exerciseResults.map(e => ({
         id: e.id,
         name: e.name,
