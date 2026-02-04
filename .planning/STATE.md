@@ -10,13 +10,13 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 13 (Session Generation Review & Improvement)
-Plan: 05 of 5 (Algorithm Validation & Improvement)
-Status: **Complete** (All Phase 13 plans done)
-Last activity: 2026-02-04 - Completed 13-05-PLAN.md (Algorithm Validation & Improvement)
+Plan: 07 of 8 (MEDIUM Priority Format Prescribers)
+Status: **In Progress** (Format prescribers Wave 4)
+Last activity: 2026-02-04 - Completed 13-07-PLAN.md (MEDIUM Priority Format Prescribers)
 
-Progress: [█████████░] ~90% (Phase 13 complete, planning Phase 14)
+Progress: [█████████░] ~92% (Format prescribers 7/8 complete)
 
-**Note:** Plan 13-03 was executed after 13-04 due to wave ordering (Wave 2)
+**Note:** Plans 13-06 and 13-07 extend format-specific prescription logic
 
 ## Architecture Reset
 
@@ -265,6 +265,12 @@ Recent decisions affecting current work:
 | 13-05 | Contraction rule three-tier fallback | Exact lookup → nearby counts → default mix, scales to actual exercise count for robustness |
 | 13-05 | Initium budget 80-100 reps varying by week | Matches coach patterns, maintains warmup flexibility instead of fixed budget |
 | 13-05 | Difficulty in prescription response | Add dificultadLineal to API response for frontend display and user education |
+| 13-07 | For Time: no prescribed rest | Athletes move continuously, timing their own completion |
+| 13-07 | Tabata: 20s/10s fixed | Standard Tabata protocol, not configurable |
+| 13-07 | Interval: intensity-scaled | 80%+ gets shorter work/longer rest |
+| 13-07 | Unbroken: 70% multiplier | Sustainable sets require lower targets |
+| 13-07 | Ladder: 75% threshold | High intensity = descending (harder first) |
+| 13-07 | Couplet/Triplet: slice exercises | Graceful handling when counts mismatch |
 
 ### Pending Todos
 
@@ -285,7 +291,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 13-05-PLAN.md - Algorithm validation with 5 key improvements and fallback resilience
+Stopped at: Completed 13-07-PLAN.md - MEDIUM priority format prescribers (10 formats added)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
