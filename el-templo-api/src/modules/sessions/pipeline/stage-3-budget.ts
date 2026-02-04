@@ -11,6 +11,24 @@
 import { SpomService } from '../../spom/service';
 import type { BlockContextWithSpom, BlockContextWithBudget } from './context';
 import { createTraceEvent, appendTrace } from './context';
+import type { BlockRole } from '../types';
+
+/** Non-Initium blocks are capped at 3 exercises per coach-built examples */
+const NON_INITIUM_EXERCISE_CAP = 3;
+
+/**
+ * Get exercise count cap for a given block role.
+ * Initium has no cap (warmup flexibility), all other blocks capped at 3.
+ *
+ * @param role - Block role
+ * @returns Cap value or null for no cap
+ */
+function getExerciseCountCap(role: BlockRole): number | null {
+  if (role === 'INITIUM') {
+    return null; // Initium has no cap - uses full intensity-based count
+  }
+  return NON_INITIUM_EXERCISE_CAP;
+}
 
 /**
  * Derive budget from intensity level
@@ -32,19 +50,49 @@ export async function deriveBudget(
     );
   }
 
-  const traceEvent = createTraceEvent(ctx, 'BUDGET_DERIVED', 'INFO', {
+  // Apply exercise count cap for non-Initium blocks
+  const cap = getExerciseCountCap(ctx.role);
+  const exerciseCountMin = cap !== null
+    ? Math.min(rule.exerciseCountMin, cap)
+    : rule.exerciseCountMin;
+  const exerciseCountMax = cap !== null
+    ? Math.min(rule.exerciseCountMax, cap)
+    : rule.exerciseCountMax;
+
+  let updatedCtx = ctx;
+
+  // Log trace event when cap is applied
+  if (cap !== null && (rule.exerciseCountMin > cap || rule.exerciseCountMax > cap)) {
+    const capTrace = createTraceEvent(
+      updatedCtx,
+      'EXERCISE_COUNT_CAPPED',
+      'INFO',
+      {
+        originalMin: rule.exerciseCountMin,
+        originalMax: rule.exerciseCountMax,
+        cappedMin: exerciseCountMin,
+        cappedMax: exerciseCountMax,
+        cap,
+        role: ctx.role,
+        reason: `Non-Initium blocks capped at ${cap} exercises per block specifications`,
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, capTrace);
+  }
+
+  const traceEvent = createTraceEvent(updatedCtx, 'BUDGET_DERIVED', 'INFO', {
     repsBudget: rule.repsBudget,
-    exerciseCountMin: rule.exerciseCountMin,
-    exerciseCountMax: rule.exerciseCountMax,
+    exerciseCountMin,
+    exerciseCountMax,
     difficultyBucket: rule.difficulty,
     ruleId: rule.id,
   });
 
   return {
-    ...appendTrace(ctx, traceEvent),
+    ...appendTrace(updatedCtx, traceEvent),
     repsBudget: rule.repsBudget,
-    exerciseCountMin: rule.exerciseCountMin,
-    exerciseCountMax: rule.exerciseCountMax,
+    exerciseCountMin,
+    exerciseCountMax,
     difficultyBucket: rule.difficulty,
   };
 }
