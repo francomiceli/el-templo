@@ -24,13 +24,17 @@ This roadmap delivers the Admin App module for El Templo. v2.0 Phase 13 focuses 
   3. Each block (Initium, Nucleus, Deuteros 1/2, Athlos/Epikos) has documented specifications
   4. Exercise count capped at 3 for all blocks except Initium
   5. Algorithm uses linear difficulty scale with "nivel superior" mapping to next level
-  6. Block difficulty average validated within ±0.5 of target
-  7. Contraction distribution matches Contracción rules exactly
+  6. Block difficulty average validated within +/-0.5 of target
+  7. Contraction distribution matches Contraccion rules exactly
   8. Algorithm generates valid sessions that follow patterns observed in 19 example weeks
-**Plans**: TBD during /gsd:plan-phase 13
+**Plans**: 5 plans in 3 waves
 
 Plans:
-- [ ] 13-01: TBD
+- [ ] 13-01-PLAN.md — Difficulty System Foundation (linear difficulty 1-12, DB migration, pipeline update)
+- [ ] 13-02-PLAN.md — Block Specifications Documentation (document all blocks, exercise count cap)
+- [ ] 13-03-PLAN.md — Validation Suite (parse coach examples, comparison logic, initial validation)
+- [ ] 13-04-PLAN.md — Initium Contextual Enhancement (relate warmup to day's Nucleus)
+- [ ] 13-05-PLAN.md — Algorithm Integration & Final Validation (fix discrepancies, human verification)
 
 ## Progress
 
@@ -39,8 +43,8 @@ Phase 13 is the first phase of v2.0 Admin App.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Session Generation Review | 0/? | Not started | — |
+| 13. Session Generation Review | 0/5 | Planned | — |
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-04 — v2.0 milestone started*
+*Last updated: 2026-02-04 — Phase 13 planned (5 plans in 3 waves)*
