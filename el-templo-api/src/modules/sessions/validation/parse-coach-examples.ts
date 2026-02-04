@@ -270,7 +270,7 @@ export function groupRowsIntoBlocks(
   // Convert grouped rows to CoachExampleBlock structures
   const blocks: CoachExampleBlock[] = [];
 
-  for (const [key, blockRows] of blockMap) {
+  for (const [, blockRows] of blockMap) {
     const firstRow = blockRows[0];
     const memberLevel = firstRow['Nivel Real'].trim().toLowerCase() as CoachExampleBlock['memberLevel'];
 
