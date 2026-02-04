@@ -11,10 +11,12 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 Phase: 13 (Session Generation Review & Improvement)
 Plan: 04 of 5 (Initium Contextual Enhancement)
-Status: **Complete**
-Last activity: 2026-02-04 - Completed 13-04-PLAN.md (Initium Contextual Enhancement)
+Status: **Complete** (Plans 01-04 done, Plan 05 pending)
+Last activity: 2026-02-04 - Completed 13-03-PLAN.md (Validation Suite)
 
 Progress: [████████░░] ~80% (Phase 13 near completion)
+
+**Note:** Plan 13-03 was executed after 13-04 due to wave ordering (Wave 2)
 
 ## Architecture Reset
 
@@ -83,8 +85,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
 
 **Recent Trend:**
-- Last 4 plans: 13-01 (7min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap), 13-04 (12min - Initium contextual)
-- Trend: Phase 13 session generation review - contextual selection improvements
+- Last 5 plans: 13-01 (7min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap), 13-04 (12min - Initium contextual), 13-03 (12min - Validation Suite)
+- Trend: Phase 13 session generation review - validation infrastructure complete
 
 *Updated after each plan completion*
 
@@ -255,6 +257,10 @@ Recent decisions affecting current work:
 | 13-04 | Use existing mobilityRelated column | Exercises CSV already has route codes for mobility areas |
 | 13-04 | Map routes to mobility routes | ROUTE_TO_MOBILITY_ROUTES constant for warmup relevance |
 | 13-04 | Contextual fallback to generic | Graceful degradation when not enough contextual exercises |
+| 13-03 | csv-parse/sync over fast-csv | Already installed, sync API simpler for file parsing |
+| 13-03 | Rename duplicate columns with _ref suffix | csv-parse overwrites duplicate column names |
+| 13-03 | Parse routes from summary section | Routes in rows 9-10, not exercise rows |
+| 13-03 | Difficulty tolerance 0.5 | Allow small variations in average difficulty comparison |
 
 ### Pending Todos
 
@@ -275,7 +281,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-04
-Stopped at: Completed 13-04-PLAN.md - Initium contextual enhancement using mobilityRelated column
+Stopped at: Completed 13-03-PLAN.md - Validation suite with coach example parser (1711 blocks)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
