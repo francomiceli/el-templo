@@ -18,8 +18,8 @@
             <q-icon name="fitness_center" />
           </q-item-section>
           <q-item-section>Sesiones</q-item-section>
-          <q-item-section side v-if="pendingCount > 0">
-            <q-badge color="negative" :label="pendingCount" />
+          <q-item-section side v-if="adminStore.pendingCount > 0">
+            <q-badge color="negative" :label="adminStore.pendingCount" />
           </q-item-section>
         </q-item>
         <q-item clickable v-ripple to="/generate">
@@ -38,23 +38,47 @@
     </q-drawer>
 
     <q-page-container>
+      <!-- Low sessions alert banner -->
+      <q-banner v-if="adminStore.lowSessionsAlert" class="bg-warning text-white">
+        <template #avatar>
+          <q-icon name="warning" />
+        </template>
+        Solo hay sesiones aprobadas para la semana actual o menos. Genera y aprueba mas semanas.
+        <template #action>
+          <q-btn flat color="white" label="Generar" to="/generate" />
+        </template>
+      </q-banner>
+
       <router-view />
     </q-page-container>
   </q-layout>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
+import { useAdminStore } from 'src/stores/useAdminStore';
 
 const drawer = ref(false);
-const pendingCount = ref(0); // Will be fetched from API in later plan
 const router = useRouter();
+const route = useRoute();
 const authStore = useAuthStore();
+const adminStore = useAdminStore();
 
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
 }
+
+// Fetch pending count and coverage on mount
+onMounted(() => {
+  adminStore.fetchPendingCount();
+  adminStore.checkSessionCoverage();
+});
+
+// Refresh pending count on route change
+watch(() => route.path, () => {
+  adminStore.fetchPendingCount();
+});
 </script>

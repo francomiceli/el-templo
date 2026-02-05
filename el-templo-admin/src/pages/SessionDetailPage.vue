@@ -104,6 +104,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import BlockCard from 'src/components/sessions/BlockCard.vue';
 import type { SessionDetail, LevelGroup } from 'src/types/session';
@@ -112,6 +113,7 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const sessionsApi = useSessionsApi();
+const adminStore = useAdminStore();
 
 const session = ref<SessionDetail | null>(null);
 const loading = ref(true);
@@ -147,6 +149,8 @@ async function handleApprove() {
     await sessionsApi.approveSession(session.value.id);
     $q.notify({ type: 'positive', message: 'Sesion aprobada' });
     loadSession();
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
   } catch {
     $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
   }
@@ -158,6 +162,8 @@ async function handleRevert() {
     await sessionsApi.revertSession(session.value.id);
     $q.notify({ type: 'info', message: 'Sesion revertida a pendiente' });
     loadSession();
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
   } catch {
     $q.notify({ type: 'negative', message: 'Error revirtiendo sesion' });
   }
@@ -178,6 +184,7 @@ async function handleDiscard() {
       await sessionsApi.discardSession(session.value!.id, reason || undefined);
       $q.notify({ type: 'info', message: 'Sesion descartada' });
       loadSession();
+      adminStore.fetchPendingCount();
     } catch {
       $q.notify({ type: 'negative', message: 'Error descartando sesion' });
     }
@@ -190,6 +197,7 @@ async function handleRestore() {
     await sessionsApi.restoreSession(session.value.id);
     $q.notify({ type: 'positive', message: 'Sesion restaurada' });
     loadSession();
+    adminStore.fetchPendingCount();
   } catch {
     $q.notify({ type: 'negative', message: 'Error restaurando sesion' });
   }

@@ -131,6 +131,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { useAdminStore } from 'src/stores/useAdminStore';
 import SessionFilters from 'src/components/sessions/SessionFilters.vue';
 import DayTabs from 'src/components/sessions/DayTabs.vue';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
@@ -139,6 +140,7 @@ import type { SessionSummary, SessionFilter, LevelGroup } from 'src/types/sessio
 const $q = useQuasar();
 const router = useRouter();
 const sessionsApi = useSessionsApi();
+const adminStore = useAdminStore();
 
 const sessions = ref<SessionSummary[]>([]);
 const currentWeek = ref(1);
@@ -220,6 +222,8 @@ async function handleApprove(id: number) {
     await sessionsApi.approveSession(id);
     $q.notify({ type: 'positive', message: 'Sesion aprobada' });
     loadSessions();
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
   } catch {
     $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
   }
@@ -230,6 +234,8 @@ async function handleRevert(id: number) {
     await sessionsApi.revertSession(id);
     $q.notify({ type: 'info', message: 'Sesion revertida a pendiente' });
     loadSessions();
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
   } catch {
     $q.notify({ type: 'negative', message: 'Error revirtiendo sesion' });
   }
@@ -249,6 +255,7 @@ async function handleDiscard(id: number) {
       await sessionsApi.discardSession(id, reason || undefined);
       $q.notify({ type: 'info', message: 'Sesion descartada' });
       loadSessions();
+      adminStore.fetchPendingCount();
     } catch {
       $q.notify({ type: 'negative', message: 'Error descartando sesion' });
     }
@@ -271,6 +278,8 @@ async function handleBulkApprove() {
         message: `${result.approvedCount} sesiones aprobadas`,
       });
       loadSessions();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
     } catch {
       $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
     }
