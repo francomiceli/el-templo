@@ -7,7 +7,8 @@ export interface SessionSummary {
   week: number;
   day: string;
   levelGroup: LevelGroup;
-  memberLevel: string | null;
+  memberLevel: string;
+  routesSummary: string;
   status: SessionStatus;
   blockCount: number;
   approvedAt: string | null;

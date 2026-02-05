@@ -28,6 +28,8 @@ export interface AdminSessionSummary {
   week: number;
   day: string;
   levelGroup: string;
+  memberLevel: string;
+  routesSummary: string;
   status: SessionStatus;
   blockCount: number;
   approvedAt: Date | null;
@@ -94,25 +96,56 @@ export class AdminSessionService {
       .limit(limit)
       .offset(offset);
 
+    // Fetch routes for all sessions in a single query
+    const sessionIds = sessions.map(s => s.id);
+    const blocks = sessionIds.length > 0
+      ? await this.db
+          .select({
+            sessionId: schema.sessionBlocks.sessionId,
+            role: schema.sessionBlocks.role,
+            route: schema.sessionBlocks.route,
+            sortOrder: schema.sessionBlocks.sortOrder,
+          })
+          .from(schema.sessionBlocks)
+          .where(inArray(schema.sessionBlocks.sessionId, sessionIds))
+          .orderBy(asc(schema.sessionBlocks.sortOrder))
+      : [];
+
+    // Build routes summary map: sessionId -> "I: FL, N: OAPU/DS, D: HT"
+    const routesBySession = new Map<number, string>();
+    for (const sessionId of sessionIds) {
+      const sessionBlocks = blocks.filter(b => b.sessionId === sessionId);
+      const routesSummary = sessionBlocks
+        .map(b => `${b.role.charAt(0)}: ${b.route}`)
+        .join(', ');
+      routesBySession.set(sessionId, routesSummary);
+    }
+
     return {
-      sessions: sessions.map(s => ({
-        id: s.id,
-        dayId: s.dayId,
-        week: s.week,
-        day: s.day,
-        levelGroup: s.levelGroup,
-        status: s.status as SessionStatus,
-        blockCount: s.blockCount,
-        approvedAt: s.approvedAt,
-        approvedBy: s.approvedBy,
-        approvedByName: s.approverFirstName && s.approverLastName
-          ? `${s.approverFirstName} ${s.approverLastName}`
-          : null,
-        approvedBySystem: s.approvedBySystem ?? false,
-        discardedAt: s.discardedAt,
-        discardedReason: s.discardedReason,
-        createdAt: s.createdAt!,
-      })),
+      sessions: sessions.map(s => {
+        // Extract memberLevel from dayId (format: "W1-lunes-alfa" -> "alfa")
+        const memberLevel = s.dayId.split('-').pop() || '';
+        return {
+          id: s.id,
+          dayId: s.dayId,
+          week: s.week,
+          day: s.day,
+          levelGroup: s.levelGroup,
+          memberLevel,
+          routesSummary: routesBySession.get(s.id) || '',
+          status: s.status as SessionStatus,
+          blockCount: s.blockCount,
+          approvedAt: s.approvedAt,
+          approvedBy: s.approvedBy,
+          approvedByName: s.approverFirstName && s.approverLastName
+            ? `${s.approverFirstName} ${s.approverLastName}`
+            : null,
+          approvedBySystem: s.approvedBySystem ?? false,
+          discardedAt: s.discardedAt,
+          discardedReason: s.discardedReason,
+          createdAt: s.createdAt!,
+        };
+      }),
       total: countResult?.count ?? 0,
       page,
       limit,

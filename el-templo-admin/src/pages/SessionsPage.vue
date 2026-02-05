@@ -29,12 +29,19 @@
       :pagination="tablePagination"
       @request="onTableRequest"
     >
-      <!-- Level group column -->
-      <template #body-cell-levelGroup="props">
+      <!-- Level column -->
+      <template #body-cell-memberLevel="props">
         <q-td :props="props">
-          <q-chip dense :color="levelColor(props.row.levelGroup)" text-color="white">
-            {{ levelLabel(props.row.levelGroup) }}
+          <q-chip dense :color="memberLevelColor(props.row.memberLevel)" text-color="white">
+            {{ memberLevelLabel(props.row.memberLevel) }}
           </q-chip>
+        </q-td>
+      </template>
+
+      <!-- Routes column -->
+      <template #body-cell-routes="props">
+        <q-td :props="props">
+          <span class="text-caption">{{ props.row.routesSummary }}</span>
         </q-td>
       </template>
 
@@ -135,7 +142,7 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import SessionFilters from 'src/components/sessions/SessionFilters.vue';
 import DayTabs from 'src/components/sessions/DayTabs.vue';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
-import type { SessionSummary, SessionFilter, LevelGroup } from 'src/types/session';
+import type { SessionSummary, SessionFilter } from 'src/types/session';
 
 const $q = useQuasar();
 const router = useRouter();
@@ -156,8 +163,8 @@ const tablePagination = ref({
 
 // Table columns
 const columns = [
-  { name: 'levelGroup', label: 'Nivel', field: 'levelGroup', align: 'left' as const },
-  { name: 'memberLevel', label: 'Nivel Miembro', field: 'memberLevel', align: 'left' as const },
+  { name: 'memberLevel', label: 'Nivel', field: 'memberLevel', align: 'left' as const },
+  { name: 'routes', label: 'Rutas', field: 'routesSummary', align: 'left' as const },
   { name: 'blockCount', label: 'Bloques', field: 'blockCount', align: 'center' as const },
   { name: 'status', label: 'Estado', field: 'status', align: 'center' as const },
   { name: 'approver', label: 'Aprobado por', field: 'approvedByName', align: 'left' as const },
@@ -177,6 +184,10 @@ const filteredSessions = computed(() => {
 
 const pendingSessions = computed(() =>
   filteredSessions.value.filter(s => s.status === 'pending_review')
+);
+
+const discardedSessions = computed(() =>
+  filteredSessions.value.filter(s => s.status === 'discarded')
 );
 
 // Methods
@@ -218,14 +229,29 @@ function viewSession(id: number) {
 }
 
 async function handleApprove(id: number) {
-  try {
-    await sessionsApi.approveSession(id);
-    $q.notify({ type: 'positive', message: 'Sesion aprobada' });
-    loadSessions();
-    adminStore.fetchPendingCount();
-    adminStore.checkSessionCoverage();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
+  const doApprove = async () => {
+    try {
+      await sessionsApi.approveSession(id);
+      $q.notify({ type: 'positive', message: 'Sesion aprobada' });
+      loadSessions();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
+    }
+  };
+
+  // Warn if there are discarded sessions (incomplete coverage)
+  if (discardedSessions.value.length > 0) {
+    const discardedLevels = discardedSessions.value.map(s => memberLevelLabel(s.memberLevel)).join(', ');
+    $q.dialog({
+      title: 'Cobertura incompleta',
+      message: `Hay sesiones descartadas para este dia (${discardedLevels}). Los miembros de esos niveles no tendran sesion. Aprobar de todas formas?`,
+      cancel: true,
+      persistent: true,
+    }).onOk(doApprove);
+  } else {
+    await doApprove();
   }
 }
 
@@ -264,9 +290,17 @@ async function handleDiscard(id: number) {
 
 async function handleBulkApprove() {
   const count = pendingSessions.value.length;
+  let message = `Aprobar ${count} sesiones pendientes para ${currentDay.value}?`;
+
+  // Warn if there are discarded sessions
+  if (discardedSessions.value.length > 0) {
+    const discardedLevels = discardedSessions.value.map(s => memberLevelLabel(s.memberLevel)).join(', ');
+    message += `\n\nAtencion: Hay sesiones descartadas (${discardedLevels}). Los miembros de esos niveles no tendran sesion.`;
+  }
+
   $q.dialog({
     title: 'Aprobar Sesiones',
-    message: `Aprobar ${count} sesiones pendientes para ${currentDay.value}?`,
+    message,
     cancel: true,
     persistent: true,
   }).onOk(async () => {
@@ -286,21 +320,25 @@ async function handleBulkApprove() {
   });
 }
 
-function levelColor(group: LevelGroup): string {
-  switch (group) {
-    case 'alfa_delta': return 'blue';
+function memberLevelColor(level: string): string {
+  switch (level) {
+    case 'alfa': return 'light-blue';
+    case 'delta': return 'blue';
     case 'sigma': return 'purple';
     case 'omega': return 'orange';
+    case 'spartan': return 'red';
     default: return 'grey';
   }
 }
 
-function levelLabel(group: LevelGroup): string {
-  switch (group) {
-    case 'alfa_delta': return 'a/D';
-    case 'sigma': return 'S';
-    case 'omega': return 'O';
-    default: return group;
+function memberLevelLabel(level: string): string {
+  switch (level) {
+    case 'alfa': return 'Alfa';
+    case 'delta': return 'Delta';
+    case 'sigma': return 'Sigma';
+    case 'omega': return 'Omega';
+    case 'spartan': return 'Spartan';
+    default: return level;
   }
 }
 
