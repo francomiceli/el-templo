@@ -19,109 +19,14 @@ import { MySql2Database } from 'drizzle-orm/mysql2';
 import { eq, or, like, and, lte, isNotNull } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import type { BlockContext } from './context';
-import type { BlockPlan, ContractionMix, LevelGroup } from '../types';
+import type { BlockPlan, ContractionMix } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { selectFormatWithFallback } from '../fallback/format-fallback';
 import type { FormatRequirements } from '../fallback/types';
-
-/**
- * Map Nucleus routes to related mobility routes for contextual Initium selection.
- *
- * The mobilityRelated column in exercises contains route codes (FL, PL, MN, etc.)
- * that indicate which mobility areas the exercise targets.
- *
- * Route groupings based on movement patterns:
- * - Upper push (HS, HSPU, PHS, OAPU, PLPU): shoulder, chest activation
- * - Upper pull (MU, OAP, OAR, BL): back, scapular work
- * - Lower knee-dominant (SU, SS, PS): quad, ankle mobility
- * - Lower hip-dominant (FL, PL, DS): hip, glute activation
- * - Core/anti-extension (TTB, L, NC, HT): spine, core stability
- */
-const ROUTE_TO_MOBILITY_ROUTES: Record<string, string[]> = {
-  // Upper push patterns -> FL (front lever prep = shoulder/core)
-  'HS': ['FL', 'MN'],
-  'HSPU': ['FL', 'MN'],
-  'PHS': ['FL', 'MN'],
-  'OAPU': ['FL', 'MN'],
-  'PLPU': ['FL', 'MN'],
-
-  // Upper pull patterns -> PL (planche prep = scapular), BL (back lever)
-  'MU': ['PL', 'FL'],
-  'OAP': ['PL', 'FL'],
-  'OAR': ['PL', 'FL'],
-  'BL': ['PL', 'FL'],
-
-  // Lower knee-dominant -> LS (lunges), related lower body
-  'SU': ['LS ( LUNGES )', 'PL'],
-  'SS': ['LS ( LUNGES )', 'PL'],
-  'PS': ['LS ( LUNGES )', 'PL'],
-  'QC': ['LS ( LUNGES )', 'PL'],
-
-  // Lower hip-dominant -> FL, PL (hip mobility)
-  'FL': ['PL', 'MN'],
-  'FLR': ['PL', 'MN'],
-  'PL': ['FL', 'MN'],
-  'DS': ['FL', 'PL'],
-
-  // Core patterns -> TTB/HF (core), MN (midline)
-  'TTB': ['TTB / HF', 'MN'],
-  'L': ['TTB / HF', 'FL'],
-  'NC': ['TTB / HF', 'MN'],
-  'HT': ['MN', 'FL'],
-
-  // Handstand variations -> MN, FL
-  'HR': ['MN', 'FL'],
-  'HD/ID': ['MN', 'FL'],
-
-  // Other routes
-  'MN/RP': ['MN', 'FL'],
-};
-
-/** Get allowed exercise levels for a level group */
-function getAllowedLevels(levelGroup: LevelGroup): ('alfa' | 'delta' | 'sigma' | 'omega' | 'spartan')[] {
-  switch (levelGroup) {
-    case 'alfa_delta':
-      return ['alfa', 'delta'];
-    case 'sigma':
-      return ['alfa', 'delta', 'sigma'];
-    case 'omega':
-      return ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-  }
-}
-
-/** Map LevelGroup to individual level for format lookup */
-function levelGroupToLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' | 'omega' {
-  // Use representative level from each group
-  switch (levelGroup) {
-    case 'alfa_delta':
-      return 'delta'; // Use delta as representative (higher of the two)
-    case 'sigma':
-      return 'sigma';
-    case 'omega':
-      return 'omega';
-  }
-}
-
-/** Map day name to index for deterministic variety */
-function dayToIndex(day: string): number {
-  const days: Record<string, number> = {
-    'lunes': 0, 'martes': 1, 'miercoles': 2,
-    'jueves': 3, 'viernes': 4, 'sabado': 5,
-  };
-  return days[day.toLowerCase()] ?? 0;
-}
-
-/**
- * Calculate exercise pool offset for variety across sessions.
- * Same week+day always produces same offset (deterministic).
- * Different week or day produces different exercises.
- */
-function calculateExerciseOffset(week: number, day: string): number {
-  const dayIndex = dayToIndex(day);
-  // Offset rotates through exercise pool based on week and day
-  // Multiply by prime numbers to spread distribution
-  return (week * 7 + dayIndex * 3) % 20;
-}
+import { getAllowedLevels, levelGroupToLevel } from './utils/level-mapping';
+import { ROUTE_TO_MOBILITY_ROUTES } from './utils/mobility-routes';
+import { calculateExerciseOffset, selectWithVariety } from './utils/variety';
+import { REST_TIMES, ISO_SECONDS } from './utils/constants';
 
 /**
  * Run INITIUM-specific pipeline
@@ -280,9 +185,8 @@ export async function runInitiumPipeline(
         .orderBy(schema.exercises.id) // Deterministic ordering
         .limit(exercisePoolSize);
 
-      // Apply offset for variety: rotate through pool based on week/day
-      const startIdx = exerciseOffset % Math.max(contextualPool.length - exerciseCount + 1, 1);
-      const contextualExercises = contextualPool.slice(startIdx, startIdx + exerciseCount);
+      // Select with variety using stride-based approach for better day-to-day variation
+      const contextualExercises = selectWithVariety(contextualPool, exerciseCount, exerciseOffset);
 
       if (contextualExercises.length >= exerciseCount) {
         exerciseResults = contextualExercises;
@@ -296,7 +200,7 @@ export async function runInitiumPipeline(
             nucleusRoute,
             poolSize: contextualPool.length,
             exerciseOffset,
-            startIdx,
+            selectionMethod: 'stride_variety',
             selectedCount: contextualExercises.length,
             requiredCount: exerciseCount,
             exercises: contextualExercises.map(e => ({
@@ -353,9 +257,8 @@ export async function runInitiumPipeline(
       .orderBy(schema.exercises.id) // Deterministic ordering
       .limit(exercisePoolSize);
 
-    // Apply offset for variety: rotate through pool based on week/day
-    const startIdx = exerciseOffset % Math.max(genericPool.length - exerciseCount + 1, 1);
-    exerciseResults = genericPool.slice(startIdx, startIdx + exerciseCount);
+    // Select with variety using stride-based approach for better day-to-day variation
+    exerciseResults = selectWithVariety(genericPool, exerciseCount, exerciseOffset);
   }
 
   if (exerciseResults.length === 0) {
@@ -385,10 +288,11 @@ export async function runInitiumPipeline(
   updatedCtx = appendTrace(updatedCtx, exercisesTrace);
 
   // Generate warmup prescriptions with proper volume distribution
-  // Assume 2 series for warmup - reps shown are per series
+  // Assume 2 series for warmup - reps shown are per series, rounded to nearest 5
   const series = 2;
-  const totalRepsPerExercise = Math.floor(repsBudget / exerciseResults.length);
-  const repsPerSeries = Math.floor(totalRepsPerExercise / series);
+  const totalRepsPerExercise = repsBudget / exerciseResults.length;
+  const repsPerSeries = Math.round(totalRepsPerExercise / series / 5) * 5; // Round to nearest 5
+  const minReps = 10; // Minimum reps for warmup
 
   const prescriptions = exerciseResults.map(ex => {
     // Map 'effort' (CON/EXC/ISO) to contraction type, default to CON for warmup
@@ -401,9 +305,9 @@ export async function runInitiumPipeline(
       exerciseId: ex.id,
       name: ex.name,
       contraction: effort,
-      reps: isIsometric ? 0 : repsPerSeries,
-      seconds: isIsometric ? 30 : 0, // 30 seconds for isometric holds
-      rest: 30, // Short warmup rest
+      reps: isIsometric ? 0 : Math.max(repsPerSeries, minReps),
+      seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
+      rest: REST_TIMES.WARMUP,
       notes: 'Warmup - focus on form and activation',
       dificultadLineal: ex.difficulty,
     };
@@ -418,7 +322,7 @@ export async function runInitiumPipeline(
       repsBudget,
       series,
       repsPerSeries,
-      restSeconds: 30,
+      restSeconds: REST_TIMES.WARMUP,
     }
   );
   updatedCtx = appendTrace(updatedCtx, prescriptionTrace);

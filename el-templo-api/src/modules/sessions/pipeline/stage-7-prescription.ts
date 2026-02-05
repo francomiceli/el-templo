@@ -12,35 +12,24 @@
  */
 
 import type { BlockContextWithExercises, BlockContextComplete } from './context';
-import type { ExercisePrescription, SelectedExercise } from '../types';
+import type { ExercisePrescription } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { prescribeByFormat } from './format-prescribers';
+import {
+  roundToNearest5,
+  calculateInverseDifficultyWeights,
+  MIN_REPS_PER_EXERCISE,
+} from './utils/reps-calculator';
+import { REST_TIMES, ISO_SECONDS } from './utils/constants';
 
 /** Calculate rest time based on intensity (lower intensity = shorter rest) */
 function calculateRest(intensity: number): number {
   // Rest ranges from 30s (low intensity) to 90s (high intensity)
-  if (intensity <= 30) return 30;
-  if (intensity <= 50) return 45;
-  if (intensity <= 70) return 60;
-  if (intensity <= 85) return 75;
-  return 90;
-}
-
-/**
- * Calculate inverse difficulty weights for rep distribution.
- * Easier exercises (lower difficulty) get more reps.
- *
- * Example with 3 exercises at difficulty 4, 5, 6:
- * - Inverse weights: 1/4, 1/5, 1/6 -> normalized to percentages
- * - Result: ~44%, ~33%, ~22% of budget
- */
-function calculateInverseDifficultyWeights(exercises: readonly SelectedExercise[]): number[] {
-  // Use inverse of difficulty as weight (lower difficulty = higher weight)
-  const inverseWeights = exercises.map(e => 1 / Math.max(e.difficulty, 1));
-  const totalWeight = inverseWeights.reduce((sum, w) => sum + w, 0);
-
-  // Normalize to get proportions
-  return inverseWeights.map(w => w / totalWeight);
+  if (intensity <= 30) return REST_TIMES.WARMUP;
+  if (intensity <= 50) return REST_TIMES.SHORT;
+  if (intensity <= 70) return REST_TIMES.MEDIUM;
+  if (intensity <= 85) return REST_TIMES.LONG;
+  return REST_TIMES.MAX;
 }
 
 /**
@@ -114,17 +103,29 @@ export function generatePrescriptions(
   // Fall back to standard inverse difficulty distribution
   const weights = calculateInverseDifficultyWeights(exercises);
 
-  // Distribute reps based on weights (easier exercises get more)
-  let allocatedReps = 0;
-  const repsAllocation = weights.map((weight, index) => {
-    if (index === exerciseCount - 1) {
-      // Last exercise gets remainder to ensure exact budget match
-      return repsBudget - allocatedReps;
-    }
-    const reps = Math.round(repsBudget * weight);
-    allocatedReps += reps;
-    return reps;
+  // Get non-ISO exercise indices
+  const nonIsoIndices = exercises
+    .map((ex, i) => ex.contraction !== 'ISO' ? i : -1)
+    .filter(i => i >= 0);
+
+  // Allocate reps: round to nearest 5, apply minimum, then adjust last to match budget
+  let repsAllocation = weights.map((weight, i) => {
+    if (exercises[i].contraction === 'ISO') return 0; // ISO uses seconds, not reps
+    const raw = repsBudget * weight;
+    const rounded = roundToNearest5(raw);
+    return Math.max(rounded, MIN_REPS_PER_EXERCISE);
   });
+
+  // Adjust last non-ISO exercise to match budget exactly
+  if (nonIsoIndices.length > 0) {
+    const currentTotal = repsAllocation.reduce((sum, r) => sum + r, 0);
+    const lastNonIso = nonIsoIndices[nonIsoIndices.length - 1];
+    repsAllocation[lastNonIso] += repsBudget - currentTotal;
+    // Ensure minimum
+    if (repsAllocation[lastNonIso] < MIN_REPS_PER_EXERCISE) {
+      repsAllocation[lastNonIso] = MIN_REPS_PER_EXERCISE;
+    }
+  }
 
   const prescriptions: ExercisePrescription[] = exercises.map((exercise, index) => {
     // ISO exercises use seconds instead of reps
@@ -135,7 +136,7 @@ export function generatePrescriptions(
       name: exercise.name,
       contraction: exercise.contraction,
       reps: isIsometric ? 0 : repsAllocation[index],
-      seconds: isIsometric ? 30 : 0, // 30 seconds for isometric holds
+      seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
       rest: restTime,
       dificultadLineal: exercise.difficulty, // Carry over for validation and display
     };

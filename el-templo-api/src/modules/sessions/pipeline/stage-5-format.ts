@@ -12,10 +12,11 @@
 import { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../../db/schema';
 import type { BlockContextWithContraction, BlockContextWithFormat } from './context';
-import type { BlockRole, LevelGroup } from '../types';
+import type { BlockRole } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { selectFormatWithFallback } from '../fallback/format-fallback';
 import type { FallbackAction } from '../fallback/types';
+import { levelGroupToLevel } from './utils/level-mapping';
 
 /** Map BlockRole to format_compatibility block enum */
 function roleToBlock(role: BlockRole): 'initium' | 'nucleus' | 'deuteros' | 'athlos' | 'epikos' {
@@ -31,20 +32,6 @@ function roleToBlock(role: BlockRole): 'initium' | 'nucleus' | 'deuteros' | 'ath
       return 'athlos';
     case 'EPIKOS':
       return 'epikos';
-  }
-}
-
-/** Map LevelGroup to individual level for format lookup */
-function levelGroupToFormatLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 'sigma' | 'omega' {
-  // Use representative level from each group for consistent format selection
-  // This ensures alfa and delta get the same format (both use 'delta' for lookup)
-  switch (levelGroup) {
-    case 'alfa_delta':
-      return 'delta'; // Use delta as representative (higher of the two)
-    case 'sigma':
-      return 'sigma';
-    case 'omega':
-      return 'omega';
   }
 }
 
@@ -80,7 +67,7 @@ export async function selectFormat(
 ): Promise<BlockContextWithFormat> {
   const block = roleToBlock(ctx.role);
   // Use levelGroup representative for format lookup (ensures alfa and delta get same format)
-  const level = levelGroupToFormatLevel(ctx.levelGroup);
+  const level = levelGroupToLevel(ctx.levelGroup);
 
   // Use fallback ladder for format selection
   const result = await selectFormatWithFallback(

@@ -18,6 +18,19 @@
  */
 
 import type { SelectedExercise, ExercisePrescription } from '../types';
+import {
+  roundToNearest5,
+  calculateInverseDifficultyWeights,
+  allocateRepsRounded,
+} from './utils/reps-calculator';
+import {
+  REST_TIMES,
+  REPS,
+  ISO_SECONDS,
+  INTENSITY_THRESHOLDS,
+  EMOM_REPS,
+  INTERVAL_SECONDS,
+} from './utils/constants';
 
 export interface PrescriptionContext {
   readonly exercises: readonly SelectedExercise[];
@@ -25,6 +38,46 @@ export interface PrescriptionContext {
   readonly intensity: number;
   readonly restTime: number;
 }
+
+type Prescriber = (ctx: PrescriptionContext) => ExercisePrescription[] | null;
+
+/**
+ * Registry mapping format names to their prescriber functions.
+ * Multiple names can map to the same prescriber for format aliases.
+ */
+const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
+  // HIGH priority formats (13-06)
+  'buy-in / cash-out': prescribeBuyInCashOut,
+  'buy-in/cash-out': prescribeBuyInCashOut,
+  'complex': prescribeComplex,
+  'amrap': prescribeAMRAP,
+  'amrap series': prescribeAMRAP,
+  'emom': prescribeEMOM,
+  'emom + for time': prescribeEMOM,
+  'chipper': prescribeChipper,
+
+  // MEDIUM priority - Time-based formats (13-07)
+  'for time': prescribeForTime,
+  'tabata': prescribeTabata,
+  'interval training': prescribeIntervalTraining,
+  'interval': prescribeIntervalTraining,
+  'time cap': prescribeTimeCap,
+
+  // MEDIUM priority - Rep-based formats (13-07)
+  'cluster': prescribeCluster,
+  'unbroken reps': prescribeUnbrokenReps,
+  'unbroken': prescribeUnbrokenReps,
+  'for max (reps)': prescribeForMaxReps,
+  'for max reps': prescribeForMaxReps,
+  'max reps': prescribeForMaxReps,
+
+  // MEDIUM priority - Structure formats (13-07)
+  'couplet': prescribeCouplet,
+  'triplet': prescribeTriplet,
+  'ladder': prescribeLadder,
+  'ladder block': prescribeLadder,
+  'ladder corta': prescribeLadder,
+};
 
 /**
  * Route to format-specific prescriber based on format name.
@@ -35,58 +88,36 @@ export function prescribeByFormat(
   ctx: PrescriptionContext
 ): ExercisePrescription[] | null {
   const normalizedFormat = format.toLowerCase().trim();
+  const prescriber = PRESCRIBER_REGISTRY[normalizedFormat];
+  return prescriber ? prescriber(ctx) : null;
+}
 
-  switch (normalizedFormat) {
-    // HIGH priority formats (13-06)
-    case 'buy-in / cash-out':
-    case 'buy-in/cash-out':
-      return prescribeBuyInCashOut(ctx);
-    case 'complex':
-      return prescribeComplex(ctx);
-    case 'amrap':
-    case 'amrap series':
-      return prescribeAMRAP(ctx);
-    case 'emom':
-    case 'emom + for time':
-      return prescribeEMOM(ctx);
-    case 'chipper':
-      return prescribeChipper(ctx);
+// =============================================================================
+// Helper Functions
+// =============================================================================
 
-    // MEDIUM priority - Time-based formats (13-07)
-    case 'for time':
-      return prescribeForTime(ctx);
-    case 'tabata':
-      return prescribeTabata(ctx);
-    case 'interval training':
-    case 'interval':
-      return prescribeIntervalTraining(ctx);
-    case 'time cap':
-      return prescribeTimeCap(ctx);
-
-    // MEDIUM priority - Rep-based formats (13-07)
-    case 'cluster':
-      return prescribeCluster(ctx);
-    case 'unbroken reps':
-    case 'unbroken':
-      return prescribeUnbrokenReps(ctx);
-    case 'for max (reps)':
-    case 'for max reps':
-    case 'max reps':
-      return prescribeForMaxReps(ctx);
-
-    // MEDIUM priority - Structure formats (13-07)
-    case 'couplet':
-      return prescribeCouplet(ctx);
-    case 'triplet':
-      return prescribeTriplet(ctx);
-    case 'ladder':
-    case 'ladder block':
-    case 'ladder corta':
-      return prescribeLadder(ctx);
-
-    default:
-      return null; // Signals to use standard prescription
-  }
+/**
+ * Create a prescription object from exercise and parameters.
+ * Automatically handles ISO exercises (uses seconds instead of reps).
+ */
+function createPrescription(
+  exercise: SelectedExercise,
+  reps: number,
+  rest: number,
+  notes?: string,
+  seconds?: number
+): ExercisePrescription {
+  const isISO = exercise.contraction === 'ISO';
+  return {
+    exerciseId: exercise.exerciseId,
+    name: exercise.name,
+    contraction: exercise.contraction,
+    reps: isISO ? 0 : reps,
+    seconds: seconds ?? (isISO ? ISO_SECONDS.DEFAULT : 0),
+    rest,
+    notes,
+    dificultadLineal: exercise.difficulty,
+  };
 }
 
 // =============================================================================
@@ -105,13 +136,13 @@ function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[]
   const bookendExercise = exercises[0];
   const middleExercises = exercises.slice(1);
 
-  // Bookend gets 40% total (20% at start, 20% at end)
-  const bookendTotal = Math.round(repsBudget * 0.4);
-  const bookendReps = Math.round(bookendTotal / 2);
+  // Bookend gets 40% total (20% at start, 20% at end), rounded to 5
+  const bookendTotal = roundToNearest5(repsBudget * 0.4);
+  const bookendReps = roundToNearest5(bookendTotal / 2);
 
-  // Remaining 60% split among middle exercises
+  // Remaining budget split among middle exercises
   const middleBudget = repsBudget - bookendTotal;
-  const middleRepsEach = Math.round(middleBudget / middleExercises.length);
+  const middleRepsEach = roundToNearest5(middleBudget / middleExercises.length);
 
   const prescriptions: ExercisePrescription[] = [];
 
@@ -137,8 +168,8 @@ function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[]
 function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget, restTime } = ctx;
 
-  // Equal distribution for complex
-  const repsPerExercise = Math.round(repsBudget / exercises.length);
+  // Equal distribution for complex, rounded to 5
+  const repsPerExercise = roundToNearest5(repsBudget / exercises.length);
 
   return exercises.map((ex, i) =>
     createPrescription(
@@ -159,18 +190,17 @@ function prescribeAMRAP(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget } = ctx;
 
   // For AMRAP, budget is per round - distribute using inverse difficulty
-  // but with lower total since it's per round
-  const repsPerRound = Math.min(repsBudget, 30); // Cap at 30 reps/round for AMRAPs
+  const repsPerRound = roundToNearest5(Math.min(repsBudget, REPS.AMRAP_CAP));
   const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsPerRound, weights);
 
   return exercises.map((ex, i) => {
-    const reps = Math.round(repsPerRound * weights[i]);
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : Math.max(reps, 5), // Min 5 reps for AMRAP
+      ex.contraction === 'ISO' ? 0 : Math.max(repsAllocation[i], REPS.MIN_AMRAP),
       0, // No rest in AMRAP rounds
       i === 0 ? 'AMRAP - complete max rounds' : undefined,
-      ex.contraction === 'ISO' ? 20 : 0 // 20s for ISO in AMRAP
+      ex.contraction === 'ISO' ? ISO_SECONDS.AMRAP : 0
     );
   });
 }
@@ -184,7 +214,14 @@ function prescribeEMOM(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, intensity } = ctx;
 
   // EMOM reps based on intensity (higher intensity = fewer reps per minute)
-  const baseReps = intensity >= 80 ? 8 : intensity >= 70 ? 10 : 12;
+  let baseReps: number;
+  if (intensity >= INTENSITY_THRESHOLDS.HIGH) {
+    baseReps = EMOM_REPS.HIGH_INTENSITY;
+  } else if (intensity >= INTENSITY_THRESHOLDS.MEDIUM) {
+    baseReps = EMOM_REPS.MEDIUM_INTENSITY;
+  } else {
+    baseReps = EMOM_REPS.LOW_INTENSITY;
+  }
 
   return exercises.map((ex, i) =>
     createPrescription(
@@ -192,7 +229,7 @@ function prescribeEMOM(ctx: PrescriptionContext): ExercisePrescription[] {
       ex.contraction === 'ISO' ? 0 : baseReps,
       0, // Rest is built into the minute
       i === 0 ? 'EMOM - rotate each minute' : undefined,
-      ex.contraction === 'ISO' ? 30 : 0 // 30s hold for ISO
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     )
   );
 }
@@ -205,17 +242,17 @@ function prescribeEMOM(ctx: PrescriptionContext): ExercisePrescription[] {
 function prescribeChipper(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget, restTime } = ctx;
 
-  // Chipper uses full budget, distributed by inverse difficulty
+  // Chipper uses full budget, distributed by inverse difficulty with rounding
   const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
   return exercises.map((ex, i) => {
-    const reps = Math.round(repsBudget * weights[i]);
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : reps,
+      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
       restTime,
       i === 0 ? 'Chipper - complete each exercise before moving on' : undefined,
-      ex.contraction === 'ISO' ? 45 : 0 // Longer hold for chipper
+      ex.contraction === 'ISO' ? ISO_SECONDS.CHIPPER : 0
     );
   });
 }
@@ -232,15 +269,15 @@ function prescribeChipper(ctx: PrescriptionContext): ExercisePrescription[] {
 function prescribeForTime(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget } = ctx;
   const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
   return exercises.map((ex, i) => {
-    const reps = Math.round(repsBudget * weights[i]);
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : reps,
+      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
       0, // No prescribed rest - athlete moves continuously
       i === 0 ? 'For Time - complete ASAP' : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     );
   });
 }
@@ -259,9 +296,9 @@ function prescribeTabata(ctx: PrescriptionContext): ExercisePrescription[] {
     createPrescription(
       ex,
       0, // Tabata uses time, not fixed reps
-      10, // 10s rest between rounds
+      REST_TIMES.TABATA, // 10s rest between rounds
       i === 0 ? 'Tabata: 20s work / 10s rest x 8 rounds' : undefined,
-      20 // 20 seconds work
+      ISO_SECONDS.TABATA_WORK // 20 seconds work
     )
   );
 }
@@ -274,8 +311,18 @@ function prescribeIntervalTraining(ctx: PrescriptionContext): ExercisePrescripti
   const { exercises, intensity } = ctx;
 
   // Work duration based on intensity
-  const workSeconds = intensity >= 80 ? 30 : intensity >= 70 ? 40 : 45;
-  const intervalRest = intensity >= 80 ? 30 : intensity >= 70 ? 20 : 15;
+  let workSeconds: number;
+  let intervalRest: number;
+  if (intensity >= INTENSITY_THRESHOLDS.HIGH) {
+    workSeconds = INTERVAL_SECONDS.HIGH_WORK;
+    intervalRest = INTERVAL_SECONDS.HIGH_REST;
+  } else if (intensity >= INTENSITY_THRESHOLDS.MEDIUM) {
+    workSeconds = INTERVAL_SECONDS.MEDIUM_WORK;
+    intervalRest = INTERVAL_SECONDS.MEDIUM_REST;
+  } else {
+    workSeconds = INTERVAL_SECONDS.LOW_WORK;
+    intervalRest = INTERVAL_SECONDS.LOW_REST;
+  }
 
   return exercises.map((ex, i) =>
     createPrescription(
@@ -318,19 +365,20 @@ function prescribeTimeCap(ctx: PrescriptionContext): ExercisePrescription[] {
 function prescribeCluster(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget } = ctx;
   const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
   // Cluster uses smaller rep chunks with notation
   return exercises.map((ex, i) => {
-    const totalReps = Math.round(repsBudget * weights[i]);
-    const clusterSize = Math.min(5, Math.ceil(totalReps / 3)); // 3 clusters of ~5 reps
+    const totalReps = repsAllocation[i];
+    const clusterSize = REPS.CLUSTER_SIZE;
     const clusters = Math.ceil(totalReps / clusterSize);
 
     return createPrescription(
       ex,
       ex.contraction === 'ISO' ? 0 : totalReps,
-      15, // Short cluster rest
-      i === 0 ? `Cluster: ${clusters}x${clusterSize} reps, 15s between clusters` : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      REST_TIMES.CLUSTER,
+      i === 0 ? `Cluster: ${clusters}x${clusterSize} reps, ${REST_TIMES.CLUSTER}s between clusters` : undefined,
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     );
   });
 }
@@ -340,20 +388,19 @@ function prescribeCluster(ctx: PrescriptionContext): ExercisePrescription[] {
  * Structure: Standard reps but must be unbroken
  */
 function prescribeUnbrokenReps(ctx: PrescriptionContext): ExercisePrescription[] {
-  const { exercises, repsBudget, restTime } = ctx;
-  const weights = calculateInverseDifficultyWeights(exercises);
-
+  const { exercises, restTime } = ctx;
   // Lower rep counts for unbroken requirement
-  const unbrokenMultiplier = 0.7; // 70% of normal for unbroken
+  const adjustedBudget = roundToNearest5(ctx.repsBudget * REPS.UNBROKEN_FACTOR);
+  const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, adjustedBudget, weights);
 
   return exercises.map((ex, i) => {
-    const reps = Math.round(repsBudget * weights[i] * unbrokenMultiplier);
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : Math.max(reps, 5),
+      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
       restTime,
       i === 0 ? 'Unbroken - no rest during set' : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     );
   });
 }
@@ -372,7 +419,7 @@ function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
       0, // Max effort, no fixed target
       restTime,
       i === 0 ? 'For Max Reps - max effort' : undefined,
-      ex.contraction === 'ISO' ? 60 : 0 // Longer hold for max
+      ex.contraction === 'ISO' ? ISO_SECONDS.MAX_EFFORT : 0
     )
   );
 }
@@ -383,49 +430,50 @@ function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
 
 /**
  * Couplet: Exactly 2 exercises alternating
- * Validates exercise count, returns null if not 2
+ * Returns null if not exactly 2 exercises to trigger standard fallback.
  */
-function prescribeCouplet(ctx: PrescriptionContext): ExercisePrescription[] {
+function prescribeCouplet(ctx: PrescriptionContext): ExercisePrescription[] | null {
   const { exercises, repsBudget } = ctx;
 
-  // Couplet requires exactly 2 exercises
+  // Couplet requires exactly 2 exercises - return null to use standard fallback
   if (exercises.length !== 2) {
-    // Log warning but continue with available exercises
-    console.warn(`Couplet expects 2 exercises, got ${exercises.length}`);
+    return null;
   }
 
-  const repsPerExercise = Math.round(repsBudget / 2);
+  const repsPerExercise = roundToNearest5(repsBudget / 2);
 
-  return exercises.slice(0, 2).map((ex, i) =>
+  return exercises.map((ex, i) =>
     createPrescription(
       ex,
       ex.contraction === 'ISO' ? 0 : repsPerExercise,
       0, // Alternate without rest
       i === 0 ? 'Couplet - alternate between exercises' : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     )
   );
 }
 
 /**
  * Triplet: Exactly 3 exercises in rotation
+ * Returns null if not exactly 3 exercises to trigger standard fallback.
  */
-function prescribeTriplet(ctx: PrescriptionContext): ExercisePrescription[] {
+function prescribeTriplet(ctx: PrescriptionContext): ExercisePrescription[] | null {
   const { exercises, repsBudget } = ctx;
 
+  // Triplet requires exactly 3 exercises - return null to use standard fallback
   if (exercises.length !== 3) {
-    console.warn(`Triplet expects 3 exercises, got ${exercises.length}`);
+    return null;
   }
 
-  const repsPerExercise = Math.round(repsBudget / 3);
+  const repsPerExercise = roundToNearest5(repsBudget / 3);
 
-  return exercises.slice(0, 3).map((ex, i) =>
+  return exercises.map((ex, i) =>
     createPrescription(
       ex,
       ex.contraction === 'ISO' ? 0 : repsPerExercise,
       0,
       i === 0 ? 'Triplet - rotate through 3 exercises' : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     )
   );
 }
@@ -440,10 +488,9 @@ function prescribeLadder(ctx: PrescriptionContext): ExercisePrescription[] {
   // High intensity = descending ladder, low = ascending
   const descending = intensity >= 75;
 
-  // Calculate ladder steps based on budget
-  // e.g., budget 60 with 3 exercises: 15+20+25 or 25+20+15
-  const baseStep = Math.round(repsBudget / exercises.length);
-  const stepVariation = Math.round(baseStep * 0.2); // 20% variation
+  // Calculate ladder steps based on budget, rounded to 5
+  const baseStep = roundToNearest5(repsBudget / exercises.length);
+  const stepVariation = 5; // Clean 5-rep variation between steps
 
   return exercises.map((ex, i) => {
     let reps: number;
@@ -452,50 +499,14 @@ function prescribeLadder(ctx: PrescriptionContext): ExercisePrescription[] {
     } else {
       reps = baseStep - stepVariation * (exercises.length - 1 - i);
     }
-    reps = Math.max(reps, 5); // Minimum 5 reps
+    reps = Math.max(reps, REPS.LADDER_MIN);
 
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : Math.round(reps),
+      ex.contraction === 'ISO' ? 0 : reps,
       restTime,
       i === 0 ? `Ladder - ${descending ? 'descending' : 'ascending'} reps` : undefined,
-      ex.contraction === 'ISO' ? 30 : 0
+      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
     );
   });
-}
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
-
-/**
- * Create a prescription object from exercise and parameters
- */
-function createPrescription(
-  exercise: SelectedExercise,
-  reps: number,
-  rest: number,
-  notes?: string,
-  seconds?: number
-): ExercisePrescription {
-  return {
-    exerciseId: exercise.exerciseId,
-    name: exercise.name,
-    contraction: exercise.contraction,
-    reps: exercise.contraction === 'ISO' ? 0 : reps,
-    seconds: seconds ?? (exercise.contraction === 'ISO' ? 30 : 0),
-    rest,
-    notes,
-    dificultadLineal: exercise.difficulty,
-  };
-}
-
-/**
- * Calculate inverse difficulty weights for rep distribution.
- * Easier exercises (lower difficulty) get more reps.
- */
-function calculateInverseDifficultyWeights(exercises: readonly SelectedExercise[]): number[] {
-  const inverseWeights = exercises.map(e => 1 / Math.max(e.difficulty, 1));
-  const totalWeight = inverseWeights.reduce((sum, w) => sum + w, 0);
-  return inverseWeights.map(w => w / totalWeight);
 }

@@ -12,39 +12,16 @@
 import { MySql2Database } from 'drizzle-orm/mysql2';
 import * as schema from '../../../db/schema';
 import type { BlockContextWithFormat, BlockContextWithExercises } from './context';
-import type { LevelGroup, Contraction, SelectedExercise } from '../types';
+import type { Contraction, SelectedExercise } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { selectExercisesWithFallback } from '../fallback/exercise-fallback';
-import type { FallbackAction, ExerciseLevel } from '../fallback/types';
-
-/** Get allowed levels for a level group */
-function getAllowedLevels(levelGroup: LevelGroup): ExerciseLevel[] {
-  switch (levelGroup) {
-    case 'alfa_delta':
-      return ['alfa', 'delta'];
-    case 'sigma':
-      return ['alfa', 'delta', 'sigma'];
-    case 'omega':
-      return ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-  }
-}
-
-/**
- * Linear difficulty base values per level
- * Used to calculate maxDificultadLineal from level and bucket
- */
-const LEVEL_LINEAR_BASE: Record<ExerciseLevel, number> = {
-  alfa: 0,     // Alfa: 1-3 (base 0 + bucket)
-  delta: 3,    // Delta: 4-6 (base 3 + bucket)
-  sigma: 6,    // Sigma: 7-8 (base 6 + bucket)
-  omega: 8,    // Omega: 9-10 (base 8 + bucket)
-  spartan: 10, // Spartan: 11-12 (base 10 + bucket)
-};
-
-/**
- * Level progression for Nivel Superior mapping
- */
-const LEVEL_PROGRESSION: readonly ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+import type { FallbackAction } from '../fallback/types';
+import {
+  getAllowedLevels,
+  LEVEL_LINEAR_BASE,
+  LEVEL_PROGRESSION,
+  type ExerciseLevel,
+} from './utils/level-mapping';
 
 /**
  * Calculate linear difficulty target based on member level, intensity, and difficulty bucket
@@ -290,6 +267,31 @@ export async function selectExercises(
       }
     );
     updatedCtx = appendTrace(updatedCtx, summaryTrace);
+  }
+
+  // Check for all-ISO block when mix expected non-ISO exercises
+  const expectedNonISO = ctx.contractionMix.CON + ctx.contractionMix.EXC;
+  const actualNonISO = selectedExercises.filter(e => e.contraction !== 'ISO').length;
+  const allISO = actualNonISO === 0 && selectedExercises.length > 0;
+
+  if (allISO && expectedNonISO > 0) {
+    // All exercises are ISO when we expected some non-ISO
+    // This can happen when CON/EXC fallbacks substitute to ISO
+    const isoWarningTrace = createTraceEvent(
+      updatedCtx,
+      'CONTRACTION_MIX_ALL_ISO',
+      'WARNING',
+      {
+        expected: ctx.contractionMix,
+        actualCounts: {
+          CON: selectedExercises.filter(e => e.contraction === 'CON').length,
+          EXC: selectedExercises.filter(e => e.contraction === 'EXC').length,
+          ISO: selectedExercises.filter(e => e.contraction === 'ISO').length,
+        },
+        message: 'All exercises are isometric; mix expected non-ISO exercises',
+      }
+    );
+    updatedCtx = appendTrace(updatedCtx, isoWarningTrace);
   }
 
   return {
