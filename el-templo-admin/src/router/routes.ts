@@ -12,7 +12,7 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: '/sessions' },
       { path: 'sessions', component: () => import('pages/DashboardPage.vue') },
-      { path: 'generate', component: () => import('pages/DashboardPage.vue') },
+      { path: 'generate', component: () => import('pages/GeneratePage.vue') },
       { path: 'discarded', component: () => import('pages/DashboardPage.vue') },
     ],
   },
