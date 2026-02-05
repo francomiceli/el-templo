@@ -2,7 +2,10 @@
 
 ## Overview
 
-This roadmap delivers the Admin App module for El Templo. v2.0 Phase 13 focuses on reviewing and improving the session generation algorithm based on 19 weeks of coach-built examples. The algorithm must produce SPOM-compliant sessions that match coach expectations before building the admin UI for session management.
+This roadmap delivers the Admin App module for El Templo. The milestone covers:
+1. **Session Generation** (Phase 13) - Algorithm review and improvement based on coach examples
+2. **Session Management** (Phases 14-16) - Admin UI for reviewing, editing, and creating sessions
+3. **Branch Attendance** (Phases 17-19) - Member plans, booking system, and capacity management
 
 ## Phases
 
@@ -10,14 +13,20 @@ This roadmap delivers the Admin App module for El Templo. v2.0 Phase 13 focuses 
 - Continues from v1.0 (ended at Phase 12)
 - Phase 13+ is v2.0 Admin App work
 
-- [ ] **Phase 13: Session Generation Review & Improvement** - Analyze examples, fix difficulty system, document block specs, validate algorithm
+- [x] **Phase 13: Session Generation Review & Improvement** - Analyze examples, fix difficulty system, validate algorithm
+- [ ] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
+- [ ] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
+- [ ] **Phase 16: Admin Session Creation** - Build sessions from scratch using exercise database
+- [ ] **Phase 17: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
+- [ ] **Phase 18: Admin Member Attendance Management** - Manage bookings, capacity, member plans
+- [ ] **Phase 19: Member Booking UI** - Members view availability and reserve training spots
 
 ## Phase Details
 
 ### Phase 13: Session Generation Review & Improvement
 **Goal**: Algorithm produces accurate, SPOM-compliant sessions matching coach-built examples
 **Depends on**: v1.0 complete (Phase 12)
-**Requirements**: DIFF-01 through DIFF-05, BLOCK-01 through BLOCK-06, EXER-01 through EXER-04, ALGO-01 through ALGO-05, INIT-01 through INIT-03, FORM-01 through FORM-02
+**Status**: Complete
 **Success Criteria** (what must be TRUE):
   1. Dificultad Lineal column added to Ejercicios.csv with correct mappings
   2. Database exercises table updated with linear difficulty values
@@ -27,26 +36,122 @@ This roadmap delivers the Admin App module for El Templo. v2.0 Phase 13 focuses 
   6. Block difficulty average validated within +/-0.5 of target
   7. Contraction distribution matches Contraccion rules exactly
   8. Algorithm generates valid sessions that follow patterns observed in 19 example weeks
-**Plans**: 7 plans in 4 waves
 
 Plans:
-- [x] 13-01-PLAN.md — Difficulty System Foundation (linear difficulty 1-12, DB migration, pipeline update)
-- [x] 13-02-PLAN.md — Block Specifications Documentation (document all blocks, exercise count cap)
-- [x] 13-03-PLAN.md — Validation Suite (parse coach examples, comparison logic, initial validation)
-- [x] 13-04-PLAN.md — Initium Contextual Enhancement (relate warmup to day's Nucleus)
-- [ ] 13-05-PLAN.md — Algorithm Integration & Final Validation (fix discrepancies, human verification)
-- [ ] 13-06-PLAN.md — HIGH Priority Format Prescribers (Buy-in/Cash-out, AMRAP, EMOM, Complex, Chipper)
-- [ ] 13-07-PLAN.md — MEDIUM Priority Format Prescribers (For Time, Tabata, Interval, Cluster, Ladder, etc.)
+- [x] 13-01-PLAN.md — Difficulty System Foundation
+- [x] 13-02-PLAN.md — Block Specifications Documentation
+- [x] 13-03-PLAN.md — Validation Suite
+- [x] 13-04-PLAN.md — Initium Contextual Enhancement
+- [x] 13-05-PLAN.md — Algorithm Integration & Final Validation
+- [x] 13-06-PLAN.md — HIGH Priority Format Prescribers
+- [x] 13-07-PLAN.md — MEDIUM Priority Format Prescribers
+
+---
+
+### Phase 14: Admin Session Review UI
+**Goal**: Coaches can view algorithm-generated sessions and approve them for member visibility
+**Depends on**: Phase 13 (algorithm produces valid sessions)
+**Plans:** 8 plans
+**Success Criteria** (what must be TRUE):
+  1. Admin dashboard shows list of pending sessions (by week/day)
+  2. Sessions have status: pending_review → approved | discarded
+  3. Coach can view full session details (blocks, exercises, formats, prescriptions)
+  4. Coach can approve session (moves to approved, visible to members)
+  5. Coach can discard session with reason (moves to discarded bucket)
+  6. Members only see approved sessions in their Weekly View
+  7. Pending count badge and low-sessions alert in admin UI
+
+Plans:
+- [ ] 14-01-PLAN.md — Database schema extension (status, approval columns, timezone)
+- [ ] 14-02-PLAN.md — Admin Quasar app scaffold with authentication
+- [ ] 14-03-PLAN.md — Admin API endpoints (list, approve, discard, revert, bulk)
+- [ ] 14-04-PLAN.md — Sessions list page with filters and day tabs
+- [ ] 14-05-PLAN.md — Session detail page with block cards
+- [ ] 14-06-PLAN.md — Generation and discarded sessions pages
+- [ ] 14-07-PLAN.md — Member visibility filter and pending badge
+- [ ] 14-08-PLAN.md — Human verification of complete workflow
+
+---
+
+### Phase 15: Admin Session Editing
+**Goal**: Coaches can modify pending sessions before approval
+**Depends on**: Phase 14 (review UI exists)
+**Success Criteria** (what must be TRUE):
+  1. Coach can swap exercises within a block (from exercise database)
+  2. Coach can modify prescription (reps, sets, rest times)
+  3. Coach can change block format
+  4. Coach can add/remove exercises from a block
+  5. Edit history tracked (who changed what, when)
+  6. Validation prevents invalid sessions (e.g., wrong contraction mix)
+  7. Preview shows how session will appear to members
+
+---
+
+### Phase 16: Admin Session Creation
+**Goal**: Coaches can build sessions from scratch without algorithm
+**Depends on**: Phase 15 (editing infrastructure exists)
+**Success Criteria** (what must be TRUE):
+  1. Coach can create new session for any date/level
+  2. Coach can add blocks with chosen format
+  3. Coach can search/filter exercise database and add exercises
+  4. Coach can set prescriptions manually
+  5. Created sessions follow same approval workflow
+  6. Templates: save session as template, create from template
+  7. Copy: duplicate existing session to new date
+
+---
+
+### Phase 17: Branch Attendance Data Model
+**Goal**: Data structures for managing branch capacity, schedules, and member plans
+**Depends on**: Documentation (awaiting from user)
+**Success Criteria** (what must be TRUE):
+  1. Branch has capacity (max members per time slot)
+  2. Schedule defines available time slots per branch per day
+  3. Member plans define attendance allowance (days/week, specific days, etc.)
+  4. Booking records member reservations for specific slots
+  5. Database schema supports multi-branch with different capacities/schedules
+
+---
+
+### Phase 18: Admin Member Attendance Management
+**Goal**: Admins/coaches can manage member plans and view attendance
+**Depends on**: Phase 17 (data model exists)
+**Success Criteria** (what must be TRUE):
+  1. Admin can view branch schedule with current bookings
+  2. Admin can see capacity utilization per slot
+  3. Admin can assign/modify member plans
+  4. Admin can manually add/remove bookings for members
+  5. Admin can view member attendance history
+  6. Waitlist management if slot is full
+
+---
+
+### Phase 19: Member Booking UI
+**Goal**: Members can view availability and reserve training spots
+**Depends on**: Phase 18 (admin management exists)
+**Success Criteria** (what must be TRUE):
+  1. Member sees weekly schedule with available slots
+  2. Member can book available slot within their plan allowance
+  3. Member can cancel booking (with cancellation policy)
+  4. Member sees their upcoming bookings
+  5. Member sees their plan details (remaining days, restrictions)
+  6. Push notification for booking confirmation/reminder
 
 ## Progress
 
 **Execution Order:**
-Phase 13 is the first phase of v2.0 Admin App.
+Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Session Generation Review | 0/5 | Planned | — |
+| 13. Session Generation Review | 7/7 | Complete | 2026-02-04 |
+| 14. Admin Session Review UI | 0/8 | Planned | — |
+| 15. Admin Session Editing | 0/? | Not Started | — |
+| 16. Admin Session Creation | 0/? | Not Started | — |
+| 17. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
+| 18. Admin Member Attendance | 0/? | Not Started | — |
+| 19. Member Booking UI | 0/? | Not Started | — |
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-04 — Phase 13 planned (5 plans in 3 waves)*
+*Last updated: 2026-02-05 — Phase 14 planned (8 plans in 5 waves)*
