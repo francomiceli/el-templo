@@ -10,13 +10,13 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 14 (Admin Session Review UI) — **IN PROGRESS**
-Plan: 01 of 4 (database schema complete)
-Status: **In Progress** — Plan 14-01 complete
-Last activity: 2026-02-05 - Completed 14-01 database schema for admin workflow
+Plan: 02 of 4 (admin app scaffold complete)
+Status: **In Progress** — Plan 14-02 complete
+Last activity: 2026-02-05 - Completed 14-02 admin app scaffold with authentication
 
-Progress: [█░░░░░░░░░] 25% Phase 14 (1/4 plans)
+Progress: [██░░░░░░░░] 50% Phase 14 (2/4 plans)
 
-**Next:** Plan 14-02 - Admin API Endpoints
+**Next:** Plan 14-03 - Sessions List Page
 
 ## Architecture Reset
 
@@ -280,6 +280,10 @@ Recent decisions affecting current work:
 | 14-01 | ON DELETE SET NULL for approval/discard FKs | Preserve session history even if user deleted |
 | 14-01 | pending_review as default status | All existing and new sessions need review |
 | 14-01 | approvedBySystem boolean | Distinguishes manual vs auto-approved sessions |
+| 14-02 | Web-only admin app | No Capacitor - admin runs in browser only |
+| 14-02 | History mode routing for admin | Clean URLs without hash for web-only app |
+| 14-02 | Port 9100 for admin | Different from member app (9000) for parallel dev |
+| 14-02 | localStorage for admin tokens | No native storage needed for browser-only app |
 
 ### Pending Todos
 
@@ -300,7 +304,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-01 database schema for admin session workflow
+Stopped at: Completed 14-02 admin app scaffold with authentication
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
