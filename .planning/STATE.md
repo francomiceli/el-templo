@@ -10,13 +10,13 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 14 (Admin Session Review UI) — **IN PROGRESS**
-Plan: 04 of 8 (Sessions List Page complete)
-Status: **In Progress** — Plan 14-04 complete
-Last activity: 2026-02-05 - Completed 14-04 Sessions List Page
+Plan: 06 of 8 (Generation and Discarded Pages complete)
+Status: **In Progress** — Plan 14-06 complete
+Last activity: 2026-02-05 - Completed 14-06 Generation and Discarded Pages
 
-Progress: [██████░░░░] 62% Phase 14 (5/8 plans)
+Progress: [███████░░░] 75% Phase 14 (6/8 plans)
 
-**Next:** Plan 14-06 - Discarded Sessions Page or 14-07 - Generate Week Page
+**Next:** Plan 14-07 (if exists) or Phase 14 completion
 
 ## Architecture Reset
 
@@ -295,6 +295,9 @@ Recent decisions affecting current work:
 | 14-04 | Pending sessions sorted first | Coaches see action-required sessions before approved/discarded |
 | 14-04 | Greek letters for level display | Compact table display (a/D, S, O) matches member app convention |
 | 14-04 | Bulk approve confirmation required | Prevents accidental mass approval |
+| 14-06 | Future weeks only for generation | currentWeek + 1 minimum, cannot regenerate past/current weeks |
+| 14-06 | Hierarchical generation scope | Week, Day, Day+Level granularity for targeted regeneration |
+| 14-06 | StatusIndicator inline component | defineComponent with render function for simple status icons |
 
 ### Pending Todos
 
@@ -315,7 +318,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-04 Sessions List Page
+Stopped at: Completed 14-06 Generation and Discarded Pages
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
