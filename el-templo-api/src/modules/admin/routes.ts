@@ -5,6 +5,8 @@ import {
   sessionIdSchema,
   discardSchema,
   bulkApproveSchema,
+  getWeekSummarySchema,
+  generateWeekSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
@@ -103,5 +105,31 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       request.user.userId
     );
     return { success: true, approvedCount: count };
+  });
+
+  // GET /admin/weeks/:week/summary - Get week generation status
+  fastify.get<{ Params: { week: number } }>('/weeks/:week/summary', {
+    schema: getWeekSummarySchema,
+  }, async (request) => {
+    return adminService.getWeekSummary(request.params.week);
+  });
+
+  // POST /admin/generate - Generate sessions for a week
+  fastify.post<{
+    Body: {
+      week: number;
+      days?: string[];
+      levelGroups?: string[];
+      regenerate?: boolean;
+    };
+  }>('/generate', {
+    schema: generateWeekSchema,
+  }, async (request) => {
+    const result = await adminService.generateWeek(request.body.week, {
+      days: request.body.days,
+      levelGroups: request.body.levelGroups,
+      regenerate: request.body.regenerate,
+    });
+    return result;
   });
 };

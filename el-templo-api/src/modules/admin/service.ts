@@ -2,6 +2,7 @@ import { MySql2Database } from 'drizzle-orm/mysql2';
 import { eq, and, desc, asc, inArray, count } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { SessionStatus } from './types';
+import type { LevelGroup, ExerciseLevel } from '../sessions/types';
 
 export interface SessionFilter {
   week?: number;
@@ -241,5 +242,108 @@ export class AdminSessionService {
       ));
 
     return result.affectedRows > 0;
+  }
+
+  async getWeekSummary(week: number): Promise<{
+    week: number;
+    days: {
+      day: string;
+      levels: {
+        levelGroup: string;
+        hasSession: boolean;
+        status: SessionStatus | null;
+      }[];
+    }[];
+  }> {
+    const sessions = await this.db
+      .select({
+        day: schema.sessions.day,
+        levelGroup: schema.sessions.levelGroup,
+        status: schema.sessions.status,
+      })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.week, week));
+
+    const days = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const levels: LevelGroup[] = ['alfa_delta', 'sigma', 'omega'];
+
+    return {
+      week,
+      days: days.map(day => ({
+        day,
+        levels: levels.map(levelGroup => {
+          const session = sessions.find(s => s.day === day && s.levelGroup === levelGroup);
+          return {
+            levelGroup,
+            hasSession: !!session,
+            status: (session?.status as SessionStatus) || null,
+          };
+        }),
+      })),
+    };
+  }
+
+  async generateWeek(week: number, options: {
+    days?: string[];
+    levelGroups?: string[];
+    regenerate?: boolean;
+  }): Promise<{ generated: number; skipped: number }> {
+    const days = options.days || ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const levelGroups = options.levelGroups || ['alfa_delta', 'sigma', 'omega'];
+
+    let generated = 0;
+    let skipped = 0;
+
+    // Import SessionGeneratorService dynamically to avoid circular deps
+    const { SessionGeneratorService } = await import('../sessions/service.js');
+    const sessionService = new SessionGeneratorService(this.db);
+
+    for (const day of days) {
+      for (const levelGroup of levelGroups) {
+        // Map levelGroup to memberLevels
+        const memberLevels: ExerciseLevel[] = levelGroup === 'alfa_delta'
+          ? ['alfa', 'delta']
+          : levelGroup === 'sigma'
+          ? ['sigma']
+          : ['omega', 'spartan'];
+
+        for (const memberLevel of memberLevels) {
+          const dayId = `W${week}-${day}-${memberLevel}`;
+
+          // Check if session exists
+          const existing = await sessionService.getSessionByDayId(dayId);
+
+          if (existing && !options.regenerate) {
+            skipped++;
+            continue;
+          }
+
+          if (existing && options.regenerate) {
+            // Discard existing session
+            await this.db
+              .update(schema.sessions)
+              .set({
+                status: 'discarded',
+                discardedAt: new Date(),
+                discardedReason: 'Regenerated',
+              })
+              .where(eq(schema.sessions.dayId, dayId));
+          }
+
+          // Generate new session
+          const session = await sessionService.generateDailySession({
+            week,
+            day,
+            levelGroup: levelGroup as LevelGroup,
+            memberLevel,
+          });
+
+          await sessionService.saveSession(session);
+          generated++;
+        }
+      }
+    }
+
+    return { generated, skipped };
   }
 }

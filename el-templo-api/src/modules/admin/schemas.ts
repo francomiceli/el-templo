@@ -49,3 +49,32 @@ export const bulkApproveSchema = {
     },
   },
 };
+
+export const getWeekSummarySchema = {
+  params: {
+    type: 'object',
+    required: ['week'],
+    properties: {
+      week: { type: 'integer' },
+    },
+  },
+};
+
+export const generateWeekSchema = {
+  body: {
+    type: 'object',
+    required: ['week'],
+    properties: {
+      week: { type: 'integer', minimum: 1, maximum: 52 },
+      days: {
+        type: 'array',
+        items: { type: 'string', enum: ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] },
+      },
+      levelGroups: {
+        type: 'array',
+        items: { type: 'string', enum: ['alfa_delta', 'sigma', 'omega'] },
+      },
+      regenerate: { type: 'boolean', default: false },
+    },
+  },
+};
