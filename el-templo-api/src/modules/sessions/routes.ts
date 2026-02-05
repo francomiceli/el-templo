@@ -106,6 +106,13 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             error: { type: 'string' },
           },
         },
+        404: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' },
+          },
+        },
       },
     },
   }, async (request, reply) => {
@@ -124,7 +131,6 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
     // 2. Extract memberLevel and compute levelGroup
     const memberLevel = user.level as ExerciseLevel;
-    const levelGroup = levelToLevelGroup(memberLevel);
 
     // 3. Get current SPOM week
     const week = await spomService.getCurrentWeek();
@@ -140,22 +146,14 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     // 5. Build dayId with memberLevel
     const dayId = `W${week}-${dayName}-${memberLevel}`;
 
-    // 6. Check DB cache
-    const cached = await sessionService.getSessionByDayId(dayId);
-    if (cached) {
-      return sessionToResponse(cached);
+    // 6. Check DB for approved session only (no auto-generation for members)
+    const session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
+    if (!session) {
+      return reply.status(404).send({
+        error: 'Sesion no disponible',
+        message: 'La sesion para este dia aun no ha sido aprobada',
+      });
     }
-
-    // 7. Generate and save
-    const session = await sessionService.generateDailySession({
-      week,
-      day: dayName,
-      levelGroup,
-      memberLevel,
-    });
-
-    // 8. Save to database (explicit persistence)
-    await sessionService.saveSession(session);
 
     return sessionToResponse(session);
   });
@@ -207,9 +205,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'User not found' });
     }
 
-    // 2. Extract memberLevel and compute levelGroup
+    // 2. Extract memberLevel
     const memberLevel = user.level as ExerciseLevel;
-    const levelGroup = levelToLevelGroup(memberLevel);
 
     // 3. Get current SPOM week
     const week = await spomService.getCurrentWeek();
@@ -226,7 +223,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       weekDates.push(`${year}-${month}-${day}`);
     }
 
-    // 5. Fetch/generate sessions for each day (skip Sunday)
+    // 5. Fetch approved sessions for each day (no auto-generation for members)
     const sessionsMap: Record<string, ReturnType<typeof sessionToResponse> | null> = {};
 
     for (const date of weekDates) {
@@ -240,21 +237,11 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       const dayId = `W${week}-${dayName}-${memberLevel}`;
 
-      // Check cache first
-      let session = await sessionService.getSessionByDayId(dayId);
+      // Only return approved sessions (requireApproved=true)
+      const session = await sessionService.getSessionByDayId(dayId, true);
 
-      if (!session) {
-        // Generate and save
-        session = await sessionService.generateDailySession({
-          week,
-          day: dayName,
-          levelGroup,
-          memberLevel,
-        });
-        await sessionService.saveSession(session);
-      }
-
-      sessionsMap[date] = sessionToResponse(session);
+      // Set null if no approved session exists (no auto-generation)
+      sessionsMap[date] = session ? sessionToResponse(session) : null;
     }
 
     return { sessions: sessionsMap };

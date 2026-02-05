@@ -14,7 +14,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext, type BlockPipelineOptions } from './pipeline';
@@ -407,14 +407,21 @@ export class SessionGeneratorService {
    * session object reconstructed from DB if found.
    *
    * @param dayId - Unique session identifier (e.g., W1-lunes-sigma)
+   * @param requireApproved - If true, only return approved sessions
    * @returns DaySession if found, null otherwise
    */
-  async getSessionByDayId(dayId: string): Promise<DaySession | null> {
+  async getSessionByDayId(dayId: string, requireApproved = false): Promise<DaySession | null> {
+    // Build query conditions
+    const conditions = [eq(schema.sessions.dayId, dayId)];
+    if (requireApproved) {
+      conditions.push(eq(schema.sessions.status, 'approved'));
+    }
+
     // Query session
     const [session] = await this.db
       .select()
       .from(schema.sessions)
-      .where(eq(schema.sessions.dayId, dayId));
+      .where(and(...conditions));
 
     if (!session) {
       return null;
