@@ -12,6 +12,7 @@ dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 import { buildApp } from './app';
+import { startAutoApproveJob } from './jobs/auto-approve';
 
 async function start() {
   const app = await buildApp();
@@ -22,6 +23,9 @@ async function start() {
       host: '0.0.0.0', // Listen on all interfaces for mobile emulator access
     });
     console.log(`Server listening on http://0.0.0.0:${process.env.PORT || 3000}`);
+
+    // Start cron jobs after server is ready
+    startAutoApproveJob(app.db);
   } catch (err) {
     app.log.error(err);
     process.exit(1);

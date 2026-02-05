@@ -1,5 +1,5 @@
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, desc, asc, inArray, count } from 'drizzle-orm';
+import { eq, and, desc, asc, inArray, count, gte } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { SessionStatus } from './types';
 import type { LevelGroup, ExerciseLevel } from '../sessions/types';
@@ -281,6 +281,104 @@ export class AdminSessionService {
         }),
       })),
     };
+  }
+
+  /**
+   * Get weeks coverage info for alert display
+   * Returns current week, which weeks have approved sessions, and how many weeks ahead
+   */
+  async getApprovedWeeksCoverage(): Promise<{
+    currentWeek: number;
+    weeksWithApproved: number[];
+    weeksAhead: number;
+  }> {
+    // Get current SPOM week
+    const [configRow] = await this.db.select().from(schema.spomConfig);
+    const currentWeek = configRow?.currentWeek || 1;
+
+    // Get weeks that have at least one approved session (current week or later)
+    const approvedWeeks = await this.db
+      .selectDistinct({ week: schema.sessions.week })
+      .from(schema.sessions)
+      .where(
+        and(
+          eq(schema.sessions.status, 'approved'),
+          gte(schema.sessions.week, currentWeek)
+        )
+      );
+
+    const weeksWithApproved = approvedWeeks.map(r => r.week).sort((a, b) => a - b);
+    const weeksAhead = weeksWithApproved.length > 0
+      ? Math.max(...weeksWithApproved) - currentWeek
+      : 0;
+
+    return {
+      currentWeek,
+      weeksWithApproved,
+      weeksAhead,
+    };
+  }
+
+  /**
+   * Auto-approve pending sessions for tomorrow
+   * Called by cron job at 23:59 daily to ensure sessions are available
+   */
+  async autoApprovePendingSessions(): Promise<{ approved: number }> {
+    // Get current SPOM week
+    const [configRow] = await this.db.select().from(schema.spomConfig);
+    const currentWeek = configRow?.currentWeek || 1;
+
+    // Calculate tomorrow's day based on branch timezone (Argentina)
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const dayOfWeek = tomorrow.getDay(); // 0=Sun, 1=Mon, ...
+    const dayMap: Record<number, string> = {
+      1: 'lunes',
+      2: 'martes',
+      3: 'miercoles',
+      4: 'jueves',
+      5: 'viernes',
+      6: 'sabado',
+    };
+
+    const tomorrowDay = dayMap[dayOfWeek];
+
+    // If Sunday (no key in dayMap), skip - no sessions on Sunday
+    if (!tomorrowDay) {
+      return { approved: 0 };
+    }
+
+    // Find all pending sessions for tomorrow
+    const pendingSessions = await this.db
+      .select({ id: schema.sessions.id })
+      .from(schema.sessions)
+      .where(
+        and(
+          eq(schema.sessions.status, 'pending_review'),
+          eq(schema.sessions.week, currentWeek),
+          eq(schema.sessions.day, tomorrowDay)
+        )
+      );
+
+    if (pendingSessions.length === 0) {
+      return { approved: 0 };
+    }
+
+    // Auto-approve them with approvedBySystem=true flag
+    const sessionIds = pendingSessions.map(s => s.id);
+    await this.db
+      .update(schema.sessions)
+      .set({
+        status: 'approved',
+        approvedAt: new Date(),
+        approvedBy: null, // null indicates auto-approved (no user)
+        approvedBySystem: true, // Flag to distinguish from manual approval
+      })
+      .where(inArray(schema.sessions.id, sessionIds));
+
+    return { approved: pendingSessions.length };
   }
 
   async generateWeek(week: number, options: {

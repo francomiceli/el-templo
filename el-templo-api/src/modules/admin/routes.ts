@@ -34,6 +34,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     return { count };
   });
 
+  // GET /admin/sessions/coverage - Get weeks coverage info for alert display
+  fastify.get('/sessions/coverage', async () => {
+    return adminService.getApprovedWeeksCoverage();
+  });
+
   // GET /admin/sessions/:id - Get session details
   fastify.get<{ Params: { id: number } }>('/sessions/:id', {
     schema: sessionIdSchema,
