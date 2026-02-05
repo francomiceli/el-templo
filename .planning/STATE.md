@@ -5,18 +5,18 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 13 (Session Generation Review)
+**Current focus:** v2.0 Admin App - Phase 14 (Admin Session Review UI)
 
 ## Current Position
 
-Phase: 13 (Session Generation Review & Improvement)
-Plan: 07 of 8 (MEDIUM Priority Format Prescribers)
-Status: **In Progress** (Format prescribers Wave 4)
-Last activity: 2026-02-04 - Completed 13-07-PLAN.md (MEDIUM Priority Format Prescribers)
+Phase: 14 (Admin Session Review UI) — **IN PROGRESS**
+Plan: 01 of 4 (database schema complete)
+Status: **In Progress** — Plan 14-01 complete
+Last activity: 2026-02-05 - Completed 14-01 database schema for admin workflow
 
-Progress: [█████████░] ~92% (Format prescribers 7/8 complete)
+Progress: [█░░░░░░░░░] 25% Phase 14 (1/4 plans)
 
-**Note:** Plans 13-06 and 13-07 extend format-specific prescription logic
+**Next:** Plan 14-02 - Admin API Endpoints
 
 ## Architecture Reset
 
@@ -277,6 +277,9 @@ Recent decisions affecting current work:
 | 13-07 | Unbroken: 70% multiplier | Sustainable sets require lower targets |
 | 13-07 | Ladder: 75% threshold | High intensity = descending (harder first) |
 | 13-07 | Couplet/Triplet: slice exercises | Graceful handling when counts mismatch |
+| 14-01 | ON DELETE SET NULL for approval/discard FKs | Preserve session history even if user deleted |
+| 14-01 | pending_review as default status | All existing and new sessions need review |
+| 14-01 | approvedBySystem boolean | Distinguishes manual vs auto-approved sessions |
 
 ### Pending Todos
 
@@ -296,8 +299,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-04
-Stopped at: Completed 13-07-PLAN.md - MEDIUM priority format prescribers (10 formats added)
+Last session: 2026-02-05
+Stopped at: Completed 14-01 database schema for admin session workflow
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
