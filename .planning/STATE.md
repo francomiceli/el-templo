@@ -10,13 +10,13 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 14 (Admin Session Review UI) — **IN PROGRESS**
-Plan: 02 of 4 (admin app scaffold complete)
-Status: **In Progress** — Plan 14-02 complete
-Last activity: 2026-02-05 - Completed 14-02 admin app scaffold with authentication
+Plan: 03 of 4 (admin API endpoints complete)
+Status: **In Progress** — Plan 14-03 complete
+Last activity: 2026-02-05 - Completed 14-03 admin API endpoints
 
-Progress: [██░░░░░░░░] 50% Phase 14 (2/4 plans)
+Progress: [███░░░░░░░] 75% Phase 14 (3/4 plans)
 
-**Next:** Plan 14-03 - Sessions List Page
+**Next:** Plan 14-04 - Sessions List Page UI
 
 ## Architecture Reset
 
@@ -284,6 +284,10 @@ Recent decisions affecting current work:
 | 14-02 | History mode routing for admin | Clean URLs without hash for web-only app |
 | 14-02 | Port 9100 for admin | Different from member app (9000) for parallel dev |
 | 14-02 | localStorage for admin tokens | No native storage needed for browser-only app |
+| 14-03 | Admin role check via onRequest hook | Single hook validates all admin routes, cleaner than per-route |
+| 14-03 | Admin CORS origin for port 9100 | Development localhost:9100, production admin.eltemplo.com |
+| 14-03 | Service class pattern for admin | Separates database logic from route handlers, easier to test |
+| 14-03 | Spanish error messages in admin API | "Acceso de administrador requerido", "Sesion no encontrada" |
 
 ### Pending Todos
 
@@ -304,7 +308,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-02 admin app scaffold with authentication
+Stopped at: Completed 14-03 admin API endpoints
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
