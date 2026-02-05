@@ -10,13 +10,13 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 14 (Admin Session Review UI) — **IN PROGRESS**
-Plan: 03 of 4 (admin API endpoints complete)
-Status: **In Progress** — Plan 14-03 complete
-Last activity: 2026-02-05 - Completed 14-03 admin API endpoints
+Plan: 05 of 8 (Session Detail Page complete)
+Status: **In Progress** — Plan 14-05 complete
+Last activity: 2026-02-05 - Completed 14-05 Session Detail Page
 
-Progress: [███░░░░░░░] 75% Phase 14 (3/4 plans)
+Progress: [█████░░░░░] 50% Phase 14 (4/8 plans)
 
-**Next:** Plan 14-04 - Sessions List Page UI
+**Next:** Plan 14-04 - Sessions List Page UI (or 14-06 depending on orchestration)
 
 ## Architecture Reset
 
@@ -288,6 +288,9 @@ Recent decisions affecting current work:
 | 14-03 | Admin CORS origin for port 9100 | Development localhost:9100, production admin.eltemplo.com |
 | 14-03 | Service class pattern for admin | Separates database logic from route handlers, easier to test |
 | 14-03 | Spanish error messages in admin API | "Acceso de administrador requerido", "Sesion no encontrada" |
+| 14-05 | Block colors match member app | Initium=blue, Nucleus=purple, Deuteros=teal, Athlos/Epikos=amber |
+| 14-05 | Contraction types in Spanish | Concentrico, Excentrico, Isometrico |
+| 14-05 | Algorithm details toggleable | Per-block toggle for coach debugging |
 
 ### Pending Todos
 
@@ -308,7 +311,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-05
-Stopped at: Completed 14-03 admin API endpoints
+Stopped at: Completed 14-05 Session Detail Page
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
