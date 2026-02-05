@@ -11,10 +11,10 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/AdminLayout.vue'),
     children: [
       { path: '', redirect: '/sessions' },
-      { path: 'sessions', component: () => import('pages/DashboardPage.vue') },
+      { path: 'sessions', component: () => import('pages/SessionsPage.vue') },
       { path: 'sessions/:id', component: () => import('pages/SessionDetailPage.vue') },
       { path: 'generate', component: () => import('pages/GeneratePage.vue') },
-      { path: 'discarded', component: () => import('pages/DashboardPage.vue') },
+      { path: 'discarded', component: () => import('pages/DiscardedPage.vue') },
     ],
   },
   {
