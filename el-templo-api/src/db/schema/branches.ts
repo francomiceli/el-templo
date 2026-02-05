@@ -6,6 +6,7 @@ export const branches = mysqlTable('branches', {
   id: int('id').primaryKey().autoincrement(),
   name: varchar('name', { length: 255 }).notNull(),
   code: varchar('code', { length: 10 }).notNull().unique(),
+  timezone: varchar('timezone', { length: 50 }).default('America/Argentina/Buenos_Aires').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow().notNull(),
