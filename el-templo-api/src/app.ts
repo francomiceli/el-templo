@@ -6,6 +6,7 @@ import spomPlugin from './plugins/spom';
 import sessionsPlugin from './plugins/sessions';
 import progressionPlugin from './plugins/progression';
 import { authRoutes } from './modules/auth/routes';
+import { adminRoutes } from './modules/admin';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -13,9 +14,10 @@ export async function buildApp() {
   // CORS configuration
   await app.register(cors, {
     origin: process.env.NODE_ENV === 'development'
-      ? ['http://localhost:9000', 'capacitor://localhost', 'http://localhost']
+      ? ['http://localhost:9000', 'http://localhost:9100', 'capacitor://localhost', 'http://localhost']
       : [
           process.env.FRONTEND_URL || 'https://app.eltemplo.com',
+          process.env.ADMIN_URL || 'https://admin.eltemplo.com',
           'capacitor://localhost',  // Android Capacitor
           'http://localhost',       // iOS Capacitor
         ],
@@ -38,6 +40,9 @@ export async function buildApp() {
 
   // Routes
   await app.register(authRoutes, { prefix: '/api/auth' });
+
+  // Admin routes (session management for coaches/admins)
+  await app.register(adminRoutes, { prefix: '/api/admin' });
 
   // Health check endpoint
   app.get('/health', async () => {
