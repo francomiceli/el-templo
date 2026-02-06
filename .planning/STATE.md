@@ -320,6 +320,10 @@ Recent decisions affecting current work:
 | 15-04 | Separate useEditApi from useSessionsApi | Keep review and editing API concerns isolated |
 | 15-04 | PrescriptionUpdate uses optional fields | Support partial updates (coach edits one field at a time) |
 | 15-04 | changeBlockFormat sends formatId and formatName | Backend can update both columns atomically |
+| 15-05 | Blur-save on prescription fields | Emit update only when value differs from props, avoiding unnecessary API calls |
+| 15-05 | EditableBlockCard handles remove confirmation and API calls | Row component stays focused on presentation, block card owns business logic |
+| 15-05 | Placeholder toasts for swap/add-exercise | Plan 15-06 scope, SessionEditPage shows "Proximamente" until dialog implemented |
+| 15-05 | Reset to algorithm always visible | Confirmation dialog prevents accidental use, simpler than conditional visibility |
 | 15-06 | Added pattern field to SessionBlock frontend type | Backend already returns it, needed for swap dialog block context |
 | 15-06 | Contraction filter triggers API re-fetch, search is client-side | Server-side filter for accuracy, client-side search for responsiveness |
 | 15-06 | Cross-route exercises show "Cruce" badge in deep-orange | Visual distinction for pattern_2 exercises from different routes |
