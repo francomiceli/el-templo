@@ -45,6 +45,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Copy migration SQL files to dist
+        run: cp -r src/db/migrations dist/db/
+
       - name: Upload API build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -164,11 +167,24 @@ jobs:
             app-build/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.APP_DEPLOY_PATH }}
 
-      - name: Install dependencies and restart API
+      - name: Install dependencies
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
             cd ${{ secrets.API_DEPLOY_PATH }}
             pnpm install --prod --frozen-lockfile
+          ENDSSH
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.API_DEPLOY_PATH }}
+            NODE_ENV=production node dist/db/run-migrations.js
+          ENDSSH
+
+      - name: Restart API
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.API_DEPLOY_PATH }}
             pm2 restart eltemplo-api || pm2 start dist/index.js --name eltemplo-api
           ENDSSH
 
