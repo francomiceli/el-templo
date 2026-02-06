@@ -12,18 +12,12 @@
           <template v-if="exercise.reps">{{ exercise.reps }} reps</template>
           <template v-else-if="exercise.seconds">{{ exercise.seconds }}s</template>
         </span>
-        <span v-if="exercise.rest" class="q-ml-sm text-grey">
-          | {{ exercise.rest }}s descanso
-        </span>
       </q-item-label>
     </q-item-section>
 
-    <!-- Algorithm details (toggleable) -->
-    <q-item-section side v-if="showDetails">
+    <q-item-section side v-if="exercise.dificultadLineal">
       <div class="text-caption text-grey">
-        <div v-if="exercise.dificultadLineal">
-          Dif: {{ exercise.dificultadLineal }}
-        </div>
+        Dif: {{ exercise.dificultadLineal }}
       </div>
     </q-item-section>
 
@@ -41,20 +35,19 @@ import type { SessionExercise } from 'src/types/session';
 
 const props = defineProps<{
   exercise: SessionExercise;
-  showDetails?: boolean;
 }>();
 
 const contractionLabel = computed(() => {
   switch (props.exercise.contraction?.toLowerCase()) {
     case 'con':
     case 'concentrico':
-      return 'Concentrico';
+      return 'CON';
     case 'exc':
     case 'excentrico':
-      return 'Excentrico';
+      return 'EXC';
     case 'iso':
     case 'isometrico':
-      return 'Isometrico';
+      return 'ISO';
     default:
       return props.exercise.contraction || '-';
   }

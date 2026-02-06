@@ -10,7 +10,7 @@
             v-model.number="selectedWeek"
             type="number"
             label="Semana"
-            :min="currentWeek + 1"
+            :min="1"
             max="52"
             outlined
             dense
@@ -24,17 +24,8 @@
       </q-card-section>
     </q-card>
 
-    <!-- Week validation warning -->
-    <q-banner v-if="selectedWeek <= currentWeek" class="bg-warning text-white q-mb-md">
-      <template #avatar>
-        <q-icon name="warning" />
-      </template>
-      No se pueden regenerar semanas pasadas o la semana actual. La semana actual es {{ currentWeek }}.
-      Solo semanas {{ currentWeek + 1 }} en adelante.
-    </q-banner>
-
-    <!-- Hierarchical regeneration controls -->
-    <q-card v-if="weekSummary && selectedWeek > currentWeek" flat bordered class="q-mb-md">
+    <!-- Hierarchical regeneration controls (future weeks only) -->
+    <q-card v-if="weekSummary && isFutureWeek" flat bordered class="q-mb-md">
       <q-card-section>
         <div class="text-subtitle1 q-mb-md">Nivel de Regeneracion</div>
 
@@ -81,7 +72,7 @@
     </q-card>
 
     <!-- Week summary -->
-    <q-card v-if="weekSummary && selectedWeek > currentWeek" flat bordered>
+    <q-card v-if="weekSummary" flat bordered>
       <q-card-section>
         <div class="text-subtitle1 q-mb-md">Estado de Semana {{ selectedWeek }}</div>
 
@@ -96,25 +87,25 @@
         >
           <template #body-cell-alfa_delta="props">
             <q-td :props="props">
-              <StatusIndicator :status="props.row.alfa_delta" />
+              <StatusIndicator :status="props.row.alfa_delta" :locked="!isFutureWeek" />
             </q-td>
           </template>
           <template #body-cell-sigma="props">
             <q-td :props="props">
-              <StatusIndicator :status="props.row.sigma" />
+              <StatusIndicator :status="props.row.sigma" :locked="!isFutureWeek" />
             </q-td>
           </template>
           <template #body-cell-omega="props">
             <q-td :props="props">
-              <StatusIndicator :status="props.row.omega" />
+              <StatusIndicator :status="props.row.omega" :locked="!isFutureWeek" />
             </q-td>
           </template>
         </q-table>
       </q-card-section>
 
       <!-- Regenerate options -->
-      <q-card-section v-if="hasExistingSessionsInScope" class="bg-grey-2">
-        <q-checkbox v-model="regenerate" label="Regenerar sesiones existentes (moveran a descartadas)" />
+      <q-card-section v-if="isFutureWeek && hasExistingSessionsInScope" class="bg-grey-2">
+        <q-checkbox v-model="regenerate" label="Regenerar sesiones existentes (se eliminaran permanentemente)" />
       </q-card-section>
     </q-card>
 
@@ -214,9 +205,9 @@ const hasExistingSessionsInScope = computed(() => {
   }
 });
 
-const canGenerate = computed(() => {
-  return selectedWeek.value > currentWeek.value;
-});
+const isFutureWeek = computed(() => selectedWeek.value > currentWeek.value);
+
+const canGenerate = computed(() => isFutureWeek.value);
 
 const generateButtonLabel = computed(() => {
   if (generationScope.value === 'week') {
@@ -232,7 +223,7 @@ const generateButtonLabel = computed(() => {
 });
 
 async function loadWeekSummary() {
-  if (selectedWeek.value <= currentWeek.value) {
+  if (!selectedWeek.value || selectedWeek.value < 1) {
     weekSummary.value = null;
     return;
   }
@@ -249,6 +240,23 @@ async function handleGenerate() {
     return;
   }
 
+  if (hasExistingSessionsInScope.value && regenerate.value) {
+    // Confirmation dialog for regeneration (permanent deletion)
+    $q.dialog({
+      title: 'Confirmar Regeneracion',
+      message: 'Las sesiones existentes se ELIMINARAN permanentemente y se generaran nuevas. Esta accion no se puede deshacer. Continuar?',
+      cancel: true,
+      persistent: true,
+      ok: {
+        label: 'Eliminar y Regenerar',
+        color: 'negative',
+      },
+    }).onOk(() => {
+      doGenerate();
+    });
+    return;
+  }
+
   if (hasExistingSessionsInScope.value && !regenerate.value) {
     $q.dialog({
       title: 'Sesiones existentes',
@@ -256,7 +264,8 @@ async function handleGenerate() {
       cancel: true,
     }).onOk(() => {
       regenerate.value = true;
-      doGenerate();
+      // Show the deletion confirmation
+      handleGenerate();
     });
     return;
   }
@@ -302,23 +311,31 @@ const StatusIndicator = defineComponent({
       type: String,
       default: null,
     },
+    locked: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props) {
     return () => {
+      if (props.locked) {
+        return h(QIcon, {
+          name: props.status ? 'lock' : 'remove',
+          color: props.status ? 'grey-6' : 'grey-5',
+          size: 'sm',
+        });
+      }
+
       const iconName = props.status === 'approved'
         ? 'check_circle'
         : props.status === 'pending_review'
         ? 'pending'
-        : props.status === 'discarded'
-        ? 'cancel'
         : 'remove';
 
       const iconColor = props.status === 'approved'
         ? 'positive'
         : props.status === 'pending_review'
         ? 'warning'
-        : props.status === 'discarded'
-        ? 'grey'
         : 'grey-5';
 
       return h(QIcon, {
@@ -332,8 +349,7 @@ const StatusIndicator = defineComponent({
 
 onMounted(() => {
   // TODO: Fetch current SPOM week from API
-  // Set default selected week to currentWeek + 1 (first allowed week)
-  selectedWeek.value = currentWeek.value + 1;
+  selectedWeek.value = currentWeek.value;
   loadWeekSummary();
 });
 </script>

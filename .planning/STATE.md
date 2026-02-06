@@ -63,7 +63,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42
+- Total plans completed: 43
 - Average duration: 4.1 min
 - Total execution time: 4.3 hours
 
@@ -277,6 +277,10 @@ Recent decisions affecting current work:
 | 13-07 | Unbroken: 70% multiplier | Sustainable sets require lower targets |
 | 13-07 | Ladder: 75% threshold | High intensity = descending (harder first) |
 | 13-07 | Couplet/Triplet: slice exercises | Graceful handling when counts mismatch |
+| 13-08 | Cross-route 2+1 split via pattern_2 | Non-INITIUM blocks get 1 exercise from SPOM pattern_2 cross-route pool |
+| 13-08 | Cross-route uses last contraction | Take from ISO > EXC > CON with count > 0 |
+| 13-08 | Pattern lookup: pattern then category | Try exercises.pattern first, fallback to exercises.category |
+| 13-08 | Route-specific pattern_2 = no cross-route | High intensity patterns (PL, FL, HT) yield empty pool |
 | 14-01 | ON DELETE SET NULL for approval/discard FKs | Preserve session history even if user deleted |
 | 14-01 | pending_review as default status | All existing and new sessions need review |
 | 14-01 | approvedBySystem boolean | Distinguishes manual vs auto-approved sessions |

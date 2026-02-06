@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, timestamp, json, index, boolean, text } from 'drizzle-orm/mysql-core';
+import { mysqlTable, int, varchar, timestamp, json, index, boolean } from 'drizzle-orm/mysql-core';
 import { users } from './users';
 
 export const sessions = mysqlTable('sessions', {
@@ -16,9 +16,6 @@ export const sessions = mysqlTable('sessions', {
   approvedAt: timestamp('approved_at'),
   approvedBy: int('approved_by').references(() => users.id),
   approvedBySystem: boolean('approved_by_system').default(false),
-  discardedAt: timestamp('discarded_at'),
-  discardedBy: int('discarded_by').references(() => users.id),
-  discardedReason: text('discarded_reason'),
 }, (table) => [
   index('sessions_week_day_level_idx').on(table.week, table.day, table.levelGroup),
   index('sessions_status_idx').on(table.status),

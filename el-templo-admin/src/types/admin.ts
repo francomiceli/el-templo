@@ -9,4 +9,4 @@ export interface AdminUser {
   branchId: number;
 }
 
-export type SessionStatus = 'pending_review' | 'approved' | 'discarded';
+export type SessionStatus = 'pending_review' | 'approved';

@@ -72,7 +72,6 @@ function emitFilter() {
 const statusOptions = [
   { label: 'Pendiente', value: 'pending_review' as SessionStatus },
   { label: 'Aprobada', value: 'approved' as SessionStatus },
-  { label: 'Descartada', value: 'discarded' as SessionStatus },
 ];
 
 const levelGroupOptions = [

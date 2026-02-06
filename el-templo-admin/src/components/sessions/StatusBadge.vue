@@ -28,8 +28,6 @@ const badgeColor = computed(() => {
       return 'warning';
     case 'approved':
       return props.bySystem ? 'blue-grey' : 'positive';
-    case 'discarded':
-      return 'grey';
     default:
       return 'grey';
   }
@@ -41,8 +39,6 @@ const badgeLabel = computed(() => {
       return 'Pendiente';
     case 'approved':
       return props.bySystem ? 'Auto-aprobada' : 'Aprobada';
-    case 'discarded':
-      return 'Descartada';
     default:
       return props.status;
   }

@@ -5,7 +5,7 @@ export const getSessionsSchema = {
       week: { type: 'integer' },
       day: { type: 'string' },
       levelGroup: { type: 'string' },
-      status: { type: 'string', enum: ['pending_review', 'approved', 'discarded'] },
+      status: { type: 'string', enum: ['pending_review', 'approved'] },
       page: { type: 'integer', minimum: 1, default: 1 },
       limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
       sortBy: { type: 'string', enum: ['day', 'week', 'status'] },
@@ -20,22 +20,6 @@ export const sessionIdSchema = {
     required: ['id'],
     properties: {
       id: { type: 'integer' },
-    },
-  },
-};
-
-export const discardSchema = {
-  params: {
-    type: 'object',
-    required: ['id'],
-    properties: {
-      id: { type: 'integer' },
-    },
-  },
-  body: {
-    type: 'object',
-    properties: {
-      reason: { type: 'string', maxLength: 1000 },
     },
   },
 };
@@ -75,6 +59,36 @@ export const generateWeekSchema = {
         items: { type: 'string', enum: ['alfa_delta', 'sigma', 'omega'] },
       },
       regenerate: { type: 'boolean', default: false },
+    },
+  },
+};
+
+export const getBlockPoolSchema = {
+  querystring: {
+    type: 'object',
+    required: ['route', 'memberLevel'],
+    properties: {
+      route: { type: 'string' },
+      memberLevel: { type: 'string' },
+      excludeSessionId: { type: 'integer' },
+    },
+  },
+};
+
+export const swapBlockSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['sourceBlockId'],
+    properties: {
+      sourceBlockId: { type: 'integer' },
     },
   },
 };

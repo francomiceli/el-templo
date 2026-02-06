@@ -14,7 +14,6 @@ const routes: RouteRecordRaw[] = [
       { path: 'sessions', component: () => import('pages/SessionsPage.vue') },
       { path: 'sessions/:id', component: () => import('pages/SessionDetailPage.vue') },
       { path: 'generate', component: () => import('pages/GeneratePage.vue') },
-      { path: 'discarded', component: () => import('pages/DiscardedPage.vue') },
     ],
   },
   {

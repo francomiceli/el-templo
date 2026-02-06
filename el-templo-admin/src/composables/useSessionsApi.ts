@@ -1,10 +1,10 @@
 import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import type {
-  SessionSummary,
   SessionFilter,
   SessionsResponse,
   SessionDetail,
+  PoolBlocksResponse,
 } from 'src/types/session';
 
 export function useSessionsApi() {
@@ -47,16 +47,8 @@ export function useSessionsApi() {
     await api.post(`/admin/sessions/${id}/approve`);
   }
 
-  async function discardSession(id: number, reason?: string): Promise<void> {
-    await api.post(`/admin/sessions/${id}/discard`, { reason });
-  }
-
   async function revertSession(id: number): Promise<void> {
     await api.post(`/admin/sessions/${id}/revert`);
-  }
-
-  async function restoreSession(id: number): Promise<void> {
-    await api.post(`/admin/sessions/${id}/restore`);
   }
 
   async function bulkApprove(ids: number[]): Promise<{ approvedCount: number }> {
@@ -69,16 +61,27 @@ export function useSessionsApi() {
     return data.count;
   }
 
+  async function fetchBlockPool(route: string, memberLevel: string, excludeSessionId?: number): Promise<PoolBlocksResponse> {
+    const { data } = await api.get<PoolBlocksResponse>('/admin/blocks/pool', {
+      params: { route, memberLevel, excludeSessionId },
+    });
+    return data;
+  }
+
+  async function swapBlock(sessionId: number, blockId: number, sourceBlockId: number): Promise<void> {
+    await api.post(`/admin/sessions/${sessionId}/blocks/${blockId}/swap`, { sourceBlockId });
+  }
+
   return {
     loading,
     error,
     fetchSessions,
     fetchSessionDetail,
     approveSession,
-    discardSession,
     revertSession,
-    restoreSession,
     bulkApprove,
     getPendingCount,
+    fetchBlockPool,
+    swapBlock,
   };
 }

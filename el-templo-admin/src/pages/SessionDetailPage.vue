@@ -31,12 +31,9 @@
           <div class="row q-gutter-md">
             <div>
               <div class="text-caption text-grey">Nivel</div>
-              <q-chip dense :color="levelColor(session.levelGroup)">
-                {{ levelLabel(session.levelGroup) }}
+              <q-chip dense :color="memberLevelColor(session.memberLevel, session.levelGroup)">
+                {{ memberLevelLabel(session.memberLevel, session.levelGroup) }}
               </q-chip>
-              <span v-if="session.memberLevel" class="q-ml-xs text-caption">
-                ({{ session.memberLevel }})
-              </span>
             </div>
             <div>
               <div class="text-caption text-grey">Bloques</div>
@@ -46,10 +43,6 @@
               <div class="text-caption text-grey">Aprobado por</div>
               <div>{{ session.approvedByName }}</div>
               <div class="text-caption">{{ formatDate(session.approvedAt) }}</div>
-            </div>
-            <div v-if="session.discardedReason">
-              <div class="text-caption text-grey">Razon de descarte</div>
-              <div class="text-italic">{{ session.discardedReason }}</div>
             </div>
           </div>
         </q-card-section>
@@ -71,21 +64,6 @@
           label="Revertir a Pendiente"
           @click="handleRevert"
         />
-        <q-btn
-          v-if="session.status !== 'discarded'"
-          color="negative"
-          icon="delete_outline"
-          label="Descartar"
-          outline
-          @click="handleDiscard"
-        />
-        <q-btn
-          v-if="session.status === 'discarded'"
-          color="info"
-          icon="restore"
-          label="Restaurar a Pendiente"
-          @click="handleRestore"
-        />
       </div>
 
       <!-- Blocks -->
@@ -94,8 +72,81 @@
         v-for="block in session.blocks"
         :key="block.id"
         :block="block"
+        :show-swap="true"
+        @swap="openSwapDialog"
       />
     </template>
+
+    <!-- Swap dialog -->
+    <q-dialog v-model="swapDialogOpen" persistent>
+      <q-card style="min-width: 500px; max-width: 700px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Intercambiar Bloque</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section v-if="swapTargetBlock" class="q-pt-none">
+          <div class="text-caption text-grey q-mb-md">
+            Reemplazar bloque {{ swapTargetBlock.role }} ({{ swapTargetBlock.route }}) con uno del pool de sesiones aprobadas
+          </div>
+
+          <!-- Loading pool -->
+          <div v-if="poolLoading" class="flex flex-center q-pa-lg">
+            <q-spinner-dots size="40px" color="primary" />
+          </div>
+
+          <!-- Empty pool -->
+          <div v-else-if="poolBlocks.length === 0" class="text-center q-pa-lg text-grey">
+            <q-icon name="info" size="md" class="q-mb-sm" /><br>
+            No hay bloques disponibles para esta ruta y nivel
+          </div>
+
+          <!-- Pool blocks list -->
+          <q-list v-else separator bordered class="rounded-borders">
+            <q-item
+              v-for="poolBlock in poolBlocks"
+              :key="poolBlock.id"
+              clickable
+              @click="handleSwap(poolBlock.id)"
+            >
+              <q-item-section>
+                <q-item-label>
+                  <q-badge :color="poolBlock.formatName ? 'primary' : 'grey'" class="q-mr-sm">
+                    {{ poolBlock.formatName }}
+                  </q-badge>
+                  {{ poolBlock.exerciseCount }} ejercicios
+                </q-item-label>
+                <q-item-label caption>
+                  <span class="q-mr-md">
+                    <q-icon name="speed" size="xs" /> {{ poolBlock.intensity }}%
+                  </span>
+                  <span class="q-mr-md">
+                    <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
+                  </span>
+                  <span class="text-italic">
+                    Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
+                  </span>
+                </q-item-label>
+                <q-item-label caption class="q-mt-xs">
+                  <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
+                    {{ ex.exerciseName }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
+                  </span>
+                  <span v-if="poolBlock.exercises.length > 4">
+                    ... +{{ poolBlock.exercises.length - 4 }}
+                  </span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn flat dense icon="swap_horiz" color="primary">
+                  <q-tooltip>Usar este bloque</q-tooltip>
+                </q-btn>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -107,7 +158,7 @@ import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import BlockCard from 'src/components/sessions/BlockCard.vue';
-import type { SessionDetail, LevelGroup } from 'src/types/session';
+import type { SessionDetail, SessionBlock, PoolBlock, LevelGroup } from 'src/types/session';
 
 const route = useRoute();
 const router = useRouter();
@@ -118,6 +169,12 @@ const adminStore = useAdminStore();
 const session = ref<SessionDetail | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+
+// Swap dialog state
+const swapDialogOpen = ref(false);
+const swapTargetBlock = ref<SessionBlock | null>(null);
+const poolBlocks = ref<PoolBlock[]>([]);
+const poolLoading = ref(false);
 
 async function loadSession() {
   const id = Number(route.params.id);
@@ -169,38 +226,49 @@ async function handleRevert() {
   }
 }
 
-async function handleDiscard() {
+async function openSwapDialog(block: SessionBlock) {
   if (!session.value) return;
-  $q.dialog({
-    title: 'Descartar Sesion',
-    message: 'Razon (opcional):',
-    prompt: {
-      model: '',
-      type: 'textarea',
-    },
-    cancel: true,
-  }).onOk(async (reason: string) => {
-    try {
-      await sessionsApi.discardSession(session.value!.id, reason || undefined);
-      $q.notify({ type: 'info', message: 'Sesion descartada' });
-      loadSession();
-      adminStore.fetchPendingCount();
-    } catch {
-      $q.notify({ type: 'negative', message: 'Error descartando sesion' });
-    }
-  });
+  swapTargetBlock.value = block;
+  swapDialogOpen.value = true;
+  poolBlocks.value = [];
+  poolLoading.value = true;
+
+  try {
+    const memberLevel = session.value.memberLevel;
+    const result = await sessionsApi.fetchBlockPool(
+      block.route,
+      memberLevel,
+      session.value.id
+    );
+    poolBlocks.value = result.blocks;
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error cargando pool de bloques' });
+  } finally {
+    poolLoading.value = false;
+  }
 }
 
-async function handleRestore() {
-  if (!session.value) return;
-  try {
-    await sessionsApi.restoreSession(session.value.id);
-    $q.notify({ type: 'positive', message: 'Sesion restaurada' });
-    loadSession();
-    adminStore.fetchPendingCount();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error restaurando sesion' });
-  }
+async function handleSwap(sourceBlockId: number) {
+  if (!session.value || !swapTargetBlock.value) return;
+
+  $q.dialog({
+    title: 'Confirmar Intercambio',
+    message: 'Se reemplazara el contenido del bloque actual con el bloque seleccionado. Continuar?',
+    cancel: true,
+  }).onOk(async () => {
+    try {
+      await sessionsApi.swapBlock(
+        session.value!.id,
+        swapTargetBlock.value!.id,
+        sourceBlockId
+      );
+      $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
+      swapDialogOpen.value = false;
+      loadSession();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
+    }
+  });
 }
 
 function dayLabel(day: string): string {
@@ -215,7 +283,15 @@ function dayLabel(day: string): string {
   return labels[day] || day;
 }
 
-function levelColor(group: LevelGroup): string {
+function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): string {
+  if (memberLevel) {
+    const level = memberLevel.toLowerCase();
+    if (level === 'alfa') return 'light-blue';
+    if (level === 'delta') return 'blue';
+    if (level === 'sigma') return 'purple';
+    if (level === 'omega') return 'orange';
+    if (level === 'spartan') return 'red';
+  }
   switch (group) {
     case 'alfa_delta': return 'blue';
     case 'sigma': return 'purple';
@@ -224,7 +300,10 @@ function levelColor(group: LevelGroup): string {
   }
 }
 
-function levelLabel(group: LevelGroup): string {
+function memberLevelLabel(memberLevel: string | undefined, group: LevelGroup): string {
+  if (memberLevel) {
+    return memberLevel.charAt(0).toUpperCase() + memberLevel.slice(1).toLowerCase();
+  }
   switch (group) {
     case 'alfa_delta': return 'Alfa/Delta';
     case 'sigma': return 'Sigma';

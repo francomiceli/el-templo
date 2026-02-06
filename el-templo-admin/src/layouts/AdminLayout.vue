@@ -28,12 +28,6 @@
           </q-item-section>
           <q-item-section>Generar</q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/discarded">
-          <q-item-section avatar>
-            <q-icon name="delete_outline" />
-          </q-item-section>
-          <q-item-section>Descartadas</q-item-section>
-        </q-item>
       </q-list>
     </q-drawer>
 

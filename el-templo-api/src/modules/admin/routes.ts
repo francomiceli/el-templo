@@ -3,10 +3,11 @@ import { AdminSessionService } from './service';
 import {
   getSessionsSchema,
   sessionIdSchema,
-  discardSchema,
   bulkApproveSchema,
   getWeekSummarySchema,
   generateWeekSchema,
+  getBlockPoolSchema,
+  swapBlockSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
@@ -64,21 +65,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     return { success: true };
   });
 
-  // POST /admin/sessions/:id/discard - Discard session with optional reason
-  fastify.post<{ Params: { id: number }; Body: { reason?: string } }>('/sessions/:id/discard', {
-    schema: discardSchema,
-  }, async (request, reply) => {
-    const success = await adminService.discardSession(
-      request.params.id,
-      request.user.userId,
-      request.body?.reason
-    );
-    if (!success) {
-      return reply.status(404).send({ error: 'Sesion no encontrada' });
-    }
-    return { success: true };
-  });
-
   // POST /admin/sessions/:id/revert - Revert approved session to pending
   fastify.post<{ Params: { id: number } }>('/sessions/:id/revert', {
     schema: sessionIdSchema,
@@ -86,17 +72,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const success = await adminService.revertSession(request.params.id);
     if (!success) {
       return reply.status(404).send({ error: 'Sesion no encontrada' });
-    }
-    return { success: true };
-  });
-
-  // POST /admin/sessions/:id/restore - Restore discarded session to pending
-  fastify.post<{ Params: { id: number } }>('/sessions/:id/restore', {
-    schema: sessionIdSchema,
-  }, async (request, reply) => {
-    const success = await adminService.restoreFromDiscarded(request.params.id);
-    if (!success) {
-      return reply.status(404).send({ error: 'Sesion no encontrada o no esta descartada' });
     }
     return { success: true };
   });
@@ -136,5 +111,36 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       regenerate: request.body.regenerate,
     });
     return result;
+  });
+
+  // GET /admin/blocks/pool - Get pool of blocks from approved sessions
+  fastify.get<{
+    Querystring: { route: string; memberLevel: string; excludeSessionId?: number };
+  }>('/blocks/pool', {
+    schema: getBlockPoolSchema,
+  }, async (request) => {
+    return adminService.getBlockPool(
+      request.query.route,
+      request.query.memberLevel,
+      request.query.excludeSessionId
+    );
+  });
+
+  // POST /admin/sessions/:sessionId/blocks/:blockId/swap - Swap block with pool block
+  fastify.post<{
+    Params: { sessionId: number; blockId: number };
+    Body: { sourceBlockId: number };
+  }>('/sessions/:sessionId/blocks/:blockId/swap', {
+    schema: swapBlockSchema,
+  }, async (request, reply) => {
+    const success = await adminService.swapBlock(
+      request.params.sessionId,
+      request.params.blockId,
+      request.body.sourceBlockId
+    );
+    if (!success) {
+      return reply.status(404).send({ error: 'Bloque no encontrado o sesion fuente no aprobada' });
+    }
+    return { success: true };
   });
 };

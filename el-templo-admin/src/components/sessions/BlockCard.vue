@@ -6,7 +6,18 @@
           <div class="text-h6">{{ block.role }}</div>
           <div class="text-caption">{{ block.route }}</div>
         </div>
-        <div class="text-right">
+        <div class="row items-center q-gutter-sm">
+          <q-btn
+            v-if="showSwap"
+            flat
+            dense
+            round
+            icon="swap_horiz"
+            color="white"
+            @click="$emit('swap', block)"
+          >
+            <q-tooltip>Intercambiar bloque</q-tooltip>
+          </q-btn>
           <q-badge color="white" :text-color="blockColor" :label="block.format" />
         </div>
       </div>
@@ -34,38 +45,30 @@
       </div>
     </q-card-section>
 
-    <!-- Algorithm details toggle -->
-    <q-card-section class="q-py-xs" v-if="hasAlgorithmDetails">
-      <q-toggle
-        v-model="showAlgorithmDetails"
-        label="Mostrar detalles del algoritmo"
-        size="sm"
-        dense
-      />
-    </q-card-section>
-
     <!-- Exercises list -->
     <q-list separator>
       <exercise-row
         v-for="exercise in block.exercises"
         :key="exercise.id"
         :exercise="exercise"
-        :show-details="showAlgorithmDetails"
       />
     </q-list>
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import type { SessionBlock } from 'src/types/session';
 import ExerciseRow from './ExerciseRow.vue';
 
 const props = defineProps<{
   block: SessionBlock;
+  showSwap?: boolean;
 }>();
 
-const showAlgorithmDetails = ref(false);
+defineEmits<{
+  (e: 'swap', block: SessionBlock): void;
+}>();
 
 const blockColor = computed(() => {
   const role = props.block.role?.toLowerCase() || '';
@@ -84,9 +87,6 @@ const avgDifficulty = computed(() => {
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
 });
 
-const hasAlgorithmDetails = computed(() => {
-  return props.block.exercises.some(e => e.dificultadLineal !== null);
-});
 </script>
 
 <style scoped>

@@ -99,16 +99,6 @@
           >
             <q-tooltip>Revertir a pendiente</q-tooltip>
           </q-btn>
-          <q-btn
-            v-if="props.row.status !== 'discarded'"
-            flat
-            dense
-            color="negative"
-            icon="delete_outline"
-            @click="handleDiscard(props.row.id)"
-          >
-            <q-tooltip>Descartar</q-tooltip>
-          </q-btn>
         </q-td>
       </template>
 
@@ -176,18 +166,13 @@ const filteredSessions = computed(() => {
   return sessions.value.filter(s =>
     s.week === currentWeek.value && s.day === currentDay.value
   ).sort((a, b) => {
-    // Pending first, then approved, then discarded
-    const statusOrder: Record<string, number> = { pending_review: 0, approved: 1, discarded: 2 };
+    const statusOrder: Record<string, number> = { pending_review: 0, approved: 1 };
     return statusOrder[a.status] - statusOrder[b.status];
   });
 });
 
 const pendingSessions = computed(() =>
   filteredSessions.value.filter(s => s.status === 'pending_review')
-);
-
-const discardedSessions = computed(() =>
-  filteredSessions.value.filter(s => s.status === 'discarded')
 );
 
 // Methods
@@ -229,29 +214,14 @@ function viewSession(id: number) {
 }
 
 async function handleApprove(id: number) {
-  const doApprove = async () => {
-    try {
-      await sessionsApi.approveSession(id);
-      $q.notify({ type: 'positive', message: 'Sesion aprobada' });
-      loadSessions();
-      adminStore.fetchPendingCount();
-      adminStore.checkSessionCoverage();
-    } catch {
-      $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
-    }
-  };
-
-  // Warn if there are discarded sessions (incomplete coverage)
-  if (discardedSessions.value.length > 0) {
-    const discardedLevels = discardedSessions.value.map(s => memberLevelLabel(s.memberLevel)).join(', ');
-    $q.dialog({
-      title: 'Cobertura incompleta',
-      message: `Hay sesiones descartadas para este dia (${discardedLevels}). Los miembros de esos niveles no tendran sesion. Aprobar de todas formas?`,
-      cancel: true,
-      persistent: true,
-    }).onOk(doApprove);
-  } else {
-    await doApprove();
+  try {
+    await sessionsApi.approveSession(id);
+    $q.notify({ type: 'positive', message: 'Sesion aprobada' });
+    loadSessions();
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
   }
 }
 
@@ -267,36 +237,9 @@ async function handleRevert(id: number) {
   }
 }
 
-async function handleDiscard(id: number) {
-  $q.dialog({
-    title: 'Descartar Sesion',
-    message: 'Razon (opcional):',
-    prompt: {
-      model: '',
-      type: 'textarea',
-    },
-    cancel: true,
-  }).onOk(async (reason: string) => {
-    try {
-      await sessionsApi.discardSession(id, reason || undefined);
-      $q.notify({ type: 'info', message: 'Sesion descartada' });
-      loadSessions();
-      adminStore.fetchPendingCount();
-    } catch {
-      $q.notify({ type: 'negative', message: 'Error descartando sesion' });
-    }
-  });
-}
-
 async function handleBulkApprove() {
   const count = pendingSessions.value.length;
-  let message = `Aprobar ${count} sesiones pendientes para ${currentDay.value}?`;
-
-  // Warn if there are discarded sessions
-  if (discardedSessions.value.length > 0) {
-    const discardedLevels = discardedSessions.value.map(s => memberLevelLabel(s.memberLevel)).join(', ');
-    message += `\n\nAtencion: Hay sesiones descartadas (${discardedLevels}). Los miembros de esos niveles no tendran sesion.`;
-  }
+  const message = `Aprobar ${count} sesiones pendientes para ${currentDay.value}?`;
 
   $q.dialog({
     title: 'Aprobar Sesiones',

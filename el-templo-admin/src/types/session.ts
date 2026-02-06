@@ -1,4 +1,4 @@
-export type SessionStatus = 'pending_review' | 'approved' | 'discarded';
+export type SessionStatus = 'pending_review' | 'approved';
 export type LevelGroup = 'alfa_delta' | 'sigma' | 'omega';
 
 export interface SessionSummary {
@@ -15,8 +15,6 @@ export interface SessionSummary {
   approvedBy: number | null;
   approvedByName: string | null;
   approvedBySystem: boolean;
-  discardedAt: string | null;
-  discardedReason: string | null;
   createdAt: string;
 }
 
@@ -65,4 +63,38 @@ export interface SessionExercise {
 
 export interface SessionDetail extends SessionSummary {
   blocks: SessionBlock[];
+}
+
+export interface PoolBlockExercise {
+  id: number;
+  exerciseId: number;
+  exerciseName: string;
+  contraction: string;
+  reps: number;
+  seconds: number;
+  rest: number;
+  notes: string | null;
+  dificultadLineal: number | null;
+  sortOrder: number;
+}
+
+export interface PoolBlock {
+  id: number;
+  blockId: string;
+  role: string;
+  route: string;
+  pattern: string;
+  intensity: number;
+  repsBudget: number;
+  formatId: number;
+  formatName: string;
+  exerciseCount: number;
+  sourceWeek: number;
+  sourceDay: string;
+  sourceRole: string;
+  exercises: PoolBlockExercise[];
+}
+
+export interface PoolBlocksResponse {
+  blocks: PoolBlock[];
 }

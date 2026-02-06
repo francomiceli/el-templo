@@ -1,5 +1,5 @@
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, desc, asc, inArray, count, gte } from 'drizzle-orm';
+import { eq, and, desc, asc, inArray, count, gte, ne } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import type { SessionStatus } from './types';
 import type { LevelGroup, ExerciseLevel } from '../sessions/types';
@@ -36,8 +36,6 @@ export interface AdminSessionSummary {
   approvedBy: number | null;
   approvedByName: string | null;
   approvedBySystem: boolean;
-  discardedAt: Date | null;
-  discardedReason: string | null;
   createdAt: Date;
 }
 
@@ -77,8 +75,6 @@ export class AdminSessionService {
         approvedAt: schema.sessions.approvedAt,
         approvedBy: schema.sessions.approvedBy,
         approvedBySystem: schema.sessions.approvedBySystem,
-        discardedAt: schema.sessions.discardedAt,
-        discardedReason: schema.sessions.discardedReason,
         createdAt: schema.sessions.createdAt,
         approverFirstName: schema.users.firstName,
         approverLastName: schema.users.lastName,
@@ -104,6 +100,7 @@ export class AdminSessionService {
             sessionId: schema.sessionBlocks.sessionId,
             role: schema.sessionBlocks.role,
             route: schema.sessionBlocks.route,
+            intensity: schema.sessionBlocks.intensity,
             sortOrder: schema.sessionBlocks.sortOrder,
           })
           .from(schema.sessionBlocks)
@@ -111,12 +108,18 @@ export class AdminSessionService {
           .orderBy(asc(schema.sessionBlocks.sortOrder))
       : [];
 
-    // Build routes summary map: sessionId -> "I: FL, N: OAPU/DS, D: HT"
+    // Build routes summary map: sessionId -> "I, N: SU 55%, D1: PHS 60%, D2: HT 65%, A: FLR 60%"
     const routesBySession = new Map<number, string>();
     for (const sessionId of sessionIds) {
       const sessionBlocks = blocks.filter(b => b.sessionId === sessionId);
       const routesSummary = sessionBlocks
-        .map(b => `${b.role.charAt(0)}: ${b.route}`)
+        .map(b => {
+          if (b.role === 'INITIUM') return 'I';
+          let label = b.role.charAt(0);
+          if (b.role === 'DEUTEROS_1') label = 'D1';
+          else if (b.role === 'DEUTEROS_2') label = 'D2';
+          return `${label}: ${b.route} ${b.intensity}%`;
+        })
         .join(', ');
       routesBySession.set(sessionId, routesSummary);
     }
@@ -141,8 +144,6 @@ export class AdminSessionService {
             ? `${s.approverFirstName} ${s.approverLastName}`
             : null,
           approvedBySystem: s.approvedBySystem ?? false,
-          discardedAt: s.discardedAt,
-          discardedReason: s.discardedReason,
           createdAt: s.createdAt!,
         };
       }),
@@ -188,11 +189,18 @@ export class AdminSessionService {
           .where(eq(schema.sessionPrescriptions.blockId, block.id))
           .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-        return { ...block, exercises: prescriptions };
+        return {
+          ...block,
+          exercises: prescriptions.map(p => ({
+            ...p,
+            dificultadLineal: p.difficulty,
+          })),
+        };
       })
     );
 
-    return { ...session, blocks: blocksWithExercises };
+    const memberLevel = session.dayId.split('-').pop() || '';
+    return { ...session, memberLevel, blocks: blocksWithExercises };
   }
 
   async approveSession(id: number, userId: number): Promise<boolean> {
@@ -203,20 +211,6 @@ export class AdminSessionService {
         approvedAt: new Date(),
         approvedBy: userId,
         approvedBySystem: false,
-      })
-      .where(eq(schema.sessions.id, id));
-
-    return result.affectedRows > 0;
-  }
-
-  async discardSession(id: number, userId: number, reason?: string): Promise<boolean> {
-    const [result] = await this.db
-      .update(schema.sessions)
-      .set({
-        status: 'discarded',
-        discardedAt: new Date(),
-        discardedBy: userId,
-        discardedReason: reason || null,
       })
       .where(eq(schema.sessions.id, id));
 
@@ -260,23 +254,6 @@ export class AdminSessionService {
     return result?.count ?? 0;
   }
 
-  async restoreFromDiscarded(id: number): Promise<boolean> {
-    const [result] = await this.db
-      .update(schema.sessions)
-      .set({
-        status: 'pending_review',
-        discardedAt: null,
-        discardedBy: null,
-        discardedReason: null,
-      })
-      .where(and(
-        eq(schema.sessions.id, id),
-        eq(schema.sessions.status, 'discarded')
-      ));
-
-    return result.affectedRows > 0;
-  }
-
   async getWeekSummary(week: number): Promise<{
     week: number;
     days: {
@@ -305,11 +282,16 @@ export class AdminSessionService {
       days: days.map(day => ({
         day,
         levels: levels.map(levelGroup => {
-          const session = sessions.find(s => s.day === day && s.levelGroup === levelGroup);
+          const groupSessions = sessions.filter(s => s.day === day && s.levelGroup === levelGroup);
+          // Show worst status: pending > approved
+          const worstStatus = groupSessions.length === 0 ? null
+            : groupSessions.some(s => s.status === 'pending_review') ? 'pending_review'
+            : groupSessions.every(s => s.status === 'approved') ? 'approved'
+            : (groupSessions[0].status as SessionStatus);
           return {
             levelGroup,
-            hasSession: !!session,
-            status: (session?.status as SessionStatus) || null,
+            hasSession: groupSessions.length > 0,
+            status: worstStatus,
           };
         }),
       })),
@@ -450,14 +432,9 @@ export class AdminSessionService {
           }
 
           if (existing && options.regenerate) {
-            // Discard existing session
+            // Delete existing session (cascade handles blocks/prescriptions)
             await this.db
-              .update(schema.sessions)
-              .set({
-                status: 'discarded',
-                discardedAt: new Date(),
-                discardedReason: 'Regenerated',
-              })
+              .delete(schema.sessions)
               .where(eq(schema.sessions.dayId, dayId));
           }
 
@@ -476,5 +453,191 @@ export class AdminSessionService {
     }
 
     return { generated, skipped };
+  }
+
+  /**
+   * Get pool of blocks from approved sessions matching route + memberLevel
+   */
+  async getBlockPool(route: string, memberLevel: string, excludeSessionId?: number) {
+    // Build conditions
+    const conditions = [
+      eq(schema.sessions.status, 'approved'),
+      eq(schema.sessionBlocks.route, route),
+    ];
+
+    if (excludeSessionId) {
+      conditions.push(ne(schema.sessions.id, excludeSessionId));
+    }
+
+    // Get blocks from approved sessions matching route
+    const blocks = await this.db
+      .select({
+        id: schema.sessionBlocks.id,
+        sessionId: schema.sessionBlocks.sessionId,
+        blockId: schema.sessionBlocks.blockId,
+        role: schema.sessionBlocks.role,
+        route: schema.sessionBlocks.route,
+        pattern: schema.sessionBlocks.pattern,
+        intensity: schema.sessionBlocks.intensity,
+        repsBudget: schema.sessionBlocks.repsBudget,
+        formatId: schema.sessionBlocks.formatId,
+        formatName: schema.sessionBlocks.formatName,
+        exerciseCount: schema.sessionBlocks.exerciseCount,
+        sortOrder: schema.sessionBlocks.sortOrder,
+        sessionWeek: schema.sessions.week,
+        sessionDay: schema.sessions.day,
+        sessionDayId: schema.sessions.dayId,
+      })
+      .from(schema.sessionBlocks)
+      .innerJoin(schema.sessions, eq(schema.sessionBlocks.sessionId, schema.sessions.id))
+      .where(and(...conditions))
+      .orderBy(desc(schema.sessions.week), asc(schema.sessions.day));
+
+    // Filter by memberLevel (extracted from dayId)
+    const filteredBlocks = blocks.filter(b => {
+      const blockMemberLevel = b.sessionDayId.split('-').pop() || '';
+      return blockMemberLevel === memberLevel;
+    });
+
+    // Get exercises for each block
+    const result = await Promise.all(
+      filteredBlocks.map(async (block) => {
+        const exercises = await this.db
+          .select({
+            id: schema.sessionPrescriptions.id,
+            exerciseId: schema.sessionPrescriptions.exerciseId,
+            exerciseName: schema.sessionPrescriptions.exerciseName,
+            contraction: schema.sessionPrescriptions.contraction,
+            reps: schema.sessionPrescriptions.reps,
+            seconds: schema.sessionPrescriptions.seconds,
+            rest: schema.sessionPrescriptions.rest,
+            notes: schema.sessionPrescriptions.notes,
+            difficulty: schema.sessionPrescriptions.difficulty,
+            sortOrder: schema.sessionPrescriptions.sortOrder,
+          })
+          .from(schema.sessionPrescriptions)
+          .where(eq(schema.sessionPrescriptions.blockId, block.id))
+          .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+        return {
+          id: block.id,
+          blockId: block.blockId,
+          role: block.role,
+          route: block.route,
+          pattern: block.pattern,
+          intensity: block.intensity,
+          repsBudget: block.repsBudget,
+          formatId: block.formatId,
+          formatName: block.formatName,
+          exerciseCount: block.exerciseCount,
+          sourceWeek: block.sessionWeek,
+          sourceDay: block.sessionDay,
+          sourceRole: block.role,
+          exercises: exercises.map(e => ({
+            ...e,
+            dificultadLineal: e.difficulty,
+          })),
+        };
+      })
+    );
+
+    // Deduplicate blocks by exercise fingerprint (sorted exercise names)
+    // Keep the most recent one (first in list since ordered by week DESC)
+    const seen = new Map<string, typeof result[number]>();
+    for (const block of result) {
+      const fingerprint = block.exercises
+        .map(e => e.exerciseName)
+        .sort()
+        .join('|');
+      if (!seen.has(fingerprint)) {
+        seen.set(fingerprint, block);
+      }
+    }
+
+    return { blocks: Array.from(seen.values()) };
+  }
+
+  /**
+   * Swap a block in a session with a block from the pool (approved session)
+   */
+  async swapBlock(sessionId: number, targetBlockId: number, sourceBlockId: number): Promise<boolean> {
+    // Validate target block belongs to the given session
+    const [targetBlock] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(and(
+        eq(schema.sessionBlocks.id, targetBlockId),
+        eq(schema.sessionBlocks.sessionId, sessionId),
+      ));
+
+    if (!targetBlock) return false;
+
+    // Validate source block belongs to an approved session
+    const [sourceBlock] = await this.db
+      .select({
+        id: schema.sessionBlocks.id,
+        route: schema.sessionBlocks.route,
+        pattern: schema.sessionBlocks.pattern,
+        intensity: schema.sessionBlocks.intensity,
+        repsBudget: schema.sessionBlocks.repsBudget,
+        formatId: schema.sessionBlocks.formatId,
+        formatName: schema.sessionBlocks.formatName,
+        exerciseCount: schema.sessionBlocks.exerciseCount,
+        sessionStatus: schema.sessions.status,
+      })
+      .from(schema.sessionBlocks)
+      .innerJoin(schema.sessions, eq(schema.sessionBlocks.sessionId, schema.sessions.id))
+      .where(and(
+        eq(schema.sessionBlocks.id, sourceBlockId),
+        eq(schema.sessions.status, 'approved'),
+      ));
+
+    if (!sourceBlock) return false;
+
+    // Get source prescriptions
+    const sourcePrescriptions = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, sourceBlockId))
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+    // Update target block with source block data (preserve sessionId, role, sortOrder)
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({
+        route: sourceBlock.route,
+        pattern: sourceBlock.pattern,
+        intensity: sourceBlock.intensity,
+        repsBudget: sourceBlock.repsBudget,
+        formatId: sourceBlock.formatId,
+        formatName: sourceBlock.formatName,
+        exerciseCount: sourceBlock.exerciseCount,
+      })
+      .where(eq(schema.sessionBlocks.id, targetBlockId));
+
+    // Delete old prescriptions for target block
+    await this.db
+      .delete(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, targetBlockId));
+
+    // Insert new prescriptions copied from source
+    if (sourcePrescriptions.length > 0) {
+      await this.db.insert(schema.sessionPrescriptions).values(
+        sourcePrescriptions.map(p => ({
+          blockId: targetBlockId,
+          exerciseId: p.exerciseId,
+          exerciseName: p.exerciseName,
+          contraction: p.contraction,
+          reps: p.reps,
+          seconds: p.seconds,
+          rest: p.rest,
+          notes: p.notes,
+          difficulty: p.difficulty,
+          sortOrder: p.sortOrder,
+        }))
+      );
+    }
+
+    return true;
   }
 }
