@@ -313,6 +313,10 @@ Recent decisions affecting current work:
 | 15-02 | Exercise pool sorted by difficulty proximity | Best swap suggestions first for coaches |
 | 15-02 | Blank prescription for added exercises | Coach fills in manually per CONTEXT.md |
 | 15-02 | exerciseCount updated via SQL expression | Avoids read-then-write race conditions |
+| 15-03 | Exercise pool route enriches params from block context | Keep API surface simple, derive pattern2/excludeIds/role from blockId |
+| 15-03 | Preview reuses getSessionWithDetails + transforms | No duplicate query logic, simplified shape for frontend |
+| 15-03 | Preview level switching via dayId construction | Same week/day, different memberLevel suffix in dayId |
+| 15-03 | Reset endpoint 400 for missing snapshot | Distinct from 404 (missing session) for clear error reporting |
 | 15-04 | Separate useEditApi from useSessionsApi | Keep review and editing API concerns isolated |
 | 15-04 | PrescriptionUpdate uses optional fields | Support partial updates (coach edits one field at a time) |
 | 15-04 | changeBlockFormat sends formatId and formatName | Backend can update both columns atomically |
