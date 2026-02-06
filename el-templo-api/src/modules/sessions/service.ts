@@ -374,6 +374,39 @@ export class SessionGeneratorService {
       }
     }
 
+    // Store algorithm snapshot for revert capability (Phase 15)
+    // Captures the original generated blocks + prescriptions as JSON
+    const algorithmSnapshot = {
+      blocks: session.blocks.map((block, blockIdx) => ({
+        blockId: block.blockId,
+        role: block.role,
+        route: block.route,
+        pattern: block.pattern,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        formatId: block.format.formatId,
+        formatName: block.format.name,
+        exerciseCount: block.exercises.length,
+        sortOrder: blockIdx,
+        exercises: block.exercises.map((ex, exIdx) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.name,
+          contraction: ex.contraction,
+          reps: ex.reps,
+          seconds: ex.seconds,
+          rest: ex.rest,
+          notes: ex.notes ?? null,
+          difficulty: ex.dificultadLineal ?? null,
+          sortOrder: exIdx,
+        })),
+      })),
+    };
+
+    await this.db
+      .update(schema.sessions)
+      .set({ algorithmSnapshot: algorithmSnapshot })
+      .where(eq(schema.sessions.id, sessionId));
+
     // Optional: Persist trace data to session_traces table for analytics
     if (process.env.PERSIST_TRACES === 'true') {
       // Aggregate block traces for summary stats
