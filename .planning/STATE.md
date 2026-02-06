@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 15 (Admin Session Editing) — **In Progress**
-Plan: 01 of 9 (Database schema: edit logs, snapshots, format params)
-Status: **In progress** — Plan 01 complete
-Last activity: 2026-02-06 - Completed 15-01-PLAN.md
+Plan: 02 of 9 (Prescribe & Edit Services)
+Status: **In progress** — Plan 02 complete
+Last activity: 2026-02-06 - Completed 15-02-PLAN.md
 
-Progress: [█---------] 11% Phase 15 (1/9 plans)
+Progress: [██--------] 22% Phase 15 (2/9 plans)
 
 ## Architecture Reset
 
@@ -308,6 +308,11 @@ Recent decisions affecting current work:
 | 15-01 | JSON column for algorithm snapshot | 1:1 relationship with sessions, simpler than separate table |
 | 15-01 | Snapshot captures blocks + prescriptions | Full session structure for revert capability |
 | 15-01 | NULL snapshot for existing sessions | Reset button hidden when no snapshot exists |
+| 15-02 | PrescribeService wraps pipeline prescribeByFormat | Thin wrapper, no prescription logic duplicated |
+| 15-02 | calculateRest replicated from stage-7 | Not exported from pipeline, exact same logic |
+| 15-02 | Exercise pool sorted by difficulty proximity | Best swap suggestions first for coaches |
+| 15-02 | Blank prescription for added exercises | Coach fills in manually per CONTEXT.md |
+| 15-02 | exerciseCount updated via SQL expression | Avoids read-then-write race conditions |
 
 ### Pending Todos
 
@@ -328,7 +333,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-06
-Stopped at: Completed 15-01-PLAN.md
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
