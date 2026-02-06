@@ -13,6 +13,7 @@ const routes: RouteRecordRaw[] = [
       { path: '', redirect: '/sessions' },
       { path: 'sessions', component: () => import('pages/SessionsPage.vue') },
       { path: 'sessions/:id', component: () => import('pages/SessionDetailPage.vue') },
+      { path: 'sessions/:id/edit', component: () => import('pages/SessionEditPage.vue') },
       { path: 'generate', component: () => import('pages/GeneratePage.vue') },
     ],
   },

@@ -16,16 +16,16 @@
     <template v-else-if="session">
       <!-- Header -->
       <div class="row items-center justify-between q-mb-md">
-        <div>
+        <div class="row items-center">
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
           <span class="text-h5">
-            Semana {{ session.week }} - {{ dayLabel(session.day) }}
+            Editar Sesion - Semana {{ session.week }} - {{ dayLabel(session.day) }}
           </span>
         </div>
         <status-badge :status="session.status" :by-system="session.approvedBySystem" />
       </div>
 
-      <!-- Session meta -->
+      <!-- Session meta card -->
       <q-card flat bordered class="q-mb-md">
         <q-card-section>
           <div class="row q-gutter-md">
@@ -39,23 +39,16 @@
               <div class="text-caption text-grey">Bloques</div>
               <div>{{ session.blockCount }}</div>
             </div>
-            <div v-if="session.approvedByName">
-              <div class="text-caption text-grey">Aprobado por</div>
-              <div>{{ session.approvedByName }}</div>
-              <div class="text-caption">{{ formatDate(session.approvedAt) }}</div>
+            <div>
+              <div class="text-caption text-grey">Estado</div>
+              <div>{{ session.status === 'pending_review' ? 'Pendiente' : 'Aprobada' }}</div>
             </div>
           </div>
         </q-card-section>
       </q-card>
 
-      <!-- Action buttons -->
+      <!-- Action bar -->
       <div class="q-mb-md q-gutter-sm">
-        <q-btn
-          color="primary"
-          icon="edit"
-          label="Editar"
-          @click="goToEdit"
-        />
         <q-btn
           v-if="session.status === 'pending_review'"
           color="positive"
@@ -70,89 +63,26 @@
           label="Revertir a Pendiente"
           @click="handleRevert"
         />
+        <q-btn
+          color="secondary"
+          icon="restore"
+          label="Resetear al Algoritmo"
+          @click="handleReset"
+        />
       </div>
 
       <!-- Blocks -->
       <div class="text-subtitle1 q-mb-sm">Bloques</div>
-      <block-card
+      <editable-block-card
         v-for="block in session.blocks"
         :key="block.id"
         :block="block"
-        :show-swap="true"
-        @swap="openSwapDialog"
+        :session-id="session.id"
+        @swap-exercise="onSwapExercise"
+        @add-exercise="onAddExercise"
+        @refresh="loadSession"
       />
     </template>
-
-    <!-- Swap dialog -->
-    <q-dialog v-model="swapDialogOpen" persistent>
-      <q-card style="min-width: 500px; max-width: 700px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Intercambiar Bloque</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <q-card-section v-if="swapTargetBlock" class="q-pt-none">
-          <div class="text-caption text-grey q-mb-md">
-            Reemplazar bloque {{ swapTargetBlock.role }} ({{ swapTargetBlock.route }}) con uno del pool de sesiones aprobadas
-          </div>
-
-          <!-- Loading pool -->
-          <div v-if="poolLoading" class="flex flex-center q-pa-lg">
-            <q-spinner-dots size="40px" color="primary" />
-          </div>
-
-          <!-- Empty pool -->
-          <div v-else-if="poolBlocks.length === 0" class="text-center q-pa-lg text-grey">
-            <q-icon name="info" size="md" class="q-mb-sm" /><br>
-            No hay bloques disponibles para esta ruta y nivel
-          </div>
-
-          <!-- Pool blocks list -->
-          <q-list v-else separator bordered class="rounded-borders">
-            <q-item
-              v-for="poolBlock in poolBlocks"
-              :key="poolBlock.id"
-              clickable
-              @click="handleSwap(poolBlock.id)"
-            >
-              <q-item-section>
-                <q-item-label>
-                  <q-badge :color="poolBlock.formatName ? 'primary' : 'grey'" class="q-mr-sm">
-                    {{ poolBlock.formatName }}
-                  </q-badge>
-                  {{ poolBlock.exerciseCount }} ejercicios
-                </q-item-label>
-                <q-item-label caption>
-                  <span class="q-mr-md">
-                    <q-icon name="speed" size="xs" /> {{ poolBlock.intensity }}%
-                  </span>
-                  <span class="q-mr-md">
-                    <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
-                  </span>
-                  <span class="text-italic">
-                    Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
-                  </span>
-                </q-item-label>
-                <q-item-label caption class="q-mt-xs">
-                  <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
-                    {{ ex.exerciseName }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
-                  </span>
-                  <span v-if="poolBlock.exercises.length > 4">
-                    ... +{{ poolBlock.exercises.length - 4 }}
-                  </span>
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-btn flat dense icon="swap_horiz" color="primary">
-                  <q-tooltip>Usar este bloque</q-tooltip>
-                </q-btn>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -161,26 +91,22 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { useEditApi } from 'src/composables/useEditApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
-import BlockCard from 'src/components/sessions/BlockCard.vue';
-import type { SessionDetail, SessionBlock, PoolBlock, LevelGroup } from 'src/types/session';
+import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
+import type { SessionDetail, SessionExercise, LevelGroup } from 'src/types/session';
 
 const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const sessionsApi = useSessionsApi();
+const editApi = useEditApi();
 const adminStore = useAdminStore();
 
 const session = ref<SessionDetail | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
-
-// Swap dialog state
-const swapDialogOpen = ref(false);
-const swapTargetBlock = ref<SessionBlock | null>(null);
-const poolBlocks = ref<PoolBlock[]>([]);
-const poolLoading = ref(false);
 
 async function loadSession() {
   const id = Number(route.params.id);
@@ -203,12 +129,8 @@ async function loadSession() {
 }
 
 function goBack() {
-  router.push('/sessions');
-}
-
-function goToEdit() {
   const id = route.params.id;
-  router.push(`/sessions/${id}/edit`);
+  router.push(`/sessions/${id}`);
 }
 
 async function handleApprove() {
@@ -237,50 +159,34 @@ async function handleRevert() {
   }
 }
 
-async function openSwapDialog(block: SessionBlock) {
+async function handleReset() {
   if (!session.value) return;
-  swapTargetBlock.value = block;
-  swapDialogOpen.value = true;
-  poolBlocks.value = [];
-  poolLoading.value = true;
-
-  try {
-    const memberLevel = session.value.memberLevel;
-    const result = await sessionsApi.fetchBlockPool(
-      block.route,
-      memberLevel,
-      session.value.id,
-      block.id
-    );
-    poolBlocks.value = result.blocks;
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error cargando pool de bloques' });
-  } finally {
-    poolLoading.value = false;
-  }
-}
-
-async function handleSwap(sourceBlockId: number) {
-  if (!session.value || !swapTargetBlock.value) return;
-
   $q.dialog({
-    title: 'Confirmar Intercambio',
-    message: 'Se reemplazara el contenido del bloque actual con el bloque seleccionado. Continuar?',
-    cancel: true,
+    title: 'Resetear al Algoritmo',
+    message: 'Se restaurara la sesion al estado original generado por el algoritmo. Todos los cambios manuales se perderan. Continuar?',
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Resetear', color: 'negative' },
   }).onOk(async () => {
     try {
-      await sessionsApi.swapBlock(
-        session.value!.id,
-        swapTargetBlock.value!.id,
-        sourceBlockId
-      );
-      $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
-      swapDialogOpen.value = false;
+      await editApi.resetToAlgorithm(session.value!.id);
+      $q.notify({ type: 'positive', message: 'Sesion restaurada al algoritmo' });
       loadSession();
     } catch {
-      $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
+      $q.notify({ type: 'negative', message: editApi.error.value || 'Error al restaurar sesion' });
     }
   });
+}
+
+function onSwapExercise(payload: { blockId: number; exercise: SessionExercise }) {
+  // Swap dialog will be implemented in plan 15-06
+  void payload;
+  $q.notify({ type: 'info', message: 'Intercambio de ejercicios - Proximamente', timeout: 2000 });
+}
+
+function onAddExercise(payload: { blockId: number }) {
+  // Add exercise dialog will be implemented in plan 15-06
+  void payload;
+  $q.notify({ type: 'info', message: 'Agregar ejercicio - Proximamente', timeout: 2000 });
 }
 
 function dayLabel(day: string): string {
@@ -322,17 +228,6 @@ function memberLevelLabel(memberLevel: string | undefined, group: LevelGroup): s
     case 'omega': return 'Omega';
     default: return group;
   }
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }
 
 onMounted(loadSession);
