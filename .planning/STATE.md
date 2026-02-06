@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 15 (Admin Session Editing) — **In Progress**
-Plan: 08 of 9 (Member Preview Dialog)
-Status: **In progress** — Plan 08 complete
-Last activity: 2026-02-06 - Completed 15-08-PLAN.md
+Plan: 08 of 9 (Edit Page Feature Wiring complete, also Member Preview Dialog)
+Status: **In progress** — Plans 07+08 complete
+Last activity: 2026-02-06 - Completed 15-07-PLAN.md
 
-Progress: [████████--] 78% Phase 15 (7/9 plans)
+Progress: [████████░░] 89% Phase 15 (8/9 plans)
 
 ## Architecture Reset
 
@@ -327,6 +327,10 @@ Recent decisions affecting current work:
 | 15-06 | Added pattern field to SessionBlock frontend type | Backend already returns it, needed for swap dialog block context |
 | 15-06 | Contraction filter triggers API re-fetch, search is client-side | Server-side filter for accuracy, client-side search for responsiveness |
 | 15-06 | Cross-route exercises show "Cruce" badge in deep-orange | Visual distinction for pattern_2 exercises from different routes |
+| 15-07 | ExerciseSwapDialog reused for add-exercise with mode prop | Avoids duplicating pool-fetching and filtering UI |
+| 15-07 | BudgetBar visual cap at 150% | Prevents progress bar overflow at extreme overages |
+| 15-07 | ContractionMixBadge skips INITIUM validation | INITIUM uses specialized warmup pipeline, not standard contraction rules |
+| 15-07 | Format dropdown shows compatibility score in parentheses | Coach reference for relative format compatibility |
 | 15-08 | Preview button uses 'preview' icon, not 'visibility' | Avoid confusion with existing view-details button in sessions list |
 | 15-08 | Level selector offers all 5 member levels | Coaches can preview any level, not just current session's level |
 
@@ -349,7 +353,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-06
-Stopped at: Completed 15-08-PLAN.md
+Stopped at: Completed 15-07-PLAN.md (8/9 plans done)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
