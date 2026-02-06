@@ -1,3 +1,4 @@
 export { adminRoutes } from './routes';
 export { AdminSessionService } from './service';
-export type { SessionStatus } from './types';
+export { AdminEditService } from './edit-service';
+export type { SessionStatus, EditAction } from './types';

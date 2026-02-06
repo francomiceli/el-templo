@@ -1,5 +1,8 @@
 import { FastifyPluginAsync } from 'fastify';
+import { eq, and, asc } from 'drizzle-orm';
+import * as schema from '../../db/schema';
 import { AdminSessionService } from './service';
+import { AdminEditService } from './edit-service';
 import {
   getSessionsSchema,
   sessionIdSchema,
@@ -8,12 +11,22 @@ import {
   generateWeekSchema,
   getBlockPoolSchema,
   swapBlockSchema,
+  getExercisePoolSchema,
+  swapExerciseSchema,
+  updatePrescriptionSchema,
+  changeFormatSchema,
+  addExerciseSchema,
+  removeExerciseSchema,
+  resetSessionSchema,
+  getCompatibleFormatsSchema,
+  getPreviewSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
+  const editService = new AdminEditService(fastify.db);
 
   // Role check hook for all routes
   fastify.addHook('onRequest', async (request, reply) => {
@@ -143,5 +156,280 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'Bloque no encontrado o sesion fuente no aprobada' });
     }
     return { success: true };
+  });
+
+  // ==========================================================================
+  // Session Editing Routes (Phase 15-03)
+  // ==========================================================================
+
+  // GET /admin/exercises/pool - Get exercise pool for swap
+  fastify.get<{
+    Querystring: { route: string; contraction?: string; blockId: number; pattern?: string };
+  }>('/exercises/pool', {
+    schema: getExercisePoolSchema,
+  }, async (request, reply) => {
+    const { route, contraction, blockId, pattern: queryPattern } = request.query;
+
+    // Look up block to get context (role, pattern, sessionId)
+    const [block] = await fastify.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    if (!block) {
+      return reply.status(404).send({ error: 'Bloque no encontrado' });
+    }
+
+    // Get existing exercise IDs in the block to exclude from pool
+    const prescriptions = await fastify.db
+      .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, blockId));
+
+    const excludeExerciseIds = prescriptions.map(p => p.exerciseId);
+
+    // Look up pattern2 from SPOM rules (session week + block route)
+    let pattern2: string | null = null;
+    const [session] = await fastify.db
+      .select({ week: schema.sessions.week })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, block.sessionId));
+
+    if (session) {
+      const [routeRow] = await fastify.db
+        .select({ id: schema.routes.id })
+        .from(schema.routes)
+        .where(eq(schema.routes.code, route));
+
+      if (routeRow) {
+        const [spomRule] = await fastify.db
+          .select({ pattern2: schema.spomRules.pattern2 })
+          .from(schema.spomRules)
+          .where(and(
+            eq(schema.spomRules.week, session.week),
+            eq(schema.spomRules.routeId, routeRow.id)
+          ));
+
+        if (spomRule) {
+          pattern2 = spomRule.pattern2 ?? null;
+        }
+      }
+    }
+
+    return editService.getExercisePool({
+      blockId,
+      contraction,
+      route,
+      pattern: queryPattern || block.pattern,
+      pattern2,
+      blockRole: block.role,
+      excludeExerciseIds,
+    });
+  });
+
+  // POST /admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/swap - Swap exercise
+  fastify.post<{
+    Params: { sessionId: number; blockId: number; prescriptionId: number };
+    Body: { newExerciseId: number };
+  }>('/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/swap', {
+    schema: swapExerciseSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.swapExercise({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        oldPrescriptionId: request.params.prescriptionId,
+        newExerciseId: request.body.newExerciseId,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId - Update prescription
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number; prescriptionId: number };
+    Body: { reps?: number; seconds?: number; rest?: number; notes?: string | null };
+  }>('/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId', {
+    schema: updatePrescriptionSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.updatePrescription({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        prescriptionId: request.params.prescriptionId,
+        fields: request.body,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || 'Error al actualizar prescripcion' });
+    }
+  });
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/format - Change block format
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number };
+    Body: { formatId: number; formatName: string };
+  }>('/sessions/:sessionId/blocks/:blockId/format', {
+    schema: changeFormatSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.changeBlockFormat({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        newFormatId: request.body.formatId,
+        newFormatName: request.body.formatName,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // POST /admin/sessions/:sessionId/blocks/:blockId/exercises - Add exercise to block
+  fastify.post<{
+    Params: { sessionId: number; blockId: number };
+    Body: { exerciseId: number };
+  }>('/sessions/:sessionId/blocks/:blockId/exercises', {
+    schema: addExerciseSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.addExercise({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        exerciseId: request.body.exerciseId,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // DELETE /admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId - Remove exercise
+  fastify.delete<{
+    Params: { sessionId: number; blockId: number; prescriptionId: number };
+  }>('/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId', {
+    schema: removeExerciseSchema,
+  }, async (request, reply) => {
+    try {
+      await editService.removeExercise({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        prescriptionId: request.params.prescriptionId,
+        userId: request.user.userId,
+      });
+      return { success: true };
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // POST /admin/sessions/:id/reset - Reset session to algorithm snapshot
+  fastify.post<{
+    Params: { id: number };
+  }>('/sessions/:id/reset', {
+    schema: resetSessionSchema,
+  }, async (request, reply) => {
+    try {
+      await editService.resetToAlgorithm({
+        sessionId: request.params.id,
+        userId: request.user.userId,
+      });
+      return { success: true };
+    } catch (err: any) {
+      if (err.message?.includes('snapshot')) {
+        return reply.status(400).send({ error: 'No hay snapshot disponible para esta sesion' });
+      }
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // GET /admin/formats/compatible - Get compatible formats for block
+  fastify.get<{
+    Querystring: { blockRole: string; level: string; intensity: number };
+  }>('/formats/compatible', {
+    schema: getCompatibleFormatsSchema,
+  }, async (request) => {
+    return editService.getCompatibleFormats({
+      blockRole: request.query.blockRole,
+      level: request.query.level,
+      intensity: request.query.intensity,
+    });
+  });
+
+  // GET /admin/sessions/:id/preview - Get member preview data
+  fastify.get<{
+    Params: { id: number };
+    Querystring: { memberLevel?: string };
+  }>('/sessions/:id/preview', {
+    schema: getPreviewSchema,
+  }, async (request, reply) => {
+    const { id } = request.params;
+    const { memberLevel } = request.query;
+
+    // Get the base session
+    const baseSession = await adminService.getSessionWithDetails(id);
+    if (!baseSession) {
+      return reply.status(404).send({ error: 'Sesion no encontrada' });
+    }
+
+    // If memberLevel is provided and differs from current session,
+    // find the session for that level (same week/day)
+    let sessionData = baseSession;
+    if (memberLevel) {
+      const currentLevel = baseSession.dayId.split('-').pop() || '';
+      if (memberLevel !== currentLevel) {
+        // Build target dayId: W{week}-{day}-{memberLevel}
+        const parts = baseSession.dayId.split('-');
+        parts[parts.length - 1] = memberLevel;
+        const targetDayId = parts.join('-');
+
+        const [targetSession] = await fastify.db
+          .select({ id: schema.sessions.id })
+          .from(schema.sessions)
+          .where(eq(schema.sessions.dayId, targetDayId));
+
+        if (targetSession) {
+          const targetData = await adminService.getSessionWithDetails(targetSession.id);
+          if (targetData) {
+            sessionData = targetData;
+          }
+        }
+      }
+    }
+
+    // Transform to preview format
+    const preview = {
+      sessionId: sessionData.id,
+      dayId: sessionData.dayId,
+      week: sessionData.week,
+      day: sessionData.day,
+      levelGroup: sessionData.levelGroup,
+      memberLevel: sessionData.memberLevel,
+      status: sessionData.status,
+      blocks: sessionData.blocks.map((block: any) => ({
+        name: block.role,
+        format: block.formatName,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        exercises: block.exercises.map((ex: any) => ({
+          name: ex.exerciseName,
+          prescription: ex.seconds > 0
+            ? `${ex.seconds} segundos`
+            : ex.reps > 0
+              ? `${ex.reps} reps`
+              : 'Sin prescripcion',
+          rest: ex.rest > 0 ? `${ex.rest}s descanso` : 'Sin descanso',
+          notes: ex.notes || null,
+        })),
+      })),
+    };
+
+    return preview;
   });
 };
