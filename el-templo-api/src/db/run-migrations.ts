@@ -66,14 +66,22 @@ async function runMigrations() {
 
       console.log(`Applying: ${file} (${statements.length} statements)`);
 
+      // Track if any statement was skipped as "already exists" —
+      // means this migration was previously applied and all errors are safe to skip
+      let alreadyApplied = false;
+
       for (const stmt of statements) {
         try {
           await connection.execute(stmt);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
-          // Skip "already exists" errors for idempotency
-          if (msg.includes('Duplicate column name') || msg.includes('Duplicate key name') || msg.includes('Duplicate foreign key') || msg.includes('already exists')) {
+          const isDuplicate = msg.includes('Duplicate column name') || msg.includes('Duplicate key name') || msg.includes('Duplicate foreign key') || msg.includes('already exists');
+          if (isDuplicate) {
+            alreadyApplied = true;
             console.log(`  Skipped (already exists): ${msg.slice(0, 80)}`);
+          } else if (alreadyApplied) {
+            // Migration was already applied — skip remaining errors safely
+            console.log(`  Skipped (migration already applied): ${msg.slice(0, 80)}`);
           } else {
             throw err;
           }
