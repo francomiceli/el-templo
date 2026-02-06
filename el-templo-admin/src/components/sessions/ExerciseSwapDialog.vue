@@ -7,13 +7,13 @@
     <q-card style="width: 700px; max-width: 90vw">
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6">Reemplazar Ejercicio</div>
+        <div class="text-h6">{{ isAddMode ? 'Agregar Ejercicio' : 'Reemplazar Ejercicio' }}</div>
         <q-space />
         <q-btn icon="close" flat round dense :disable="swapping" v-close-popup />
       </q-card-section>
 
-      <!-- Current exercise info -->
-      <q-card-section class="q-pt-sm q-pb-none">
+      <!-- Current exercise info (swap mode only) -->
+      <q-card-section v-if="!isAddMode" class="q-pt-sm q-pb-none">
         <div class="text-caption text-grey">Reemplazando:</div>
         <div class="text-body2 row items-center q-gutter-xs q-mt-xs">
           <span class="text-weight-medium">{{ currentExercise.exerciseName }}</span>
@@ -83,7 +83,7 @@
             :key="ex.id"
             clickable
             :disable="swapping"
-            @click="handleSwap(ex)"
+            @click="handleAction(ex)"
           >
             <q-item-section>
               <q-item-label class="text-weight-medium">
@@ -129,12 +129,12 @@
                 flat
                 dense
                 round
-                icon="swap_horiz"
+                :icon="isAddMode ? 'add_circle' : 'swap_horiz'"
                 color="primary"
                 :disable="swapping"
-                @click.stop="handleSwap(ex)"
+                @click.stop="handleAction(ex)"
               >
-                <q-tooltip>Reemplazar con este ejercicio</q-tooltip>
+                <q-tooltip>{{ isAddMode ? 'Agregar este ejercicio' : 'Reemplazar con este ejercicio' }}</q-tooltip>
               </q-btn>
             </q-item-section>
           </q-item>
@@ -155,19 +155,25 @@ interface PoolExerciseWithSource extends PoolExercise {
   patternSource: 'pattern_1' | 'pattern_2';
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean;
   sessionId: number;
   blockId: number;
   currentExercise: SessionExercise;
   blockRoute: string;
   blockPattern: string;
-}>();
+  mode?: 'swap' | 'add';
+}>(), {
+  mode: 'swap',
+});
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'swapped'): void;
+  (e: 'added'): void;
 }>();
+
+const isAddMode = computed(() => props.mode === 'add');
 
 const $q = useQuasar();
 const editApi = useEditApi();
@@ -259,28 +265,41 @@ async function fetchPool() {
   }
 }
 
-async function handleSwap(exercise: PoolExerciseWithSource) {
+async function handleAction(exercise: PoolExerciseWithSource) {
   if (swapping.value) return;
 
   swapping.value = true;
   swappingId.value = exercise.id;
   try {
-    await editApi.swapExercise(
-      props.sessionId,
-      props.blockId,
-      props.currentExercise.id,
-      exercise.id
-    );
-    $q.notify({
-      type: 'positive',
-      message: 'Ejercicio reemplazado',
-    });
-    emit('swapped');
+    if (isAddMode.value) {
+      await editApi.addExercise(
+        props.sessionId,
+        props.blockId,
+        exercise.id
+      );
+      $q.notify({
+        type: 'positive',
+        message: 'Ejercicio agregado al bloque',
+      });
+      emit('added');
+    } else {
+      await editApi.swapExercise(
+        props.sessionId,
+        props.blockId,
+        props.currentExercise.id,
+        exercise.id
+      );
+      $q.notify({
+        type: 'positive',
+        message: 'Ejercicio reemplazado',
+      });
+      emit('swapped');
+    }
     emit('update:modelValue', false);
   } catch {
     $q.notify({
       type: 'negative',
-      message: 'Error reemplazando ejercicio',
+      message: isAddMode.value ? 'Error agregando ejercicio' : 'Error reemplazando ejercicio',
     });
   } finally {
     swapping.value = false;
