@@ -18,7 +18,7 @@
           >
             <q-tooltip>Intercambiar bloque</q-tooltip>
           </q-btn>
-          <q-badge color="white" :text-color="blockColor" :label="block.format" />
+          <q-badge color="white" :text-color="blockColor" :label="block.formatName" />
         </div>
       </div>
     </q-card-section>

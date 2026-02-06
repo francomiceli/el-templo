@@ -86,6 +86,7 @@
         :session-id="session.id"
         :level-group="session.levelGroup"
         @swap-exercise="onSwapExercise"
+        @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
         @refresh="loadSession"
       />
@@ -111,6 +112,74 @@
       @swapped="onDialogComplete"
       @added="onDialogComplete"
     />
+
+    <!-- Block Swap Dialog -->
+    <q-dialog v-model="blockSwapDialogOpen" persistent>
+      <q-card style="min-width: 500px; max-width: 700px">
+        <q-card-section class="row items-center">
+          <div class="text-h6">Intercambiar Bloque</div>
+          <q-space />
+          <q-btn icon="close" flat round dense v-close-popup />
+        </q-card-section>
+
+        <q-card-section v-if="blockSwapTarget" class="q-pt-none">
+          <div class="text-caption text-grey q-mb-md">
+            Reemplazar bloque {{ blockSwapTarget.role }} ({{ blockSwapTarget.route }}) con uno del pool de sesiones aprobadas
+          </div>
+
+          <div v-if="blockPoolLoading" class="flex flex-center q-pa-lg">
+            <q-spinner-dots size="40px" color="primary" />
+          </div>
+
+          <div v-else-if="blockPool.length === 0" class="text-center q-pa-lg text-grey">
+            <q-icon name="info" size="md" class="q-mb-sm" /><br>
+            No hay bloques disponibles para esta ruta y nivel
+          </div>
+
+          <q-list v-else separator bordered class="rounded-borders" style="max-height: 400px; overflow-y: auto">
+            <q-item
+              v-for="poolBlock in blockPool"
+              :key="poolBlock.id"
+              clickable
+              @click="handleBlockSwap(poolBlock.id)"
+            >
+              <q-item-section>
+                <q-item-label>
+                  <q-badge :color="poolBlock.formatName ? 'primary' : 'grey'" class="q-mr-sm">
+                    {{ poolBlock.formatName }}
+                  </q-badge>
+                  {{ poolBlock.exerciseCount }} ejercicios
+                </q-item-label>
+                <q-item-label caption>
+                  <span class="q-mr-md">
+                    <q-icon name="speed" size="xs" /> {{ poolBlock.intensity }}%
+                  </span>
+                  <span class="q-mr-md">
+                    <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
+                  </span>
+                  <span class="text-italic">
+                    Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
+                  </span>
+                </q-item-label>
+                <q-item-label caption class="q-mt-xs">
+                  <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
+                    {{ ex.exerciseName }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
+                  </span>
+                  <span v-if="poolBlock.exercises.length > 4">
+                    ... +{{ poolBlock.exercises.length - 4 }}
+                  </span>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn flat dense icon="swap_horiz" color="primary">
+                  <q-tooltip>Usar este bloque</q-tooltip>
+                </q-btn>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -125,7 +194,7 @@ import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
-import type { SessionDetail, SessionExercise, LevelGroup } from 'src/types/session';
+import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, LevelGroup } from 'src/types/session';
 
 const route = useRoute();
 const router = useRouter();
@@ -149,6 +218,12 @@ const swapDialogBlockRoute = ref('');
 const swapDialogBlockPattern = ref('');
 const swapDialogExercise = ref<SessionExercise | null>(null);
 
+// Block swap dialog state
+const blockSwapDialogOpen = ref(false);
+const blockSwapTarget = ref<SessionBlock | null>(null);
+const blockPool = ref<PoolBlock[]>([]);
+const blockPoolLoading = ref(false);
+
 async function loadSession() {
   const id = Number(route.params.id);
   if (isNaN(id)) {
@@ -170,8 +245,7 @@ async function loadSession() {
 }
 
 function goBack() {
-  const id = route.params.id;
-  router.push(`/sessions/${id}`);
+  router.push('/sessions');
 }
 
 async function handleApprove() {
@@ -214,6 +288,52 @@ async function handleReset() {
       loadSession();
     } catch {
       $q.notify({ type: 'negative', message: editApi.error.value || 'Error al restaurar sesion' });
+    }
+  });
+}
+
+async function onSwapBlock(block: SessionBlock) {
+  if (!session.value) return;
+  blockSwapTarget.value = block;
+  blockSwapDialogOpen.value = true;
+  blockPool.value = [];
+  blockPoolLoading.value = true;
+
+  try {
+    const memberLevel = session.value.memberLevel;
+    const result = await sessionsApi.fetchBlockPool(
+      block.route,
+      memberLevel,
+      session.value.id,
+      block.id
+    );
+    blockPool.value = result.blocks;
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error cargando pool de bloques' });
+  } finally {
+    blockPoolLoading.value = false;
+  }
+}
+
+async function handleBlockSwap(sourceBlockId: number) {
+  if (!session.value || !blockSwapTarget.value) return;
+
+  $q.dialog({
+    title: 'Confirmar Intercambio',
+    message: 'Se reemplazara el contenido del bloque actual con el bloque seleccionado. Continuar?',
+    cancel: true,
+  }).onOk(async () => {
+    try {
+      await sessionsApi.swapBlock(
+        session.value!.id,
+        blockSwapTarget.value!.id,
+        sourceBlockId
+      );
+      $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
+      blockSwapDialogOpen.value = false;
+      loadSession();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
     }
   });
 }

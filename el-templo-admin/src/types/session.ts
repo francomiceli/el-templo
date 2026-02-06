@@ -42,7 +42,8 @@ export interface SessionBlock {
   role: string;
   route: string;
   pattern: string;
-  format: string;
+  formatId: number;
+  formatName: string;
   intensity: number;
   repsBudget: number;
   sortOrder: number;

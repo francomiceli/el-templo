@@ -8,6 +8,17 @@
           <div class="text-caption">{{ block.route }}</div>
         </div>
         <div class="row items-center q-gutter-sm">
+          <!-- Block swap button -->
+          <q-btn
+            flat
+            dense
+            round
+            icon="swap_horiz"
+            color="white"
+            @click="$emit('swap-block', block)"
+          >
+            <q-tooltip>Intercambiar bloque</q-tooltip>
+          </q-btn>
           <!-- Format dropdown -->
           <q-select
             v-model="selectedFormat"
@@ -25,7 +36,7 @@
           >
             <template #selected-item="scope">
               <q-badge color="white" :text-color="blockColor">
-                {{ scope.opt?.label || block.format }}
+                {{ scope.opt?.label || block.formatName }}
               </q-badge>
             </template>
           </q-select>
@@ -122,6 +133,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'swap-exercise', payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }): void;
+  (e: 'swap-block', block: SessionBlock): void;
   (e: 'add-exercise', payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }): void;
   (e: 'refresh'): void;
 }>();
@@ -131,7 +143,7 @@ const editApi = useEditApi();
 
 // Format dropdown state
 const compatibleFormats = ref<CompatibleFormat[]>([]);
-const selectedFormat = ref<string>(props.block.format);
+const selectedFormat = ref<string>(props.block.formatName);
 const formatsLoading = ref(false);
 
 const blockColor = computed(() => {
@@ -173,9 +185,9 @@ const contractionWarning = ref<string | undefined>(undefined);
 // Format dropdown options sorted by compatibility score
 const formatOptions = computed(() => {
   if (compatibleFormats.value.length === 0) {
-    return [{ label: props.block.format, value: props.block.format }];
+    return [{ label: props.block.formatName, value: props.block.formatName }];
   }
-  return compatibleFormats.value
+  return [...compatibleFormats.value]
     .sort((a, b) => b.compatibility - a.compatibility)
     .map(f => ({
       label: `${f.formatName} (${f.compatibility})`,
@@ -187,10 +199,12 @@ const formatOptions = computed(() => {
 async function loadCompatibleFormats() {
   formatsLoading.value = true;
   try {
+    // INITIUM blocks store intensity=30 but format_compatibility entries start at 55
+    const effectiveIntensity = isInitium.value ? 55 : props.block.intensity;
     const response = await editApi.fetchCompatibleFormats({
       blockRole: props.block.role,
       level: props.levelGroup,
-      intensity: props.block.intensity,
+      intensity: effectiveIntensity,
     });
     compatibleFormats.value = response.formats;
   } catch {
@@ -201,7 +215,7 @@ async function loadCompatibleFormats() {
 }
 
 async function onFormatChange(newFormat: string) {
-  if (newFormat === props.block.format) return;
+  if (newFormat === props.block.formatName) return;
 
   const format = compatibleFormats.value.find(f => f.formatName === newFormat);
   if (!format) return;
@@ -216,7 +230,7 @@ async function onFormatChange(newFormat: string) {
   } catch {
     $q.notify({ type: 'negative', message: 'Error al cambiar formato' });
     // Revert selection
-    selectedFormat.value = props.block.format;
+    selectedFormat.value = props.block.formatName;
   }
 }
 

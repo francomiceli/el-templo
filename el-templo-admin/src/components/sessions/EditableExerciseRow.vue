@@ -24,9 +24,9 @@
 
       <!-- Inline editable fields -->
       <q-item-label class="row items-center q-gutter-sm q-mt-xs">
-        <!-- Reps -->
+        <!-- Reps (CON / EXC) -->
         <q-input
-          v-if="exercise.reps !== null || !exercise.seconds"
+          v-if="!isIso"
           v-model.number="localReps"
           type="number"
           dense
@@ -37,9 +37,9 @@
           @blur="emitUpdate"
         />
 
-        <!-- Seconds -->
+        <!-- Seconds (ISO) -->
         <q-input
-          v-if="exercise.seconds !== null"
+          v-if="isIso"
           v-model.number="localSeconds"
           type="number"
           dense
@@ -159,6 +159,12 @@ function emitUpdate() {
     emit('update', { prescriptionId: props.exercise.id, fields });
   }
 }
+
+// Whether this exercise uses isometric contraction (show seconds instead of reps)
+const isIso = computed(() => {
+  const c = props.exercise.contraction?.toLowerCase();
+  return c === 'iso' || c === 'isometrico';
+});
 
 // Contraction display helpers
 const contractionLabel = computed(() => {

@@ -188,14 +188,22 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
     const excludeExerciseIds = prescriptions.map(p => p.exerciseId);
 
-    // Look up pattern2 from SPOM rules (session week + block route)
+    // Look up pattern2 from SPOM rules and member level for difficulty cap
     let pattern2: string | null = null;
+    let maxDifficulty: number | undefined;
     const [session] = await fastify.db
-      .select({ week: schema.sessions.week })
+      .select({ week: schema.sessions.week, dayId: schema.sessions.dayId })
       .from(schema.sessions)
       .where(eq(schema.sessions.id, block.sessionId));
 
     if (session) {
+      // Extract memberLevel from dayId (format: "W1-lunes-alfa" -> "alfa")
+      const memberLevel = session.dayId.split('-').pop() || '';
+      const maxDifficultyMap: Record<string, number> = {
+        alfa: 3, delta: 6, sigma: 8, omega: 10, spartan: 12,
+      };
+      maxDifficulty = maxDifficultyMap[memberLevel];
+
       const [routeRow] = await fastify.db
         .select({ id: schema.routes.id })
         .from(schema.routes)
@@ -216,7 +224,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    return editService.getExercisePool({
+    const exercises = await editService.getExercisePool({
       blockId,
       contraction,
       route,
@@ -224,7 +232,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       pattern2,
       blockRole: block.role,
       excludeExerciseIds,
+      maxDifficulty,
     });
+    return { exercises };
   });
 
   // POST /admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/swap - Swap exercise
@@ -355,11 +365,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   }>('/formats/compatible', {
     schema: getCompatibleFormatsSchema,
   }, async (request) => {
-    return editService.getCompatibleFormats({
+    const formats = await editService.getCompatibleFormats({
       blockRole: request.query.blockRole,
       level: request.query.level,
       intensity: request.query.intensity,
     });
+    return { formats };
   });
 
   // GET /admin/sessions/:id/preview - Get member preview data

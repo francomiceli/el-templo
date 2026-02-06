@@ -16,7 +16,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, inArray, gt, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, or, like, inArray, gt, lte, asc, desc, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { PrescribeService } from './prescribe-service';
 
@@ -41,6 +41,8 @@ export interface ExercisePoolParams {
   excludeExerciseIds: number[];
   /** Target difficulty to sort by proximity */
   targetDifficulty?: number;
+  /** Maximum linear difficulty to include (based on member level) */
+  maxDifficulty?: number;
 }
 
 export interface ExercisePoolItem {
@@ -171,15 +173,29 @@ export class AdminEditService {
       targetDifficulty,
     } = params;
 
-    // Build primary route query conditions
-    const primaryConditions = [
-      eq(schema.exercises.route, route),
-    ];
+    // INITIUM uses FLOW pattern / Movilidad category instead of route-based lookup
+    // (route='INITIUM' is a marker, not a real route in the exercises table)
+    const isInitium = blockRole === 'INITIUM';
+
+    const primaryConditions = isInitium
+      ? [
+          or(
+            like(schema.exercises.pattern, '%FLOW%'),
+            eq(schema.exercises.category, 'Movilidad')
+          )!,
+        ]
+      : [
+          eq(schema.exercises.route, route),
+        ];
+
     if (contraction) {
       primaryConditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
     }
+    if (params.maxDifficulty !== undefined) {
+      primaryConditions.push(lte(schema.exercises.dificultadLineal, params.maxDifficulty));
+    }
 
-    // Get primary route exercises
+    // Get primary exercises
     let primaryExercises = await this.db
       .select({
         id: schema.exercises.id,
@@ -200,12 +216,15 @@ export class AdminEditService {
 
     // Cross-route logic for non-INITIUM blocks:
     // Include pattern_2 exercises from a different route (per 13-08)
-    if (blockRole !== 'INITIUM' && pattern2) {
+    if (!isInitium && pattern2) {
       const crossConditions = [
         eq(schema.exercises.pattern, pattern2),
       ];
       if (contraction) {
         crossConditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
+      }
+      if (params.maxDifficulty !== undefined) {
+        crossConditions.push(lte(schema.exercises.dificultadLineal, params.maxDifficulty));
       }
 
       const crossExercises = await this.db

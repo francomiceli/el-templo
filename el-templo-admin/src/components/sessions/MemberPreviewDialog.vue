@@ -59,7 +59,7 @@
                 <span class="text-subtitle2 text-weight-medium">{{ block.role }}</span>
                 <span class="text-caption text-grey q-ml-sm">{{ block.route }}</span>
               </div>
-              <q-badge :color="blockColorName(block.role)" :label="block.format" />
+              <q-badge :color="blockColorName(block.role)" :label="block.formatName" />
             </div>
           </div>
 

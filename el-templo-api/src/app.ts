@@ -14,13 +14,14 @@ export async function buildApp() {
   // CORS configuration
   await app.register(cors, {
     origin: process.env.NODE_ENV === 'development'
-      ? ['http://localhost:9000', 'http://localhost:9100', 'capacitor://localhost', 'http://localhost']
+      ? ['http://localhost:9000', 'http://localhost:9100', 'http://localhost:9101', 'capacitor://localhost', 'http://localhost']
       : [
           process.env.FRONTEND_URL || 'https://app.eltemplo.com',
           process.env.ADMIN_URL || 'https://admin.eltemplo.com',
           'capacitor://localhost',  // Android Capacitor
           'http://localhost',       // iOS Capacitor
         ],
+    methods: ['GET', 'HEAD', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
   // Database plugin (decorates fastify.db)

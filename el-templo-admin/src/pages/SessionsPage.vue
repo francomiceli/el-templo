@@ -83,10 +83,10 @@
           <q-btn
             flat
             dense
-            icon="visibility"
+            icon="edit"
             @click="viewSession(props.row.id)"
           >
-            <q-tooltip>Ver detalles</q-tooltip>
+            <q-tooltip>Editar sesion</q-tooltip>
           </q-btn>
           <q-btn
             v-if="props.row.status === 'pending_review'"
