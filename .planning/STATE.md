@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 15 (Admin Session Editing) — **In Progress**
-Plan: 04 of 9 (Frontend Types & Edit API Composable)
-Status: **In progress** — Plan 04 complete
-Last activity: 2026-02-06 - Completed 15-04-PLAN.md
+Plan: 06 of 9 (Exercise Swap Dialog)
+Status: **In progress** — Plan 06 complete
+Last activity: 2026-02-06 - Completed 15-06-PLAN.md
 
-Progress: [███-------] 33% Phase 15 (3/9 plans)
+Progress: [██████----] 56% Phase 15 (5/9 plans)
 
 ## Architecture Reset
 
@@ -320,6 +320,9 @@ Recent decisions affecting current work:
 | 15-04 | Separate useEditApi from useSessionsApi | Keep review and editing API concerns isolated |
 | 15-04 | PrescriptionUpdate uses optional fields | Support partial updates (coach edits one field at a time) |
 | 15-04 | changeBlockFormat sends formatId and formatName | Backend can update both columns atomically |
+| 15-06 | Added pattern field to SessionBlock frontend type | Backend already returns it, needed for swap dialog block context |
+| 15-06 | Contraction filter triggers API re-fetch, search is client-side | Server-side filter for accuracy, client-side search for responsiveness |
+| 15-06 | Cross-route exercises show "Cruce" badge in deep-orange | Visual distinction for pattern_2 exercises from different routes |
 
 ### Pending Todos
 
@@ -340,7 +343,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-06
-Stopped at: Completed 15-04-PLAN.md
+Stopped at: Completed 15-06-PLAN.md
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
