@@ -76,8 +76,9 @@ Plans:
 ---
 
 ### Phase 15: Admin Session Editing
-**Goal**: Coaches can modify pending sessions before approval
+**Goal**: Coaches can modify pending and approved sessions - swap exercises, adjust prescriptions, change formats, add/remove exercises
 **Depends on**: Phase 14 (review UI exists)
+**Plans:** 9 plans
 **Success Criteria** (what must be TRUE):
   1. Coach can swap exercises within a block (from exercise database)
   2. Coach can modify prescription (reps, sets, rest times)
@@ -86,6 +87,17 @@ Plans:
   5. Edit history tracked (who changed what, when)
   6. Validation prevents invalid sessions (e.g., wrong contraction mix)
   7. Preview shows how session will appear to members
+
+Plans:
+- [ ] 15-01-PLAN.md — Database schema: edit logs, snapshots, format params
+- [ ] 15-02-PLAN.md — PrescribeService and AdminEditService business logic
+- [ ] 15-03-PLAN.md — Editing API routes and schemas
+- [ ] 15-04-PLAN.md — Frontend types and useEditApi composable
+- [ ] 15-05-PLAN.md — Session edit page with editable block cards and exercise rows
+- [ ] 15-06-PLAN.md — Exercise swap dialog with filtering
+- [ ] 15-07-PLAN.md — Budget bar, validation badges, format dropdown, wiring
+- [ ] 15-08-PLAN.md — Member preview dialog
+- [ ] 15-09-PLAN.md — Human verification of complete editing workflow
 
 ---
 
@@ -148,7 +160,7 @@ Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
 |-------|----------------|--------|-----------|
 | 13. Session Generation Review | 8/8 | Complete | 2026-02-05 |
 | 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
-| 15. Admin Session Editing | 0/? | Not Started | — |
+| 15. Admin Session Editing | 0/9 | In Progress | — |
 | 16. Admin Session Creation | 0/? | Not Started | — |
 | 17. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
 | 18. Admin Member Attendance | 0/? | Not Started | — |
@@ -156,4 +168,4 @@ Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-06 — Phase 14 complete (8/8 plans, verified)*
+*Last updated: 2026-02-06 — Phase 15 planned (9 plans in 5 waves)*
