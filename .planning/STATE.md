@@ -9,14 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 ## Current Position
 
-Phase: 14 (Admin Session Review UI) — **COMPLETE**
-Plan: 08 of 8 (Human Verification complete)
-Status: **Complete** — All plans executed, verified 11/11 must-haves
-Last activity: 2026-02-06 - Phase 14 complete, human-verified
+Phase: 15 (Admin Session Editing) — **In Progress**
+Plan: 01 of 9 (Database schema: edit logs, snapshots, format params)
+Status: **In progress** — Plan 01 complete
+Last activity: 2026-02-06 - Completed 15-01-PLAN.md
 
-Progress: [██████████] 100% Phase 14 (8/8 plans)
-
-**Next:** Phase 15 (Admin Session Editing)
+Progress: [█---------] 11% Phase 15 (1/9 plans)
 
 ## Architecture Reset
 
@@ -63,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43
+- Total plans completed: 44
 - Average duration: 4.1 min
-- Total execution time: 4.3 hours
+- Total execution time: 4.4 hours
 
 **By Phase:**
 
@@ -307,6 +305,9 @@ Recent decisions affecting current work:
 | 14-07 | Coverage threshold weeksAhead <= 1 | Per CONTEXT.md - 1 week threshold for low sessions alert |
 | 14-07 | Cron timezone Argentina | America/Argentina/Buenos_Aires for accurate day calculation |
 | 14-07 | approvedBySystem for auto-approve | Existing boolean column used, no migration needed |
+| 15-01 | JSON column for algorithm snapshot | 1:1 relationship with sessions, simpler than separate table |
+| 15-01 | Snapshot captures blocks + prescriptions | Full session structure for revert capability |
+| 15-01 | NULL snapshot for existing sessions | Reset button hidden when no snapshot exists |
 
 ### Pending Todos
 
@@ -327,7 +328,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-06
-Stopped at: Phase 14 complete, verified
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
