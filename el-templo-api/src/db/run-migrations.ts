@@ -72,7 +72,7 @@ async function runMigrations() {
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           // Skip "already exists" errors for idempotency
-          if (msg.includes('Duplicate column name') || msg.includes('Duplicate key name') || msg.includes('already exists')) {
+          if (msg.includes('Duplicate column name') || msg.includes('Duplicate key name') || msg.includes('Duplicate foreign key') || msg.includes('already exists')) {
             console.log(`  Skipped (already exists): ${msg.slice(0, 80)}`);
           } else {
             throw err;
