@@ -15,3 +15,4 @@ export * from './session-prescriptions';
 export * from './session-traces';
 export * from './completed-sessions';
 export * from './evaluation-requests';
+export * from './session-edit-logs';

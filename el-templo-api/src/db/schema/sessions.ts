@@ -16,6 +16,9 @@ export const sessions = mysqlTable('sessions', {
   approvedAt: timestamp('approved_at'),
   approvedBy: int('approved_by').references(() => users.id),
   approvedBySystem: boolean('approved_by_system').default(false),
+
+  // Session editing: stores original algorithm output for revert capability
+  algorithmSnapshot: json('algorithm_snapshot'),
 }, (table) => [
   index('sessions_week_day_level_idx').on(table.week, table.day, table.levelGroup),
   index('sessions_status_idx').on(table.status),

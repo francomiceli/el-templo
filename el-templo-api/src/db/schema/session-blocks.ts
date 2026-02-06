@@ -1,4 +1,4 @@
-import { mysqlTable, int, varchar, index } from 'drizzle-orm/mysql-core';
+import { mysqlTable, int, varchar, json, index } from 'drizzle-orm/mysql-core';
 import { relations } from 'drizzle-orm';
 import { sessions } from './sessions';
 
@@ -15,6 +15,9 @@ export const sessionBlocks = mysqlTable('session_blocks', {
   formatName: varchar('format_name', { length: 50 }).notNull(),
   exerciseCount: int('exercise_count').notNull(),
   sortOrder: int('sort_order').notNull(), // 0-4 for block ordering
+
+  // Format-specific parameters (EMOM interval, AMRAP time cap, Complex rounds, etc.)
+  formatParams: json('format_params'),
 }, (table) => [
   index('session_blocks_session_idx').on(table.sessionId),
 ]);
