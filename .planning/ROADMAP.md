@@ -14,7 +14,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - Phase 13+ is v2.0 Admin App work
 
 - [x] **Phase 13: Session Generation Review & Improvement** - Analyze examples, fix difficulty system, validate algorithm
-- [ ] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
+- [x] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
 - [ ] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
 - [ ] **Phase 16: Admin Session Creation** - Build sessions from scratch using exercise database
 - [ ] **Phase 17: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
@@ -52,25 +52,26 @@ Plans:
 ### Phase 14: Admin Session Review UI
 **Goal**: Coaches can view algorithm-generated sessions and approve them for member visibility
 **Depends on**: Phase 13 (algorithm produces valid sessions)
+**Status**: Complete
 **Plans:** 8 plans
 **Success Criteria** (what must be TRUE):
   1. Admin dashboard shows list of pending sessions (by week/day)
-  2. Sessions have status: pending_review → approved | discarded
+  2. Sessions have status: pending_review → approved (approve/revert workflow)
   3. Coach can view full session details (blocks, exercises, formats, prescriptions)
   4. Coach can approve session (moves to approved, visible to members)
-  5. Coach can discard session with reason (moves to discarded bucket)
+  5. Coach can swap blocks from approved session pool (deduplicated by fingerprint)
   6. Members only see approved sessions in their Weekly View
   7. Pending count badge and low-sessions alert in admin UI
 
 Plans:
-- [ ] 14-01-PLAN.md — Database schema extension (status, approval columns, timezone)
-- [ ] 14-02-PLAN.md — Admin Quasar app scaffold with authentication
-- [ ] 14-03-PLAN.md — Admin API endpoints (list, approve, discard, revert, bulk)
-- [ ] 14-04-PLAN.md — Sessions list page with filters and day tabs
-- [ ] 14-05-PLAN.md — Session detail page with block cards
-- [ ] 14-06-PLAN.md — Generation and discarded sessions pages
-- [ ] 14-07-PLAN.md — Member visibility filter and pending badge
-- [ ] 14-08-PLAN.md — Human verification of complete workflow
+- [x] 14-01-PLAN.md — Database schema extension (status, approval columns, timezone)
+- [x] 14-02-PLAN.md — Admin Quasar app scaffold with authentication
+- [x] 14-03-PLAN.md — Admin API endpoints (list, approve, revert, bulk)
+- [x] 14-04-PLAN.md — Sessions list page with filters and day tabs
+- [x] 14-05-PLAN.md — Session detail page with block cards
+- [x] 14-06-PLAN.md — Generation page and regeneration with permanent deletion
+- [x] 14-07-PLAN.md — Member visibility filter and pending badge
+- [x] 14-08-PLAN.md — Human verification of complete workflow
 
 ---
 
@@ -146,7 +147,7 @@ Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 13. Session Generation Review | 8/8 | Complete | 2026-02-05 |
-| 14. Admin Session Review UI | 0/8 | Planned | — |
+| 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
 | 15. Admin Session Editing | 0/? | Not Started | — |
 | 16. Admin Session Creation | 0/? | Not Started | — |
 | 17. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
@@ -155,4 +156,4 @@ Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-05 — Phase 14 planned (8 plans in 5 waves)*
+*Last updated: 2026-02-06 — Phase 14 complete (8/8 plans, verified)*
