@@ -74,6 +74,15 @@
           <q-btn
             flat
             dense
+            icon="preview"
+            color="info"
+            @click="openPreview(props.row)"
+          >
+            <q-tooltip>Vista previa miembro</q-tooltip>
+          </q-btn>
+          <q-btn
+            flat
+            dense
             icon="visibility"
             @click="viewSession(props.row.id)"
           >
@@ -120,6 +129,13 @@
         @click="handleBulkApprove"
       />
     </div>
+
+    <!-- Member preview dialog -->
+    <member-preview-dialog
+      v-model="previewOpen"
+      :session-id="previewSessionId"
+      :current-member-level="previewMemberLevel"
+    />
   </q-page>
 </template>
 
@@ -132,6 +148,7 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import SessionFilters from 'src/components/sessions/SessionFilters.vue';
 import DayTabs from 'src/components/sessions/DayTabs.vue';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
+import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import type { SessionSummary, SessionFilter } from 'src/types/session';
 
 const $q = useQuasar();
@@ -150,6 +167,11 @@ const tablePagination = ref({
   rowsPerPage: 50,
   rowsNumber: 0,
 });
+
+// Preview dialog state
+const previewOpen = ref(false);
+const previewSessionId = ref(0);
+const previewMemberLevel = ref('alfa');
 
 // Table columns
 const columns = [
@@ -261,6 +283,12 @@ async function handleBulkApprove() {
       $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
     }
   });
+}
+
+function openPreview(row: SessionSummary) {
+  previewSessionId.value = row.id;
+  previewMemberLevel.value = row.memberLevel || 'alfa';
+  previewOpen.value = true;
 }
 
 function memberLevelColor(level: string): string {

@@ -7,20 +7,47 @@
           <div class="text-h6">{{ block.role }}</div>
           <div class="text-caption">{{ block.route }}</div>
         </div>
-        <q-badge color="white" :text-color="blockColor" :label="block.format" />
+        <div class="row items-center q-gutter-sm">
+          <!-- Format dropdown -->
+          <q-select
+            v-model="selectedFormat"
+            :options="formatOptions"
+            option-label="label"
+            option-value="value"
+            emit-value
+            map-options
+            dense
+            outlined
+            dark
+            :loading="formatsLoading"
+            style="min-width: 140px"
+            @update:model-value="onFormatChange"
+          >
+            <template #selected-item="scope">
+              <q-badge color="white" :text-color="blockColor">
+                {{ scope.opt?.label || block.format }}
+              </q-badge>
+            </template>
+          </q-select>
+        </div>
       </div>
     </q-card-section>
 
     <!-- Block stats -->
     <q-card-section class="q-py-sm bg-grey-2">
-      <div class="row q-gutter-md text-caption">
+      <div class="row q-gutter-md text-caption items-center">
         <div>
           <q-icon name="fitness_center" size="xs" />
           {{ block.exercises.length }} ejercicios
-        </div>
-        <div v-if="block.repsBudget">
-          <q-icon name="replay" size="xs" />
-          {{ block.repsBudget }} reps budget
+          <q-icon
+            v-if="exerciseCapWarning"
+            name="warning"
+            color="amber-8"
+            size="xs"
+            class="q-ml-xs"
+          >
+            <q-tooltip>Mas de 3 ejercicios en bloque no-INITIUM</q-tooltip>
+          </q-icon>
         </div>
         <div v-if="block.intensity">
           <q-icon name="speed" size="xs" />
@@ -31,6 +58,23 @@
           Dif: {{ avgDifficulty.toFixed(1) }}
         </div>
       </div>
+
+      <!-- Budget bar -->
+      <budget-bar
+        v-if="block.repsBudget"
+        :current-reps="currentReps"
+        :original-budget="block.repsBudget"
+        class="q-mt-sm"
+      />
+
+      <!-- Contraction mix badge -->
+      <contraction-mix-badge
+        :exercises="block.exercises"
+        :intensity="block.intensity"
+        :block-role="block.role"
+        :warning="contractionWarning"
+        class="q-mt-sm"
+      />
     </q-card-section>
 
     <!-- Editable exercises list -->
@@ -55,34 +99,40 @@
         icon="add"
         color="primary"
         label="Agregar Ejercicio"
-        @click="$emit('add-exercise', { blockId: block.id })"
+        @click="$emit('add-exercise', { blockId: block.id, blockRoute: block.route, blockPattern: block.pattern, blockRole: block.role })"
       />
     </q-card-actions>
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
-import type { SessionBlock, SessionExercise, PrescriptionUpdate } from 'src/types/session';
+import type { SessionBlock, SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
 import { useEditApi } from 'src/composables/useEditApi';
 import EditableExerciseRow from './EditableExerciseRow.vue';
+import BudgetBar from './BudgetBar.vue';
+import ContractionMixBadge from './ContractionMixBadge.vue';
 
 const props = defineProps<{
   block: SessionBlock;
   sessionId: number;
+  levelGroup: string;
 }>();
 
 const emit = defineEmits<{
-  (e: 'swap-exercise', payload: { blockId: number; exercise: SessionExercise }): void;
-  (e: 'remove-exercise', payload: { blockId: number; prescriptionId: number }): void;
-  (e: 'update-prescription', payload: { blockId: number; prescriptionId: number; fields: PrescriptionUpdate }): void;
-  (e: 'add-exercise', payload: { blockId: number }): void;
+  (e: 'swap-exercise', payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }): void;
+  (e: 'add-exercise', payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }): void;
   (e: 'refresh'): void;
 }>();
 
 const $q = useQuasar();
 const editApi = useEditApi();
+
+// Format dropdown state
+const compatibleFormats = ref<CompatibleFormat[]>([]);
+const selectedFormat = ref<string>(props.block.format);
+const formatsLoading = ref(false);
 
 const blockColor = computed(() => {
   const role = props.block.role?.toLowerCase() || '';
@@ -93,6 +143,10 @@ const blockColor = computed(() => {
   return 'grey';
 });
 
+const isInitium = computed(() => {
+  return props.block.role?.toLowerCase().includes('initium') || false;
+});
+
 const avgDifficulty = computed(() => {
   const difficulties = props.block.exercises
     .map(e => e.dificultadLineal)
@@ -101,8 +155,78 @@ const avgDifficulty = computed(() => {
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
 });
 
+// Current total reps (sum of non-ISO exercises with reps > 0)
+const currentReps = computed(() => {
+  return props.block.exercises.reduce((sum, ex) => {
+    return sum + (ex.reps || 0);
+  }, 0);
+});
+
+// Exercise soft cap warning: > 3 exercises for non-INITIUM
+const exerciseCapWarning = computed(() => {
+  return !isInitium.value && props.block.exercises.length > 3;
+});
+
+// Contraction warning placeholder - can be set from server validation later
+const contractionWarning = ref<string | undefined>(undefined);
+
+// Format dropdown options sorted by compatibility score
+const formatOptions = computed(() => {
+  if (compatibleFormats.value.length === 0) {
+    return [{ label: props.block.format, value: props.block.format }];
+  }
+  return compatibleFormats.value
+    .sort((a, b) => b.compatibility - a.compatibility)
+    .map(f => ({
+      label: `${f.formatName} (${f.compatibility})`,
+      value: f.formatName,
+      formatId: f.formatId,
+    }));
+});
+
+async function loadCompatibleFormats() {
+  formatsLoading.value = true;
+  try {
+    const response = await editApi.fetchCompatibleFormats({
+      blockRole: props.block.role,
+      level: props.levelGroup,
+      intensity: props.block.intensity,
+    });
+    compatibleFormats.value = response.formats;
+  } catch {
+    // Silent fail - dropdown will show current format only
+  } finally {
+    formatsLoading.value = false;
+  }
+}
+
+async function onFormatChange(newFormat: string) {
+  if (newFormat === props.block.format) return;
+
+  const format = compatibleFormats.value.find(f => f.formatName === newFormat);
+  if (!format) return;
+
+  try {
+    await editApi.changeBlockFormat(props.sessionId, props.block.id, format.formatId, format.formatName);
+    $q.notify({
+      type: 'positive',
+      message: `Formato cambiado a ${format.formatName}. Ejercicios re-prescritos.`,
+    });
+    emit('refresh');
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al cambiar formato' });
+    // Revert selection
+    selectedFormat.value = props.block.format;
+  }
+}
+
 function onSwapExercise(payload: { exercise: SessionExercise }) {
-  emit('swap-exercise', { blockId: props.block.id, exercise: payload.exercise });
+  emit('swap-exercise', {
+    blockId: props.block.id,
+    exercise: payload.exercise,
+    blockRoute: props.block.route,
+    blockPattern: props.block.pattern,
+  });
 }
 
 async function onRemoveExercise(payload: { prescriptionId: number }) {
@@ -131,6 +255,8 @@ async function onUpdatePrescription(payload: { prescriptionId: number; fields: P
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
   }
 }
+
+onMounted(loadCompatibleFormats);
 </script>
 
 <style scoped>

@@ -57,6 +57,12 @@
           @click="goToEdit"
         />
         <q-btn
+          color="info"
+          icon="preview"
+          label="Vista Previa"
+          @click="previewOpen = true"
+        />
+        <q-btn
           v-if="session.status === 'pending_review'"
           color="positive"
           icon="check"
@@ -82,6 +88,14 @@
         @swap="openSwapDialog"
       />
     </template>
+
+    <!-- Member preview dialog -->
+    <member-preview-dialog
+      v-if="session"
+      v-model="previewOpen"
+      :session-id="session.id"
+      :current-member-level="session.memberLevel || 'alfa'"
+    />
 
     <!-- Swap dialog -->
     <q-dialog v-model="swapDialogOpen" persistent>
@@ -164,6 +178,7 @@ import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import BlockCard from 'src/components/sessions/BlockCard.vue';
+import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import type { SessionDetail, SessionBlock, PoolBlock, LevelGroup } from 'src/types/session';
 
 const route = useRoute();
@@ -181,6 +196,9 @@ const swapDialogOpen = ref(false);
 const swapTargetBlock = ref<SessionBlock | null>(null);
 const poolBlocks = ref<PoolBlock[]>([]);
 const poolLoading = ref(false);
+
+// Preview dialog state
+const previewOpen = ref(false);
 
 async function loadSession() {
   const id = Number(route.params.id);

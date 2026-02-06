@@ -69,6 +69,12 @@
           label="Resetear al Algoritmo"
           @click="handleReset"
         />
+        <q-btn
+          color="info"
+          icon="preview"
+          label="Vista Previa"
+          @click="previewOpen = true"
+        />
       </div>
 
       <!-- Blocks -->
@@ -78,11 +84,33 @@
         :key="block.id"
         :block="block"
         :session-id="session.id"
+        :level-group="session.levelGroup"
         @swap-exercise="onSwapExercise"
         @add-exercise="onAddExercise"
         @refresh="loadSession"
       />
+
+      <!-- Member preview dialog -->
+      <member-preview-dialog
+        v-model="previewOpen"
+        :session-id="session.id"
+        :current-member-level="session.memberLevel || 'alfa'"
+      />
     </template>
+
+    <!-- Exercise Swap / Add Dialog -->
+    <exercise-swap-dialog
+      v-if="swapDialogExercise"
+      v-model="swapDialogOpen"
+      :session-id="session?.id ?? 0"
+      :block-id="swapDialogBlockId"
+      :current-exercise="swapDialogExercise"
+      :block-route="swapDialogBlockRoute"
+      :block-pattern="swapDialogBlockPattern"
+      :mode="swapDialogMode"
+      @swapped="onDialogComplete"
+      @added="onDialogComplete"
+    />
   </q-page>
 </template>
 
@@ -95,6 +123,8 @@ import { useEditApi } from 'src/composables/useEditApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
+import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
+import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
 import type { SessionDetail, SessionExercise, LevelGroup } from 'src/types/session';
 
 const route = useRoute();
@@ -107,6 +137,17 @@ const adminStore = useAdminStore();
 const session = ref<SessionDetail | null>(null);
 const loading = ref(true);
 const error = ref<string | null>(null);
+
+// Preview dialog state
+const previewOpen = ref(false);
+
+// Swap/Add dialog state
+const swapDialogOpen = ref(false);
+const swapDialogMode = ref<'swap' | 'add'>('swap');
+const swapDialogBlockId = ref(0);
+const swapDialogBlockRoute = ref('');
+const swapDialogBlockPattern = ref('');
+const swapDialogExercise = ref<SessionExercise | null>(null);
 
 async function loadSession() {
   const id = Number(route.params.id);
@@ -177,16 +218,39 @@ async function handleReset() {
   });
 }
 
-function onSwapExercise(payload: { blockId: number; exercise: SessionExercise }) {
-  // Swap dialog will be implemented in plan 15-06
-  void payload;
-  $q.notify({ type: 'info', message: 'Intercambio de ejercicios - Proximamente', timeout: 2000 });
+function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
+  swapDialogMode.value = 'swap';
+  swapDialogBlockId.value = payload.blockId;
+  swapDialogBlockRoute.value = payload.blockRoute;
+  swapDialogBlockPattern.value = payload.blockPattern;
+  swapDialogExercise.value = payload.exercise;
+  swapDialogOpen.value = true;
 }
 
-function onAddExercise(payload: { blockId: number }) {
-  // Add exercise dialog will be implemented in plan 15-06
-  void payload;
-  $q.notify({ type: 'info', message: 'Agregar ejercicio - Proximamente', timeout: 2000 });
+function onAddExercise(payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
+  swapDialogMode.value = 'add';
+  swapDialogBlockId.value = payload.blockId;
+  swapDialogBlockRoute.value = payload.blockRoute;
+  swapDialogBlockPattern.value = payload.blockPattern;
+  // Placeholder exercise for add mode - dialog shows pool to select from
+  swapDialogExercise.value = {
+    id: 0,
+    exerciseId: 0,
+    exerciseName: 'Nuevo ejercicio',
+    contraction: '',
+    reps: null,
+    seconds: null,
+    rest: null,
+    notes: null,
+    dificultadLineal: null,
+    sortOrder: 0,
+  };
+  swapDialogOpen.value = true;
+}
+
+function onDialogComplete() {
+  swapDialogOpen.value = false;
+  loadSession();
 }
 
 function dayLabel(day: string): string {
