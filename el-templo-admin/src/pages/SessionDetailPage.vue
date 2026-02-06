@@ -238,7 +238,8 @@ async function openSwapDialog(block: SessionBlock) {
     const result = await sessionsApi.fetchBlockPool(
       block.route,
       memberLevel,
-      session.value.id
+      session.value.id,
+      block.id
     );
     poolBlocks.value = result.blocks;
   } catch {

@@ -458,7 +458,7 @@ export class AdminSessionService {
   /**
    * Get pool of blocks from approved sessions matching route + memberLevel
    */
-  async getBlockPool(route: string, memberLevel: string, excludeSessionId?: number) {
+  async getBlockPool(route: string, memberLevel: string, excludeSessionId?: number, excludeBlockId?: number) {
     // Build conditions
     const conditions = [
       eq(schema.sessions.status, 'approved'),
@@ -543,7 +543,18 @@ export class AdminSessionService {
 
     // Deduplicate blocks by exercise fingerprint (sorted exercise names)
     // Keep the most recent one (first in list since ordered by week DESC)
+    // Pre-seed with current block's fingerprint so identical blocks are excluded
     const seen = new Map<string, typeof result[number]>();
+    if (excludeBlockId) {
+      const currentExercises = await this.db
+        .select({ exerciseName: schema.sessionPrescriptions.exerciseName })
+        .from(schema.sessionPrescriptions)
+        .where(eq(schema.sessionPrescriptions.blockId, excludeBlockId));
+      if (currentExercises.length > 0) {
+        const currentFingerprint = currentExercises.map(e => e.exerciseName).sort().join('|');
+        seen.set(currentFingerprint, {} as typeof result[number]);
+      }
+    }
     for (const block of result) {
       const fingerprint = block.exercises
         .map(e => e.exerciseName)
@@ -554,7 +565,7 @@ export class AdminSessionService {
       }
     }
 
-    return { blocks: Array.from(seen.values()) };
+    return { blocks: Array.from(seen.values()).filter(b => b.id !== undefined) };
   }
 
   /**

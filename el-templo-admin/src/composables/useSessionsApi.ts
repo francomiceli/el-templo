@@ -61,9 +61,9 @@ export function useSessionsApi() {
     return data.count;
   }
 
-  async function fetchBlockPool(route: string, memberLevel: string, excludeSessionId?: number): Promise<PoolBlocksResponse> {
+  async function fetchBlockPool(route: string, memberLevel: string, excludeSessionId?: number, excludeBlockId?: number): Promise<PoolBlocksResponse> {
     const { data } = await api.get<PoolBlocksResponse>('/admin/blocks/pool', {
-      params: { route, memberLevel, excludeSessionId },
+      params: { route, memberLevel, excludeSessionId, excludeBlockId },
     });
     return data;
   }

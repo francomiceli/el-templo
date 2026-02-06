@@ -71,6 +71,7 @@ export const getBlockPoolSchema = {
       route: { type: 'string' },
       memberLevel: { type: 'string' },
       excludeSessionId: { type: 'integer' },
+      excludeBlockId: { type: 'integer' },
     },
   },
 };

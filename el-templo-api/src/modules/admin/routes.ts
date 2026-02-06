@@ -115,14 +115,15 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /admin/blocks/pool - Get pool of blocks from approved sessions
   fastify.get<{
-    Querystring: { route: string; memberLevel: string; excludeSessionId?: number };
+    Querystring: { route: string; memberLevel: string; excludeSessionId?: number; excludeBlockId?: number };
   }>('/blocks/pool', {
     schema: getBlockPoolSchema,
   }, async (request) => {
     return adminService.getBlockPool(
       request.query.route,
       request.query.memberLevel,
-      request.query.excludeSessionId
+      request.query.excludeSessionId,
+      request.query.excludeBlockId
     );
   });
 
