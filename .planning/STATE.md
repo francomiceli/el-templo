@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 15 (Admin Session Editing) — **In Progress**
-Plan: 02 of 9 (Prescribe & Edit Services)
-Status: **In progress** — Plan 02 complete
-Last activity: 2026-02-06 - Completed 15-02-PLAN.md
+Plan: 04 of 9 (Frontend Types & Edit API Composable)
+Status: **In progress** — Plan 04 complete
+Last activity: 2026-02-06 - Completed 15-04-PLAN.md
 
-Progress: [██--------] 22% Phase 15 (2/9 plans)
+Progress: [███-------] 33% Phase 15 (3/9 plans)
 
 ## Architecture Reset
 
@@ -313,6 +313,9 @@ Recent decisions affecting current work:
 | 15-02 | Exercise pool sorted by difficulty proximity | Best swap suggestions first for coaches |
 | 15-02 | Blank prescription for added exercises | Coach fills in manually per CONTEXT.md |
 | 15-02 | exerciseCount updated via SQL expression | Avoids read-then-write race conditions |
+| 15-04 | Separate useEditApi from useSessionsApi | Keep review and editing API concerns isolated |
+| 15-04 | PrescriptionUpdate uses optional fields | Support partial updates (coach edits one field at a time) |
+| 15-04 | changeBlockFormat sends formatId and formatName | Backend can update both columns atomically |
 
 ### Pending Todos
 
@@ -333,7 +336,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-06
-Stopped at: Completed 15-02-PLAN.md
+Stopped at: Completed 15-04-PLAN.md
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
