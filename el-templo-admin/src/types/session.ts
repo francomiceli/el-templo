@@ -98,3 +98,49 @@ export interface PoolBlock {
 export interface PoolBlocksResponse {
   blocks: PoolBlock[];
 }
+
+// --- Editing types (Phase 15) ---
+
+// Exercise pool for swap dialog
+export interface PoolExercise {
+  id: number;
+  exercise: string; // exercise name
+  effort: string; // CON, EXC, ISO
+  dificultadLineal: number;
+  pattern: string;
+  route: string;
+}
+
+export interface ExercisePoolResponse {
+  exercises: PoolExercise[];
+}
+
+// Compatible formats for format change dropdown
+export interface CompatibleFormat {
+  formatId: number;
+  formatName: string;
+  compatibility: number; // score, higher = more compatible
+}
+
+export interface CompatibleFormatsResponse {
+  formats: CompatibleFormat[];
+}
+
+// Prescription update payload
+export interface PrescriptionUpdate {
+  reps?: number;
+  seconds?: number;
+  rest?: number;
+  notes?: string;
+}
+
+// Session preview for member preview modal
+export interface SessionPreview {
+  id: number;
+  dayId: string;
+  week: number;
+  day: string;
+  memberLevel: string;
+  levelGroup: string;
+  blocks: SessionBlock[];
+}
