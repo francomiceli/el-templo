@@ -73,6 +73,7 @@ export interface SelectedExercise {
   readonly name: string;
   readonly contraction: Contraction;
   readonly difficulty: number;
+  readonly crossRoute?: boolean;
 }
 
 /** Exercise prescription with dose, rest, and notes */

@@ -38,6 +38,7 @@ export async function resolveSpom(
   const traceEvent = createTraceEvent(ctx, 'SPOM_RESOLVED', 'INFO', {
     intensity: rule.intensity,
     pattern: rule.pattern,
+    pattern2: rule.pattern2 ?? null,
     category: rule.category,
     wave: rule.wave,
     ruleId: rule.id,
@@ -47,6 +48,7 @@ export async function resolveSpom(
     ...appendTrace(ctx, traceEvent),
     intensity: rule.intensity,
     pattern: rule.pattern,
+    pattern2: rule.pattern2 ?? null,
     category: rule.category,
   };
 }

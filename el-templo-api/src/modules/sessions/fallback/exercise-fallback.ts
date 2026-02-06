@@ -16,7 +16,7 @@
  */
 
 import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, lte, inArray, like, or } from 'drizzle-orm';
+import { eq, and, lte, inArray, like, or, ne } from 'drizzle-orm';
 import * as schema from '../../../db/schema';
 import type {
   FallbackResult,
@@ -414,4 +414,91 @@ export async function selectExercisesWithFallback(
     tier: policy.maxTier,
     actions,
   };
+}
+
+/**
+ * Query cross-route exercises using SPOM pattern_2.
+ *
+ * Lookup strategy:
+ * 1. Try exercises.pattern = pattern2 AND route != excludeRoute
+ * 2. If empty, try exercises.category = pattern2 AND route != excludeRoute
+ * 3. If still empty, return []
+ *
+ * For each attempt, first tries exact contraction match, then includes empty effort.
+ */
+export async function queryCrossRouteExercises(
+  db: MySql2Database<typeof schema>,
+  pattern2: string,
+  excludeRoute: string,
+  contraction: Contraction,
+  maxDificultadLineal: number,
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>
+): Promise<ExerciseCandidate[]> {
+  // Helper: run query with given field condition, first exact contraction then including empty effort
+  async function queryWithField(
+    fieldCondition: ReturnType<typeof eq>
+  ): Promise<ExerciseCandidate[]> {
+    // Try exact contraction match first
+    const exactResults = await db
+      .select({
+        id: schema.exercises.id,
+        name: schema.exercises.exercise,
+        dificultadLineal: schema.exercises.dificultadLineal,
+      })
+      .from(schema.exercises)
+      .where(and(
+        fieldCondition,
+        ne(schema.exercises.route, excludeRoute),
+        eq(schema.exercises.effort, contraction),
+        lte(schema.exercises.dificultadLineal, maxDificultadLineal),
+        inArray(schema.exercises.level, [...allowedLevels])
+      ));
+
+    let results = exactResults;
+
+    // If no exact contraction matches, include empty effort
+    if (results.length === 0) {
+      results = await db
+        .select({
+          id: schema.exercises.id,
+          name: schema.exercises.exercise,
+          dificultadLineal: schema.exercises.dificultadLineal,
+        })
+        .from(schema.exercises)
+        .where(and(
+          fieldCondition,
+          ne(schema.exercises.route, excludeRoute),
+          or(
+            eq(schema.exercises.effort, contraction),
+            eq(schema.exercises.effort, '')
+          ),
+          lte(schema.exercises.dificultadLineal, maxDificultadLineal),
+          inArray(schema.exercises.level, [...allowedLevels])
+        ));
+    }
+
+    // Filter out excluded names
+    const filtered = excludeNames && excludeNames.size > 0
+      ? results.filter(r => !excludeNames.has(r.name))
+      : results;
+
+    return filtered.map(r => ({
+      id: r.id,
+      name: r.name,
+      dificultadLineal: r.dificultadLineal,
+      contraction,
+    }));
+  }
+
+  // 1. Try exercises.pattern = pattern2
+  const byPattern = await queryWithField(eq(schema.exercises.pattern, pattern2));
+  if (byPattern.length > 0) return byPattern;
+
+  // 2. Try exercises.category = pattern2
+  const byCategory = await queryWithField(eq(schema.exercises.category, pattern2));
+  if (byCategory.length > 0) return byCategory;
+
+  // 3. No cross-route candidates
+  return [];
 }

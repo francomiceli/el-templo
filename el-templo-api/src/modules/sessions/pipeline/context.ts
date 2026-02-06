@@ -41,6 +41,7 @@ export interface BlockContextWithRoute extends BlockContext {
 export interface BlockContextWithSpom extends BlockContextWithRoute {
   readonly intensity: number;
   readonly pattern: string;
+  readonly pattern2: string | null;
   readonly category: string;
 }
 

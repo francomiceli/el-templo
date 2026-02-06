@@ -14,7 +14,7 @@ import * as schema from '../../../db/schema';
 import type { BlockContextWithFormat, BlockContextWithExercises } from './context';
 import type { Contraction, SelectedExercise } from '../types';
 import { createTraceEvent, appendTrace } from './context';
-import { selectExercisesWithFallback } from '../fallback/exercise-fallback';
+import { selectExercisesWithFallback, queryCrossRouteExercises } from '../fallback/exercise-fallback';
 import type { FallbackAction } from '../fallback/types';
 import {
   getAllowedLevels,
@@ -146,9 +146,81 @@ export async function selectExercises(
     updatedCtx = appendTrace(updatedCtx, shiftTrace);
   }
 
-  // Process each contraction type
+  // Cross-route exercise selection (2+1 split) for non-INITIUM blocks with 3 exercises
+  const totalExercises = ctx.contractionMix.CON + ctx.contractionMix.EXC + ctx.contractionMix.ISO;
+  const adjustedMix = { ...ctx.contractionMix };
+
+  if (ctx.role !== 'INITIUM' && totalExercises === 3 && ctx.pattern2) {
+    // Find the last contraction type with count > 0 (order: CON, EXC, ISO)
+    const contractionOrder: Contraction[] = ['CON', 'EXC', 'ISO'];
+    let crossContraction: Contraction | null = null;
+    for (let i = contractionOrder.length - 1; i >= 0; i--) {
+      if (adjustedMix[contractionOrder[i]] > 0) {
+        crossContraction = contractionOrder[i];
+        break;
+      }
+    }
+
+    if (crossContraction) {
+      const crossPool = await queryCrossRouteExercises(
+        db,
+        ctx.pattern2,
+        ctx.route,
+        crossContraction,
+        maxDificultadLineal,
+        allowedLevels,
+        excludedNames
+      );
+
+      if (crossPool.length > 0) {
+        // Pick first exercise deterministically (sorted by id ASC)
+        const sorted = [...crossPool].sort((a, b) => a.id - b.id);
+        const picked = sorted[0];
+
+        selectedExercises.push({
+          exerciseId: picked.id,
+          name: picked.name,
+          contraction: picked.contraction,
+          difficulty: picked.dificultadLineal,
+          crossRoute: true,
+        });
+        excludedNames.add(picked.name);
+
+        // Decrement the contraction count so main loop selects 2 from block route
+        adjustedMix[crossContraction] -= 1;
+
+        const crossTrace = createTraceEvent(
+          updatedCtx,
+          'CROSS_ROUTE_EXERCISE_SELECTED',
+          'INFO',
+          {
+            pattern2: ctx.pattern2,
+            crossContraction,
+            exercise: { id: picked.id, name: picked.name },
+            sourceRoute: ctx.route,
+          }
+        );
+        updatedCtx = appendTrace(updatedCtx, crossTrace);
+      } else {
+        // pattern2 is route-specific or no cross-route candidates available
+        const emptyTrace = createTraceEvent(
+          updatedCtx,
+          'CROSS_ROUTE_POOL_EMPTY',
+          'INFO',
+          {
+            pattern2: ctx.pattern2,
+            route: ctx.route,
+            reason: 'No cross-route exercises found for pattern2; all 3 from block route',
+          }
+        );
+        updatedCtx = appendTrace(updatedCtx, emptyTrace);
+      }
+    }
+  }
+
+  // Process each contraction type (using adjusted mix after cross-route selection)
   for (const contraction of ['CON', 'EXC', 'ISO'] as const) {
-    const requiredCount = ctx.contractionMix[contraction];
+    const requiredCount = adjustedMix[contraction];
 
     if (requiredCount === 0) {
       continue; // Skip if no exercises needed for this type
