@@ -1,1 +1,26 @@
 export type SessionStatus = 'pending_review' | 'approved';
+
+/** Actions that can be logged to session_edit_logs */
+export type EditAction =
+  | 'exercise_swap'
+  | 'prescription_edit'
+  | 'format_change'
+  | 'exercise_add'
+  | 'exercise_remove'
+  | 'reset_to_algorithm'
+  | 'status_change';
+
+/** Preview block for member-facing session view */
+export interface PreviewBlock {
+  name: string;
+  format: string;
+  exercises: PreviewExercise[];
+}
+
+/** Preview exercise for member-facing session view */
+export interface PreviewExercise {
+  name: string;
+  prescription: string;
+  rest: string;
+  notes: string | null;
+}

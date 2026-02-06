@@ -93,3 +93,148 @@ export const swapBlockSchema = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// Session Editing Schemas (Phase 15-03)
+// ---------------------------------------------------------------------------
+
+export const getExercisePoolSchema = {
+  querystring: {
+    type: 'object',
+    required: ['route', 'blockId'],
+    properties: {
+      route: { type: 'string' },
+      contraction: { type: 'string', enum: ['CON', 'EXC', 'ISO'] },
+      blockId: { type: 'integer' },
+      pattern: { type: 'string' },
+    },
+  },
+};
+
+export const swapExerciseSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId', 'prescriptionId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+      prescriptionId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['newExerciseId'],
+    properties: {
+      newExerciseId: { type: 'integer' },
+    },
+  },
+};
+
+export const updatePrescriptionSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId', 'prescriptionId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+      prescriptionId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    properties: {
+      reps: { type: 'integer', minimum: 0 },
+      seconds: { type: 'integer', minimum: 0 },
+      rest: { type: 'integer', minimum: 0 },
+      notes: { type: ['string', 'null'] },
+    },
+    additionalProperties: false,
+  },
+};
+
+export const changeFormatSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['formatId', 'formatName'],
+    properties: {
+      formatId: { type: 'integer' },
+      formatName: { type: 'string' },
+    },
+  },
+};
+
+export const addExerciseSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['exerciseId'],
+    properties: {
+      exerciseId: { type: 'integer' },
+    },
+  },
+};
+
+export const removeExerciseSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId', 'prescriptionId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+      prescriptionId: { type: 'integer' },
+    },
+  },
+};
+
+export const resetSessionSchema = {
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'integer' },
+    },
+  },
+};
+
+export const getCompatibleFormatsSchema = {
+  querystring: {
+    type: 'object',
+    required: ['blockRole', 'level', 'intensity'],
+    properties: {
+      blockRole: { type: 'string' },
+      level: { type: 'string' },
+      intensity: { type: 'integer', minimum: 0, maximum: 100 },
+    },
+  },
+};
+
+export const getPreviewSchema = {
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'integer' },
+    },
+  },
+  querystring: {
+    type: 'object',
+    properties: {
+      memberLevel: { type: 'string' },
+    },
+  },
+};
