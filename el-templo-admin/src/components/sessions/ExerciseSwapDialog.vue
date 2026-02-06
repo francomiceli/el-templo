@@ -148,8 +148,7 @@
                   Dif: {{ ex.dificultadLineal }}
                 </q-badge>
                 <q-badge
-                  v-if="ex.patternSource === 'pattern_2'"
-                  color="deep-orange"
+                  :color="ex.patternSource === 'pattern_2' ? 'deep-orange' : 'green'"
                   text-color="white"
                   class="q-mr-xs"
                 >

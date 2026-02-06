@@ -61,6 +61,7 @@ export interface SessionExercise {
   notes: string | null;
   dificultadLineal: number | null;
   sortOrder: number;
+  route: string | null;
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -121,7 +122,7 @@ export interface ExercisePoolResponse {
 export interface CompatibleFormat {
   formatId: number;
   formatName: string;
-  compatibility: number; // score, higher = more compatible
+  compatibility: number; // score: 1=best, 3=least preferred, 0=incompatible
 }
 
 export interface CompatibleFormatsResponse {

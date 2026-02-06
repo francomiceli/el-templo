@@ -3,7 +3,7 @@
  *
  * Selects a training format for the block based on compatibility matrix.
  * Uses fallback ladder when exact matches not found.
- * Uses deterministic tie-breakers: compatibility DESC, then formatId ASC.
+ * Uses deterministic tie-breakers: compatibility ASC (1=best), then formatId ASC.
  *
  * Input: BlockContextWithContraction (has intensity, role, levelGroup)
  * Output: BlockContextWithFormat (adds format: { formatId, name })
@@ -130,7 +130,7 @@ export async function selectFormat(
       usedFallback: result.status === 'fallback',
     },
     {
-      tieBreakers: ['compatibility DESC', 'formatId ASC'],
+      tieBreakers: ['compatibility ASC (1=best)', 'formatId ASC'],
     }
   );
 

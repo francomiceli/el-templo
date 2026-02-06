@@ -96,6 +96,7 @@
         :exercise="exercise"
         :session-id="sessionId"
         :block-id="block.id"
+        :block-route="block.route"
         @swap="onSwapExercise"
         @remove="onRemoveExercise"
         @update="onUpdatePrescription"
@@ -188,7 +189,7 @@ const formatOptions = computed(() => {
     return [{ label: props.block.formatName, value: props.block.formatName }];
   }
   return [...compatibleFormats.value]
-    .sort((a, b) => b.compatibility - a.compatibility)
+    .sort((a, b) => a.compatibility - b.compatibility)
     .map(f => ({
       label: `${f.formatName} (${f.compatibility})`,
       value: f.formatName,
@@ -199,12 +200,10 @@ const formatOptions = computed(() => {
 async function loadCompatibleFormats() {
   formatsLoading.value = true;
   try {
-    // INITIUM blocks store intensity=30 but format_compatibility entries start at 55
-    const effectiveIntensity = isInitium.value ? 55 : props.block.intensity;
     const response = await editApi.fetchCompatibleFormats({
       blockRole: props.block.role,
       level: props.levelGroup,
-      intensity: effectiveIntensity,
+      intensity: props.block.intensity,
     });
     compatibleFormats.value = response.formats;
   } catch {

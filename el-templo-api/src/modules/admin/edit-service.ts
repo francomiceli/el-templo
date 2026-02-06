@@ -191,7 +191,8 @@ export class AdminEditService {
     if (contraction) {
       primaryConditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
     }
-    if (params.maxDifficulty !== undefined) {
+    // INITIUM is level-independent — skip difficulty cap
+    if (!isInitium && params.maxDifficulty !== undefined) {
       primaryConditions.push(lte(schema.exercises.dificultadLineal, params.maxDifficulty));
     }
 
@@ -725,8 +726,19 @@ export class AdminEditService {
 
     const compatLevel = levelMap[level] || 'omega';
 
-    // Query format_compatibility where compatibility > 0
-    const compatibleFormats = await this.db
+    // INITIUM is the same for all levels: ignore both level and intensity.
+    // Other blocks: filter by exact level + intensity.
+    const conditions = [
+      eq(schema.formatCompatibility.block, compatBlock as 'initium' | 'nucleus' | 'deuteros' | 'athlos' | 'epikos'),
+      gt(schema.formatCompatibility.compatibility, 0),
+    ];
+
+    if (compatBlock !== 'initium') {
+      conditions.push(eq(schema.formatCompatibility.level, compatLevel as 'alfa' | 'delta' | 'sigma' | 'omega'));
+      conditions.push(eq(schema.formatCompatibility.intensity, intensity));
+    }
+
+    const rows = await this.db
       .select({
         formatId: schema.formatCompatibility.formatId,
         formatName: schema.formats.name,
@@ -737,17 +749,21 @@ export class AdminEditService {
         schema.formats,
         eq(schema.formatCompatibility.formatId, schema.formats.id)
       )
-      .where(
-        and(
-          eq(schema.formatCompatibility.block, compatBlock as 'initium' | 'nucleus' | 'deuteros' | 'athlos' | 'epikos'),
-          eq(schema.formatCompatibility.level, compatLevel as 'alfa' | 'delta' | 'sigma' | 'omega'),
-          eq(schema.formatCompatibility.intensity, intensity),
-          gt(schema.formatCompatibility.compatibility, 0)
-        )
-      )
-      .orderBy(desc(schema.formatCompatibility.compatibility));
+      .where(and(...conditions));
 
-    return compatibleFormats;
+    if (compatBlock === 'initium') {
+      // A format may appear at multiple levels/intensities — keep the best (lowest) score
+      const bestByFormat = new Map<number, CompatibleFormat>();
+      for (const row of rows) {
+        const existing = bestByFormat.get(row.formatId);
+        if (!existing || row.compatibility < existing.compatibility) {
+          bestByFormat.set(row.formatId, row);
+        }
+      }
+      return [...bestByFormat.values()].sort((a, b) => a.compatibility - b.compatibility);
+    }
+
+    return rows.sort((a, b) => a.compatibility - b.compatibility);
   }
 
   // =========================================================================

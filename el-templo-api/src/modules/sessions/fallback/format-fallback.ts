@@ -133,10 +133,10 @@ async function getDefaultFormat(
  * Select best format from candidates using deterministic tie-breakers
  */
 function selectBestFormat(candidates: FormatCandidate[]): FormatCandidate {
-  // Sort: compatibility DESC, formatId ASC (deterministic)
+  // Sort: compatibility ASC (1=best), formatId ASC (deterministic tie-break)
   const sorted = [...candidates].sort((a, b) => {
     if (a.compatibility !== b.compatibility) {
-      return b.compatibility - a.compatibility;
+      return a.compatibility - b.compatibility;
     }
     return a.formatId - b.formatId;
   });

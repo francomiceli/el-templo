@@ -23,7 +23,7 @@ import type { BlockPlan, ContractionMix } from '../types';
 import { createTraceEvent, appendTrace } from './context';
 import { selectFormatWithFallback } from '../fallback/format-fallback';
 import type { FormatRequirements } from '../fallback/types';
-import { getAllowedLevels, levelGroupToLevel } from './utils/level-mapping';
+import type { ExerciseLevel } from './utils/level-mapping';
 import { ROUTE_TO_MOBILITY_ROUTES } from './utils/mobility-routes';
 import { calculateExerciseOffset, selectWithVariety } from './utils/variety';
 import { REST_TIMES, ISO_SECONDS } from './utils/constants';
@@ -94,11 +94,12 @@ export async function runInitiumPipeline(
   updatedCtx = appendTrace(updatedCtx, paramsTrace);
 
   // Select format using fallback system
-  // Note: use intensity=55 (minimum with format compatibility entries, since INITIUM warmup intensity 30 has none)
+  // INITIUM is the same for all levels — use 'alfa' as fixed representative.
+  // Use intensity=55 (minimum with format compatibility entries, since INITIUM warmup intensity 30 has none)
   const formatRequirements: FormatRequirements = {
     block: 'initium',
-    level: levelGroupToLevel(ctx.levelGroup),
-    intensity: 55, // Minimum intensity with format compatibility entries
+    level: 'alfa',
+    intensity: 55,
   };
 
   const formatResult = await selectFormatWithFallback(formatRequirements, db);
@@ -122,8 +123,8 @@ export async function runInitiumPipeline(
   );
   updatedCtx = appendTrace(updatedCtx, formatTrace);
 
-  // Select exercises for INITIUM with contextual enhancement
-  const allowedLevels = getAllowedLevels(ctx.levelGroup);
+  // INITIUM is the same for all levels — include exercises from all levels
+  const allowedLevels: ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
   const nucleusRoute = ctx.nucleusRoute;
 
   // Step 1: Try contextual selection if nucleusRoute is provided

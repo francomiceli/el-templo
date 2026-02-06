@@ -20,6 +20,14 @@
           class="q-ml-xs"
           :label="`Dif ${exercise.dificultadLineal}`"
         />
+        <q-badge
+          v-if="exercise.route"
+          :color="exercise.route === blockRoute ? 'green' : 'deep-orange'"
+          text-color="white"
+          class="q-ml-xs"
+        >
+          {{ exercise.route }}
+        </q-badge>
       </q-item-label>
 
       <!-- Inline editable fields -->
@@ -111,6 +119,7 @@ const props = defineProps<{
   exercise: SessionExercise;
   sessionId: number;
   blockId: number;
+  blockRoute: string;
 }>();
 
 const emit = defineEmits<{

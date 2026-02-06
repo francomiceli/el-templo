@@ -51,6 +51,7 @@
         v-for="exercise in block.exercises"
         :key="exercise.id"
         :exercise="exercise"
+        :block-route="block.route"
       />
     </q-list>
   </q-card>

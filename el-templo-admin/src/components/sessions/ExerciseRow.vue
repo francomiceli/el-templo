@@ -8,6 +8,14 @@
         <q-chip dense size="sm" :color="contractionColor" text-color="white">
           {{ contractionLabel }}
         </q-chip>
+        <q-badge
+          v-if="exercise.route"
+          :color="exercise.route === blockRoute ? 'green' : 'deep-orange'"
+          text-color="white"
+          class="q-ml-xs"
+        >
+          {{ exercise.route }}
+        </q-badge>
         <span class="q-ml-sm">
           <template v-if="exercise.reps">{{ exercise.reps }} reps</template>
           <template v-else-if="exercise.seconds">{{ exercise.seconds }}s</template>
@@ -35,6 +43,7 @@ import type { SessionExercise } from 'src/types/session';
 
 const props = defineProps<{
   exercise: SessionExercise;
+  blockRoute: string;
 }>();
 
 const contractionLabel = computed(() => {

@@ -184,8 +184,10 @@ export class AdminSessionService {
             notes: schema.sessionPrescriptions.notes,
             difficulty: schema.sessionPrescriptions.difficulty,
             sortOrder: schema.sessionPrescriptions.sortOrder,
+            exerciseRoute: schema.exercises.route,
           })
           .from(schema.sessionPrescriptions)
+          .leftJoin(schema.exercises, eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id))
           .where(eq(schema.sessionPrescriptions.blockId, block.id))
           .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
@@ -194,6 +196,7 @@ export class AdminSessionService {
           exercises: prescriptions.map(p => ({
             ...p,
             dificultadLineal: p.difficulty,
+            route: p.exerciseRoute || null,
           })),
         };
       })
