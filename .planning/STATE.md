@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: 07 of 10
-Status: **Active** — Saved blocks for reuse complete
-Last activity: 2026-02-10 - Completed 16-07-PLAN.md (Saved Blocks for Reuse)
+Plan: 08 of 10
+Status: **Active** — Client-side PDF generation complete
+Last activity: 2026-02-10 - Completed 16-08-PLAN.md (Client-Side PDF Generation)
 
-Progress: [███████___] 70% Phase 16 (7/10 plans)
+Progress: [████████__] 80% Phase 16 (8/10 plans)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 47
+- Total plans completed: 48
 - Average duration: 4.0 min
-- Total execution time: 4.6 hours
+- Total execution time: 4.7 hours
 
 **By Phase:**
 
@@ -81,15 +81,17 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
-| 16-pdf-generation-format-config-app-exercise-tracking | 5 | 7min | 1.4min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 6 | 12min | 2.0min |
 
 **Recent Trend:**
-- Last 5 plans: 15-09 (human verification), 16-01 (1min - Format Params), 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking)
-- Trend: Phase 16 in progress - Admin UX improvements and member app exercise tracking
+- Last 5 plans: 16-01 (1min - Format Params), 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation)
+- Trend: Phase 16 in progress - Admin PDF generation and format configuration
 
 *Updated after each plan completion*
-| Phase 16-pdf-generation-format-config-app-exercise-tracking P05 | 3 | 2 tasks | 2 files |
+| Phase 16-pdf-generation-format-config-app-exercise-tracking P08 | 5 | 2 tasks | 3 files |
+| Phase 16 P05 | 3 | 2 tasks | 2 files |
 | Phase 16 P03 | 139 | 1 tasks | 3 files |
+| Phase 16 P01 | 448 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -344,6 +346,15 @@ Recent decisions affecting current work:
 | 16-07 | JSON column for saved block data snapshot | Full block state (exercises, prescriptions, format params) stored for easy reuse |
 | 16-07 | Per-coach scoping via createdBy field | Each coach only sees their own saved blocks |
 | 16-07 | Nullable sourceBlockId | Original block may be deleted, saved block remains independent |
+| 16-08 | pdfmake v0.2.15 instead of v0.3.x | v0.3.x has breaking bugs (canvas processing, async API). v0.2.15 is stable and proven. |
+| 16-08 | Client-side PDF generation (no server) | Session data already loaded in admin app. Zero infrastructure overhead vs Puppeteer. |
+| 16-08 | Base64 font embedding via pdfmake.vfs | No external font files, works offline, proper subsetting and embedding handled by pdfmake. |
+| 16-08 | Separate pdf-assets.ts file | 174KB of base64 data kept separate for code-splitting. Bundler loads only when PDF triggered. |
+| 16-08 | Oro Mate (#B08D6E) for borders | Official brand color from visual guidelines. 1px borders match brand spec. |
+| 16-08 | Cinzel font for headers | Serif font matching El Templo classical Greek brand identity. Registered via pdfmake.vfs. |
+| 16-08 | 6-page structure per day | Matches example PDF design - cover, initium, nucleus, deuteros (stacked), epikos, closing. |
+| 16-08 | Greek symbols in level headers | α Δ Σ Ω consistent with member app display and brand identity. |
+| 16-08 | Motivational quotes rotate by week number | Variety across weeks without randomness (deterministic). |
 
 ### Roadmap Evolution
 
@@ -369,7 +380,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 16-07-PLAN.md (Saved Blocks for Reuse)
+Stopped at: Completed 16-08-PLAN.md (Client-Side PDF Generation)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
