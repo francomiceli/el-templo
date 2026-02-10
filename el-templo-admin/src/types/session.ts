@@ -148,3 +148,27 @@ export interface SessionPreview {
   levelGroup: string;
   blocks: SessionBlock[];
 }
+
+// Saved block for reuse (Phase 16-07)
+export interface SavedBlock {
+  id: number;
+  name: string;
+  blockRole: string;
+  blockRoute: string;
+  formatName: string;
+  createdAt: string;
+  exerciseCount: number;
+  blockData: {
+    role: string;
+    route: string;
+    formatName: string;
+    exercises: Array<{
+      exerciseName: string;
+      reps: number;
+      seconds: number;
+      rest: number;
+      effort: string;
+      dificultadLineal: number | null;
+    }>;
+  };
+}

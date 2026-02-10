@@ -230,6 +230,66 @@ export function useEditApi() {
     }
   }
 
+  async function saveBlock(
+    blockId: number,
+    name: string,
+  ): Promise<any> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post('/admin/saved-blocks', {
+        blockId,
+        name,
+      });
+      return data;
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error || 'Error al guardar bloque';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function listSavedBlocks(): Promise<any> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/saved-blocks');
+      return data.savedBlocks || [];
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error ||
+        'Error al cargar bloques guardados';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function deleteSavedBlock(id: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.delete(`/admin/saved-blocks/${id}`);
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error || 'Error al eliminar bloque';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   return {
     loading,
     error,
@@ -242,5 +302,8 @@ export function useEditApi() {
     resetToAlgorithm,
     fetchCompatibleFormats,
     fetchPreview,
+    saveBlock,
+    listSavedBlocks,
+    deleteSavedBlock,
   };
 }

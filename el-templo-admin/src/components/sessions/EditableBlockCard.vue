@@ -8,6 +8,17 @@
           <div class="text-caption">{{ block.route }}</div>
         </div>
         <div class="row items-center q-gutter-sm">
+          <!-- Save block button -->
+          <q-btn
+            flat
+            dense
+            round
+            icon="bookmark_add"
+            color="white"
+            @click="onSaveBlock"
+          >
+            <q-tooltip>Guardar bloque para reutilizar</q-tooltip>
+          </q-btn>
           <!-- Block swap button -->
           <q-btn
             flat
@@ -272,6 +283,26 @@ async function onUpdatePrescription(payload: { prescriptionId: number; fields: P
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
   }
+}
+
+function onSaveBlock() {
+  $q.dialog({
+    title: 'Guardar Bloque',
+    message: 'Nombre para este bloque:',
+    prompt: {
+      model: `${props.block.role} - ${props.block.formatName}`,
+      type: 'text',
+    },
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Guardar', color: 'primary' },
+  }).onOk(async (name: string) => {
+    try {
+      await editApi.saveBlock(props.block.id, name);
+      $q.notify({ type: 'positive', message: 'Bloque guardado para reutilizacion' });
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error al guardar bloque' });
+    }
+  });
 }
 
 onMounted(loadCompatibleFormats);
