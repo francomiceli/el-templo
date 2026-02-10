@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: 04 of 10
-Status: **Active** — Reactive prescription updates complete
-Last activity: 2026-02-10 - Completed 16-04-PLAN.md (Reactive Prescription Updates)
+Plan: 05 of 10
+Status: **Active** — Exercise completion tracking complete
+Last activity: 2026-02-10 - Completed 16-05-PLAN.md (Exercise Completion Tracking)
 
-Progress: [████______] 40% Phase 16 (4/10 plans)
+Progress: [█████_____] 50% Phase 16 (5/10 plans)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46
+- Total plans completed: 47
 - Average duration: 4.0 min
-- Total execution time: 4.5 hours
+- Total execution time: 4.6 hours
 
 **By Phase:**
 
@@ -81,13 +81,14 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
-| 16-pdf-generation-format-config-app-exercise-tracking | 4 | 4min | 1.0min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 5 | 7min | 1.4min |
 
 **Recent Trend:**
-- Last 5 plans: 13-03 (12min - Validation Suite), 15-09 (human verification), 16-04 (1min - Reactive Prescription Updates)
-- Trend: Phase 16 started - Admin UX improvements and PDF generation
+- Last 5 plans: 15-09 (human verification), 16-01 (1min - Format Params), 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking)
+- Trend: Phase 16 in progress - Admin UX improvements and member app exercise tracking
 
 *Updated after each plan completion*
+| Phase 16-pdf-generation-format-config-app-exercise-tracking P05 | 3 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -336,6 +337,9 @@ Recent decisions affecting current work:
 | 15-08 | Level selector offers all 5 member levels | Coaches can preview any level, not just current session's level |
 | 16-04 | Object.assign for reactive prescription updates | Vue 3 reactivity tracks property changes, allows targeted updates without full reload |
 | 16-04 | Keep emit('refresh') for structural changes | Operations modifying exercises array need full reload for consistency |
+- [Phase 16-05]: completedExercises uses blockRole as key for flexibility across all block types
+- [Phase 16-05]: Auto-advance triggers existing completeBlock() to reuse established logic
+- [Phase 16-05]: Backward compatibility in loadProgress defaults missing completedExercises to {}
 
 ### Roadmap Evolution
 
@@ -361,7 +365,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 16-04-PLAN.md (Reactive Prescription Updates)
+Stopped at: Completed 16-05-PLAN.md (Exercise Completion Tracking)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
