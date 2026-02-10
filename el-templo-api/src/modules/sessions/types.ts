@@ -5,6 +5,11 @@
  * throughout the deterministic pipeline.
  */
 
+import type { FormatParams } from '../admin/format-params';
+
+// Re-export FormatParams for convenience
+export type { FormatParams };
+
 /** Level group - aggregation of individual levels for session generation */
 export type LevelGroup = 'alfa_delta' | 'sigma' | 'omega';
 
@@ -98,6 +103,7 @@ export interface BlockPlan {
   readonly intensity: number;
   readonly repsBudget: number;
   readonly format: FormatInstance;
+  readonly formatParams: FormatParams;
   readonly exercises: readonly ExercisePrescription[];
   readonly trace: readonly TraceEvent[];
 }

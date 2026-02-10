@@ -108,6 +108,7 @@ export async function runBlockPipeline(
       intensity: finalCtx.intensity,
       repsBudget: finalCtx.repsBudget,
       format: finalCtx.format,
+      formatParams: finalCtx.formatParams,
       exercises: finalCtx.prescriptions,
       trace: finalCtx.trace,
     };

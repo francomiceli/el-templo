@@ -27,6 +27,7 @@ import type { ExerciseLevel } from './utils/level-mapping';
 import { ROUTE_TO_MOBILITY_ROUTES } from './utils/mobility-routes';
 import { calculateExerciseOffset, selectWithVariety } from './utils/variety';
 import { REST_TIMES, ISO_SECONDS } from './utils/constants';
+import { getDefaultFormatParams } from '../../admin/format-params';
 
 /**
  * Run INITIUM-specific pipeline
@@ -328,6 +329,12 @@ export async function runInitiumPipeline(
   );
   updatedCtx = appendTrace(updatedCtx, prescriptionTrace);
 
+  // Generate format parameters for INITIUM block
+  const formatParams = getDefaultFormatParams(selectedFormat.name, {
+    intensity,
+    exerciseCount: prescriptions.length,
+  });
+
   // Assemble final BlockPlan
   const blockPlan: BlockPlan = {
     blockId: updatedCtx.blockId,
@@ -340,6 +347,7 @@ export async function runInitiumPipeline(
       formatId: selectedFormat.formatId,
       name: selectedFormat.name,
     },
+    formatParams,
     exercises: prescriptions,
     trace: updatedCtx.trace,
   };

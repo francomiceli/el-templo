@@ -17,6 +17,7 @@ import type {
   SelectedExercise,
   ExercisePrescription,
   ExerciseLevel,
+  FormatParams,
 } from '../types';
 
 /** Base context with required initial fields */
@@ -72,6 +73,7 @@ export interface BlockContextWithExercises extends BlockContextWithFormat {
 /** Final context with prescriptions (after stage 7) */
 export interface BlockContextComplete extends BlockContextWithExercises {
   readonly prescriptions: readonly ExercisePrescription[];
+  readonly formatParams: FormatParams;
 }
 
 /**

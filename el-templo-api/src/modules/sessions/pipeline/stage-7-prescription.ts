@@ -21,6 +21,7 @@ import {
   MIN_REPS_PER_EXERCISE,
 } from './utils/reps-calculator';
 import { REST_TIMES, ISO_SECONDS } from './utils/constants';
+import { getDefaultFormatParams } from '../../admin/format-params';
 
 /** Calculate rest time based on intensity (lower intensity = shorter rest) */
 function calculateRest(intensity: number): number {
@@ -63,9 +64,17 @@ export function generatePrescriptions(
         message: 'No exercises to prescribe',
       }
     );
+
+    // Even with no exercises, populate formatParams for consistency
+    const formatParams = getDefaultFormatParams(format.name, {
+      intensity,
+      exerciseCount: 0,
+    });
+
     return {
       ...appendTrace(ctx, traceEvent),
       prescriptions: [],
+      formatParams,
     };
   }
 
@@ -94,9 +103,16 @@ export function generatePrescriptions(
       }
     );
 
+    // Generate format parameters for this block
+    const formatParams = getDefaultFormatParams(format.name, {
+      intensity,
+      exerciseCount,
+    });
+
     return {
       ...appendTrace(ctx, traceEvent),
       prescriptions: formatPrescriptions,
+      formatParams,
     };
   }
 
@@ -161,8 +177,15 @@ export function generatePrescriptions(
     }
   );
 
+  // Generate format parameters for this block
+  const formatParams = getDefaultFormatParams(format.name, {
+    intensity,
+    exerciseCount,
+  });
+
   return {
     ...appendTrace(ctx, traceEvent),
     prescriptions,
+    formatParams,
   };
 }

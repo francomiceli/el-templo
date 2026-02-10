@@ -18,7 +18,7 @@ import { eq, and } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { SpomService } from '../spom/service';
 import { runBlockPipeline, createInitialContext, type BlockPipelineOptions } from './pipeline';
-import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel, FormatInstance } from './types';
+import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel, FormatInstance, FormatParams } from './types';
 import { getFinalBlockRole } from './types';
 import { validateSessionForTrace } from './validators/session-validator';
 import { createSessionLogger } from './trace/logger';
@@ -349,6 +349,7 @@ export class SessionGeneratorService {
           repsBudget: block.repsBudget,
           formatId: block.format.formatId,
           formatName: block.format.name,
+          formatParams: block.formatParams,
           exerciseCount: block.exercises.length,
           sortOrder: blockIdx,
         });
@@ -386,6 +387,7 @@ export class SessionGeneratorService {
         repsBudget: block.repsBudget,
         formatId: block.format.formatId,
         formatName: block.format.name,
+        formatParams: block.formatParams,
         exerciseCount: block.exercises.length,
         sortOrder: blockIdx,
         exercises: block.exercises.map((ex, exIdx) => ({
@@ -524,6 +526,11 @@ export class SessionGeneratorService {
         role = getFinalBlockRole(session.week);
       }
 
+      // Handle formatParams: existing sessions may have null, default to 'standard'
+      const formatParams = block.formatParams
+        ? (block.formatParams as any) as FormatParams
+        : { type: 'standard' } as const;
+
       blockPlans.push({
         blockId: block.blockId,
         role,
@@ -535,6 +542,7 @@ export class SessionGeneratorService {
           formatId: block.formatId,
           name: block.formatName,
         },
+        formatParams,
         exercises,
         trace: [], // Trace is stored at session level, not block level
       });
