@@ -17,6 +17,8 @@ export interface SessionProgress {
   elapsedSeconds: number;
   /** Timestamp (Date.now()) when the session timer was last started, null if paused */
   sessionTimerStartedAt: number | null;
+  /** Per-exercise completion tracking. Key: block role, Value: array of prescription IDs completed */
+  completedExercises: Record<string, number[]>;
 }
 
 /** Storage key prefix for session progress */
@@ -45,6 +47,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
       deuterosChoice: null,
       elapsedSeconds: 0,
       sessionTimerStartedAt: null,
+      completedExercises: {},
     };
   }
 
@@ -67,6 +70,10 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
     if (value) {
       try {
         const progress = JSON.parse(value) as SessionProgress;
+        // Backward compatibility: if old format without completedExercises, default to {}
+        if (!progress.completedExercises) {
+          progress.completedExercises = {};
+        }
         progressCache.value.set(dayId, progress);
         return progress;
       } catch {
@@ -222,6 +229,67 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
   }
 
   /**
+   * Save a completed exercise for a specific block
+   *
+   * @param dayId - Session identifier
+   * @param blockRole - Block role identifier
+   * @param prescriptionId - Exercise ID to mark as complete
+   */
+  async function saveCompletedExercise(
+    dayId: string,
+    blockRole: string,
+    prescriptionId: number
+  ): Promise<void> {
+    const progress = await loadProgress(dayId);
+    const current = progress.completedExercises[blockRole] ?? [];
+    if (!current.includes(prescriptionId)) {
+      await saveProgress(dayId, {
+        completedExercises: {
+          ...progress.completedExercises,
+          [blockRole]: [...current, prescriptionId],
+        },
+      });
+    }
+  }
+
+  /**
+   * Remove a completed exercise for a specific block
+   *
+   * @param dayId - Session identifier
+   * @param blockRole - Block role identifier
+   * @param prescriptionId - Exercise ID to unmark
+   */
+  async function removeCompletedExercise(
+    dayId: string,
+    blockRole: string,
+    prescriptionId: number
+  ): Promise<void> {
+    const progress = await loadProgress(dayId);
+    const current = progress.completedExercises[blockRole] ?? [];
+    await saveProgress(dayId, {
+      completedExercises: {
+        ...progress.completedExercises,
+        [blockRole]: current.filter(id => id !== prescriptionId),
+      },
+    });
+  }
+
+  /**
+   * Get completed exercises for a specific block
+   *
+   * @param dayId - Session identifier
+   * @param blockRole - Block role identifier
+   * @returns Array of completed prescription IDs
+   */
+  async function getCompletedExercises(
+    dayId: string,
+    blockRole: string
+  ): Promise<number[]> {
+    const progress = await loadProgress(dayId);
+    return progress.completedExercises[blockRole] ?? [];
+  }
+
+  /**
    * Reset store state (for testing or logout)
    */
   function reset(): void {
@@ -242,12 +310,15 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
     getCompletedBlocks,
     getDeuterosChoice,
     getElapsedSeconds,
+    getCompletedExercises,
 
     // Convenience setters
     saveCurrentBlockIndex,
     saveCompletedBlock,
     saveDeuterosChoice,
     saveElapsedSeconds,
+    saveCompletedExercise,
+    removeCompletedExercise,
 
     // Utilities
     reset,
