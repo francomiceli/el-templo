@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: 05 of 10
-Status: **Active** — Exercise completion tracking complete
-Last activity: 2026-02-10 - Completed 16-05-PLAN.md (Exercise Completion Tracking)
+Plan: 07 of 10
+Status: **Active** — Saved blocks for reuse complete
+Last activity: 2026-02-10 - Completed 16-07-PLAN.md (Saved Blocks for Reuse)
 
-Progress: [█████_____] 50% Phase 16 (5/10 plans)
+Progress: [███████___] 70% Phase 16 (7/10 plans)
 
 ## Architecture Reset
 
@@ -89,6 +89,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 *Updated after each plan completion*
 | Phase 16-pdf-generation-format-config-app-exercise-tracking P05 | 3 | 2 tasks | 2 files |
+| Phase 16 P03 | 139 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -337,9 +338,12 @@ Recent decisions affecting current work:
 | 15-08 | Level selector offers all 5 member levels | Coaches can preview any level, not just current session's level |
 | 16-04 | Object.assign for reactive prescription updates | Vue 3 reactivity tracks property changes, allows targeted updates without full reload |
 | 16-04 | Keep emit('refresh') for structural changes | Operations modifying exercises array need full reload for consistency |
-- [Phase 16-05]: completedExercises uses blockRole as key for flexibility across all block types
-- [Phase 16-05]: Auto-advance triggers existing completeBlock() to reuse established logic
-- [Phase 16-05]: Backward compatibility in loadProgress defaults missing completedExercises to {}
+| 16-05 | completedExercises uses blockRole as key | Flexibility across all block types |
+| 16-05 | Auto-advance triggers existing completeBlock() | Reuse established logic |
+| 16-05 | Backward compatibility defaults missing completedExercises to {} | Graceful handling of old localStorage data |
+| 16-07 | JSON column for saved block data snapshot | Full block state (exercises, prescriptions, format params) stored for easy reuse |
+| 16-07 | Per-coach scoping via createdBy field | Each coach only sees their own saved blocks |
+| 16-07 | Nullable sourceBlockId | Original block may be deleted, saved block remains independent |
 
 ### Roadmap Evolution
 
@@ -365,7 +369,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 16-05-PLAN.md (Exercise Completion Tracking)
+Stopped at: Completed 16-07-PLAN.md (Saved Blocks for Reuse)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
