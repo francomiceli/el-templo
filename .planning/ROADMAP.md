@@ -4,8 +4,9 @@
 
 This roadmap delivers the Admin App module for El Templo. The milestone covers:
 1. **Session Generation** (Phase 13) - Algorithm review and improvement based on coach examples
-2. **Session Management** (Phases 14-16) - Admin UI for reviewing, editing, and creating sessions
-3. **Branch Attendance** (Phases 17-19) - Member plans, booking system, and capacity management
+2. **Session Management** (Phases 14-17) - Admin UI for reviewing, editing, creating sessions + PDF generation
+3. **Branch Attendance** (Phases 18-20) - Member plans, booking system, and capacity management
+4. **Exercise Videos** (Phases 21-23) - Video processing pipeline, hosting, and app integration (independent track)
 
 ## Phases
 
@@ -15,11 +16,15 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 
 - [x] **Phase 13: Session Generation Review & Improvement** - Analyze examples, fix difficulty system, validate algorithm
 - [x] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
-- [ ] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
-- [ ] **Phase 16: Admin Session Creation** - Build sessions from scratch using exercise database
-- [ ] **Phase 17: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
-- [ ] **Phase 18: Admin Member Attendance Management** - Manage bookings, capacity, member plans
-- [ ] **Phase 19: Member Booking UI** - Members view availability and reserve training spots
+- [x] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
+- [ ] **Phase 16: PDF Generation, Format Config & App Exercise Tracking** - PDF session sheets, format parameter config, per-exercise completion
+- [ ] **Phase 17: Admin Session Creation** - Build sessions from scratch using exercise database
+- [ ] **Phase 18: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
+- [ ] **Phase 19: Admin Member Attendance Management** - Manage bookings, capacity, member plans
+- [ ] **Phase 20: Member Booking UI** - Members view availability and reserve training spots
+- [ ] **Phase 21: Exercise Video Processing Pipeline** - Python pipeline for background removal + Greek silhouette styling
+- [ ] **Phase 22: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
+- [ ] **Phase 23: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
 
 ## Phase Details
 
@@ -78,6 +83,7 @@ Plans:
 ### Phase 15: Admin Session Editing
 **Goal**: Coaches can modify pending and approved sessions - swap exercises, adjust prescriptions, change formats, add/remove exercises
 **Depends on**: Phase 14 (review UI exists)
+**Status**: Complete
 **Plans:** 9 plans
 **Success Criteria** (what must be TRUE):
   1. Coach can swap exercises within a block (from exercise database)
@@ -89,21 +95,52 @@ Plans:
   7. Preview shows how session will appear to members
 
 Plans:
-- [ ] 15-01-PLAN.md — Database schema: edit logs, snapshots, format params
-- [ ] 15-02-PLAN.md — PrescribeService and AdminEditService business logic
-- [ ] 15-03-PLAN.md — Editing API routes and schemas
-- [ ] 15-04-PLAN.md — Frontend types and useEditApi composable
-- [ ] 15-05-PLAN.md — Session edit page with editable block cards and exercise rows
-- [ ] 15-06-PLAN.md — Exercise swap dialog with filtering
-- [ ] 15-07-PLAN.md — Budget bar, validation badges, format dropdown, wiring
-- [ ] 15-08-PLAN.md — Member preview dialog
-- [ ] 15-09-PLAN.md — Human verification of complete editing workflow
+- [x] 15-01-PLAN.md — Database schema: edit logs, snapshots, format params
+- [x] 15-02-PLAN.md — PrescribeService and AdminEditService business logic
+- [x] 15-03-PLAN.md — Editing API routes and schemas
+- [x] 15-04-PLAN.md — Frontend types and useEditApi composable
+- [x] 15-05-PLAN.md — Session edit page with editable block cards and exercise rows
+- [x] 15-06-PLAN.md — Exercise swap dialog with filtering
+- [x] 15-07-PLAN.md — Budget bar, validation badges, format dropdown, wiring
+- [x] 15-08-PLAN.md — Member preview dialog
+- [x] 15-09-PLAN.md — Human verification of complete editing workflow
 
 ---
 
-### Phase 16: Admin Session Creation
-**Goal**: Coaches can build sessions from scratch without algorithm
+### Phase 16: PDF Generation, Format Config & App Exercise Tracking
+**Goal**: Generate PDF session sheets for approved sessions matching a provided design template; configure format-specific parameters (rounds, minutes, etc.) for high/medium importance formats during session generation/editing; improve exercise swap UX; implement per-exercise completion tracking in the member app
 **Depends on**: Phase 15 (editing infrastructure exists)
+**Plans:** 10 plans
+**Success Criteria** (what must be TRUE):
+  1. Button on approved sessions generates a PDF file matching the provided example design
+  2. Pipeline: example PDF → page images → HTML/CSS skeleton → dynamic session data → final PDF
+  3. Generated PDF respects the original design while containing session-specific data
+  4. High and medium importance formats have configurable parameters discussed and set (e.g., rounds for Complex, minutes for AMRAP, intervals for EMOM, etc.)
+  5. Format parameters are settable during session generation and editing
+  6. Exercise swap dialog uses category instead of pattern for fewer, cleaner pill selections
+  7. Member app tracks completion per exercise (not per block)
+  8. All exercises completed in a block = block complete, auto-advance to next block
+  9. Exercise completion state reflected consistently across all app views (DayPlayer, Weekly View, etc.)
+  10. Coach can save an approved session block with a custom name for reuse via "intercambiar bloque" (full block data shown alongside custom name)
+  11. Inline prescription edits (reps, rest, notes) update without page reload or scroll reset — feedback via green success toast only
+
+Plans:
+- [ ] 16-01-PLAN.md — FormatParams type system and generation pipeline integration
+- [ ] 16-02-PLAN.md — Format params editing UI and API endpoint
+- [ ] 16-03-PLAN.md — Exercise swap UX: category-based filtering
+- [ ] 16-04-PLAN.md — Inline prescription edit fix (no reload/scroll reset)
+- [ ] 16-05-PLAN.md — Per-exercise completion: store and composable layer
+- [ ] 16-06-PLAN.md — Per-exercise completion: UI, API, and cross-view consistency
+- [ ] 16-07-PLAN.md — Saved blocks for coach reuse
+- [ ] 16-08-PLAN.md — PDF service: Puppeteer installation and HTML template
+- [ ] 16-09-PLAN.md — PDF download API route and admin button
+- [ ] 16-10-PLAN.md — End-to-end human verification
+
+---
+
+### Phase 17: Admin Session Creation
+**Goal**: Coaches can build sessions from scratch without algorithm
+**Depends on**: Phase 16 (format config and editing fixes complete)
 **Success Criteria** (what must be TRUE):
   1. Coach can create new session for any date/level
   2. Coach can add blocks with chosen format
@@ -115,7 +152,7 @@ Plans:
 
 ---
 
-### Phase 17: Branch Attendance Data Model
+### Phase 18: Branch Attendance Data Model
 **Goal**: Data structures for managing branch capacity, schedules, and member plans
 **Depends on**: Documentation (awaiting from user)
 **Success Criteria** (what must be TRUE):
@@ -127,9 +164,9 @@ Plans:
 
 ---
 
-### Phase 18: Admin Member Attendance Management
+### Phase 19: Admin Member Attendance Management
 **Goal**: Admins/coaches can manage member plans and view attendance
-**Depends on**: Phase 17 (data model exists)
+**Depends on**: Phase 18 (data model exists)
 **Success Criteria** (what must be TRUE):
   1. Admin can view branch schedule with current bookings
   2. Admin can see capacity utilization per slot
@@ -140,9 +177,9 @@ Plans:
 
 ---
 
-### Phase 19: Member Booking UI
+### Phase 20: Member Booking UI
 **Goal**: Members can view availability and reserve training spots
-**Depends on**: Phase 18 (admin management exists)
+**Depends on**: Phase 19 (admin management exists)
 **Success Criteria** (what must be TRUE):
   1. Member sees weekly schedule with available slots
   2. Member can book available slot within their plan allowance
@@ -151,21 +188,73 @@ Plans:
   5. Member sees their plan details (remaining days, restrictions)
   6. Push notification for booking confirmation/reminder
 
+### Phase 21: Exercise Video Processing Pipeline
+**Goal**: Build a Python batch-processing pipeline that transforms exercise demonstration videos into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
+**Depends on**: None (independent, can run in parallel with other phases)
+**Success Criteria** (what must be TRUE):
+  1. Python project with MediaPipe Selfie Segmentation for background removal
+  2. Silhouette styler produces bronze-tinted figure with cream edge glow on navy background
+  3. Videos normalized to consistent resolution, FPS, codec (H.264, yuv420p, faststart)
+  4. Batch processing with resume capability (progress.json checkpoints)
+  5. Pipeline handles 1300+ videos with error tracking and retry
+  6. Output clips are 5-15 seconds, looped if source is too short
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 21 to break down)
+
+---
+
+### Phase 22: Video Hosting & Content Tooling
+**Goal**: Set up Cloudflare R2 for free video hosting, build manifest generator to map exercises to source videos, and create upload/population scripts
+**Depends on**: Phase 21 (processed videos exist to upload)
+**Success Criteria** (what must be TRUE):
+  1. Cloudflare R2 bucket configured with public access and direct MP4 URLs
+  2. Manifest generator exports all 1300 exercises from DB for source video mapping
+  3. Upload script batch-uploads processed videos to R2 via S3-compatible API
+  4. DB population script sets video_url for each exercise based on manifest
+  5. Incremental workflow supported (process/upload batches, add more later)
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 22 to break down)
+
+---
+
+### Phase 23: App Video Integration
+**Goal**: Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
+**Depends on**: Phase 22 (videos hosted and URLs populated in DB)
+**Success Criteria** (what must be TRUE):
+  1. exercises table has video_url VARCHAR column (migration applied)
+  2. videoUrl included in ExercisePrescription type and selected in exercise queries
+  3. Session API response includes videoUrl per exercise prescription
+  4. DayPlayer.vue currentExerciseVideoUrl computed reads from exercise data
+  5. VideoPlaceholder shows video when URL exists, placeholder when null
+  6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 23 to break down)
+
+---
+
 ## Progress
 
 **Execution Order:**
-Phases 14-16 (Session Management) → Phases 17-19 (Branch Attendance)
+Phases 14-17 (Session Management) → Phases 18-20 (Branch Attendance)
+Phases 21-23 (Exercise Videos) — Independent, can run in parallel
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 13. Session Generation Review | 8/8 | Complete | 2026-02-05 |
 | 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
-| 15. Admin Session Editing | 0/9 | In Progress | — |
-| 16. Admin Session Creation | 0/? | Not Started | — |
-| 17. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
-| 18. Admin Member Attendance | 0/? | Not Started | — |
-| 19. Member Booking UI | 0/? | Not Started | — |
+| 15. Admin Session Editing | 9/9 | Complete | 2026-02-10 |
+| 16. PDF Gen, Format Config & App Exercise Tracking | 0/10 | Planned | — |
+| 17. Admin Session Creation | 0/? | Not Started | — |
+| 18. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
+| 19. Admin Member Attendance | 0/? | Not Started | — |
+| 20. Member Booking UI | 0/? | Not Started | — |
+| 21. Exercise Video Processing Pipeline | 0/? | Not Started | — |
+| 22. Video Hosting & Content Tooling | 0/? | Not Started | — |
+| 23. App Video Integration | 0/? | Not Started | — |
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-06 — Phase 15 planned (9 plans in 5 waves)*
+*Last updated: 2026-02-10 — Phase 16 planned (10 plans in 3 waves)*
