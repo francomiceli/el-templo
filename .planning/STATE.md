@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 15 (Admin Session Editing) **COMPLETE**
+**Current focus:** v2.0 Admin App - Phase 16 (PDF Generation, Format Config, App Exercise Tracking)
 
 ## Current Position
 
-Phase: 15 (Admin Session Editing) — **Complete**
-Plan: 09 of 9 (End-to-End Verification approved)
-Status: **Complete** — All 9 plans done, human verification passed
-Last activity: 2026-02-10 - Completed 15-09-PLAN.md (human verification)
+Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
+Plan: 04 of 10
+Status: **Active** — Reactive prescription updates complete
+Last activity: 2026-02-10 - Completed 16-04-PLAN.md (Reactive Prescription Updates)
 
-Progress: [██████████] 100% Phase 15 (9/9 plans)
+Progress: [████______] 40% Phase 16 (4/10 plans)
 
 ## Architecture Reset
 
@@ -61,8 +61,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 45
-- Average duration: 4.1 min
+- Total plans completed: 46
+- Average duration: 4.0 min
 - Total execution time: 4.5 hours
 
 **By Phase:**
@@ -81,10 +81,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 4 | 4min | 1.0min |
 
 **Recent Trend:**
-- Last 5 plans: 13-01 (7min - Dificultad Lineal), 13-02 (4min - block specs + exercise cap), 13-04 (12min - Initium contextual), 13-03 (12min - Validation Suite)
-- Trend: Phase 13 session generation review - validation infrastructure complete
+- Last 5 plans: 13-03 (12min - Validation Suite), 15-09 (human verification), 16-04 (1min - Reactive Prescription Updates)
+- Trend: Phase 16 started - Admin UX improvements and PDF generation
 
 *Updated after each plan completion*
 
@@ -333,6 +334,8 @@ Recent decisions affecting current work:
 | 15-07 | Format dropdown shows compatibility score in parentheses | Coach reference for relative format compatibility |
 | 15-08 | Preview button uses 'preview' icon, not 'visibility' | Avoid confusion with existing view-details button in sessions list |
 | 15-08 | Level selector offers all 5 member levels | Coaches can preview any level, not just current session's level |
+| 16-04 | Object.assign for reactive prescription updates | Vue 3 reactivity tracks property changes, allows targeted updates without full reload |
+| 16-04 | Keep emit('refresh') for structural changes | Operations modifying exercises array need full reload for consistency |
 
 ### Roadmap Evolution
 
@@ -358,7 +361,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-10
-Stopped at: Completed 15-09-PLAN.md (Phase 15 complete, all 9/9 plans done)
+Stopped at: Completed 16-04-PLAN.md (Reactive Prescription Updates)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
