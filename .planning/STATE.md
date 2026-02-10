@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 15 (Admin Session Editing)
+**Current focus:** v2.0 Admin App - Phase 15 (Admin Session Editing) **COMPLETE**
 
 ## Current Position
 
-Phase: 15 (Admin Session Editing) — **In Progress**
-Plan: 08 of 9 (Edit Page Feature Wiring complete, also Member Preview Dialog)
-Status: **In progress** — Plans 07+08 complete
-Last activity: 2026-02-06 - Completed 15-07-PLAN.md
+Phase: 15 (Admin Session Editing) — **Complete**
+Plan: 09 of 9 (End-to-End Verification approved)
+Status: **Complete** — All 9 plans done, human verification passed
+Last activity: 2026-02-10 - Completed 15-09-PLAN.md (human verification)
 
-Progress: [████████░░] 89% Phase 15 (8/9 plans)
+Progress: [██████████] 100% Phase 15 (9/9 plans)
 
 ## Architecture Reset
 
@@ -61,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44
+- Total plans completed: 45
 - Average duration: 4.1 min
-- Total execution time: 4.4 hours
+- Total execution time: 4.5 hours
 
 **By Phase:**
 
@@ -334,6 +334,11 @@ Recent decisions affecting current work:
 | 15-08 | Preview button uses 'preview' icon, not 'visibility' | Avoid confusion with existing view-details button in sessions list |
 | 15-08 | Level selector offers all 5 member levels | Coaches can preview any level, not just current session's level |
 
+### Roadmap Evolution
+
+- Phases 20-22 added (2026-02-09): Exercise Video Pipeline split into 3 phases — Processing Pipeline (Python/MediaPipe/FFmpeg), Video Hosting & Content Tooling (Cloudflare R2/manifest/upload), App Video Integration (DB/API/frontend wiring). Independent of admin phases, can run in parallel. *(Now renumbered to Phases 21-23)*
+- Phase 16 inserted (2026-02-10): PDF Generation for approved sessions, format parameter configuration for high/medium importance formats, exercise swap UX (category instead of pattern), per-exercise completion tracking in member app. Old phases 16-22 renumbered to 17-23.
+
 ### Pending Todos
 
 None yet.
@@ -352,8 +357,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-06
-Stopped at: Completed 15-07-PLAN.md (8/9 plans done)
+Last session: 2026-02-10
+Stopped at: Completed 15-09-PLAN.md (Phase 15 complete, all 9/9 plans done)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
