@@ -985,8 +985,10 @@ export class AdminEditService {
   async deleteSavedBlock(params: DeleteSavedBlockParams): Promise<boolean> {
     const { savedBlockId, userId } = params;
 
-    const result = await this.db
-      .delete(schema.savedBlocks)
+    // Check if the block exists and belongs to the user
+    const [existing] = await this.db
+      .select({ id: schema.savedBlocks.id })
+      .from(schema.savedBlocks)
       .where(
         and(
           eq(schema.savedBlocks.id, savedBlockId),
@@ -994,7 +996,15 @@ export class AdminEditService {
         )
       );
 
-    // Return true if a row was deleted
-    return result.rowsAffected > 0;
+    if (!existing) {
+      return false;
+    }
+
+    // Delete the block
+    await this.db
+      .delete(schema.savedBlocks)
+      .where(eq(schema.savedBlocks.id, savedBlockId));
+
+    return true;
   }
 }

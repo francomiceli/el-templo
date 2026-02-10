@@ -20,6 +20,8 @@ import {
   resetSessionSchema,
   getCompatibleFormatsSchema,
   getPreviewSchema,
+  saveBlockSchema,
+  deleteSavedBlockSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
@@ -442,5 +444,49 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     };
 
     return preview;
+  });
+
+  // ==========================================================================
+  // Saved Blocks Routes (Phase 16-07)
+  // ==========================================================================
+
+  // POST /admin/saved-blocks - Save a block for reuse
+  fastify.post<{
+    Body: { blockId: number; name: string };
+  }>('/saved-blocks', {
+    schema: saveBlockSchema,
+  }, async (request, reply) => {
+    try {
+      const savedBlock = await editService.saveBlock({
+        blockId: request.body.blockId,
+        name: request.body.name,
+        userId: request.user.userId,
+      });
+      return savedBlock;
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Bloque no encontrado' });
+    }
+  });
+
+  // GET /admin/saved-blocks - List saved blocks for current user
+  fastify.get('/saved-blocks', async (request) => {
+    const savedBlocks = await editService.listSavedBlocks(request.user.userId);
+    return { savedBlocks };
+  });
+
+  // DELETE /admin/saved-blocks/:id - Delete a saved block
+  fastify.delete<{
+    Params: { id: number };
+  }>('/saved-blocks/:id', {
+    schema: deleteSavedBlockSchema,
+  }, async (request, reply) => {
+    const success = await editService.deleteSavedBlock({
+      savedBlockId: request.params.id,
+      userId: request.user.userId,
+    });
+    if (!success) {
+      return reply.status(404).send({ error: 'Bloque guardado no encontrado' });
+    }
+    return { success: true };
   });
 };

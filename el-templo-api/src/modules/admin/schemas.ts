@@ -238,3 +238,28 @@ export const getPreviewSchema = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// Saved Blocks Schemas (Phase 16-07)
+// ---------------------------------------------------------------------------
+
+export const saveBlockSchema = {
+  body: {
+    type: 'object',
+    required: ['blockId', 'name'],
+    properties: {
+      blockId: { type: 'integer' },
+      name: { type: 'string', minLength: 1, maxLength: 150 },
+    },
+  },
+};
+
+export const deleteSavedBlockSchema = {
+  params: {
+    type: 'object',
+    required: ['id'],
+    properties: {
+      id: { type: 'integer' },
+    },
+  },
+};
