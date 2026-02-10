@@ -51,6 +51,7 @@ export function useSessionPlayer(session: Session) {
   const deuterosChoice = ref<'DEUTEROS_1' | 'DEUTEROS_2' | null>(null);
   const completedBlocks = ref<BlockRole[]>([]);
   const isInitialized = ref(false);
+  const completedExercises = ref<Record<string, number[]>>({});
 
   // Timer state: timestamp-based for accuracy across reloads
   let timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -268,6 +269,74 @@ export function useSessionPlayer(session: Session) {
     }
   }
 
+  // Exercise completion
+
+  /**
+   * Toggle exercise completion state.
+   * If all exercises in the block become complete, auto-complete the block.
+   *
+   * @param prescriptionId - Exercise ID to toggle
+   */
+  async function toggleExerciseComplete(prescriptionId: number): Promise<void> {
+    const block = currentBlock.value;
+    if (!block) return;
+
+    const blockRole = block.role;
+    const current = completedExercises.value[blockRole] ?? [];
+
+    if (current.includes(prescriptionId)) {
+      // Uncomplete: remove from list
+      completedExercises.value = {
+        ...completedExercises.value,
+        [blockRole]: current.filter(id => id !== prescriptionId),
+      };
+      await store.removeCompletedExercise(session.dayId, blockRole, prescriptionId);
+    } else {
+      // Complete: add to list
+      const updated = [...current, prescriptionId];
+      completedExercises.value = {
+        ...completedExercises.value,
+        [blockRole]: updated,
+      };
+      await store.saveCompletedExercise(session.dayId, blockRole, prescriptionId);
+
+      // Check if all exercises in block are now complete
+      if (block.exercises.length > 0 && updated.length >= block.exercises.length) {
+        // All exercises done -> auto-complete block
+        await completeBlock();
+      }
+    }
+  }
+
+  /**
+   * Check if a specific exercise is completed
+   *
+   * @param prescriptionId - Exercise ID to check
+   * @returns True if exercise is complete
+   */
+  function isExerciseComplete(prescriptionId: number): boolean {
+    const block = currentBlock.value;
+    if (!block) return false;
+    const current = completedExercises.value[block.role] ?? [];
+    return current.includes(prescriptionId);
+  }
+
+  /**
+   * Get count of completed exercises in current block
+   */
+  const completedExerciseCount = computed(() => {
+    const block = currentBlock.value;
+    if (!block) return 0;
+    return (completedExercises.value[block.role] ?? []).length;
+  });
+
+  /**
+   * Get total exercises in current block
+   */
+  const totalExerciseCount = computed(() => {
+    return currentBlock.value?.exercises.length ?? 0;
+  });
+
   // Initialization
 
   /**
@@ -281,6 +350,7 @@ export function useSessionPlayer(session: Session) {
     currentBlockIndex.value = progress.currentBlockIndex;
     completedBlocks.value = [...progress.completedBlocks];
     deuterosChoice.value = progress.deuterosChoice;
+    completedExercises.value = progress.completedExercises ?? {};
 
     // Restore elapsed time: if timer was running (startedAt set),
     // compute real elapsed from timestamp instead of stale snapshot
@@ -306,6 +376,7 @@ export function useSessionPlayer(session: Session) {
     elapsedSeconds.value = 0;
     deuterosChoice.value = null;
     completedBlocks.value = [];
+    completedExercises.value = {};
   }
 
   /**
@@ -326,6 +397,7 @@ export function useSessionPlayer(session: Session) {
     deuterosChoice,
     completedBlocks,
     isInitialized,
+    completedExercises,
 
     // Computed
     playableBlocks,
@@ -336,6 +408,8 @@ export function useSessionPlayer(session: Session) {
     isSessionComplete,
     deuteros1Block,
     deuteros2Block,
+    completedExerciseCount,
+    totalExerciseCount,
 
     // Timer control
     startTimer,
@@ -346,6 +420,10 @@ export function useSessionPlayer(session: Session) {
     completeBlockAuto,
     selectDeuteros,
     selectExercise,
+
+    // Exercise completion
+    toggleExerciseComplete,
+    isExerciseComplete,
 
     // Lifecycle
     initialize,
