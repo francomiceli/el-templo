@@ -51,6 +51,7 @@ export interface ExercisePoolItem {
   effort: string;
   dificultadLineal: number;
   pattern: string;
+  category: string;
   route: string;
   /** Indicates if exercise comes from primary or cross-route pattern */
   patternSource: 'pattern_1' | 'pattern_2';
@@ -114,6 +115,28 @@ export interface CompatibleFormat {
   formatId: number;
   formatName: string;
   compatibility: number;
+}
+
+export interface SaveBlockParams {
+  blockId: number;
+  name: string;
+  userId: number;
+}
+
+export interface SavedBlockItem {
+  id: number;
+  name: string;
+  blockRole: string;
+  blockRoute: string;
+  formatName: string;
+  createdAt: Date;
+  exerciseCount: number;
+  blockData: any;
+}
+
+export interface DeleteSavedBlockParams {
+  savedBlockId: number;
+  userId: number;
 }
 
 // Snapshot types matching the structure stored in sessions.algorithmSnapshot
@@ -204,6 +227,7 @@ export class AdminEditService {
         effort: schema.exercises.effort,
         dificultadLineal: schema.exercises.dificultadLineal,
         pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
         route: schema.exercises.route,
       })
       .from(schema.exercises)
@@ -235,6 +259,7 @@ export class AdminEditService {
           effort: schema.exercises.effort,
           dificultadLineal: schema.exercises.dificultadLineal,
           pattern: schema.exercises.pattern,
+          category: schema.exercises.category,
           route: schema.exercises.route,
         })
         .from(schema.exercises)
@@ -846,5 +871,130 @@ export class AdminEditService {
         sortOrder: p.sortOrder,
       })),
     };
+  }
+
+  // =========================================================================
+  // 9. saveBlock - Save a session block for reuse
+  // =========================================================================
+
+  async saveBlock(params: SaveBlockParams): Promise<SavedBlockItem> {
+    const { blockId, name, userId } = params;
+
+    // Fetch the block with its exercises
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    if (!block) {
+      throw new Error('Bloque no encontrado');
+    }
+
+    // Fetch exercises/prescriptions for this block
+    const prescriptions = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, blockId))
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+    // Serialize full block data as JSON snapshot
+    const blockData = {
+      role: block.role,
+      route: block.route,
+      formatName: block.formatName,
+      formatParams: block.formatParams,
+      intensity: block.intensity,
+      repsBudget: block.repsBudget,
+      exercises: prescriptions.map(p => ({
+        exerciseId: p.exerciseId,
+        exerciseName: p.exerciseName,
+        contraction: p.contraction,
+        reps: p.reps,
+        seconds: p.seconds,
+        rest: p.rest,
+        notes: p.notes,
+        effort: p.contraction,
+        dificultadLineal: p.difficulty,
+        sortOrder: p.sortOrder,
+      })),
+    };
+
+    // Insert into saved_blocks
+    const [insertResult] = await this.db
+      .insert(schema.savedBlocks)
+      .values({
+        name,
+        createdBy: userId,
+        sourceBlockId: blockId,
+        blockRole: block.role,
+        blockRoute: block.route,
+        formatName: block.formatName,
+        blockData,
+      });
+
+    // Return the saved block
+    const [savedBlock] = await this.db
+      .select()
+      .from(schema.savedBlocks)
+      .where(eq(schema.savedBlocks.id, insertResult.insertId));
+
+    return {
+      id: savedBlock.id,
+      name: savedBlock.name,
+      blockRole: savedBlock.blockRole,
+      blockRoute: savedBlock.blockRoute,
+      formatName: savedBlock.formatName,
+      createdAt: savedBlock.createdAt,
+      exerciseCount: prescriptions.length,
+      blockData: savedBlock.blockData,
+    };
+  }
+
+  // =========================================================================
+  // 10. listSavedBlocks - List saved blocks for a user
+  // =========================================================================
+
+  async listSavedBlocks(userId: number): Promise<SavedBlockItem[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.savedBlocks)
+      .where(eq(schema.savedBlocks.createdBy, userId))
+      .orderBy(desc(schema.savedBlocks.createdAt));
+
+    return rows.map(row => {
+      const blockData = row.blockData as any;
+      const exerciseCount = blockData?.exercises?.length || 0;
+
+      return {
+        id: row.id,
+        name: row.name,
+        blockRole: row.blockRole,
+        blockRoute: row.blockRoute,
+        formatName: row.formatName,
+        createdAt: row.createdAt,
+        exerciseCount,
+        blockData: row.blockData,
+      };
+    });
+  }
+
+  // =========================================================================
+  // 11. deleteSavedBlock - Delete a saved block
+  // =========================================================================
+
+  async deleteSavedBlock(params: DeleteSavedBlockParams): Promise<boolean> {
+    const { savedBlockId, userId } = params;
+
+    const result = await this.db
+      .delete(schema.savedBlocks)
+      .where(
+        and(
+          eq(schema.savedBlocks.id, savedBlockId),
+          eq(schema.savedBlocks.createdBy, userId)
+        )
+      );
+
+    // Return true if a row was deleted
+    return result.rowsAffected > 0;
   }
 }

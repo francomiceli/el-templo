@@ -111,6 +111,7 @@ export interface PoolExercise {
   effort: string; // CON, EXC, ISO
   dificultadLineal: number;
   pattern: string;
+  category: string;
   route: string;
 }
 

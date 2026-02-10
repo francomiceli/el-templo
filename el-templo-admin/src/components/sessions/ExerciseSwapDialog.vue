@@ -62,25 +62,25 @@
       </q-tabs>
       <q-separator />
 
-      <!-- Pattern chips -->
+      <!-- Category chips -->
       <q-card-section class="q-py-xs">
         <div class="filter-title row items-center q-gutter-xs q-mb-xs">
-          <span class="text-subtitle2 text-weight-medium">Patron</span>
-          <q-badge v-if="selectedGroup" color="primary" :label="selectedGroup" class="q-ml-xs" />
+          <span class="text-subtitle2 text-weight-medium">Categoria</span>
+          <q-badge v-if="selectedCategory" color="primary" :label="selectedCategory" class="q-ml-xs" />
         </div>
         <div class="row q-gutter-xs items-center" style="flex-wrap: wrap">
           <q-chip
-            v-for="p in patternChips"
-            :key="p.name"
-            :selected="selectedGroup === p.name"
+            v-for="c in categoryChips"
+            :key="c.name"
+            :selected="selectedCategory === c.name"
             clickable
             dense
-            :outline="selectedGroup !== p.name"
-            :color="selectedGroup === p.name ? 'primary' : undefined"
-            :text-color="selectedGroup === p.name ? 'white' : 'grey-8'"
-            @click="selectedGroup = p.name"
+            :outline="selectedCategory !== c.name"
+            :color="selectedCategory === c.name ? 'primary' : undefined"
+            :text-color="selectedCategory === c.name ? 'white' : 'grey-8'"
+            @click="selectedCategory = c.name"
           >
-            {{ p.label }} ({{ p.count }})
+            {{ c.label }} ({{ c.count }})
           </q-chip>
         </div>
       </q-card-section>
@@ -228,15 +228,8 @@ const loading = ref(false);
 const swapping = ref(false);
 const swappingId = ref<number | null>(null);
 const contractionTab = ref<string>('');
-const selectedGroup = ref<string>('');
+const selectedCategory = ref<string>('');
 const searchText = ref('');
-
-// ── Helpers ──
-
-/** Extract first word of exercise name as group key (e.g., "HT", "P.U", "LUNGE") */
-function exerciseGroup(name: string): string {
-  return name.split(' ')[0] || '';
-}
 
 // ── Derived data ──
 
@@ -250,7 +243,7 @@ const contractionCounts = computed(() => {
   return counts;
 });
 
-// Pool filtered by contraction only (for group chip counts)
+// Pool filtered by contraction only (for category chip counts)
 const contractionFiltered = computed(() => {
   if (!contractionTab.value) return pool.value;
   return pool.value.filter(ex =>
@@ -258,12 +251,12 @@ const contractionFiltered = computed(() => {
   );
 });
 
-// Group chips based on first word of exercise name, with counts
-const patternChips = computed<PatternChip[]>(() => {
+// Category chips based on category field, with counts
+const categoryChips = computed<PatternChip[]>(() => {
   const counts = new Map<string, number>();
   for (const ex of contractionFiltered.value) {
-    const g = exerciseGroup(ex.exercise);
-    counts.set(g, (counts.get(g) || 0) + 1);
+    const cat = ex.category || 'Sin categoria';
+    counts.set(cat, (counts.get(cat) || 0) + 1);
   }
 
   const chips: PatternChip[] = [];
@@ -275,13 +268,13 @@ const patternChips = computed<PatternChip[]>(() => {
     count: contractionFiltered.value.length,
   });
 
-  // Group chips sorted by count descending
+  // Category chips sorted by count descending
   const sorted = [...counts.entries()].sort(([, ca], [, cb]) => cb - ca);
 
   for (const [name, count] of sorted) {
     chips.push({
       name,
-      label: name || '?',
+      label: name,
       count,
     });
   }
@@ -289,13 +282,13 @@ const patternChips = computed<PatternChip[]>(() => {
   return chips;
 });
 
-// Final displayed exercises: contraction + group + search, sorted by difficulty proximity
+// Final displayed exercises: contraction + category + search, sorted by difficulty proximity
 const displayedExercises = computed(() => {
   let result = contractionFiltered.value;
 
-  // Filter by selected group (first word)
-  if (selectedGroup.value) {
-    result = result.filter(ex => exerciseGroup(ex.exercise) === selectedGroup.value);
+  // Filter by selected category
+  if (selectedCategory.value) {
+    result = result.filter(ex => (ex.category || 'Sin categoria') === selectedCategory.value);
   }
 
   // Filter by search text
@@ -325,24 +318,23 @@ watch(
       searchText.value = '';
       // Default to all contractions
       contractionTab.value = '';
-      // Default to current exercise's group (first word of name)
-      selectedGroup.value = isAddMode.value
-        ? ''
-        : exerciseGroup(props.currentExercise.exerciseName);
+      // In add mode, default to '' (all categories)
+      // In swap mode, we'll set the category after fetching pool (need to look it up)
+      selectedCategory.value = '';
       await fetchPool();
     }
   },
   { immediate: true }
 );
 
-// Reset group selection when contraction tab changes if selected group disappears
+// Reset category selection when contraction tab changes if selected category disappears
 watch(contractionTab, () => {
-  if (selectedGroup.value) {
-    const groupStillExists = contractionFiltered.value.some(
-      ex => exerciseGroup(ex.exercise) === selectedGroup.value
+  if (selectedCategory.value) {
+    const categoryStillExists = categoryChips.value.some(
+      chip => chip.name === selectedCategory.value
     );
-    if (!groupStillExists) {
-      selectedGroup.value = '';
+    if (!categoryStillExists) {
+      selectedCategory.value = '';
     }
   }
 });
@@ -359,6 +351,16 @@ async function fetchPool() {
       pattern: props.blockPattern,
     });
     pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
+
+    // In swap mode, try to default to the current exercise's category
+    if (!isAddMode.value && pool.value.length > 0) {
+      // Find the current exercise in the pool to get its category
+      const currentInPool = pool.value.find(ex => ex.id === props.currentExercise.exerciseId);
+      if (currentInPool) {
+        selectedCategory.value = currentInPool.category || 'Sin categoria';
+      }
+      // If current exercise not in pool (already excluded or different filters), default to ''
+    }
   } catch {
     $q.notify({
       type: 'negative',
