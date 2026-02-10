@@ -262,8 +262,13 @@ async function onRemoveExercise(payload: { prescriptionId: number }) {
 async function onUpdatePrescription(payload: { prescriptionId: number; fields: PrescriptionUpdate }) {
   try {
     await editApi.updatePrescription(props.sessionId, props.block.id, payload.prescriptionId, payload.fields);
-    $q.notify({ type: 'positive', message: 'Prescripcion actualizada', timeout: 1500 });
-    emit('refresh');
+    // Targeted reactive update: update the exercise in-place
+    const exercise = props.block.exercises.find(e => e.id === payload.prescriptionId);
+    if (exercise) {
+      Object.assign(exercise, payload.fields);
+    }
+    $q.notify({ type: 'positive', message: 'Prescripcion actualizada', color: 'green', timeout: 1500 });
+    // NO emit('refresh') -- no reload, no scroll reset
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
   }
