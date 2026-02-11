@@ -15,8 +15,18 @@
       <q-btn icon="chevron_right" flat round @click="nextWeek" />
     </div>
 
-    <!-- Day tabs -->
-    <day-tabs v-model="currentDay" class="q-mb-md" />
+    <!-- Day tabs + PDF button -->
+    <div class="row items-center justify-between q-mb-md">
+      <day-tabs v-model="currentDay" />
+      <q-btn
+        icon="picture_as_pdf"
+        label="PDF del Día"
+        color="deep-purple"
+        outline
+        :loading="pdfLoading"
+        @click="onDownloadDayPdf"
+      />
+    </div>
 
     <!-- Sessions table -->
     <q-table
@@ -170,6 +180,9 @@ const tablePagination = ref({
 
 // Preview dialog state
 const previewOpen = ref(false);
+
+// PDF generation state
+const pdfLoading = ref(false);
 const previewSessionId = ref(0);
 const previewMemberLevel = ref('alfa');
 
@@ -209,6 +222,35 @@ async function loadSessions() {
     tablePagination.value.rowsNumber = response.total;
   } catch {
     $q.notify({ type: 'negative', message: 'Error cargando sesiones' });
+  }
+}
+
+const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
+
+async function onDownloadDayPdf() {
+  const daySessionIds = filteredSessions.value
+    .filter(s => PDF_LEVELS.includes(s.memberLevel))
+    .map(s => s.id);
+
+  if (daySessionIds.length === 0) {
+    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar PDF' });
+    return;
+  }
+
+  pdfLoading.value = true;
+  try {
+    const details = await Promise.all(
+      daySessionIds.map(id => sessionsApi.fetchSessionDetail(id))
+    );
+    const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
+    const { buildDayPdf } = await import('src/utils/pdf/session-pdf-builder');
+    const pdfDay = sessionsToPdfDay(details);
+    buildDayPdf(pdfDay);
+  } catch (err) {
+    $q.notify({ type: 'negative', message: 'Error generando PDF' });
+    console.error('PDF generation error:', err);
+  } finally {
+    pdfLoading.value = false;
   }
 }
 
