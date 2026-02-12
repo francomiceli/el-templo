@@ -117,6 +117,7 @@ function buildGridPage(
 ): PdfBlockPage | null {
   const levelBlocks: PdfLevelBlock[] = [];
   let formatName = '';
+  let mobilityText: string | undefined;
 
   for (const level of LEVEL_ORDER) {
     const session = sessionsByLevel.get(level);
@@ -124,6 +125,18 @@ function buildGridPage(
     const block = findBlock(session.blocks, role);
     if (!block) continue;
     if (!formatName) formatName = formatNameWithParams(block.formatName, block.formatParams);
+
+    // Extract mobility from the block (same exercise for all levels)
+    if (!mobilityText && block.mobilityExercise) {
+      const mob = block.mobilityExercise;
+      const prescription = mob.seconds && mob.seconds > 0
+        ? `${mob.seconds}"`
+        : mob.reps && mob.reps > 0
+          ? `${mob.reps}`
+          : '';
+      mobilityText = `${mob.exerciseName} ${prescription}`.trim();
+    }
+
     levelBlocks.push(blockToLevelBlock(block, level));
   }
 
@@ -132,6 +145,7 @@ function buildGridPage(
   return {
     role: displayRole,
     formatName,
+    mobility: mobilityText,
     levelBlocks,
   };
 }
