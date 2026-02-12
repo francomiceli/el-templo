@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 ## Current Position
 
-Phase: 17 (Per-Block Mobility Exercises) — **In Progress**
-Plan: 02 of 04 complete. Next: 03 (Member App Display)
-Status: **In Progress**
-Last activity: 2026-02-12 - Plan 17-02 complete (API response & admin editing)
+Phase: 17 (Per-Block Mobility Exercises) — **Complete**
+Plan: 04 of 04 complete.
+Status: **Complete**
+Last activity: 2026-02-12 - Plan 17-04 complete (Member App Display & PDF Mobility Data)
 
-Progress: [█████░░░░░] 50% Phase 17 (2/4 plans)
+Progress: [██████████] 100% Phase 17 (4/4 plans)
 
 ## Architecture Reset
 
@@ -84,8 +84,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 16-pdf-generation-format-config-app-exercise-tracking | 10 | 23min | 2.3min |
 
 **Recent Trend:**
-- Last 5 plans: 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI), 17-01 (3min - Mobility Data Foundation), 17-02 (3min - API Response & Admin Editing)
-- Trend: Phase 17 progressing - API layer complete
+- Last 5 plans: 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI), 17-01 (3min - Mobility Data Foundation), 17-02 (3min - API Response & Admin Editing), 17-04 (2min - Member App Display & PDF Mobility)
+- Trend: Phase 17 complete - all layers delivered
 
 *Updated after each plan completion*
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -97,6 +97,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 16 P01 | 448 | 2 tasks | 7 files |
 | Phase 17 P01 | 3 | 2 tasks | 6 files |
 | Phase 17 P02 | 3 | 2 tasks | 5 files |
+| Phase 17 P04 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -376,6 +377,8 @@ Recent decisions affecting current work:
 | 17-01 | ISO=20s, CON=10reps mobility defaults | Derived from examples.txt statistical analysis of 21 coach-built sessions |
 | 17-01 | sortOrder=999 for mobility | Always appears last within block regardless of main exercise count |
 | 17-01 | rest=0 for mobility exercises | Active rest between blocks, no prescribed rest period after |
+| 17-04 | Display-only mobility section in DayPlayer | No checkmark, no completion tracking, does not affect auto-advance |
+| 17-04 | PDF mobility text from block.mobilityExercise | Transformer populates PdfBlockPage.mobility, builder already consumes it |
 
 ### Roadmap Evolution
 
@@ -403,7 +406,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Completed 17-02-PLAN.md (API response & admin editing). Next: 17-03 (Member App Display)
+Stopped at: Completed 17-04-PLAN.md (Member App Display & PDF Mobility Data). Phase 17 complete. Next: Phase 18
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
