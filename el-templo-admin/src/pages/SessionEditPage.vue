@@ -383,6 +383,7 @@ function onAddExercise(payload: { blockId: number; blockRoute: string; blockPatt
     notes: null,
     dificultadLineal: null,
     sortOrder: 0,
+    route: null,
   };
   swapDialogOpen.value = true;
 }

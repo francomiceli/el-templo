@@ -299,6 +299,53 @@ export function useEditApi() {
     }
   }
 
+  async function fetchMobilityPool(blockRoute: string): Promise<ExercisePoolResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ExercisePoolResponse>(
+        '/admin/exercises/mobility-pool',
+        { params: { blockRoute } },
+      );
+      return data;
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error ||
+        'Error cargando ejercicios de movilidad';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function swapMobilityExercise(
+    sessionId: number,
+    blockId: number,
+    newExerciseId: number,
+  ): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.post(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/mobility/swap`,
+        { newExerciseId },
+      );
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error ||
+        'Error al cambiar ejercicio de movilidad';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function deleteSavedBlock(id: number): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -332,5 +379,7 @@ export function useEditApi() {
     saveBlock,
     listSavedBlocks,
     deleteSavedBlock,
+    fetchMobilityPool,
+    swapMobilityExercise,
   };
 }

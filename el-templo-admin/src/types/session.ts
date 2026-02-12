@@ -49,6 +49,7 @@ export interface SessionBlock {
   repsBudget: number;
   sortOrder: number;
   exercises: SessionExercise[];
+  mobilityExercise: SessionExercise | null;
 }
 
 export interface SessionExercise {
@@ -63,6 +64,7 @@ export interface SessionExercise {
   dificultadLineal: number | null;
   sortOrder: number;
   route: string | null;
+  exerciseType?: 'main' | 'mobility';
 }
 
 export interface SessionDetail extends SessionSummary {
