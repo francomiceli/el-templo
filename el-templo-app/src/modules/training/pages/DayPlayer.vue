@@ -154,6 +154,41 @@
             @update:selected-index="onExerciseSelect"
             @toggle-exercise-complete="onToggleExerciseComplete"
           />
+
+          <!-- Descanso Activo (Mobility) Section -->
+          <div
+            v-if="currentBlock && currentBlock.role !== 'INITIUM' && currentBlock.mobilityExercise"
+            class="day-player__mobility q-px-md q-mt-sm"
+          >
+            <div class="text-overline text-grey-7 q-mb-xs" style="letter-spacing: 2px">
+              DESCANSO ACTIVO
+            </div>
+            <q-card flat bordered class="mobility-card">
+              <q-card-section class="q-py-sm">
+                <div class="row items-center">
+                  <div class="col">
+                    <div class="text-body2 text-weight-medium">
+                      {{ currentBlock.mobilityExercise.exerciseName }}
+                    </div>
+                    <div class="text-caption text-grey-7 q-mt-xs">
+                      <q-badge
+                        :color="mobilityContractionColor"
+                        class="q-mr-xs"
+                        :label="currentBlock.mobilityExercise.contraction"
+                      />
+                      <span v-if="currentBlock.mobilityExercise.seconds && currentBlock.mobilityExercise.seconds > 0">
+                        {{ currentBlock.mobilityExercise.seconds }}''
+                      </span>
+                      <span v-else-if="currentBlock.mobilityExercise.reps && currentBlock.mobilityExercise.reps > 0">
+                        {{ currentBlock.mobilityExercise.reps }} reps
+                      </span>
+                    </div>
+                  </div>
+                  <q-icon name="self_improvement" size="32px" color="grey-5" />
+                </div>
+              </q-card-section>
+            </q-card>
+          </div>
         </div>
 
         <!-- Action Area: Complete Block button -->
@@ -416,6 +451,16 @@ const exerciseTotalCount = computed(() => player.value?.totalExerciseCount.value
 const currentBlockCompletedExercises = computed<number[]>(() => {
   if (!player.value || !currentBlock.value) return [];
   return player.value.completedExercises.value[currentBlock.value.role] ?? [];
+});
+
+// Mobility contraction badge color
+const mobilityContractionColor = computed(() => {
+  if (!currentBlock.value?.mobilityExercise) return 'grey';
+  const c = currentBlock.value.mobilityExercise.contraction;
+  if (c === 'ISO') return 'orange';
+  if (c === 'CON') return 'blue-grey';
+  if (c === 'EXC') return 'teal';
+  return 'grey';
 });
 
 // Deuteros options for BlockChoice component
@@ -829,6 +874,13 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding-bottom: 100px; // Space for fixed button
+}
+
+.day-player__mobility {
+  .mobility-card {
+    border-color: rgba(176, 141, 110, 0.3);
+    background: rgba(176, 141, 110, 0.05);
+  }
 }
 
 .day-player__action {

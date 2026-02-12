@@ -78,6 +78,17 @@ export interface Block {
 
   /** Ordered list of exercises in this block */
   exercises: Prescription[];
+
+  /** Mobility exercise for this block (null for INITIUM) */
+  mobilityExercise: {
+    exerciseId: number;
+    exerciseName: string;
+    contraction: string;
+    reps: number | null;
+    seconds: number | null;
+    rest: number;
+    notes: string | null;
+  } | null;
 }
 
 /**
