@@ -10,11 +10,14 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: 08 of 10
-Status: **Active** — Client-side PDF generation complete
-Last activity: 2026-02-10 - Completed 16-08-PLAN.md (Client-Side PDF Generation)
+Plan: Wave 1 complete (01, 03, 04, 05, 07, 08). Wave 2: 09 complete, pending (02, 06). Wave 3 pending (10).
+Status: **In Progress** — Wave 2 started
+Last activity: 2026-02-11 - Completed 16-09 (PDF Download Buttons)
 
-Progress: [████████__] 80% Phase 16 (8/10 plans)
+Progress: [███████___] 70% Phase 16 (7/10 plans)
+
+Wave 1 review: `.planning/phases/16-pdf-generation-format-config-app-exercise-tracking/WAVE-1-REVIEW.md`
+Resume: `/gsd:execute-phase 16` for remaining plans (02, 06, 10)
 
 ## Architecture Reset
 
@@ -61,7 +64,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 48
+- Total plans completed: 49
 - Average duration: 4.0 min
 - Total execution time: 4.7 hours
 
@@ -81,13 +84,14 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
-| 16-pdf-generation-format-config-app-exercise-tracking | 6 | 12min | 2.0min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 7 | 14min | 2.0min |
 
 **Recent Trend:**
-- Last 5 plans: 16-01 (1min - Format Params), 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation)
+- Last 5 plans: 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons)
 - Trend: Phase 16 in progress - Admin PDF generation and format configuration
 
 *Updated after each plan completion*
+| Phase 16 P09 | 2 | 2 tasks | 2 files |
 | Phase 16-pdf-generation-format-config-app-exercise-tracking P08 | 5 | 2 tasks | 3 files |
 | Phase 16 P05 | 3 | 2 tasks | 2 files |
 | Phase 16 P03 | 139 | 1 tasks | 3 files |
@@ -355,6 +359,9 @@ Recent decisions affecting current work:
 | 16-08 | 6-page structure per day | Matches example PDF design - cover, initium, nucleus, deuteros (stacked), epikos, closing. |
 | 16-08 | Greek symbols in level headers | α Δ Σ Ω consistent with member app display and brand identity. |
 | 16-08 | Motivational quotes rotate by week number | Variety across weeks without randomness (deterministic). |
+| 16-09 | Dynamic imports for PDF modules on button click | Consistent with SessionsPage, keeps 174KB PDF assets out of main bundle |
+| 16-09 | Fetch all approved levels for day PDF | Full multi-level grids (alpha/delta/sigma/omega) produce better PDFs matching example design |
+| 16-09 | Filter PDF_LEVELS to alfa/delta/sigma/omega | Spartan excluded from 4-level grid, maps to omega in member app |
 
 ### Roadmap Evolution
 
@@ -379,8 +386,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-10
-Stopped at: Completed 16-08-PLAN.md (Client-Side PDF Generation)
+Last session: 2026-02-11
+Stopped at: Completed 16-09-PLAN.md (PDF Download Buttons)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
