@@ -12,6 +12,69 @@ const DAY_LABELS: Record<string, string> = {
 
 const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'omega'];
 
+/**
+ * Build a display string for format + params.
+ * Examples: "AMRAP 10' X3", "TIME CAP 12'", "COMPLEX X3", "TABATA 20"/10" X8"
+ */
+function formatNameWithParams(
+  formatName: string,
+  formatParams: Record<string, unknown> | null | undefined,
+): string {
+  if (!formatParams) return formatName;
+
+  const p = formatParams as Record<string, any>;
+  const type = p.type as string | undefined;
+  if (!type) return formatName;
+
+  switch (type) {
+    case 'amrap': {
+      return p.minutes ? `${formatName} ${p.minutes}'` : formatName;
+    }
+    case 'amrap_series': {
+      const parts = [formatName];
+      if (p.minutes) parts.push(`${p.minutes}'`);
+      if (p.rounds) parts.push(`X${p.rounds}`);
+      return parts.join(' ');
+    }
+    case 'emom': {
+      const parts = [formatName];
+      if (p.totalMinutes) parts.push(`${p.totalMinutes}'`);
+      if (p.intervalSeconds) parts.push(`(${p.intervalSeconds}")`);
+      return parts.join(' ');
+    }
+    case 'complex':
+      return p.rounds ? `${formatName} X${p.rounds}` : formatName;
+    case 'tabata': {
+      const parts = [formatName];
+      if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
+      if (p.rounds) parts.push(`X${p.rounds}`);
+      return parts.join(' ');
+    }
+    case 'interval': {
+      const parts = [formatName];
+      if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
+      if (p.rounds) parts.push(`X${p.rounds}`);
+      return parts.join(' ');
+    }
+    case 'for_time':
+      return p.timeCapMinutes ? `${formatName} ${p.timeCapMinutes}'` : formatName;
+    case 'time_cap':
+      return p.minutes ? `${formatName} ${p.minutes}'` : formatName;
+    case 'buy_in_cash_out':
+      return p.rounds ? `${formatName} X${p.rounds}` : formatName;
+    case 'cluster': {
+      const parts = [formatName];
+      if (p.clusterSize) parts.push(`X${p.clusterSize}`);
+      if (p.restBetweenClusters) parts.push(`(${p.restBetweenClusters}" rest)`);
+      return parts.join(' ');
+    }
+    case 'ladder':
+      return p.direction === 'descending' ? `${formatName} DESC` : `${formatName} ASC`;
+    default:
+      return formatName;
+  }
+}
+
 function exerciseToPdf(ex: SessionExercise): PdfExercise {
   return {
     name: ex.exerciseName,
@@ -60,7 +123,7 @@ function buildGridPage(
     if (!session) continue;
     const block = findBlock(session.blocks, role);
     if (!block) continue;
-    if (!formatName) formatName = block.formatName;
+    if (!formatName) formatName = formatNameWithParams(block.formatName, block.formatParams);
     levelBlocks.push(blockToLevelBlock(block, level));
   }
 
@@ -99,7 +162,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
       blocks.push({
         role: 'INITIUM',
         blockName: initium.pattern || 'PYROS',
-        formatName: initium.formatName,
+        formatName: formatNameWithParams(initium.formatName, initium.formatParams),
         simpleExercises: initium.exercises.map(e => e.exerciseName),
       });
       break;

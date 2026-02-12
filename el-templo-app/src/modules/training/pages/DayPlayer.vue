@@ -513,15 +513,8 @@ function getNextBlockName(): string {
   return '';
 }
 
-async function completeBlock(): Promise<void> {
+async function doCompleteBlock(): Promise<void> {
   if (!player.value) return;
-
-  // Check if session is complete
-  if (player.value.isSessionComplete.value) {
-    // Session already complete - navigate back
-    await finishSession();
-    return;
-  }
 
   // Get current block name before completing
   const completedName = currentBlockName.value;
@@ -542,6 +535,41 @@ async function completeBlock(): Promise<void> {
     ? 'Elige Deuteros'
     : nextName;
   showBlockTransition.value = true;
+}
+
+async function completeBlock(): Promise<void> {
+  if (!player.value) return;
+
+  // Check if session is complete
+  if (player.value.isSessionComplete.value) {
+    // Session already complete - navigate back
+    await finishSession();
+    return;
+  }
+
+  // Check for incomplete exercises
+  const completed = exerciseCompletedCount.value;
+  const total = exerciseTotalCount.value;
+  const incomplete = total - completed;
+
+  if (incomplete > 0) {
+    $q.dialog({
+      title: 'Ejercicios sin completar',
+      message: `Hay ${incomplete} ejercicio${incomplete > 1 ? 's' : ''} sin completar. Completar bloque de todas formas?`,
+      cancel: {
+        label: 'Cancelar',
+        flat: true,
+      },
+      ok: {
+        label: 'Completar',
+        color: 'primary',
+      },
+    }).onOk(async () => {
+      await doCompleteBlock();
+    });
+  } else {
+    await doCompleteBlock();
+  }
 }
 
 function onTransitionComplete(): void {

@@ -6,7 +6,8 @@
       :model-value="index === selectedIndex"
       :class="[
         'exercise-item',
-        { 'exercise-item--selected': index === selectedIndex }
+        { 'exercise-item--selected': index === selectedIndex },
+        { 'exercise-item--completed': isExerciseCompleted(exercise.exerciseId) }
       ]"
       header-class="exercise-header"
       expand-icon-class="text-grey-6"
@@ -14,6 +15,15 @@
     >
       <!-- Exercise header (collapsed view) -->
       <template #header>
+        <q-item-section side class="q-mr-sm">
+          <q-icon
+            :name="isExerciseCompleted(exercise.exerciseId) ? 'task_alt' : 'radio_button_unchecked'"
+            :color="isExerciseCompleted(exercise.exerciseId) ? 'positive' : 'grey-5'"
+            size="24px"
+            class="exercise-check-icon cursor-pointer"
+            @click.stop="emit('toggle-exercise-complete', { prescriptionId: exercise.exerciseId })"
+          />
+        </q-item-section>
         <q-item-section>
           <q-item-label
             class="text-body1 text-weight-medium"
@@ -25,18 +35,11 @@
             {{ formatQuickInfo(exercise) }}
           </q-item-label>
         </q-item-section>
-        <q-item-section side class="row items-center no-wrap">
+        <q-item-section side>
           <q-badge
             :color="getContractionColor(exercise.contraction)"
             :label="exercise.contraction"
-            class="text-weight-medium q-mr-sm"
-          />
-          <q-icon
-            :name="isExerciseCompleted(exercise.exerciseId) ? 'check_circle' : 'radio_button_unchecked'"
-            :color="isExerciseCompleted(exercise.exerciseId) ? 'positive' : 'grey-5'"
-            size="24px"
-            class="exercise-check-icon cursor-pointer"
-            @click.stop="emit('toggle-exercise-complete', { prescriptionId: exercise.exerciseId })"
+            class="text-weight-medium"
           />
         </q-item-section>
       </template>
@@ -231,8 +234,15 @@ function getContractionColor(contraction: string): string {
 }
 
 .exercise-name--completed {
-  text-decoration: line-through;
-  opacity: 0.5;
+  color: $positive;
+}
+
+.exercise-item--completed {
+  background: rgba($positive, 0.06);
+}
+
+.exercise-item--completed .exercise-check-icon {
+  transform: scale(1.15);
 }
 
 .exercise-check-icon {

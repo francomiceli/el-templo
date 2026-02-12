@@ -2,55 +2,67 @@
   <q-card :class="['q-mb-md', `border-${blockColor}`]" bordered>
     <!-- Colored header -->
     <q-card-section :class="['text-white', `bg-${blockColor}`]">
-      <div class="row items-center justify-between">
+      <div class="row items-start justify-between">
         <div>
           <div class="text-h6">{{ block.role }}</div>
           <div class="text-caption">{{ block.route }}</div>
         </div>
-        <div class="row items-center q-gutter-sm">
-          <!-- Save block button -->
-          <q-btn
-            flat
-            dense
-            round
-            icon="bookmark_add"
-            color="white"
-            @click="onSaveBlock"
-          >
-            <q-tooltip>Guardar bloque para reutilizar</q-tooltip>
-          </q-btn>
-          <!-- Block swap button -->
-          <q-btn
-            flat
-            dense
-            round
-            icon="swap_horiz"
-            color="white"
-            @click="$emit('swap-block', block)"
-          >
-            <q-tooltip>Intercambiar bloque</q-tooltip>
-          </q-btn>
-          <!-- Format dropdown -->
-          <q-select
-            v-model="selectedFormat"
-            :options="formatOptions"
-            option-label="label"
-            option-value="value"
-            emit-value
-            map-options
-            dense
-            outlined
+        <div class="column items-end q-gutter-xs">
+          <div class="row items-center q-gutter-sm">
+            <!-- Save block button -->
+            <q-btn
+              flat
+              dense
+              round
+              icon="bookmark_add"
+              color="white"
+              @click="onSaveBlock"
+            >
+              <q-tooltip>Guardar bloque para reutilizar</q-tooltip>
+            </q-btn>
+            <!-- Block swap button -->
+            <q-btn
+              flat
+              dense
+              round
+              icon="swap_horiz"
+              color="white"
+              @click="$emit('swap-block', block)"
+            >
+              <q-tooltip>Intercambiar bloque</q-tooltip>
+            </q-btn>
+            <!-- Format dropdown -->
+            <q-select
+              v-model="selectedFormat"
+              :options="formatOptions"
+              option-label="label"
+              option-value="value"
+              emit-value
+              map-options
+              dense
+              outlined
+              dark
+              :loading="formatsLoading"
+              style="min-width: 140px"
+              @update:model-value="onFormatChange"
+            >
+              <template #selected-item="scope">
+                <q-badge color="white" :text-color="blockColor">
+                  {{ scope.opt?.label || block.formatName }}
+                </q-badge>
+              </template>
+            </q-select>
+          </div>
+          <!-- Format params (right-aligned under format selector) -->
+          <format-params-editor
+            v-if="hasConfigurableParams"
+            :format-params="block.formatParams"
+            :format-name="block.formatName"
+            :block-id="block.id"
+            :session-id="sessionId"
             dark
-            :loading="formatsLoading"
-            style="min-width: 140px"
-            @update:model-value="onFormatChange"
-          >
-            <template #selected-item="scope">
-              <q-badge color="white" :text-color="blockColor">
-                {{ scope.opt?.label || block.formatName }}
-              </q-badge>
-            </template>
-          </q-select>
+            @update:format-params="onUpdateFormatParams"
+          />
         </div>
       </div>
     </q-card-section>
@@ -75,19 +87,15 @@
           <q-icon name="speed" size="xs" />
           {{ block.intensity }}% intensidad
         </div>
+        <div v-if="block.repsBudget">
+          <q-icon name="track_changes" size="xs" />
+          Reps recomendadas: {{ block.repsBudget }}
+        </div>
         <div v-if="avgDifficulty">
           <q-icon name="trending_up" size="xs" />
           Dif: {{ avgDifficulty.toFixed(1) }}
         </div>
       </div>
-
-      <!-- Budget bar -->
-      <budget-bar
-        v-if="block.repsBudget"
-        :current-reps="currentReps"
-        :original-budget="block.repsBudget"
-        class="q-mt-sm"
-      />
 
       <!-- Contraction mix badge -->
       <contraction-mix-badge
@@ -98,15 +106,6 @@
         class="q-mt-sm"
       />
 
-      <!-- Format params editor -->
-      <format-params-editor
-        :format-params="block.formatParams"
-        :format-name="block.formatName"
-        :block-id="block.id"
-        :session-id="sessionId"
-        class="q-mt-sm"
-        @update:format-params="onUpdateFormatParams"
-      />
     </q-card-section>
 
     <!-- Editable exercises list -->
@@ -144,7 +143,6 @@ import { useQuasar } from 'quasar';
 import type { SessionBlock, SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
 import { useEditApi } from 'src/composables/useEditApi';
 import EditableExerciseRow from './EditableExerciseRow.vue';
-import BudgetBar from './BudgetBar.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
 import FormatParamsEditor from './FormatParamsEditor.vue';
 
@@ -182,19 +180,24 @@ const isInitium = computed(() => {
   return props.block.role?.toLowerCase().includes('initium') || false;
 });
 
+const NO_PARAMS_FORMATS = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper'];
+
+const hasConfigurableParams = computed(() => {
+  if (props.block.formatParams) {
+    const type = (props.block.formatParams as any).type;
+    return !NO_PARAMS_FORMATS.includes(type);
+  }
+  // Null params — check formatName to decide if this format has configurable params
+  const normalized = props.block.formatName.toLowerCase().trim().replace(/\s+/g, '_');
+  return !NO_PARAMS_FORMATS.includes(normalized);
+});
+
 const avgDifficulty = computed(() => {
   const difficulties = props.block.exercises
     .map(e => e.dificultadLineal)
     .filter((d): d is number => d !== null && d !== undefined);
   if (difficulties.length === 0) return null;
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
-});
-
-// Current total volume (reps + seconds for all exercises)
-const currentReps = computed(() => {
-  return props.block.exercises.reduce((sum, ex) => {
-    return sum + (ex.reps || 0) + (ex.seconds || 0);
-  }, 0);
 });
 
 // Exercise soft cap warning: > 3 exercises for non-INITIUM

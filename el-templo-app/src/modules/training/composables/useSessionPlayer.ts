@@ -299,12 +299,6 @@ export function useSessionPlayer(session: Session) {
         [blockRole]: updated,
       };
       await store.saveCompletedExercise(session.dayId, blockRole, prescriptionId);
-
-      // Check if all exercises in block are now complete
-      if (block.exercises.length > 0 && updated.length >= block.exercises.length) {
-        // All exercises done -> auto-complete block
-        await completeBlock();
-      }
     }
   }
 
