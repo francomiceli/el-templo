@@ -24,6 +24,7 @@ import { validateSessionForTrace } from './validators/session-validator';
 import { createSessionLogger } from './trace/logger';
 import { aggregateBlockTrace, aggregateSessionTrace } from './trace/emitter';
 import type { BlockTrace, SessionTrace } from './trace/types';
+import { selectMobilityExercise } from './pipeline/utils/mobility-selection';
 
 /**
  * Get block roles in execution order for a given week
@@ -164,6 +165,22 @@ export class SessionGeneratorService {
       // Capture DEUTEROS_1's format for DEUTEROS_2 consistency
       if (role === 'DEUTEROS_1') {
         deuteros1Format = blockPlan.format;
+      }
+
+      // Select mobility exercise for non-INITIUM blocks (Phase 17)
+      if (role !== 'INITIUM') {
+        const mobility = await selectMobilityExercise(blockPlan.route, this.db);
+        if (mobility) {
+          blockPlan.mobilityExercise = mobility;
+        }
+        logger.info({
+          event: 'MOBILITY_SELECTED',
+          blockId: blockPlan.blockId,
+          role,
+          route: blockPlan.route,
+          mobilityExercise: mobility ? mobility.name : null,
+          fallbackUsed: mobility ? undefined : 'no_mobility_exercises_available',
+        }, mobility ? `Mobility: ${mobility.name}` : 'No mobility exercise available');
       }
 
       blocks.push(blockPlan);
@@ -369,28 +386,36 @@ export class SessionGeneratorService {
           notes: ex.notes ?? null,
           difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
           sortOrder: exIdx,
+          exerciseType: ex.exerciseType ?? 'main',
         }));
 
         await this.db.insert(schema.sessionPrescriptions).values(prescriptionValues);
+      }
+
+      // Insert mobility exercise if present (Phase 17)
+      const mobilityEx = block.mobilityExercise;
+      if (mobilityEx) {
+        await this.db.insert(schema.sessionPrescriptions).values({
+          blockId,
+          exerciseId: mobilityEx.exerciseId,
+          exerciseName: mobilityEx.name,
+          contraction: mobilityEx.contraction,
+          reps: mobilityEx.reps,
+          seconds: mobilityEx.seconds,
+          rest: mobilityEx.rest,
+          notes: mobilityEx.notes ?? null,
+          difficulty: null, // Mobility exercises don't use difficulty
+          sortOrder: 999, // High sortOrder to always appear last
+          exerciseType: 'mobility',
+        });
       }
     }
 
     // Store algorithm snapshot for revert capability (Phase 15)
     // Captures the original generated blocks + prescriptions as JSON
     const algorithmSnapshot = {
-      blocks: session.blocks.map((block, blockIdx) => ({
-        blockId: block.blockId,
-        role: block.role,
-        route: block.route,
-        pattern: block.pattern,
-        intensity: block.intensity,
-        repsBudget: block.repsBudget,
-        formatId: block.format.formatId,
-        formatName: block.format.name,
-        formatParams: block.formatParams,
-        exerciseCount: block.exercises.length,
-        sortOrder: blockIdx,
-        exercises: block.exercises.map((ex, exIdx) => ({
+      blocks: session.blocks.map((block, blockIdx) => {
+        const snapshotExercises = block.exercises.map((ex, exIdx) => ({
           exerciseId: ex.exerciseId,
           exerciseName: ex.name,
           contraction: ex.contraction,
@@ -400,8 +425,40 @@ export class SessionGeneratorService {
           notes: ex.notes ?? null,
           difficulty: ex.dificultadLineal ?? null,
           sortOrder: exIdx,
-        })),
-      })),
+          exerciseType: ex.exerciseType ?? 'main',
+        }));
+
+        // Include mobility exercise in snapshot for revert capability
+        if (block.mobilityExercise) {
+          snapshotExercises.push({
+            exerciseId: block.mobilityExercise.exerciseId,
+            exerciseName: block.mobilityExercise.name,
+            contraction: block.mobilityExercise.contraction,
+            reps: block.mobilityExercise.reps,
+            seconds: block.mobilityExercise.seconds,
+            rest: block.mobilityExercise.rest,
+            notes: block.mobilityExercise.notes ?? null,
+            difficulty: null,
+            sortOrder: 999,
+            exerciseType: 'mobility' as const,
+          });
+        }
+
+        return {
+          blockId: block.blockId,
+          role: block.role,
+          route: block.route,
+          pattern: block.pattern,
+          intensity: block.intensity,
+          repsBudget: block.repsBudget,
+          formatId: block.format.formatId,
+          formatName: block.format.name,
+          formatParams: block.formatParams,
+          exerciseCount: block.exercises.length,
+          sortOrder: blockIdx,
+          exercises: snapshotExercises,
+        };
+      }),
     };
 
     await this.db
@@ -518,6 +575,7 @@ export class SessionGeneratorService {
         rest: p.rest,
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
+        exerciseType: p.exerciseType as 'main' | 'mobility',
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week

@@ -50,6 +50,9 @@ export const ROUTE_TO_MOBILITY_ROUTES: Record<string, string[]> = {
   'HR': ['MN', 'FL'],
   'HD/ID': ['MN', 'FL'],
 
+  // Lower lunges -> LS (lunges), PL (planche prep)
+  'LS': ['LS ( LUNGES )', 'PL'],
+
   // Other routes
   'MN/RP': ['MN', 'FL'],
 };
