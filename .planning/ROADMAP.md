@@ -21,7 +21,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [x] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
 - [x] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
 - [x] **Phase 16: PDF Generation, Format Config & App Exercise Tracking** - PDF session sheets, format parameter config, per-exercise completion
-- [ ] **Phase 17: Per-Block Mobility Exercises** - Route-based mobility exercise across pipeline, DB, admin, member app, PDF
+- [x] **Phase 17: Per-Block Mobility Exercises** - Route-based mobility exercise across pipeline, DB, admin, member app, PDF
 - [ ] **Phase 18: Technical Debt Audit & Domain/Subdomain Deployment** - Tech debt repair, eltemplo.org subdomains setup
 - [ ] **Phase 19: Admin Session Creation** - Build sessions from scratch using exercise database
 - [ ] **Phase 20: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
@@ -159,10 +159,10 @@ Plans:
   10. All 4 non-INITIUM blocks (NUCLEUS, DEUTEROS_1, DEUTEROS_2, ATHLOS/EPIKOS) get mobility exercises
 
 Plans:
-- [ ] 17-01-PLAN.md — DB migration + mobility selection pipeline + types
-- [ ] 17-02-PLAN.md — API response separation + admin mobility endpoints
-- [ ] 17-03-PLAN.md — Admin UI: Descanso Activo section + swap dialog mobility mode
-- [ ] 17-04-PLAN.md — Member app display + PDF data population
+- [x] 17-01-PLAN.md — DB migration + mobility selection pipeline + types
+- [x] 17-02-PLAN.md — API response separation + admin mobility endpoints
+- [x] 17-03-PLAN.md — Admin UI: Descanso Activo section + swap dialog mobility mode
+- [x] 17-04-PLAN.md — Member app display + PDF data population
 
 ---
 
@@ -284,7 +284,7 @@ Phases 23-25 (Exercise Videos) — Independent, can run in parallel
 | 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
 | 15. Admin Session Editing | 9/9 | Complete | 2026-02-10 |
 | 16. PDF Gen, Format Config & App Exercise Tracking | 10/10 | Complete | 2026-02-12 |
-| 17. Per-Block Mobility Exercises | 0/4 | Not Started | — |
+| 17. Per-Block Mobility Exercises | 4/4 | Complete | 2026-02-12 |
 | 18. Tech Debt & Domain Deployment | 0/? | Not Started | — |
 | 19. Admin Session Creation | 0/? | Not Started | — |
 | 20. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
