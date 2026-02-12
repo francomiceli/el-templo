@@ -129,13 +129,30 @@
             :format="currentBlock.format"
           />
 
+          <!-- Exercise completion progress -->
+          <div v-if="currentBlock" class="day-player__exercise-progress q-px-md q-pb-xs">
+            <div class="text-caption text-grey-7">
+              Ejercicios: {{ exerciseCompletedCount }} / {{ exerciseTotalCount }}
+            </div>
+            <q-linear-progress
+              :value="exerciseTotalCount > 0 ? exerciseCompletedCount / exerciseTotalCount : 0"
+              color="positive"
+              track-color="grey-3"
+              rounded
+              size="4px"
+              class="q-mt-xs"
+            />
+          </div>
+
           <!-- Exercise List -->
           <ExerciseList
             v-if="currentBlock"
             :exercises="currentBlock.exercises"
             :block-role="currentBlock.role"
             :selected-index="selectedExerciseIndex"
+            :completed-exercises="currentBlockCompletedExercises"
             @update:selected-index="onExerciseSelect"
+            @toggle-exercise-complete="onToggleExerciseComplete"
           />
         </div>
 
@@ -393,6 +410,14 @@ const selectedExerciseIndex = computed(() => player.value?.selectedExerciseIndex
 const deuteros1Block = computed(() => player.value?.deuteros1Block.value ?? null);
 const deuteros2Block = computed(() => player.value?.deuteros2Block.value ?? null);
 
+// Exercise completion state
+const exerciseCompletedCount = computed(() => player.value?.completedExerciseCount.value ?? 0);
+const exerciseTotalCount = computed(() => player.value?.totalExerciseCount.value ?? 0);
+const currentBlockCompletedExercises = computed<number[]>(() => {
+  if (!player.value || !currentBlock.value) return [];
+  return player.value.completedExercises.value[currentBlock.value.role] ?? [];
+});
+
 // Deuteros options for BlockChoice component
 const deuterosOptions = computed(() => {
   const options = [];
@@ -590,6 +615,12 @@ function onExerciseSelect(index: number): void {
   }
 }
 
+async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
+  if (player.value) {
+    await player.value.toggleExerciseComplete(payload.prescriptionId);
+  }
+}
+
 function navigateBack(): void {
   router.push({ name: 'training' });
 }
@@ -759,6 +790,10 @@ onUnmounted(() => {
 .day-player__timer {
   font-family: 'Roboto Mono', monospace;
   color: #424242;
+}
+
+.day-player__exercise-progress {
+  padding-top: 4px;
 }
 
 .day-player__content {

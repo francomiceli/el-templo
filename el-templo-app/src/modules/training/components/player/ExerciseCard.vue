@@ -2,48 +2,59 @@
   <q-card
     :class="[
       'exercise-card',
-      { 'exercise-card--active': isActive }
+      { 'exercise-card--active': isActive },
+      { 'exercise-card--completed': completed }
     ]"
     :style="isActive ? { borderLeftColor: `var(--q-${accentColor})` } : {}"
     flat
     bordered
   >
     <q-card-section class="exercise-card__content">
-      <!-- Header: exercise name + contraction badge -->
-      <div class="exercise-card__header">
-        <div class="text-h6 exercise-card__name">
-          {{ exercise.exerciseName }}
-        </div>
-        <q-badge
-          :color="accentColor"
-          text-color="white"
-          class="exercise-card__badge"
-        >
-          {{ exercise.contraction }}
-        </q-badge>
-      </div>
+      <div class="exercise-card__row">
+        <!-- Left: exercise details -->
+        <div class="exercise-card__details">
+          <!-- Header: exercise name + contraction badge -->
+          <div class="exercise-card__header">
+            <div class="text-h6 exercise-card__name">
+              {{ exercise.exerciseName }}
+            </div>
+            <q-badge
+              :color="accentColor"
+              text-color="white"
+              class="exercise-card__badge"
+            >
+              {{ exercise.contraction }}
+            </q-badge>
+          </div>
 
-      <!-- Main metrics: reps OR seconds + rest -->
-      <div class="exercise-card__metrics">
-        <div v-if="hasReps" class="exercise-card__metric">
-          <span class="exercise-card__metric-value">{{ exercise.reps }}</span>
-          <span class="exercise-card__metric-label">reps</span>
+          <!-- Main metrics: reps OR seconds -->
+          <div class="exercise-card__metrics">
+            <div v-if="hasReps" class="exercise-card__metric">
+              <span class="exercise-card__metric-value">{{ exercise.reps }}</span>
+              <span class="exercise-card__metric-label">reps</span>
+            </div>
+
+            <div v-else-if="hasTime" class="exercise-card__metric">
+              <span class="exercise-card__metric-value">{{ exercise.seconds }}</span>
+              <span class="exercise-card__metric-label">seg</span>
+            </div>
+          </div>
+
+          <!-- Notes section (if present) -->
+          <div v-if="exercise.notes" class="exercise-card__notes">
+            {{ exercise.notes }}
+          </div>
         </div>
 
-        <div v-else-if="hasTime" class="exercise-card__metric">
-          <span class="exercise-card__metric-value">{{ exercise.seconds }}</span>
-          <span class="exercise-card__metric-label">seg</span>
+        <!-- Right: completion checkmark -->
+        <div class="exercise-card__check" @click.stop="emit('toggle-complete')">
+          <q-icon
+            :name="completed ? 'check_circle' : 'radio_button_unchecked'"
+            :color="completed ? 'positive' : 'grey-5'"
+            size="28px"
+            class="exercise-card__check-icon"
+          />
         </div>
-
-        <div class="exercise-card__metric">
-          <span class="exercise-card__metric-value">{{ exercise.rest }}</span>
-          <span class="exercise-card__metric-label">descanso (s)</span>
-        </div>
-      </div>
-
-      <!-- Notes section (if present) -->
-      <div v-if="exercise.notes" class="exercise-card__notes">
-        {{ exercise.notes }}
       </div>
     </q-card-section>
   </q-card>
@@ -60,11 +71,18 @@ interface Props {
   accentColor: string;
   /** Whether this exercise is currently selected */
   isActive?: boolean;
+  /** Whether this exercise has been completed */
+  completed?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isActive: false,
+  completed: false,
 });
+
+const emit = defineEmits<{
+  (e: 'toggle-complete'): void;
+}>();
 
 /**
  * Whether exercise has repetition-based prescription
@@ -82,7 +100,7 @@ const hasTime = computed(() => props.exercise.seconds !== null);
   padding: 0;
   margin-bottom: 8px;
   border-radius: 8px;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .exercise-card--active {
@@ -90,8 +108,45 @@ const hasTime = computed(() => props.exercise.seconds !== null);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
+.exercise-card--completed .exercise-card__details {
+  opacity: 0.5;
+}
+
+.exercise-card--completed .exercise-card__name {
+  text-decoration: line-through;
+}
+
 .exercise-card__content {
   padding: 16px;
+}
+
+.exercise-card__row {
+  display: flex;
+  align-items: center;
+}
+
+.exercise-card__details {
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.3s ease;
+}
+
+.exercise-card__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-left: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.exercise-card__check-icon {
+  transition: color 0.3s ease, transform 0.3s ease;
+}
+
+.exercise-card--completed .exercise-card__check-icon {
+  transform: scale(1.1);
 }
 
 .exercise-card__header {
@@ -106,6 +161,7 @@ const hasTime = computed(() => props.exercise.seconds !== null);
   line-height: 1.2;
   flex: 1;
   margin-right: 12px;
+  transition: text-decoration 0.3s ease;
 }
 
 .exercise-card__badge {

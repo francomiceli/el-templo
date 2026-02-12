@@ -15,18 +15,28 @@
       <!-- Exercise header (collapsed view) -->
       <template #header>
         <q-item-section>
-          <q-item-label class="text-body1 text-weight-medium">
+          <q-item-label
+            class="text-body1 text-weight-medium"
+            :class="{ 'exercise-name--completed': isExerciseCompleted(exercise.exerciseId) }"
+          >
             {{ exercise.exerciseName }}
           </q-item-label>
           <q-item-label caption class="text-caption text-grey-7">
             {{ formatQuickInfo(exercise) }}
           </q-item-label>
         </q-item-section>
-        <q-item-section side>
+        <q-item-section side class="row items-center no-wrap">
           <q-badge
             :color="getContractionColor(exercise.contraction)"
             :label="exercise.contraction"
-            class="text-weight-medium"
+            class="text-weight-medium q-mr-sm"
+          />
+          <q-icon
+            :name="isExerciseCompleted(exercise.exerciseId) ? 'check_circle' : 'radio_button_unchecked'"
+            :color="isExerciseCompleted(exercise.exerciseId) ? 'positive' : 'grey-5'"
+            size="24px"
+            class="exercise-check-icon cursor-pointer"
+            @click.stop="emit('toggle-exercise-complete', { prescriptionId: exercise.exerciseId })"
           />
         </q-item-section>
       </template>
@@ -40,14 +50,6 @@
               <div class="detail-label text-caption text-grey-7">Dosis</div>
               <div class="detail-value text-body1 text-weight-medium">
                 {{ formatDose(exercise) }}
-              </div>
-            </div>
-
-            <!-- Rest time -->
-            <div class="col-6">
-              <div class="detail-label text-caption text-grey-7">Descanso</div>
-              <div class="detail-value text-body1 text-weight-medium">
-                {{ exercise.rest }}s
               </div>
             </div>
 
@@ -94,14 +96,26 @@ interface Props {
   blockRole: BlockRole;
   /** Currently selected exercise index */
   selectedIndex: number;
+  /** Array of completed exercise (prescription) IDs */
+  completedExercises?: number[];
 }
 
 interface Emits {
   (e: 'update:selectedIndex', index: number): void;
+  (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  completedExercises: () => [],
+});
 const emit = defineEmits<Emits>();
+
+/**
+ * Check if a specific exercise is completed
+ */
+function isExerciseCompleted(exerciseId: number): boolean {
+  return props.completedExercises.includes(exerciseId);
+}
 
 /**
  * Handle expansion item toggle - implements accordion behavior
@@ -127,17 +141,12 @@ const accentBorderStyle = computed(() => ({
  * Format quick info for collapsed header
  */
 function formatQuickInfo(exercise: Prescription): string {
-  const parts: string[] = [];
-
   if (exercise.reps !== null) {
-    parts.push(`${exercise.reps} reps`);
+    return `${exercise.reps} reps`;
   } else if (exercise.seconds !== null) {
-    parts.push(`${exercise.seconds}s`);
+    return `${exercise.seconds}s`;
   }
-
-  parts.push(`${exercise.rest}s desc.`);
-
-  return parts.join(' - ');
+  return '-';
 }
 
 /**
@@ -219,5 +228,15 @@ function getContractionColor(contraction: string): string {
 
 .detail-value {
   line-height: 1.4;
+}
+
+.exercise-name--completed {
+  text-decoration: line-through;
+  opacity: 0.5;
+}
+
+.exercise-check-icon {
+  transition: color 0.3s ease, transform 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 </style>
