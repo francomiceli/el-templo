@@ -4,7 +4,17 @@
     <q-card-section :class="['text-white', `bg-${blockColor}`]">
       <div class="row items-start justify-between">
         <div>
-          <div class="text-h6">{{ block.role }}</div>
+          <q-select
+            v-if="isAthlosEpikos"
+            :model-value="block.role"
+            :options="['ATHLOS', 'EPIKOS']"
+            dense
+            borderless
+            dark
+            class="role-select text-h6"
+            @update:model-value="onRoleChange"
+          />
+          <div v-else class="text-h6">{{ block.role }}</div>
           <div class="text-caption">{{ block.route }}</div>
         </div>
         <div class="column items-end q-gutter-xs">
@@ -48,7 +58,7 @@
             >
               <template #selected-item="scope">
                 <q-badge color="white" :text-color="blockColor">
-                  {{ scope.opt?.label || block.formatName }}
+                  {{ scope.opt?.label || displayFormatName(block.formatName) }}
                 </q-badge>
               </template>
             </q-select>
@@ -117,6 +127,7 @@
         :session-id="sessionId"
         :block-id="block.id"
         :block-route="block.route"
+        :block-format-name="block.formatName"
         @swap="onSwapExercise"
         @remove="onRemoveExercise"
         @update="onUpdatePrescription"
@@ -243,7 +254,12 @@ const isInitium = computed(() => {
   return props.block.role?.toLowerCase().includes('initium') || false;
 });
 
-const NO_PARAMS_FORMATS = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper'];
+const isAthlosEpikos = computed(() => {
+  const role = props.block.role?.toUpperCase();
+  return role === 'ATHLOS' || role === 'EPIKOS';
+});
+
+const NO_PARAMS_FORMATS = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper', 'cluster', 'buy_in_cash_out'];
 
 const hasConfigurableParams = computed(() => {
   if (props.block.formatParams) {
@@ -271,15 +287,22 @@ const exerciseCapWarning = computed(() => {
 // Contraction warning placeholder - can be set from server validation later
 const contractionWarning = ref<string | undefined>(undefined);
 
+// Display-name mapping: "Interval Training" → "HIIT"
+function displayFormatName(name: string): string {
+  if (name.toLowerCase() === 'interval training') return 'HIIT';
+  return name;
+}
+
 // Format dropdown options sorted by compatibility score
 const formatOptions = computed(() => {
   if (compatibleFormats.value.length === 0) {
-    return [{ label: props.block.formatName, value: props.block.formatName }];
+    return [{ label: displayFormatName(props.block.formatName), value: props.block.formatName }];
   }
   return [...compatibleFormats.value]
+    .filter(f => f.formatName.toLowerCase() !== 'hiit') // filter standalone HIIT duplicate
     .sort((a, b) => a.compatibility - b.compatibility)
     .map(f => ({
-      label: `${f.formatName} (${f.compatibility})`,
+      label: `${displayFormatName(f.formatName)} (${f.compatibility})`,
       value: f.formatName,
       formatId: f.formatId,
     }));
@@ -318,6 +341,17 @@ async function onFormatChange(newFormat: string) {
     $q.notify({ type: 'negative', message: 'Error al cambiar formato' });
     // Revert selection
     selectedFormat.value = props.block.formatName;
+  }
+}
+
+async function onRoleChange(newRole: 'ATHLOS' | 'EPIKOS') {
+  if (newRole === props.block.role) return;
+  try {
+    await editApi.updateBlockRole(props.sessionId, props.block.id, newRole);
+    (props.block as any).role = newRole;
+    $q.notify({ type: 'positive', message: `Rol cambiado a ${newRole}`, timeout: 1500 });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al cambiar rol del bloque' });
   }
 }
 
@@ -468,5 +502,17 @@ onMounted(loadCompatibleFormats);
 }
 .prescription-input {
   max-width: 100px;
+}
+.role-select {
+  min-width: 120px;
+}
+.role-select :deep(.q-field__native) {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: white;
+  padding: 0;
+}
+.role-select :deep(.q-field__append) {
+  color: white;
 }
 </style>

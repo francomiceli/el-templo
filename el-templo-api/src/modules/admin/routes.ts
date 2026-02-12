@@ -25,6 +25,7 @@ import {
   deleteSavedBlockSchema,
   getMobilityPoolSchema,
   swapMobilityExerciseSchema,
+  updateBlockRoleSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
@@ -322,6 +323,26 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       return result;
     } catch (err: any) {
       return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/role - Update block role (ATHLOS/EPIKOS)
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number };
+    Body: { role: 'ATHLOS' | 'EPIKOS' };
+  }>('/sessions/:sessionId/blocks/:blockId/role', {
+    schema: updateBlockRoleSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.updateBlockRole({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        role: request.body.role,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || 'Error al cambiar rol del bloque' });
     }
   });
 

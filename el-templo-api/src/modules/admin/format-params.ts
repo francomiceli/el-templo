@@ -14,6 +14,7 @@
 
 export type FormatParams =
   | { type: 'amrap'; minutes: number }
+  | { type: 'amrap_series'; minutes: number; rounds: number }
   | { type: 'emom'; intervalSeconds: number; totalMinutes: number }
   | { type: 'complex'; rounds: number }
   | { type: 'tabata'; workSeconds: number; restSeconds: number; rounds: number }
@@ -37,6 +38,7 @@ export type FormatParams =
 /** Default values aligned with existing constants.ts decisions */
 const DEFAULTS = {
   AMRAP_MINUTES: 10, // Decision 08-01
+  AMRAP_SERIES_ROUNDS: 3,
   EMOM_INTERVAL_SECONDS: 60, // Decision 08-01
   COMPLEX_ROUNDS: 3,
   TABATA_WORK_SECONDS: 20, // Decision 13-07
@@ -83,6 +85,11 @@ export function getDefaultFormatParams(
 ): FormatParams {
   const normalized = formatName.toLowerCase().trim().replace(/\s+/g, '_');
   const { intensity, exerciseCount } = context;
+
+  // AMRAP Series (must check before generic amrap)
+  if (normalized.includes('amrap') && normalized.includes('series')) {
+    return { type: 'amrap_series', minutes: DEFAULTS.AMRAP_MINUTES, rounds: DEFAULTS.AMRAP_SERIES_ROUNDS };
+  }
 
   // AMRAP formats
   if (normalized.includes('amrap')) {
@@ -210,6 +217,9 @@ export function formatParamsLabel(params: FormatParams): string {
     case 'amrap':
       return `AMRAP - ${params.minutes} min`;
 
+    case 'amrap_series':
+      return `AMRAP Series - ${params.minutes} min x ${params.rounds} rondas`;
+
     case 'emom':
       return `EMOM - ${params.intervalSeconds}s / ${params.totalMinutes} min total`;
 
@@ -220,7 +230,7 @@ export function formatParamsLabel(params: FormatParams): string {
       return `Tabata - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
 
     case 'interval':
-      return `Interval - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
+      return `HIIT - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
 
     case 'for_time':
       return params.timeCapMinutes

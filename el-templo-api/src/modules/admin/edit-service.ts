@@ -971,6 +971,49 @@ export class AdminEditService {
   }
 
   // =========================================================================
+  // 14. updateBlockRole - Switch block role between ATHLOS/EPIKOS
+  // =========================================================================
+
+  async updateBlockRole(params: {
+    sessionId: number;
+    blockId: number;
+    role: 'ATHLOS' | 'EPIKOS';
+    userId: number;
+  }) {
+    const { sessionId, blockId, role, userId } = params;
+
+    // Verify block exists and belongs to session
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(and(
+        eq(schema.sessionBlocks.id, blockId),
+        eq(schema.sessionBlocks.sessionId, sessionId)
+      ));
+
+    if (!block) {
+      throw new Error('Bloque no encontrado en esta sesion');
+    }
+
+    // Validate current role is ATHLOS or EPIKOS
+    if (block.role !== 'ATHLOS' && block.role !== 'EPIKOS') {
+      throw new Error('Solo se puede cambiar el rol entre ATHLOS y EPIKOS');
+    }
+
+    // Update role
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({ role })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, 'block_role_change');
+
+    return { blockId, role };
+  }
+
+  // =========================================================================
   // Helpers
   // =========================================================================
 

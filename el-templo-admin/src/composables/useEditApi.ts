@@ -346,6 +346,31 @@ export function useEditApi() {
     }
   }
 
+  async function updateBlockRole(
+    sessionId: number,
+    blockId: number,
+    role: 'ATHLOS' | 'EPIKOS',
+  ): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.patch(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/role`,
+        { role },
+      );
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error ||
+        'Error al cambiar rol del bloque';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function deleteSavedBlock(id: number): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -381,5 +406,6 @@ export function useEditApi() {
     deleteSavedBlock,
     fetchMobilityPool,
     swapMobilityExercise,
+    updateBlockRole,
   };
 }

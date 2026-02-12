@@ -131,10 +131,10 @@ function createPrescription(
  */
 function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[] | null {
   const { exercises, repsBudget, restTime } = ctx;
-  if (exercises.length < 2) return null;
+  if (exercises.length < 3) return null;
 
   const bookendExercise = exercises[0];
-  const middleExercises = exercises.slice(1);
+  const middleExercises = exercises.slice(1, 3); // Cap at 2 middle exercises → 4 total prescriptions
 
   // Bookend gets 40% total (20% at start, 20% at end), rounded to 5
   const bookendTotal = roundToNearest5(repsBudget * 0.4);

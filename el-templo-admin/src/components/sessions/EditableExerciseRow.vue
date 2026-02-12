@@ -32,33 +32,72 @@
 
       <!-- Inline editable fields -->
       <q-item-label class="row items-center q-gutter-sm q-mt-xs">
-        <!-- Reps (CON / EXC) -->
-        <q-input
-          v-if="!isIso"
-          v-model.number="localReps"
-          type="number"
-          dense
-          outlined
-          label="Reps"
-          class="editable-field"
-          input-class="text-center"
-          @blur="emitUpdate"
-          @keyup.enter="emitUpdate"
-        />
+        <!-- ISO PAUSA mode: Reps + Seg + Pausa toggle -->
+        <template v-if="isIsoPausa">
+          <q-input
+            v-model.number="localReps"
+            type="number"
+            dense
+            outlined
+            label="Reps"
+            class="editable-field"
+            input-class="text-center"
+            :disable="isPausaSelected"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+          <q-input
+            v-model.number="localSeconds"
+            type="number"
+            dense
+            outlined
+            label="Seg"
+            class="editable-field"
+            input-class="text-center"
+            :disable="isPausaSelected"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+          <q-btn
+            :color="isPausaSelected ? 'orange' : 'grey-5'"
+            :text-color="isPausaSelected ? 'white' : 'grey-8'"
+            dense
+            no-caps
+            label="Pausa"
+            :outline="!isPausaSelected"
+            @click="togglePausa"
+          />
+        </template>
 
-        <!-- Seconds (ISO) -->
-        <q-input
-          v-if="isIso"
-          v-model.number="localSeconds"
-          type="number"
-          dense
-          outlined
-          label="Seg"
-          class="editable-field"
-          input-class="text-center"
-          @blur="emitUpdate"
-          @keyup.enter="emitUpdate"
-        />
+        <template v-else>
+          <!-- Reps (CON / EXC) -->
+          <q-input
+            v-if="!isIso"
+            v-model.number="localReps"
+            type="number"
+            dense
+            outlined
+            label="Reps"
+            class="editable-field"
+            input-class="text-center"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+
+          <!-- Seconds (ISO) -->
+          <q-input
+            v-if="isIso"
+            v-model.number="localSeconds"
+            type="number"
+            dense
+            outlined
+            label="Seg"
+            class="editable-field"
+            input-class="text-center"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+        </template>
 
         <!-- Notes -->
         <q-input
@@ -67,6 +106,7 @@
           outlined
           label="Notas"
           class="editable-field editable-field--notes"
+          :disable="isPausaSelected"
           @blur="emitUpdate"
           @keyup.enter="emitUpdate"
         />
@@ -110,6 +150,7 @@ const props = defineProps<{
   sessionId: number;
   blockId: number;
   blockRoute: string;
+  blockFormatName: string;
 }>();
 
 const emit = defineEmits<{
@@ -131,6 +172,21 @@ watch(() => props.exercise, (ex) => {
   localRest.value = ex.rest;
   localNotes.value = ex.notes || '';
 });
+
+function togglePausa() {
+  if (isPausaSelected.value) {
+    // Deactivate PAUSA: restore defaults
+    localReps.value = 0;
+    localSeconds.value = 30;
+    localNotes.value = '';
+  } else {
+    // Activate PAUSA
+    localReps.value = 0;
+    localSeconds.value = 0;
+    localNotes.value = 'PAUSA';
+  }
+  emitUpdate();
+}
 
 function emitUpdate() {
   const fields: PrescriptionUpdate = {};
@@ -163,6 +219,21 @@ function emitUpdate() {
 const isIso = computed(() => {
   const c = props.exercise.contraction?.toLowerCase();
   return c === 'iso' || c === 'isometrico';
+});
+
+// "I Go You Go" format detection
+const isIGoYouGo = computed(() => {
+  return props.blockFormatName.toLowerCase().includes('i go you go');
+});
+
+// ISO exercise inside "I Go You Go" → show PAUSA toggle
+const isIsoPausa = computed(() => isIso.value && isIGoYouGo.value);
+
+// Whether PAUSA is currently active
+const isPausaSelected = computed(() => {
+  return props.exercise.reps === 0
+    && props.exercise.seconds === 0
+    && props.exercise.notes === 'PAUSA';
 });
 
 // Contraction display helpers

@@ -308,6 +308,24 @@ export const saveBlockSchema = {
   },
 };
 
+export const updateBlockRoleSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['role'],
+    properties: {
+      role: { type: 'string', enum: ['ATHLOS', 'EPIKOS'] },
+    },
+  },
+};
+
 export const deleteSavedBlockSchema = {
   params: {
     type: 'object',

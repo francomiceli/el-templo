@@ -135,7 +135,7 @@
 
     <!-- Interval -->
     <div v-else-if="localParams?.type === 'interval'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Interval:</span>
+      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">HIIT:</span>
       <q-input
         v-model.number="localParams.workSeconds"
         type="number"
@@ -280,7 +280,7 @@ import { ref, watch, onMounted } from 'vue';
 
 type FormatParamsLocal = Record<string, any>; // dynamic format param keys
 
-const NO_PARAMS_TYPES = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper'];
+const NO_PARAMS_TYPES = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper', 'cluster', 'buy_in_cash_out'];
 
 const props = defineProps<{
   formatParams: Record<string, unknown> | null;
