@@ -1,9 +1,9 @@
 # El Templo Deployment Guide
 
-Complete guide for deploying El Templo API to AWS EC2 and building Android APK.
+Complete guide for deploying El Templo to AWS EC2 with subdomain architecture: member app (`app.eltemplo.org`), admin app (`admin.eltemplo.org`), and API (`api.eltemplo.org`).
 
-**Last updated:** 2026-01-30
-**Region:** sa-east-1 (São Paulo)
+**Last updated:** 2026-02-12
+**Region:** sa-east-1 (Sao Paulo)
 
 ---
 
@@ -12,10 +12,11 @@ Complete guide for deploying El Templo API to AWS EC2 and building Android APK.
 1. [Prerequisites](#prerequisites)
 2. [AWS Infrastructure Setup](#aws-infrastructure-setup)
 3. [EC2 Server Setup](#ec2-server-setup)
-4. [Deploy API](#deploy-api)
-5. [Build Android APK](#build-android-apk)
-6. [Troubleshooting](#troubleshooting)
-7. [Quick Reference](#quick-reference)
+4. [Subdomain & SSL Setup](#subdomain--ssl-setup)
+5. [Deploy API](#deploy-api)
+6. [Build Android APK](#build-android-apk)
+7. [Troubleshooting](#troubleshooting)
+8. [Quick Reference](#quick-reference)
 
 ---
 
@@ -192,6 +193,174 @@ exit
 
 ---
 
+## Subdomain & SSL Setup
+
+This section covers setting up 3 subdomains (`app.eltemplo.org`, `admin.eltemplo.org`, `api.eltemplo.org`) with DNS, Nginx, and SSL certificates.
+
+### 1. Configure DNS at GoDaddy
+
+1. Log in to GoDaddy at https://dcc.godaddy.com
+2. Click "My Products" or "Domain Portfolio"
+3. Find `eltemplo.org` and click "DNS" (or "Manage DNS")
+4. You'll see the existing DNS records (root domain pointing to Vercel)
+
+For EACH of these 3 subdomains, add an A record:
+
+**Subdomain 1: app**
+
+5. Click "Add New Record"
+6. Type: **A**
+7. Name: **app** (NOT the full domain, just the prefix)
+8. Value: **54.21.0.171**
+9. TTL: 1 Hour (default is fine)
+10. Click "Save"
+
+**Subdomain 2: admin**
+
+11. Click "Add New Record"
+12. Type: **A**
+13. Name: **admin**
+14. Value: **54.21.0.171**
+15. TTL: 1 Hour
+16. Click "Save"
+
+**Subdomain 3: api**
+
+17. Click "Add New Record"
+18. Type: **A**
+19. Name: **api**
+20. Value: **54.21.0.171**
+21. TTL: 1 Hour
+22. Click "Save"
+
+**Verify DNS propagation** (wait 10-30 minutes after adding records):
+
+```bash
+dig app.eltemplo.org +short      # Should return 54.21.0.171
+dig admin.eltemplo.org +short    # Should return 54.21.0.171
+dig api.eltemplo.org +short      # Should return 54.21.0.171
+```
+
+### 2. Create Server Directories
+
+```bash
+ssh -i ~/.ssh/eltemplo-key.pem ubuntu@54.21.0.171
+
+# Create directories for static app files
+sudo mkdir -p /var/www/member-app
+sudo mkdir -p /var/www/admin-app
+sudo chown -R ubuntu:ubuntu /var/www/member-app
+sudo chown -R ubuntu:ubuntu /var/www/admin-app
+```
+
+### 3. Deploy Nginx Subdomain Configs
+
+```bash
+# From local machine (project root)
+scp -i ~/.ssh/eltemplo-key.pem deploy/nginx/* ubuntu@54.21.0.171:/tmp/
+
+# On the EC2 server
+ssh -i ~/.ssh/eltemplo-key.pem ubuntu@54.21.0.171
+
+# Backup old config
+sudo cp /etc/nginx/sites-enabled/eltemplo /etc/nginx/sites-available/eltemplo.bak 2>/dev/null
+
+# Remove old catch-all config (CRITICAL: it has server_name _ which intercepts all traffic)
+sudo rm -f /etc/nginx/sites-enabled/eltemplo
+
+# Install new subdomain configs
+sudo cp /tmp/app.eltemplo.org /etc/nginx/sites-available/
+sudo cp /tmp/admin.eltemplo.org /etc/nginx/sites-available/
+sudo cp /tmp/api.eltemplo.org /etc/nginx/sites-available/
+
+# Enable configs
+sudo ln -sf /etc/nginx/sites-available/app.eltemplo.org /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/admin.eltemplo.org /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/api.eltemplo.org /etc/nginx/sites-enabled/
+
+# Test and reload
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### 4. Install Certbot & Obtain SSL Certificates
+
+```bash
+# On the EC2 server
+# Install certbot via snap (EFF-recommended method)
+sudo snap install core && sudo snap refresh core
+sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+
+# Obtain certificate for all 3 subdomains
+# IMPORTANT: DNS must be propagated before this step (verify with dig first)
+# The --nginx plugin automatically:
+#   - Finds matching server blocks
+#   - Obtains certificate via HTTP-01 challenge
+#   - Adds SSL directives to server blocks
+#   - Creates HTTP->HTTPS redirect blocks
+sudo certbot --nginx \
+  -d app.eltemplo.org \
+  -d admin.eltemplo.org \
+  -d api.eltemplo.org \
+  --non-interactive \
+  --agree-tos \
+  --email admin@eltemplo.org
+
+# Verify auto-renewal timer is active
+sudo systemctl status certbot.timer
+
+# Test renewal (dry-run)
+sudo certbot renew --dry-run
+```
+
+### 5. Add/Update GitHub Secrets
+
+Go to GitHub repository Settings > Secrets and variables > Actions.
+
+**New secrets to ADD:**
+
+| Secret | Value |
+|--------|-------|
+| `ADMIN_DEPLOY_PATH` | `/var/www/admin-app` |
+| `ADMIN_URL` | `https://admin.eltemplo.org` |
+
+**Existing secrets to UPDATE:**
+
+| Secret | New Value | Old Value |
+|--------|-----------|-----------|
+| `VITE_API_URL` | `https://api.eltemplo.org/api` | (was IP-based HTTP URL) |
+| `FRONTEND_URL` | `https://app.eltemplo.org` | (was IP-based HTTP URL) |
+| `APP_DEPLOY_PATH` | `/var/www/member-app` | (was `/var/www/el-templo-app` or similar) |
+
+### 6. Verify Deployment
+
+After pushing code changes and secrets are configured:
+
+```bash
+# Trigger a deploy (push to master or manual trigger in GitHub Actions)
+
+# Verify HTTPS on all subdomains:
+curl -I https://app.eltemplo.org        # Should return 200 with index.html
+curl -I https://admin.eltemplo.org      # Should return 200 with index.html
+curl https://api.eltemplo.org/health    # Should return {"status":"ok",...}
+
+# Verify HTTP->HTTPS redirect:
+curl -I http://app.eltemplo.org         # Should return 301 -> https://
+curl -I http://admin.eltemplo.org       # Should return 301 -> https://
+curl -I http://api.eltemplo.org         # Should return 301 -> https://
+
+# Verify CORS (from admin subdomain to API):
+curl -H "Origin: https://admin.eltemplo.org" \
+     -H "Access-Control-Request-Method: GET" \
+     -X OPTIONS \
+     https://api.eltemplo.org/api/admin/sessions \
+     -I
+# Should include: Access-Control-Allow-Origin: https://admin.eltemplo.org
+```
+
+---
+
 ## Deploy API
 
 ### Clone Repository
@@ -351,12 +520,17 @@ FLUSH PRIVILEGES;
 
 | Task | Command |
 |------|---------|
+| Member app | `https://app.eltemplo.org` |
+| Admin app | `https://admin.eltemplo.org` |
+| API health | `curl https://api.eltemplo.org/health` |
 | Load AWS vars | `source deploy/.aws-vars` |
-| SSH to server | `ssh -i ~/.ssh/eltemplo-key.pem ubuntu@$PUBLIC_IP` |
+| SSH to server | `ssh -i ~/.ssh/eltemplo-key.pem ubuntu@54.21.0.171` |
 | View API logs | `pm2 logs eltemplo-api` |
 | Restart API | `pm2 restart eltemplo-api` |
+| Nginx config test | `sudo nginx -t` |
 | Nginx logs | `sudo tail -f /var/log/nginx/error.log` |
 | MySQL shell | `mysql -u eltemplo -p eltemplo` |
+| Cert renewal test | `sudo certbot renew --dry-run` |
 | Build APK | `pnpm build -m capacitor -T android` |
 | Debug APK | `cd src-capacitor/android && ./gradlew assembleDebug` |
 
