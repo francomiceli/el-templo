@@ -97,6 +97,16 @@
         :warning="contractionWarning"
         class="q-mt-sm"
       />
+
+      <!-- Format params editor -->
+      <format-params-editor
+        :format-params="block.formatParams"
+        :format-name="block.formatName"
+        :block-id="block.id"
+        :session-id="sessionId"
+        class="q-mt-sm"
+        @update:format-params="onUpdateFormatParams"
+      />
     </q-card-section>
 
     <!-- Editable exercises list -->
@@ -136,6 +146,7 @@ import { useEditApi } from 'src/composables/useEditApi';
 import EditableExerciseRow from './EditableExerciseRow.vue';
 import BudgetBar from './BudgetBar.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
+import FormatParamsEditor from './FormatParamsEditor.vue';
 
 const props = defineProps<{
   block: SessionBlock;
@@ -179,10 +190,10 @@ const avgDifficulty = computed(() => {
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
 });
 
-// Current total reps (sum of non-ISO exercises with reps > 0)
+// Current total volume (reps + seconds for all exercises)
 const currentReps = computed(() => {
   return props.block.exercises.reduce((sum, ex) => {
-    return sum + (ex.reps || 0);
+    return sum + (ex.reps || 0) + (ex.seconds || 0);
   }, 0);
 });
 
@@ -282,6 +293,18 @@ async function onUpdatePrescription(payload: { prescriptionId: number; fields: P
     // NO emit('refresh') -- no reload, no scroll reset
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
+  }
+}
+
+async function onUpdateFormatParams(newParams: Record<string, unknown>) {
+  try {
+    await editApi.updateFormatParams(props.sessionId, props.block.id, newParams);
+    // Update the block's formatParams in-place for reactivity
+    (props.block as any).formatParams = newParams;
+    $q.notify({ type: 'positive', message: 'Parametros de formato actualizados', color: 'green', timeout: 1500 });
+    // NO emit('refresh') -- no reload, no scroll reset (consistent with SC #11)
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al actualizar parametros de formato' });
   }
 }
 

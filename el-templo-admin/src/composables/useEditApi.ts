@@ -230,6 +230,32 @@ export function useEditApi() {
     }
   }
 
+  async function updateFormatParams(
+    sessionId: number,
+    blockId: number,
+    formatParams: Record<string, unknown>,
+  ): Promise<any> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/format-params`,
+        { formatParams },
+      );
+      return data;
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value =
+        axiosError.response?.data?.error ||
+        'Error al actualizar parametros de formato';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function saveBlock(
     blockId: number,
     name: string,
@@ -302,6 +328,7 @@ export function useEditApi() {
     resetToAlgorithm,
     fetchCompatibleFormats,
     fetchPreview,
+    updateFormatParams,
     saveBlock,
     listSavedBlocks,
     deleteSavedBlock,

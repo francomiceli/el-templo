@@ -44,6 +44,7 @@ export interface SessionBlock {
   pattern: string;
   formatId: number;
   formatName: string;
+  formatParams: Record<string, unknown> | null;
   intensity: number;
   repsBudget: number;
   sortOrder: number;
