@@ -123,6 +123,67 @@
       />
     </q-list>
 
+    <!-- Descanso Activo section (non-INITIUM blocks only) -->
+    <template v-if="!isInitium && block.mobilityExercise">
+      <q-separator class="q-my-sm" />
+      <div class="q-px-md q-pb-sm">
+        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">
+          DESCANSO ACTIVO
+        </div>
+        <div class="row items-center q-gutter-sm">
+          <!-- Exercise name + contraction badge -->
+          <div class="col">
+            <div class="row items-center q-gutter-xs">
+              <span class="text-body2 text-weight-medium">
+                {{ block.mobilityExercise.exerciseName }}
+              </span>
+              <q-badge
+                :color="contractionColor(block.mobilityExercise.contraction)"
+              >
+                {{ contractionLabel(block.mobilityExercise.contraction) }}
+              </q-badge>
+            </div>
+            <!-- Prescription display (editable) -->
+            <div class="row items-center q-gutter-sm q-mt-xs">
+              <template v-if="block.mobilityExercise.seconds && block.mobilityExercise.seconds > 0">
+                <q-input
+                  :model-value="block.mobilityExercise.seconds"
+                  type="number"
+                  dense
+                  outlined
+                  class="prescription-input"
+                  suffix="seg"
+                  @blur="onMobilityPrescriptionBlur('seconds', $event)"
+                />
+              </template>
+              <template v-else>
+                <q-input
+                  :model-value="block.mobilityExercise.reps"
+                  type="number"
+                  dense
+                  outlined
+                  class="prescription-input"
+                  suffix="reps"
+                  @blur="onMobilityPrescriptionBlur('reps', $event)"
+                />
+              </template>
+            </div>
+          </div>
+          <!-- Swap button -->
+          <q-btn
+            flat
+            dense
+            round
+            icon="swap_horiz"
+            color="grey-7"
+            @click="onSwapMobility"
+          >
+            <q-tooltip>Cambiar ejercicio de movilidad</q-tooltip>
+          </q-btn>
+        </div>
+      </div>
+    </template>
+
     <!-- Footer actions -->
     <q-card-actions align="left" class="q-px-md q-pb-md">
       <q-btn
@@ -157,6 +218,8 @@ const emit = defineEmits<{
   (e: 'swap-block', block: SessionBlock): void;
   (e: 'add-exercise', payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }): void;
   (e: 'refresh'): void;
+  (e: 'swap-mobility', payload: { blockId: number; blockRoute: string }): void;
+  (e: 'update-mobility-prescription', payload: { prescriptionId: number; fields: PrescriptionUpdate }): void;
 }>();
 
 const $q = useQuasar();
@@ -331,6 +394,59 @@ function onSaveBlock() {
   });
 }
 
+// Contraction display helpers
+function normalizeContraction(contraction: string | null | undefined): string {
+  switch (contraction?.toUpperCase()) {
+    case 'CON':
+    case 'CONCENTRICO':
+      return 'CON';
+    case 'EXC':
+    case 'EXCENTRICO':
+      return 'EXC';
+    case 'ISO':
+    case 'ISOMETRICO':
+      return 'ISO';
+    default:
+      return contraction?.toUpperCase() || '';
+  }
+}
+
+function contractionLabel(contraction: string | null | undefined): string {
+  return normalizeContraction(contraction) || '-';
+}
+
+function contractionColor(contraction: string | null | undefined): string {
+  switch (normalizeContraction(contraction)) {
+    case 'CON': return 'blue-grey';
+    case 'EXC': return 'teal';
+    case 'ISO': return 'orange';
+    default: return 'grey';
+  }
+}
+
+// Mobility event handlers
+function onSwapMobility() {
+  emit('swap-mobility', { blockId: props.block.id, blockRoute: props.block.route });
+}
+
+function onMobilityPrescriptionBlur(field: 'seconds' | 'reps', event: Event) {
+  const input = event.target as HTMLInputElement;
+  const newValue = Number(input.value);
+  const mobility = props.block.mobilityExercise;
+  if (!mobility) return;
+
+  const currentValue = field === 'seconds' ? mobility.seconds : mobility.reps;
+  if (newValue === currentValue) return;
+
+  const fields: PrescriptionUpdate = {};
+  if (field === 'seconds') {
+    fields.seconds = newValue;
+  } else {
+    fields.reps = newValue;
+  }
+  emit('update-mobility-prescription', { prescriptionId: mobility.id, fields });
+}
+
 onMounted(loadCompatibleFormats);
 </script>
 
@@ -349,5 +465,8 @@ onMounted(loadCompatibleFormats);
 }
 .border-grey {
   border-left: 4px solid var(--q-grey) !important;
+}
+.prescription-input {
+  max-width: 100px;
 }
 </style>

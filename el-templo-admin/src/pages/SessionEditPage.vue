@@ -88,6 +88,8 @@
         @swap-exercise="onSwapExercise"
         @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
+        @swap-mobility="onSwapMobility"
+        @update-mobility-prescription="onUpdateMobilityPrescription"
         @refresh="refreshSession"
       />
 
@@ -99,7 +101,7 @@
       />
     </template>
 
-    <!-- Exercise Swap / Add Dialog -->
+    <!-- Exercise Swap / Add / Mobility Dialog -->
     <exercise-swap-dialog
       v-if="swapDialogExercise"
       v-model="swapDialogOpen"
@@ -109,8 +111,10 @@
       :block-route="swapDialogBlockRoute"
       :block-pattern="swapDialogBlockPattern"
       :mode="swapDialogMode"
+      :mobility-mode="swapDialogMobilityMode"
       @swapped="onDialogComplete"
       @added="onDialogComplete"
+      @swapped-mobility="onDialogComplete"
     />
 
     <!-- Block Swap Dialog -->
@@ -194,7 +198,7 @@ import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
-import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, LevelGroup } from 'src/types/session';
+import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, LevelGroup, PrescriptionUpdate } from 'src/types/session';
 
 const route = useRoute();
 const router = useRouter();
@@ -210,9 +214,10 @@ const error = ref<string | null>(null);
 // Preview dialog state
 const previewOpen = ref(false);
 
-// Swap/Add dialog state
+// Swap/Add/Mobility dialog state
 const swapDialogOpen = ref(false);
 const swapDialogMode = ref<'swap' | 'add'>('swap');
+const swapDialogMobilityMode = ref(false);
 const swapDialogBlockId = ref(0);
 const swapDialogBlockRoute = ref('');
 const swapDialogBlockPattern = ref('');
@@ -359,6 +364,7 @@ async function handleBlockSwap(sourceBlockId: number) {
 function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'swap';
+  swapDialogMobilityMode.value = false;
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = payload.blockPattern;
@@ -369,6 +375,7 @@ function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; b
 function onAddExercise(payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'add';
+  swapDialogMobilityMode.value = false;
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = payload.blockPattern;
@@ -386,6 +393,48 @@ function onAddExercise(payload: { blockId: number; blockRoute: string; blockPatt
     route: null,
   };
   swapDialogOpen.value = true;
+}
+
+function onSwapMobility(payload: { blockId: number; blockRoute: string }) {
+  preDialogScrollY.value = window.scrollY;
+  swapDialogMode.value = 'swap';
+  swapDialogMobilityMode.value = true;
+  swapDialogBlockId.value = payload.blockId;
+  swapDialogBlockRoute.value = payload.blockRoute;
+  swapDialogBlockPattern.value = '';
+  // Placeholder exercise for mobility mode (dialog ignores currentExercise in mobility mode)
+  swapDialogExercise.value = {
+    id: 0,
+    exerciseId: 0,
+    exerciseName: '',
+    contraction: '',
+    reps: null,
+    seconds: null,
+    rest: null,
+    notes: null,
+    dificultadLineal: null,
+    sortOrder: 0,
+    route: null,
+  };
+  swapDialogOpen.value = true;
+}
+
+async function onUpdateMobilityPrescription(payload: { prescriptionId: number; fields: PrescriptionUpdate }) {
+  if (!session.value) return;
+  // Find the block containing this mobility exercise
+  const block = session.value.blocks.find(b => b.mobilityExercise?.id === payload.prescriptionId);
+  if (!block) return;
+
+  try {
+    await editApi.updatePrescription(session.value.id, block.id, payload.prescriptionId, payload.fields);
+    // Update mobility exercise in-place for reactivity
+    if (block.mobilityExercise) {
+      Object.assign(block.mobilityExercise, payload.fields);
+    }
+    $q.notify({ type: 'positive', message: 'Prescripcion de movilidad actualizada', color: 'green', timeout: 1500 });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion de movilidad' });
+  }
 }
 
 function onDialogComplete() {

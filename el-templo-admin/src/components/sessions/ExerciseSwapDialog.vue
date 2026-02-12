@@ -7,13 +7,13 @@
     <q-card style="width: 700px; max-width: 90vw">
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6">{{ isAddMode ? 'Agregar Ejercicio' : 'Reemplazar Ejercicio' }}</div>
+        <div class="text-h6">{{ dialogTitle }}</div>
         <q-space />
         <q-btn icon="close" flat round dense :disable="swapping" v-close-popup />
       </q-card-section>
 
-      <!-- Current exercise info (swap mode only) -->
-      <q-card-section v-if="!isAddMode" class="q-pt-sm q-pb-none">
+      <!-- Current exercise info (swap mode only, not mobility) -->
+      <q-card-section v-if="!isAddMode && !mobilityMode" class="q-pt-sm q-pb-none">
         <div class="text-caption text-grey">Reemplazando:</div>
         <div class="text-body2 row items-center q-gutter-xs q-mt-xs">
           <span class="text-weight-medium">{{ currentExercise.exerciseName }}</span>
@@ -62,8 +62,8 @@
       </q-tabs>
       <q-separator />
 
-      <!-- Category chips -->
-      <q-card-section class="q-py-xs">
+      <!-- Category chips (hidden in mobility mode) -->
+      <q-card-section v-if="!mobilityMode" class="q-py-xs">
         <div class="filter-title row items-center q-gutter-xs q-mb-xs">
           <span class="text-subtitle2 text-weight-medium">Categoria</span>
           <q-badge v-if="selectedCategory" color="primary" :label="selectedCategory" class="q-ml-xs" />
@@ -148,6 +148,15 @@
                   Dif: {{ ex.dificultadLineal }}
                 </q-badge>
                 <q-badge
+                  v-if="mobilityMode && ex.patternSource === 'pattern_1'"
+                  color="green"
+                  text-color="white"
+                  class="q-mr-xs"
+                >
+                  Relacionado
+                </q-badge>
+                <q-badge
+                  v-if="!mobilityMode"
                   :color="ex.patternSource === 'pattern_2' ? 'deep-orange' : 'green'"
                   text-color="white"
                   class="q-mr-xs"
@@ -173,7 +182,7 @@
                 :disable="swapping"
                 @click.stop="handleAction(ex)"
               >
-                <q-tooltip>{{ isAddMode ? 'Agregar este ejercicio' : 'Reemplazar con este ejercicio' }}</q-tooltip>
+                <q-tooltip>{{ isAddMode ? 'Agregar este ejercicio' : (mobilityMode ? 'Usar este ejercicio de movilidad' : 'Reemplazar con este ejercicio') }}</q-tooltip>
               </q-btn>
             </q-item-section>
           </q-item>
@@ -207,17 +216,26 @@ const props = withDefaults(defineProps<{
   blockRoute: string;
   blockPattern: string;
   mode?: 'swap' | 'add';
+  mobilityMode?: boolean;
 }>(), {
   mode: 'swap',
+  mobilityMode: false,
 });
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'swapped'): void;
   (e: 'added'): void;
+  (e: 'swapped-mobility'): void;
 }>();
 
-const isAddMode = computed(() => props.mode === 'add');
+const isAddMode = computed(() => props.mode === 'add' && !props.mobilityMode);
+
+const dialogTitle = computed(() => {
+  if (props.mobilityMode) return 'Cambiar Ejercicio de Movilidad';
+  if (isAddMode.value) return 'Agregar Ejercicio';
+  return 'Reemplazar Ejercicio';
+});
 
 const $q = useQuasar();
 const editApi = useEditApi();
@@ -299,6 +317,16 @@ const displayedExercises = computed(() => {
     );
   }
 
+  if (props.mobilityMode) {
+    // Sort route-relevant exercises first, then alphabetically
+    return [...result].sort((a, b) => {
+      const aRelevant = a.patternSource === 'pattern_1' ? 0 : 1;
+      const bRelevant = b.patternSource === 'pattern_1' ? 0 : 1;
+      if (aRelevant !== bRelevant) return aRelevant - bRelevant;
+      return a.exercise.localeCompare(b.exercise);
+    });
+  }
+
   // Sort by difficulty proximity to current exercise
   const targetDifficulty = props.currentExercise.dificultadLineal ?? 0;
   return [...result].sort(
@@ -345,26 +373,33 @@ async function fetchPool() {
   loading.value = true;
   pool.value = [];
   try {
-    const response = await editApi.fetchExercisePool({
-      route: props.blockRoute,
-      blockId: props.blockId,
-      pattern: props.blockPattern,
-    });
-    pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
+    if (props.mobilityMode) {
+      const response = await editApi.fetchMobilityPool(props.blockRoute);
+      pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
+    } else {
+      const response = await editApi.fetchExercisePool({
+        route: props.blockRoute,
+        blockId: props.blockId,
+        pattern: props.blockPattern,
+      });
+      pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
 
-    // In swap mode, try to default to the current exercise's category
-    if (!isAddMode.value && pool.value.length > 0) {
-      // Find the current exercise in the pool to get its category
-      const currentInPool = pool.value.find(ex => ex.id === props.currentExercise.exerciseId);
-      if (currentInPool) {
-        selectedCategory.value = currentInPool.category || 'Sin categoria';
+      // In swap mode, try to default to the current exercise's category
+      if (!isAddMode.value && pool.value.length > 0) {
+        // Find the current exercise in the pool to get its category
+        const currentInPool = pool.value.find(ex => ex.id === props.currentExercise.exerciseId);
+        if (currentInPool) {
+          selectedCategory.value = currentInPool.category || 'Sin categoria';
+        }
+        // If current exercise not in pool (already excluded or different filters), default to ''
       }
-      // If current exercise not in pool (already excluded or different filters), default to ''
     }
   } catch {
     $q.notify({
       type: 'negative',
-      message: 'Error cargando ejercicios disponibles',
+      message: props.mobilityMode
+        ? 'Error cargando ejercicios de movilidad'
+        : 'Error cargando ejercicios disponibles',
     });
   } finally {
     loading.value = false;
@@ -377,7 +412,18 @@ async function handleAction(exercise: PoolExerciseWithSource) {
   swapping.value = true;
   swappingId.value = exercise.id;
   try {
-    if (isAddMode.value) {
+    if (props.mobilityMode) {
+      await editApi.swapMobilityExercise(
+        props.sessionId,
+        props.blockId,
+        exercise.id
+      );
+      $q.notify({
+        type: 'positive',
+        message: 'Ejercicio de movilidad cambiado',
+      });
+      emit('swapped-mobility');
+    } else if (isAddMode.value) {
       await editApi.addExercise(
         props.sessionId,
         props.blockId,
@@ -405,7 +451,9 @@ async function handleAction(exercise: PoolExerciseWithSource) {
   } catch {
     $q.notify({
       type: 'negative',
-      message: isAddMode.value ? 'Error agregando ejercicio' : 'Error reemplazando ejercicio',
+      message: props.mobilityMode
+        ? 'Error cambiando ejercicio de movilidad'
+        : isAddMode.value ? 'Error agregando ejercicio' : 'Error reemplazando ejercicio',
     });
   } finally {
     swapping.value = false;
