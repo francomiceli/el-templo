@@ -9,15 +9,14 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 ## Current Position
 
-Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: Wave 1 complete (01, 03, 04, 05, 07, 08). Wave 2 complete (02, 06, 09). Wave 3 pending (10).
-Status: **In Progress** — Wave 2 complete, Wave 3 pending
-Last activity: 2026-02-12 - Completed 16-06 (App Exercise Completion UI)
+Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **Complete**
+Plan: All waves complete (01-10). Human verification approved.
+Status: **Complete**
+Last activity: 2026-02-12 - Phase 16 verified and approved
 
-Progress: [█████████_] 90% Phase 16 (9/10 plans)
+Progress: [██████████] 100% Phase 16 (10/10 plans)
 
-Wave 1 review: `.planning/phases/16-pdf-generation-format-config-app-exercise-tracking/WAVE-1-REVIEW.md`
-Resume: `/gsd:execute-phase 16` for remaining plan (10)
+Next: Phase 17 (Per-Block Mobility Exercises) — not yet planned
 
 ## Architecture Reset
 
@@ -84,11 +83,11 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
-| 16-pdf-generation-format-config-app-exercise-tracking | 9 | 23min | 2.6min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 10 | 23min | 2.3min |
 
 **Recent Trend:**
 - Last 5 plans: 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI)
-- Trend: Phase 16 nearly complete - Wave 3 (plan 10) remaining
+- Trend: Phase 16 complete - all 10 plans done
 
 *Updated after each plan completion*
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -377,6 +376,7 @@ Recent decisions affecting current work:
 
 - Phases 20-22 added (2026-02-09): Exercise Video Pipeline split into 3 phases — Processing Pipeline (Python/MediaPipe/FFmpeg), Video Hosting & Content Tooling (Cloudflare R2/manifest/upload), App Video Integration (DB/API/frontend wiring). Independent of admin phases, can run in parallel. *(Now renumbered to Phases 21-23)*
 - Phase 16 inserted (2026-02-10): PDF Generation for approved sessions, format parameter configuration for high/medium importance formats, exercise swap UX (category instead of pattern), per-exercise completion tracking in member app. Old phases 16-22 renumbered to 17-23.
+- Phase 17 inserted (2026-02-11): Per-Block Mobility Exercises — 1 route-based mobility exercise per non-INITIUM block across pipeline, DB, API, admin UI, member app, and PDF. Optional completion, fully coach-editable, separate "Descanso Activo" section. Old phases 17-23 renumbered to 18-24.
 
 ### Pending Todos
 
@@ -397,7 +397,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Completed 16-06-PLAN.md (App Exercise Completion UI)
+Stopped at: Phase 16 complete. Next: Phase 17 (Per-Block Mobility Exercises)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)

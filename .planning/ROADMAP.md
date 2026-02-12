@@ -4,9 +4,11 @@
 
 This roadmap delivers the Admin App module for El Templo. The milestone covers:
 1. **Session Generation** (Phase 13) - Algorithm review and improvement based on coach examples
-2. **Session Management** (Phases 14-17) - Admin UI for reviewing, editing, creating sessions + PDF generation
-3. **Branch Attendance** (Phases 18-20) - Member plans, booking system, and capacity management
-4. **Exercise Videos** (Phases 21-23) - Video processing pipeline, hosting, and app integration (independent track)
+2. **Session Management** (Phases 14-16) - Admin UI for reviewing, editing, creating sessions + PDF generation
+3. **Mobility Exercises** (Phase 17) - Per-block mobility exercise integration across full stack
+4. **Admin Session Creation** (Phase 18) - Build sessions from scratch
+5. **Branch Attendance** (Phases 19-21) - Member plans, booking system, and capacity management
+6. **Exercise Videos** (Phases 22-24) - Video processing pipeline, hosting, and app integration (independent track)
 
 ## Phases
 
@@ -17,14 +19,15 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [x] **Phase 13: Session Generation Review & Improvement** - Analyze examples, fix difficulty system, validate algorithm
 - [x] **Phase 14: Admin Session Review UI** - List pending sessions, approve/reject workflow, session details view
 - [x] **Phase 15: Admin Session Editing** - Modify exercises, reps, formats in pending sessions
-- [ ] **Phase 16: PDF Generation, Format Config & App Exercise Tracking** - PDF session sheets, format parameter config, per-exercise completion
-- [ ] **Phase 17: Admin Session Creation** - Build sessions from scratch using exercise database
-- [ ] **Phase 18: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
-- [ ] **Phase 19: Admin Member Attendance Management** - Manage bookings, capacity, member plans
-- [ ] **Phase 20: Member Booking UI** - Members view availability and reserve training spots
-- [ ] **Phase 21: Exercise Video Processing Pipeline** - Python pipeline for background removal + Greek silhouette styling
-- [ ] **Phase 22: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
-- [ ] **Phase 23: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
+- [x] **Phase 16: PDF Generation, Format Config & App Exercise Tracking** - PDF session sheets, format parameter config, per-exercise completion
+- [ ] **Phase 17: Per-Block Mobility Exercises** - Route-based mobility exercise across pipeline, DB, admin, member app, PDF
+- [ ] **Phase 18: Admin Session Creation** - Build sessions from scratch using exercise database
+- [ ] **Phase 19: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
+- [ ] **Phase 20: Admin Member Attendance Management** - Manage bookings, capacity, member plans
+- [ ] **Phase 21: Member Booking UI** - Members view availability and reserve training spots
+- [ ] **Phase 22: Exercise Video Processing Pipeline** - Python pipeline for background removal + Greek silhouette styling
+- [ ] **Phase 23: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
+- [ ] **Phase 24: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
 
 ## Phase Details
 
@@ -125,22 +128,42 @@ Plans:
   11. Inline prescription edits (reps, rest, notes) update without page reload or scroll reset — feedback via green success toast only
 
 Plans:
-- [ ] 16-01-PLAN.md — FormatParams type system and generation pipeline integration
-- [ ] 16-02-PLAN.md — Format params editing UI and API endpoint
-- [ ] 16-03-PLAN.md — Exercise swap UX: category-based filtering
-- [ ] 16-04-PLAN.md — Inline prescription edit fix (no reload/scroll reset)
-- [ ] 16-05-PLAN.md — Per-exercise completion: store and composable layer
-- [ ] 16-06-PLAN.md — Per-exercise completion: UI, API, and cross-view consistency
-- [ ] 16-07-PLAN.md — Saved blocks for coach reuse
-- [ ] 16-08-PLAN.md — PDF service: Puppeteer installation and HTML template
-- [ ] 16-09-PLAN.md — PDF download API route and admin button
-- [ ] 16-10-PLAN.md — End-to-end human verification
+- [x] 16-01-PLAN.md — FormatParams type system and generation pipeline integration
+- [x] 16-02-PLAN.md — Format params editing UI and API endpoint
+- [x] 16-03-PLAN.md — Exercise swap UX: category-based filtering
+- [x] 16-04-PLAN.md — Inline prescription edit fix (no reload/scroll reset)
+- [x] 16-05-PLAN.md — Per-exercise completion: store and composable layer
+- [x] 16-06-PLAN.md — Per-exercise completion: UI, API, and cross-view consistency
+- [x] 16-07-PLAN.md — Saved blocks for coach reuse
+- [x] 16-08-PLAN.md — Client-side PDF generation with pdfmake
+- [x] 16-09-PLAN.md — PDF download buttons on sessions page
+- [x] 16-10-PLAN.md — End-to-end human verification
 
 ---
 
-### Phase 17: Admin Session Creation
+### Phase 17: Per-Block Mobility Exercises
+**Goal**: Add 1 route-based mobility exercise per non-INITIUM block across the full stack — session generation pipeline, DB schema, API response, admin editing UI, member app display, and PDF output
+**Depends on**: Phase 16 (session editing and exercise tracking infrastructure)
+**Success Criteria** (what must be TRUE):
+  1. Pipeline selects 1 mobility exercise per non-INITIUM block based on block route via ROUTE_TO_MOBILITY_ROUTES
+  2. Mobility exercises stored with `exercise_type = 'mobility'` discriminator in session_prescriptions
+  3. Mobility exercises generated with sensible defaults (reps/seconds) that coaches can edit
+  4. Admin block cards show mobility exercise in separate "Descanso Activo" section at block end
+  5. Admin exercise swap dialog shows relevant mobility exercises filtered by block route
+  6. Coaches can swap, remove, or add mobility exercises (fully editable)
+  7. Member app DayPlayer shows mobility as separate section at end of block with distinct styling
+  8. Mobility exercise completion is optional — does not block auto-advance or block completion
+  9. PDF output populates existing `mobility` field and renders it separately from main exercises
+  10. All 4 non-INITIUM blocks (NUCLEUS, DEUTEROS_1, DEUTEROS_2, ATHLOS/EPIKOS) get mobility exercises
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 17 to break down)
+
+---
+
+### Phase 18: Admin Session Creation
 **Goal**: Coaches can build sessions from scratch without algorithm
-**Depends on**: Phase 16 (format config and editing fixes complete)
+**Depends on**: Phase 17 (mobility exercises integrated)
 **Success Criteria** (what must be TRUE):
   1. Coach can create new session for any date/level
   2. Coach can add blocks with chosen format
@@ -152,7 +175,7 @@ Plans:
 
 ---
 
-### Phase 18: Branch Attendance Data Model
+### Phase 19: Branch Attendance Data Model
 **Goal**: Data structures for managing branch capacity, schedules, and member plans
 **Depends on**: Documentation (awaiting from user)
 **Success Criteria** (what must be TRUE):
@@ -164,9 +187,9 @@ Plans:
 
 ---
 
-### Phase 19: Admin Member Attendance Management
+### Phase 20: Admin Member Attendance Management
 **Goal**: Admins/coaches can manage member plans and view attendance
-**Depends on**: Phase 18 (data model exists)
+**Depends on**: Phase 19 (data model exists)
 **Success Criteria** (what must be TRUE):
   1. Admin can view branch schedule with current bookings
   2. Admin can see capacity utilization per slot
@@ -177,9 +200,9 @@ Plans:
 
 ---
 
-### Phase 20: Member Booking UI
+### Phase 21: Member Booking UI
 **Goal**: Members can view availability and reserve training spots
-**Depends on**: Phase 19 (admin management exists)
+**Depends on**: Phase 20 (admin management exists)
 **Success Criteria** (what must be TRUE):
   1. Member sees weekly schedule with available slots
   2. Member can book available slot within their plan allowance
@@ -188,7 +211,7 @@ Plans:
   5. Member sees their plan details (remaining days, restrictions)
   6. Push notification for booking confirmation/reminder
 
-### Phase 21: Exercise Video Processing Pipeline
+### Phase 22: Exercise Video Processing Pipeline
 **Goal**: Build a Python batch-processing pipeline that transforms exercise demonstration videos into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
 **Depends on**: None (independent, can run in parallel with other phases)
 **Success Criteria** (what must be TRUE):
@@ -200,13 +223,13 @@ Plans:
   6. Output clips are 5-15 seconds, looped if source is too short
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 21 to break down)
+- [ ] TBD (run /gsd:plan-phase 22 to break down)
 
 ---
 
-### Phase 22: Video Hosting & Content Tooling
+### Phase 23: Video Hosting & Content Tooling
 **Goal**: Set up Cloudflare R2 for free video hosting, build manifest generator to map exercises to source videos, and create upload/population scripts
-**Depends on**: Phase 21 (processed videos exist to upload)
+**Depends on**: Phase 22 (processed videos exist to upload)
 **Success Criteria** (what must be TRUE):
   1. Cloudflare R2 bucket configured with public access and direct MP4 URLs
   2. Manifest generator exports all 1300 exercises from DB for source video mapping
@@ -215,13 +238,13 @@ Plans:
   5. Incremental workflow supported (process/upload batches, add more later)
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 22 to break down)
+- [ ] TBD (run /gsd:plan-phase 23 to break down)
 
 ---
 
-### Phase 23: App Video Integration
+### Phase 24: App Video Integration
 **Goal**: Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
-**Depends on**: Phase 22 (videos hosted and URLs populated in DB)
+**Depends on**: Phase 23 (videos hosted and URLs populated in DB)
 **Success Criteria** (what must be TRUE):
   1. exercises table has video_url VARCHAR column (migration applied)
   2. videoUrl included in ExercisePrescription type and selected in exercise queries
@@ -231,30 +254,31 @@ Plans:
   6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 23 to break down)
+- [ ] TBD (run /gsd:plan-phase 24 to break down)
 
 ---
 
 ## Progress
 
 **Execution Order:**
-Phases 14-17 (Session Management) → Phases 18-20 (Branch Attendance)
-Phases 21-23 (Exercise Videos) — Independent, can run in parallel
+Phases 14-16 (Session Management) → Phase 17 (Mobility Exercises) → Phase 18 (Session Creation) → Phases 19-21 (Branch Attendance)
+Phases 22-24 (Exercise Videos) — Independent, can run in parallel
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 13. Session Generation Review | 8/8 | Complete | 2026-02-05 |
 | 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
 | 15. Admin Session Editing | 9/9 | Complete | 2026-02-10 |
-| 16. PDF Gen, Format Config & App Exercise Tracking | 0/10 | Planned | — |
-| 17. Admin Session Creation | 0/? | Not Started | — |
-| 18. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
-| 19. Admin Member Attendance | 0/? | Not Started | — |
-| 20. Member Booking UI | 0/? | Not Started | — |
-| 21. Exercise Video Processing Pipeline | 0/? | Not Started | — |
-| 22. Video Hosting & Content Tooling | 0/? | Not Started | — |
-| 23. App Video Integration | 0/? | Not Started | — |
+| 16. PDF Gen, Format Config & App Exercise Tracking | 10/10 | Complete | 2026-02-12 |
+| 17. Per-Block Mobility Exercises | 0/? | Not Started | — |
+| 18. Admin Session Creation | 0/? | Not Started | — |
+| 19. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
+| 20. Admin Member Attendance | 0/? | Not Started | — |
+| 21. Member Booking UI | 0/? | Not Started | — |
+| 22. Exercise Video Processing Pipeline | 0/? | Not Started | — |
+| 23. Video Hosting & Content Tooling | 0/? | Not Started | — |
+| 24. App Video Integration | 0/? | Not Started | — |
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-10 — Phase 16 planned (10 plans in 3 waves)*
+*Last updated: 2026-02-11 — Phase 17 inserted (Per-Block Mobility Exercises), old 17-23 renumbered to 18-24*

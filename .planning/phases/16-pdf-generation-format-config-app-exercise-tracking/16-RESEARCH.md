@@ -6,20 +6,20 @@
 
 ## Summary
 
-Phase 16 covers four distinct workstreams: (A) server-side PDF generation for approved sessions matching a design template, (B) format-specific parameter configuration that populates the existing but empty `formatParams` JSON column in `session_blocks`, (C) exercise swap UX improvement in the admin app by using the `category` field instead of first-word grouping, and (D) per-exercise completion tracking in the member app to replace the current block-level completion model. There is also (E) a "save block for reuse" feature for coaches and (F) inline prescription edit UX fixes.
+Phase 16 covers four distinct workstreams: (A) client-side PDF generation for approved sessions matching a design template, (B) format-specific parameter configuration that populates the existing but empty `formatParams` JSON column in `session_blocks`, (C) exercise swap UX improvement in the admin app by using the `category` field instead of first-word grouping, and (D) per-exercise completion tracking in the member app to replace the current block-level completion model. There is also (E) a "save block for reuse" feature for coaches and (F) inline prescription edit UX fixes.
 
 The codebase is a monorepo with three packages: `el-templo-api` (Fastify + Drizzle ORM + MySQL), `el-templo-admin` (Quasar/Vue 3), and `el-templo-app` (Quasar/Vue 3 + Capacitor). All editing infrastructure from Phase 15 is complete and functional. The `formatParams` JSON column exists on `session_blocks` but is completely unused -- this phase activates it. The member app's DayPlayer currently tracks completion per-block via `completedBlocks: BlockRole[]` stored in Capacitor Preferences and submitted to the server as an array of role strings. The per-exercise tracking will require changes to both the local persistence model and the server completion endpoint.
 
-For PDF generation, the recommended approach is Puppeteer running server-side on the Fastify API. The session data is templated into an HTML/CSS skeleton that matches the provided design, then Puppeteer renders it to PDF. This follows the pipeline described in SC #2: example PDF -> page images -> HTML/CSS skeleton -> dynamic session data -> final PDF.
+For PDF generation, the recommended approach is **pdfmake (v0.2.15) running client-side in the admin app**. The session data is already loaded when the coach views a session — pdfmake builds a declarative JSON document definition and generates the PDF entirely in the browser. Zero server infrastructure needed (no Puppeteer, no Chromium download, no API endpoint). A proof of concept was built at `poc-pdf/generate-full.ts` that successfully replicates the 6-page example PDF design with landscape A4, cream background, 2x2 level grids, and Greek symbols.
 
-**Primary recommendation:** Use Puppeteer for PDF generation, populate `formatParams` with structured JSON per format type, switch swap dialog from first-word grouping to `category` field, and extend session progress persistence from block-level to exercise-level with auto-advance logic.
+**Primary recommendation:** Use pdfmake for client-side PDF generation with embedded Cinzel font and El Templo logo, populate `formatParams` with structured JSON per format type, switch swap dialog from first-word grouping to `category` field, and extend session progress persistence from block-level to exercise-level with auto-advance logic.
 
 ## Standard Stack
 
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| puppeteer | ^24.x | HTML-to-PDF rendering via headless Chrome | Industry standard for high-fidelity HTML/CSS to PDF, verified via npm and official docs |
+| pdfmake | ^0.2.15 | Client-side PDF generation via declarative JSON | Lightweight (~2MB), no server infrastructure, proven in PoC. v0.2.15 is stable (v0.3.x has breaking bugs) |
 | drizzle-orm | ^0.45.1 | Database ORM (already installed) | Project standard, used throughout |
 | fastify | ^5.7.1 | HTTP server (already installed) | Project standard |
 | quasar | ^2.16.0 | UI framework (already installed) | Project standard for both admin and member apps |
@@ -32,84 +32,92 @@ For PDF generation, the recommended approach is Puppeteer running server-side on
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| puppeteer | playwright | Playwright is more modern but heavier; Puppeteer is sufficient since we only need Chromium. Puppeteer is slightly faster for Chrome-only tasks and has a simpler setup for PDF-only use case |
-| puppeteer | pdfkit/jspdf | These programmatic libraries lack CSS rendering -- cannot match a design template faithfully |
-| puppeteer | puppeteer-core | Could use puppeteer-core + manual Chromium install to avoid bundled download, but full puppeteer is simpler for dev/deploy and is already ~140MB one-time download |
+| pdfmake | puppeteer | Server-side, 170MB Chromium download, full CSS fidelity but massive overhead for structured data. Overkill for tabular exercise sheets. |
+| pdfmake | jspdf | Lower-level API, manual coordinate math, weaker table support. pdfmake's declarative approach is faster to develop. |
+| pdfmake | playwright | Same as Puppeteer — server-side headless browser, unnecessary for structured data. |
+| pdfmake 0.2.15 | pdfmake 0.3.x | v0.3.x has breaking bugs (canvas processing, async API changes). v0.2.15 is stable. |
 
 **Installation:**
 ```bash
-cd el-templo-api && pnpm add puppeteer
+cd el-templo-admin && pnpm add pdfmake && pnpm add -D @types/pdfmake
 ```
 
 ## Architecture Patterns
 
 ### Recommended Project Structure
 ```
+el-templo-admin/src/
+  utils/pdf/
+    session-pdf-builder.ts     # Core PDF builder using pdfmake (buildWeekPdf, buildDayPdf)
+    pdf-assets.ts              # Base64-encoded logo, icon, Cinzel font data
+    pdf-types.ts               # PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise
+    session-data-transformer.ts # SessionDetail → PdfDaySession conversion
+  pages/
+    SessionDetailPage.vue      # Add "Descargar PDF" button for approved sessions
+  components/sessions/
+    ExerciseSwapDialog.vue     # Modify: category pills instead of first-word
+    EditableBlockCard.vue      # Extend: formatParams display + save-block button
+    EditableExerciseRow.vue    # Fix: green toast only, no scroll reset
+    FormatParamsEditor.vue     # NEW: format-specific parameter inputs
+
 el-templo-api/src/
   modules/admin/
-    pdf-service.ts           # PDF generation logic + HTML template
-    routes.ts                # Add GET /admin/sessions/:id/pdf endpoint
-    edit-service.ts          # Extend: formatParams CRUD, block save/reuse
-    prescribe-service.ts     # Extend: formatParams in prescription context
+    edit-service.ts            # Extend: formatParams CRUD, block save/reuse
+    prescribe-service.ts       # Extend: formatParams in prescription context
   db/schema/
-    session-blocks.ts        # formatParams already exists (JSON column)
-    completed-sessions.ts    # Extend: exercisesCompleted JSON column
-    saved-blocks.ts          # NEW: saved blocks for reuse
-
-el-templo-admin/src/
-  components/sessions/
-    ExerciseSwapDialog.vue   # Modify: category pills instead of first-word
-    EditableBlockCard.vue    # Extend: formatParams display + save-block button
-    EditableExerciseRow.vue  # Fix: green toast only, no scroll reset
-    FormatParamsEditor.vue   # NEW: format-specific parameter inputs
+    session-blocks.ts          # formatParams already exists (JSON column)
+    completed-sessions.ts      # Extend: exercisesCompleted JSON column
+    saved-blocks.ts            # NEW: saved blocks for reuse
 
 el-templo-app/src/
   modules/training/
     composables/
-      useSessionPlayer.ts    # Extend: per-exercise completion
-      useSessionCompletion.ts # Extend: submit exercisesCompleted
+      useSessionPlayer.ts     # Extend: per-exercise completion
+      useSessionCompletion.ts  # Extend: submit exercisesCompleted
     stores/
-      sessionPlayerStore.ts  # Extend: completedExercises in progress
+      sessionPlayerStore.ts   # Extend: completedExercises in progress
     components/player/
-      ExerciseList.vue       # Extend: per-exercise completion checkmarks
-    types/session.ts         # Extend: exercise completion types
+      ExerciseList.vue         # Extend: per-exercise completion checkmarks
+    types/session.ts           # Extend: exercise completion types
 ```
 
-### Pattern 1: Server-Side PDF Generation via Puppeteer
-**What:** Generate PDF by rendering an HTML template with session data in headless Chrome
+### Pattern 1: Client-Side PDF Generation via pdfmake
+**What:** Generate PDF in the browser using pdfmake's declarative JSON document definitions
 **When to use:** Whenever a coach clicks "Download PDF" on an approved session
 **Example:**
 ```typescript
-// Source: Puppeteer official docs (pptr.dev/guides/pdf-generation)
-import puppeteer, { Browser } from 'puppeteer';
+// Source: pdfmake docs + PoC at poc-pdf/generate-full.ts
+import pdfMake from 'pdfmake/build/pdfmake';
+import { CINZEL_REGULAR_BASE64, CINZEL_BOLD_BASE64, LOGO_BASE64 } from './pdf-assets';
 
-// Reuse browser instance across requests (singleton pattern)
-let browserInstance: Browser | null = null;
+// Register custom fonts via virtual file system
+pdfMake.vfs = {
+  'Cinzel-Regular.ttf': CINZEL_REGULAR_BASE64,
+  'Cinzel-Bold.ttf': CINZEL_BOLD_BASE64,
+};
+pdfMake.fonts = {
+  Cinzel: { normal: 'Cinzel-Regular.ttf', bold: 'Cinzel-Bold.ttf' },
+  Roboto: { /* pdfmake default */ },
+};
 
-async function getBrowser(): Promise<Browser> {
-  if (!browserInstance || !browserInstance.connected) {
-    browserInstance = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    });
-  }
-  return browserInstance;
-}
+// Brand colors from visual guidelines
+const BG_CREAM = '#F2EBE1';
+const NAVY = '#24364A';
+const GOLD = '#B08D6E';
 
-async function generateSessionPdf(html: string): Promise<Buffer> {
-  const browser = await getBrowser();
-  const page = await browser.newPage();
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
-    });
-    return Buffer.from(pdf);
-  } finally {
-    await page.close();
-  }
+function buildDayPdf(day: PdfDaySession): void {
+  const content = buildDayContent(day);
+  const doc = {
+    content,
+    pageSize: 'A4',
+    pageOrientation: 'landscape',
+    pageMargins: [40, 40, 40, 30],
+    background: (currentPage, pageSize) => ({
+      canvas: [{ type: 'rect', x: 0, y: 0, w: pageSize.width, h: pageSize.height, color: BG_CREAM }],
+    }),
+    defaultStyle: { font: 'Roboto', fontSize: 10, color: NAVY },
+  };
+  pdfMake.createPdf(doc).download(`El-Templo-S${day.week}-${day.dayName}.pdf`);
 }
 ```
 
@@ -185,8 +193,9 @@ interface SavedBlock {
 ```
 
 ### Anti-Patterns to Avoid
-- **Launching Puppeteer per request:** Extremely slow and memory-heavy. Reuse a singleton browser instance with page-level isolation.
-- **Storing PDF files on disk:** Generate on-the-fly and stream. Sessions change frequently; cached PDFs become stale.
+- **Server-side PDF generation for structured data:** Puppeteer (170MB Chromium) is overkill for tabular exercise sheets. pdfmake handles this client-side in ~2MB.
+- **Using pdfmake v0.3.x:** v0.3.3 has breaking bugs in canvas processing and async API changes. Stick with v0.2.15.
+- **Inlining base64 assets in the builder file:** Keep logo, icon, and font base64 strings in a separate `pdf-assets.ts` file to enable code splitting.
 - **Duplicating prescription logic for format params:** Format params should augment, not replace, the existing prescriber functions. The params live in the DB; the prescribers consume them.
 - **Full page reload on prescription edit:** Currently `onUpdatePrescription` in EditableBlockCard calls `emit('refresh')` which reloads the entire session. SC #11 requires no reload/scroll reset -- use targeted state update instead.
 
@@ -194,27 +203,27 @@ interface SavedBlock {
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| HTML to PDF conversion | Custom PDF layout engine | Puppeteer page.pdf() | CSS rendering complexity is enormous; browser engines handle it perfectly |
-| PDF page sizing/margins | Manual coordinate math | Puppeteer PDFOptions (format, margin) | Built-in A4/Letter support with mm/px margins |
-| Browser instance management | Manual process spawning | Puppeteer's built-in launch/connect | Handles Chromium lifecycle, crash recovery |
+| PDF document structure | Manual binary PDF construction | pdfmake declarative JSON | pdfmake handles pages, fonts, tables, columns, backgrounds |
+| Font embedding in PDF | Manual TTF parsing | pdfmake virtual file system (vfs) | Register base64 font data, pdfmake handles subsetting and embedding |
+| PDF table layout | Manual coordinate math | pdfmake table + columns | Built-in cell sizing, borders, padding, headerRows |
 | Per-exercise state persistence | Manual localStorage | @capacitor/preferences (already used) | Already proven in sessionPlayerStore for block progress |
 | Format parameter validation | Custom validator | TypeScript discriminated unions | The `type` field in FormatParams enables exhaustive checking |
 
-**Key insight:** The PDF pipeline is entirely about HTML/CSS fidelity. Puppeteer delegates rendering to Chrome's engine, which handles every CSS feature. Any hand-rolled PDF builder would be months of work for worse results.
+**Key insight:** Session data is structured and tabular — pdfmake's declarative JSON approach is a natural fit. The PoC at `poc-pdf/generate-full.ts` proved that pdfmake can replicate the example PDF design with high fidelity (cream background, 2x2 level grids, bordered exercise boxes, Greek symbols α Δ Σ Ω).
 
 ## Common Pitfalls
 
-### Pitfall 1: Puppeteer Chromium Download Size
-**What goes wrong:** `npm install puppeteer` downloads ~170MB Chromium binary, surprising developers and CI/CD
-**Why it happens:** Puppeteer bundles its own Chromium for version compatibility
-**How to avoid:** Document the one-time download in setup instructions. For CI/CD, cache `node_modules/.cache/puppeteer`. For production, ensure sufficient disk space.
-**Warning signs:** Install hangs or fails in bandwidth-limited environments
+### Pitfall 1: pdfmake Version Compatibility
+**What goes wrong:** pdfmake v0.3.x introduces breaking changes — async API, canvas processing bug (`otherArray.forEach is not a function`)
+**Why it happens:** v0.3.x refactored internals; some features (canvas elements, font loading) work differently
+**How to avoid:** Pin to `pdfmake@^0.2.15`. The PoC was built and verified on this version. Do not upgrade to 0.3.x without thorough testing.
+**Warning signs:** `TypeError: otherArray.forEach is not a function`, blank pages, async errors
 
-### Pitfall 2: Memory Leaks from Unclosed Pages
-**What goes wrong:** Each PDF request opens a Puppeteer page but never closes it, consuming increasing RAM
-**Why it happens:** Error paths skip `page.close()`, or pages accumulate without cleanup
-**How to avoid:** Always use try/finally with `page.close()`. Add a page timeout. Monitor active page count.
-**Warning signs:** API server memory growing over time, OOM kills
+### Pitfall 2: Large Base64 Assets Bloating Bundle
+**What goes wrong:** Cinzel font files and logo images as base64 strings can be 500KB+ each, inflating the main JS bundle
+**Why it happens:** Importing assets directly in the builder module includes them in the initial bundle
+**How to avoid:** Keep all base64 assets in a dedicated `pdf-assets.ts` file. Use dynamic `import()` so the bundler code-splits this module — it's only loaded when the user clicks "Download PDF". This keeps the main bundle small.
+**Warning signs:** Admin app initial load becomes noticeably slower
 
 ### Pitfall 3: Scroll Reset on Inline Prescription Edits (SC #11)
 **What goes wrong:** Currently, `emit('refresh')` triggers `loadSession()` in SessionEditPage, re-rendering all blocks and resetting scroll position
@@ -244,69 +253,45 @@ interface SavedBlock {
 
 Verified patterns from the existing codebase:
 
-### PDF HTML Template Skeleton
+### PDF Document Builder (pdfmake)
 ```typescript
-// Source: Based on existing session detail structure in admin routes
-function buildSessionHtml(session: SessionDetail): string {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    /* Styles matching the example PDF design */
-    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-    .header { /* session header: week, day, level */ }
-    .block { /* block card with colored left border */ }
-    .block-header { /* role, format, intensity */ }
-    .exercise-row { /* exercise name, reps/seconds, rest, notes */ }
-    /* ... match provided PDF design exactly */
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Semana ${session.week} - ${dayLabel(session.day)}</h1>
-    <p>${session.levelGroup} | ${session.blocks.length} bloques</p>
-  </div>
-  ${session.blocks.map(block => `
-    <div class="block">
-      <div class="block-header">${block.role} - ${block.formatName}</div>
-      ${block.exercises.map(ex => `
-        <div class="exercise-row">
-          <span class="name">${ex.exerciseName}</span>
-          <span class="prescription">${ex.reps > 0 ? ex.reps + ' reps' : ex.seconds + 's'}</span>
-          <span class="rest">${ex.rest}s desc.</span>
-          ${ex.notes ? `<span class="notes">${ex.notes}</span>` : ''}
-        </div>
-      `).join('')}
-    </div>
-  `).join('')}
-</body>
-</html>`;
+// Source: PoC at poc-pdf/generate-full.ts, ported to client-side
+// Key page builders for the 6-page-per-day structure:
+
+function buildCoverPage(): Content {
+  return {
+    stack: [
+      { text: '', margin: [0, 150, 0, 0] },
+      { image: LOGO_BASE64, width: 300, alignment: 'center' },
+    ],
+    pageBreak: 'after',
+  };
+}
+
+function buildBlockPageWithGrid(block: PdfBlockPage): Content {
+  // 2x2 level grid: α(top-left) Δ(top-right) Σ(bottom-left) Ω(bottom-right)
+  const levelBoxes = (block.levelBlocks || []).map(lb => buildLevelBox(lb));
+  return {
+    stack: [
+      { text: `${block.role} · ${block.formatName}`, font: 'Cinzel', fontSize: 20, bold: true, color: '#24364A' },
+      { columns: [levelBoxes[0] || emptyBox('α'), levelBoxes[1] || emptyBox('Δ')], columnGap: 12 },
+      { columns: [levelBoxes[2] || emptyBox('Σ'), levelBoxes[3] || emptyBox('Ω')], columnGap: 12 },
+    ],
+    pageBreak: 'after',
+  };
 }
 ```
 
-### API Endpoint for PDF Download
+### Client-Side PDF Download (No API Endpoint)
 ```typescript
-// Source: Pattern from existing admin routes
-fastify.get<{ Params: { id: number } }>('/sessions/:id/pdf', {
-  // schema...
-}, async (request, reply) => {
-  const session = await adminService.getSessionWithDetails(request.params.id);
-  if (!session) {
-    return reply.status(404).send({ error: 'Sesion no encontrada' });
-  }
-  if (session.status !== 'approved') {
-    return reply.status(400).send({ error: 'Solo sesiones aprobadas pueden generar PDF' });
-  }
+// Source: Admin SessionDetailPage.vue — no server changes needed
+import { sessionToPdfDay } from 'src/utils/pdf/session-data-transformer';
+import { buildDayPdf } from 'src/utils/pdf/session-pdf-builder';
 
-  const html = pdfService.buildSessionHtml(session);
-  const pdfBuffer = await pdfService.generatePdf(html);
-
-  reply.header('Content-Type', 'application/pdf');
-  reply.header('Content-Disposition',
-    `attachment; filename="sesion-S${session.week}-${session.day}-${session.levelGroup}.pdf"`);
-  return reply.send(pdfBuffer);
-});
+async function onDownloadPdf() {
+  const pdfDay = sessionToPdfDay(session.value);
+  buildDayPdf(pdfDay); // Generates and downloads entirely in browser
+}
 ```
 
 ### Blur-Save Without Scroll Reset (SC #11 Fix)
@@ -354,21 +339,22 @@ const exercises = await this.db
 
 | Old Approach | Current Approach | When Changed | Impact |
 |--------------|------------------|--------------|--------|
-| wkhtmltopdf | Puppeteer/Playwright headless Chrome | 2020+ | Full CSS3/JS support, better fidelity |
-| PDFKit/jsPDF programmatic | HTML template + headless browser | 2022+ | Designers can work with HTML/CSS instead of coordinate math |
+| Puppeteer server-side | pdfmake client-side | Phase 16 (PoC validated) | Zero server infrastructure, ~2MB vs 170MB, instant generation |
+| wkhtmltopdf | pdfmake/Puppeteer | 2020+ | Modern alternatives with better support |
 | Block-level completion | Per-exercise completion | Phase 16 (new) | Granular progress tracking, better UX |
 | exerciseGroup (first word) | category field grouping | Phase 16 (new) | Fewer, semantically meaningful filter pills |
 
 **Deprecated/outdated:**
 - wkhtmltopdf: Abandoned project, poor CSS3 support, not recommended
-- PhantomJS: Discontinued in 2018, fully replaced by Puppeteer
+- PhantomJS: Discontinued in 2018
+- Puppeteer for this use case: Overkill for structured/tabular data. Reserved for complex CSS-heavy layouts.
 
 ## Open Questions
 
-1. **Example PDF Design Template**
-   - What we know: SC #2 mentions "example PDF -> page images -> HTML/CSS skeleton"
-   - What's unclear: The actual PDF design template file hasn't been provided yet
-   - Recommendation: The planner should create a task for the design-to-HTML conversion step. The user needs to provide the example PDF. The HTML/CSS skeleton can be built iteratively once the design is available.
+1. **Example PDF Design Template** — RESOLVED
+   - The example PDF is at `.docs/brand-visual/Session ppt example.pdf` and `poc-pdf/session-pdf-example/`
+   - A PoC at `poc-pdf/generate-full.ts` successfully replicates the 6-page design using pdfmake
+   - Production version will add: embedded El Templo logo, Cinzel serif font, brand colors from visual guidelines
 
 2. **Format Parameters: Exact Values Per Format**
    - What we know: Prior decisions (13-06, 13-07) define format behavior (e.g., AMRAP 30-rep cap, Tabata 20s/10s fixed, EMOM intensity-based). Constants exist in `pipeline/utils/constants.ts`.
@@ -388,27 +374,28 @@ const exercises = await this.db
 ## Sources
 
 ### Primary (HIGH confidence)
-- Puppeteer official docs (pptr.dev/guides/pdf-generation) - PDF generation API, page.pdf() options
-- Puppeteer npm (npmjs.com/package/puppeteer) - Version 24.37.2, last published Feb 2026
+- pdfmake docs (pdfmake.github.io/docs) - Declarative PDF generation API, fonts, tables, columns
+- pdfmake npm (npmjs.com/package/pdfmake) - v0.2.15 stable, v0.3.x has breaking bugs
+- PoC validated: `poc-pdf/generate-full.ts` - 6-page landscape PDF matching example design, 38.9KB output
 - Codebase analysis: `format-prescribers.ts`, `prescribe-service.ts`, `edit-service.ts`, `session-blocks.ts` (formatParams column), `sessionPlayerStore.ts`, `useSessionPlayer.ts`, `useSessionCompletion.ts`, `ExerciseSwapDialog.vue`, `EditableBlockCard.vue`, `EditableExerciseRow.vue`
 
 ### Secondary (MEDIUM confidence)
-- Web search: "Node.js PDF generation from HTML CSS 2025 2026" - Multiple sources confirm Puppeteer as industry standard
-- Web search: "Puppeteer PDF generation best practices" - Browser reuse, page cleanup, memory management patterns
-- PDFBolt comparison (pdfbolt.com/blog/top-nodejs-pdf-generation-libraries) - Library landscape
+- Brand visual guidelines: `.docs/brand-visual/el-templo-visual-guidelines.txt` - Official color palette and typography
+- Brand assets: `.docs/brand-visual/El Templo Indoor Calisthenics LOGO.png`, `ICON BIG.png`
+- Example PDF: `poc-pdf/session-pdf-example/` - 36-page reference design with screenshots
 
 ### Tertiary (LOW confidence)
-- None - all findings verified against official sources or codebase
+- None - all findings verified against official sources, codebase, or PoC
 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH - Puppeteer is well-established, existing codebase infrastructure is clear
-- Architecture: HIGH - All patterns extend existing code with minimal new concepts
-- Pitfalls: HIGH - Derived from actual codebase analysis and well-known Puppeteer issues
+- Standard stack: HIGH - pdfmake v0.2.15 validated in PoC, existing codebase infrastructure is clear
+- Architecture: HIGH - Client-side approach eliminates server complexity; all patterns extend existing code
+- Pitfalls: HIGH - Derived from actual PoC debugging (v0.3.x bugs, font encoding, canvas issues)
 - Format params: HIGH - Column already exists, just needs population and UI
 - Per-exercise tracking: MEDIUM - Requires careful state management across local and server, but pattern is clear
-- PDF design matching: MEDIUM - Depends on receiving the actual design template from user
+- PDF design matching: HIGH - PoC successfully replicates example PDF design (6 pages, level grids, Greek symbols)
 
 **Research date:** 2026-02-10
-**Valid until:** 2026-03-10 (30 days - stable domain, Puppeteer API unlikely to change)
+**Valid until:** 2026-03-10 (30 days - stable domain, pdfmake 0.2.x API stable)
