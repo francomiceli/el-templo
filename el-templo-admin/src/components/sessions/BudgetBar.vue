@@ -3,7 +3,7 @@
     <div class="row items-center q-gutter-xs q-mb-xs">
       <q-icon name="data_usage" size="xs" :color="barColor" />
       <span class="text-caption text-weight-medium" :class="`text-${barColor}`">
-        {{ currentReps }} / {{ originalBudget }} reps
+        {{ currentReps }} / {{ originalBudget }} reps+seg
       </span>
     </div>
     <q-linear-progress

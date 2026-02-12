@@ -76,24 +76,6 @@
           label="Revertir a Pendiente"
           @click="handleRevert"
         />
-        <q-btn
-          v-if="session.status === 'approved'"
-          icon="picture_as_pdf"
-          label="PDF del Día"
-          color="deep-purple"
-          outline
-          :loading="pdfDayLoading"
-          @click="onDownloadDayPdf"
-        />
-        <q-btn
-          v-if="session.status === 'approved'"
-          icon="collections_bookmark"
-          label="PDF de la Semana"
-          color="deep-purple"
-          outline
-          :loading="pdfWeekLoading"
-          @click="onDownloadWeekPdf"
-        />
       </div>
 
       <!-- Blocks -->
@@ -218,10 +200,6 @@ const poolLoading = ref(false);
 // Preview dialog state
 const previewOpen = ref(false);
 
-// PDF generation state
-const pdfDayLoading = ref(false);
-const pdfWeekLoading = ref(false);
-const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
 
 async function loadSession() {
   const id = Number(route.params.id);
@@ -275,70 +253,6 @@ async function handleRevert() {
     adminStore.checkSessionCoverage();
   } catch {
     $q.notify({ type: 'negative', message: 'Error revirtiendo sesion' });
-  }
-}
-
-async function onDownloadDayPdf() {
-  if (!session.value) return;
-  pdfDayLoading.value = true;
-  try {
-    // Fetch all approved sessions for this day+week to get all levels
-    const { sessions: daySessions } = await sessionsApi.fetchSessions({
-      week: session.value.week,
-      day: session.value.day,
-      status: 'approved',
-    });
-    const daySessionIds = daySessions
-      .filter(s => PDF_LEVELS.includes(s.memberLevel))
-      .map(s => s.id);
-    if (daySessionIds.length === 0) {
-      $q.notify({ type: 'warning', message: 'No hay sesiones aprobadas de nivel para generar PDF' });
-      return;
-    }
-    const details = await Promise.all(
-      daySessionIds.map(id => sessionsApi.fetchSessionDetail(id))
-    );
-    const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
-    const { buildDayPdf } = await import('src/utils/pdf/session-pdf-builder');
-    const pdfDay = sessionsToPdfDay(details);
-    buildDayPdf(pdfDay);
-  } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando PDF' });
-    console.error('PDF generation error:', err);
-  } finally {
-    pdfDayLoading.value = false;
-  }
-}
-
-async function onDownloadWeekPdf() {
-  if (!session.value) return;
-  pdfWeekLoading.value = true;
-  try {
-    // Fetch all approved sessions for this entire week
-    const { sessions: weekSessions } = await sessionsApi.fetchSessions({
-      week: session.value.week,
-      status: 'approved',
-    });
-    const weekSessionIds = weekSessions
-      .filter(s => PDF_LEVELS.includes(s.memberLevel))
-      .map(s => s.id);
-    if (weekSessionIds.length === 0) {
-      $q.notify({ type: 'warning', message: 'No hay sesiones aprobadas para esta semana' });
-      return;
-    }
-    // Fetch full details for all sessions
-    const details = await Promise.all(
-      weekSessionIds.map(id => sessionsApi.fetchSessionDetail(id))
-    );
-    const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
-    const { buildWeekPdf } = await import('src/utils/pdf/session-pdf-builder');
-    const pdfDays = sessionsToWeekPdf(details);
-    buildWeekPdf(pdfDays);
-  } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando PDF de la semana' });
-    console.error('Week PDF error:', err);
-  } finally {
-    pdfWeekLoading.value = false;
   }
 }
 

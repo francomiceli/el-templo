@@ -88,7 +88,7 @@
         @swap-exercise="onSwapExercise"
         @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
-        @refresh="loadSession"
+        @refresh="refreshSession"
       />
 
       <!-- Member preview dialog -->
@@ -184,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, nextTick, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
@@ -224,6 +224,9 @@ const blockSwapTarget = ref<SessionBlock | null>(null);
 const blockPool = ref<PoolBlock[]>([]);
 const blockPoolLoading = ref(false);
 
+// Scroll position saved before dialogs open (q-dialog locks body scroll)
+const preDialogScrollY = ref(0);
+
 async function loadSession() {
   const id = Number(route.params.id);
   if (isNaN(id)) {
@@ -244,6 +247,20 @@ async function loadSession() {
   }
 }
 
+async function refreshSession(savedScrollY?: number) {
+  const scrollY = savedScrollY ?? window.scrollY;
+  const id = Number(route.params.id);
+  if (isNaN(id)) return;
+  try {
+    session.value = await sessionsApi.fetchSessionDetail(id);
+  } catch (err: unknown) {
+    const axiosError = err as { response?: { data?: { error?: string } } };
+    error.value = axiosError.response?.data?.error || 'Error cargando sesion';
+  }
+  await nextTick();
+  window.scrollTo(0, scrollY);
+}
+
 function goBack() {
   router.push('/sessions');
 }
@@ -253,7 +270,7 @@ async function handleApprove() {
   try {
     await sessionsApi.approveSession(session.value.id);
     $q.notify({ type: 'positive', message: 'Sesion aprobada' });
-    loadSession();
+    refreshSession();
     adminStore.fetchPendingCount();
     adminStore.checkSessionCoverage();
   } catch {
@@ -266,7 +283,7 @@ async function handleRevert() {
   try {
     await sessionsApi.revertSession(session.value.id);
     $q.notify({ type: 'info', message: 'Sesion revertida a pendiente' });
-    loadSession();
+    refreshSession();
     adminStore.fetchPendingCount();
     adminStore.checkSessionCoverage();
   } catch {
@@ -285,7 +302,7 @@ async function handleReset() {
     try {
       await editApi.resetToAlgorithm(session.value!.id);
       $q.notify({ type: 'positive', message: 'Sesion restaurada al algoritmo' });
-      loadSession();
+      refreshSession();
     } catch {
       $q.notify({ type: 'negative', message: editApi.error.value || 'Error al restaurar sesion' });
     }
@@ -294,6 +311,7 @@ async function handleReset() {
 
 async function onSwapBlock(block: SessionBlock) {
   if (!session.value) return;
+  preDialogScrollY.value = window.scrollY;
   blockSwapTarget.value = block;
   blockSwapDialogOpen.value = true;
   blockPool.value = [];
@@ -331,7 +349,7 @@ async function handleBlockSwap(sourceBlockId: number) {
       );
       $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
       blockSwapDialogOpen.value = false;
-      loadSession();
+      refreshSession(preDialogScrollY.value);
     } catch {
       $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
     }
@@ -339,6 +357,7 @@ async function handleBlockSwap(sourceBlockId: number) {
 }
 
 function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
+  preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'swap';
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
@@ -348,11 +367,11 @@ function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; b
 }
 
 function onAddExercise(payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
+  preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'add';
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = payload.blockPattern;
-  // Placeholder exercise for add mode - dialog shows pool to select from
   swapDialogExercise.value = {
     id: 0,
     exerciseId: 0,
@@ -370,7 +389,7 @@ function onAddExercise(payload: { blockId: number; blockRoute: string; blockPatt
 
 function onDialogComplete() {
   swapDialogOpen.value = false;
-  loadSession();
+  refreshSession(preDialogScrollY.value);
 }
 
 function dayLabel(day: string): string {

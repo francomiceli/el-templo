@@ -13,6 +13,15 @@
       <q-btn icon="chevron_left" flat round @click="prevWeek" />
       <div class="text-subtitle1">Semana {{ currentWeek }}</div>
       <q-btn icon="chevron_right" flat round @click="nextWeek" />
+      <q-space />
+      <q-btn
+        icon="collections_bookmark"
+        label="PDF de la Semana"
+        color="deep-purple"
+        outline
+        :loading="pdfWeekLoading"
+        @click="onDownloadWeekPdf"
+      />
     </div>
 
     <!-- Day tabs + PDF button -->
@@ -183,6 +192,7 @@ const previewOpen = ref(false);
 
 // PDF generation state
 const pdfLoading = ref(false);
+const pdfWeekLoading = ref(false);
 const previewSessionId = ref(0);
 const previewMemberLevel = ref('alfa');
 
@@ -251,6 +261,33 @@ async function onDownloadDayPdf() {
     console.error('PDF generation error:', err);
   } finally {
     pdfLoading.value = false;
+  }
+}
+
+async function onDownloadWeekPdf() {
+  const weekSessionIds = sessions.value
+    .filter(s => PDF_LEVELS.includes(s.memberLevel))
+    .map(s => s.id);
+
+  if (weekSessionIds.length === 0) {
+    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar PDF de la semana' });
+    return;
+  }
+
+  pdfWeekLoading.value = true;
+  try {
+    const details = await Promise.all(
+      weekSessionIds.map(id => sessionsApi.fetchSessionDetail(id))
+    );
+    const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
+    const { buildWeekPdf } = await import('src/utils/pdf/session-pdf-builder');
+    const pdfDays = sessionsToWeekPdf(details);
+    buildWeekPdf(pdfDays);
+  } catch (err) {
+    $q.notify({ type: 'negative', message: 'Error generando PDF de la semana' });
+    console.error('Week PDF error:', err);
+  } finally {
+    pdfWeekLoading.value = false;
   }
 }
 

@@ -43,6 +43,7 @@
           class="editable-field"
           input-class="text-center"
           @blur="emitUpdate"
+          @keyup.enter="emitUpdate"
         />
 
         <!-- Seconds (ISO) -->
@@ -56,19 +57,7 @@
           class="editable-field"
           input-class="text-center"
           @blur="emitUpdate"
-        />
-
-        <!-- Rest -->
-        <q-input
-          v-model.number="localRest"
-          type="number"
-          dense
-          outlined
-          label="Descanso"
-          class="editable-field"
-          input-class="text-center"
-          suffix="s"
-          @blur="emitUpdate"
+          @keyup.enter="emitUpdate"
         />
 
         <!-- Notes -->
@@ -79,6 +68,7 @@
           label="Notas"
           class="editable-field editable-field--notes"
           @blur="emitUpdate"
+          @keyup.enter="emitUpdate"
         />
       </q-item-label>
     </q-item-section>
