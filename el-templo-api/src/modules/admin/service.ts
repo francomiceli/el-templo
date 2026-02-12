@@ -185,19 +185,36 @@ export class AdminSessionService {
             difficulty: schema.sessionPrescriptions.difficulty,
             sortOrder: schema.sessionPrescriptions.sortOrder,
             exerciseRoute: schema.exercises.route,
+            exerciseType: schema.sessionPrescriptions.exerciseType,
           })
           .from(schema.sessionPrescriptions)
           .leftJoin(schema.exercises, eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id))
           .where(eq(schema.sessionPrescriptions.blockId, block.id))
           .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
+        // Separate main exercises from mobility
+        const mainPrescriptions = prescriptions.filter(p => p.exerciseType !== 'mobility');
+        const mobilityPrescription = prescriptions.find(p => p.exerciseType === 'mobility');
+
         return {
           ...block,
-          exercises: prescriptions.map(p => ({
+          exercises: mainPrescriptions.map(p => ({
             ...p,
             dificultadLineal: p.difficulty,
             route: p.exerciseRoute || null,
+            exerciseType: p.exerciseType,
           })),
+          mobilityExercise: mobilityPrescription ? {
+            id: mobilityPrescription.id,
+            exerciseId: mobilityPrescription.exerciseId,
+            exerciseName: mobilityPrescription.exerciseName,
+            contraction: mobilityPrescription.contraction,
+            reps: mobilityPrescription.reps,
+            seconds: mobilityPrescription.seconds,
+            rest: mobilityPrescription.rest,
+            notes: mobilityPrescription.notes,
+            exerciseType: mobilityPrescription.exerciseType,
+          } : null,
         };
       })
     );

@@ -55,26 +55,41 @@ function sessionToResponse(session: DaySession) {
     levelGroup: session.levelGroup,
     memberLevel: session.memberLevel,
     blockCount: session.blocks.length,
-    blocks: session.blocks.map((block, idx) => ({
-      blockId: block.blockId,
-      role: block.role,
-      route: block.route,
-      pattern: block.pattern,
-      intensity: block.intensity,
-      repsBudget: block.repsBudget,
-      format: block.format?.name || block.format,
-      sortOrder: idx,
-      exercises: block.exercises.map((ex, exIdx) => ({
-        exerciseId: ex.exerciseId,
-        exerciseName: ex.name,
-        contraction: ex.contraction,
-        reps: ex.reps,
-        seconds: ex.seconds,
-        rest: ex.rest,
-        notes: ex.notes,
-        sortOrder: exIdx,
-      })),
-    })),
+    blocks: session.blocks.map((block, idx) => {
+      // Separate main exercises from mobility
+      const mainExercises = block.exercises.filter(ex => ex.exerciseType !== 'mobility');
+      const mobilityEx = block.exercises.find(ex => ex.exerciseType === 'mobility');
+
+      return {
+        blockId: block.blockId,
+        role: block.role,
+        route: block.route,
+        pattern: block.pattern,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        format: block.format?.name || block.format,
+        sortOrder: idx,
+        exercises: mainExercises.map((ex, exIdx) => ({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.name,
+          contraction: ex.contraction,
+          reps: ex.reps,
+          seconds: ex.seconds,
+          rest: ex.rest,
+          notes: ex.notes,
+          sortOrder: exIdx,
+        })),
+        mobilityExercise: mobilityEx ? {
+          exerciseId: mobilityEx.exerciseId,
+          exerciseName: mobilityEx.name,
+          contraction: mobilityEx.contraction,
+          reps: mobilityEx.reps,
+          seconds: mobilityEx.seconds,
+          rest: mobilityEx.rest,
+          notes: mobilityEx.notes,
+        } : null,
+      };
+    }),
   };
 }
 
