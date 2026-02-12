@@ -167,11 +167,14 @@ Plans:
 ---
 
 ### Phase 18: Technical Debt Audit & Domain/Subdomain Deployment
-**Goal**: Audit and repair technical debt, configure eltemplo.org domain with subdomains (app.eltemplo.org for member app, admin.eltemplo.org for admin app, academy.eltemplo.org for future academy), update CORS and environment config
+**Goal**: Configure eltemplo.org subdomains (app/admin/api) on EC2 with SSL, fix domain mismatch in codebase, extend deploy pipeline for admin app, update CORS and environment config
 **Depends on**: Phase 17 (mobility exercises complete)
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 18 to break down)
+- [ ] 18-01-PLAN.md — Domain mismatch fix (.com->.org), CORS/env config, secrets docs
+- [ ] 18-02-PLAN.md — Nginx subdomain configs, deploy pipeline admin app build
+- [ ] 18-03-PLAN.md — Deployment guide update, manual DNS/SSL/secrets setup checkpoint
 
 ---
 
