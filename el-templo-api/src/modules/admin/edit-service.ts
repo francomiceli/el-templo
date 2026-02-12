@@ -19,6 +19,7 @@ import { MySql2Database } from 'drizzle-orm/mysql2';
 import { eq, and, or, like, inArray, gt, lte, asc, desc, sql } from 'drizzle-orm';
 import * as schema from '../../db/schema';
 import { PrescribeService } from './prescribe-service';
+import { getDefaultFormatParams } from './format-params';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -97,6 +98,13 @@ export interface RemoveExerciseParams {
   sessionId: number;
   blockId: number;
   prescriptionId: number;
+  userId: number;
+}
+
+export interface UpdateFormatParamsParams {
+  sessionId: number;
+  blockId: number;
+  formatParams: Record<string, unknown>;
   userId: number;
 }
 
@@ -469,12 +477,19 @@ export class AdminEditService {
       intensity: block.intensity,
     });
 
-    // Update block format
+    // Compute new format params defaults for the new format
+    const newFormatParams = getDefaultFormatParams(newFormatName, {
+      intensity: block.intensity,
+      exerciseCount: exercises.length,
+    });
+
+    // Update block format and reset formatParams to new defaults
     await this.db
       .update(schema.sessionBlocks)
       .set({
         formatId: newFormatId,
         formatName: newFormatName,
+        formatParams: newFormatParams,
       })
       .where(eq(schema.sessionBlocks.id, blockId));
 
@@ -504,6 +519,39 @@ export class AdminEditService {
 
     // Return updated block with exercises
     return this.getBlockWithExercises(blockId);
+  }
+
+  // =========================================================================
+  // 4b. updateFormatParams - Update format parameters for a block
+  // =========================================================================
+
+  async updateFormatParams(params: UpdateFormatParamsParams) {
+    const { sessionId, blockId, formatParams, userId } = params;
+
+    // Verify block exists and belongs to session
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(and(
+        eq(schema.sessionBlocks.id, blockId),
+        eq(schema.sessionBlocks.sessionId, sessionId)
+      ));
+
+    if (!block) {
+      throw new Error('Bloque no encontrado en esta sesion');
+    }
+
+    // Update formatParams
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({ formatParams })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, 'format_params_update');
+
+    return { formatParams };
   }
 
   // =========================================================================

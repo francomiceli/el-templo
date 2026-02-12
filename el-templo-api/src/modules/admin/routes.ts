@@ -20,6 +20,7 @@ import {
   resetSessionSchema,
   getCompatibleFormatsSchema,
   getPreviewSchema,
+  updateFormatParamsSchema,
   saveBlockSchema,
   deleteSavedBlockSchema,
 } from './schemas';
@@ -294,6 +295,26 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         blockId: request.params.blockId,
         newFormatId: request.body.formatId,
         newFormatName: request.body.formatName,
+        userId: request.user.userId,
+      });
+      return result;
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/format-params - Update format params
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number };
+    Body: { formatParams: Record<string, unknown> };
+  }>('/sessions/:sessionId/blocks/:blockId/format-params', {
+    schema: updateFormatParamsSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.updateFormatParams({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        formatParams: request.body.formatParams,
         userId: request.user.userId,
       });
       return result;

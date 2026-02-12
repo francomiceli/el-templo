@@ -240,6 +240,28 @@ export const getPreviewSchema = {
 };
 
 // ---------------------------------------------------------------------------
+// Format Params Schema (Phase 16-02)
+// ---------------------------------------------------------------------------
+
+export const updateFormatParamsSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['formatParams'],
+    properties: {
+      formatParams: { type: 'object' },
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Saved Blocks Schemas (Phase 16-07)
 // ---------------------------------------------------------------------------
 
