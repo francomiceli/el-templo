@@ -20,6 +20,7 @@ import { eq, and, or, like, inArray, gt, lte, asc, desc, sql } from 'drizzle-orm
 import * as schema from '../../db/schema';
 import { PrescribeService } from './prescribe-service';
 import { getDefaultFormatParams } from './format-params';
+import { ROUTE_TO_MOBILITY_ROUTES } from '../sessions/pipeline/utils/mobility-routes';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -172,6 +173,7 @@ interface SnapshotExercise {
   notes: string | null;
   difficulty: number | null;
   sortOrder: number;
+  exerciseType?: string; // 'main' | 'mobility' — may be absent in old snapshots
 }
 
 interface AlgorithmSnapshot {
@@ -742,6 +744,7 @@ export class AdminEditService {
               notes: ex.notes,
               difficulty: ex.difficulty,
               sortOrder: ex.sortOrder,
+              exerciseType: ex.exerciseType || 'main', // Backward compat for old snapshots
             }))
           );
       }
@@ -837,6 +840,132 @@ export class AdminEditService {
     }
 
     return rows.sort((a, b) => a.compatibility - b.compatibility);
+  }
+
+  // =========================================================================
+  // 12. getMobilityPool - Query MOVILIDAD exercises for mobility swap
+  // =========================================================================
+
+  async getMobilityPool(blockRoute: string): Promise<ExercisePoolItem[]> {
+    // Query all MOVILIDAD pattern exercises
+    const allMobility = await this.db
+      .select({
+        id: schema.exercises.id,
+        exercise: schema.exercises.exercise,
+        effort: schema.exercises.effort,
+        dificultadLineal: schema.exercises.dificultadLineal,
+        pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
+        route: schema.exercises.route,
+        mobilityRelated: schema.exercises.mobilityRelated,
+      })
+      .from(schema.exercises)
+      .where(eq(schema.exercises.pattern, 'MOVILIDAD'));
+
+    // Split into route-relevant and other
+    const relatedRoutes = ROUTE_TO_MOBILITY_ROUTES[blockRoute] || [];
+    const relevant: ExercisePoolItem[] = [];
+    const other: ExercisePoolItem[] = [];
+
+    for (const ex of allMobility) {
+      const isRelevant = relatedRoutes.length > 0 && ex.mobilityRelated !== null &&
+        relatedRoutes.some(r => ex.mobilityRelated!.includes(r));
+
+      const item: ExercisePoolItem = {
+        id: ex.id,
+        exercise: ex.exercise,
+        effort: ex.effort,
+        dificultadLineal: ex.dificultadLineal,
+        pattern: ex.pattern,
+        category: ex.category,
+        route: ex.route,
+        patternSource: isRelevant ? 'pattern_1' : 'pattern_2',
+      };
+
+      if (isRelevant) {
+        relevant.push(item);
+      } else {
+        other.push(item);
+      }
+    }
+
+    // Route-relevant first, then all others
+    return [...relevant, ...other];
+  }
+
+  // =========================================================================
+  // 13. swapMobilityExercise - Replace mobility exercise in a block
+  // =========================================================================
+
+  async swapMobilityExercise(params: {
+    sessionId: number;
+    blockId: number;
+    newExerciseId: number;
+    userId: number;
+  }) {
+    const { sessionId, blockId, newExerciseId, userId } = params;
+
+    // Find current mobility prescription in block
+    const [currentMobility] = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(and(
+        eq(schema.sessionPrescriptions.blockId, blockId),
+        eq(schema.sessionPrescriptions.exerciseType, 'mobility'),
+      ));
+
+    if (!currentMobility) {
+      throw new Error('No hay ejercicio de movilidad en este bloque');
+    }
+
+    // Look up new exercise
+    const [newExercise] = await this.db
+      .select()
+      .from(schema.exercises)
+      .where(eq(schema.exercises.id, newExerciseId));
+
+    if (!newExercise) {
+      throw new Error('Ejercicio no encontrado');
+    }
+
+    // Mobility prescription defaults (per user decision: ISO=seconds, CON=reps)
+    const isISO = newExercise.effort?.toUpperCase() === 'ISO';
+    const reps = isISO ? 0 : 10;
+    const seconds = isISO ? 20 : 0;
+
+    // Update the prescription
+    await this.db
+      .update(schema.sessionPrescriptions)
+      .set({
+        exerciseId: newExercise.id,
+        exerciseName: newExercise.exercise,
+        contraction: newExercise.effort,
+        reps,
+        seconds,
+        rest: 0,
+        notes: null,
+        difficulty: null,
+        // Keep exerciseType='mobility' and sortOrder=999
+      })
+      .where(eq(schema.sessionPrescriptions.id, currentMobility.id));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, 'mobility_swap');
+
+    return {
+      id: currentMobility.id,
+      exerciseId: newExercise.id,
+      exerciseName: newExercise.exercise,
+      contraction: newExercise.effort,
+      reps,
+      seconds,
+      rest: 0,
+      notes: null,
+      difficulty: null,
+      sortOrder: currentMobility.sortOrder,
+      exerciseType: 'mobility',
+    };
   }
 
   // =========================================================================

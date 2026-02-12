@@ -262,6 +262,38 @@ export const updateFormatParamsSchema = {
 };
 
 // ---------------------------------------------------------------------------
+// Mobility Schemas (Phase 17-02)
+// ---------------------------------------------------------------------------
+
+export const getMobilityPoolSchema = {
+  querystring: {
+    type: 'object',
+    required: ['blockRoute'],
+    properties: {
+      blockRoute: { type: 'string' },
+    },
+  },
+};
+
+export const swapMobilityExerciseSchema = {
+  params: {
+    type: 'object',
+    required: ['sessionId', 'blockId'],
+    properties: {
+      sessionId: { type: 'integer' },
+      blockId: { type: 'integer' },
+    },
+  },
+  body: {
+    type: 'object',
+    required: ['newExerciseId'],
+    properties: {
+      newExerciseId: { type: 'integer' },
+    },
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Saved Blocks Schemas (Phase 16-07)
 // ---------------------------------------------------------------------------
 

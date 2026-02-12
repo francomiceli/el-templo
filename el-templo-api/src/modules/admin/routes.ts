@@ -23,6 +23,8 @@ import {
   updateFormatParamsSchema,
   saveBlockSchema,
   deleteSavedBlockSchema,
+  getMobilityPoolSchema,
+  swapMobilityExerciseSchema,
 } from './schemas';
 
 const ADMIN_ROLES = ['coach', 'admin', 'superadmin'];
@@ -357,6 +359,40 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         userId: request.user.userId,
       });
       return { success: true };
+    } catch (err: any) {
+      return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
+    }
+  });
+
+  // ==========================================================================
+  // Mobility Editing Routes (Phase 17-02)
+  // ==========================================================================
+
+  // GET /admin/exercises/mobility-pool - Get mobility exercise pool for swap
+  fastify.get<{
+    Querystring: { blockRoute: string };
+  }>('/exercises/mobility-pool', {
+    schema: getMobilityPoolSchema,
+  }, async (request) => {
+    const exercises = await editService.getMobilityPool(request.query.blockRoute);
+    return { exercises };
+  });
+
+  // POST /admin/sessions/:sessionId/blocks/:blockId/mobility/swap - Swap mobility exercise
+  fastify.post<{
+    Params: { sessionId: number; blockId: number };
+    Body: { newExerciseId: number };
+  }>('/sessions/:sessionId/blocks/:blockId/mobility/swap', {
+    schema: swapMobilityExerciseSchema,
+  }, async (request, reply) => {
+    try {
+      const result = await editService.swapMobilityExercise({
+        sessionId: request.params.sessionId,
+        blockId: request.params.blockId,
+        newExerciseId: request.body.newExerciseId,
+        userId: request.user.userId,
+      });
+      return result;
     } catch (err: any) {
       return reply.status(404).send({ error: err.message || 'Recurso no encontrado' });
     }
