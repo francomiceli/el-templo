@@ -14,8 +14,10 @@ export const sessionPrescriptions = mysqlTable('session_prescriptions', {
   notes: varchar('notes', { length: 255 }),
   difficulty: int('difficulty'), // Linear difficulty 1-12 for display to users
   sortOrder: int('sort_order').notNull(), // ordering within block
+  exerciseType: varchar('exercise_type', { length: 10 }).notNull().default('main'), // 'main' | 'mobility'
 }, (table) => [
   index('session_prescriptions_block_idx').on(table.blockId),
+  index('session_prescriptions_type_idx').on(table.exerciseType),
 ]);
 
 export const sessionPrescriptionsRelations = relations(sessionPrescriptions, ({ one }) => ({

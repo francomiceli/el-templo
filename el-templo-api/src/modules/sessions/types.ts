@@ -92,6 +92,8 @@ export interface ExercisePrescription {
   readonly notes?: string;
   /** Linear difficulty scale (1-12) for validation */
   readonly dificultadLineal?: number;
+  /** Discriminator: 'main' (default) or 'mobility' */
+  readonly exerciseType?: 'main' | 'mobility';
 }
 
 /** Complete block plan output */
@@ -106,6 +108,8 @@ export interface BlockPlan {
   readonly formatParams: FormatParams;
   readonly exercises: readonly ExercisePrescription[];
   readonly trace: readonly TraceEvent[];
+  /** Post-pipeline mobility exercise for non-INITIUM blocks */
+  mobilityExercise?: ExercisePrescription;
 }
 
 /** Complete day session output */
