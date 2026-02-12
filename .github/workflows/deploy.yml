@@ -6,7 +6,7 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   # ===========================================
@@ -102,12 +102,54 @@ jobs:
           retention-days: 1
 
   # ===========================================
+  # Build Admin
+  # ===========================================
+  build-admin:
+    name: Build Admin
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-admin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-admin/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for production
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+
+      - name: Upload Admin build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: el-templo-admin/dist/spa
+          retention-days: 1
+
+  # ===========================================
   # Deploy to Server
   # ===========================================
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build-api, build-app]
+    needs: [build-api, build-app, build-admin]
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
 
     steps:
@@ -125,6 +167,12 @@ jobs:
         with:
           name: app-dist
           path: app-build
+
+      - name: Download Admin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: admin-build
 
       - name: Install rsync (local)
         run: sudo apt-get update && sudo apt-get install -y rsync
@@ -153,6 +201,7 @@ jobs:
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN || '7d' }}
           FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          ADMIN_URL=${{ secrets.ADMIN_URL }}
           EOF
 
       - name: Deploy API to server
@@ -166,6 +215,12 @@ jobs:
           rsync -avz --delete \
             app-build/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.APP_DEPLOY_PATH }}
+
+      - name: Deploy Admin to server
+        run: |
+          rsync -avz --delete \
+            admin-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.ADMIN_DEPLOY_PATH }}
 
       - name: Install dependencies
         run: |
