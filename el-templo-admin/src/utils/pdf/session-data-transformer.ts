@@ -133,3 +133,37 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
 
   return { dayName, week, blocks };
 }
+
+/**
+ * Transform a single session into a PdfDaySession.
+ * Places the session's exercises in the correct level position.
+ * For full multi-level grids, use sessionsToPdfDay with all level sessions.
+ *
+ * @param session - A single SessionDetail
+ */
+export function sessionToPdfDay(session: SessionDetail): PdfDaySession {
+  return sessionsToPdfDay([session]);
+}
+
+/**
+ * Transform multiple sessions (possibly spanning multiple days) into
+ * an array of PdfDaySession sorted by day order.
+ * Groups sessions by day, merging levels for each day.
+ *
+ * @param sessions - All sessions for a week (any mix of days and levels)
+ */
+export function sessionsToWeekPdf(sessions: SessionDetail[]): PdfDaySession[] {
+  const dayOrder = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
+  // Group sessions by day
+  const byDay = new Map<string, SessionDetail[]>();
+  for (const s of sessions) {
+    if (!byDay.has(s.day)) byDay.set(s.day, []);
+    byDay.get(s.day)!.push(s);
+  }
+
+  // Sort days and transform each group
+  return [...byDay.entries()]
+    .sort(([a], [b]) => dayOrder.indexOf(a) - dayOrder.indexOf(b))
+    .map(([, daySessions]) => sessionsToPdfDay(daySessions));
+}
