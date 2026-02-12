@@ -58,11 +58,19 @@ async function runMigrations() {
 
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
 
-      // Split by drizzle breakpoint delimiter and run each statement
-      const statements = sql
-        .split('--> statement-breakpoint')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+      // Split by drizzle breakpoint delimiter, or by semicolons as fallback
+      let statements: string[];
+      if (sql.includes('--> statement-breakpoint')) {
+        statements = sql
+          .split('--> statement-breakpoint')
+          .map(s => s.trim())
+          .filter(s => s.length > 0);
+      } else {
+        statements = sql
+          .split(';')
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && !s.startsWith('--'));
+      }
 
       console.log(`Applying: ${file} (${statements.length} statements)`);
 
