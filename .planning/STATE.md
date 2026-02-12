@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 17 (Per-Block Mobility Exercises)
+**Current focus:** v2.0 Admin App - Phase 18 (Domain/Subdomain Deployment)
 
 ## Current Position
 
-Phase: 17 (Per-Block Mobility Exercises) — **Complete**
-Plan: 04 of 04 complete.
-Status: **Complete**
-Last activity: 2026-02-12 - Plan 17-04 complete (Member App Display & PDF Mobility Data)
+Phase: 18 (Domain/Subdomain Deployment) — **In Progress**
+Plan: 01 of 03 complete.
+Status: **In Progress**
+Last activity: 2026-02-12 - Plan 18-01 complete (Domain/Config Fix)
 
-Progress: [██████████] 100% Phase 17 (4/4 plans)
+Progress: [███-------] 33% Phase 18 (1/3 plans)
 
 ## Architecture Reset
 
@@ -84,8 +84,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 16-pdf-generation-format-config-app-exercise-tracking | 10 | 23min | 2.3min |
 
 **Recent Trend:**
-- Last 5 plans: 16-06 (4min - App Exercise Completion UI), 17-01 (3min - Mobility Data Foundation), 17-02 (3min - API Response & Admin Editing), 17-03 (5min - Admin Descanso Activo UI), 17-04 (2min - Member App Display & PDF Mobility)
-- Trend: Phase 17 complete - all 4 plans delivered, full mobility feature stack
+- Last 5 plans: 17-01 (3min - Mobility Data Foundation), 17-02 (3min - API Response & Admin Editing), 17-03 (5min - Admin Descanso Activo UI), 17-04 (2min - Member App Display & PDF Mobility), 18-01 (2min - Domain/Config Fix)
+- Trend: Phase 18 started - domain/config fixes for subdomain deployment
 
 *Updated after each plan completion*
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -99,6 +99,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 17 P02 | 3 | 2 tasks | 5 files |
 | Phase 17 P04 | 2 | 2 tasks | 3 files |
 | Phase 17 P03 | 5 | 2 tasks | 5 files |
+| Phase 18 P01 | 2 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -385,6 +386,8 @@ Recent decisions affecting current work:
 | 17-04 | Display-only mobility section in DayPlayer | No checkmark, no completion tracking, does not affect auto-advance |
 | 17-04 | PDF mobility text from block.mobilityExercise | Transformer populates PdfBlockPage.mobility, builder already consumes it |
 - [Phase 17]: Reuse ExerciseSwapDialog with mobilityMode prop instead of separate mobility dialog component
+- [Phase 18-01]: Seed data emails (admin@eltemplo.com) left unchanged -- test user identities, not domain references
+- [Phase 18-01]: Domain pattern: always use eltemplo.org for production config and runtime code
 
 ### Roadmap Evolution
 
@@ -392,6 +395,7 @@ Recent decisions affecting current work:
 - Phase 16 inserted (2026-02-10): PDF Generation for approved sessions, format parameter configuration for high/medium importance formats, exercise swap UX (category instead of pattern), per-exercise completion tracking in member app. Old phases 16-22 renumbered to 17-23.
 - Phase 17 inserted (2026-02-11): Per-Block Mobility Exercises — 1 route-based mobility exercise per non-INITIUM block across pipeline, DB, API, admin UI, member app, and PDF. Optional completion, fully coach-editable, separate "Descanso Activo" section. Old phases 17-23 renumbered to 18-24.
 - Phase 18 inserted after Phase 17 (2026-02-12): Technical Debt Audit & Domain/Subdomain Deployment — Run technical-debt-manager, configure eltemplo.org domain with subdomains (app.eltemplo.org, admin.eltemplo.org, academy.eltemplo.org), CORS updates, environment config. Old phases 18-24 renumbered to 19-25.
+- Phase 18 narrowed, Phases 19-20 inserted (2026-02-12): Phase 18 scoped to deployment only (subdomains, SSL, Nginx, deploy pipeline). Tech debt split to Phase 19. APK handling (keystore, signing, Play Store) split to Phase 20. Old phases 19-25 renumbered to 21-27.
 
 ### Pending Todos
 
@@ -412,7 +416,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Completed 17-03-PLAN.md (Admin Descanso Activo UI). Phase 17 complete (all 4 plans). Next: Phase 18
+Stopped at: Completed 18-01-PLAN.md (Domain/Config Fix). Next: 18-02
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
