@@ -10,14 +10,14 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **In Progress**
-Plan: Wave 1 complete (01, 03, 04, 05, 07, 08). Wave 2: 09 complete, pending (02, 06). Wave 3 pending (10).
-Status: **In Progress** — Wave 2 started
-Last activity: 2026-02-11 - Completed 16-09 (PDF Download Buttons)
+Plan: Wave 1 complete (01, 03, 04, 05, 07, 08). Wave 2 complete (02, 06, 09). Wave 3 pending (10).
+Status: **In Progress** — Wave 2 complete, Wave 3 pending
+Last activity: 2026-02-12 - Completed 16-06 (App Exercise Completion UI)
 
-Progress: [███████___] 70% Phase 16 (7/10 plans)
+Progress: [█████████_] 90% Phase 16 (9/10 plans)
 
 Wave 1 review: `.planning/phases/16-pdf-generation-format-config-app-exercise-tracking/WAVE-1-REVIEW.md`
-Resume: `/gsd:execute-phase 16` for remaining plans (02, 06, 10)
+Resume: `/gsd:execute-phase 16` for remaining plan (10)
 
 ## Architecture Reset
 
@@ -64,9 +64,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 49
+- Total plans completed: 50
 - Average duration: 4.0 min
-- Total execution time: 4.7 hours
+- Total execution time: 4.8 hours
 
 **By Phase:**
 
@@ -84,13 +84,15 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 10-session-completion | 4 | 35min | 8.8min |
 | 11-v1-visual-update | 7 | 12min | 1.7min |
 | 12-progression-coach-functions | 4 | 12min | 3.0min |
-| 16-pdf-generation-format-config-app-exercise-tracking | 7 | 14min | 2.0min |
+| 16-pdf-generation-format-config-app-exercise-tracking | 9 | 23min | 2.6min |
 
 **Recent Trend:**
-- Last 5 plans: 16-03 (1min - Category-based Exercise Swap), 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons)
-- Trend: Phase 16 in progress - Admin PDF generation and format configuration
+- Last 5 plans: 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI)
+- Trend: Phase 16 nearly complete - Wave 3 (plan 10) remaining
 
 *Updated after each plan completion*
+| Phase 16 P02 | 5 | 2 tasks | 7 files |
+| Phase 16 P06 | 4 | 2 tasks | 8 files |
 | Phase 16 P09 | 2 | 2 tasks | 2 files |
 | Phase 16-pdf-generation-format-config-app-exercise-tracking P08 | 5 | 2 tasks | 3 files |
 | Phase 16 P05 | 3 | 2 tasks | 2 files |
@@ -362,6 +364,14 @@ Recent decisions affecting current work:
 | 16-09 | Dynamic imports for PDF modules on button click | Consistent with SessionsPage, keeps 174KB PDF assets out of main bundle |
 | 16-09 | Fetch all approved levels for day PDF | Full multi-level grids (alpha/delta/sigma/omega) produce better PDFs matching example design |
 | 16-09 | Filter PDF_LEVELS to alfa/delta/sigma/omega | Spartan excluded from 4-level grid, maps to omega in member app |
+| 16-06 | ExerciseCard row layout with details left, checkmark right | Easy tap target for mobile, details get muted when complete |
+| 16-06 | ExerciseList checkmark in header for collapsed and expanded views | Users can mark exercises complete without expanding detail |
+| 16-06 | exercisesCompleted column nullable for backward compat | Existing records keep NULL, new completions include exercise data |
+| 16-06 | exercisesCompleted schema type ['object', 'null'] with integer arrays | Fastify JSON schema validates Record<string, number[]> structure |
+| 16-02 | FormatParamsEditor uses Record<string, any> for v-model | Vue QInput v-model needs string/number, incompatible with unknown index signature |
+| 16-02 | Blur-save with JSON.stringify change detection | Only emits update when serialized value differs, prevents redundant API calls |
+| 16-02 | Format change resets formatParams to new defaults | changeBlockFormat calls getDefaultFormatParams with block context automatically |
+| 16-02 | No page reload on formatParams save | Consistent with SC #11 pattern used by prescription updates |
 
 ### Roadmap Evolution
 
@@ -386,8 +396,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-11
-Stopped at: Completed 16-09-PLAN.md (PDF Download Buttons)
+Last session: 2026-02-12
+Stopped at: Completed 16-06-PLAN.md (App Exercise Completion UI)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
