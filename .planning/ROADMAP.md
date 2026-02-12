@@ -152,7 +152,7 @@ Plans:
   3. Mobility exercises generated with sensible defaults (reps/seconds) that coaches can edit
   4. Admin block cards show mobility exercise in separate "Descanso Activo" section at block end
   5. Admin exercise swap dialog shows relevant mobility exercises filtered by block route
-  6. Coaches can swap, remove, or add mobility exercises (fully editable)
+  6. Coaches can swap mobility exercises (exactly 1 per non-INITIUM block, not removable)
   7. Member app DayPlayer shows mobility as separate section at end of block with distinct styling
   8. Mobility exercise completion is optional — does not block auto-advance or block completion
   9. PDF output populates existing `mobility` field and renders it separately from main exercises
