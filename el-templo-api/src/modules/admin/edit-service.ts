@@ -889,7 +889,9 @@ export class AdminEditService {
       }
     }
 
-    // Route-relevant first, then all others
+    // Route-relevant first, then all others — sorted by difficulty ascending within each group
+    relevant.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
+    other.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
     return [...relevant, ...other];
   }
 

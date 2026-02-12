@@ -148,12 +148,12 @@
                   Dif: {{ ex.dificultadLineal }}
                 </q-badge>
                 <q-badge
-                  v-if="mobilityMode && ex.patternSource === 'pattern_1'"
-                  color="green"
+                  v-if="mobilityMode"
+                  :color="ex.patternSource === 'pattern_1' ? 'green' : 'grey-5'"
                   text-color="white"
                   class="q-mr-xs"
                 >
-                  Relacionado
+                  {{ ex.route }}
                 </q-badge>
                 <q-badge
                   v-if="!mobilityMode"
@@ -318,12 +318,12 @@ const displayedExercises = computed(() => {
   }
 
   if (props.mobilityMode) {
-    // Sort route-relevant exercises first, then alphabetically
+    // Sort route-relevant exercises first, then by difficulty ascending (1-12)
     return [...result].sort((a, b) => {
       const aRelevant = a.patternSource === 'pattern_1' ? 0 : 1;
       const bRelevant = b.patternSource === 'pattern_1' ? 0 : 1;
       if (aRelevant !== bRelevant) return aRelevant - bRelevant;
-      return a.exercise.localeCompare(b.exercise);
+      return a.dificultadLineal - b.dificultadLineal;
     });
   }
 
