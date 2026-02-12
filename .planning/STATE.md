@@ -9,12 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 
 ## Current Position
 
-Phase: 18 (Domain/Subdomain Deployment) — **In Progress**
-Plan: 02 of 03 complete.
-Status: **In Progress**
-Last activity: 2026-02-12 - Plan 18-02 complete (Nginx Configs & Deploy Pipeline)
+Phase: 18 (Domain/Subdomain Deployment) — **Paused at Checkpoint**
+Plan: 03 of 03 — Task 1 complete, **paused at Task 2 (manual DNS/SSL/secrets checkpoint)**
+Status: **Blocked — DNS nameserver migration needed**
+Last activity: 2026-02-12 - Plan 18-03 Task 1 complete (Deployment Guide updated). Checkpoint: user needs to switch eltemplo.org nameservers from Vercel back to GoDaddy before adding A records for subdomains.
 
-Progress: [██████----] 67% Phase 18 (2/3 plans)
+Progress: [████████░░] 83% Phase 18 (2.5/3 plans — 18-03 half-done)
+
+### Resume Context
+- Plans 18-01 and 18-02 fully complete and committed
+- Plan 18-03 Task 1 committed (deployment guide with full subdomain instructions)
+- Plan 18-03 Task 2 is a human-action checkpoint: DNS, SSL, Nginx, GitHub secrets
+- **Blocker:** eltemplo.org nameservers point to Vercel (no dashboard access). Must switch back to GoDaddy NS to add A records. Need to check for MX/TXT records before switching to avoid losing email config.
 
 ## Architecture Reset
 
