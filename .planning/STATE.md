@@ -5,18 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 16 (PDF Generation, Format Config, App Exercise Tracking)
+**Current focus:** v2.0 Admin App - Phase 17 (Per-Block Mobility Exercises)
 
 ## Current Position
 
-Phase: 16 (PDF Generation, Format Config, App Exercise Tracking) — **Complete**
-Plan: All waves complete (01-10). Human verification approved.
-Status: **Complete**
-Last activity: 2026-02-12 - Phase 16 verified and approved
+Phase: 17 (Per-Block Mobility Exercises) — **In Progress**
+Plan: 01 of 04 complete. Next: 02 (API Response & Admin Editing)
+Status: **In Progress**
+Last activity: 2026-02-12 - Plan 17-01 complete (data foundation)
 
-Progress: [██████████] 100% Phase 16 (10/10 plans)
-
-Next: Phase 17 (Per-Block Mobility Exercises) — not yet planned
+Progress: [██░░░░░░░░] 25% Phase 17 (1/4 plans)
 
 ## Architecture Reset
 
@@ -63,9 +61,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 50
-- Average duration: 4.0 min
-- Total execution time: 4.8 hours
+- Total plans completed: 51
+- Average duration: 3.9 min
+- Total execution time: 4.85 hours
 
 **By Phase:**
 
@@ -86,8 +84,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 16-pdf-generation-format-config-app-exercise-tracking | 10 | 23min | 2.3min |
 
 **Recent Trend:**
-- Last 5 plans: 16-04 (1min - Reactive Prescription Updates), 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI)
-- Trend: Phase 16 complete - all 10 plans done
+- Last 5 plans: 16-05 (3min - Exercise Completion Tracking), 16-08 (5min - Client-Side PDF Generation), 16-09 (2min - PDF Download Buttons), 16-06 (4min - App Exercise Completion UI), 17-01 (3min - Mobility Data Foundation)
+- Trend: Phase 17 started - data foundation complete
 
 *Updated after each plan completion*
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -97,6 +95,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 16 P05 | 3 | 2 tasks | 2 files |
 | Phase 16 P03 | 139 | 1 tasks | 3 files |
 | Phase 16 P01 | 448 | 2 tasks | 7 files |
+| Phase 17 P01 | 3 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -371,12 +370,18 @@ Recent decisions affecting current work:
 | 16-02 | Blur-save with JSON.stringify change detection | Only emits update when serialized value differs, prevents redundant API calls |
 | 16-02 | Format change resets formatParams to new defaults | changeBlockFormat calls getDefaultFormatParams with block context automatically |
 | 16-02 | No page reload on formatParams save | Consistent with SC #11 pattern used by prescription updates |
+| 17-01 | Post-pipeline mobility selection | Mobility uses different logic than 7-stage pipeline (no budget, no difficulty weighting) |
+| 17-01 | exercise_type discriminator column | Same structure as main prescriptions; discriminator simpler than separate table |
+| 17-01 | ISO=20s, CON=10reps mobility defaults | Derived from examples.txt statistical analysis of 21 coach-built sessions |
+| 17-01 | sortOrder=999 for mobility | Always appears last within block regardless of main exercise count |
+| 17-01 | rest=0 for mobility exercises | Active rest between blocks, no prescribed rest period after |
 
 ### Roadmap Evolution
 
 - Phases 20-22 added (2026-02-09): Exercise Video Pipeline split into 3 phases — Processing Pipeline (Python/MediaPipe/FFmpeg), Video Hosting & Content Tooling (Cloudflare R2/manifest/upload), App Video Integration (DB/API/frontend wiring). Independent of admin phases, can run in parallel. *(Now renumbered to Phases 21-23)*
 - Phase 16 inserted (2026-02-10): PDF Generation for approved sessions, format parameter configuration for high/medium importance formats, exercise swap UX (category instead of pattern), per-exercise completion tracking in member app. Old phases 16-22 renumbered to 17-23.
 - Phase 17 inserted (2026-02-11): Per-Block Mobility Exercises — 1 route-based mobility exercise per non-INITIUM block across pipeline, DB, API, admin UI, member app, and PDF. Optional completion, fully coach-editable, separate "Descanso Activo" section. Old phases 17-23 renumbered to 18-24.
+- Phase 18 inserted after Phase 17 (2026-02-12): Technical Debt Audit & Domain/Subdomain Deployment — Run technical-debt-manager, configure eltemplo.org domain with subdomains (app.eltemplo.org, admin.eltemplo.org, academy.eltemplo.org), CORS updates, environment config. Old phases 18-24 renumbered to 19-25.
 
 ### Pending Todos
 
@@ -397,7 +402,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-12
-Stopped at: Phase 16 complete. Next: Phase 17 (Per-Block Mobility Exercises)
+Stopped at: Completed 17-01-PLAN.md (data foundation). Next: 17-02 (API Response & Admin Editing)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
