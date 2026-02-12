@@ -13,6 +13,7 @@ export const completedSessions = mysqlTable('completed_sessions', {
   rpe: int('rpe'), // 1-10, nullable (optional)
   notes: text('notes'), // Optional free text
   blocksCompleted: json('blocks_completed').notNull(), // Array of block role strings
+  exercisesCompleted: json('exercises_completed'), // Nullable - { "NUCLEUS": [123, 456], ... } maps block role to prescription IDs
 }, (table) => [
   index('completed_sessions_user_idx').on(table.userId),
   index('completed_sessions_date_idx').on(table.date),

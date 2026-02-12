@@ -575,6 +575,7 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
     rpe: data.rpe,
     notes: data.notes,
     blocksCompleted: player.value.completedBlocks.value,
+    exercisesCompleted: player.value.completedExercises.value,
   });
 
   if (result) {

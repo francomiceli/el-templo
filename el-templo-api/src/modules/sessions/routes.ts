@@ -380,6 +380,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       rpe,
       notes,
       blocksCompleted,
+      exercisesCompleted,
     } = request.body;
 
     // Get user's branchId
@@ -416,6 +417,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           rpe,
           notes,
           blocksCompleted,
+          exercisesCompleted: exercisesCompleted ?? null,
         })
         .where(eq(schema.completedSessions.id, existing.id));
       completedSessionId = existing.id;
@@ -431,6 +433,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         rpe,
         notes,
         blocksCompleted,
+        exercisesCompleted: exercisesCompleted ?? null,
       });
       completedSessionId = result.insertId;
     }

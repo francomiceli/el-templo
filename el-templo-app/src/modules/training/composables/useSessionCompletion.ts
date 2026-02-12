@@ -8,6 +8,7 @@ export interface CompletionData {
   rpe: number | null;
   notes: string | null;
   blocksCompleted: string[];
+  exercisesCompleted?: Record<string, number[]>;
 }
 
 export interface CompletionResponse {
@@ -52,6 +53,7 @@ export function useSessionCompletion(): SessionCompletionReturn {
         rpe: data.rpe,
         notes: data.notes,
         blocksCompleted: data.blocksCompleted,
+        exercisesCompleted: data.exercisesCompleted ?? null,
       });
 
       totalDaysTrained.value = response.data.totalDaysTrained;

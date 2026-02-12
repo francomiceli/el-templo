@@ -69,6 +69,7 @@ export interface CompleteSessionInput {
   rpe: number | null; // 1-10 or null
   notes: string | null;
   blocksCompleted: string[]; // Array of block roles like ["INITIUM", "NUCLEUS", "DEUTEROS_1", "ATHLOS"]
+  exercisesCompleted?: Record<string, number[]>; // Optional: { "NUCLEUS": [123, 456], ... }
 }
 
 export const completeSessionSchema = {
@@ -84,6 +85,13 @@ export const completeSessionSchema = {
       blocksCompleted: {
         type: 'array',
         items: { type: 'string' },
+      },
+      exercisesCompleted: {
+        type: ['object', 'null'],
+        additionalProperties: {
+          type: 'array',
+          items: { type: 'integer' },
+        },
       },
     },
   },
