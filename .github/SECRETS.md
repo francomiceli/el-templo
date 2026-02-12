@@ -15,7 +15,8 @@ This document lists all the GitHub secrets required for the CI/CD workflows.
 | Secret | Description | Example |
 |--------|-------------|---------|
 | `API_DEPLOY_PATH` | Path on server for API files | `/var/www/el-templo-api` |
-| `APP_DEPLOY_PATH` | Path on server for App files | `/var/www/el-templo-app` |
+| `APP_DEPLOY_PATH` | Path on server for member app files | `/var/www/member-app` |
+| `ADMIN_DEPLOY_PATH` | Path on server for admin app files | `/var/www/admin-app` |
 
 ### Database Configuration
 | Secret | Description | Example |
@@ -35,8 +36,9 @@ This document lists all the GitHub secrets required for the CI/CD workflows.
 ### Application URLs
 | Secret | Description | Example |
 |--------|-------------|---------|
-| `VITE_API_URL` | Full API URL for frontend | `https://api.eltemplo.com/api` |
-| `FRONTEND_URL` | Frontend URL for CORS | `https://app.eltemplo.com` |
+| `VITE_API_URL` | Full API URL for frontend builds | `https://api.eltemplo.org/api` |
+| `FRONTEND_URL` | Member app URL for CORS | `https://app.eltemplo.org` |
+| `ADMIN_URL` | Admin app URL for CORS | `https://admin.eltemplo.org` |
 
 ### Optional
 | Secret | Description | Default |
