@@ -130,18 +130,20 @@ async function getDefaultFormat(
 }
 
 /**
- * Select best format from candidates using deterministic tie-breakers
+ * Select format from candidates: best compatibility, random among ties.
+ *
+ * Groups candidates by compatibility score (lower = better), takes the
+ * best group, then picks randomly within that group to ensure variety
+ * across sessions generated in the same run.
  */
 function selectBestFormat(candidates: FormatCandidate[]): FormatCandidate {
-  // Sort: compatibility ASC (1=best), formatId ASC (deterministic tie-break)
-  const sorted = [...candidates].sort((a, b) => {
-    if (a.compatibility !== b.compatibility) {
-      return a.compatibility - b.compatibility;
-    }
-    return a.formatId - b.formatId;
-  });
+  // Find best (lowest) compatibility score
+  const bestCompat = Math.min(...candidates.map(c => c.compatibility));
+  const bestGroup = candidates.filter(c => c.compatibility === bestCompat);
 
-  return sorted[0];
+  // Random pick among equally-compatible formats
+  const idx = Math.floor(Math.random() * bestGroup.length);
+  return bestGroup[idx];
 }
 
 /**

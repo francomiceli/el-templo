@@ -134,10 +134,22 @@
       />
     </q-list>
 
+    <!-- Add exercise button (above Descanso Activo) -->
+    <q-card-actions align="left" class="q-px-md">
+      <q-btn
+        flat
+        dense
+        icon="add"
+        color="primary"
+        label="Agregar Ejercicio"
+        @click="$emit('add-exercise', { blockId: block.id, blockRoute: block.route, blockPattern: block.pattern, blockRole: block.role })"
+      />
+    </q-card-actions>
+
     <!-- Descanso Activo section (non-INITIUM blocks only) -->
     <template v-if="!isInitium && block.mobilityExercise">
       <q-separator class="q-my-sm" />
-      <div class="q-px-md q-pb-sm">
+      <div class="q-px-md q-pb-md">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">
           DESCANSO ACTIVO
         </div>
@@ -194,18 +206,6 @@
         </div>
       </div>
     </template>
-
-    <!-- Footer actions -->
-    <q-card-actions align="left" class="q-px-md q-pb-md">
-      <q-btn
-        flat
-        dense
-        icon="add"
-        color="primary"
-        label="Agregar Ejercicio"
-        @click="$emit('add-exercise', { blockId: block.id, blockRoute: block.route, blockPattern: block.pattern, blockRole: block.role })"
-      />
-    </q-card-actions>
   </q-card>
 </template>
 

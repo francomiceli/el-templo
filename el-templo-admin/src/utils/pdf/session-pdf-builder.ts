@@ -59,10 +59,15 @@ function getRouteName(code: string): string {
 // Each quote is split: main text (navy) + goldText (gold accent on the punchline)
 const QUOTES = [
   { text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ', goldText: 'EL PESO DEL ARREPENTIMIENTO.\u201D', author: 'Jim Rohn.' },
-  { text: '\u201CEL DOLOR QUE SIENTES HOY SERÁ ', goldText: 'LA FUERZA QUE SENTIRÁS MAÑANA.\u201D', author: 'Arnold Schwarzenegger.' },
-  { text: '\u201CNO SE TRATA DE TENER TIEMPO. ', goldText: 'SE TRATA DE HACER TIEMPO.\u201D', author: 'Anónimo.' },
-  { text: '\u201CLA MOTIVACIÓN ES LO QUE TE HACE EMPEZAR. ', goldText: 'EL HÁBITO ES LO QUE TE MANTIENE.\u201D', author: 'Jim Ryun.' },
-  { text: '\u201CEL ÚNICO MAL ENTRENAMIENTO ES ', goldText: 'EL QUE NO SE HIZO.\u201D', author: 'Anónimo.' },
+  { text: '\u201CES UNA PENA ENVEJECER SIN NUNCA VER ', goldText: 'LA BELLEZA Y LA FUERZA DE LA QUE TU CUERPO ES CAPAZ.\u201D', author: 'Sócrates.' },
+  { text: '\u201CLOS OBSTÁCULOS SON ESAS COSAS ESPANTOSAS QUE VES ', goldText: 'CUANDO APARTAS LOS OJOS DE TU META.\u201D', author: 'Henry Ford.' },
+  { text: '\u201CVENI, VIDI, VICI.\u201D', goldText: '', author: 'Julio César.' },
+  { text: '\u201CEL QUE TIENE UN PORQUÉ PARA VIVIR ', goldText: 'PUEDE SOPORTAR CASI CUALQUIER CÓMO.\u201D', author: 'Friedrich Nietzsche.' },
+  { text: '\u201CNO EXPLIQUES TU FILOSOFÍA. ', goldText: 'ENCÁRNALA.\u201D', author: 'Epicteto.' },
+  { text: '\u201CLA VERDADERA GENEROSIDAD HACIA EL FUTURO CONSISTE EN ', goldText: 'ENTREGARLO TODO AL PRESENTE.\u201D', author: 'Albert Camus.' },
+  { text: '\u201CTODO LO QUE HACEMOS REPETIDAMENTE NOS DEFINE. ', goldText: 'LA EXCELENCIA ES UN HÁBITO.\u201D', author: 'Aristóteles.' },
+  { text: '\u201CATREVERSE ES PERDER EL EQUILIBRIO MOMENTÁNEAMENTE; ', goldText: 'NO ATREVERSE ES PERDERSE A UNO MISMO.\u201D', author: 'Søren Kierkegaard.' },
+  { text: '\u201CEL VERDADERO MÉTODO SIGUE ', goldText: 'LA NATURALEZA DE LAS COSAS.\u201D', author: 'Edmund Husserl.' },
 ];
 
 // ============================================================
@@ -607,8 +612,10 @@ function buildDayContent(day: PdfDaySession): Content[] {
   else if (deut2) content.push(...buildFullBlockPage(deut2));
   if (epikos) content.push(...buildFullBlockPage(epikos));
 
-  // 3. Closing page (rotate quotes by week number)
-  content.push(...buildClosingPage(day.week));
+  // 3. Closing page (rotate quotes by week + day for variety)
+  const dayOrder = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+  const dayIdx = dayOrder.indexOf(day.dayName);
+  content.push(...buildClosingPage(day.week * 7 + (dayIdx >= 0 ? dayIdx : 0)));
 
   return content;
 }

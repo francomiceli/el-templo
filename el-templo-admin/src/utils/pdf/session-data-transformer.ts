@@ -16,62 +16,69 @@ const LEVEL_ORDER = ['alfa', 'delta', 'sigma', 'omega'];
  * Build a display string for format + params.
  * Examples: "AMRAP 10' X3", "TIME CAP 12'", "COMPLEX X3", "TABATA 20"/10" X8"
  */
+/** Display-name overrides for PDF output */
+function displayFormatName(name: string): string {
+  if (name.toLowerCase() === 'interval training') return 'HIIT';
+  return name;
+}
+
 function formatNameWithParams(
   formatName: string,
   formatParams: Record<string, unknown> | null | undefined,
 ): string {
-  if (!formatParams) return formatName;
+  const name = displayFormatName(formatName);
+  if (!formatParams) return name;
 
   const p = formatParams as Record<string, any>;
   const type = p.type as string | undefined;
-  if (!type) return formatName;
+  if (!type) return name;
 
   switch (type) {
     case 'amrap': {
-      return p.minutes ? `${formatName} ${p.minutes}'` : formatName;
+      return p.minutes ? `${name} ${p.minutes}'` : name;
     }
     case 'amrap_series': {
-      const parts = [formatName];
+      const parts = [name];
       if (p.minutes) parts.push(`${p.minutes}'`);
       if (p.rounds) parts.push(`X${p.rounds}`);
       return parts.join(' ');
     }
     case 'emom': {
-      const parts = [formatName];
+      const parts = [name];
       if (p.totalMinutes) parts.push(`${p.totalMinutes}'`);
       if (p.intervalSeconds) parts.push(`(${p.intervalSeconds}")`);
       return parts.join(' ');
     }
     case 'complex':
-      return p.rounds ? `${formatName} X${p.rounds}` : formatName;
+      return p.rounds ? `${name} X${p.rounds}` : name;
     case 'tabata': {
-      const parts = [formatName];
+      const parts = [name];
       if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
       if (p.rounds) parts.push(`X${p.rounds}`);
       return parts.join(' ');
     }
     case 'interval': {
-      const parts = [formatName];
+      const parts = [name];
       if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
       if (p.rounds) parts.push(`X${p.rounds}`);
       return parts.join(' ');
     }
     case 'for_time':
-      return p.timeCapMinutes ? `${formatName} ${p.timeCapMinutes}'` : formatName;
+      return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
     case 'time_cap':
-      return p.minutes ? `${formatName} ${p.minutes}'` : formatName;
+      return p.minutes ? `${name} ${p.minutes}'` : name;
     case 'buy_in_cash_out':
-      return p.rounds ? `${formatName} X${p.rounds}` : formatName;
+      return p.rounds ? `${name} X${p.rounds}` : name;
     case 'cluster': {
-      const parts = [formatName];
+      const parts = [name];
       if (p.clusterSize) parts.push(`X${p.clusterSize}`);
       if (p.restBetweenClusters) parts.push(`(${p.restBetweenClusters}" rest)`);
       return parts.join(' ');
     }
     case 'ladder':
-      return p.direction === 'descending' ? `${formatName} DESC` : `${formatName} ASC`;
+      return p.direction === 'descending' ? `${name} DESC` : `${name} ASC`;
     default:
-      return formatName;
+      return name;
   }
 }
 
