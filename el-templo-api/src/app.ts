@@ -16,8 +16,8 @@ export async function buildApp() {
     origin: process.env.NODE_ENV === 'development'
       ? ['http://localhost:9000', 'http://localhost:9100', 'http://localhost:9101', 'capacitor://localhost', 'http://localhost']
       : [
-          process.env.FRONTEND_URL || 'https://app.eltemplo.com',
-          process.env.ADMIN_URL || 'https://admin.eltemplo.com',
+          process.env.FRONTEND_URL || 'https://app.eltemplo.org',
+          process.env.ADMIN_URL || 'https://admin.eltemplo.org',
           'capacitor://localhost',  // Android Capacitor
           'http://localhost',       // iOS Capacitor
         ],
