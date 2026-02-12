@@ -1,0 +1,37 @@
+# API Reverse Proxy (Fastify on port 3000)
+# Location: /etc/nginx/sites-available/api.eltemplo.org
+# SSL will be added by certbot --nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.eltemplo.org;
+
+    # Proxy ALL requests to Fastify (routes are /api/*, /health)
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+
+        # Pass original client info
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+
+        # Don't buffer responses
+        proxy_buffering off;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+}
