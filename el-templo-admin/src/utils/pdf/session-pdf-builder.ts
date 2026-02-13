@@ -679,22 +679,18 @@ async function removeBlankPages(pdfBytes: Uint8Array): Promise<Uint8Array> {
       continue;
     }
 
-    // Sum the byte length of all content streams on this page
+    // Get byte length from content stream(s)
     let totalBytes = 0;
-    if ('array' in (contents as any)) {
-      // Array of stream refs
-      const arr = (contents as any).array as any[];
-      for (const ref of arr) {
-        const stream = page.node.context.lookup(ref);
-        if (stream && 'contents' in (stream as any)) {
-          totalBytes += (stream as any).contents().length;
-        }
-      }
-    } else {
-      // Single stream ref
-      const stream = page.node.context.lookup(contents as any);
-      if (stream && 'contents' in (stream as any)) {
-        totalBytes += (stream as any).contents().length;
+    const refs = 'array' in (contents as any)
+      ? (contents as any).array as any[]
+      : [contents];
+
+    for (const ref of refs) {
+      const stream = page.node.context.lookup(ref);
+      if (!stream) continue;
+      const c = (stream as any).contents;
+      if (c != null) {
+        totalBytes += typeof c === 'function' ? c().length : c.length;
       }
     }
 
