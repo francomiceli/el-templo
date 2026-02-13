@@ -69,12 +69,8 @@ function formatNameWithParams(
       return p.minutes ? `${name} ${p.minutes}'` : name;
     case 'buy_in_cash_out':
       return name;
-    case 'cluster': {
-      const parts = [name];
-      if (p.clusterSize) parts.push(`X${p.clusterSize}`);
-      if (p.restBetweenClusters) parts.push(`(${p.restBetweenClusters}" rest)`);
-      return parts.join(' ');
-    }
+    case 'cluster':
+      return name;
     case 'ladder':
       return p.direction === 'descending' ? `${name} DESC` : `${name} ASC`;
     default:
