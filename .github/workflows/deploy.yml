@@ -240,7 +240,7 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
             cd ${{ secrets.API_DEPLOY_PATH }}
-            pm2 restart eltemplo-api || pm2 start dist/index.js --name eltemplo-api
+            NODE_ENV=production pm2 restart eltemplo-api --update-env || NODE_ENV=production pm2 start dist/index.js --name eltemplo-api
           ENDSSH
 
       - name: Verify deployment
