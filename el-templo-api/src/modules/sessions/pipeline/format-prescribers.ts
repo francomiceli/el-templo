@@ -407,21 +407,23 @@ function prescribeUnbrokenReps(ctx: PrescriptionContext): ExercisePrescription[]
 
 /**
  * For Max (Reps): Maximum reps in given time/sets
- * Structure: Indicator reps, athlete goes for max
+ * Structure: Target reps as minimum, athlete pushes for more
+ * Uses standard inverse difficulty distribution as baseline targets
  */
 function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
-  const { exercises, restTime } = ctx;
+  const { exercises, repsBudget, restTime } = ctx;
+  const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
-  // For Max doesn't have fixed targets - use indicators
-  return exercises.map((ex, i) =>
-    createPrescription(
+  return exercises.map((ex, i) => {
+    return createPrescription(
       ex,
-      0, // Max effort, no fixed target
+      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
       restTime,
       i === 0 ? 'For Max Reps - max effort' : undefined,
       ex.contraction === 'ISO' ? ISO_SECONDS.MAX_EFFORT : 0
-    )
-  );
+    );
+  });
 }
 
 // =============================================================================
