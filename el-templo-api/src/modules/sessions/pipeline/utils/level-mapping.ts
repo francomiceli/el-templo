@@ -47,18 +47,30 @@ export function levelGroupToLevel(levelGroup: LevelGroup): 'alfa' | 'delta' | 's
  * Used to calculate maxDificultadLineal from level and bucket.
  *
  * Each level spans a difficulty range:
- * - Alfa: 1-3 (base 0 + bucket)
- * - Delta: 4-6 (base 3 + bucket)
- * - Sigma: 7-8 (base 6 + bucket)
- * - Omega: 9-10 (base 8 + bucket)
- * - Spartan: 11-12 (base 10 + bucket)
+ * - Alfa: 1-4 (base 1 + bucket 1-3)
+ * - Delta: 4-7 (base 4 + bucket 1-3)
+ * - Sigma: 7-8 (base 6 + bucket 1-2)
+ * - Omega: 9-10 (base 8 + bucket 1-2)
+ * - Spartan: 11-12 (base 10 + bucket 1-2)
  */
 export const LEVEL_LINEAR_BASE: Record<ExerciseLevel, number> = {
-  alfa: 0,
-  delta: 3,
+  alfa: 1,
+  delta: 4,
   sigma: 6,
   omega: 8,
   spartan: 10,
+};
+
+/**
+ * Minimum dificultadLineal per member level.
+ * Exercises below this threshold should not be selected for this level.
+ */
+export const LEVEL_LINEAR_MIN: Record<ExerciseLevel, number> = {
+  alfa: 1,
+  delta: 4,
+  sigma: 7,
+  omega: 9,
+  spartan: 11,
 };
 
 /**

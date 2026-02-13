@@ -19,6 +19,7 @@ import type { FallbackAction } from '../fallback/types';
 import {
   getAllowedLevels,
   LEVEL_LINEAR_BASE,
+  LEVEL_LINEAR_MIN,
   LEVEL_PROGRESSION,
   type ExerciseLevel,
 } from './utils/level-mapping';
@@ -36,7 +37,7 @@ function getLinearDifficultyTarget(
   memberLevel: ExerciseLevel,
   intensity: number,
   difficultyBucket: string
-): { maxDificultadLineal: number; targetLevel: ExerciseLevel } {
+): { minDificultadLineal: number; maxDificultadLineal: number; targetLevel: ExerciseLevel } {
   const isNivelSuperior = difficultyBucket === 'Nivel Superior' || difficultyBucket === 'Nivel Superior 1';
   const currentIndex = LEVEL_PROGRESSION.indexOf(memberLevel);
 
@@ -44,14 +45,15 @@ function getLinearDifficultyTarget(
   if (isNivelSuperior && intensity >= 85) {
     if (currentIndex < LEVEL_PROGRESSION.length - 1) {
       const nextLevel = LEVEL_PROGRESSION[currentIndex + 1];
-      // Next level's first linear difficulty = base + 1
       return {
+        minDificultadLineal: LEVEL_LINEAR_MIN[nextLevel],
         maxDificultadLineal: LEVEL_LINEAR_BASE[nextLevel] + 1,
         targetLevel: nextLevel,
       };
     }
     // Spartan stays at spartan, max difficulty
     return {
+      minDificultadLineal: LEVEL_LINEAR_MIN.spartan,
       maxDificultadLineal: LEVEL_LINEAR_BASE.spartan + 2, // 12
       targetLevel: 'spartan',
     };
@@ -62,6 +64,7 @@ function getLinearDifficultyTarget(
     if (currentIndex < LEVEL_PROGRESSION.length - 1) {
       const nextLevel = LEVEL_PROGRESSION[currentIndex + 1];
       return {
+        minDificultadLineal: LEVEL_LINEAR_MIN[nextLevel],
         maxDificultadLineal: LEVEL_LINEAR_BASE[nextLevel] + 1,
         targetLevel: nextLevel,
       };
@@ -73,6 +76,7 @@ function getLinearDifficultyTarget(
   const effectiveBucket = isNaN(bucket) ? 3 : bucket;
 
   return {
+    minDificultadLineal: LEVEL_LINEAR_MIN[memberLevel],
     maxDificultadLineal: LEVEL_LINEAR_BASE[memberLevel] + effectiveBucket,
     targetLevel: memberLevel,
   };
@@ -120,7 +124,7 @@ export async function selectExercises(
   const excludedNames: Set<string> = new Set();
 
   // Calculate linear difficulty target (handles Nivel Superior and high-intensity shifts)
-  const { maxDificultadLineal, targetLevel } = getLinearDifficultyTarget(
+  const { minDificultadLineal, maxDificultadLineal, targetLevel } = getLinearDifficultyTarget(
     ctx.memberLevel,
     ctx.intensity,
     ctx.difficultyBucket
@@ -167,6 +171,7 @@ export async function selectExercises(
         ctx.pattern2,
         ctx.route,
         crossContraction,
+        minDificultadLineal,
         maxDificultadLineal,
         allowedLevels,
         excludedNames
@@ -231,7 +236,8 @@ export async function selectExercises(
       {
         route: ctx.route,
         contraction,
-        maxDificultadLineal, // Linear difficulty scale (1-12)
+        minDificultadLineal, // Linear difficulty scale (1-12) lower bound
+        maxDificultadLineal, // Linear difficulty scale (1-12) upper bound
         allowedLevels, // For Tier 2+ fallback
         count: requiredCount,
         levelGroup: ctx.levelGroup,

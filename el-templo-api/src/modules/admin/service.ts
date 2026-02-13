@@ -432,6 +432,10 @@ export class AdminSessionService {
     const sessionService = new SessionGeneratorService(this.db);
 
     for (const day of days) {
+      // Shared formats for cross-level consistency per day
+      // Captured from the first generated level, then forced on subsequent levels
+      let sharedFormats: Map<string, { formatId: number; name: string }> | undefined;
+
       for (const levelGroup of levelGroups) {
         // Map levelGroup to memberLevels
         const memberLevels: ExerciseLevel[] = levelGroup === 'alfa_delta'
@@ -458,13 +462,28 @@ export class AdminSessionService {
               .where(eq(schema.sessions.dayId, dayId));
           }
 
-          // Generate new session
+          // Generate new session (pass sharedFormats for cross-level consistency)
           const session = await sessionService.generateDailySession({
             week,
             day,
             levelGroup: levelGroup as LevelGroup,
             memberLevel,
+            sharedFormats,
           });
+
+          // Capture formats from the first generated session of the day
+          // INITIUM excluded (uses separate pipeline, always Interval Training)
+          if (!sharedFormats) {
+            sharedFormats = new Map();
+            for (const block of session.blocks) {
+              if (block.role !== 'INITIUM') {
+                sharedFormats.set(block.role, {
+                  formatId: block.format.formatId,
+                  name: block.format.name,
+                });
+              }
+            }
+          }
 
           await sessionService.saveSession(session);
           generated++;

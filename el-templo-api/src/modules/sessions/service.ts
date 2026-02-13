@@ -46,6 +46,8 @@ export interface GenerateSessionInput {
   day: string;
   levelGroup: LevelGroup;
   memberLevel: ExerciseLevel;
+  /** Shared formats from first-generated level to enforce consistency across levels */
+  sharedFormats?: Map<string, { formatId: number; name: string }>;
 }
 
 /**
@@ -149,10 +151,14 @@ export class SessionGeneratorService {
 
       // Build pipeline options
       // DEUTEROS_2 must use same format as DEUTEROS_1 for consistency
+      // sharedFormats enforces cross-level format consistency (same format for all levels on a day)
+      const sharedFormat = input.sharedFormats?.get(role);
       const pipelineOptions: BlockPipelineOptions | undefined =
-        role === 'DEUTEROS_2' && deuteros1Format
-          ? { forcedFormat: deuteros1Format }
-          : undefined;
+        sharedFormat
+          ? { forcedFormat: sharedFormat }
+          : role === 'DEUTEROS_2' && deuteros1Format
+            ? { forcedFormat: deuteros1Format }
+            : undefined;
 
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(
