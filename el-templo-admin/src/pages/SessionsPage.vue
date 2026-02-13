@@ -268,7 +268,7 @@ async function onDownloadDayPdf(dayGroup: DayGroup) {
     const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
     const { buildDayPdf } = await import('src/utils/pdf/session-pdf-builder');
     const pdfDay = sessionsToPdfDay(details);
-    buildDayPdf(pdfDay);
+    await buildDayPdf(pdfDay);
   } catch (err) {
     $q.notify({ type: 'negative', message: 'Error generando PDF' });
     console.error('PDF generation error:', err);
@@ -295,7 +295,7 @@ async function onDownloadWeekPdf() {
     const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
     const { buildWeekPdf } = await import('src/utils/pdf/session-pdf-builder');
     const pdfDays = sessionsToWeekPdf(details);
-    buildWeekPdf(pdfDays);
+    await buildWeekPdf(pdfDays);
   } catch (err) {
     $q.notify({ type: 'negative', message: 'Error generando PDF de la semana' });
     console.error('Week PDF error:', err);
