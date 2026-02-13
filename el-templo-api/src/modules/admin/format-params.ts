@@ -52,7 +52,6 @@ const DEFAULTS = {
   INTERVAL_LOW_REST: 15,
   INTERVAL_DEFAULT_ROUNDS: 8,
   CHIPPER_ROUNDS: 1,
-  BUY_IN_CASH_OUT_DEFAULT_ROUNDS: 3,
   CLUSTER_SIZE: 3,
   CLUSTER_REST_SECONDS: 90,
   LADDER_HIGH_INTENSITY_THRESHOLD: 75, // Decision 13-07
@@ -154,7 +153,7 @@ export function getDefaultFormatParams(
 
   // Buy-in / Cash-out
   if (normalized.includes('buy') || normalized.includes('cash')) {
-    return { type: 'buy_in_cash_out', rounds: DEFAULTS.BUY_IN_CASH_OUT_DEFAULT_ROUNDS };
+    return { type: 'buy_in_cash_out' };
   }
 
   // Cluster

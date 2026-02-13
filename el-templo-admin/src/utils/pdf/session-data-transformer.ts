@@ -68,7 +68,7 @@ function formatNameWithParams(
     case 'time_cap':
       return p.minutes ? `${name} ${p.minutes}'` : name;
     case 'buy_in_cash_out':
-      return p.rounds ? `${name} X${p.rounds}` : name;
+      return name;
     case 'cluster': {
       const parts = [name];
       if (p.clusterSize) parts.push(`X${p.clusterSize}`);
