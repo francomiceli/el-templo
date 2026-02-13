@@ -661,15 +661,14 @@ function getBuffer(doc: TDocumentDefinitions): Promise<Uint8Array> {
 /**
  * Remove blank pages from a PDF buffer.
  *
- * Blank pages are detected by content stream size — pages with only the
- * background rectangle (cream fill) have very small content streams
- * compared to pages with text, images, or exercise grids.
+ * Blank pages are detected by checking for text (Tj/TJ) or image (Do)
+ * operators in content streams. Pages with only the background rectangle
+ * have none of these and are considered blank.
  */
 async function removeBlankPages(pdfBytes: Uint8Array): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
-  // Collect indices of blank pages (iterate in reverse for safe removal)
   const blankIndices: number[] = [];
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
@@ -679,24 +678,26 @@ async function removeBlankPages(pdfBytes: Uint8Array): Promise<Uint8Array> {
       continue;
     }
 
-    // Get byte length from content stream(s)
-    let totalBytes = 0;
+    // Concatenate all content streams into a single string
     const refs = 'array' in (contents as any)
       ? (contents as any).array as any[]
       : [contents];
 
+    let streamText = '';
     for (const ref of refs) {
       const stream = page.node.context.lookup(ref);
       if (!stream) continue;
       const c = (stream as any).contents;
-      if (c != null) {
-        totalBytes += typeof c === 'function' ? c().length : c.length;
-      }
+      if (c == null) continue;
+      const bytes: Uint8Array = typeof c === 'function' ? c() : c;
+      streamText += new TextDecoder().decode(bytes);
     }
 
-    // Background-only pages have ~200-400 bytes (just the rect draw).
-    // Real content pages have 2000+ bytes.
-    if (totalBytes < 800) {
+    // A page has real content if it draws text (Tj/TJ) or images (Do).
+    // Blank overflow pages only have the background rect (re/f operators).
+    const hasText = /\b(Tj|TJ)\b/.test(streamText);
+    const hasImage = /\bDo\b/.test(streamText);
+    if (!hasText && !hasImage) {
       blankIndices.push(i);
     }
   }
