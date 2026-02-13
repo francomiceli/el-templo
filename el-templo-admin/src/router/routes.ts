@@ -12,7 +12,8 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '', redirect: '/sessions' },
       { path: 'sessions', component: () => import('pages/SessionsPage.vue') },
-      { path: 'sessions/:id', component: () => import('pages/SessionEditPage.vue') },
+      { path: 'sessions/edit', component: () => import('pages/SessionEditPage.vue') },
+      { path: 'sessions/:id', component: () => import('pages/SessionEditLegacyRedirect.vue') },
       { path: 'generate', component: () => import('pages/GeneratePage.vue') },
     ],
   },

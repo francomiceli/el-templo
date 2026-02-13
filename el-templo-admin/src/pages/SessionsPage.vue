@@ -2,21 +2,15 @@
   <q-page class="q-pa-md">
     <div class="text-h5 q-mb-md">Sesiones</div>
 
-    <!-- Filters -->
-    <session-filters
-      v-model="filter"
-      @refresh="loadSessions"
-    />
-
     <!-- Week selector -->
-    <div class="row items-center q-mb-md q-gutter-sm">
+    <div class="row items-center q-mb-lg q-gutter-sm">
       <q-btn icon="chevron_left" flat round @click="prevWeek" />
       <div class="text-subtitle1">Semana {{ currentWeek }}</div>
       <q-btn icon="chevron_right" flat round @click="nextWeek" />
       <q-space />
       <q-btn
         icon="collections_bookmark"
-        label="PDF de la Semana"
+        label="PDF Semana"
         color="deep-purple"
         outline
         :loading="pdfWeekLoading"
@@ -24,130 +18,102 @@
       />
     </div>
 
-    <!-- Day tabs + PDF button -->
-    <div class="row items-center justify-between q-mb-md">
-      <day-tabs v-model="currentDay" />
-      <q-btn
-        icon="picture_as_pdf"
-        label="PDF del Día"
-        color="deep-purple"
-        outline
-        :loading="pdfLoading"
-        @click="onDownloadDayPdf"
-      />
+    <!-- Loading -->
+    <div v-if="sessionsApi.loading.value" class="flex flex-center q-pa-xl">
+      <q-spinner-dots size="50px" color="primary" />
     </div>
 
-    <!-- Sessions table -->
-    <q-table
-      :rows="filteredSessions"
-      :columns="columns"
-      row-key="id"
-      :loading="sessionsApi.loading.value"
-      flat
-      bordered
-      :pagination="tablePagination"
-      @request="onTableRequest"
-    >
-      <!-- Level column -->
-      <template #body-cell-memberLevel="props">
-        <q-td :props="props">
-          <q-chip dense :color="memberLevelColor(props.row.memberLevel)" text-color="white">
-            {{ memberLevelLabel(props.row.memberLevel) }}
-          </q-chip>
-        </q-td>
-      </template>
-
-      <!-- Routes column -->
-      <template #body-cell-routes="props">
-        <q-td :props="props">
-          <span class="text-caption">{{ props.row.routesSummary }}</span>
-        </q-td>
-      </template>
-
-      <!-- Status column -->
-      <template #body-cell-status="props">
-        <q-td :props="props">
-          <status-badge
-            :status="props.row.status"
-            :by-system="props.row.approvedBySystem"
-          />
-        </q-td>
-      </template>
-
-      <!-- Approver column -->
-      <template #body-cell-approver="props">
-        <q-td :props="props">
-          <template v-if="props.row.approvedByName">
-            {{ props.row.approvedByName }}
-            <div class="text-caption text-grey">
-              {{ formatDate(props.row.approvedAt) }}
+    <!-- Day cards -->
+    <template v-else>
+      <q-card
+        v-for="dayGroup in dayGroups"
+        :key="dayGroup.day"
+        flat
+        bordered
+        class="q-mb-sm"
+      >
+        <q-card-section class="q-py-sm">
+          <!-- Day name row with action icons -->
+          <div class="row items-center no-wrap q-mb-xs">
+            <div class="text-subtitle1 text-weight-bold">
+              {{ dayLabel(dayGroup.day) }}
             </div>
-          </template>
-          <template v-else>-</template>
-        </q-td>
-      </template>
+            <q-space />
+            <div class="row items-center no-wrap q-gutter-sm">
+              <q-btn
+                flat
+                dense
+                round
+                icon="picture_as_pdf"
+                color="deep-purple"
+                size="md"
+                :loading="pdfDayLoading === dayGroup.day"
+                @click="onDownloadDayPdf(dayGroup)"
+              >
+                <q-tooltip>PDF del dia</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                dense
+                round
+                icon="edit"
+                color="primary"
+                size="md"
+                @click="editDay(dayGroup.day)"
+              >
+                <q-tooltip>Editar dia</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="dayGroup.pendingCount > 0"
+                flat
+                dense
+                round
+                icon="check_circle"
+                color="positive"
+                size="md"
+                @click="handleBulkApproveDay(dayGroup)"
+              >
+                <q-tooltip>Aprobar {{ dayGroup.pendingCount }} pendientes</q-tooltip>
+                <q-badge floating color="red" :label="dayGroup.pendingCount" />
+              </q-btn>
+            </div>
+          </div>
 
-      <!-- Actions column -->
-      <template #body-cell-actions="props">
-        <q-td :props="props" class="q-gutter-xs">
-          <q-btn
-            flat
-            dense
-            icon="preview"
-            color="info"
-            @click="openPreview(props.row)"
-          >
-            <q-tooltip>Vista previa miembro</q-tooltip>
-          </q-btn>
-          <q-btn
-            flat
-            dense
-            icon="edit"
-            @click="viewSession(props.row.id)"
-          >
-            <q-tooltip>Editar sesion</q-tooltip>
-          </q-btn>
-          <q-btn
-            v-if="props.row.status === 'pending_review'"
-            flat
-            dense
-            color="positive"
-            icon="check"
-            @click="handleApprove(props.row.id)"
-          >
-            <q-tooltip>Aprobar</q-tooltip>
-          </q-btn>
-          <q-btn
-            v-if="props.row.status === 'approved'"
-            flat
-            dense
-            color="warning"
-            icon="undo"
-            @click="handleRevert(props.row.id)"
-          >
-            <q-tooltip>Revertir a pendiente</q-tooltip>
-          </q-btn>
-        </q-td>
-      </template>
+          <!-- Level rows -->
+          <div>
+              <div
+                v-for="level in dayGroup.levels"
+                :key="level.memberLevel"
+                v-show="level.status"
+                class="row items-center no-wrap level-row q-py-xs"
+              >
+                <q-icon
+                  :name="level.status === 'approved' ? 'check_circle' : 'schedule'"
+                  :color="level.status === 'approved' ? 'green' : 'amber-8'"
+                  size="16px"
+                  class="q-mr-xs"
+                />
+                <span
+                  class="text-body2 text-weight-bold q-mr-sm"
+                  :class="`text-${levelColor(level.memberLevel)}`"
+                  style="min-width: 52px"
+                >
+                  {{ memberLevelLabel(level.memberLevel) }}
+                </span>
+                <span v-if="level.routesSummary" class="text-caption text-grey-7">
+                  {{ level.routesSummary }}
+                </span>
+              </div>
+            </div>
+        </q-card-section>
+      </q-card>
 
-      <!-- No data slot -->
-      <template #no-data>
-        <div class="full-width row flex-center text-grey q-pa-lg">
-          <q-icon name="info" size="sm" class="q-mr-sm" />
-          No hay sesiones para esta semana y dia
-        </div>
-      </template>
-    </q-table>
-
-    <!-- Bulk approve button -->
-    <div class="q-mt-md" v-if="pendingSessions.length > 0">
-      <q-btn
-        color="positive"
-        icon="check_circle"
-        :label="`Aprobar todas (${pendingSessions.length})`"
-        @click="handleBulkApprove"
-      />
-    </div>
+      <!-- No sessions -->
+      <div v-if="sessions.length === 0" class="text-center q-pa-xl text-grey">
+        <q-icon name="info" size="xl" class="q-mb-md" />
+        <div class="text-h6">No hay sesiones para la semana {{ currentWeek }}</div>
+      </div>
+    </template>
 
     <!-- Member preview dialog -->
     <member-preview-dialog
@@ -159,86 +125,133 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
-import SessionFilters from 'src/components/sessions/SessionFilters.vue';
-import DayTabs from 'src/components/sessions/DayTabs.vue';
-import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
-import type { SessionSummary, SessionFilter } from 'src/types/session';
+import type { SessionSummary } from 'src/types/session';
 
 const $q = useQuasar();
+const route = useRoute();
 const router = useRouter();
 const sessionsApi = useSessionsApi();
 const adminStore = useAdminStore();
 
 const sessions = ref<SessionSummary[]>([]);
-const currentWeek = ref(1);
-const currentDay = ref('lunes');
-const filter = ref<SessionFilter>({});
-const tablePagination = ref({
-  sortBy: 'status',
-  descending: false,
-  page: 1,
-  rowsPerPage: 50,
-  rowsNumber: 0,
-});
+const initialWeek = Number(route.query.week) || 1;
+const currentWeek = ref(initialWeek);
 
 // Preview dialog state
 const previewOpen = ref(false);
-
-// PDF generation state
-const pdfLoading = ref(false);
-const pdfWeekLoading = ref(false);
 const previewSessionId = ref(0);
 const previewMemberLevel = ref('alfa');
 
-// Table columns
-const columns = [
-  { name: 'memberLevel', label: 'Nivel', field: 'memberLevel', align: 'left' as const },
-  { name: 'routes', label: 'Rutas', field: 'routesSummary', align: 'left' as const },
-  { name: 'blockCount', label: 'Bloques', field: 'blockCount', align: 'center' as const },
-  { name: 'status', label: 'Estado', field: 'status', align: 'center' as const },
-  { name: 'approver', label: 'Aprobado por', field: 'approvedByName', align: 'left' as const },
-  { name: 'actions', label: 'Acciones', field: 'actions', align: 'center' as const },
-];
+// PDF state
+const pdfWeekLoading = ref(false);
+const pdfDayLoading = ref<string | null>(null);
 
-// Computed
-const filteredSessions = computed(() => {
-  return sessions.value.filter(s =>
-    s.week === currentWeek.value && s.day === currentDay.value
-  ).sort((a, b) => {
-    const statusOrder: Record<string, number> = { pending_review: 0, approved: 1 };
-    return statusOrder[a.status] - statusOrder[b.status];
-  });
+const DAYS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+const DISPLAY_LEVELS = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
+
+interface DayLevelStatus {
+  memberLevel: string;
+  status: string | null;
+  sessionId: number | null;
+  routesSummary: string | null;
+  blockCount: number;
+}
+
+interface DayGroup {
+  day: string;
+  levels: DayLevelStatus[];
+  sessions: SessionSummary[];
+  pendingCount: number;
+}
+
+const dayGroups = computed<DayGroup[]>(() => {
+  return DAYS.map(day => {
+    const daySessions = sessions.value.filter(s => s.day === day);
+    const levels = DISPLAY_LEVELS.map(level => {
+      const session = daySessions.find(s => s.memberLevel === level);
+      return {
+        memberLevel: level,
+        status: session?.status ?? null,
+        sessionId: session?.id ?? null,
+        routesSummary: session?.routesSummary ?? null,
+        blockCount: session?.blockCount ?? 0,
+      };
+    });
+    const pendingCount = daySessions.filter(s => s.status === 'pending_review').length;
+    return { day, levels, sessions: daySessions, pendingCount };
+  }).filter(dg => dg.sessions.length > 0);
 });
 
-const pendingSessions = computed(() =>
-  filteredSessions.value.filter(s => s.status === 'pending_review')
-);
-
-// Methods
 async function loadSessions() {
   try {
     const response = await sessionsApi.fetchSessions({
-      ...filter.value,
       week: currentWeek.value,
       limit: 100,
     });
     sessions.value = response.sessions;
-    tablePagination.value.rowsNumber = response.total;
   } catch {
     $q.notify({ type: 'negative', message: 'Error cargando sesiones' });
   }
 }
 
-const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
+function syncWeekUrl() {
+  router.replace({ query: { week: String(currentWeek.value) } });
+}
 
-async function onDownloadDayPdf() {
-  const daySessionIds = filteredSessions.value
+function prevWeek() {
+  if (currentWeek.value > 1) {
+    currentWeek.value--;
+    syncWeekUrl();
+    loadSessions();
+  }
+}
+
+function nextWeek() {
+  if (currentWeek.value < 52) {
+    currentWeek.value++;
+    syncWeekUrl();
+    loadSessions();
+  }
+}
+
+function editDay(day: string) {
+  router.push({ path: '/sessions/edit', query: { week: String(currentWeek.value), day } });
+}
+
+async function handleBulkApproveDay(dayGroup: DayGroup) {
+  const pendingIds = dayGroup.sessions
+    .filter(s => s.status === 'pending_review')
+    .map(s => s.id);
+
+  if (pendingIds.length === 0) return;
+
+  $q.dialog({
+    title: 'Aprobar Sesiones',
+    message: `Aprobar ${pendingIds.length} sesiones pendientes para ${dayLabel(dayGroup.day)}?`,
+    cancel: true,
+    persistent: true,
+  }).onOk(async () => {
+    try {
+      const result = await sessionsApi.bulkApprove(pendingIds);
+      $q.notify({ type: 'positive', message: `${result.approvedCount} sesiones aprobadas` });
+      loadSessions();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
+    }
+  });
+}
+
+async function onDownloadDayPdf(dayGroup: DayGroup) {
+  const daySessionIds = dayGroup.sessions
     .filter(s => PDF_LEVELS.includes(s.memberLevel))
     .map(s => s.id);
 
@@ -247,7 +260,7 @@ async function onDownloadDayPdf() {
     return;
   }
 
-  pdfLoading.value = true;
+  pdfDayLoading.value = dayGroup.day;
   try {
     const details = await Promise.all(
       daySessionIds.map(id => sessionsApi.fetchSessionDetail(id))
@@ -260,7 +273,7 @@ async function onDownloadDayPdf() {
     $q.notify({ type: 'negative', message: 'Error generando PDF' });
     console.error('PDF generation error:', err);
   } finally {
-    pdfLoading.value = false;
+    pdfDayLoading.value = null;
   }
 }
 
@@ -291,89 +304,22 @@ async function onDownloadWeekPdf() {
   }
 }
 
-function onTableRequest(props: { pagination: typeof tablePagination.value }) {
-  tablePagination.value = props.pagination;
-  loadSessions();
+function dayLabel(day: string): string {
+  const labels: Record<string, string> = {
+    lunes: 'Lunes',
+    martes: 'Martes',
+    miercoles: 'Miercoles',
+    jueves: 'Jueves',
+    viernes: 'Viernes',
+    sabado: 'Sabado',
+  };
+  return labels[day] || day;
 }
 
-function prevWeek() {
-  if (currentWeek.value > 1) {
-    currentWeek.value--;
-    loadSessions();
-  }
-}
-
-function nextWeek() {
-  if (currentWeek.value < 52) {
-    currentWeek.value++;
-    loadSessions();
-  }
-}
-
-function viewSession(id: number) {
-  router.push(`/sessions/${id}`);
-}
-
-async function handleApprove(id: number) {
-  try {
-    await sessionsApi.approveSession(id);
-    $q.notify({ type: 'positive', message: 'Sesion aprobada' });
-    loadSessions();
-    adminStore.fetchPendingCount();
-    adminStore.checkSessionCoverage();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
-  }
-}
-
-async function handleRevert(id: number) {
-  try {
-    await sessionsApi.revertSession(id);
-    $q.notify({ type: 'info', message: 'Sesion revertida a pendiente' });
-    loadSessions();
-    adminStore.fetchPendingCount();
-    adminStore.checkSessionCoverage();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error revirtiendo sesion' });
-  }
-}
-
-async function handleBulkApprove() {
-  const count = pendingSessions.value.length;
-  const message = `Aprobar ${count} sesiones pendientes para ${currentDay.value}?`;
-
-  $q.dialog({
-    title: 'Aprobar Sesiones',
-    message,
-    cancel: true,
-    persistent: true,
-  }).onOk(async () => {
-    try {
-      const ids = pendingSessions.value.map(s => s.id);
-      const result = await sessionsApi.bulkApprove(ids);
-      $q.notify({
-        type: 'positive',
-        message: `${result.approvedCount} sesiones aprobadas`,
-      });
-      loadSessions();
-      adminStore.fetchPendingCount();
-      adminStore.checkSessionCoverage();
-    } catch {
-      $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
-    }
-  });
-}
-
-function openPreview(row: SessionSummary) {
-  previewSessionId.value = row.id;
-  previewMemberLevel.value = row.memberLevel || 'alfa';
-  previewOpen.value = true;
-}
-
-function memberLevelColor(level: string): string {
+function levelColor(level: string): string {
   switch (level) {
     case 'alfa': return 'light-blue';
-    case 'delta': return 'blue';
+    case 'delta': return 'indigo';
     case 'sigma': return 'purple';
     case 'omega': return 'orange';
     case 'spartan': return 'red';
@@ -392,21 +338,14 @@ function memberLevelLabel(level: string): string {
   }
 }
 
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-// Watch for filter changes
-watch(filter, () => loadSessions(), { deep: true });
-
 onMounted(() => {
-  // Get current SPOM week from API or default to 1
+  syncWeekUrl();
   loadSessions();
 });
 </script>
+
+<style scoped>
+.level-row + .level-row {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+</style>

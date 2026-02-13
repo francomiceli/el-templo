@@ -9,65 +9,46 @@
     <div v-else-if="error" class="text-center q-pa-xl">
       <q-icon name="error" size="xl" color="negative" />
       <div class="text-h6 q-mt-md">{{ error }}</div>
-      <q-btn flat color="primary" @click="loadSession">Reintentar</q-btn>
+      <q-btn flat color="primary" @click="loadDay">Reintentar</q-btn>
     </div>
 
-    <!-- Session content -->
-    <template v-else-if="session">
+    <!-- Day content -->
+    <template v-else-if="sessions.length > 0">
       <!-- Header -->
       <div class="row items-center justify-between q-mb-md">
         <div class="row items-center">
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
           <span class="text-h5">
-            Editar Sesion - Semana {{ session.week }} - {{ dayLabel(session.day) }}
+            Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }}
           </span>
         </div>
-        <status-badge :status="session.status" :by-system="session.approvedBySystem" />
+        <q-badge
+          :color="allApproved ? 'green' : 'amber'"
+          :label="allApproved ? 'Aprobado' : 'Pendiente'"
+        />
       </div>
-
-      <!-- Session meta card -->
-      <q-card flat bordered class="q-mb-md">
-        <q-card-section>
-          <div class="row q-gutter-md">
-            <div>
-              <div class="text-caption text-grey">Nivel</div>
-              <q-chip dense :color="memberLevelColor(session.memberLevel, session.levelGroup)">
-                {{ memberLevelLabel(session.memberLevel, session.levelGroup) }}
-              </q-chip>
-            </div>
-            <div>
-              <div class="text-caption text-grey">Bloques</div>
-              <div>{{ session.blockCount }}</div>
-            </div>
-            <div>
-              <div class="text-caption text-grey">Estado</div>
-              <div>{{ session.status === 'pending_review' ? 'Pendiente' : 'Aprobada' }}</div>
-            </div>
-          </div>
-        </q-card-section>
-      </q-card>
 
       <!-- Action bar -->
       <div class="q-mb-md q-gutter-sm">
         <q-btn
-          v-if="session.status === 'pending_review'"
+          v-if="hasPending"
           color="positive"
           icon="check"
-          label="Aprobar"
-          @click="handleApprove"
+          label="Aprobar Dia"
+          @click="handleApproveDay"
         />
         <q-btn
-          v-if="session.status === 'approved'"
+          v-if="hasApproved"
           color="warning"
           icon="undo"
-          label="Revertir a Pendiente"
-          @click="handleRevert"
+          label="Revertir Dia"
+          @click="handleRevertDay"
         />
         <q-btn
           color="secondary"
           icon="restore"
-          label="Resetear al Algoritmo"
-          @click="handleReset"
+          label="Resetear Dia"
+          @click="handleResetDay"
         />
         <q-btn
           color="info"
@@ -77,27 +58,26 @@
         />
       </div>
 
-      <!-- Blocks -->
+      <!-- Block groups -->
       <div class="text-subtitle1 q-mb-sm">Bloques</div>
       <editable-block-card
-        v-for="block in session.blocks"
-        :key="block.id"
-        :block="block"
-        :session-id="session.id"
-        :level-group="session.levelGroup"
+        v-for="bg in blockGroups"
+        :key="bg.role + '-' + bg.sortOrder"
+        :block-group="bg"
+        :level-group="sessions[0].levelGroup"
         @swap-exercise="onSwapExercise"
         @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
         @swap-mobility="onSwapMobility"
         @update-mobility-prescription="onUpdateMobilityPrescription"
-        @refresh="refreshSession"
+        @refresh="refreshDay"
       />
 
       <!-- Member preview dialog -->
       <member-preview-dialog
         v-model="previewOpen"
-        :session-id="session.id"
-        :current-member-level="session.memberLevel || 'alfa'"
+        :session-id="sessions[0]?.id ?? 0"
+        :current-member-level="sessions[0]?.memberLevel || 'alfa'"
       />
     </template>
 
@@ -105,7 +85,7 @@
     <exercise-swap-dialog
       v-if="swapDialogExercise"
       v-model="swapDialogOpen"
-      :session-id="session?.id ?? 0"
+      :session-id="swapDialogSessionId"
       :block-id="swapDialogBlockId"
       :current-exercise="swapDialogExercise"
       :block-route="swapDialogBlockRoute"
@@ -188,17 +168,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useEditApi } from 'src/composables/useEditApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
-import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
-import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, LevelGroup, PrescriptionUpdate } from 'src/types/session';
+import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, PrescriptionUpdate } from 'src/types/session';
+import type { BlockGroup } from 'src/types/block-group';
 
 const route = useRoute();
 const router = useRouter();
@@ -207,9 +187,13 @@ const sessionsApi = useSessionsApi();
 const editApi = useEditApi();
 const adminStore = useAdminStore();
 
-const session = ref<SessionDetail | null>(null);
+const sessions = ref<SessionDetail[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+
+// Route query params
+const week = computed(() => Number(route.query.week) || 1);
+const day = computed(() => (route.query.day as string) || 'lunes');
 
 // Preview dialog state
 const previewOpen = ref(false);
@@ -218,6 +202,7 @@ const previewOpen = ref(false);
 const swapDialogOpen = ref(false);
 const swapDialogMode = ref<'swap' | 'add'>('swap');
 const swapDialogMobilityMode = ref(false);
+const swapDialogSessionId = ref(0);
 const swapDialogBlockId = ref(0);
 const swapDialogBlockRoute = ref('');
 const swapDialogBlockPattern = ref('');
@@ -226,109 +211,192 @@ const swapDialogExercise = ref<SessionExercise | null>(null);
 // Block swap dialog state
 const blockSwapDialogOpen = ref(false);
 const blockSwapTarget = ref<SessionBlock | null>(null);
+const blockSwapSessionId = ref(0);
 const blockPool = ref<PoolBlock[]>([]);
 const blockPoolLoading = ref(false);
 
-// Scroll position saved before dialogs open (q-dialog locks body scroll)
+// Scroll position saved before dialogs open
 const preDialogScrollY = ref(0);
 
-async function loadSession() {
-  const id = Number(route.params.id);
-  if (isNaN(id)) {
-    error.value = 'ID de sesion invalido';
-    loading.value = false;
-    return;
-  }
+// Status computeds
+const allApproved = computed(() =>
+  sessions.value.length > 0 && sessions.value.every(s => s.status === 'approved')
+);
+const hasPending = computed(() =>
+  sessions.value.some(s => s.status === 'pending_review')
+);
+const hasApproved = computed(() =>
+  sessions.value.some(s => s.status === 'approved')
+);
 
+// Block grouping: merge blocks across sessions by role + sortOrder
+const blockGroups = computed<BlockGroup[]>(() => {
+  if (sessions.value.length === 0) return [];
+
+  // Use first session as the canonical block structure
+  const firstSession = sessions.value[0];
+  return firstSession.blocks.map((refBlock) => {
+    const levelBlocks = sessions.value.map(s => {
+      const matchingBlock = s.blocks.find(b =>
+        b.role === refBlock.role && b.sortOrder === refBlock.sortOrder
+      );
+      return {
+        sessionId: s.id,
+        memberLevel: s.memberLevel,
+        block: matchingBlock ?? null,
+      };
+    }).filter((lb): lb is { sessionId: number; memberLevel: string; block: SessionBlock } =>
+      lb.block !== null
+    );
+
+    return {
+      role: refBlock.role,
+      sortOrder: refBlock.sortOrder,
+      formatId: refBlock.formatId,
+      formatName: refBlock.formatName,
+      formatParams: refBlock.formatParams,
+      levelBlocks,
+    };
+  });
+});
+
+async function loadDay() {
   loading.value = true;
   error.value = null;
+
   try {
-    session.value = await sessionsApi.fetchSessionDetail(id);
+    // Fetch all sessions for this week
+    const response = await sessionsApi.fetchSessions({
+      week: week.value,
+      day: day.value,
+      limit: 100,
+    });
+
+    // Fetch full details for each session
+    const details = await Promise.all(
+      response.sessions.map(s => sessionsApi.fetchSessionDetail(s.id))
+    );
+
+    // Sort by level order: alfa, delta, sigma, omega, spartan
+    const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+    details.sort((a, b) =>
+      levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel)
+    );
+
+    sessions.value = details;
   } catch (err: unknown) {
     const axiosError = err as { response?: { data?: { error?: string } } };
-    error.value = axiosError.response?.data?.error || 'Error cargando sesion';
+    error.value = axiosError.response?.data?.error || 'Error cargando sesiones del dia';
   } finally {
     loading.value = false;
   }
 }
 
-async function refreshSession(savedScrollY?: number) {
+async function refreshDay(savedScrollY?: number) {
   const scrollY = savedScrollY ?? window.scrollY;
-  const id = Number(route.params.id);
-  if (isNaN(id)) return;
   try {
-    session.value = await sessionsApi.fetchSessionDetail(id);
-  } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { error?: string } } };
-    error.value = axiosError.response?.data?.error || 'Error cargando sesion';
+    const response = await sessionsApi.fetchSessions({
+      week: week.value,
+      day: day.value,
+      limit: 100,
+    });
+    const details = await Promise.all(
+      response.sessions.map(s => sessionsApi.fetchSessionDetail(s.id))
+    );
+    const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+    details.sort((a, b) =>
+      levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel)
+    );
+    sessions.value = details;
+  } catch {
+    // silent
   }
   await nextTick();
   window.scrollTo(0, scrollY);
 }
 
 function goBack() {
-  router.push('/sessions');
+  router.push({ path: '/sessions', query: { week: String(week.value) } });
 }
 
-async function handleApprove() {
-  if (!session.value) return;
-  try {
-    await sessionsApi.approveSession(session.value.id);
-    $q.notify({ type: 'positive', message: 'Sesion aprobada' });
-    refreshSession();
-    adminStore.fetchPendingCount();
-    adminStore.checkSessionCoverage();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error aprobando sesion' });
-  }
-}
+// Day-level actions
+async function handleApproveDay() {
+  const pendingIds = sessions.value
+    .filter(s => s.status === 'pending_review')
+    .map(s => s.id);
+  if (pendingIds.length === 0) return;
 
-async function handleRevert() {
-  if (!session.value) return;
-  try {
-    await sessionsApi.revertSession(session.value.id);
-    $q.notify({ type: 'info', message: 'Sesion revertida a pendiente' });
-    refreshSession();
-    adminStore.fetchPendingCount();
-    adminStore.checkSessionCoverage();
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error revirtiendo sesion' });
-  }
-}
-
-async function handleReset() {
-  if (!session.value) return;
   $q.dialog({
-    title: 'Resetear al Algoritmo',
-    message: 'Se restaurara la sesion al estado original generado por el algoritmo. Todos los cambios manuales se perderan. Continuar?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Resetear', color: 'negative' },
+    title: 'Aprobar Dia',
+    message: `Aprobar ${pendingIds.length} sesiones pendientes?`,
+    cancel: true,
+    persistent: true,
   }).onOk(async () => {
     try {
-      await editApi.resetToAlgorithm(session.value!.id);
-      $q.notify({ type: 'positive', message: 'Sesion restaurada al algoritmo' });
-      refreshSession();
+      const result = await sessionsApi.bulkApprove(pendingIds);
+      $q.notify({ type: 'positive', message: `${result.approvedCount} sesiones aprobadas` });
+      refreshDay();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
     } catch {
-      $q.notify({ type: 'negative', message: editApi.error.value || 'Error al restaurar sesion' });
+      $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
     }
   });
 }
 
-async function onSwapBlock(block: SessionBlock) {
-  if (!session.value) return;
+async function handleRevertDay() {
+  $q.dialog({
+    title: 'Revertir Dia',
+    message: 'Revertir todas las sesiones aprobadas a pendiente?',
+    cancel: true,
+  }).onOk(async () => {
+    try {
+      const approvedSessions = sessions.value.filter(s => s.status === 'approved');
+      await Promise.all(approvedSessions.map(s => sessionsApi.revertSession(s.id)));
+      $q.notify({ type: 'info', message: `${approvedSessions.length} sesiones revertidas` });
+      refreshDay();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error revirtiendo sesiones' });
+    }
+  });
+}
+
+async function handleResetDay() {
+  $q.dialog({
+    title: 'Resetear Dia',
+    message: 'Se restauraran TODAS las sesiones del dia al algoritmo original. Todos los cambios manuales se perderan. Continuar?',
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Resetear', color: 'negative' },
+  }).onOk(async () => {
+    try {
+      await Promise.all(sessions.value.map(s => editApi.resetToAlgorithm(s.id)));
+      $q.notify({ type: 'positive', message: 'Sesiones restauradas al algoritmo' });
+      refreshDay();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error al restaurar sesiones' });
+    }
+  });
+}
+
+// Block swap
+async function onSwapBlock(payload: { sessionId: number; block: SessionBlock }) {
   preDialogScrollY.value = window.scrollY;
-  blockSwapTarget.value = block;
+  blockSwapTarget.value = payload.block;
+  blockSwapSessionId.value = payload.sessionId;
   blockSwapDialogOpen.value = true;
   blockPool.value = [];
   blockPoolLoading.value = true;
 
   try {
-    const memberLevel = session.value.memberLevel;
+    const session = sessions.value.find(s => s.id === payload.sessionId);
+    const memberLevel = session?.memberLevel || 'alfa';
     const result = await sessionsApi.fetchBlockPool(
-      block.route,
+      payload.block.route,
       memberLevel,
-      session.value.id,
-      block.id
+      payload.sessionId,
+      payload.block.id
     );
     blockPool.value = result.blocks;
   } catch {
@@ -339,7 +407,7 @@ async function onSwapBlock(block: SessionBlock) {
 }
 
 async function handleBlockSwap(sourceBlockId: number) {
-  if (!session.value || !blockSwapTarget.value) return;
+  if (!blockSwapTarget.value) return;
 
   $q.dialog({
     title: 'Confirmar Intercambio',
@@ -348,23 +416,25 @@ async function handleBlockSwap(sourceBlockId: number) {
   }).onOk(async () => {
     try {
       await sessionsApi.swapBlock(
-        session.value!.id,
+        blockSwapSessionId.value,
         blockSwapTarget.value!.id,
         sourceBlockId
       );
       $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
       blockSwapDialogOpen.value = false;
-      refreshSession(preDialogScrollY.value);
+      refreshDay(preDialogScrollY.value);
     } catch {
       $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
     }
   });
 }
 
-function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
+// Exercise swap/add/mobility
+function onSwapExercise(payload: { sessionId: number; blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'swap';
   swapDialogMobilityMode.value = false;
+  swapDialogSessionId.value = payload.sessionId;
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = payload.blockPattern;
@@ -372,10 +442,11 @@ function onSwapExercise(payload: { blockId: number; exercise: SessionExercise; b
   swapDialogOpen.value = true;
 }
 
-function onAddExercise(payload: { blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
+function onAddExercise(payload: { sessionId: number; blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'add';
   swapDialogMobilityMode.value = false;
+  swapDialogSessionId.value = payload.sessionId;
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = payload.blockPattern;
@@ -395,14 +466,14 @@ function onAddExercise(payload: { blockId: number; blockRoute: string; blockPatt
   swapDialogOpen.value = true;
 }
 
-function onSwapMobility(payload: { blockId: number; blockRoute: string }) {
+function onSwapMobility(payload: { sessionId: number; blockId: number; blockRoute: string }) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'swap';
   swapDialogMobilityMode.value = true;
+  swapDialogSessionId.value = payload.sessionId;
   swapDialogBlockId.value = payload.blockId;
   swapDialogBlockRoute.value = payload.blockRoute;
   swapDialogBlockPattern.value = '';
-  // Placeholder exercise for mobility mode (dialog ignores currentExercise in mobility mode)
   swapDialogExercise.value = {
     id: 0,
     exerciseId: 0,
@@ -419,15 +490,15 @@ function onSwapMobility(payload: { blockId: number; blockRoute: string }) {
   swapDialogOpen.value = true;
 }
 
-async function onUpdateMobilityPrescription(payload: { prescriptionId: number; fields: PrescriptionUpdate }) {
-  if (!session.value) return;
-  // Find the block containing this mobility exercise
-  const block = session.value.blocks.find(b => b.mobilityExercise?.id === payload.prescriptionId);
+async function onUpdateMobilityPrescription(payload: { sessionId: number; blockId: number; prescriptionId: number; fields: PrescriptionUpdate }) {
+  const session = sessions.value.find(s => s.id === payload.sessionId);
+  if (!session) return;
+
+  const block = session.blocks.find(b => b.id === payload.blockId);
   if (!block) return;
 
   try {
-    await editApi.updatePrescription(session.value.id, block.id, payload.prescriptionId, payload.fields);
-    // Update mobility exercise in-place for reactivity
+    await editApi.updatePrescription(payload.sessionId, block.id, payload.prescriptionId, payload.fields);
     if (block.mobilityExercise) {
       Object.assign(block.mobilityExercise, payload.fields);
     }
@@ -439,10 +510,10 @@ async function onUpdateMobilityPrescription(payload: { prescriptionId: number; f
 
 function onDialogComplete() {
   swapDialogOpen.value = false;
-  refreshSession(preDialogScrollY.value);
+  refreshDay(preDialogScrollY.value);
 }
 
-function dayLabel(day: string): string {
+function dayLabel(d: string): string {
   const labels: Record<string, string> = {
     lunes: 'Lunes',
     martes: 'Martes',
@@ -451,37 +522,8 @@ function dayLabel(day: string): string {
     viernes: 'Viernes',
     sabado: 'Sabado',
   };
-  return labels[day] || day;
+  return labels[d] || d;
 }
 
-function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): string {
-  if (memberLevel) {
-    const level = memberLevel.toLowerCase();
-    if (level === 'alfa') return 'light-blue';
-    if (level === 'delta') return 'blue';
-    if (level === 'sigma') return 'purple';
-    if (level === 'omega') return 'orange';
-    if (level === 'spartan') return 'red';
-  }
-  switch (group) {
-    case 'alfa_delta': return 'blue';
-    case 'sigma': return 'purple';
-    case 'omega': return 'orange';
-    default: return 'grey';
-  }
-}
-
-function memberLevelLabel(memberLevel: string | undefined, group: LevelGroup): string {
-  if (memberLevel) {
-    return memberLevel.charAt(0).toUpperCase() + memberLevel.slice(1).toLowerCase();
-  }
-  switch (group) {
-    case 'alfa_delta': return 'Alfa/Delta';
-    case 'sigma': return 'Sigma';
-    case 'omega': return 'Omega';
-    default: return group;
-  }
-}
-
-onMounted(loadSession);
+onMounted(loadDay);
 </script>
