@@ -9,7 +9,6 @@
 
 import pdfMake from 'pdfmake/build/pdfmake';
 import { TDocumentDefinitions, Content } from 'pdfmake/interfaces';
-import { PDFDocument } from 'pdf-lib';
 import { CINZEL_REGULAR_BASE64, CINZEL_BOLD_BASE64, NUNITO_SANS_REGULAR_BASE64, NUNITO_SANS_BOLD_BASE64, NUNITO_SANS_BOLD_ITALIC_BASE64, ROBOTO_REGULAR_BASE64, LOGO_BASE64, GREAT_VIBES_REGULAR_BASE64 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 
@@ -643,116 +642,28 @@ function buildDocDefinition(content: Content[]): TDocumentDefinitions {
 }
 
 // ============================================================
-// BLANK PAGE REMOVAL
-// ============================================================
-
-/**
- * Get a pdfmake document as a Uint8Array buffer.
- */
-function getBuffer(doc: TDocumentDefinitions): Promise<Uint8Array> {
-  return new Promise((resolve) => {
-    const pdfDoc = pdfMake.createPdf(doc);
-    (pdfDoc as any).getBuffer((buffer: ArrayBuffer) => {
-      resolve(new Uint8Array(buffer));
-    });
-  });
-}
-
-/**
- * Remove blank pages from a PDF buffer.
- *
- * Blank pages are detected by checking for text (Tj/TJ) or image (Do)
- * operators in content streams. Pages with only the background rectangle
- * have none of these and are considered blank.
- */
-async function removeBlankPages(pdfBytes: Uint8Array): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(pdfBytes);
-  const pages = pdfDoc.getPages();
-
-  const blankIndices: number[] = [];
-  for (let i = 0; i < pages.length; i++) {
-    const page = pages[i];
-    const contents = page.node.get(page.node.context.obj('Contents'));
-    if (!contents) {
-      blankIndices.push(i);
-      continue;
-    }
-
-    // Concatenate all content streams into a single string
-    const refs = 'array' in (contents as any)
-      ? (contents as any).array as any[]
-      : [contents];
-
-    let streamText = '';
-    for (const ref of refs) {
-      const stream = page.node.context.lookup(ref);
-      if (!stream) continue;
-      const c = (stream as any).contents;
-      if (c == null) continue;
-      const bytes: Uint8Array = typeof c === 'function' ? c() : c;
-      streamText += new TextDecoder().decode(bytes);
-    }
-
-    // A page has real content if it draws text (Tj/TJ) or images (Do).
-    // Blank overflow pages only have the background rect (re/f operators).
-    const hasText = /\b(Tj|TJ)\b/.test(streamText);
-    const hasImage = /\bDo\b/.test(streamText);
-    if (!hasText && !hasImage) {
-      blankIndices.push(i);
-    }
-  }
-
-  // Remove blank pages in reverse order to preserve indices
-  for (let i = blankIndices.length - 1; i >= 0; i--) {
-    pdfDoc.removePage(blankIndices[i]);
-  }
-
-  return pdfDoc.save();
-}
-
-/**
- * Download a Uint8Array as a PDF file.
- */
-function downloadBlob(bytes: Uint8Array, filename: string) {
-  const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/**
- * Build PDF, remove blank pages, and download.
- */
-async function buildAndDownload(doc: TDocumentDefinitions, filename: string) {
-  const raw = await getBuffer(doc);
-  const cleaned = await removeBlankPages(raw);
-  downloadBlob(cleaned, filename);
-}
-
-// ============================================================
 // PUBLIC API
 // ============================================================
 
 /**
  * Generate and download PDF for a single day session (6 pages)
  */
-export async function buildDayPdf(day: PdfDaySession): Promise<void> {
+export function buildDayPdf(day: PdfDaySession): void {
   ensureFonts();
   const content = buildDayContent(day);
   const doc = buildDocDefinition(content);
-  await buildAndDownload(doc, `El-Templo-S${day.week}-${day.dayName}.pdf`);
+  pdfMake.createPdf(doc).download(`El-Templo-S${day.week}-${day.dayName}.pdf`);
 }
 
 /**
  * Generate and download PDF for a full week (6 pages × N days)
  */
-export async function buildWeekPdf(days: PdfDaySession[]): Promise<void> {
+export function buildWeekPdf(days: PdfDaySession[]): void {
   ensureFonts();
+  // Concatenate all days: each day produces 6 pages
   const content = days.flatMap((day, i) => {
     const dayContent = buildDayContent(day);
+    // Add page break between days (not before the first day)
     if (i > 0 && dayContent.length > 0) {
       (dayContent[0] as any).pageBreak = 'before';
     }
@@ -761,13 +672,13 @@ export async function buildWeekPdf(days: PdfDaySession[]): Promise<void> {
 
   const doc = buildDocDefinition(content);
   const weekNum = days[0]?.week || 0;
-  await buildAndDownload(doc, `El-Templo-Semana-${weekNum}.pdf`);
+  pdfMake.createPdf(doc).download(`El-Templo-Semana-${weekNum}.pdf`);
 }
 
 /**
  * Generic PDF download (for custom document definitions)
  */
-export async function downloadPdf(docDefinition: TDocumentDefinitions, filename: string): Promise<void> {
+export function downloadPdf(docDefinition: TDocumentDefinitions, filename: string): void {
   ensureFonts();
-  await buildAndDownload(docDefinition, filename);
+  pdfMake.createPdf(docDefinition).download(filename);
 }
