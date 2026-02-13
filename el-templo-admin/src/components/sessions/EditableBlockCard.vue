@@ -242,7 +242,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
-import type { BlockGroup } from 'src/types/block-group';
+import type { BlockGroup, LevelBlock } from 'src/types/block-group';
 import { useEditApi } from 'src/composables/useEditApi';
 import EditableExerciseRow from './EditableExerciseRow.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
@@ -251,6 +251,7 @@ import FormatParamsEditor from './FormatParamsEditor.vue';
 const props = defineProps<{
   blockGroup: BlockGroup;
   levelGroup: string;
+  siblingLevelBlocks?: LevelBlock[];
 }>();
 
 const emit = defineEmits<{
@@ -394,9 +395,13 @@ async function onFormatChange(newFormat: string) {
 
   formatChanging.value = true;
   try {
-    // Change format for ALL level blocks in this group
+    // Change format for ALL level blocks in this group + sibling (DEUTEROS sync)
+    const allLevelBlocks = [
+      ...props.blockGroup.levelBlocks,
+      ...(props.siblingLevelBlocks || []),
+    ];
     await Promise.all(
-      props.blockGroup.levelBlocks.map(lb =>
+      allLevelBlocks.map(lb =>
         editApi.changeBlockFormat(lb.sessionId, lb.block.id, format.formatId, format.formatName)
       )
     );
@@ -436,13 +441,17 @@ async function onRoleChange(newRole: 'ATHLOS' | 'EPIKOS') {
 async function onUpdateFormatParams(newParams: Record<string, unknown>) {
   formatChanging.value = true;
   try {
+    const allLevelBlocks = [
+      ...props.blockGroup.levelBlocks,
+      ...(props.siblingLevelBlocks || []),
+    ];
     await Promise.all(
-      props.blockGroup.levelBlocks.map(lb =>
+      allLevelBlocks.map(lb =>
         editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams)
       )
     );
     // Update in-place for reactivity
-    for (const lb of props.blockGroup.levelBlocks) {
+    for (const lb of allLevelBlocks) {
       (lb.block as any).formatParams = newParams;
     }
     $q.notify({ type: 'positive', message: 'Parametros de formato actualizados en todos los niveles', color: 'green', timeout: 1500 });

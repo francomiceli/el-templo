@@ -65,6 +65,7 @@
         :key="bg.role + '-' + bg.sortOrder"
         :block-group="bg"
         :level-group="sessions[0].levelGroup"
+        :sibling-level-blocks="deuterosSibling(bg)"
         @swap-exercise="onSwapExercise"
         @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
@@ -259,6 +260,16 @@ const blockGroups = computed<BlockGroup[]>(() => {
     };
   });
 });
+
+function deuterosSibling(bg: BlockGroup) {
+  if (bg.role === 'DEUTEROS_1') {
+    return blockGroups.value.find(b => b.role === 'DEUTEROS_2')?.levelBlocks;
+  }
+  if (bg.role === 'DEUTEROS_2') {
+    return blockGroups.value.find(b => b.role === 'DEUTEROS_1')?.levelBlocks;
+  }
+  return undefined;
+}
 
 async function loadDay() {
   loading.value = true;
