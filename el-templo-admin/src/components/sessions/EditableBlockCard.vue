@@ -239,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
 import type { BlockGroup, LevelBlock } from 'src/types/block-group';
@@ -272,6 +272,7 @@ const selectedLevel = ref(props.blockGroup.levelBlocks[0]?.memberLevel || '');
 // Format dropdown state
 const compatibleFormats = ref<CompatibleFormat[]>([]);
 const selectedFormat = ref<string>(props.blockGroup.formatName);
+watch(() => props.blockGroup.formatName, (v) => { selectedFormat.value = v; });
 const formatsLoading = ref(false);
 const formatChanging = ref(false);
 
