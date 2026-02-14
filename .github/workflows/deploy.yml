@@ -10,11 +10,25 @@ env:
 
 jobs:
   # ===========================================
-  # Build API
+  # Build API (with tests)
   # ===========================================
   build-api:
     name: Build API
     runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: eltemplo_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
 
     defaults:
       run:
@@ -41,6 +55,17 @@ jobs:
 
       - name: Type check
         run: pnpm exec tsc --noEmit
+
+      - name: Run API tests
+        run: pnpm test
+        env:
+          DB_HOST: localhost
+          DB_USER: root
+          DB_PASSWORD: test
+          DB_NAME: eltemplo_test
+          DB_PORT: 3306
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-deploy-ci
 
       - name: Build
         run: pnpm run build
@@ -188,6 +213,26 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || sudo apt-get update && sudo apt-get install -y rsync'
 
+      - name: Backup current deployment
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            # Backup API
+            if [ -d "${{ secrets.API_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.API_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.API_DEPLOY_PATH }} ${{ secrets.API_DEPLOY_PATH }}.previous
+            fi
+            # Backup App
+            if [ -d "${{ secrets.APP_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.APP_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.APP_DEPLOY_PATH }} ${{ secrets.APP_DEPLOY_PATH }}.previous
+            fi
+            # Backup Admin
+            if [ -d "${{ secrets.ADMIN_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.ADMIN_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.ADMIN_DEPLOY_PATH }} ${{ secrets.ADMIN_DEPLOY_PATH }}.previous
+            fi
+          ENDSSH
+
       - name: Create .env.production for API
         run: |
           cat > api-build/.env.production << 'EOF'
@@ -243,9 +288,33 @@ jobs:
             NODE_ENV=production pm2 restart eltemplo-api --update-env || NODE_ENV=production pm2 start dist/index.js --name eltemplo-api
           ENDSSH
 
-      - name: Verify deployment
+      - name: Post-deploy smoke test
         run: |
-          sleep 5
-          # Health endpoint is at root, not under /api
+          sleep 10
           API_BASE=$(echo "${{ secrets.VITE_API_URL }}" | sed 's|/api$||')
-          curl -f ${API_BASE}/health || echo "Health check endpoint not available"
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${API_BASE}/health || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Health check FAILED (HTTP $HTTP_CODE). Rolling back..."
+            ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+              # Restore previous API
+              if [ -d "${{ secrets.API_DEPLOY_PATH }}.previous" ]; then
+                rm -rf ${{ secrets.API_DEPLOY_PATH }}
+                mv ${{ secrets.API_DEPLOY_PATH }}.previous ${{ secrets.API_DEPLOY_PATH }}
+              fi
+              # Restore previous App
+              if [ -d "${{ secrets.APP_DEPLOY_PATH }}.previous" ]; then
+                rm -rf ${{ secrets.APP_DEPLOY_PATH }}
+                mv ${{ secrets.APP_DEPLOY_PATH }}.previous ${{ secrets.APP_DEPLOY_PATH }}
+              fi
+              # Restore previous Admin
+              if [ -d "${{ secrets.ADMIN_DEPLOY_PATH }}.previous" ]; then
+                rm -rf ${{ secrets.ADMIN_DEPLOY_PATH }}
+                mv ${{ secrets.ADMIN_DEPLOY_PATH }}.previous ${{ secrets.ADMIN_DEPLOY_PATH }}
+              fi
+              cd ${{ secrets.API_DEPLOY_PATH }}
+              pnpm install --prod --frozen-lockfile
+              pm2 restart eltemplo-api --update-env
+            ENDSSH
+            exit 1
+          fi
+          echo "Health check PASSED (HTTP $HTTP_CODE)"
