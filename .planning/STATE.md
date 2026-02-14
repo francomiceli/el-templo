@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 19 (Technical Debt Audit) — In progress
-Plan: 7 of 9 — 19-07 complete
+Plan: 7 of 9 — 19-04 complete
 Status: Executing
-Last activity: 2026-02-14 - Completed 19-07 (Edit Service Split & Any Type Elimination)
+Last activity: 2026-02-14 - Completed 19-04 (CI/CD Pipeline Hardening)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [███████░░░] 77% Phase 19 (7/9 plans complete)
+Progress: [███████░░░] 77% Phase 19 (7/9 plans complete, 04 done, 08+09 in progress)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 17-03 (5min - Admin Descanso Activo UI), 17-04 (2min - Member App Display & PDF Mobility), 18-01 (2min - Domain/Config Fix), 18-02 (2min - Nginx Configs & Deploy Pipeline), 19-02 (4min - Error Monitoring & Logging)
-- Trend: Phase 19 in progress - technical debt audit (observability, logging)
+- Last 5 plans: 18-02 (2min - Nginx Configs & Deploy Pipeline), 19-02 (4min - Error Monitoring & Logging), 19-03 (14min - API Test Infrastructure), 19-07 (22min - Edit Service Split), 19-04 (3min - CI/CD Pipeline Hardening)
+- Trend: Phase 19 nearing completion - CI/CD hardened, 08+09 in progress
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -121,6 +121,7 @@ _Updated after each plan completion_
 | Phase 19 P05 | 4 | 2 tasks | 4 files |
 | Phase 19 P03 | 14 | 3 tasks | 7 files |
 | Phase 19 P07 | 22 | 2 tasks | 15 files |
+| Phase 19 P04 | 3 | 3 tasks | 2 files |
 | Phase 19 P01 | 15 | 2 tasks | 15 files |
 
 ## Accumulated Context
@@ -432,6 +433,10 @@ Recent decisions affecting current work:
 - [Phase 19-07]: Facade pattern for edit-service.ts decomposition into domain services
 - [Phase 19-07]: err: unknown + instanceof Error replaces err: any across all catch blocks
 - [Phase 19-07]: ESM lint-staged import in pre-commit hook for pnpm compatibility
+- [Phase 19-04]: Security audit as advisory gate (|| true) -- logs CVEs without blocking deploys
+- [Phase 19-04]: API tests run in both CI and deploy pipeline for defense in depth
+- [Phase 19-04]: Atomic rollback restores all 3 apps together to prevent version mismatches
+- [Phase 19-04]: Node.js standardized to 22 across all CI/deploy jobs via env.NODE_VERSION
 
 ### Roadmap Evolution
 
@@ -460,7 +465,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 19-07-PLAN.md (Edit Service Split & Any Type Elimination)
+Stopped at: Completed 19-04-PLAN.md (CI/CD Pipeline Hardening)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
