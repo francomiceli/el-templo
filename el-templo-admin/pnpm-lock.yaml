@@ -12,8 +12,8 @@ importers:
         specifier: ^1.16.4
         version: 1.17.0
       axios:
-        specifier: ^1.13.2
-        version: 1.13.4
+        specifier: ^1.13.5
+        version: 1.13.5
       pdfmake:
         specifier: ^0.2.15
         version: 0.2.15
@@ -34,8 +34,8 @@ importers:
         specifier: ^9.14.0
         version: 9.39.2
       '@quasar/app-vite':
-        specifier: ^2.1.0
-        version: 2.4.0(@types/node@25.2.1)(eslint@9.39.2)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.27(typescript@5.9.3)))(quasar@2.18.6)(rollup@4.57.1)(sass@1.97.3)(terser@5.46.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.27(typescript@5.9.3)))(vue@3.5.27(typescript@5.9.3))
+        specifier: ^2.4.1
+        version: 2.4.1(@types/node@25.2.1)(eslint@9.39.2)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.27(typescript@5.9.3)))(quasar@2.18.6)(rollup@4.57.1)(sass@1.97.3)(terser@5.46.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.27(typescript@5.9.3)))(vue@3.5.27(typescript@5.9.3))
       '@types/node':
         specifier: ^25.0.10
         version: 25.2.1
@@ -606,8 +606,8 @@ packages:
     resolution: {integrity: sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@quasar/app-vite@2.4.0':
-    resolution: {integrity: sha512-nfdcfERQ1bdUFsgXfYexgUAGBrsRHuzlik5p58cKGpYXiwUZZN6mJhN8VxU/zGT0GYHHiNIZlb67N+R52NYd6Q==}
+  '@quasar/app-vite@2.4.1':
+    resolution: {integrity: sha512-JLRXHKjZCZM9qQlxyjtinusVh+UMBQqM5TEc+Zo3i5y+dBffZiyUcdYN2DCmL0U/eoVulc2n5ve7qR0JwaQu6g==}
     engines: {node: ^30 || ^28 || ^26 || ^24 || ^22 || ^20, npm: '>= 6.14.12', yarn: '>= 1.17.3'}
     hasBin: true
     peerDependencies:
@@ -618,7 +618,7 @@ packages:
       quasar: ^2.16.0
       typescript: '>= 5.4'
       vue: ^3.2.29
-      vue-router: ^4.0.12
+      vue-router: ^4.0.12 || ^5.0.0
       workbox-build: '>= 6'
     peerDependenciesMeta:
       '@electron/packager':
@@ -1036,8 +1036,8 @@ packages:
     peerDependencies:
       postcss: ^8.1.0
 
-  axios@1.13.4:
-    resolution: {integrity: sha512-1wVkUaAO6WyaYtCkcYCOx12ZgpGf9Zif+qXa4n+oYzK558YryKqiL6UWwd5DqiH3VRW0GYhTZQ/vlgJrCoNQlg==}
+  axios@1.13.5:
+    resolution: {integrity: sha512-cz4ur7Vb0xS4/KUN0tPWe44eqxrIu31me+fbang3ijiNscE129POzipJJA6zniq2C/Z6sJCjMimjS8Lc/GAs8Q==}
 
   b4a@1.7.3:
     resolution: {integrity: sha512-5Q2mfq2WfGuFp3uS//0s6baOJLMoVduPYVeNmDYxu5OUA1/cBfvr2RIS7vi62LdNj/urk1hfmj867I3qt6uZ7Q==}
@@ -3194,7 +3194,7 @@ snapshots:
 
   '@pkgr/core@0.2.9': {}
 
-  '@quasar/app-vite@2.4.0(@types/node@25.2.1)(eslint@9.39.2)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.27(typescript@5.9.3)))(quasar@2.18.6)(rollup@4.57.1)(sass@1.97.3)(terser@5.46.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.27(typescript@5.9.3)))(vue@3.5.27(typescript@5.9.3))':
+  '@quasar/app-vite@2.4.1(@types/node@25.2.1)(eslint@9.39.2)(pinia@3.0.4(typescript@5.9.3)(vue@3.5.27(typescript@5.9.3)))(quasar@2.18.6)(rollup@4.57.1)(sass@1.97.3)(terser@5.46.0)(typescript@5.9.3)(vue-router@4.6.4(vue@3.5.27(typescript@5.9.3)))(vue@3.5.27(typescript@5.9.3))':
     dependencies:
       '@quasar/render-ssr-error': 1.0.3
       '@quasar/ssl-certificate': 1.0.0
@@ -3700,7 +3700,7 @@ snapshots:
       postcss: 8.5.6
       postcss-value-parser: 4.2.0
 
-  axios@1.13.4:
+  axios@1.13.5:
     dependencies:
       follow-redirects: 1.15.11
       form-data: 4.0.5

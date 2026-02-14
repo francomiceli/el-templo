@@ -19,13 +19,13 @@
   "dependencies": {
     "@capacitor-community/keep-awake": "^8.0.0",
     "@capacitor/app": "^8.0.0",
-    "@capacitor/cli": "^8.0.1",
+    "@capacitor/cli": "^8.1.0",
     "@capacitor/core": "^8.0.1",
     "@capacitor/haptics": "^8.0.0",
     "@capacitor/preferences": "^8.0.0",
     "@fontsource/cinzel": "^5.2.8",
     "@quasar/extras": "^1.16.4",
-    "axios": "^1.13.2",
+    "axios": "^1.13.5",
     "chart.js": "^4.5.1",
     "pinia": "^3.0.4",
     "quasar": "^2.16.0",
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
-    "@quasar/app-vite": "^2.1.0",
+    "@quasar/app-vite": "^2.4.1",
     "@types/node": "^25.0.10",
     "@vitest/ui": "^4.0.18",
     "@vue/eslint-config-prettier": "^10.1.0",
@@ -50,6 +50,11 @@
     "vite-plugin-checker": "^0.11.0",
     "vitest": "^4.0.18",
     "vue-eslint-parser": "^10.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@isaacs/brace-expansion": ">=5.0.1"
+    }
   },
   "engines": {
     "node": "^28 || ^26 || ^24 || ^22 || ^20",

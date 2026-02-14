@@ -5,22 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** v2.0 Admin App - Phase 18 (Domain/Subdomain Deployment)
+**Current focus:** v2.0 Admin App - Phase 19 (Technical Debt Audit)
 
 ## Current Position
 
-Phase: 18 (Domain/Subdomain Deployment) — **Paused at Checkpoint**
-Plan: 03 of 03 — Task 1 complete, **paused at Task 2 (manual DNS/SSL/secrets checkpoint)**
-Status: **Blocked — DNS nameserver migration needed**
-Last activity: 2026-02-12 - Plan 18-03 Task 1 complete (Deployment Guide updated). Checkpoint: user needs to switch eltemplo.org nameservers from Vercel back to GoDaddy before adding A records for subdomains.
+Phase: 19 (Technical Debt Audit) — In progress
+Plan: 2 of 9 — 19-02 complete
+Status: Executing
+Last activity: 2026-02-14 - Completed 19-02 (Error Monitoring & Logging)
 
-Progress: [████████░░] 83% Phase 18 (2.5/3 plans — 18-03 half-done)
+### Phase 19 Framing
+Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
+- **What will break at 10x scale?** Identify hidden coupling, bottlenecks, failure modes
+- **Reduce chaos:** structured logging/traces, runbooks, observability
+- **Reusable patterns:** extract repeated code into shared abstractions
+- **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-### Resume Context
-- Plans 18-01 and 18-02 fully complete and committed
-- Plan 18-03 Task 1 committed (deployment guide with full subdomain instructions)
-- Plan 18-03 Task 2 is a human-action checkpoint: DNS, SSL, Nginx, GitHub secrets
-- **Blocker:** eltemplo.org nameservers point to Vercel (no dashboard access). Must switch back to GoDaddy NS to add A records. Need to check for MX/TXT records before switching to avoid losing email config.
+Progress: [██░░░░░░░░] 22% Phase 19 (2/9 plans complete)
 
 ## Architecture Reset
 
@@ -90,8 +91,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | 16-pdf-generation-format-config-app-exercise-tracking | 10 | 23min | 2.3min |
 
 **Recent Trend:**
-- Last 5 plans: 17-02 (3min - API Response & Admin Editing), 17-03 (5min - Admin Descanso Activo UI), 17-04 (2min - Member App Display & PDF Mobility), 18-01 (2min - Domain/Config Fix), 18-02 (2min - Nginx Configs & Deploy Pipeline)
-- Trend: Phase 18 in progress - infrastructure configs for subdomain deployment
+- Last 5 plans: 17-03 (5min - Admin Descanso Activo UI), 17-04 (2min - Member App Display & PDF Mobility), 18-01 (2min - Domain/Config Fix), 18-02 (2min - Nginx Configs & Deploy Pipeline), 19-02 (4min - Error Monitoring & Logging)
+- Trend: Phase 19 in progress - technical debt audit (observability, logging)
 
 *Updated after each plan completion*
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -107,6 +108,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 17 P03 | 5 | 2 tasks | 5 files |
 | Phase 18 P01 | 2 | 2 tasks | 5 files |
 | Phase 18 P02 | 2 | 2 tasks | 4 files |
+| Phase 19 P02 | 4 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -398,6 +400,10 @@ Recent decisions affecting current work:
 - [Phase 18-02]: HTTP-only Nginx configs for certbot injection -- no SSL directives to avoid chicken-and-egg problem
 - [Phase 18-02]: Admin artifact uses dist/spa path for flat static files (no subdirectory nesting)
 - [Phase 18-02]: Node version bumped from 20 to 22 in CI to match EC2 server
+- [Phase 19-02]: Sentry init guarded by SENTRY_DSN -- graceful no-op in dev without config
+- [Phase 19-02]: instrument.ts as first import in index.ts for early module hooking
+- [Phase 19-02]: beforeSend scrubs password, currentPassword, newPassword from Sentry payloads
+- [Phase 19-02]: createLogger suppresses debug/info in production, keeps warn/error
 
 ### Roadmap Evolution
 
@@ -425,8 +431,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-12
-Stopped at: Completed 18-02-PLAN.md (Nginx Configs & Deploy Pipeline). Next: 18-03
+Last session: 2026-02-14
+Stopped at: Completed 19-02-PLAN.md (Error Monitoring & Logging). Next: 19-03
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
