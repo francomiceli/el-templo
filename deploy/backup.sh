@@ -35,7 +35,7 @@ DELETED=$(find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -mtime +${RETENTION_DAY
 echo "[$(date)] Deleted $DELETED old backups (older than $RETENTION_DAYS days)"
 
 # Upload to cloud storage (AWS S3)
-if command -v aws &> /dev/null && [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+if command -v aws &> /dev/null && aws sts get-caller-identity &> /dev/null; then
   aws s3 cp "$BACKUP_FILE" "${BUCKET}/" --quiet
   echo "[$(date)] Uploaded to S3: ${BUCKET}/$(basename "$BACKUP_FILE")"
 else
