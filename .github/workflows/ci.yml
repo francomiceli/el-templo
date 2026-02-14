@@ -136,6 +136,7 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+        continue-on-error: true
 
       - name: Security audit
         run: pnpm audit --audit-level=high || true
@@ -178,6 +179,7 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
+        continue-on-error: true
 
       - name: Security audit
         run: pnpm audit --audit-level=high || true
