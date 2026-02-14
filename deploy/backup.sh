@@ -34,12 +34,12 @@ echo "[$(date)] Backup created: $BACKUP_FILE ($BACKUP_SIZE)"
 DELETED=$(find "$BACKUP_DIR" -name "${DB_NAME}_*.sql.gz" -mtime +${RETENTION_DAYS} -delete -print | wc -l)
 echo "[$(date)] Deleted $DELETED old backups (older than $RETENTION_DAYS days)"
 
-# Upload to cloud storage (S3-compatible, works with Backblaze B2)
-if command -v aws &> /dev/null && [ -n "${B2_ENDPOINT_URL:-}" ]; then
-  aws s3 cp "$BACKUP_FILE" "${BUCKET}/" --endpoint-url "$B2_ENDPOINT_URL" --quiet
-  echo "[$(date)] Uploaded to cloud: ${BUCKET}/$(basename "$BACKUP_FILE")"
+# Upload to cloud storage (AWS S3)
+if command -v aws &> /dev/null && [ -n "${AWS_ACCESS_KEY_ID:-}" ]; then
+  aws s3 cp "$BACKUP_FILE" "${BUCKET}/" --quiet
+  echo "[$(date)] Uploaded to S3: ${BUCKET}/$(basename "$BACKUP_FILE")"
 else
-  echo "[$(date)] Cloud upload skipped (aws CLI or B2_ENDPOINT_URL not configured)"
+  echo "[$(date)] Cloud upload skipped (aws CLI or AWS credentials not configured)"
 fi
 
 echo "[$(date)] Backup complete"

@@ -284,11 +284,11 @@ pm2 restart eltemplo-api
 ```
 
 **Step 5: If no local backup exists**
-Download from cloud storage (Backblaze B2):
+Download from cloud storage (AWS S3):
 
 ```bash
-aws s3 ls s3://eltemplo-backups/ --endpoint-url "$B2_ENDPOINT_URL" | tail -5
-aws s3 cp s3://eltemplo-backups/eltemplo_LATEST.sql.gz /var/backups/mysql/ --endpoint-url "$B2_ENDPOINT_URL"
+aws s3 ls s3://eltemplo-backups/ | tail -5
+aws s3 cp s3://eltemplo-backups/eltemplo_LATEST.sql.gz /var/backups/mysql/
 ./deploy/restore.sh /var/backups/mysql/eltemplo_LATEST.sql.gz
 ```
 
