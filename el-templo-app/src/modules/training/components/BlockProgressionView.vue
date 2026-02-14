@@ -129,7 +129,7 @@
         :label="completeButtonLabel"
         class="full-width"
         size="lg"
-        @click="onCompleteBlock"
+        @click="handleCompleteBlock"
       />
     </div>
   </div>
@@ -137,6 +137,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useQuasar } from 'quasar'
 import type { Block, BlockRole } from '../types/session'
 
 // Player sub-components
@@ -148,24 +149,22 @@ import ExerciseList from './player/ExerciseList.vue'
 // Utils
 import { getRouteName } from '../utils/routeNames'
 
+const BLOCK_NAMES: Record<string, string> = {
+  INITIUM: 'Initium',
+  NUCLEUS: 'Nucleus',
+  DEUTEROS_1: 'Deuteros',
+  DEUTEROS_2: 'Deuteros',
+  ATHLOS: 'Athlos',
+  EPIKOS: 'Epikos',
+}
+
 interface Props {
-  /** Display name for the current day (e.g., "Lunes") */
   dayName: string
-  /** Current block being played */
   currentBlock: Block | null
-  /** Array of completed block roles */
   completedBlocks: BlockRole[]
-  /** Currently selected exercise index */
   selectedExerciseIndex: number
-  /** Elapsed time in seconds */
   elapsedSeconds: number
-  /** Count of completed exercises in current block */
-  exerciseCompletedCount: number
-  /** Total exercise count in current block */
-  exerciseTotalCount: number
-  /** Completed exercise prescription IDs for current block */
   currentBlockCompletedExercises: number[]
-  /** Whether session is already complete */
   isSessionComplete: boolean
 }
 
@@ -179,8 +178,10 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const $q = useQuasar()
 
-// Display computed values
+const exerciseCompletedCount = computed(() => props.currentBlockCompletedExercises.length)
+const exerciseTotalCount = computed(() => props.currentBlock?.exercises.length ?? 0)
 
 const currentRouteName = computed(() => {
   if (!props.currentBlock) return ''
@@ -188,30 +189,17 @@ const currentRouteName = computed(() => {
 })
 
 const formattedTime = computed(() => {
-  const seconds = props.elapsedSeconds
-  const mins = Math.floor(seconds / 60)
-  const secs = seconds % 60
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  const s = props.elapsedSeconds
+  const m = Math.floor(s / 60)
+  return `${m.toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
 })
 
 const currentBlockName = computed(() => {
   if (!props.currentBlock) return ''
-  const role = props.currentBlock.role
-  const names: Record<string, string> = {
-    INITIUM: 'Initium',
-    NUCLEUS: 'Nucleus',
-    DEUTEROS_1: 'Deuteros',
-    DEUTEROS_2: 'Deuteros',
-    ATHLOS: 'Athlos',
-    EPIKOS: 'Epikos',
-  }
-  return names[role] || role
+  return BLOCK_NAMES[props.currentBlock.role] || props.currentBlock.role
 })
 
-const currentExerciseVideoUrl = computed(() => {
-  // Video URLs will be added when exercise videos are available
-  return null
-})
+const currentExerciseVideoUrl = computed(() => null)
 
 const mobilityContractionColor = computed(() => {
   if (!props.currentBlock?.mobilityExercise) return 'grey'
@@ -223,13 +211,9 @@ const mobilityContractionColor = computed(() => {
 })
 
 const completeButtonLabel = computed(() => {
-  if (props.isSessionComplete) {
-    return 'Sesion Completada!'
-  }
+  if (props.isSessionComplete) return 'Sesion Completada!'
   return `Completar ${currentBlockName.value}`
 })
-
-// Event handlers
 
 function onExerciseSelect(index: number): void {
   emit('select-exercise', index)
@@ -239,8 +223,22 @@ function onToggleExerciseComplete(payload: { prescriptionId: number }): void {
   emit('toggle-exercise-complete', payload)
 }
 
-function onCompleteBlock(): void {
-  emit('complete-block')
+/**
+ * Handle complete block button press.
+ * If exercises are incomplete, show confirmation dialog before emitting.
+ */
+function handleCompleteBlock(): void {
+  const incomplete = exerciseTotalCount.value - exerciseCompletedCount.value
+  if (incomplete > 0) {
+    $q.dialog({
+      title: 'Ejercicios sin completar',
+      message: `Hay ${incomplete} ejercicio${incomplete > 1 ? 's' : ''} sin completar. Completar bloque de todas formas?`,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Completar', color: 'primary' },
+    }).onOk(() => emit('complete-block'))
+  } else {
+    emit('complete-block')
+  }
 }
 </script>
 
