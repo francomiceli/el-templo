@@ -1,5 +1,8 @@
 import { ref, type Ref } from 'vue';
 import { api } from 'src/boot/axios';
+import { createLogger } from 'src/utils/logger';
+
+const log = createLogger('SessionCompletion');
 
 export interface CompletionData {
   dayId: string;
@@ -61,7 +64,7 @@ export function useSessionCompletion(): SessionCompletionReturn {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to complete session';
       error.value = message;
-      console.error('Session completion failed:', err);
+      log.error('Session completion failed', { error: err instanceof Error ? err.message : String(err) });
       return null;
     } finally {
       isSubmitting.value = false;

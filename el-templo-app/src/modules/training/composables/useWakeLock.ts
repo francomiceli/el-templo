@@ -1,5 +1,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Capacitor } from '@capacitor/core'
+import { createLogger } from 'src/utils/logger'
+
+const log = createLogger('WakeLock')
 
 /**
  * Wake lock composable for keeping the screen awake during workouts
@@ -40,7 +43,7 @@ export function useWakeLock() {
         isSupported.value = true
       } catch {
         // Plugin not installed or not available
-        console.warn('KeepAwake plugin not available on native platform')
+        log.warn('KeepAwake plugin not available on native platform')
         isSupported.value = false
       }
     } else {
@@ -82,7 +85,7 @@ export function useWakeLock() {
       }
     } catch (err) {
       // Wake lock request can fail (e.g., low battery, permission denied)
-      console.warn('Failed to acquire wake lock:', err)
+      log.warn('Failed to acquire wake lock', { error: err instanceof Error ? err.message : String(err) })
       isActive.value = false
     }
 
@@ -97,14 +100,14 @@ export function useWakeLock() {
       try {
         await KeepAwakeModule.allowSleep()
       } catch (err) {
-        console.warn('Failed to release native wake lock:', err)
+        log.warn('Failed to release native wake lock', { error: err instanceof Error ? err.message : String(err) })
       }
     } else if (wakeLockSentinel) {
       try {
         await wakeLockSentinel.release()
         wakeLockSentinel = null
       } catch (err) {
-        console.warn('Failed to release web wake lock:', err)
+        log.warn('Failed to release web wake lock', { error: err instanceof Error ? err.message : String(err) })
       }
     }
 

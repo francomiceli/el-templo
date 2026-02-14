@@ -23,6 +23,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import { createLogger } from 'src/utils/logger';
+
+const log = createLogger('VideoPlaceholder');
 
 interface Props {
   /** URL for video (null shows placeholder) */
@@ -49,7 +52,7 @@ async function attemptAutoplay(): Promise<void> {
   } catch {
     // Autoplay was blocked - video will show first frame
     // User interaction will be required to play
-    console.debug('Autoplay blocked, user interaction required');
+    log.debug('Autoplay blocked, user interaction required');
   }
 }
 

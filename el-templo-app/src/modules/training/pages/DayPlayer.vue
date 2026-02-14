@@ -92,8 +92,11 @@ import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
 import { useUserStore } from 'src/stores/useUserStore'
+import { createLogger } from 'src/utils/logger'
 
 import type { WeekDay } from '../types/session'
+
+const log = createLogger('DayPlayer')
 
 // Day Player Page - Orchestrator for session flow:
 // splash -> deuteros choice -> block progression -> celebration -> summary
@@ -398,7 +401,7 @@ async function loadWeekDataIfEmpty() {
       })),
     )
   } catch (err) {
-    console.error('Failed to load week data:', err)
+    log.error('Failed to load week data', { error: err instanceof Error ? err.message : String(err) })
   }
 }
 

@@ -1,7 +1,10 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { Preferences } from '@capacitor/preferences';
+import { createLogger } from 'src/utils/logger';
 import type { BlockRole } from '../types/session';
+
+const log = createLogger('SessionPlayerStore');
 
 /**
  * Session progress state persisted per dayId
@@ -78,7 +81,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
         return progress;
       } catch {
         // Invalid JSON, return defaults
-        console.warn(`Invalid session progress data for ${dayId}, using defaults`);
+        log.warn('Invalid session progress data, using defaults', { dayId });
       }
     }
 

@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { createLogger } from 'src/utils/logger';
 import type { WeekDay, Session } from '../types/session';
+
+const log = createLogger('WeekStore');
 
 /**
  * Pinia store for Weekly View state management
@@ -70,7 +73,7 @@ export const useWeekStore = defineStore('week', () => {
       // This is a placeholder - actual API calls are handled by composables
       // The composable will call this store's methods to update state
       // For now, this prepares the weekDays structure
-      console.warn('fetchWeekSessions called - implement API integration in composable');
+      log.warn('fetchWeekSessions called - implement API integration in composable');
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { error?: string } } };
       error.value = axiosError.response?.data?.error || 'Error fetching sessions';

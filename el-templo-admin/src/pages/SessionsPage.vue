@@ -128,10 +128,13 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import { createLogger } from 'src/utils/logger';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import type { SessionSummary } from 'src/types/session';
+
+const log = createLogger('SessionsPage');
 
 const $q = useQuasar();
 const route = useRoute();
@@ -271,7 +274,7 @@ async function onDownloadDayPdf(dayGroup: DayGroup) {
     buildDayPdf(pdfDay);
   } catch (err) {
     $q.notify({ type: 'negative', message: 'Error generando PDF' });
-    console.error('PDF generation error:', err);
+    log.error('PDF generation error', { error: err instanceof Error ? err.message : String(err) });
   } finally {
     pdfDayLoading.value = null;
   }
@@ -298,7 +301,7 @@ async function onDownloadWeekPdf() {
     buildWeekPdf(pdfDays);
   } catch (err) {
     $q.notify({ type: 'negative', message: 'Error generando PDF de la semana' });
-    console.error('Week PDF error:', err);
+    log.error('Week PDF generation error', { error: err instanceof Error ? err.message : String(err) });
   } finally {
     pdfWeekLoading.value = false;
   }

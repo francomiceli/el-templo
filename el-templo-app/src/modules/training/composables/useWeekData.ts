@@ -1,6 +1,9 @@
 import { ref, type Ref } from 'vue';
 import { api } from 'src/boot/axios';
+import { createLogger } from 'src/utils/logger';
 import type { Session } from '../types/session';
+
+const log = createLogger('WeekData');
 
 /**
  * Composable for fetching week session data from API
@@ -66,7 +69,7 @@ export function useWeekData(): UseWeekDataReturn {
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { error?: string } } };
       error.value = axiosError.response?.data?.error || 'Error fetching week sessions';
-      console.error('Failed to fetch week sessions:', err);
+      log.error('Failed to fetch week sessions', { error: err instanceof Error ? err.message : String(err) });
     } finally {
       loading.value = false;
     }

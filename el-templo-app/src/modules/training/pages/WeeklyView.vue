@@ -33,11 +33,14 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { createLogger } from 'src/utils/logger';
 import { useWeekStore } from '../stores/weekStore';
 import { useWeekData } from '../composables/useWeekData';
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
 import type { WeekDay } from '../types/session';
 import WeekCarousel from '../components/WeekCarousel.vue';
+
+const log = createLogger('WeeklyView');
 
 /**
  * Main Weekly View page
@@ -113,7 +116,7 @@ async function loadWeekData() {
       }
     }
   } catch (err) {
-    console.error('Failed to load week data:', err);
+    log.error('Failed to load week data', { error: err instanceof Error ? err.message : String(err) });
   }
 }
 
