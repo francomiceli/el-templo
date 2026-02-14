@@ -183,11 +183,20 @@ Plans:
 ---
 
 ### Phase 19: Technical Debt Audit
-**Goal**: Audit and repair accumulated technical debt across the codebase after 17 phases of rapid development
+**Goal**: Production-robust 3-app ecosystem with zero CVEs, error monitoring, test coverage, CI quality gates, deploy rollback, refactored god objects, structured logging, and automated database backups
 **Depends on**: Phase 18 (deployment complete)
+**Plans:** 9 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 19 to break down)
+- [ ] 19-01-PLAN.md — Security fixes (CVEs) + .env cleanup + .env.example templates
+- [ ] 19-02-PLAN.md — Sentry API error monitoring + frontend logger wrappers
+- [ ] 19-03-PLAN.md — Test infrastructure (Vitest + MySQL) + API integration tests
+- [ ] 19-04-PLAN.md — CI quality gates (lint/test/audit) + deploy safety (backup/rollback)
+- [ ] 19-05-PLAN.md — Pre-commit hooks (Husky + lint-staged) + root README
+- [ ] 19-06-PLAN.md — Refactor DayPlayer.vue god object (900 -> <350 LOC)
+- [ ] 19-07-PLAN.md — Refactor edit-service.ts god object (1232 -> <350 LOC) + eliminate any types
+- [ ] 19-08-PLAN.md — Replace console.log with structured logger across all apps
+- [ ] 19-09-PLAN.md — Database backups + production runbook + external service setup
 
 ---
 
@@ -313,7 +322,7 @@ Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 | 16. PDF Gen, Format Config & App Exercise Tracking | 10/10 | Complete | 2026-02-12 |
 | 17. Per-Block Mobility Exercises | 4/4 | Complete | 2026-02-12 |
 | 18. Domain/Subdomain Deployment | 3/3 | Complete | 2026-02-13 |
-| 19. Technical Debt Audit | 0/? | Not Started | — |
+| 19. Technical Debt Audit | 0/9 | Planned | — |
 | 20. APK Handling | 0/? | Not Started | — |
 | 21. Admin Session Creation | 0/? | Not Started | — |
 | 22. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
@@ -325,4 +334,4 @@ Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 
 ---
 *Roadmap created: 2026-02-04*
-*Last updated: 2026-02-12 — Phase 18 narrowed to deployment only, Phase 19 (Tech Debt) and Phase 20 (APK) inserted, old 19-25 renumbered to 21-27*
+*Last updated: 2026-02-14 — Phase 19 planned (9 plans: security, Sentry, tests, CI/deploy, hooks/README, refactoring x2, logging, backups/runbook)*
