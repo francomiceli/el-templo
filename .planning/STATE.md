@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 19 (Technical Debt Audit) — In progress
-Plan: 2 of 9 — 19-02 complete
+Plan: 5 of 9 — 19-05 complete
 Status: Executing
-Last activity: 2026-02-14 - Completed 19-02 (Error Monitoring & Logging)
+Last activity: 2026-02-14 - Completed 19-05 (Pre-commit Hooks & README)
 
 ### Phase 19 Framing
 Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
@@ -21,7 +21,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██░░░░░░░░] 22% Phase 19 (2/9 plans complete)
+Progress: [█████░░░░░] 55% Phase 19 (5/9 plans complete)
 
 ## Architecture Reset
 
@@ -109,6 +109,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 18 P01 | 2 | 2 tasks | 5 files |
 | Phase 18 P02 | 2 | 2 tasks | 4 files |
 | Phase 19 P02 | 4 | 2 tasks | 6 files |
+| Phase 19 P05 | 4 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -402,6 +403,9 @@ Recent decisions affecting current work:
 - [Phase 18-02]: Node version bumped from 20 to 22 in CI to match EC2 server
 - [Phase 19-02]: Sentry init guarded by SENTRY_DSN -- graceful no-op in dev without config
 - [Phase 19-02]: instrument.ts as first import in index.ts for early module hooking
+- [Phase 19-05]: Skip API ESLint in lint-staged -- el-templo-api has no eslint.config.js yet
+- [Phase 19-05]: Prettier installed at root level for lint-staged access across monorepo
+- [Phase 19-05]: Root .gitignore updated to exclude node_modules/ and pnpm-lock.yaml
 - [Phase 19-02]: beforeSend scrubs password, currentPassword, newPassword from Sentry payloads
 - [Phase 19-02]: createLogger suppresses debug/info in production, keeps warn/error
 
@@ -432,7 +436,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 19-02-PLAN.md (Error Monitoring & Logging). Next: 19-03
+Stopped at: Completed 19-05-PLAN.md (Pre-commit Hooks & README). Next: 19-06
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)

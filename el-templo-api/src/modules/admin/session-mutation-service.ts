@@ -1,0 +1,344 @@
+/**
+ * SessionMutationService - Block & Exercise Structural Operations
+ *
+ * Handles add/remove exercises, block role changes, and algorithm reset.
+ * Extracted from AdminEditService to isolate structural mutation logic.
+ *
+ * All mutations:
+ * 1. Auto-revert approved sessions to pending_review
+ * 2. Log to session_edit_logs for audit trail
+ */
+
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
+import * as schema from "../../db/schema";
+import type {
+  AddExerciseParams,
+  RemoveExerciseParams,
+  ResetToAlgorithmParams,
+} from "./edit-types";
+
+// Snapshot types matching the structure stored in sessions.algorithmSnapshot
+interface SnapshotBlock {
+  blockId: string;
+  role: string;
+  route: string;
+  pattern: string;
+  intensity: number;
+  repsBudget: number;
+  formatId: number;
+  formatName: string;
+  exerciseCount: number;
+  sortOrder: number;
+  exercises: SnapshotExercise[];
+}
+
+interface SnapshotExercise {
+  exerciseId: number;
+  exerciseName: string;
+  contraction: string;
+  reps: number;
+  seconds: number;
+  rest: number;
+  notes: string | null;
+  difficulty: number | null;
+  sortOrder: number;
+  exerciseType?: string; // 'main' | 'mobility' — may be absent in old snapshots
+}
+
+interface AlgorithmSnapshot {
+  blocks: SnapshotBlock[];
+}
+
+export class SessionMutationService {
+  constructor(private db: MySql2Database<typeof schema>) {}
+
+  // =========================================================================
+  // addExercise - Add a new exercise to a block
+  // =========================================================================
+
+  async addExercise(params: AddExerciseParams) {
+    const { sessionId, blockId, exerciseId, userId } = params;
+
+    // Look up exercise
+    const [exercise] = await this.db
+      .select()
+      .from(schema.exercises)
+      .where(eq(schema.exercises.id, exerciseId));
+
+    if (!exercise) {
+      throw new Error("Ejercicio no encontrado");
+    }
+
+    // Get current max sortOrder in block
+    const existingPrescriptions = await this.db
+      .select({ sortOrder: schema.sessionPrescriptions.sortOrder })
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, blockId))
+      .orderBy(desc(schema.sessionPrescriptions.sortOrder));
+
+    const maxSortOrder =
+      existingPrescriptions.length > 0
+        ? existingPrescriptions[0].sortOrder
+        : -1;
+
+    // Insert new prescription with blank values (coach fills in manually)
+    const [insertResult] = await this.db
+      .insert(schema.sessionPrescriptions)
+      .values({
+        blockId,
+        exerciseId: exercise.id,
+        exerciseName: exercise.exercise,
+        contraction: exercise.effort,
+        reps: 0,
+        seconds: 0,
+        rest: 0,
+        notes: null,
+        difficulty: exercise.dificultadLineal,
+        sortOrder: maxSortOrder + 1,
+      });
+
+    // Update block exercise count
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({
+        exerciseCount: sql`${schema.sessionBlocks.exerciseCount} + 1`,
+      })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, "exercise_add");
+
+    return {
+      id: insertResult.insertId,
+      exerciseId: exercise.id,
+      exerciseName: exercise.exercise,
+      contraction: exercise.effort,
+      reps: 0,
+      seconds: 0,
+      rest: 0,
+      notes: null,
+      difficulty: exercise.dificultadLineal,
+      sortOrder: maxSortOrder + 1,
+    };
+  }
+
+  // =========================================================================
+  // removeExercise - Remove an exercise from a block
+  // =========================================================================
+
+  async removeExercise(params: RemoveExerciseParams) {
+    const { sessionId, blockId, prescriptionId, userId } = params;
+
+    // Get the prescription to know its sortOrder
+    const [prescription] = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
+
+    if (!prescription) {
+      throw new Error("Prescripcion no encontrada");
+    }
+
+    // Delete the prescription
+    await this.db
+      .delete(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
+
+    // Reorder remaining prescriptions to be sequential
+    const remaining = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, blockId))
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+    for (let i = 0; i < remaining.length; i++) {
+      if (remaining[i].sortOrder !== i) {
+        await this.db
+          .update(schema.sessionPrescriptions)
+          .set({ sortOrder: i })
+          .where(eq(schema.sessionPrescriptions.id, remaining[i].id));
+      }
+    }
+
+    // Update block exercise count
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({
+        exerciseCount: sql`${schema.sessionBlocks.exerciseCount} - 1`,
+      })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, "exercise_remove");
+  }
+
+  // =========================================================================
+  // updateBlockRole - Switch block role between ATHLOS/EPIKOS
+  // =========================================================================
+
+  async updateBlockRole(params: {
+    sessionId: number;
+    blockId: number;
+    role: "ATHLOS" | "EPIKOS";
+    userId: number;
+  }) {
+    const { sessionId, blockId, role, userId } = params;
+
+    // Verify block exists and belongs to session
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
+
+    if (!block) {
+      throw new Error("Bloque no encontrado en esta sesion");
+    }
+
+    // Validate current role is ATHLOS or EPIKOS
+    if (block.role !== "ATHLOS" && block.role !== "EPIKOS") {
+      throw new Error("Solo se puede cambiar el rol entre ATHLOS y EPIKOS");
+    }
+
+    // Update role
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({ role })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    // Auto-revert and log
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, "block_role_change");
+
+    return { blockId, role };
+  }
+
+  // =========================================================================
+  // resetToAlgorithm - Restore session from snapshot
+  // =========================================================================
+
+  async resetToAlgorithm(params: ResetToAlgorithmParams) {
+    const { sessionId, userId } = params;
+
+    // Get session with snapshot
+    const [session] = await this.db
+      .select({
+        id: schema.sessions.id,
+        algorithmSnapshot: schema.sessions.algorithmSnapshot,
+      })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId));
+
+    if (!session) {
+      throw new Error("Sesion no encontrada");
+    }
+
+    if (!session.algorithmSnapshot) {
+      throw new Error(
+        "No hay snapshot del algoritmo disponible para esta sesion",
+      );
+    }
+
+    const snapshot = session.algorithmSnapshot as AlgorithmSnapshot;
+
+    // Delete all existing blocks for this session (cascade handles prescriptions)
+    await this.db
+      .delete(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.sessionId, sessionId));
+
+    // Re-insert blocks and prescriptions from snapshot
+    for (const snapshotBlock of snapshot.blocks) {
+      const [blockInsert] = await this.db.insert(schema.sessionBlocks).values({
+        sessionId,
+        blockId: snapshotBlock.blockId,
+        role: snapshotBlock.role,
+        route: snapshotBlock.route,
+        pattern: snapshotBlock.pattern,
+        intensity: snapshotBlock.intensity,
+        repsBudget: snapshotBlock.repsBudget,
+        formatId: snapshotBlock.formatId,
+        formatName: snapshotBlock.formatName,
+        exerciseCount: snapshotBlock.exerciseCount,
+        sortOrder: snapshotBlock.sortOrder,
+      });
+
+      const newBlockId = blockInsert.insertId;
+
+      // Insert prescriptions for this block
+      if (snapshotBlock.exercises.length > 0) {
+        await this.db.insert(schema.sessionPrescriptions).values(
+          snapshotBlock.exercises.map((ex) => ({
+            blockId: newBlockId,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            contraction: ex.contraction,
+            reps: ex.reps,
+            seconds: ex.seconds,
+            rest: ex.rest,
+            notes: ex.notes,
+            difficulty: ex.difficulty,
+            sortOrder: ex.sortOrder,
+            exerciseType: ex.exerciseType || "main", // Backward compat for old snapshots
+          })),
+        );
+      }
+    }
+
+    // Update session: reset status and block count
+    await this.db
+      .update(schema.sessions)
+      .set({
+        status: "pending_review",
+        blockCount: snapshot.blocks.length,
+        approvedAt: null,
+        approvedBy: null,
+        approvedBySystem: false,
+      })
+      .where(eq(schema.sessions.id, sessionId));
+
+    // Log the reset action
+    await this.logEdit(sessionId, userId, "reset_to_algorithm");
+  }
+
+  // =========================================================================
+  // Helpers (shared with other services via composition)
+  // =========================================================================
+
+  async revertToPendingIfApproved(sessionId: number): Promise<void> {
+    const [session] = await this.db
+      .select({ status: schema.sessions.status })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId));
+
+    if (session?.status === "approved") {
+      await this.db
+        .update(schema.sessions)
+        .set({
+          status: "pending_review",
+          approvedAt: null,
+          approvedBy: null,
+          approvedBySystem: false,
+        })
+        .where(eq(schema.sessions.id, sessionId));
+    }
+  }
+
+  async logEdit(
+    sessionId: number,
+    userId: number,
+    action: string,
+  ): Promise<void> {
+    await this.db.insert(schema.sessionEditLogs).values({
+      sessionId,
+      userId,
+      action,
+    });
+  }
+}

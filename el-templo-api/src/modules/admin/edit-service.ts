@@ -1,184 +1,64 @@
 /**
- * AdminEditService - Session Editing Business Logic
+ * AdminEditService - Session Editing Facade
  *
- * Provides all exercise-level CRUD operations for admin session editing:
- * - Exercise pool query (swap candidates)
- * - Exercise swap with re-prescription
+ * Orchestrates session editing operations by delegating to domain services:
+ * - ExerciseSwapService: exercise pool queries, swaps, mobility
+ * - SessionMutationService: add/remove exercises, block role, algorithm reset
+ *
+ * Directly handles:
  * - Prescription field updates
- * - Block format change with automatic re-prescription
- * - Add/remove exercises
- * - Reset to algorithm snapshot
+ * - Block format changes with re-prescription
+ * - Format params updates
  * - Compatible formats query
+ * - Saved blocks CRUD
  *
  * All mutations:
  * 1. Auto-revert approved sessions to pending_review
  * 2. Log to session_edit_logs for audit trail
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, or, like, inArray, gt, lte, asc, desc, sql } from 'drizzle-orm';
-import * as schema from '../../db/schema';
-import { PrescribeService } from './prescribe-service';
-import { getDefaultFormatParams } from './format-params';
-import { ROUTE_TO_MOBILITY_ROUTES } from '../sessions/pipeline/utils/mobility-routes';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and, gt, asc, desc, sql } from "drizzle-orm";
+import * as schema from "../../db/schema";
+import { PrescribeService } from "./prescribe-service";
+import { getDefaultFormatParams } from "./format-params";
+import { ExerciseSwapService } from "./exercise-swap-service";
+import { SessionMutationService } from "./session-mutation-service";
+import type {
+  ExercisePoolParams,
+  ExercisePoolItem,
+  SwapExerciseParams,
+  UpdatePrescriptionParams,
+  ChangeBlockFormatParams,
+  AddExerciseParams,
+  RemoveExerciseParams,
+  UpdateFormatParamsParams,
+  ResetToAlgorithmParams,
+  CompatibleFormatsParams,
+  CompatibleFormat,
+  SaveBlockParams,
+  SavedBlockData,
+  SavedBlockItem,
+  DeleteSavedBlockParams,
+} from "./edit-types";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export interface ExercisePoolParams {
-  /** Block DB id to get context from */
-  blockId: number;
-  /** Optional contraction type filter (CON/EXC/ISO) */
-  contraction?: string;
-  /** Route to filter exercises by */
-  route: string;
-  /** Block's pattern field (primary pattern) */
-  pattern: string;
-  /** Block's secondary pattern for cross-route (if applicable) */
-  pattern2?: string | null;
-  /** Block role (INITIUM has no cross-route) */
-  blockRole: string;
-  /** Exercise IDs already in the block (to exclude) */
-  excludeExerciseIds: number[];
-  /** Target difficulty to sort by proximity */
-  targetDifficulty?: number;
-  /** Maximum linear difficulty to include (based on member level) */
-  maxDifficulty?: number;
-}
-
-export interface ExercisePoolItem {
-  id: number;
-  exercise: string;
-  effort: string;
-  dificultadLineal: number;
-  pattern: string;
-  category: string;
-  route: string;
-  /** Indicates if exercise comes from primary or cross-route pattern */
-  patternSource: 'pattern_1' | 'pattern_2';
-}
-
-export interface SwapExerciseParams {
-  sessionId: number;
-  blockId: number;
-  oldPrescriptionId: number;
-  newExerciseId: number;
-  userId: number;
-}
-
-export interface UpdatePrescriptionParams {
-  sessionId: number;
-  blockId: number;
-  prescriptionId: number;
-  userId: number;
-  fields: {
-    reps?: number;
-    seconds?: number;
-    rest?: number;
-    notes?: string | null;
-  };
-}
-
-export interface ChangeBlockFormatParams {
-  sessionId: number;
-  blockId: number;
-  newFormatId: number;
-  newFormatName: string;
-  userId: number;
-}
-
-export interface AddExerciseParams {
-  sessionId: number;
-  blockId: number;
-  exerciseId: number;
-  userId: number;
-}
-
-export interface RemoveExerciseParams {
-  sessionId: number;
-  blockId: number;
-  prescriptionId: number;
-  userId: number;
-}
-
-export interface UpdateFormatParamsParams {
-  sessionId: number;
-  blockId: number;
-  formatParams: Record<string, unknown>;
-  userId: number;
-}
-
-export interface ResetToAlgorithmParams {
-  sessionId: number;
-  userId: number;
-}
-
-export interface CompatibleFormatsParams {
-  blockRole: string;
-  level: string;
-  intensity: number;
-}
-
-export interface CompatibleFormat {
-  formatId: number;
-  formatName: string;
-  compatibility: number;
-}
-
-export interface SaveBlockParams {
-  blockId: number;
-  name: string;
-  userId: number;
-}
-
-export interface SavedBlockItem {
-  id: number;
-  name: string;
-  blockRole: string;
-  blockRoute: string;
-  formatName: string;
-  createdAt: Date;
-  exerciseCount: number;
-  blockData: any;
-}
-
-export interface DeleteSavedBlockParams {
-  savedBlockId: number;
-  userId: number;
-}
-
-// Snapshot types matching the structure stored in sessions.algorithmSnapshot
-interface SnapshotBlock {
-  blockId: string;
-  role: string;
-  route: string;
-  pattern: string;
-  intensity: number;
-  repsBudget: number;
-  formatId: number;
-  formatName: string;
-  exerciseCount: number;
-  sortOrder: number;
-  exercises: SnapshotExercise[];
-}
-
-interface SnapshotExercise {
-  exerciseId: number;
-  exerciseName: string;
-  contraction: string;
-  reps: number;
-  seconds: number;
-  rest: number;
-  notes: string | null;
-  difficulty: number | null;
-  sortOrder: number;
-  exerciseType?: string; // 'main' | 'mobility' — may be absent in old snapshots
-}
-
-interface AlgorithmSnapshot {
-  blocks: SnapshotBlock[];
-}
+// Re-export all types for backward compatibility
+export type {
+  ExercisePoolParams,
+  ExercisePoolItem,
+  SwapExerciseParams,
+  UpdatePrescriptionParams,
+  ChangeBlockFormatParams,
+  AddExerciseParams,
+  RemoveExerciseParams,
+  UpdateFormatParamsParams,
+  ResetToAlgorithmParams,
+  CompatibleFormatsParams,
+  CompatibleFormat,
+  SaveBlockParams,
+  SavedBlockItem,
+  DeleteSavedBlockParams,
+} from "./edit-types";
 
 // ---------------------------------------------------------------------------
 // Service
@@ -186,231 +66,68 @@ interface AlgorithmSnapshot {
 
 export class AdminEditService {
   private prescribeService: PrescribeService;
+  private swapService: ExerciseSwapService;
+  private mutationService: SessionMutationService;
 
   constructor(private db: MySql2Database<typeof schema>) {
     this.prescribeService = new PrescribeService();
+    this.swapService = new ExerciseSwapService(db);
+    this.mutationService = new SessionMutationService(db);
   }
 
-  // =========================================================================
-  // 1. getExercisePool - Query exercises for swap candidates
-  // =========================================================================
+  // === Delegated to ExerciseSwapService ===
 
-  async getExercisePool(params: ExercisePoolParams): Promise<ExercisePoolItem[]> {
-    const {
-      contraction,
-      route,
-      pattern,
-      pattern2,
-      blockRole,
-      excludeExerciseIds,
-      targetDifficulty,
-    } = params;
-
-    // INITIUM uses FLOW pattern / Movilidad category instead of route-based lookup
-    // (route='INITIUM' is a marker, not a real route in the exercises table)
-    const isInitium = blockRole === 'INITIUM';
-
-    const primaryConditions = isInitium
-      ? [
-          or(
-            like(schema.exercises.pattern, '%FLOW%'),
-            eq(schema.exercises.category, 'Movilidad')
-          )!,
-        ]
-      : [
-          eq(schema.exercises.route, route),
-        ];
-
-    if (contraction) {
-      primaryConditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
-    }
-    // INITIUM is level-independent — skip difficulty cap
-    if (!isInitium && params.maxDifficulty !== undefined) {
-      primaryConditions.push(lte(schema.exercises.dificultadLineal, params.maxDifficulty));
-    }
-
-    // Get primary exercises
-    let primaryExercises = await this.db
-      .select({
-        id: schema.exercises.id,
-        exercise: schema.exercises.exercise,
-        effort: schema.exercises.effort,
-        dificultadLineal: schema.exercises.dificultadLineal,
-        pattern: schema.exercises.pattern,
-        category: schema.exercises.category,
-        route: schema.exercises.route,
-      })
-      .from(schema.exercises)
-      .where(and(...primaryConditions));
-
-    // Label primary exercises
-    let pool: ExercisePoolItem[] = primaryExercises.map(ex => ({
-      ...ex,
-      patternSource: 'pattern_1' as const,
-    }));
-
-    // Cross-route logic for non-INITIUM blocks:
-    // Include pattern_2 exercises from a different route (per 13-08)
-    if (!isInitium && pattern2) {
-      const crossConditions = [
-        eq(schema.exercises.pattern, pattern2),
-      ];
-      if (contraction) {
-        crossConditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
-      }
-      if (params.maxDifficulty !== undefined) {
-        crossConditions.push(lte(schema.exercises.dificultadLineal, params.maxDifficulty));
-      }
-
-      const crossExercises = await this.db
-        .select({
-          id: schema.exercises.id,
-          exercise: schema.exercises.exercise,
-          effort: schema.exercises.effort,
-          dificultadLineal: schema.exercises.dificultadLineal,
-          pattern: schema.exercises.pattern,
-          category: schema.exercises.category,
-          route: schema.exercises.route,
-        })
-        .from(schema.exercises)
-        .where(and(...crossConditions));
-
-      pool = pool.concat(
-        crossExercises
-          .filter(ex => ex.route !== route) // Only include if actually cross-route
-          .map(ex => ({
-            ...ex,
-            patternSource: 'pattern_2' as const,
-          }))
-      );
-    }
-
-    // Exclude exercises already in the block
-    if (excludeExerciseIds.length > 0) {
-      pool = pool.filter(ex => !excludeExerciseIds.includes(ex.id));
-    }
-
-    // Sort by closest linear difficulty to target
-    if (targetDifficulty !== undefined) {
-      pool.sort((a, b) =>
-        Math.abs(a.dificultadLineal - targetDifficulty) -
-        Math.abs(b.dificultadLineal - targetDifficulty)
-      );
-    } else {
-      // Default: sort by linear difficulty ascending
-      pool.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
-    }
-
-    return pool;
+  async getExercisePool(
+    params: ExercisePoolParams,
+  ): Promise<ExercisePoolItem[]> {
+    return this.swapService.getExercisePool(params);
   }
-
-  // =========================================================================
-  // 2. swapExercise - Replace one exercise with another
-  // =========================================================================
 
   async swapExercise(params: SwapExerciseParams) {
-    const { sessionId, blockId, oldPrescriptionId, newExerciseId, userId } = params;
-
-    // Look up the new exercise
-    const [newExercise] = await this.db
-      .select()
-      .from(schema.exercises)
-      .where(eq(schema.exercises.id, newExerciseId));
-
-    if (!newExercise) {
-      throw new Error('Ejercicio no encontrado');
-    }
-
-    // Get the old prescription to preserve sortOrder
-    const [oldPrescription] = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.id, oldPrescriptionId));
-
-    if (!oldPrescription) {
-      throw new Error('Prescripcion no encontrada');
-    }
-
-    // Get block context for re-prescription
-    const [block] = await this.db
-      .select()
-      .from(schema.sessionBlocks)
-      .where(eq(schema.sessionBlocks.id, blockId));
-
-    if (!block) {
-      throw new Error('Bloque no encontrado');
-    }
-
-    // Get all exercises currently in the block (replace old with new for prescription context)
-    const currentPrescriptions = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, blockId))
-      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
-
-    const existingExercises = currentPrescriptions.map(p => ({
-      id: p.id === oldPrescriptionId ? newExercise.id : p.exerciseId,
-      name: p.id === oldPrescriptionId ? newExercise.exercise : p.exerciseName,
-      contraction: p.id === oldPrescriptionId ? newExercise.effort : p.contraction,
-      difficulty: p.id === oldPrescriptionId ? newExercise.dificultadLineal : (p.difficulty ?? 1),
-    }));
-
-    // Re-prescribe the swapped exercise using algorithm
-    const prescription = this.prescribeService.prescribeExerciseInBlock({
-      exercise: {
-        id: newExercise.id,
-        name: newExercise.exercise,
-        contraction: newExercise.effort,
-        difficulty: newExercise.dificultadLineal,
-      },
-      blockFormatName: block.formatName,
-      blockRepsBudget: block.repsBudget,
-      blockIntensity: block.intensity,
-      existingExercises,
-    });
-
-    // Update the prescription row
-    await this.db
-      .update(schema.sessionPrescriptions)
-      .set({
-        exerciseId: newExercise.id,
-        exerciseName: newExercise.exercise,
-        contraction: newExercise.effort,
-        reps: prescription.reps,
-        seconds: prescription.seconds,
-        rest: prescription.rest,
-        notes: prescription.notes,
-        difficulty: newExercise.dificultadLineal,
-      })
-      .where(eq(schema.sessionPrescriptions.id, oldPrescriptionId));
-
-    // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'exercise_swap');
-
-    // Return updated prescription data
-    return {
-      id: oldPrescriptionId,
-      exerciseId: newExercise.id,
-      exerciseName: newExercise.exercise,
-      contraction: newExercise.effort,
-      reps: prescription.reps,
-      seconds: prescription.seconds,
-      rest: prescription.rest,
-      notes: prescription.notes,
-      difficulty: newExercise.dificultadLineal,
-      sortOrder: oldPrescription.sortOrder,
-    };
+    return this.swapService.swapExercise(params);
   }
 
-  // =========================================================================
-  // 3. updatePrescription - Update prescription fields
-  // =========================================================================
+  async getMobilityPool(blockRoute: string): Promise<ExercisePoolItem[]> {
+    return this.swapService.getMobilityPool(blockRoute);
+  }
+
+  async swapMobilityExercise(params: {
+    sessionId: number;
+    blockId: number;
+    newExerciseId: number;
+    userId: number;
+  }) {
+    return this.swapService.swapMobilityExercise(params);
+  }
+
+  // === Delegated to SessionMutationService ===
+
+  async addExercise(params: AddExerciseParams) {
+    return this.mutationService.addExercise(params);
+  }
+
+  async removeExercise(params: RemoveExerciseParams) {
+    return this.mutationService.removeExercise(params);
+  }
+
+  async updateBlockRole(params: {
+    sessionId: number;
+    blockId: number;
+    role: "ATHLOS" | "EPIKOS";
+    userId: number;
+  }) {
+    return this.mutationService.updateBlockRole(params);
+  }
+
+  async resetToAlgorithm(params: ResetToAlgorithmParams) {
+    return this.mutationService.resetToAlgorithm(params);
+  }
+
+  // === Directly handled ===
 
   async updatePrescription(params: UpdatePrescriptionParams) {
     const { sessionId, prescriptionId, userId, fields } = params;
 
-    // Build update set from provided fields
     const updateSet: Record<string, unknown> = {};
     if (fields.reps !== undefined) updateSet.reps = fields.reps;
     if (fields.seconds !== undefined) updateSet.seconds = fields.seconds;
@@ -418,7 +135,7 @@ export class AdminEditService {
     if (fields.notes !== undefined) updateSet.notes = fields.notes;
 
     if (Object.keys(updateSet).length === 0) {
-      throw new Error('No hay campos para actualizar');
+      throw new Error("No hay campos para actualizar");
     }
 
     await this.db
@@ -426,11 +143,9 @@ export class AdminEditService {
       .set(updateSet)
       .where(eq(schema.sessionPrescriptions.id, prescriptionId));
 
-    // Auto-revert and log
     await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'prescription_edit');
+    await this.logEdit(sessionId, userId, "prescription_edit");
 
-    // Return updated prescription
     const [updated] = await this.db
       .select()
       .from(schema.sessionPrescriptions)
@@ -439,39 +154,29 @@ export class AdminEditService {
     return updated;
   }
 
-  // =========================================================================
-  // 4. changeBlockFormat - Change format and re-prescribe all exercises
-  // =========================================================================
-
   async changeBlockFormat(params: ChangeBlockFormatParams) {
     const { sessionId, blockId, newFormatId, newFormatName, userId } = params;
 
-    // Get block
     const [block] = await this.db
       .select()
       .from(schema.sessionBlocks)
       .where(eq(schema.sessionBlocks.id, blockId));
 
-    if (!block) {
-      throw new Error('Bloque no encontrado');
-    }
+    if (!block) throw new Error("Bloque no encontrado");
 
-    // Get current prescriptions
     const currentPrescriptions = await this.db
       .select()
       .from(schema.sessionPrescriptions)
       .where(eq(schema.sessionPrescriptions.blockId, blockId))
       .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-    // Build exercise list for re-prescription
-    const exercises = currentPrescriptions.map(p => ({
+    const exercises = currentPrescriptions.map((p) => ({
       id: p.exerciseId,
       name: p.exerciseName,
       contraction: p.contraction,
       difficulty: p.difficulty ?? 1,
     }));
 
-    // Re-prescribe all exercises with new format
     const newPrescriptions = this.prescribeService.prescribeBlock({
       exercises,
       formatName: newFormatName,
@@ -479,13 +184,11 @@ export class AdminEditService {
       intensity: block.intensity,
     });
 
-    // Compute new format params defaults for the new format
     const newFormatParams = getDefaultFormatParams(newFormatName, {
       intensity: block.intensity,
       exerciseCount: exercises.length,
     });
 
-    // Update block format and reset formatParams to new defaults
     await this.db
       .update(schema.sessionBlocks)
       .set({
@@ -495,13 +198,10 @@ export class AdminEditService {
       })
       .where(eq(schema.sessionBlocks.id, blockId));
 
-    // Update each prescription with new values
-    // Match by exercise ID from the new prescriptions array
-    for (let i = 0; i < currentPrescriptions.length; i++) {
-      const current = currentPrescriptions[i];
-      // Find matching prescription by exerciseId (format prescribers may reorder)
-      const newP = newPrescriptions.find(p => p.exerciseId === current.exerciseId);
-
+    for (const current of currentPrescriptions) {
+      const newP = newPrescriptions.find(
+        (p) => p.exerciseId === current.exerciseId,
+      );
       if (newP) {
         await this.db
           .update(schema.sessionPrescriptions)
@@ -515,302 +215,74 @@ export class AdminEditService {
       }
     }
 
-    // Auto-revert and log
     await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'format_change');
-
-    // Return updated block with exercises
+    await this.logEdit(sessionId, userId, "format_change");
     return this.getBlockWithExercises(blockId);
   }
-
-  // =========================================================================
-  // 4b. updateFormatParams - Update format parameters for a block
-  // =========================================================================
 
   async updateFormatParams(params: UpdateFormatParamsParams) {
     const { sessionId, blockId, formatParams, userId } = params;
 
-    // Verify block exists and belongs to session
     const [block] = await this.db
       .select()
       .from(schema.sessionBlocks)
-      .where(and(
-        eq(schema.sessionBlocks.id, blockId),
-        eq(schema.sessionBlocks.sessionId, sessionId)
-      ));
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
 
-    if (!block) {
-      throw new Error('Bloque no encontrado en esta sesion');
-    }
+    if (!block) throw new Error("Bloque no encontrado en esta sesion");
 
-    // Update formatParams
     await this.db
       .update(schema.sessionBlocks)
       .set({ formatParams })
       .where(eq(schema.sessionBlocks.id, blockId));
-
-    // Auto-revert and log
     await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'format_params_update');
-
+    await this.logEdit(sessionId, userId, "format_params_update");
     return { formatParams };
   }
 
-  // =========================================================================
-  // 5. addExercise - Add a new exercise to a block
-  // =========================================================================
-
-  async addExercise(params: AddExerciseParams) {
-    const { sessionId, blockId, exerciseId, userId } = params;
-
-    // Look up exercise
-    const [exercise] = await this.db
-      .select()
-      .from(schema.exercises)
-      .where(eq(schema.exercises.id, exerciseId));
-
-    if (!exercise) {
-      throw new Error('Ejercicio no encontrado');
-    }
-
-    // Get current max sortOrder in block
-    const existingPrescriptions = await this.db
-      .select({ sortOrder: schema.sessionPrescriptions.sortOrder })
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, blockId))
-      .orderBy(desc(schema.sessionPrescriptions.sortOrder));
-
-    const maxSortOrder = existingPrescriptions.length > 0
-      ? existingPrescriptions[0].sortOrder
-      : -1;
-
-    // Insert new prescription with blank values (coach fills in manually)
-    const [insertResult] = await this.db
-      .insert(schema.sessionPrescriptions)
-      .values({
-        blockId,
-        exerciseId: exercise.id,
-        exerciseName: exercise.exercise,
-        contraction: exercise.effort,
-        reps: 0,
-        seconds: 0,
-        rest: 0,
-        notes: null,
-        difficulty: exercise.dificultadLineal,
-        sortOrder: maxSortOrder + 1,
-      });
-
-    // Update block exercise count
-    await this.db
-      .update(schema.sessionBlocks)
-      .set({
-        exerciseCount: sql`${schema.sessionBlocks.exerciseCount} + 1`,
-      })
-      .where(eq(schema.sessionBlocks.id, blockId));
-
-    // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'exercise_add');
-
-    return {
-      id: insertResult.insertId,
-      exerciseId: exercise.id,
-      exerciseName: exercise.exercise,
-      contraction: exercise.effort,
-      reps: 0,
-      seconds: 0,
-      rest: 0,
-      notes: null,
-      difficulty: exercise.dificultadLineal,
-      sortOrder: maxSortOrder + 1,
-    };
-  }
-
-  // =========================================================================
-  // 6. removeExercise - Remove an exercise from a block
-  // =========================================================================
-
-  async removeExercise(params: RemoveExerciseParams) {
-    const { sessionId, blockId, prescriptionId, userId } = params;
-
-    // Get the prescription to know its sortOrder
-    const [prescription] = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
-
-    if (!prescription) {
-      throw new Error('Prescripcion no encontrada');
-    }
-
-    // Delete the prescription
-    await this.db
-      .delete(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
-
-    // Reorder remaining prescriptions to be sequential
-    const remaining = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, blockId))
-      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
-
-    for (let i = 0; i < remaining.length; i++) {
-      if (remaining[i].sortOrder !== i) {
-        await this.db
-          .update(schema.sessionPrescriptions)
-          .set({ sortOrder: i })
-          .where(eq(schema.sessionPrescriptions.id, remaining[i].id));
-      }
-    }
-
-    // Update block exercise count
-    await this.db
-      .update(schema.sessionBlocks)
-      .set({
-        exerciseCount: sql`${schema.sessionBlocks.exerciseCount} - 1`,
-      })
-      .where(eq(schema.sessionBlocks.id, blockId));
-
-    // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'exercise_remove');
-  }
-
-  // =========================================================================
-  // 7. resetToAlgorithm - Restore session from snapshot
-  // =========================================================================
-
-  async resetToAlgorithm(params: ResetToAlgorithmParams) {
-    const { sessionId, userId } = params;
-
-    // Get session with snapshot
-    const [session] = await this.db
-      .select({
-        id: schema.sessions.id,
-        algorithmSnapshot: schema.sessions.algorithmSnapshot,
-      })
-      .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-
-    if (!session) {
-      throw new Error('Sesion no encontrada');
-    }
-
-    if (!session.algorithmSnapshot) {
-      throw new Error('No hay snapshot del algoritmo disponible para esta sesion');
-    }
-
-    const snapshot = session.algorithmSnapshot as AlgorithmSnapshot;
-
-    // Delete all existing blocks for this session (cascade handles prescriptions)
-    await this.db
-      .delete(schema.sessionBlocks)
-      .where(eq(schema.sessionBlocks.sessionId, sessionId));
-
-    // Re-insert blocks and prescriptions from snapshot
-    for (const snapshotBlock of snapshot.blocks) {
-      const [blockInsert] = await this.db
-        .insert(schema.sessionBlocks)
-        .values({
-          sessionId,
-          blockId: snapshotBlock.blockId,
-          role: snapshotBlock.role,
-          route: snapshotBlock.route,
-          pattern: snapshotBlock.pattern,
-          intensity: snapshotBlock.intensity,
-          repsBudget: snapshotBlock.repsBudget,
-          formatId: snapshotBlock.formatId,
-          formatName: snapshotBlock.formatName,
-          exerciseCount: snapshotBlock.exerciseCount,
-          sortOrder: snapshotBlock.sortOrder,
-        });
-
-      const newBlockId = blockInsert.insertId;
-
-      // Insert prescriptions for this block
-      if (snapshotBlock.exercises.length > 0) {
-        await this.db
-          .insert(schema.sessionPrescriptions)
-          .values(
-            snapshotBlock.exercises.map(ex => ({
-              blockId: newBlockId,
-              exerciseId: ex.exerciseId,
-              exerciseName: ex.exerciseName,
-              contraction: ex.contraction,
-              reps: ex.reps,
-              seconds: ex.seconds,
-              rest: ex.rest,
-              notes: ex.notes,
-              difficulty: ex.difficulty,
-              sortOrder: ex.sortOrder,
-              exerciseType: ex.exerciseType || 'main', // Backward compat for old snapshots
-            }))
-          );
-      }
-    }
-
-    // Update session: reset status and block count
-    await this.db
-      .update(schema.sessions)
-      .set({
-        status: 'pending_review',
-        blockCount: snapshot.blocks.length,
-        approvedAt: null,
-        approvedBy: null,
-        approvedBySystem: false,
-      })
-      .where(eq(schema.sessions.id, sessionId));
-
-    // Log the reset action
-    await this.logEdit(sessionId, userId, 'reset_to_algorithm');
-  }
-
-  // =========================================================================
-  // 8. getCompatibleFormats - Formats compatible with block characteristics
-  // =========================================================================
-
-  async getCompatibleFormats(params: CompatibleFormatsParams): Promise<CompatibleFormat[]> {
+  async getCompatibleFormats(
+    params: CompatibleFormatsParams,
+  ): Promise<CompatibleFormat[]> {
     const { blockRole, level, intensity } = params;
-
-    // Map block role to format_compatibility block enum
     const blockMap: Record<string, string> = {
-      'INITIUM': 'initium',
-      'NUCLEUS': 'nucleus',
-      'DEUTEROS_1': 'deuteros',
-      'DEUTEROS_2': 'deuteros',
-      'ATHLOS': 'athlos',
-      'EPIKOS': 'epikos',
+      INITIUM: "initium",
+      NUCLEUS: "nucleus",
+      DEUTEROS_1: "deuteros",
+      DEUTEROS_2: "deuteros",
+      ATHLOS: "athlos",
+      EPIKOS: "epikos",
     };
-
     const compatBlock = blockMap[blockRole];
-    if (!compatBlock) {
-      return [];
-    }
+    if (!compatBlock) return [];
 
-    // Map level string to compatibility level enum
-    // spartan -> omega per existing convention (decision from 09-02)
     const levelMap: Record<string, string> = {
-      'alfa': 'alfa',
-      'delta': 'delta',
-      'sigma': 'sigma',
-      'omega': 'omega',
-      'spartan': 'omega',
-      // Level groups map to representative level
-      'alfa_delta': 'alfa',
+      alfa: "alfa",
+      delta: "delta",
+      sigma: "sigma",
+      omega: "omega",
+      spartan: "omega",
+      alfa_delta: "alfa",
     };
+    const compatLevel = levelMap[level] || "omega";
 
-    const compatLevel = levelMap[level] || 'omega';
-
-    // INITIUM is the same for all levels: ignore both level and intensity.
-    // Other blocks: filter by exact level + intensity.
     const conditions = [
-      eq(schema.formatCompatibility.block, compatBlock as 'initium' | 'nucleus' | 'deuteros' | 'athlos' | 'epikos'),
+      eq(
+        schema.formatCompatibility.block,
+        compatBlock as "initium" | "nucleus" | "deuteros" | "athlos" | "epikos",
+      ),
       gt(schema.formatCompatibility.compatibility, 0),
     ];
-
-    if (compatBlock !== 'initium') {
-      conditions.push(eq(schema.formatCompatibility.level, compatLevel as 'alfa' | 'delta' | 'sigma' | 'omega'));
+    if (compatBlock !== "initium") {
+      conditions.push(
+        eq(
+          schema.formatCompatibility.level,
+          compatLevel as "alfa" | "delta" | "sigma" | "omega",
+        ),
+      );
       conditions.push(eq(schema.formatCompatibility.intensity, intensity));
     }
 
@@ -823,303 +295,40 @@ export class AdminEditService {
       .from(schema.formatCompatibility)
       .innerJoin(
         schema.formats,
-        eq(schema.formatCompatibility.formatId, schema.formats.id)
+        eq(schema.formatCompatibility.formatId, schema.formats.id),
       )
       .where(and(...conditions));
 
-    if (compatBlock === 'initium') {
-      // A format may appear at multiple levels/intensities — keep the best (lowest) score
+    if (compatBlock === "initium") {
       const bestByFormat = new Map<number, CompatibleFormat>();
       for (const row of rows) {
         const existing = bestByFormat.get(row.formatId);
-        if (!existing || row.compatibility < existing.compatibility) {
+        if (!existing || row.compatibility < existing.compatibility)
           bestByFormat.set(row.formatId, row);
-        }
       }
-      return [...bestByFormat.values()].sort((a, b) => a.compatibility - b.compatibility);
+      return [...bestByFormat.values()].sort(
+        (a, b) => a.compatibility - b.compatibility,
+      );
     }
-
     return rows.sort((a, b) => a.compatibility - b.compatibility);
   }
 
-  // =========================================================================
-  // 12. getMobilityPool - Query MOVILIDAD exercises for mobility swap
-  // =========================================================================
-
-  async getMobilityPool(blockRoute: string): Promise<ExercisePoolItem[]> {
-    // Query all MOVILIDAD pattern exercises
-    const allMobility = await this.db
-      .select({
-        id: schema.exercises.id,
-        exercise: schema.exercises.exercise,
-        effort: schema.exercises.effort,
-        dificultadLineal: schema.exercises.dificultadLineal,
-        pattern: schema.exercises.pattern,
-        category: schema.exercises.category,
-        route: schema.exercises.route,
-        mobilityRelated: schema.exercises.mobilityRelated,
-      })
-      .from(schema.exercises)
-      .where(eq(schema.exercises.pattern, 'MOVILIDAD'));
-
-    // Split into route-relevant and other
-    const relatedRoutes = ROUTE_TO_MOBILITY_ROUTES[blockRoute] || [];
-    const relevant: ExercisePoolItem[] = [];
-    const other: ExercisePoolItem[] = [];
-
-    for (const ex of allMobility) {
-      const isRelevant = relatedRoutes.length > 0 && ex.mobilityRelated !== null &&
-        relatedRoutes.some(r => ex.mobilityRelated!.includes(r));
-
-      const item: ExercisePoolItem = {
-        id: ex.id,
-        exercise: ex.exercise,
-        effort: ex.effort,
-        dificultadLineal: ex.dificultadLineal,
-        pattern: ex.pattern,
-        category: ex.category,
-        route: ex.route,
-        patternSource: isRelevant ? 'pattern_1' : 'pattern_2',
-      };
-
-      if (isRelevant) {
-        relevant.push(item);
-      } else {
-        other.push(item);
-      }
-    }
-
-    // Route-relevant first, then all others — sorted by difficulty ascending within each group
-    relevant.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
-    other.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
-    return [...relevant, ...other];
-  }
-
-  // =========================================================================
-  // 13. swapMobilityExercise - Replace mobility exercise in a block
-  // =========================================================================
-
-  async swapMobilityExercise(params: {
-    sessionId: number;
-    blockId: number;
-    newExerciseId: number;
-    userId: number;
-  }) {
-    const { sessionId, blockId, newExerciseId, userId } = params;
-
-    // Find current mobility prescription in block
-    const [currentMobility] = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(and(
-        eq(schema.sessionPrescriptions.blockId, blockId),
-        eq(schema.sessionPrescriptions.exerciseType, 'mobility'),
-      ));
-
-    if (!currentMobility) {
-      throw new Error('No hay ejercicio de movilidad en este bloque');
-    }
-
-    // Look up new exercise
-    const [newExercise] = await this.db
-      .select()
-      .from(schema.exercises)
-      .where(eq(schema.exercises.id, newExerciseId));
-
-    if (!newExercise) {
-      throw new Error('Ejercicio no encontrado');
-    }
-
-    // Mobility prescription defaults (per user decision: ISO=seconds, CON=reps)
-    const isISO = newExercise.effort?.toUpperCase() === 'ISO';
-    const reps = isISO ? 0 : 10;
-    const seconds = isISO ? 20 : 0;
-
-    // Update the prescription
-    await this.db
-      .update(schema.sessionPrescriptions)
-      .set({
-        exerciseId: newExercise.id,
-        exerciseName: newExercise.exercise,
-        contraction: newExercise.effort,
-        reps,
-        seconds,
-        rest: 0,
-        notes: null,
-        difficulty: null,
-        // Keep exerciseType='mobility' and sortOrder=999
-      })
-      .where(eq(schema.sessionPrescriptions.id, currentMobility.id));
-
-    // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'mobility_swap');
-
-    return {
-      id: currentMobility.id,
-      exerciseId: newExercise.id,
-      exerciseName: newExercise.exercise,
-      contraction: newExercise.effort,
-      reps,
-      seconds,
-      rest: 0,
-      notes: null,
-      difficulty: null,
-      sortOrder: currentMobility.sortOrder,
-      exerciseType: 'mobility',
-    };
-  }
-
-  // =========================================================================
-  // 14. updateBlockRole - Switch block role between ATHLOS/EPIKOS
-  // =========================================================================
-
-  async updateBlockRole(params: {
-    sessionId: number;
-    blockId: number;
-    role: 'ATHLOS' | 'EPIKOS';
-    userId: number;
-  }) {
-    const { sessionId, blockId, role, userId } = params;
-
-    // Verify block exists and belongs to session
-    const [block] = await this.db
-      .select()
-      .from(schema.sessionBlocks)
-      .where(and(
-        eq(schema.sessionBlocks.id, blockId),
-        eq(schema.sessionBlocks.sessionId, sessionId)
-      ));
-
-    if (!block) {
-      throw new Error('Bloque no encontrado en esta sesion');
-    }
-
-    // Validate current role is ATHLOS or EPIKOS
-    if (block.role !== 'ATHLOS' && block.role !== 'EPIKOS') {
-      throw new Error('Solo se puede cambiar el rol entre ATHLOS y EPIKOS');
-    }
-
-    // Update role
-    await this.db
-      .update(schema.sessionBlocks)
-      .set({ role })
-      .where(eq(schema.sessionBlocks.id, blockId));
-
-    // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, 'block_role_change');
-
-    return { blockId, role };
-  }
-
-  // =========================================================================
-  // Helpers
-  // =========================================================================
-
-  /**
-   * Check session status and revert to pending_review if currently approved.
-   * Per user decision: editing an approved session automatically reverts to pending.
-   */
-  private async revertToPendingIfApproved(sessionId: number): Promise<void> {
-    const [session] = await this.db
-      .select({ status: schema.sessions.status })
-      .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-
-    if (session?.status === 'approved') {
-      await this.db
-        .update(schema.sessions)
-        .set({
-          status: 'pending_review',
-          approvedAt: null,
-          approvedBy: null,
-          approvedBySystem: false,
-        })
-        .where(eq(schema.sessions.id, sessionId));
-    }
-  }
-
-  /**
-   * Log an edit action to session_edit_logs.
-   * Per user decision: simple log with action type, no field-level detail.
-   */
-  private async logEdit(
-    sessionId: number,
-    userId: number,
-    action: string
-  ): Promise<void> {
-    await this.db
-      .insert(schema.sessionEditLogs)
-      .values({
-        sessionId,
-        userId,
-        action,
-      });
-  }
-
-  /**
-   * Get a block with its exercises (used for return values).
-   */
-  private async getBlockWithExercises(blockId: number) {
-    const [block] = await this.db
-      .select()
-      .from(schema.sessionBlocks)
-      .where(eq(schema.sessionBlocks.id, blockId));
-
-    if (!block) {
-      throw new Error('Bloque no encontrado');
-    }
-
-    const prescriptions = await this.db
-      .select()
-      .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, blockId))
-      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
-
-    return {
-      ...block,
-      exercises: prescriptions.map(p => ({
-        id: p.id,
-        exerciseId: p.exerciseId,
-        exerciseName: p.exerciseName,
-        contraction: p.contraction,
-        reps: p.reps,
-        seconds: p.seconds,
-        rest: p.rest,
-        notes: p.notes,
-        difficulty: p.difficulty,
-        dificultadLineal: p.difficulty,
-        sortOrder: p.sortOrder,
-      })),
-    };
-  }
-
-  // =========================================================================
-  // 9. saveBlock - Save a session block for reuse
-  // =========================================================================
+  // === Saved Blocks ===
 
   async saveBlock(params: SaveBlockParams): Promise<SavedBlockItem> {
     const { blockId, name, userId } = params;
-
-    // Fetch the block with its exercises
     const [block] = await this.db
       .select()
       .from(schema.sessionBlocks)
       .where(eq(schema.sessionBlocks.id, blockId));
+    if (!block) throw new Error("Bloque no encontrado");
 
-    if (!block) {
-      throw new Error('Bloque no encontrado');
-    }
-
-    // Fetch exercises/prescriptions for this block
     const prescriptions = await this.db
       .select()
       .from(schema.sessionPrescriptions)
       .where(eq(schema.sessionPrescriptions.blockId, blockId))
       .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-    // Serialize full block data as JSON snapshot
     const blockData = {
       role: block.role,
       route: block.route,
@@ -1127,7 +336,7 @@ export class AdminEditService {
       formatParams: block.formatParams,
       intensity: block.intensity,
       repsBudget: block.repsBudget,
-      exercises: prescriptions.map(p => ({
+      exercises: prescriptions.map((p) => ({
         exerciseId: p.exerciseId,
         exerciseName: p.exerciseName,
         contraction: p.contraction,
@@ -1141,25 +350,20 @@ export class AdminEditService {
       })),
     };
 
-    // Insert into saved_blocks
-    const [insertResult] = await this.db
-      .insert(schema.savedBlocks)
-      .values({
-        name,
-        createdBy: userId,
-        sourceBlockId: blockId,
-        blockRole: block.role,
-        blockRoute: block.route,
-        formatName: block.formatName,
-        blockData,
-      });
+    const [insertResult] = await this.db.insert(schema.savedBlocks).values({
+      name,
+      createdBy: userId,
+      sourceBlockId: blockId,
+      blockRole: block.role,
+      blockRoute: block.route,
+      formatName: block.formatName,
+      blockData,
+    });
 
-    // Return the saved block
     const [savedBlock] = await this.db
       .select()
       .from(schema.savedBlocks)
       .where(eq(schema.savedBlocks.id, insertResult.insertId));
-
     return {
       id: savedBlock.id,
       name: savedBlock.name,
@@ -1172,10 +376,6 @@ export class AdminEditService {
     };
   }
 
-  // =========================================================================
-  // 10. listSavedBlocks - List saved blocks for a user
-  // =========================================================================
-
   async listSavedBlocks(userId: number): Promise<SavedBlockItem[]> {
     const rows = await this.db
       .select()
@@ -1183,10 +383,8 @@ export class AdminEditService {
       .where(eq(schema.savedBlocks.createdBy, userId))
       .orderBy(desc(schema.savedBlocks.createdAt));
 
-    return rows.map(row => {
-      const blockData = row.blockData as any;
-      const exerciseCount = blockData?.exercises?.length || 0;
-
+    return rows.map((row) => {
+      const blockData = row.blockData as SavedBlockData | null;
       return {
         id: row.id,
         name: row.name,
@@ -1194,39 +392,88 @@ export class AdminEditService {
         blockRoute: row.blockRoute,
         formatName: row.formatName,
         createdAt: row.createdAt,
-        exerciseCount,
+        exerciseCount: blockData?.exercises?.length ?? 0,
         blockData: row.blockData,
       };
     });
   }
 
-  // =========================================================================
-  // 11. deleteSavedBlock - Delete a saved block
-  // =========================================================================
-
   async deleteSavedBlock(params: DeleteSavedBlockParams): Promise<boolean> {
     const { savedBlockId, userId } = params;
-
-    // Check if the block exists and belongs to the user
     const [existing] = await this.db
       .select({ id: schema.savedBlocks.id })
       .from(schema.savedBlocks)
       .where(
         and(
           eq(schema.savedBlocks.id, savedBlockId),
-          eq(schema.savedBlocks.createdBy, userId)
-        )
+          eq(schema.savedBlocks.createdBy, userId),
+        ),
       );
-
-    if (!existing) {
-      return false;
-    }
-
-    // Delete the block
+    if (!existing) return false;
     await this.db
       .delete(schema.savedBlocks)
       .where(eq(schema.savedBlocks.id, savedBlockId));
-
     return true;
+  }
+
+  // === Helpers ===
+
+  private async revertToPendingIfApproved(sessionId: number): Promise<void> {
+    const [session] = await this.db
+      .select({ status: schema.sessions.status })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, sessionId));
+    if (session?.status === "approved") {
+      await this.db
+        .update(schema.sessions)
+        .set({
+          status: "pending_review",
+          approvedAt: null,
+          approvedBy: null,
+          approvedBySystem: false,
+        })
+        .where(eq(schema.sessions.id, sessionId));
+    }
+  }
+
+  private async logEdit(
+    sessionId: number,
+    userId: number,
+    action: string,
+  ): Promise<void> {
+    await this.db
+      .insert(schema.sessionEditLogs)
+      .values({ sessionId, userId, action });
+  }
+
+  private async getBlockWithExercises(blockId: number) {
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.id, blockId));
+    if (!block) throw new Error("Bloque no encontrado");
+
+    const prescriptions = await this.db
+      .select()
+      .from(schema.sessionPrescriptions)
+      .where(eq(schema.sessionPrescriptions.blockId, blockId))
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+    return {
+      ...block,
+      exercises: prescriptions.map((p) => ({
+        id: p.id,
+        exerciseId: p.exerciseId,
+        exerciseName: p.exerciseName,
+        contraction: p.contraction,
+        reps: p.reps,
+        seconds: p.seconds,
+        rest: p.rest,
+        notes: p.notes,
+        difficulty: p.difficulty,
+        dificultadLineal: p.difficulty,
+        sortOrder: p.sortOrder,
+      })),
+    };
   }
 }
