@@ -5,10 +5,8 @@ node_modules/
 dist/
 
 # Environment files
-.env
-.env.development
-.env.production
-.env.local
+.env*
+!.env.example
 
 # IDE
 .idea/

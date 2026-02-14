@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 19 (Technical Debt Audit) — In progress
-Plan: 5 of 9 — 19-05 complete
+Plan: 6 of 9 — 19-06 complete
 Status: Executing
-Last activity: 2026-02-14 - Completed 19-05 (Pre-commit Hooks & README)
+Last activity: 2026-02-14 - Completed 19-06 (DayPlayer Split)
 
 ### Phase 19 Framing
 Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
@@ -21,7 +21,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [█████░░░░░] 55% Phase 19 (5/9 plans complete)
+Progress: [██████░░░░] 66% Phase 19 (6/9 plans complete)
 
 ## Architecture Reset
 
@@ -108,6 +108,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 17 P03 | 5 | 2 tasks | 5 files |
 | Phase 18 P01 | 2 | 2 tasks | 5 files |
 | Phase 18 P02 | 2 | 2 tasks | 4 files |
+| Phase 19 P06 | 10 | 2 tasks | 3 files |
 | Phase 19 P02 | 4 | 2 tasks | 6 files |
 | Phase 19 P05 | 4 | 2 tasks | 4 files |
 
@@ -401,6 +402,9 @@ Recent decisions affecting current work:
 - [Phase 18-02]: HTTP-only Nginx configs for certbot injection -- no SSL directives to avoid chicken-and-egg problem
 - [Phase 18-02]: Admin artifact uses dist/spa path for flat static files (no subdirectory nesting)
 - [Phase 18-02]: Node version bumped from 20 to 22 in CI to match EC2 server
+- [Phase 19-06]: DeuterosSelector wraps existing BlockChoice rather than reimplementing -- BlockChoice already handled card selection
+- [Phase 19-06]: BlockProgressionView owns incomplete exercise confirmation dialog -- UI confirmation belongs to component owning the action
+- [Phase 19-06]: Exercise counts computed inside BlockProgressionView from props rather than bridged from parent
 - [Phase 19-02]: Sentry init guarded by SENTRY_DSN -- graceful no-op in dev without config
 - [Phase 19-02]: instrument.ts as first import in index.ts for early module hooking
 - [Phase 19-05]: Skip API ESLint in lint-staged -- el-templo-api has no eslint.config.js yet
@@ -436,7 +440,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-14
-Stopped at: Completed 19-05-PLAN.md (Pre-commit Hooks & README). Next: 19-06
+Stopped at: Completed 19-06-PLAN.md (DayPlayer Split). Next: 19-07
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
