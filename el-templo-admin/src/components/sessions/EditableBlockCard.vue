@@ -63,17 +63,8 @@
       indicator-color="primary"
       narrow-indicator
     >
-      <q-tab
-        v-for="lb in blockGroup.levelBlocks"
-        :key="lb.memberLevel"
-        :name="lb.memberLevel"
-      >
-        <q-chip
-          dense
-          :color="levelColor(lb.memberLevel)"
-          text-color="white"
-          size="sm"
-        >
+      <q-tab v-for="lb in blockGroup.levelBlocks" :key="lb.memberLevel" :name="lb.memberLevel">
+        <q-chip dense :color="levelColor(lb.memberLevel)" text-color="white" size="sm">
           {{ levelLabel(lb.memberLevel) }}
         </q-chip>
       </q-tab>
@@ -174,9 +165,7 @@
     <template v-if="!isInitium && sharedMobility">
       <q-separator class="q-my-sm" />
       <div class="q-px-md q-pb-md">
-        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">
-          DESCANSO ACTIVO
-        </div>
+        <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">DESCANSO ACTIVO</div>
         <div class="row items-center q-gutter-sm">
           <!-- Exercise name + contraction badge -->
           <div class="col">
@@ -184,9 +173,7 @@
               <span class="text-body2 text-weight-medium">
                 {{ sharedMobility.exerciseName }}
               </span>
-              <q-badge
-                :color="contractionColor(sharedMobility.contraction)"
-              >
+              <q-badge :color="contractionColor(sharedMobility.contraction)">
                 {{ contractionLabel(sharedMobility.contraction) }}
               </q-badge>
             </div>
@@ -217,14 +204,7 @@
             </div>
           </div>
           <!-- Swap button -->
-          <q-btn
-            flat
-            dense
-            round
-            icon="swap_horiz"
-            color="grey-7"
-            @click="onSwapMobility"
-          >
+          <q-btn flat dense round icon="swap_horiz" color="grey-7" @click="onSwapMobility">
             <q-tooltip>Cambiar ejercicio de movilidad</q-tooltip>
           </q-btn>
         </div>
@@ -255,12 +235,41 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'swap-exercise', payload: { sessionId: number; blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }): void;
-  (e: 'swap-block', payload: { sessionId: number; block: import('src/types/session').SessionBlock }): void;
-  (e: 'add-exercise', payload: { sessionId: number; blockId: number; blockRoute: string; blockPattern: string; blockRole: string }): void;
+  (
+    e: 'swap-exercise',
+    payload: {
+      sessionId: number;
+      blockId: number;
+      exercise: SessionExercise;
+      blockRoute: string;
+      blockPattern: string;
+    }
+  ): void;
+  (
+    e: 'swap-block',
+    payload: { sessionId: number; block: import('src/types/session').SessionBlock }
+  ): void;
+  (
+    e: 'add-exercise',
+    payload: {
+      sessionId: number;
+      blockId: number;
+      blockRoute: string;
+      blockPattern: string;
+      blockRole: string;
+    }
+  ): void;
   (e: 'refresh'): void;
   (e: 'swap-mobility', payload: { sessionId: number; blockId: number; blockRoute: string }): void;
-  (e: 'update-mobility-prescription', payload: { sessionId: number; blockId: number; prescriptionId: number; fields: PrescriptionUpdate }): void;
+  (
+    e: 'update-mobility-prescription',
+    payload: {
+      sessionId: number;
+      blockId: number;
+      prescriptionId: number;
+      fields: PrescriptionUpdate;
+    }
+  ): void;
 }>();
 
 const $q = useQuasar();
@@ -272,14 +281,20 @@ const selectedLevel = ref(props.blockGroup.levelBlocks[0]?.memberLevel || '');
 // Format dropdown state
 const compatibleFormats = ref<CompatibleFormat[]>([]);
 const selectedFormat = ref<string>(props.blockGroup.formatName);
-watch(() => props.blockGroup.formatName, (v) => { selectedFormat.value = v; });
+watch(
+  () => props.blockGroup.formatName,
+  (v) => {
+    selectedFormat.value = v;
+  }
+);
 const formatsLoading = ref(false);
 const formatChanging = ref(false);
 
 // Computed: selected level's block
-const selectedLevelBlock = computed(() =>
-  props.blockGroup.levelBlocks.find(lb => lb.memberLevel === selectedLevel.value)
-    || props.blockGroup.levelBlocks[0]
+const selectedLevelBlock = computed(
+  () =>
+    props.blockGroup.levelBlocks.find((lb) => lb.memberLevel === selectedLevel.value) ||
+    props.blockGroup.levelBlocks[0]
 );
 
 const selectedBlock = computed(() => selectedLevelBlock.value?.block ?? null);
@@ -293,16 +308,23 @@ const blockColor = computed(() => {
   return 'grey';
 });
 
-const isInitium = computed(() =>
-  props.blockGroup.role?.toLowerCase().includes('initium') || false
-);
+const isInitium = computed(() => props.blockGroup.role?.toLowerCase().includes('initium') || false);
 
 const isAthlosEpikos = computed(() => {
   const role = props.blockGroup.role?.toUpperCase();
   return role === 'ATHLOS' || role === 'EPIKOS';
 });
 
-const NO_PARAMS_FORMATS = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper', 'cluster', 'buy_in_cash_out'];
+const NO_PARAMS_FORMATS = [
+  'standard',
+  'unbroken',
+  'couplet',
+  'triplet',
+  'for_max',
+  'chipper',
+  'cluster',
+  'buy_in_cash_out',
+];
 
 const hasConfigurableParams = computed(() => {
   if (props.blockGroup.formatParams) {
@@ -314,21 +336,21 @@ const hasConfigurableParams = computed(() => {
 });
 
 // Shared mobility exercise (from first level block — same for all levels)
-const sharedMobility = computed(() =>
-  props.blockGroup.levelBlocks[0]?.block?.mobilityExercise ?? null
+const sharedMobility = computed(
+  () => props.blockGroup.levelBlocks[0]?.block?.mobilityExercise ?? null
 );
 
 const avgDifficulty = computed(() => {
   if (!selectedBlock.value) return null;
   const difficulties = selectedBlock.value.exercises
-    .map(e => e.dificultadLineal)
+    .map((e) => e.dificultadLineal)
     .filter((d): d is number => d !== null && d !== undefined);
   if (difficulties.length === 0) return null;
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
 });
 
-const exerciseCapWarning = computed(() =>
-  !isInitium.value && (selectedBlock.value?.exercises.length ?? 0) > 3
+const exerciseCapWarning = computed(
+  () => !isInitium.value && (selectedBlock.value?.exercises.length ?? 0) > 3
 );
 
 const contractionWarning = ref<string | undefined>(undefined);
@@ -342,12 +364,14 @@ function displayFormatName(name: string): string {
 // Format dropdown options
 const formatOptions = computed(() => {
   if (compatibleFormats.value.length === 0) {
-    return [{ label: displayFormatName(props.blockGroup.formatName), value: props.blockGroup.formatName }];
+    return [
+      { label: displayFormatName(props.blockGroup.formatName), value: props.blockGroup.formatName },
+    ];
   }
   return [...compatibleFormats.value]
-    .filter(f => f.formatName.toLowerCase() !== 'hiit')
+    .filter((f) => f.formatName.toLowerCase() !== 'hiit')
     .sort((a, b) => a.compatibility - b.compatibility)
-    .map(f => ({
+    .map((f) => ({
       label: `${displayFormatName(f.formatName)} (${f.compatibility})`,
       value: f.formatName,
       formatId: f.formatId,
@@ -357,12 +381,18 @@ const formatOptions = computed(() => {
 // Level helpers
 function levelColor(level: string): string {
   switch (level) {
-    case 'alfa': return 'light-blue';
-    case 'delta': return 'indigo';
-    case 'sigma': return 'purple';
-    case 'omega': return 'orange';
-    case 'spartan': return 'red';
-    default: return 'grey';
+    case 'alfa':
+      return 'light-blue';
+    case 'delta':
+      return 'indigo';
+    case 'sigma':
+      return 'purple';
+    case 'omega':
+      return 'orange';
+    case 'spartan':
+      return 'red';
+    default:
+      return 'grey';
   }
 }
 
@@ -391,18 +421,15 @@ async function loadCompatibleFormats() {
 async function onFormatChange(newFormat: string) {
   if (newFormat === props.blockGroup.formatName) return;
 
-  const format = compatibleFormats.value.find(f => f.formatName === newFormat);
+  const format = compatibleFormats.value.find((f) => f.formatName === newFormat);
   if (!format) return;
 
   formatChanging.value = true;
   try {
     // Change format for ALL level blocks in this group + sibling (DEUTEROS sync)
-    const allLevelBlocks = [
-      ...props.blockGroup.levelBlocks,
-      ...(props.siblingLevelBlocks || []),
-    ];
+    const allLevelBlocks = [...props.blockGroup.levelBlocks, ...(props.siblingLevelBlocks || [])];
     await Promise.all(
-      allLevelBlocks.map(lb =>
+      allLevelBlocks.map((lb) =>
         editApi.changeBlockFormat(lb.sessionId, lb.block.id, format.formatId, format.formatName)
       )
     );
@@ -425,11 +452,15 @@ async function onRoleChange(newRole: 'ATHLOS' | 'EPIKOS') {
   formatChanging.value = true;
   try {
     await Promise.all(
-      props.blockGroup.levelBlocks.map(lb =>
+      props.blockGroup.levelBlocks.map((lb) =>
         editApi.updateBlockRole(lb.sessionId, lb.block.id, newRole)
       )
     );
-    $q.notify({ type: 'positive', message: `Rol cambiado a ${newRole} en todos los niveles`, timeout: 1500 });
+    $q.notify({
+      type: 'positive',
+      message: `Rol cambiado a ${newRole} en todos los niveles`,
+      timeout: 1500,
+    });
     emit('refresh');
   } catch {
     $q.notify({ type: 'negative', message: 'Error al cambiar rol del bloque' });
@@ -442,20 +473,20 @@ async function onRoleChange(newRole: 'ATHLOS' | 'EPIKOS') {
 async function onUpdateFormatParams(newParams: Record<string, unknown>) {
   formatChanging.value = true;
   try {
-    const allLevelBlocks = [
-      ...props.blockGroup.levelBlocks,
-      ...(props.siblingLevelBlocks || []),
-    ];
+    const allLevelBlocks = [...props.blockGroup.levelBlocks, ...(props.siblingLevelBlocks || [])];
     await Promise.all(
-      allLevelBlocks.map(lb =>
-        editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams)
-      )
+      allLevelBlocks.map((lb) => editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams))
     );
     // Update in-place for reactivity
     for (const lb of allLevelBlocks) {
-      (lb.block as any).formatParams = newParams;
+      lb.block.formatParams = newParams;
     }
-    $q.notify({ type: 'positive', message: 'Parametros de formato actualizados en todos los niveles', color: 'green', timeout: 1500 });
+    $q.notify({
+      type: 'positive',
+      message: 'Parametros de formato actualizados en todos los niveles',
+      color: 'green',
+      timeout: 1500,
+    });
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar parametros de formato' });
   } finally {
@@ -484,7 +515,11 @@ async function onRemoveExercise(payload: { prescriptionId: number }) {
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(async () => {
     try {
-      await editApi.removeExercise(selectedLevelBlock.value.sessionId, selectedBlock.value!.id, payload.prescriptionId);
+      await editApi.removeExercise(
+        selectedLevelBlock.value.sessionId,
+        selectedBlock.value!.id,
+        payload.prescriptionId
+      );
       $q.notify({ type: 'positive', message: 'Ejercicio eliminado' });
       emit('refresh');
     } catch {
@@ -493,15 +528,28 @@ async function onRemoveExercise(payload: { prescriptionId: number }) {
   });
 }
 
-async function onUpdatePrescription(payload: { prescriptionId: number; fields: PrescriptionUpdate }) {
+async function onUpdatePrescription(payload: {
+  prescriptionId: number;
+  fields: PrescriptionUpdate;
+}) {
   if (!selectedBlock.value) return;
   try {
-    await editApi.updatePrescription(selectedLevelBlock.value.sessionId, selectedBlock.value.id, payload.prescriptionId, payload.fields);
-    const exercise = selectedBlock.value.exercises.find(e => e.id === payload.prescriptionId);
+    await editApi.updatePrescription(
+      selectedLevelBlock.value.sessionId,
+      selectedBlock.value.id,
+      payload.prescriptionId,
+      payload.fields
+    );
+    const exercise = selectedBlock.value.exercises.find((e) => e.id === payload.prescriptionId);
     if (exercise) {
       Object.assign(exercise, payload.fields);
     }
-    $q.notify({ type: 'positive', message: 'Prescripcion actualizada', color: 'green', timeout: 1500 });
+    $q.notify({
+      type: 'positive',
+      message: 'Prescripcion actualizada',
+      color: 'green',
+      timeout: 1500,
+    });
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
   }
@@ -570,10 +618,14 @@ function contractionLabel(contraction: string | null | undefined): string {
 
 function contractionColor(contraction: string | null | undefined): string {
   switch (normalizeContraction(contraction)) {
-    case 'CON': return 'blue-grey';
-    case 'EXC': return 'teal';
-    case 'ISO': return 'orange';
-    default: return 'grey';
+    case 'CON':
+      return 'blue-grey';
+    case 'EXC':
+      return 'teal';
+    case 'ISO':
+      return 'orange';
+    default:
+      return 'grey';
   }
 }
 

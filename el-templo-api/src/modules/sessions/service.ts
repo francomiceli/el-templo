@@ -13,18 +13,32 @@
  * - Optional trace persistence to session_traces table (PERSIST_TRACES=true)
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and } from 'drizzle-orm';
-import * as schema from '../../db/schema';
-import { SpomService } from '../spom/service';
-import { runBlockPipeline, createInitialContext, type BlockPipelineOptions } from './pipeline';
-import type { LevelGroup, BlockRole, DaySession, BlockPlan, TraceEvent, ExercisePrescription, ExerciseLevel, FormatInstance, FormatParams } from './types';
-import { getFinalBlockRole } from './types';
-import { validateSessionForTrace } from './validators/session-validator';
-import { createSessionLogger } from './trace/logger';
-import { aggregateBlockTrace, aggregateSessionTrace } from './trace/emitter';
-import type { BlockTrace, SessionTrace } from './trace/types';
-import { selectMobilityExercise } from './pipeline/utils/mobility-selection';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and } from "drizzle-orm";
+import * as schema from "../../db/schema";
+import { SpomService } from "../spom/service";
+import {
+  runBlockPipeline,
+  createInitialContext,
+  type BlockPipelineOptions,
+} from "./pipeline";
+import type {
+  LevelGroup,
+  BlockRole,
+  DaySession,
+  BlockPlan,
+  TraceEvent,
+  ExercisePrescription,
+  ExerciseLevel,
+  FormatInstance,
+  FormatParams,
+} from "./types";
+import { getFinalBlockRole } from "./types";
+import { validateSessionForTrace } from "./validators/session-validator";
+import { createSessionLogger } from "./trace/logger";
+import { aggregateBlockTrace, aggregateSessionTrace } from "./trace/emitter";
+import type { BlockTrace, SessionTrace } from "./trace/types";
+import { selectMobilityExercise } from "./pipeline/utils/mobility-selection";
 
 /**
  * Get block roles in execution order for a given week
@@ -32,10 +46,10 @@ import { selectMobilityExercise } from './pipeline/utils/mobility-selection';
  */
 function getBlockRoles(week: number): BlockRole[] {
   return [
-    'INITIUM',
-    'NUCLEUS',
-    'DEUTEROS_1',
-    'DEUTEROS_2',
+    "INITIUM",
+    "NUCLEUS",
+    "DEUTEROS_1",
+    "DEUTEROS_2",
     getFinalBlockRole(week),
   ];
 }
@@ -80,14 +94,21 @@ export class SessionGeneratorService {
 
     // Create Pino logger with session context
     const logger = createSessionLogger(week, dayId, levelGroup);
-    logger.info({ event: 'SESSION_STARTED', week, day, levelGroup, memberLevel }, 'Starting session generation');
+    logger.info(
+      { event: "SESSION_STARTED", week, day, levelGroup, memberLevel },
+      "Starting session generation",
+    );
 
     const sessionTrace: TraceEvent[] = [];
     const blocks: BlockPlan[] = [];
     const blockTraces: BlockTrace[] = [];
 
     // Check if DEUTEROS_2 should be skipped and resolve Nucleus route for contextual Initium
-    const rotator = await this.spomService.getWeeklyRotator(week, day, levelGroup);
+    const rotator = await this.spomService.getWeeklyRotator(
+      week,
+      day,
+      levelGroup,
+    );
     const skipDeuteros2 = !rotator || rotator.deuteros2RouteId === null;
 
     // Resolve Nucleus route for contextual Initium selection (13-04)
@@ -96,19 +117,25 @@ export class SessionGeneratorService {
       const route = await this.spomService.getRouteById(rotator.nucleusRouteId);
       if (route) {
         nucleusRoute = route.code;
-        logger.info({
-          event: 'NUCLEUS_ROUTE_RESOLVED',
-          nucleusRoute,
-          nucleusRouteId: rotator.nucleusRouteId,
-        }, `Resolved Nucleus route for contextual Initium: ${nucleusRoute}`);
+        logger.info(
+          {
+            event: "NUCLEUS_ROUTE_RESOLVED",
+            nucleusRoute,
+            nucleusRouteId: rotator.nucleusRouteId,
+          },
+          `Resolved Nucleus route for contextual Initium: ${nucleusRoute}`,
+        );
       }
     }
 
     if (!nucleusRoute) {
-      logger.warn({
-        event: 'NUCLEUS_ROUTE_MISSING',
-        reason: !rotator ? 'No rotator entry' : 'No nucleusRouteId',
-      }, 'Nucleus route not available for contextual Initium selection');
+      logger.warn(
+        {
+          event: "NUCLEUS_ROUTE_MISSING",
+          reason: !rotator ? "No rotator entry" : "No nucleusRouteId",
+        },
+        "Nucleus route not available for contextual Initium selection",
+      );
     }
 
     // Generate each block in sequence (determinism requires sequential execution)
@@ -118,11 +145,11 @@ export class SessionGeneratorService {
     const blockRoles = getBlockRoles(week);
     for (const role of blockRoles) {
       // Skip DEUTEROS_2 if no route assigned
-      if (role === 'DEUTEROS_2' && skipDeuteros2) {
+      if (role === "DEUTEROS_2" && skipDeuteros2) {
         sessionTrace.push({
           ts: new Date().toISOString(),
-          severity: 'INFO',
-          code: 'BLOCK_SKIPPED',
+          severity: "INFO",
+          code: "BLOCK_SKIPPED",
           where: {
             week,
             day,
@@ -132,7 +159,7 @@ export class SessionGeneratorService {
             role,
           },
           decision: {
-            reason: 'No route assigned in rotator (deuteros2RouteId is null)',
+            reason: "No route assigned in rotator (deuteros2RouteId is null)",
           },
         });
         continue;
@@ -146,59 +173,67 @@ export class SessionGeneratorService {
         levelGroup,
         memberLevel,
         role,
-        role === 'INITIUM' ? nucleusRoute : undefined
+        role === "INITIUM" ? nucleusRoute : undefined,
       );
 
       // Build pipeline options
       // DEUTEROS_2 must use same format as DEUTEROS_1 for consistency
       // sharedFormats enforces cross-level format consistency (same format for all levels on a day)
       const sharedFormat = input.sharedFormats?.get(role);
-      const pipelineOptions: BlockPipelineOptions | undefined =
-        sharedFormat
-          ? { forcedFormat: sharedFormat }
-          : role === 'DEUTEROS_2' && deuteros1Format
-            ? { forcedFormat: deuteros1Format }
-            : undefined;
+      const pipelineOptions: BlockPipelineOptions | undefined = sharedFormat
+        ? { forcedFormat: sharedFormat }
+        : role === "DEUTEROS_2" && deuteros1Format
+          ? { forcedFormat: deuteros1Format }
+          : undefined;
 
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(
         initialContext,
         this.spomService,
         this.db,
-        pipelineOptions
+        pipelineOptions,
       );
 
       // Capture DEUTEROS_1's format for DEUTEROS_2 consistency
-      if (role === 'DEUTEROS_1') {
+      if (role === "DEUTEROS_1") {
         deuteros1Format = blockPlan.format;
       }
 
       // Select mobility exercise for non-INITIUM blocks (Phase 17)
-      if (role !== 'INITIUM') {
+      if (role !== "INITIUM") {
         const mobility = await selectMobilityExercise(blockPlan.route, this.db);
         if (mobility) {
           blockPlan.mobilityExercise = mobility;
         }
-        logger.info({
-          event: 'MOBILITY_SELECTED',
-          blockId: blockPlan.blockId,
-          role,
-          route: blockPlan.route,
-          mobilityExercise: mobility ? mobility.name : null,
-          fallbackUsed: mobility ? undefined : 'no_mobility_exercises_available',
-        }, mobility ? `Mobility: ${mobility.name}` : 'No mobility exercise available');
+        logger.info(
+          {
+            event: "MOBILITY_SELECTED",
+            blockId: blockPlan.blockId,
+            role,
+            route: blockPlan.route,
+            mobilityExercise: mobility ? mobility.name : null,
+            fallbackUsed: mobility
+              ? undefined
+              : "no_mobility_exercises_available",
+          },
+          mobility
+            ? `Mobility: ${mobility.name}`
+            : "No mobility exercise available",
+        );
       }
 
       blocks.push(blockPlan);
 
       // Aggregate block trace for session summary
-      blockTraces.push(aggregateBlockTrace(blockPlan.blockId, [...blockPlan.trace]));
+      blockTraces.push(
+        aggregateBlockTrace(blockPlan.blockId, [...blockPlan.trace]),
+      );
 
       // Collect block trace into session trace
       const blockCompleteEvent: TraceEvent = {
         ts: new Date().toISOString(),
-        severity: 'INFO',
-        code: 'BLOCK_COMPLETED',
+        severity: "INFO",
+        code: "BLOCK_COMPLETED",
         where: {
           week,
           day,
@@ -217,30 +252,33 @@ export class SessionGeneratorService {
       sessionTrace.push(blockCompleteEvent);
 
       // Log block completion via Pino
-      logger.info({
-        event: 'BLOCK_COMPLETED',
-        blockId: blockPlan.blockId,
-        role,
-        route: blockPlan.route,
-        intensity: blockPlan.intensity,
-        format: blockPlan.format.name,
-        exerciseCount: blockPlan.exercises.length,
-        traceEvents: blockPlan.trace.length,
-      }, `Block ${role} completed`);
+      logger.info(
+        {
+          event: "BLOCK_COMPLETED",
+          blockId: blockPlan.blockId,
+          role,
+          route: blockPlan.route,
+          intensity: blockPlan.intensity,
+          format: blockPlan.format.name,
+          exerciseCount: blockPlan.exercises.length,
+          traceEvents: blockPlan.trace.length,
+        },
+        `Block ${role} completed`,
+      );
     }
 
     // Final session summary trace
     sessionTrace.push({
       ts: new Date().toISOString(),
-      severity: 'INFO',
-      code: 'SESSION_GENERATED',
+      severity: "INFO",
+      code: "SESSION_GENERATED",
       where: {
         week,
         day,
         levelGroup,
         memberLevel,
         blockId: dayId,
-        role: 'INITIUM', // Placeholder for session-level trace
+        role: "INITIUM", // Placeholder for session-level trace
       },
       decision: {
         blocksGenerated: blocks.length,
@@ -265,36 +303,36 @@ export class SessionGeneratorService {
       // Add validation error trace
       sessionTrace.push({
         ts: new Date().toISOString(),
-        severity: 'ERROR',
-        code: 'VALIDATION_FAILED',
+        severity: "ERROR",
+        code: "VALIDATION_FAILED",
         where: {
           week,
           day,
           levelGroup,
           memberLevel,
           blockId: dayId,
-          role: 'INITIUM',
+          role: "INITIUM",
         },
         decision: validation,
       });
 
       throw new Error(
-        `Session validation failed: ${validation.errors.join('; ')}`
+        `Session validation failed: ${validation.errors.join("; ")}`,
       );
     }
 
     // Add validation success trace (even if warnings exist)
     sessionTrace.push({
       ts: new Date().toISOString(),
-      severity: validation.warningCount > 0 ? 'WARNING' : 'INFO',
-      code: 'VALIDATION_PASSED',
+      severity: validation.warningCount > 0 ? "WARNING" : "INFO",
+      code: "VALIDATION_PASSED",
       where: {
         week,
         day,
         levelGroup,
         memberLevel,
         blockId: dayId,
-        role: 'INITIUM',
+        role: "INITIUM",
       },
       decision: validation,
     });
@@ -303,19 +341,26 @@ export class SessionGeneratorService {
     const durationMs = Date.now() - startTime;
 
     // Aggregate full session trace with timing
-    const fullSessionTrace: SessionTrace = aggregateSessionTrace(dayId, blockTraces, durationMs);
+    const fullSessionTrace: SessionTrace = aggregateSessionTrace(
+      dayId,
+      blockTraces,
+      durationMs,
+    );
 
     // Log session completion via Pino with full summary
-    logger.info({
-      event: 'SESSION_COMPLETE',
-      dayId,
-      blocksGenerated: blocks.length,
-      totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
-      totalTraceEvents: fullSessionTrace.summary.totalEvents,
-      warnings: fullSessionTrace.summary.totalWarnings,
-      errors: fullSessionTrace.summary.totalErrors,
-      durationMs,
-    }, `Session ${dayId} generated in ${durationMs}ms`);
+    logger.info(
+      {
+        event: "SESSION_COMPLETE",
+        dayId,
+        blocksGenerated: blocks.length,
+        totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
+        totalTraceEvents: fullSessionTrace.summary.totalEvents,
+        warnings: fullSessionTrace.summary.totalWarnings,
+        errors: fullSessionTrace.summary.totalErrors,
+        durationMs,
+      },
+      `Session ${dayId} generated in ${durationMs}ms`,
+    );
 
     // Return session with updated trace
     return {
@@ -340,19 +385,17 @@ export class SessionGeneratorService {
    */
   async saveSession(
     session: DaySession,
-    options?: { generationDurationMs?: number }
+    options?: { generationDurationMs?: number },
   ): Promise<{ sessionId: number }> {
     // Insert session row
-    const [sessionResult] = await this.db
-      .insert(schema.sessions)
-      .values({
-        dayId: session.dayId,
-        week: session.week,
-        day: session.day,
-        levelGroup: session.levelGroup,
-        blockCount: session.blocks.length,
-        traceJson: session.trace,
-      });
+    const [sessionResult] = await this.db.insert(schema.sessions).values({
+      dayId: session.dayId,
+      week: session.week,
+      day: session.day,
+      levelGroup: session.levelGroup,
+      blockCount: session.blocks.length,
+      traceJson: session.trace,
+    });
 
     const sessionId = sessionResult.insertId;
 
@@ -360,22 +403,20 @@ export class SessionGeneratorService {
     for (let blockIdx = 0; blockIdx < session.blocks.length; blockIdx++) {
       const block = session.blocks[blockIdx];
 
-      const [blockResult] = await this.db
-        .insert(schema.sessionBlocks)
-        .values({
-          sessionId,
-          blockId: block.blockId,
-          role: block.role,
-          route: block.route,
-          pattern: block.pattern,
-          intensity: block.intensity,
-          repsBudget: block.repsBudget,
-          formatId: block.format.formatId,
-          formatName: block.format.name,
-          formatParams: block.formatParams,
-          exerciseCount: block.exercises.length,
-          sortOrder: blockIdx,
-        });
+      const [blockResult] = await this.db.insert(schema.sessionBlocks).values({
+        sessionId,
+        blockId: block.blockId,
+        role: block.role,
+        route: block.route,
+        pattern: block.pattern,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        formatId: block.format.formatId,
+        formatName: block.format.name,
+        formatParams: block.formatParams,
+        exerciseCount: block.exercises.length,
+        sortOrder: blockIdx,
+      });
 
       const blockId = blockResult.insertId;
 
@@ -392,10 +433,12 @@ export class SessionGeneratorService {
           notes: ex.notes ?? null,
           difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
           sortOrder: exIdx,
-          exerciseType: ex.exerciseType ?? 'main',
+          exerciseType: ex.exerciseType ?? "main",
         }));
 
-        await this.db.insert(schema.sessionPrescriptions).values(prescriptionValues);
+        await this.db
+          .insert(schema.sessionPrescriptions)
+          .values(prescriptionValues);
       }
 
       // Insert mobility exercise if present (Phase 17)
@@ -412,7 +455,7 @@ export class SessionGeneratorService {
           notes: mobilityEx.notes ?? null,
           difficulty: null, // Mobility exercises don't use difficulty
           sortOrder: 999, // High sortOrder to always appear last
-          exerciseType: 'mobility',
+          exerciseType: "mobility",
         });
       }
     }
@@ -431,7 +474,7 @@ export class SessionGeneratorService {
           notes: ex.notes ?? null,
           difficulty: ex.dificultadLineal ?? null,
           sortOrder: exIdx,
-          exerciseType: ex.exerciseType ?? 'main',
+          exerciseType: ex.exerciseType ?? "main",
         }));
 
         // Include mobility exercise in snapshot for revert capability
@@ -446,7 +489,7 @@ export class SessionGeneratorService {
             notes: block.mobilityExercise.notes ?? null,
             difficulty: null,
             sortOrder: 999,
-            exerciseType: 'mobility' as const,
+            exerciseType: "mobility" as const,
           });
         }
 
@@ -473,16 +516,16 @@ export class SessionGeneratorService {
       .where(eq(schema.sessions.id, sessionId));
 
     // Optional: Persist trace data to session_traces table for analytics
-    if (process.env.PERSIST_TRACES === 'true') {
+    if (process.env.PERSIST_TRACES === "true") {
       // Aggregate block traces for summary stats
       const blockTracesSummary: BlockTrace[] = session.blocks.map((block) =>
-        aggregateBlockTrace(block.blockId, [...block.trace])
+        aggregateBlockTrace(block.blockId, [...block.trace]),
       );
 
       const sessionTraceData = aggregateSessionTrace(
         session.dayId,
         blockTracesSummary,
-        options?.generationDurationMs ?? 0
+        options?.generationDurationMs ?? 0,
       );
 
       await this.db.insert(schema.sessionTraces).values({
@@ -508,11 +551,14 @@ export class SessionGeneratorService {
    * @param requireApproved - If true, only return approved sessions
    * @returns DaySession if found, null otherwise
    */
-  async getSessionByDayId(dayId: string, requireApproved = false): Promise<DaySession | null> {
+  async getSessionByDayId(
+    dayId: string,
+    requireApproved = false,
+  ): Promise<DaySession | null> {
     // Build query conditions
     const conditions = [eq(schema.sessions.dayId, dayId)];
     if (requireApproved) {
-      conditions.push(eq(schema.sessions.status, 'approved'));
+      conditions.push(eq(schema.sessions.status, "approved"));
     }
 
     // Query session
@@ -554,7 +600,9 @@ export class SessionGeneratorService {
    * Loads blocks and prescriptions, rebuilds the full object structure.
    * Transforms legacy ATHLOS_EPIKOS to ATHLOS or EPIKOS based on week.
    */
-  private async reconstructSession(session: typeof schema.sessions.$inferSelect): Promise<DaySession> {
+  private async reconstructSession(
+    session: typeof schema.sessions.$inferSelect,
+  ): Promise<DaySession> {
     // Load blocks for this session
     const blocks = await this.db
       .select()
@@ -575,25 +623,25 @@ export class SessionGeneratorService {
       const exercises: ExercisePrescription[] = prescriptions.map((p) => ({
         exerciseId: p.exerciseId,
         name: p.exerciseName,
-        contraction: p.contraction as 'CON' | 'EXC' | 'ISO',
+        contraction: p.contraction as "CON" | "EXC" | "ISO",
         reps: p.reps,
         seconds: p.seconds,
         rest: p.rest,
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
-        exerciseType: p.exerciseType as 'main' | 'mobility',
+        exerciseType: p.exerciseType as "main" | "mobility",
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week
       let role: BlockRole = block.role as BlockRole;
-      if (block.role === 'ATHLOS_EPIKOS') {
+      if (block.role === "ATHLOS_EPIKOS") {
         role = getFinalBlockRole(session.week);
       }
 
       // Handle formatParams: existing sessions may have null, default to 'standard'
       const formatParams = block.formatParams
-        ? (block.formatParams as any) as FormatParams
-        : { type: 'standard' } as const;
+        ? (block.formatParams as unknown as FormatParams)
+        : ({ type: "standard" } as const);
 
       blockPlans.push({
         blockId: block.blockId,
@@ -613,7 +661,7 @@ export class SessionGeneratorService {
     }
 
     // Extract memberLevel from dayId (format: W1-lunes-alfa)
-    const dayIdParts = session.dayId.split('-');
+    const dayIdParts = session.dayId.split("-");
     const memberLevel = dayIdParts[2] as ExerciseLevel;
 
     return {

@@ -1,1 +1,6 @@
-/home/franco/projects/el-templo/node_modules/lint-staged/bin/lint-staged.js
+export PATH="./node_modules/.bin:./el-templo-app/node_modules/.bin:./el-templo-admin/node_modules/.bin:$PATH"
+node --input-type=module -e "
+import lintStaged from 'lint-staged';
+const passed = await lintStaged();
+if (!passed) process.exit(1);
+"

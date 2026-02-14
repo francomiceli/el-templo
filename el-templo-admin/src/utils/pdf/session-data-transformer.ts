@@ -24,12 +24,12 @@ function displayFormatName(name: string): string {
 
 function formatNameWithParams(
   formatName: string,
-  formatParams: Record<string, unknown> | null | undefined,
+  formatParams: Record<string, unknown> | null | undefined
 ): string {
   const name = displayFormatName(formatName);
   if (!formatParams) return name;
 
-  const p = formatParams as Record<string, any>;
+  const p = formatParams as Record<string, unknown>;
   const type = p.type as string | undefined;
   if (!type) return name;
 
@@ -104,9 +104,9 @@ function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
  */
 function findBlock(blocks: SessionBlock[], role: string): SessionBlock | undefined {
   if (role === 'EPIKOS') {
-    return blocks.find(b => b.role === 'EPIKOS' || b.role === 'ATHLOS');
+    return blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
   }
-  return blocks.find(b => b.role === role);
+  return blocks.find((b) => b.role === role);
 }
 
 /**
@@ -116,7 +116,7 @@ function findBlock(blocks: SessionBlock[], role: string): SessionBlock | undefin
 function buildGridPage(
   role: string,
   displayRole: string,
-  sessionsByLevel: Map<string, SessionDetail>,
+  sessionsByLevel: Map<string, SessionDetail>
 ): PdfBlockPage | null {
   const levelBlocks: PdfLevelBlock[] = [];
   let formatName = '';
@@ -132,11 +132,12 @@ function buildGridPage(
     // Extract mobility from the block (same exercise for all levels)
     if (!mobilityText && block.mobilityExercise) {
       const mob = block.mobilityExercise;
-      const prescription = mob.seconds && mob.seconds > 0
-        ? `${mob.seconds}"`
-        : mob.reps && mob.reps > 0
-          ? `${mob.reps}`
-          : '';
+      const prescription =
+        mob.seconds && mob.seconds > 0
+          ? `${mob.seconds}"`
+          : mob.reps && mob.reps > 0
+            ? `${mob.reps}`
+            : '';
       mobilityText = `${mob.exerciseName} ${prescription}`.trim();
     }
 
@@ -174,13 +175,13 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
 
   // INITIUM: same across all levels - grab from any session
   for (const s of sessions) {
-    const initium = s.blocks.find(b => b.role === 'INITIUM');
+    const initium = s.blocks.find((b) => b.role === 'INITIUM');
     if (initium) {
       blocks.push({
         role: 'INITIUM',
         blockName: initium.pattern || 'PYROS',
         formatName: formatNameWithParams(initium.formatName, initium.formatParams),
-        simpleExercises: initium.exercises.map(e => e.exerciseName),
+        simpleExercises: initium.exercises.map((e) => e.exerciseName),
       });
       break;
     }

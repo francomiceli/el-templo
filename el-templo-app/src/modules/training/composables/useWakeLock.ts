@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted } from 'vue';
-import { Capacitor } from '@capacitor/core';
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Capacitor } from '@capacitor/core'
 
 /**
  * Wake lock composable for keeping the screen awake during workouts
@@ -17,17 +17,16 @@ import { Capacitor } from '@capacitor/core';
  */
 export function useWakeLock() {
   /** Whether wake lock is currently active */
-  const isActive = ref(false);
+  const isActive = ref(false)
 
   /** Whether wake lock is supported on this platform */
-  const isSupported = ref(false);
+  const isSupported = ref(false)
 
   /** Internal reference to web WakeLockSentinel */
-  let wakeLockSentinel: WakeLockSentinel | null = null;
+  let wakeLockSentinel: WakeLockSentinel | null = null
 
   /** Reference to KeepAwake module (loaded dynamically on native) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let KeepAwakeModule: any = null;
+  let KeepAwakeModule: { keepAwake(): Promise<void>; allowSleep(): Promise<void> } | null = null
 
   /**
    * Initialize wake lock support detection and load native module if needed
@@ -36,17 +35,17 @@ export function useWakeLock() {
     if (Capacitor.isNativePlatform()) {
       // Native platform - try to load KeepAwake plugin
       try {
-        const module = await import('@capacitor-community/keep-awake');
-        KeepAwakeModule = module.KeepAwake;
-        isSupported.value = true;
+        const module = await import('@capacitor-community/keep-awake')
+        KeepAwakeModule = module.KeepAwake
+        isSupported.value = true
       } catch {
         // Plugin not installed or not available
-        console.warn('KeepAwake plugin not available on native platform');
-        isSupported.value = false;
+        console.warn('KeepAwake plugin not available on native platform')
+        isSupported.value = false
       }
     } else {
       // Web platform - check for Screen Wake Lock API
-      isSupported.value = 'wakeLock' in navigator;
+      isSupported.value = 'wakeLock' in navigator
     }
   }
 
@@ -60,34 +59,34 @@ export function useWakeLock() {
    */
   async function requestWakeLock(): Promise<boolean> {
     if (!isSupported.value) {
-      return false;
+      return false
     }
 
     try {
       if (Capacitor.isNativePlatform() && KeepAwakeModule) {
         // Native platform
-        await KeepAwakeModule.keepAwake();
-        isActive.value = true;
-        return true;
+        await KeepAwakeModule.keepAwake()
+        isActive.value = true
+        return true
       } else if ('wakeLock' in navigator) {
         // Web platform
-        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel = await navigator.wakeLock.request('screen')
 
         // Listen for wake lock release (e.g., when tab becomes hidden)
         wakeLockSentinel.addEventListener('release', () => {
-          isActive.value = false;
-        });
+          isActive.value = false
+        })
 
-        isActive.value = true;
-        return true;
+        isActive.value = true
+        return true
       }
     } catch (err) {
       // Wake lock request can fail (e.g., low battery, permission denied)
-      console.warn('Failed to acquire wake lock:', err);
-      isActive.value = false;
+      console.warn('Failed to acquire wake lock:', err)
+      isActive.value = false
     }
 
-    return false;
+    return false
   }
 
   /**
@@ -96,20 +95,20 @@ export function useWakeLock() {
   async function releaseWakeLock(): Promise<void> {
     if (Capacitor.isNativePlatform() && KeepAwakeModule) {
       try {
-        await KeepAwakeModule.allowSleep();
+        await KeepAwakeModule.allowSleep()
       } catch (err) {
-        console.warn('Failed to release native wake lock:', err);
+        console.warn('Failed to release native wake lock:', err)
       }
     } else if (wakeLockSentinel) {
       try {
-        await wakeLockSentinel.release();
-        wakeLockSentinel = null;
+        await wakeLockSentinel.release()
+        wakeLockSentinel = null
       } catch (err) {
-        console.warn('Failed to release web wake lock:', err);
+        console.warn('Failed to release web wake lock:', err)
       }
     }
 
-    isActive.value = false;
+    isActive.value = false
   }
 
   /**
@@ -120,21 +119,21 @@ export function useWakeLock() {
       // Page became visible and we had an active wake lock - try to re-acquire
       // The web wake lock is automatically released when page becomes hidden
       if (!Capacitor.isNativePlatform()) {
-        void requestWakeLock();
+        void requestWakeLock()
       }
     }
   }
 
   // Lifecycle hooks
   onMounted(async () => {
-    await initialize();
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-  });
+    await initialize()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+  })
 
   onUnmounted(() => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    void releaseWakeLock();
-  });
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
+    void releaseWakeLock()
+  })
 
   return {
     /** Whether wake lock is currently active */
@@ -145,5 +144,5 @@ export function useWakeLock() {
     requestWakeLock,
     /** Release wake lock to allow screen to sleep */
     releaseWakeLock,
-  };
+  }
 }

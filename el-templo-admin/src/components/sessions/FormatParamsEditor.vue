@@ -194,7 +194,9 @@
 
     <!-- Buy-in/Cash-out -->
     <div v-else-if="localParams?.type === 'buy_in_cash_out'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Buy-in/Cash-out:</span>
+      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'"
+        >Buy-in/Cash-out:</span
+      >
       <q-input
         v-model.number="localParams.rounds"
         type="number"
@@ -278,9 +280,18 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 
-type FormatParamsLocal = Record<string, any>; // dynamic format param keys
+type FormatParamsLocal = Record<string, string | number | null>; // dynamic format param keys
 
-const NO_PARAMS_TYPES = ['standard', 'unbroken', 'couplet', 'triplet', 'for_max', 'chipper', 'cluster', 'buy_in_cash_out'];
+const NO_PARAMS_TYPES = [
+  'standard',
+  'unbroken',
+  'couplet',
+  'triplet',
+  'for_max',
+  'chipper',
+  'cluster',
+  'buy_in_cash_out',
+];
 
 const props = defineProps<{
   formatParams: Record<string, unknown> | null;
@@ -300,13 +311,17 @@ const localParams = ref<FormatParamsLocal | null>(
 );
 
 // Watch for prop changes (e.g., after format change resets params)
-watch(() => props.formatParams, (newVal) => {
-  localParams.value = newVal ? JSON.parse(JSON.stringify(newVal)) : null;
-  // Auto-initialize if null and format has configurable params
-  if (!newVal) {
-    autoInitIfNeeded();
-  }
-}, { deep: true });
+watch(
+  () => props.formatParams,
+  (newVal) => {
+    localParams.value = newVal ? JSON.parse(JSON.stringify(newVal)) : null;
+    // Auto-initialize if null and format has configurable params
+    if (!newVal) {
+      autoInitIfNeeded();
+    }
+  },
+  { deep: true }
+);
 
 const ladderOptions = [
   { label: 'Ascendente', value: 'ascending' },
@@ -360,7 +375,7 @@ function resolveDefaults(): FormatParamsLocal {
 
 function autoInitIfNeeded() {
   const defaults = resolveDefaults();
-  if (NO_PARAMS_TYPES.includes(defaults.type)) return;
+  if (NO_PARAMS_TYPES.includes(String(defaults.type))) return;
 
   localParams.value = defaults;
   lastEmitted = JSON.stringify(localParams.value);

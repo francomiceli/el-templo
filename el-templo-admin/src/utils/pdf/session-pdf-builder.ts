@@ -8,18 +8,33 @@
  */
 
 import pdfMake from 'pdfmake/build/pdfmake';
-import { TDocumentDefinitions, Content } from 'pdfmake/interfaces';
-import { CINZEL_REGULAR_BASE64, CINZEL_BOLD_BASE64, NUNITO_SANS_REGULAR_BASE64, NUNITO_SANS_BOLD_BASE64, NUNITO_SANS_BOLD_ITALIC_BASE64, ROBOTO_REGULAR_BASE64, LOGO_BASE64, GREAT_VIBES_REGULAR_BASE64 } from './pdf-assets';
+import {
+  TDocumentDefinitions,
+  Content,
+  ContentColumns,
+  ContentStack,
+  ContextPageSize,
+} from 'pdfmake/interfaces';
+import {
+  CINZEL_REGULAR_BASE64,
+  CINZEL_BOLD_BASE64,
+  NUNITO_SANS_REGULAR_BASE64,
+  NUNITO_SANS_BOLD_BASE64,
+  NUNITO_SANS_BOLD_ITALIC_BASE64,
+  ROBOTO_REGULAR_BASE64,
+  LOGO_BASE64,
+  GREAT_VIBES_REGULAR_BASE64,
+} from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 
 // ============================================================
 // BRAND DESIGN TOKENS (from visual guidelines)
 // ============================================================
-const BG_CREAM = '#F2EBE1';       // Crema Mármol - main background
-const NAVY = '#24364A';           // Azul Profundo - headers, primary text
-const GOLD = '#B08D6E';           // Oro Mate - accents, borders, subtitles
-const SAND = '#DBCAB4';           // Arena Suave - card backgrounds
-const BORDER_MUTED = '#c5b9a8';   // Muted border color
+const BG_CREAM = '#F2EBE1'; // Crema Mármol - main background
+const NAVY = '#24364A'; // Azul Profundo - headers, primary text
+const GOLD = '#B08D6E'; // Oro Mate - accents, borders, subtitles
+const SAND = '#DBCAB4'; // Arena Suave - card backgrounds
+const BORDER_MUTED = '#c5b9a8'; // Muted border color
 
 // Greek letter level symbols
 const LEVEL_SYMBOLS: Record<string, string> = {
@@ -40,15 +55,30 @@ const CONTRACTION_ABBR: Record<string, string> = {
 
 // Route code → full display name (matches app's routeNames.ts)
 const ROUTE_NAMES: Record<string, string> = {
-  FL: 'Front Lever', FLR: 'Front Lever Row', BL: 'Back Lever',
-  MU: 'Muscle Up', OAP: 'One Arm Pull Up', OAR: 'One Arm Row',
-  TTB: 'Toe to Bar', 'MN/RP': 'Manna / Reverse Planche',
-  PL: 'Planche', PLPU: 'Planche Push Up', HSPU: 'Handstand Push Up',
-  HS: 'Handstand', PHS: 'Press Handstand', OAPU: 'One Arm Push Up',
+  FL: 'Front Lever',
+  FLR: 'Front Lever Row',
+  BL: 'Back Lever',
+  MU: 'Muscle Up',
+  OAP: 'One Arm Pull Up',
+  OAR: 'One Arm Row',
+  TTB: 'Toe to Bar',
+  'MN/RP': 'Manna / Reverse Planche',
+  PL: 'Planche',
+  PLPU: 'Planche Push Up',
+  HSPU: 'Handstand Push Up',
+  HS: 'Handstand',
+  PHS: 'Press Handstand',
+  OAPU: 'One Arm Push Up',
   'HD/ID': 'Hefesto / Impossible Dip',
-  PS: 'Pistol Squat', DS: 'Dragon Squat', NC: 'Nordic Curl',
-  SS: 'Sissy Squat', QC: 'Quad Curl', HR: 'Ham Raises',
-  HT: 'Hip Thrust', L: 'Lunge', SU: 'Step Up',
+  PS: 'Pistol Squat',
+  DS: 'Dragon Squat',
+  NC: 'Nordic Curl',
+  SS: 'Sissy Squat',
+  QC: 'Quad Curl',
+  HR: 'Ham Raises',
+  HT: 'Hip Thrust',
+  L: 'Lunge',
+  SU: 'Step Up',
 };
 
 function getRouteName(code: string): string {
@@ -58,16 +88,48 @@ function getRouteName(code: string): string {
 // Motivational quotes for closing page
 // Each quote is split: main text (navy) + goldText (gold accent on the punchline)
 const QUOTES = [
-  { text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ', goldText: 'EL PESO DEL ARREPENTIMIENTO.\u201D', author: 'Jim Rohn.' },
-  { text: '\u201CES UNA PENA ENVEJECER SIN NUNCA VER ', goldText: 'LA BELLEZA Y LA FUERZA DE LA QUE TU CUERPO ES CAPAZ.\u201D', author: 'Sócrates.' },
-  { text: '\u201CLOS OBSTÁCULOS SON ESAS COSAS ESPANTOSAS QUE VES ', goldText: 'CUANDO APARTAS LOS OJOS DE TU META.\u201D', author: 'Henry Ford.' },
+  {
+    text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ',
+    goldText: 'EL PESO DEL ARREPENTIMIENTO.\u201D',
+    author: 'Jim Rohn.',
+  },
+  {
+    text: '\u201CES UNA PENA ENVEJECER SIN NUNCA VER ',
+    goldText: 'LA BELLEZA Y LA FUERZA DE LA QUE TU CUERPO ES CAPAZ.\u201D',
+    author: 'Sócrates.',
+  },
+  {
+    text: '\u201CLOS OBSTÁCULOS SON ESAS COSAS ESPANTOSAS QUE VES ',
+    goldText: 'CUANDO APARTAS LOS OJOS DE TU META.\u201D',
+    author: 'Henry Ford.',
+  },
   { text: '\u201CVENI, VIDI, VICI.\u201D', goldText: '', author: 'Julio César.' },
-  { text: '\u201CEL QUE TIENE UN PORQUÉ PARA VIVIR ', goldText: 'PUEDE SOPORTAR CASI CUALQUIER CÓMO.\u201D', author: 'Friedrich Nietzsche.' },
+  {
+    text: '\u201CEL QUE TIENE UN PORQUÉ PARA VIVIR ',
+    goldText: 'PUEDE SOPORTAR CASI CUALQUIER CÓMO.\u201D',
+    author: 'Friedrich Nietzsche.',
+  },
   { text: '\u201CNO EXPLIQUES TU FILOSOFÍA. ', goldText: 'ENCÁRNALA.\u201D', author: 'Epicteto.' },
-  { text: '\u201CLA VERDADERA GENEROSIDAD HACIA EL FUTURO CONSISTE EN ', goldText: 'ENTREGARLO TODO AL PRESENTE.\u201D', author: 'Albert Camus.' },
-  { text: '\u201CTODO LO QUE HACEMOS REPETIDAMENTE NOS DEFINE. ', goldText: 'LA EXCELENCIA ES UN HÁBITO.\u201D', author: 'Aristóteles.' },
-  { text: '\u201CATREVERSE ES PERDER EL EQUILIBRIO MOMENTÁNEAMENTE; ', goldText: 'NO ATREVERSE ES PERDERSE A UNO MISMO.\u201D', author: 'Søren Kierkegaard.' },
-  { text: '\u201CEL VERDADERO MÉTODO SIGUE ', goldText: 'LA NATURALEZA DE LAS COSAS.\u201D', author: 'Edmund Husserl.' },
+  {
+    text: '\u201CLA VERDADERA GENEROSIDAD HACIA EL FUTURO CONSISTE EN ',
+    goldText: 'ENTREGARLO TODO AL PRESENTE.\u201D',
+    author: 'Albert Camus.',
+  },
+  {
+    text: '\u201CTODO LO QUE HACEMOS REPETIDAMENTE NOS DEFINE. ',
+    goldText: 'LA EXCELENCIA ES UN HÁBITO.\u201D',
+    author: 'Aristóteles.',
+  },
+  {
+    text: '\u201CATREVERSE ES PERDER EL EQUILIBRIO MOMENTÁNEAMENTE; ',
+    goldText: 'NO ATREVERSE ES PERDERSE A UNO MISMO.\u201D',
+    author: 'Søren Kierkegaard.',
+  },
+  {
+    text: '\u201CEL VERDADERO MÉTODO SIGUE ',
+    goldText: 'LA NATURALEZA DE LAS COSAS.\u201D',
+    author: 'Edmund Husserl.',
+  },
 ];
 
 // ============================================================
@@ -201,29 +263,38 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       text: [
         { text: 'NIVEL  ', fontSize: 50, color: GOLD, bold: true, font: 'NunitoSans' },
         { text: 'α ', fontSize: 55, color: GOLD, bold: true, font: 'Roboto', characterSpacing: 5 },
-        { text: ' Δ Σ Ω', fontSize: 40, color: GOLD, bold: true, characterSpacing: 10, font: 'Roboto' },
+        {
+          text: ' Δ Σ Ω',
+          fontSize: 40,
+          color: GOLD,
+          bold: true,
+          characterSpacing: 10,
+          font: 'Roboto',
+        },
       ],
       margin: [130, 0, 0, 0],
     },
     { text: '', margin: [0, 40, 0, 0] },
     // Exercise list — bigger font, tight spacing
-    ...((block.simpleExercises || []).map(ex => ({
+    ...(block.simpleExercises || []).map((ex) => ({
       text: `•  ${ex}`,
       fontSize: 45,
       color: NAVY,
       margin: [130, exerciseGap, 0, 0] as [number, number, number, number],
       font: 'NunitoSans',
-    }))),
+    })),
     // Format params on the right
-    block.formatParams ? {
-      text: block.formatParams,
-      fontSize: 70,
-      color: GOLD,
-      alignment: 'right' as const,
-      margin: [0, -160, 200, 0],
-      opacity: 0.7,
-      font: 'NunitoSans',
-    } : { text: '' },
+    block.formatParams
+      ? {
+          text: block.formatParams,
+          fontSize: 70,
+          color: GOLD,
+          alignment: 'right' as const,
+          margin: [0, -160, 200, 0],
+          opacity: 0.7,
+          font: 'NunitoSans',
+        }
+      : { text: '' },
   ];
 }
 
@@ -234,19 +305,19 @@ const LEVEL_BOX_WIDTH = 890;
  * Level box: Exercise list for one level within a block.
  * @param targetBoxHeight - desired height for the exercise box (canvas rect)
  */
-function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): any {
+function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
 
   // Calculate box height: use target if provided, otherwise fit content
   const exerciseCount = lb.exercises.length;
   const lineHeight = 42; // fontSize 32 + spacing
-  const minBoxHeight = 40 + (exerciseCount * lineHeight);
+  const minBoxHeight = 40 + exerciseCount * lineHeight;
   const boxHeight = targetBoxHeight ? Math.max(targetBoxHeight, minBoxHeight) : minBoxHeight;
   const lineGap = 10;
   // Content height approximation (used to align flow cursor with canvas bottom)
   const contentHeight = exerciseCount * lineHeight;
 
-  const exerciseLines: any[] = lb.exercises.map(ex => {
+  const exerciseLines: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
     let volume = '';
     if (ex.seconds) volume = `${ex.seconds}"`;
@@ -283,24 +354,38 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): any {
       // Level header: "NIVEL α | Route Intensity%"
       {
         text: [
-          { text: 'NIVEL ', fontSize: 47, bold: true, color: GOLD, font: 'NunitoSans', characterSpacing: 2 },
+          {
+            text: 'NIVEL ',
+            fontSize: 47,
+            bold: true,
+            color: GOLD,
+            font: 'NunitoSans',
+            characterSpacing: 2,
+          },
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
-          { text: `  |  ${routeName} ${lb.intensity}%`, fontSize: 42, color: GOLD, font: 'NunitoSans' },
+          {
+            text: `  |  ${routeName} ${lb.intensity}%`,
+            fontSize: 42,
+            color: GOLD,
+            font: 'NunitoSans',
+          },
         ],
         margin: [0, 0, 0, 8],
       },
       // Exercise box with rounded border via canvas
       {
-        canvas: [{
-          type: 'rect' as const,
-          x: 0,
-          y: 0,
-          w: LEVEL_BOX_WIDTH,
-          h: boxHeight,
-          r: 20,
-          lineWidth: 4,
-          lineColor: GOLD,
-        }],
+        canvas: [
+          {
+            type: 'rect' as const,
+            x: 0,
+            y: 0,
+            w: LEVEL_BOX_WIDTH,
+            h: boxHeight,
+            r: 20,
+            lineWidth: 4,
+            lineColor: GOLD,
+          },
+        ],
       },
       // Exercise content overlapping the canvas rect (negative margin pulls it up).
       // Bottom margin ensures flow cursor aligns with the canvas rect bottom,
@@ -321,8 +406,8 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): any {
  */
 function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] {
   const levelBlocks = block.levelBlocks || [];
-  const topRow = levelBlocks.filter(lb => lb.level === 'alfa' || lb.level === 'delta');
-  const bottomRow = levelBlocks.filter(lb => lb.level === 'sigma' || lb.level === 'omega');
+  const topRow = levelBlocks.filter((lb) => lb.level === 'alfa' || lb.level === 'delta');
+  const bottomRow = levelBlocks.filter((lb) => lb.level === 'sigma' || lb.level === 'omega');
 
   // Sort within rows
   const sortByLevel = (a: PdfLevelBlock, b: PdfLevelBlock) =>
@@ -390,7 +475,7 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   // Top row: α and Δ
   if (topRow.length > 0) {
     content.push({
-      columns: topRow.map(lb => ({
+      columns: topRow.map((lb) => ({
         ...buildLevelBox(lb, targetBoxHeight),
         width: '*',
       })),
@@ -404,7 +489,7 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   // Bottom row: Σ and Ω
   if (bottomRow.length > 0) {
     content.push({
-      columns: bottomRow.map(lb => ({
+      columns: bottomRow.map((lb) => ({
         ...buildLevelBox(lb, targetBoxHeight),
         width: '*',
       })),
@@ -420,21 +505,18 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
  * Full block page (NUCLEUS or EPIKOS/ATHLOS style)
  */
 function buildFullBlockPage(block: PdfBlockPage): Content[] {
-  return [
-    { text: '', pageBreak: 'before' as const },
-    ...buildBlockPageWithGrid(block, false),
-  ];
+  return [{ text: '', pageBreak: 'before' as const }, ...buildBlockPageWithGrid(block, false)];
 }
 
 /**
  * Build a single level column for the DEUTEROS 4-column layout.
  * Compact: Greek symbol header + plain exercise list (no border box).
  */
-function buildDeuterosLevelCol(lb: PdfLevelBlock): any {
+function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
   const symbolSize = 38;
 
-  const exercises: any[] = lb.exercises.map(ex => {
+  const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
     let volume = '';
     if (ex.seconds) volume = `${ex.seconds}"`;
@@ -469,7 +551,12 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): any {
       {
         text: [
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
-          { text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`, fontSize: 29, color: GOLD, font: 'NunitoSans' },
+          {
+            text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`,
+            fontSize: 29,
+            color: GOLD,
+            font: 'NunitoSans',
+          },
         ],
         margin: [0, 0, 0, 18],
       },
@@ -482,9 +569,9 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): any {
  * Build one DEUTEROS half (4 columns across: α Δ Σ Ω)
  */
 function buildDeuterosHalf(block: PdfBlockPage): Content[] {
-  const levelBlocks = (block.levelBlocks || []).slice().sort(
-    (a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level),
-  );
+  const levelBlocks = (block.levelBlocks || [])
+    .slice()
+    .sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
 
   const content: Content[] = [];
 
@@ -529,7 +616,7 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
 
   // 4 columns with vertical separator lines between levels
   if (levelBlocks.length > 0) {
-    const cells = levelBlocks.map(lb => ({
+    const cells = levelBlocks.map((lb) => ({
       ...buildDeuterosLevelCol(lb),
       margin: [15, 0, 15, 0],
     }));
@@ -541,7 +628,7 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
       },
       layout: {
         hLineWidth: () => 0,
-        vLineWidth: (i: number) => (i === 0 || i === levelBlocks.length) ? 0 : 1,
+        vLineWidth: (i: number) => (i === 0 || i === levelBlocks.length ? 0 : 1),
         vLineColor: () => BORDER_MUTED,
         paddingTop: () => 0,
         paddingBottom: () => 0,
@@ -549,7 +636,7 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
         paddingRight: () => 10,
       },
       margin: [20, 0, 20, 0],
-    });
+    } as unknown as Content);
   }
 
   return content;
@@ -570,12 +657,12 @@ function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] 
         heights: [halfHeight, halfHeight],
         widths: ['*'],
         body: [
-          [{ stack: buildDeuterosHalf(deut1) as any[] }],
-          [{ stack: buildDeuterosHalf(deut2) as any[] }],
+          [{ stack: buildDeuterosHalf(deut1) as Content[] }],
+          [{ stack: buildDeuterosHalf(deut2) as Content[] }],
         ],
       },
       layout: {
-        hLineWidth: (i: number) => (i === 1) ? 1 : 0,
+        hLineWidth: (i: number) => (i === 1 ? 1 : 0),
         vLineWidth: () => 0,
         hLineColor: () => BORDER_MUTED,
         paddingTop: () => 0,
@@ -583,7 +670,7 @@ function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] 
         paddingLeft: () => 0,
         paddingRight: () => 0,
       },
-    } as any,
+    } as unknown as Content,
   ];
 }
 
@@ -594,16 +681,19 @@ function buildDayContent(day: PdfDaySession): Content[] {
   const content: Content[] = [];
 
   // 1. Cover page — use fit to constrain both width and height within the page
-  content.push(
-    { image: LOGO_BASE64, fit: [750, 600] as [number, number], alignment: 'center' as const, margin: [0, 200, 0, 0] as [number, number, number, number] },
-  );
+  content.push({
+    image: LOGO_BASE64,
+    fit: [750, 600] as [number, number],
+    alignment: 'center' as const,
+    margin: [0, 200, 0, 0] as [number, number, number, number],
+  });
 
   // 2. Process blocks
-  const initium = day.blocks.find(b => b.role === 'INITIUM');
-  const nucleus = day.blocks.find(b => b.role === 'NUCLEUS');
-  const deut1 = day.blocks.find(b => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
-  const deut2 = day.blocks.find(b => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
-  const epikos = day.blocks.find(b => b.role === 'EPIKOS' || b.role === 'ATHLOS');
+  const initium = day.blocks.find((b) => b.role === 'INITIUM');
+  const nucleus = day.blocks.find((b) => b.role === 'NUCLEUS');
+  const deut1 = day.blocks.find((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
+  const deut2 = day.blocks.find((b) => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
+  const epikos = day.blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
 
   if (initium) content.push(...buildInitiumPage(initium));
   if (nucleus) content.push(...buildFullBlockPage(nucleus));
@@ -628,9 +718,16 @@ function buildDocDefinition(content: Content[]): TDocumentDefinitions {
     content,
     pageSize: { width: 1920, height: 1080 },
     pageMargins: [15, 8, 15, 8],
-    background: (_currentPage: number, pageSize: any) => ({
+    background: (_currentPage: number, pageSize: ContextPageSize) => ({
       canvas: [
-        { type: 'rect' as const, x: 0, y: 0, w: pageSize.width, h: pageSize.height, color: BG_CREAM },
+        {
+          type: 'rect' as const,
+          x: 0,
+          y: 0,
+          w: pageSize.width,
+          h: pageSize.height,
+          color: BG_CREAM,
+        },
       ],
     }),
     defaultStyle: {
@@ -665,7 +762,7 @@ export function buildWeekPdf(days: PdfDaySession[]): void {
     const dayContent = buildDayContent(day);
     // Add page break between days (not before the first day)
     if (i > 0 && dayContent.length > 0) {
-      (dayContent[0] as any).pageBreak = 'before';
+      (dayContent[0] as Content & { pageBreak?: string }).pageBreak = 'before';
     }
     return dayContent;
   });
