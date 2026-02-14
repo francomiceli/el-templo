@@ -111,6 +111,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 | Phase 19 P06 | 10 | 2 tasks | 3 files |
 | Phase 19 P02 | 4 | 2 tasks | 6 files |
 | Phase 19 P05 | 4 | 2 tasks | 4 files |
+| Phase 19 P03 | 14 | 3 tasks | 7 files |
+| Phase 19 P01 | 15 | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -412,6 +414,11 @@ Recent decisions affecting current work:
 - [Phase 19-05]: Root .gitignore updated to exclude node_modules/ and pnpm-lock.yaml
 - [Phase 19-02]: beforeSend scrubs password, currentPassword, newPassword from Sentry payloads
 - [Phase 19-02]: createLogger suppresses debug/info in production, keeps warn/error
+- [Phase 19]: Real MySQL test database (eltemplo_test) over mocks for true integration coverage
+- [Phase 19]: Vitest globalSetup for test DB lifecycle: drop, create, migrate, seed, teardown per test run
+- [Phase 19-01]: pnpm overrides for transitive @isaacs/brace-expansion CVE fix
+- [Phase 19-01]: .env* + !.env.example gitignore pattern for all 3 projects
+- [Phase 19-01]: lint-staged v15 over v16 for Node 20 CJS compatibility
 
 ### Roadmap Evolution
 
