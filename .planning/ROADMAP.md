@@ -3,6 +3,7 @@
 ## Overview
 
 This roadmap delivers the Admin App module for El Templo. The milestone covers:
+
 1. **Session Generation** (Phase 13) - Algorithm review and improvement based on coach examples
 2. **Session Management** (Phases 14-16) - Admin UI for reviewing, editing, creating sessions + PDF generation
 3. **Mobility Exercises** (Phase 17) - Per-block mobility exercise integration across full stack
@@ -16,6 +17,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 ## Phases
 
 **Phase Numbering:**
+
 - Continues from v1.0 (ended at Phase 12)
 - Phase 13+ is v2.0 Admin App work
 
@@ -25,7 +27,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [x] **Phase 16: PDF Generation, Format Config & App Exercise Tracking** - PDF session sheets, format parameter config, per-exercise completion
 - [x] **Phase 17: Per-Block Mobility Exercises** - Route-based mobility exercise across pipeline, DB, admin, member app, PDF
 - [x] **Phase 18: Domain/Subdomain Deployment** - eltemplo.org subdomains, SSL, Nginx, CORS, deploy pipeline for admin app
-- [ ] **Phase 19: Technical Debt Audit** - Audit and repair accumulated tech debt across codebase
+- [x] **Phase 19: Technical Debt Audit** - Audit and repair accumulated tech debt across codebase
 - [ ] **Phase 20: APK Handling** - Android keystore creation, signed release build, Play Store submission
 - [ ] **Phase 21: Admin Session Creation** - Build sessions from scratch using exercise database
 - [ ] **Phase 22: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
@@ -38,20 +40,23 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 ## Phase Details
 
 ### Phase 13: Session Generation Review & Improvement
+
 **Goal**: Algorithm produces accurate, SPOM-compliant sessions matching coach-built examples
 **Depends on**: v1.0 complete (Phase 12)
 **Status**: Complete
 **Success Criteria** (what must be TRUE):
-  1. Dificultad Lineal column added to Ejercicios.csv with correct mappings
-  2. Database exercises table updated with linear difficulty values
-  3. Each block (Initium, Nucleus, Deuteros 1/2, Athlos/Epikos) has documented specifications
-  4. Exercise count capped at 3 for all blocks except Initium
-  5. Algorithm uses linear difficulty scale with "nivel superior" mapping to next level
-  6. Block difficulty average validated within +/-0.5 of target
-  7. Contraction distribution matches Contraccion rules exactly
-  8. Algorithm generates valid sessions that follow patterns observed in 19 example weeks
+
+1. Dificultad Lineal column added to Ejercicios.csv with correct mappings
+2. Database exercises table updated with linear difficulty values
+3. Each block (Initium, Nucleus, Deuteros 1/2, Athlos/Epikos) has documented specifications
+4. Exercise count capped at 3 for all blocks except Initium
+5. Algorithm uses linear difficulty scale with "nivel superior" mapping to next level
+6. Block difficulty average validated within +/-0.5 of target
+7. Contraction distribution matches Contraccion rules exactly
+8. Algorithm generates valid sessions that follow patterns observed in 19 example weeks
 
 Plans:
+
 - [x] 13-01-PLAN.md — Difficulty System Foundation
 - [x] 13-02-PLAN.md — Block Specifications Documentation
 - [x] 13-03-PLAN.md — Validation Suite
@@ -64,20 +69,23 @@ Plans:
 ---
 
 ### Phase 14: Admin Session Review UI
+
 **Goal**: Coaches can view algorithm-generated sessions and approve them for member visibility
 **Depends on**: Phase 13 (algorithm produces valid sessions)
 **Status**: Complete
 **Plans:** 8 plans
 **Success Criteria** (what must be TRUE):
-  1. Admin dashboard shows list of pending sessions (by week/day)
-  2. Sessions have status: pending_review → approved (approve/revert workflow)
-  3. Coach can view full session details (blocks, exercises, formats, prescriptions)
-  4. Coach can approve session (moves to approved, visible to members)
-  5. Coach can swap blocks from approved session pool (deduplicated by fingerprint)
-  6. Members only see approved sessions in their Weekly View
-  7. Pending count badge and low-sessions alert in admin UI
+
+1. Admin dashboard shows list of pending sessions (by week/day)
+2. Sessions have status: pending_review → approved (approve/revert workflow)
+3. Coach can view full session details (blocks, exercises, formats, prescriptions)
+4. Coach can approve session (moves to approved, visible to members)
+5. Coach can swap blocks from approved session pool (deduplicated by fingerprint)
+6. Members only see approved sessions in their Weekly View
+7. Pending count badge and low-sessions alert in admin UI
 
 Plans:
+
 - [x] 14-01-PLAN.md — Database schema extension (status, approval columns, timezone)
 - [x] 14-02-PLAN.md — Admin Quasar app scaffold with authentication
 - [x] 14-03-PLAN.md — Admin API endpoints (list, approve, revert, bulk)
@@ -90,20 +98,23 @@ Plans:
 ---
 
 ### Phase 15: Admin Session Editing
+
 **Goal**: Coaches can modify pending and approved sessions - swap exercises, adjust prescriptions, change formats, add/remove exercises
 **Depends on**: Phase 14 (review UI exists)
 **Status**: Complete
 **Plans:** 9 plans
 **Success Criteria** (what must be TRUE):
-  1. Coach can swap exercises within a block (from exercise database)
-  2. Coach can modify prescription (reps, sets, rest times)
-  3. Coach can change block format
-  4. Coach can add/remove exercises from a block
-  5. Edit history tracked (who changed what, when)
-  6. Validation prevents invalid sessions (e.g., wrong contraction mix)
-  7. Preview shows how session will appear to members
+
+1. Coach can swap exercises within a block (from exercise database)
+2. Coach can modify prescription (reps, sets, rest times)
+3. Coach can change block format
+4. Coach can add/remove exercises from a block
+5. Edit history tracked (who changed what, when)
+6. Validation prevents invalid sessions (e.g., wrong contraction mix)
+7. Preview shows how session will appear to members
 
 Plans:
+
 - [x] 15-01-PLAN.md — Database schema: edit logs, snapshots, format params
 - [x] 15-02-PLAN.md — PrescribeService and AdminEditService business logic
 - [x] 15-03-PLAN.md — Editing API routes and schemas
@@ -117,23 +128,26 @@ Plans:
 ---
 
 ### Phase 16: PDF Generation, Format Config & App Exercise Tracking
+
 **Goal**: Generate PDF session sheets for approved sessions matching a provided design template; configure format-specific parameters (rounds, minutes, etc.) for high/medium importance formats during session generation/editing; improve exercise swap UX; implement per-exercise completion tracking in the member app
 **Depends on**: Phase 15 (editing infrastructure exists)
 **Plans:** 10 plans
 **Success Criteria** (what must be TRUE):
-  1. Button on approved sessions generates a PDF file matching the provided example design
-  2. Pipeline: example PDF → page images → HTML/CSS skeleton → dynamic session data → final PDF
-  3. Generated PDF respects the original design while containing session-specific data
-  4. High and medium importance formats have configurable parameters discussed and set (e.g., rounds for Complex, minutes for AMRAP, intervals for EMOM, etc.)
-  5. Format parameters are settable during session generation and editing
-  6. Exercise swap dialog uses category instead of pattern for fewer, cleaner pill selections
-  7. Member app tracks completion per exercise (not per block)
-  8. All exercises completed in a block = block complete, auto-advance to next block
-  9. Exercise completion state reflected consistently across all app views (DayPlayer, Weekly View, etc.)
-  10. Coach can save an approved session block with a custom name for reuse via "intercambiar bloque" (full block data shown alongside custom name)
-  11. Inline prescription edits (reps, rest, notes) update without page reload or scroll reset — feedback via green success toast only
+
+1. Button on approved sessions generates a PDF file matching the provided example design
+2. Pipeline: example PDF → page images → HTML/CSS skeleton → dynamic session data → final PDF
+3. Generated PDF respects the original design while containing session-specific data
+4. High and medium importance formats have configurable parameters discussed and set (e.g., rounds for Complex, minutes for AMRAP, intervals for EMOM, etc.)
+5. Format parameters are settable during session generation and editing
+6. Exercise swap dialog uses category instead of pattern for fewer, cleaner pill selections
+7. Member app tracks completion per exercise (not per block)
+8. All exercises completed in a block = block complete, auto-advance to next block
+9. Exercise completion state reflected consistently across all app views (DayPlayer, Weekly View, etc.)
+10. Coach can save an approved session block with a custom name for reuse via "intercambiar bloque" (full block data shown alongside custom name)
+11. Inline prescription edits (reps, rest, notes) update without page reload or scroll reset — feedback via green success toast only
 
 Plans:
+
 - [x] 16-01-PLAN.md — FormatParams type system and generation pipeline integration
 - [x] 16-02-PLAN.md — Format params editing UI and API endpoint
 - [x] 16-03-PLAN.md — Exercise swap UX: category-based filtering
@@ -148,21 +162,24 @@ Plans:
 ---
 
 ### Phase 17: Per-Block Mobility Exercises
+
 **Goal**: Add 1 route-based mobility exercise per non-INITIUM block across the full stack — session generation pipeline, DB schema, API response, admin editing UI, member app display, and PDF output
 **Depends on**: Phase 16 (session editing and exercise tracking infrastructure)
 **Success Criteria** (what must be TRUE):
-  1. Pipeline selects 1 mobility exercise per non-INITIUM block based on block route via ROUTE_TO_MOBILITY_ROUTES
-  2. Mobility exercises stored with `exercise_type = 'mobility'` discriminator in session_prescriptions
-  3. Mobility exercises generated with sensible defaults (reps/seconds) that coaches can edit
-  4. Admin block cards show mobility exercise in separate "Descanso Activo" section at block end
-  5. Admin exercise swap dialog shows relevant mobility exercises filtered by block route
-  6. Coaches can swap mobility exercises (exactly 1 per non-INITIUM block, not removable)
-  7. Member app DayPlayer shows mobility as separate section at end of block with distinct styling
-  8. Mobility exercise completion is optional — does not block auto-advance or block completion
-  9. PDF output populates existing `mobility` field and renders it separately from main exercises
-  10. All 4 non-INITIUM blocks (NUCLEUS, DEUTEROS_1, DEUTEROS_2, ATHLOS/EPIKOS) get mobility exercises
+
+1. Pipeline selects 1 mobility exercise per non-INITIUM block based on block route via ROUTE_TO_MOBILITY_ROUTES
+2. Mobility exercises stored with `exercise_type = 'mobility'` discriminator in session_prescriptions
+3. Mobility exercises generated with sensible defaults (reps/seconds) that coaches can edit
+4. Admin block cards show mobility exercise in separate "Descanso Activo" section at block end
+5. Admin exercise swap dialog shows relevant mobility exercises filtered by block route
+6. Coaches can swap mobility exercises (exactly 1 per non-INITIUM block, not removable)
+7. Member app DayPlayer shows mobility as separate section at end of block with distinct styling
+8. Mobility exercise completion is optional — does not block auto-advance or block completion
+9. PDF output populates existing `mobility` field and renders it separately from main exercises
+10. All 4 non-INITIUM blocks (NUCLEUS, DEUTEROS_1, DEUTEROS_2, ATHLOS/EPIKOS) get mobility exercises
 
 Plans:
+
 - [x] 17-01-PLAN.md — DB migration + mobility selection pipeline + types
 - [x] 17-02-PLAN.md — API response separation + admin mobility endpoints
 - [x] 17-03-PLAN.md — Admin UI: Descanso Activo section + swap dialog mobility mode
@@ -171,11 +188,13 @@ Plans:
 ---
 
 ### Phase 18: Domain/Subdomain Deployment
+
 **Goal**: Configure eltemplo.org subdomains (app/admin/api) on EC2 with SSL, fix domain mismatch in codebase, extend deploy pipeline for admin app, update CORS and environment config
 **Depends on**: Phase 17 (mobility exercises complete)
 **Plans:** 3 plans
 
 Plans:
+
 - [x] 18-01-PLAN.md — Domain mismatch fix (.com->.org), CORS/env config, secrets docs
 - [x] 18-02-PLAN.md — Nginx subdomain configs, deploy pipeline admin app build
 - [x] 18-03-PLAN.md — Deployment guide update, manual DNS/SSL/secrets setup checkpoint
@@ -183,127 +202,149 @@ Plans:
 ---
 
 ### Phase 19: Technical Debt Audit
+
 **Goal**: Production-robust 3-app ecosystem with zero CVEs, error monitoring, test coverage, CI quality gates, deploy rollback, refactored god objects, structured logging, and automated database backups
 **Depends on**: Phase 18 (deployment complete)
+**Status**: Complete
 **Plans:** 9 plans
 
 Plans:
-- [ ] 19-01-PLAN.md — Security fixes (CVEs) + .env cleanup + .env.example templates
-- [ ] 19-02-PLAN.md — Sentry API error monitoring + frontend logger wrappers
-- [ ] 19-03-PLAN.md — Test infrastructure (Vitest + MySQL) + API integration tests
-- [ ] 19-04-PLAN.md — CI quality gates (lint/test/audit) + deploy safety (backup/rollback)
-- [ ] 19-05-PLAN.md — Pre-commit hooks (Husky + lint-staged) + root README
-- [ ] 19-06-PLAN.md — Refactor DayPlayer.vue god object (900 -> <350 LOC)
-- [ ] 19-07-PLAN.md — Refactor edit-service.ts god object (1232 -> <350 LOC) + eliminate any types
-- [ ] 19-08-PLAN.md — Replace console.log with structured logger across all apps
-- [ ] 19-09-PLAN.md — Database backups + production runbook + external service setup
+
+- [x] 19-01-PLAN.md — Security fixes (CVEs) + .env cleanup + .env.example templates
+- [x] 19-02-PLAN.md — Sentry API error monitoring + frontend logger wrappers
+- [x] 19-03-PLAN.md — Test infrastructure (Vitest + MySQL) + API integration tests
+- [x] 19-04-PLAN.md — CI quality gates (lint/test/audit) + deploy safety (backup/rollback)
+- [x] 19-05-PLAN.md — Pre-commit hooks (Husky + lint-staged) + root README
+- [x] 19-06-PLAN.md — Refactor DayPlayer.vue god object (900 -> <350 LOC)
+- [x] 19-07-PLAN.md — Refactor edit-service.ts god object (1232 -> <350 LOC) + eliminate any types
+- [x] 19-08-PLAN.md — Replace console.log with structured logger across all apps
+- [x] 19-09-PLAN.md — Database backups + production runbook + external service setup
 
 ---
 
 ### Phase 20: APK Handling
+
 **Goal**: Create Android signing keystore, build signed release APK/AAB with production HTTPS URLs, submit to Google Play Store
 **Depends on**: Phase 18 (production HTTPS URLs required for APK)
 
 Plans:
+
 - [ ] TBD (run /gsd:plan-phase 20 to break down)
 
 ---
 
 ### Phase 21: Admin Session Creation
+
 **Goal**: Coaches can build sessions from scratch without algorithm
 **Depends on**: Phase 19
 **Success Criteria** (what must be TRUE):
-  1. Coach can create new session for any date/level
-  2. Coach can add blocks with chosen format
-  3. Coach can search/filter exercise database and add exercises
-  4. Coach can set prescriptions manually
-  5. Created sessions follow same approval workflow
-  6. Templates: save session as template, create from template
-  7. Copy: duplicate existing session to new date
+
+1. Coach can create new session for any date/level
+2. Coach can add blocks with chosen format
+3. Coach can search/filter exercise database and add exercises
+4. Coach can set prescriptions manually
+5. Created sessions follow same approval workflow
+6. Templates: save session as template, create from template
+7. Copy: duplicate existing session to new date
 
 ---
 
 ### Phase 22: Branch Attendance Data Model
+
 **Goal**: Data structures for managing branch capacity, schedules, and member plans
 **Depends on**: Documentation (awaiting from user)
 **Success Criteria** (what must be TRUE):
-  1. Branch has capacity (max members per time slot)
-  2. Schedule defines available time slots per branch per day
-  3. Member plans define attendance allowance (days/week, specific days, etc.)
-  4. Booking records member reservations for specific slots
-  5. Database schema supports multi-branch with different capacities/schedules
+
+1. Branch has capacity (max members per time slot)
+2. Schedule defines available time slots per branch per day
+3. Member plans define attendance allowance (days/week, specific days, etc.)
+4. Booking records member reservations for specific slots
+5. Database schema supports multi-branch with different capacities/schedules
 
 ---
 
 ### Phase 23: Admin Member Attendance Management
+
 **Goal**: Admins/coaches can manage member plans and view attendance
 **Depends on**: Phase 22 (data model exists)
 **Success Criteria** (what must be TRUE):
-  1. Admin can view branch schedule with current bookings
-  2. Admin can see capacity utilization per slot
-  3. Admin can assign/modify member plans
-  4. Admin can manually add/remove bookings for members
-  5. Admin can view member attendance history
-  6. Waitlist management if slot is full
+
+1. Admin can view branch schedule with current bookings
+2. Admin can see capacity utilization per slot
+3. Admin can assign/modify member plans
+4. Admin can manually add/remove bookings for members
+5. Admin can view member attendance history
+6. Waitlist management if slot is full
 
 ---
 
 ### Phase 24: Member Booking UI
+
 **Goal**: Members can view availability and reserve training spots
 **Depends on**: Phase 23 (admin management exists)
 **Success Criteria** (what must be TRUE):
-  1. Member sees weekly schedule with available slots
-  2. Member can book available slot within their plan allowance
-  3. Member can cancel booking (with cancellation policy)
-  4. Member sees their upcoming bookings
-  5. Member sees their plan details (remaining days, restrictions)
-  6. Push notification for booking confirmation/reminder
+
+1. Member sees weekly schedule with available slots
+2. Member can book available slot within their plan allowance
+3. Member can cancel booking (with cancellation policy)
+4. Member sees their upcoming bookings
+5. Member sees their plan details (remaining days, restrictions)
+6. Push notification for booking confirmation/reminder
 
 ---
 
 ### Phase 25: Exercise Video Processing Pipeline
+
 **Goal**: Build a Python batch-processing pipeline that transforms exercise demonstration videos into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
 **Depends on**: None (independent, can run in parallel with other phases)
 **Success Criteria** (what must be TRUE):
-  1. Python project with MediaPipe Selfie Segmentation for background removal
-  2. Silhouette styler produces bronze-tinted figure with cream edge glow on navy background
-  3. Videos normalized to consistent resolution, FPS, codec (H.264, yuv420p, faststart)
-  4. Batch processing with resume capability (progress.json checkpoints)
-  5. Pipeline handles 1300+ videos with error tracking and retry
-  6. Output clips are 5-15 seconds, looped if source is too short
+
+1. Python project with MediaPipe Selfie Segmentation for background removal
+2. Silhouette styler produces bronze-tinted figure with cream edge glow on navy background
+3. Videos normalized to consistent resolution, FPS, codec (H.264, yuv420p, faststart)
+4. Batch processing with resume capability (progress.json checkpoints)
+5. Pipeline handles 1300+ videos with error tracking and retry
+6. Output clips are 5-15 seconds, looped if source is too short
 
 Plans:
+
 - [ ] TBD (run /gsd:plan-phase 25 to break down)
 
 ---
 
 ### Phase 26: Video Hosting & Content Tooling
+
 **Goal**: Set up Cloudflare R2 for free video hosting, build manifest generator to map exercises to source videos, and create upload/population scripts
 **Depends on**: Phase 25 (processed videos exist to upload)
 **Success Criteria** (what must be TRUE):
-  1. Cloudflare R2 bucket configured with public access and direct MP4 URLs
-  2. Manifest generator exports all 1300 exercises from DB for source video mapping
-  3. Upload script batch-uploads processed videos to R2 via S3-compatible API
-  4. DB population script sets video_url for each exercise based on manifest
-  5. Incremental workflow supported (process/upload batches, add more later)
+
+1. Cloudflare R2 bucket configured with public access and direct MP4 URLs
+2. Manifest generator exports all 1300 exercises from DB for source video mapping
+3. Upload script batch-uploads processed videos to R2 via S3-compatible API
+4. DB population script sets video_url for each exercise based on manifest
+5. Incremental workflow supported (process/upload batches, add more later)
 
 Plans:
+
 - [ ] TBD (run /gsd:plan-phase 26 to break down)
 
 ---
 
 ### Phase 27: App Video Integration
+
 **Goal**: Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
 **Depends on**: Phase 26 (videos hosted and URLs populated in DB)
 **Success Criteria** (what must be TRUE):
-  1. exercises table has video_url VARCHAR column (migration applied)
-  2. videoUrl included in ExercisePrescription type and selected in exercise queries
-  3. Session API response includes videoUrl per exercise prescription
-  4. DayPlayer.vue currentExerciseVideoUrl computed reads from exercise data
-  5. VideoPlaceholder shows video when URL exists, placeholder when null
-  6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile
+
+1. exercises table has video_url VARCHAR column (migration applied)
+2. videoUrl included in ExercisePrescription type and selected in exercise queries
+3. Session API response includes videoUrl per exercise prescription
+4. DayPlayer.vue currentExerciseVideoUrl computed reads from exercise data
+5. VideoPlaceholder shows video when URL exists, placeholder when null
+6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile
 
 Plans:
+
 - [ ] TBD (run /gsd:plan-phase 27 to break down)
 
 ---
@@ -314,24 +355,25 @@ Plans:
 Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployment) → Phase 19 (Tech Debt) → Phase 20 (APK) → Phase 21 (Session Creation) → Phases 22-24 (Branch Attendance)
 Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 13. Session Generation Review | 8/8 | Complete | 2026-02-05 |
-| 14. Admin Session Review UI | 8/8 | Complete | 2026-02-06 |
-| 15. Admin Session Editing | 9/9 | Complete | 2026-02-10 |
-| 16. PDF Gen, Format Config & App Exercise Tracking | 10/10 | Complete | 2026-02-12 |
-| 17. Per-Block Mobility Exercises | 4/4 | Complete | 2026-02-12 |
-| 18. Domain/Subdomain Deployment | 3/3 | Complete | 2026-02-13 |
-| 19. Technical Debt Audit | 0/9 | Planned | — |
-| 20. APK Handling | 0/? | Not Started | — |
-| 21. Admin Session Creation | 0/? | Not Started | — |
-| 22. Branch Attendance Data Model | 0/? | Blocked (docs) | — |
-| 23. Admin Member Attendance | 0/? | Not Started | — |
-| 24. Member Booking UI | 0/? | Not Started | — |
-| 25. Exercise Video Processing Pipeline | 0/? | Not Started | — |
-| 26. Video Hosting & Content Tooling | 0/? | Not Started | — |
-| 27. App Video Integration | 0/? | Not Started | — |
+| Phase                                              | Plans Complete | Status         | Completed  |
+| -------------------------------------------------- | -------------- | -------------- | ---------- |
+| 13. Session Generation Review                      | 8/8            | Complete       | 2026-02-05 |
+| 14. Admin Session Review UI                        | 8/8            | Complete       | 2026-02-06 |
+| 15. Admin Session Editing                          | 9/9            | Complete       | 2026-02-10 |
+| 16. PDF Gen, Format Config & App Exercise Tracking | 10/10          | Complete       | 2026-02-12 |
+| 17. Per-Block Mobility Exercises                   | 4/4            | Complete       | 2026-02-12 |
+| 18. Domain/Subdomain Deployment                    | 3/3            | Complete       | 2026-02-13 |
+| 19. Technical Debt Audit                           | 9/9            | Complete       | 2026-02-14 |
+| 20. APK Handling                                   | 0/?            | Not Started    | —          |
+| 21. Admin Session Creation                         | 0/?            | Not Started    | —          |
+| 22. Branch Attendance Data Model                   | 0/?            | Blocked (docs) | —          |
+| 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |
+| 24. Member Booking UI                              | 0/?            | Not Started    | —          |
+| 25. Exercise Video Processing Pipeline             | 0/?            | Not Started    | —          |
+| 26. Video Hosting & Content Tooling                | 0/?            | Not Started    | —          |
+| 27. App Video Integration                          | 0/?            | Not Started    | —          |
 
 ---
-*Roadmap created: 2026-02-04*
-*Last updated: 2026-02-14 — Phase 19 planned (9 plans: security, Sentry, tests, CI/deploy, hooks/README, refactoring x2, logging, backups/runbook)*
+
+_Roadmap created: 2026-02-04_
+_Last updated: 2026-02-14 — Phase 19 complete (9/9 plans: security, Sentry, tests, CI/deploy, hooks/README, refactoring x2, logging, backups/runbook)_
