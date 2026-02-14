@@ -1,3 +1,7 @@
+# Root dependencies
+node_modules/
+pnpm-lock.yaml
+
 .planning/intel/
 
 # AWS infrastructure variables (contains IPs, instance IDs)

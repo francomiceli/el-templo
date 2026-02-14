@@ -1,0 +1,23 @@
+{
+  "name": "el-templo",
+  "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0",
+    "lint-staged": "^16.0.0",
+    "prettier": "^3.3.3"
+  },
+  "lint-staged": {
+    "el-templo-app/**/*.{ts,vue}": [
+      "eslint --fix --config el-templo-app/eslint.config.js"
+    ],
+    "el-templo-admin/**/*.{ts,vue}": [
+      "eslint --fix --config el-templo-admin/eslint.config.js"
+    ],
+    "**/*.{ts,vue,js,json,md}": [
+      "prettier --write"
+    ]
+  }
+}
