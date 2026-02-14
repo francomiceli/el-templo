@@ -10,9 +10,12 @@
  */
 
 import cron from 'node-cron';
+import pino from 'pino';
 import type { MySql2Database } from 'drizzle-orm/mysql2';
 import type * as schema from '../db/schema';
 import { AdminSessionService } from '../modules/admin/service';
+
+const log = pino({ name: 'auto-approve' });
 
 export function startAutoApproveJob(db: MySql2Database<typeof schema>) {
   const adminService = new AdminSessionService(db);
@@ -20,20 +23,20 @@ export function startAutoApproveJob(db: MySql2Database<typeof schema>) {
   // Run at 23:59 every day (just before midnight)
   // This auto-approves sessions for the next day if not reviewed
   cron.schedule('59 23 * * *', async () => {
-    console.log('[auto-approve] Running auto-approve job...');
+    log.info('Running auto-approve job');
     try {
       const result = await adminService.autoApprovePendingSessions();
       if (result.approved > 0) {
-        console.log(`[auto-approve] Auto-approved ${result.approved} sessions for tomorrow`);
+        log.info({ approved: result.approved }, 'Auto-approved sessions for tomorrow');
       } else {
-        console.log('[auto-approve] No pending sessions to auto-approve');
+        log.info('No pending sessions to auto-approve');
       }
     } catch (error) {
-      console.error('[auto-approve] Error:', error);
+      log.error({ err: error }, 'Auto-approve job failed');
     }
   }, {
     timezone: 'America/Argentina/Buenos_Aires', // Branch timezone
   });
 
-  console.log('[auto-approve] Cron job scheduled for 23:59 daily (Argentina timezone)');
+  log.info('Cron job scheduled for 23:59 daily (Argentina timezone)');
 }
