@@ -1,18 +1,20 @@
-import dotenv from 'dotenv';
-import path from 'path';
+import "./instrument";
+import dotenv from "dotenv";
+import path from "path";
 
 // Load environment-specific .env file
-const envFile = process.env.NODE_ENV === 'production'
-  ? '.env.production'
-  : '.env.development';
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : ".env.development";
 
 dotenv.config({ path: path.resolve(process.cwd(), envFile) });
 
 // Fallback to .env if specific file doesn't exist
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
-import { buildApp } from './app';
-import { startAutoApproveJob } from './jobs/auto-approve';
+import { buildApp } from "./app";
+import { startAutoApproveJob } from "./jobs/auto-approve";
 
 async function start() {
   const app = await buildApp();
@@ -20,9 +22,11 @@ async function start() {
   try {
     await app.listen({
       port: Number(process.env.PORT) || 3000,
-      host: '0.0.0.0', // Listen on all interfaces for mobile emulator access
+      host: "0.0.0.0", // Listen on all interfaces for mobile emulator access
     });
-    console.log(`Server listening on http://0.0.0.0:${process.env.PORT || 3000}`);
+    console.log(
+      `Server listening on http://0.0.0.0:${process.env.PORT || 3000}`,
+    );
 
     // Start cron jobs after server is ready
     startAutoApproveJob(app.db);
