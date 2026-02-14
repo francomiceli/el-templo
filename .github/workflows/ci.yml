@@ -6,9 +6,12 @@ on:
   pull_request:
     branches: [master, main, develop]
 
+env:
+  NODE_VERSION: '22'
+
 jobs:
   # ===========================================
-  # API - Type Check and Build
+  # API - Type Check, Audit, and Build
   # ===========================================
   api-check:
     name: API - Type Check & Build
@@ -30,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
           cache-dependency-path: el-templo-api/pnpm-lock.yaml
 
@@ -40,11 +43,69 @@ jobs:
       - name: Type check
         run: pnpm exec tsc --noEmit
 
+      - name: Security audit
+        run: pnpm audit --audit-level=high || true
+
       - name: Build
         run: pnpm run build
 
   # ===========================================
-  # App - Type Check and Build
+  # API - Integration Tests
+  # ===========================================
+  api-test:
+    name: API - Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: eltemplo_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    defaults:
+      run:
+        working-directory: el-templo-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-api/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run integration tests
+        run: pnpm test
+        env:
+          DB_HOST: localhost
+          DB_USER: root
+          DB_PASSWORD: test
+          DB_NAME: eltemplo_test
+          DB_PORT: 3306
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-ci
+
+  # ===========================================
+  # App - Lint, Audit, and Build
   # ===========================================
   app-check:
     name: App - Lint & Build
@@ -66,7 +127,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
           cache-dependency-path: el-templo-app/pnpm-lock.yaml
 
@@ -75,10 +136,53 @@ jobs:
 
       - name: Lint
         run: pnpm run lint
-        continue-on-error: true  # Don't fail on lint warnings for now
+
+      - name: Security audit
+        run: pnpm audit --audit-level=high || true
 
       - name: Build
         run: pnpm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3000/api' }}
           VITE_APP_NAME: El Templo
+
+  # ===========================================
+  # Admin - Lint, Audit, and Build
+  # ===========================================
+  admin-check:
+    name: Admin - Lint & Build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-admin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-admin/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Security audit
+        run: pnpm audit --audit-level=high || true
+
+      - name: Build
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'http://localhost:3000/api' }}
