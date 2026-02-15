@@ -1,7 +1,11 @@
 input/
 output/
+test-input/
+test-output/
 progress.json
 __pycache__/
 *.pyc
 .venv/
 .env
+ffmpeg
+ffprobe
