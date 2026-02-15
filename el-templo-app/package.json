@@ -25,6 +25,7 @@
     "@capacitor/preferences": "^8.0.0",
     "@fontsource/cinzel": "^5.2.8",
     "@quasar/extras": "^1.16.4",
+    "@sentry/vue": "^10.38.0",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
     "pinia": "^3.0.4",

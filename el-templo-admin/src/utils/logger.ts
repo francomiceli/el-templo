@@ -9,9 +9,10 @@
  *
  * In production: only warn and error output.
  * In development: all levels output with [context] prefix.
- * The error() method is the natural hook point for Sentry.captureMessage()
- * when frontend Sentry is added later.
+ * error() also sends to Sentry when initialized.
  */
+
+import * as Sentry from '@sentry/vue';
 
 type LogData = Record<string, unknown>;
 
@@ -34,6 +35,12 @@ export function createLogger(context: string): Logger {
     debug: isProd ? noop : (msg, data?) => console.debug(...format(msg, data)),
     info: isProd ? noop : (msg, data?) => console.info(...format(msg, data)),
     warn: (msg, data?) => console.warn(...format(msg, data)),
-    error: (msg, data?) => console.error(...format(msg, data)),
+    error: (msg, data?) => {
+      console.error(...format(msg, data));
+      Sentry.captureMessage(`[${context}] ${msg}`, {
+        level: 'error',
+        extra: data,
+      });
+    },
   };
 }
