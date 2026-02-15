@@ -448,6 +448,11 @@ Recent decisions affecting current work:
 - [Phase 19-02]: @sentry/vue added to both frontend apps with VITE_SENTRY_DSN guard
 - [Phase 19-02]: Sentry boot file first in boot order for early error capture
 - [Phase 19-02]: createLogger().error() sends to Sentry automatically via captureMessage
+- [Phase 25-01]: uv for Python project management over pip/poetry (faster, modern standard)
+- [Phase 25-01]: Binary selfie_segmenter over multiclass model (simpler, faster, uniform bronze treatment)
+- [Phase 25-01]: VIDEO running mode for MediaPipe temporal optimization across frames
+- [Phase 25-01]: Dual BGR+RGB color constants to prevent OpenCV/MediaPipe color space confusion
+- [Phase 25-01]: CRF 28 for styled content encoding (flat colors compress well)
 - [Phase 25-02]: 11 curated YouTube fitness channels for exercise demo search priority
 - [Phase 25-02]: Three-tier search cascade: YouTube curated -> YouTube broad -> stock sites (Pexels, Pixabay)
 - [Phase 25-02]: JSON manifest with per-exercise checkpointing for batch resume
