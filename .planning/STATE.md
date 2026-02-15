@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 27 (App Video Integration) — Plan 01 complete
+**Current focus:** Phase 27 (App Video Integration) — Complete
 
 ## Current Position
 
 Phase: 27 (App Video Integration)
-Plan: 1 of 2 — 27-01 complete
-Status: In progress
-Last activity: 2026-02-15 - Completed 27-01 (API Video URL Wiring)
+Plan: 2 of 2 — 27-02 complete
+Status: Complete
+Last activity: 2026-02-15 - Completed 27-02 (Frontend Video Integration)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████░░░░] 60% Phase 25 (3/5 plans complete)
+Progress: [██████████] 100% Phase 27 (2/2 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 19-08 (4min - Console Cleanup), 19-09 (4min - DB Backup & Runbook), 25-01 (4min - Project Foundation & Core Frame Modules), 25-02 (4min - Video Sourcing Tool), 25-03 (7min - Video Processing Pipeline Modules)
-- Trend: Phase 25 in progress - 3/5 plans complete
+- Last 5 plans: 25-02 (4min - Video Sourcing Tool), 25-03 (7min - Video Processing Pipeline Modules), 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration)
+- Trend: Phase 27 complete - 2/2 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -128,6 +128,8 @@ _Updated after each plan completion_
 | Phase 25 P01 | 4 | 3 tasks | 9 files |
 | Phase 25 P02 | 4 | 2 tasks | 7 files |
 | Phase 25 P03 | 7 | 2 tasks | 5 files |
+| Phase 27 P01 | 3 | 2 tasks | 7 files |
+| Phase 27 P02 | 4 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -465,6 +467,9 @@ Recent decisions affecting current work:
 - [Phase 27-01]: videoUrl resolved at read time via leftJoin, not stored in prescriptions
 - [Phase 27-01]: Response uses null (not undefined) for missing videoUrl to preserve JSON field presence
 - [Phase 27-01]: Added videoUrl column to Drizzle schema + migration 0014 (was missing from master)
+- [Phase 27-02]: isMobilitySelected ref pattern for toggling video between main exercise and mobility exercise
+- [Phase 27-02]: Navy (#1a2a3e) background and gradient for VideoPlaceholder matching brand dark mode
+- [Phase 27-02]: Silent video error fallback via videoFailed state -- no user-facing error, just shows placeholder
 
 ### Roadmap Evolution
 
@@ -493,7 +498,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 27-01-PLAN.md (API Video URL Wiring)
+Stopped at: Completed 27-02-PLAN.md (Frontend Video Integration)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
