@@ -84,7 +84,14 @@
         <div class="text-overline text-grey-7 q-mb-xs" style="letter-spacing: 2px">
           DESCANSO ACTIVO
         </div>
-        <q-card flat bordered class="mobility-card">
+        <q-card
+          flat
+          bordered
+          class="mobility-card"
+          :class="{ 'mobility-card--selected': isMobilitySelected }"
+          clickable
+          @click="isMobilitySelected = true"
+        >
           <q-card-section class="q-py-sm">
             <div class="row items-center">
               <div class="col">
@@ -136,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import type { Block, BlockRole } from '../types/session'
 
@@ -199,7 +206,23 @@ const currentBlockName = computed(() => {
   return BLOCK_NAMES[props.currentBlock.role] || props.currentBlock.role
 })
 
-const currentExerciseVideoUrl = computed(() => null)
+const isMobilitySelected = ref(false)
+
+const currentExerciseVideoUrl = computed(() => {
+  if (!props.currentBlock) return null
+  if (isMobilitySelected.value) {
+    return props.currentBlock.mobilityExercise?.videoUrl ?? null
+  }
+  const exercise = props.currentBlock.exercises[props.selectedExerciseIndex]
+  return exercise?.videoUrl ?? null
+})
+
+watch(
+  () => props.currentBlock?.blockId,
+  () => {
+    isMobilitySelected.value = false
+  },
+)
 
 const mobilityContractionColor = computed(() => {
   if (!props.currentBlock?.mobilityExercise) return 'grey'
@@ -216,6 +239,7 @@ const completeButtonLabel = computed(() => {
 })
 
 function onExerciseSelect(index: number): void {
+  isMobilitySelected.value = false
   emit('select-exercise', index)
 }
 
@@ -293,6 +317,15 @@ function handleCompleteBlock(): void {
   .mobility-card {
     border-color: rgba(176, 141, 110, 0.3);
     background: rgba(176, 141, 110, 0.05);
+    cursor: pointer;
+    transition:
+      border-color 0.2s,
+      background 0.2s;
+  }
+
+  .mobility-card--selected {
+    border-color: rgba(176, 141, 110, 0.6);
+    background: rgba(176, 141, 110, 0.12);
   }
 }
 

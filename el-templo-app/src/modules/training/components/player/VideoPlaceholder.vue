@@ -1,7 +1,7 @@
 <template>
   <div class="video-container">
-    <!-- Placeholder when no video URL -->
-    <div v-if="!videoUrl" class="video-placeholder">
+    <!-- Placeholder when no video URL or video failed to load -->
+    <div v-if="!videoUrl || videoFailed" class="video-placeholder">
       <q-icon name="videocam" size="48px" color="grey-6" />
       <span class="video-placeholder__text">Video proximamente</span>
     </div>
@@ -17,60 +17,71 @@
       playsinline
       :poster="posterUrl"
       :src="videoUrl"
+      @error="handleVideoError"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import { createLogger } from 'src/utils/logger';
+import { ref, watch, onMounted } from 'vue'
+import { createLogger } from 'src/utils/logger'
 
-const log = createLogger('VideoPlaceholder');
+const log = createLogger('VideoPlaceholder')
 
 interface Props {
   /** URL for video (null shows placeholder) */
-  videoUrl?: string | null;
+  videoUrl?: string | null
   /** Poster image during loading */
-  posterUrl?: string;
+  posterUrl?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   videoUrl: null,
   posterUrl: undefined,
-});
+})
 
-const videoRef = ref<HTMLVideoElement | null>(null);
+const videoRef = ref<HTMLVideoElement | null>(null)
+const videoFailed = ref(false)
+
+/**
+ * Handle video load error by silently falling back to placeholder
+ */
+function handleVideoError(): void {
+  videoFailed.value = true
+  log.debug('Video load failed, showing placeholder')
+}
 
 /**
  * Attempt autoplay with fallback for browsers that block it
  */
 async function attemptAutoplay(): Promise<void> {
-  if (!videoRef.value || !props.videoUrl) return;
+  if (!videoRef.value || !props.videoUrl) return
 
   try {
-    await videoRef.value.play();
+    await videoRef.value.play()
   } catch {
     // Autoplay was blocked - video will show first frame
     // User interaction will be required to play
-    log.debug('Autoplay blocked, user interaction required');
+    log.debug('Autoplay blocked, user interaction required')
   }
 }
 
-// Watch for videoUrl changes - reload and attempt autoplay
+// Watch for videoUrl changes - reset error state, reload and attempt autoplay
 watch(
   () => props.videoUrl,
   (newUrl) => {
+    videoFailed.value = false
     if (newUrl && videoRef.value) {
-      videoRef.value.load();
-      attemptAutoplay();
+      videoRef.value.load()
+      attemptAutoplay()
     }
-  }
-);
+  },
+)
 
 // Attempt autoplay on mount
 onMounted(() => {
-  attemptAutoplay();
-});
+  attemptAutoplay()
+})
 </script>
 
 <style scoped lang="scss">
@@ -78,7 +89,7 @@ onMounted(() => {
   width: 100%;
   height: 40vh;
   position: relative;
-  background-color: #000;
+  background-color: #1a2a3e;
 }
 
 .video-placeholder {
@@ -88,7 +99,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+  background: linear-gradient(135deg, #0f1c2e 0%, #1a2a3e 50%, #243548 100%);
   gap: 12px;
 }
 
