@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 25 (Exercise Video Processing Pipeline) — Plan 02 complete
+**Current focus:** Phase 25 (Exercise Video Processing Pipeline) — Plan 03 complete
 
 ## Current Position
 
 Phase: 25 (Exercise Video Processing Pipeline)
-Plan: 2 of 5 — 25-02 complete
+Plan: 3 of 5 — 25-03 complete
 Status: In progress
-Last activity: 2026-02-15 - Completed 25-02 (Video Sourcing Tool)
+Last activity: 2026-02-15 - Completed 25-03 (Video Processing Pipeline Modules)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [████░░░░░░] 40% Phase 25 (2/5 plans complete)
+Progress: [██████░░░░] 60% Phase 25 (3/5 plans complete)
 
 ## Architecture Reset
 
@@ -75,9 +75,9 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Velocity:**
 
-- Total plans completed: 53
-- Average duration: 3.9 min
-- Total execution time: 4.92 hours
+- Total plans completed: 54
+- Average duration: 4.0 min
+- Total execution time: 5.04 hours
 
 **By Phase:**
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 19-04 (3min - CI/CD Pipeline Hardening), 19-08 (4min - Console Cleanup), 19-09 (4min - DB Backup & Runbook), 25-01 (4min - Project Foundation & Core Frame Modules), 25-02 (4min - Video Sourcing Tool)
-- Trend: Phase 25 in progress - 2/5 plans complete
+- Last 5 plans: 19-08 (4min - Console Cleanup), 19-09 (4min - DB Backup & Runbook), 25-01 (4min - Project Foundation & Core Frame Modules), 25-02 (4min - Video Sourcing Tool), 25-03 (7min - Video Processing Pipeline Modules)
+- Trend: Phase 25 in progress - 3/5 plans complete
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -127,6 +127,7 @@ _Updated after each plan completion_
 | Phase 19 P09 | 4 | 3 tasks | 3 files |
 | Phase 25 P01 | 4 | 3 tasks | 9 files |
 | Phase 25 P02 | 4 | 2 tasks | 7 files |
+| Phase 25 P03 | 7 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -457,6 +458,10 @@ Recent decisions affecting current work:
 - [Phase 25-02]: Three-tier search cascade: YouTube curated -> YouTube broad -> stock sites (Pexels, Pixabay)
 - [Phase 25-02]: JSON manifest with per-exercise checkpointing for batch resume
 - [Phase 25-02]: TypedDict for structured result types (VideoInfo, SourcingResult, BatchStats)
+- [Phase 25-03]: Edge density heuristic for watermark detection (Canny edges in corner regions, >15% threshold)
+- [Phase 25-03]: Union bounding box across sampled frames for stable crop (avoids jitter)
+- [Phase 25-03]: MJPEG intermediate codec for VideoWriter (fast, re-encoded to H.264 after)
+- [Phase 25-03]: ProcessResult dataclass with non-throwing error handling for batch compatibility
 
 ### Roadmap Evolution
 
@@ -485,7 +490,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 25-02-PLAN.md (Video Sourcing Tool)
+Stopped at: Completed 25-03-PLAN.md (Video Processing Pipeline Modules)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
