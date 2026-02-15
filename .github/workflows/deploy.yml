@@ -151,6 +151,7 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_APP_NAME: El Templo
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Upload App build artifact
         uses: actions/upload-artifact@v4
@@ -196,6 +197,7 @@ jobs:
         run: pnpm run build
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
 
       - name: Upload Admin build artifact
         uses: actions/upload-artifact@v4
@@ -295,6 +297,7 @@ jobs:
           JWT_EXPIRES_IN=${{ secrets.JWT_EXPIRES_IN || '7d' }}
           FRONTEND_URL=${{ secrets.FRONTEND_URL }}
           ADMIN_URL=${{ secrets.ADMIN_URL }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
           EOF
 
       # --- Deploy via rsync (only projects that were built) ---
