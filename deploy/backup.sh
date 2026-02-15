@@ -7,7 +7,7 @@ set -euo pipefail
 
 # Configuration (override via environment)
 DB_NAME="${DB_NAME:-eltemplo}"
-DB_USER="${DB_USER:-root}"
+DB_USER="${DB_USER:-eltemplo}"
 DB_PASSWORD="${DB_PASSWORD:?DB_PASSWORD must be set}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/mysql}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
@@ -25,7 +25,7 @@ echo "[$(date)] Starting backup of database: $DB_NAME"
 # --quick: retrieve rows one at a time (reduces memory)
 # --lock-tables=false: don't lock tables (use single-transaction instead)
 mysqldump -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" \
-  --single-transaction --quick --lock-tables=false | gzip > "$BACKUP_FILE"
+  --single-transaction --quick --lock-tables=false --no-tablespaces | gzip > "$BACKUP_FILE"
 
 BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
 echo "[$(date)] Backup created: $BACKUP_FILE ($BACKUP_SIZE)"
