@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 19 (Technical Debt Audit) COMPLETE - Ready for Phase 20
+**Current focus:** Phase 25 (Exercise Video Processing Pipeline) — Plan 02 complete
 
 ## Current Position
 
-Phase: 19 (Technical Debt Audit) — Complete
-Plan: 9 of 9 — 19-09 complete
-Status: Phase complete
-Last activity: 2026-02-14 - Completed 19-09 (Database Backup, Restore & Production Runbook)
+Phase: 25 (Exercise Video Processing Pipeline)
+Plan: 2 of 5 — 25-02 complete
+Status: In progress
+Last activity: 2026-02-15 - Completed 25-02 (Video Sourcing Tool)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████████] 100% Phase 19 (9/9 plans complete)
+Progress: [████░░░░░░] 40% Phase 25 (2/5 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 19-03 (14min - API Test Infrastructure), 19-07 (22min - Edit Service Split), 19-04 (3min - CI/CD Pipeline Hardening), 19-08 (4min - Console Cleanup), 19-09 (4min - DB Backup & Runbook)
-- Trend: Phase 19 COMPLETE - all 9/9 plans done
+- Last 5 plans: 19-04 (3min - CI/CD Pipeline Hardening), 19-08 (4min - Console Cleanup), 19-09 (4min - DB Backup & Runbook), 25-01 (4min - Project Foundation & Core Frame Modules), 25-02 (4min - Video Sourcing Tool)
+- Trend: Phase 25 in progress - 2/5 plans complete
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -125,6 +125,8 @@ _Updated after each plan completion_
 | Phase 19 P01 | 15 | 2 tasks | 15 files |
 | Phase 19 P08 | 4 | 2 tasks | 11 files |
 | Phase 19 P09 | 4 | 3 tasks | 3 files |
+| Phase 25 P01 | 4 | 3 tasks | 9 files |
+| Phase 25 P02 | 4 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -446,6 +448,10 @@ Recent decisions affecting current work:
 - [Phase 19-02]: @sentry/vue added to both frontend apps with VITE_SENTRY_DSN guard
 - [Phase 19-02]: Sentry boot file first in boot order for early error capture
 - [Phase 19-02]: createLogger().error() sends to Sentry automatically via captureMessage
+- [Phase 25-02]: 11 curated YouTube fitness channels for exercise demo search priority
+- [Phase 25-02]: Three-tier search cascade: YouTube curated -> YouTube broad -> stock sites (Pexels, Pixabay)
+- [Phase 25-02]: JSON manifest with per-exercise checkpointing for batch resume
+- [Phase 25-02]: TypedDict for structured result types (VideoInfo, SourcingResult, BatchStats)
 
 ### Roadmap Evolution
 
@@ -473,8 +479,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-14
-Stopped at: Completed 19-09-PLAN.md (Database Backup, Restore & Production Runbook) - Phase 19 COMPLETE
+Last session: 2026-02-15
+Stopped at: Completed 25-02-PLAN.md (Video Sourcing Tool)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
