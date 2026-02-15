@@ -18,6 +18,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 ## Implementation Decisions
 
 ### Scope & Prioritization
+
 - Full sprint 1-2 scope from audit: security, monitoring, CI gates, test infrastructure + API tests, pre-commit hooks, README, refactoring, console.log replacement, `any` type elimination
 - Refactoring: split DayPlayer.vue (900 LOC) and edit-service.ts (1232 LOC) NOW, not deferred
 - Replace all 279 console.log/warn/error statements with structured logger
@@ -28,11 +29,13 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 - Path aliases: Claude's discretion (not explicitly prioritized)
 
 ### Secrets & Environment
+
 - Rotate all JWT secrets, database passwords, API keys in production
-- Add .env* to .gitignore, create .env.example templates
+- Add .env\* to .gitignore, create .env.example templates
 - NO git history rewrite (private repo, old secrets will be invalidated)
 
 ### Error Visibility
+
 - Sentry for error tracking (free tier — 5,000 errors/month, sufficient for <100 users)
 - Sentry + GitHub Issues integration: auto-create GitHub issues for new errors so Claude can read them via gh CLI
 - Full error context: capture user ID, route, request body (minus passwords) in Sentry
@@ -41,6 +44,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 - No dedicated uptime monitoring — Sentry + PM2 sufficient at current scale
 
 ### Deploy Safety
+
 - Automated rollback: CI keeps previous build, one command reverts to last working version
 - Post-deploy smoke test: CI hits /health endpoint after deploy, auto-rollback on failure
 - Deploy gates: build + tests must pass (lint warnings allowed)
@@ -48,11 +52,13 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 - Production incident runbook: document common scenarios (API down, DB connection lost, app not loading)
 
 ### Database Backups
+
 - Automated daily backups: cron job at 3 AM Argentina time, mysqldump compressed
 - Keep last 7 days on server for quick restore
-- Archive older backups to cloud storage (S3 or Backblaze B2) instead of deleting
+- Archive older backups to AWS S3 cloud storage instead of deleting
 
 ### Testing Strategy
+
 - Priority: API endpoint integration tests (auth, sessions, admin, member routes)
 - Real test database (not mocks) — spin up test MySQL, seed data, run real queries
 - Existing 12 validation scripts: keep as-is, don't convert to formal tests
@@ -61,11 +67,12 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 - E2E tests (Playwright): deferred to a later phase
 
 ### Claude's Discretion
-- Path aliases (replace deep imports with @/* aliases) — do if natural during refactoring
+
+- Path aliases (replace deep imports with @/\* aliases) — do if natural during refactoring
 - Frontend Sentry setup — all 3 projects vs API-only, based on effort vs value
 - Logging standardization approach — whatever makes Sentry integration most useful
 - Vue store unit tests — include if time permits and risk warrants it
-- Specific cloud storage provider for backup archives (S3 vs B2)
+- Specific cloud storage provider for backup archives (decided: AWS S3)
 - DayPlayer.vue split strategy (exact component boundaries)
 - edit-service.ts split strategy (exact service boundaries)
 
@@ -97,5 +104,5 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens.
 
 ---
 
-*Phase: 19-technical-debt-audit*
-*Context gathered: 2026-02-14*
+_Phase: 19-technical-debt-audit_
+_Context gathered: 2026-02-14_
