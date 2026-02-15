@@ -311,9 +311,15 @@ Plans:
 10. Thumbnail PNG generated from middle frame for each processed video
 11. Output clips loop (hard cut) if source is too short
 
+**Plans:** 5 plans
+
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 25 to break down)
+- [ ] 25-01-PLAN.md — Python project setup, MediaPipe segmenter, Greek-themed styler
+- [ ] 25-02-PLAN.md — Video sourcing tool (YouTube curated channels + stock sites)
+- [ ] 25-03-PLAN.md — Encoder, smart cropper, movement trimmer, single-video processor
+- [ ] 25-04-PLAN.md — Batch runner, CLI entry point, progress checkpointing, report
+- [ ] 25-05-PLAN.md — End-to-end test and visual QA checkpoint
 
 ---
 
