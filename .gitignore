@@ -18,3 +18,7 @@ build/
 
 # PDF proof of concept
 poc-pdf/
+
+# Video pipeline artifacts
+el-templo-video-pipeline/
+el-templo-tools/
