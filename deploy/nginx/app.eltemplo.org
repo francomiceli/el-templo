@@ -1,5 +1,6 @@
-# Member App (SPA - hash mode routing)
+# Member App (SPA - history mode routing)
 # Location: /etc/nginx/sites-available/app.eltemplo.org
+# CRITICAL: try_files is REQUIRED for history mode - without it, direct URL access returns 404
 # SSL will be added by certbot --nginx
 
 server {
@@ -10,7 +11,7 @@ server {
     root /var/www/member-app/spa;
     index index.html;
 
-    # SPA fallback (defense-in-depth for hash mode)
+    # SPA fallback - all routes serve index.html, Vue Router handles the rest
     location / {
         try_files $uri $uri/ /index.html;
     }

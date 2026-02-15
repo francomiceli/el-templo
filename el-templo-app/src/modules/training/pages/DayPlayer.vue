@@ -94,8 +94,6 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 
-import type { WeekDay } from '../types/session'
-
 const log = createLogger('DayPlayer')
 
 // Day Player Page - Orchestrator for session flow:
@@ -401,7 +399,9 @@ async function loadWeekDataIfEmpty() {
       })),
     )
   } catch (err) {
-    log.error('Failed to load week data', { error: err instanceof Error ? err.message : String(err) })
+    log.error('Failed to load week data', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
 
