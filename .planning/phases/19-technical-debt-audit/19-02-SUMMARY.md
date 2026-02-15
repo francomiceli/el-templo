@@ -10,25 +10,38 @@ requires:
     provides: Fastify API with auth plugin and JWT decorator
 provides:
   - Sentry error monitoring for API with Fastify error handler
+  - Sentry error monitoring for both frontend apps via @sentry/vue
   - Sensitive field scrubbing in Sentry event payloads
   - User context enrichment on authenticated requests
-  - createLogger() utility in member and admin apps
+  - createLogger() utility in member and admin apps (error() sends to Sentry)
 affects: [19-05, 19-08, 19-09]
 
 # Tech tracking
 tech-stack:
-  added: ["@sentry/node 10.38.0"]
-  patterns: [instrument-first-import, sentry-dsn-guard, level-gated-logger]
+  added: ["@sentry/node 10.38.0", "@sentry/vue 10.38.0"]
+  patterns:
+    [
+      instrument-first-import,
+      sentry-dsn-guard,
+      level-gated-logger,
+      sentry-boot-first,
+    ]
 
 key-files:
   created:
     - el-templo-api/src/instrument.ts
+    - el-templo-app/src/boot/sentry.ts
     - el-templo-app/src/utils/logger.ts
+    - el-templo-admin/src/boot/sentry.ts
     - el-templo-admin/src/utils/logger.ts
   modified:
     - el-templo-api/src/index.ts
     - el-templo-api/src/app.ts
     - el-templo-api/package.json
+    - el-templo-app/quasar.config.js
+    - el-templo-app/package.json
+    - el-templo-admin/quasar.config.js
+    - el-templo-admin/package.json
 
 key-decisions:
   - "Sentry init guarded by SENTRY_DSN -- graceful no-op in dev without config"
@@ -59,10 +72,13 @@ completed: 2026-02-14
 - **Files modified:** 6
 
 ## Accomplishments
+
 - Sentry SDK integrated into API with setupFastifyErrorHandler capturing unhandled errors
+- Sentry SDK integrated into both frontend apps via @sentry/vue with browser tracing and Vue Router integration
 - Sensitive fields (password, currentPassword, newPassword) scrubbed from Sentry payloads via beforeSend
 - User context (userId, email) enriched on authenticated requests via onRequest hook
 - createLogger() utility providing structured, level-gated logging in both frontend apps
+- createLogger().error() automatically sends to Sentry with context and extra data
 
 ## Task Commits
 
@@ -72,19 +88,29 @@ Each task was committed atomically:
 2. **Task 2: Create frontend logger wrappers for App and Admin** - `59cbd27` (feat)
 
 ## Files Created/Modified
+
 - `el-templo-api/src/instrument.ts` - Sentry initialization with DSN guard, environment config, and password scrubbing
 - `el-templo-api/src/index.ts` - Added instrument.ts as first import for early module hooking
 - `el-templo-api/src/app.ts` - Added Sentry import, onRequest user context hook, setupFastifyErrorHandler
 - `el-templo-api/package.json` - Added @sentry/node dependency
-- `el-templo-app/src/utils/logger.ts` - createLogger() utility for member app
-- `el-templo-admin/src/utils/logger.ts` - createLogger() utility for admin app
+- `el-templo-app/src/boot/sentry.ts` - @sentry/vue init with browser tracing and Vue Router integration
+- `el-templo-app/src/utils/logger.ts` - createLogger() utility with Sentry.captureMessage on error()
+- `el-templo-app/quasar.config.js` - Added sentry as first boot file
+- `el-templo-app/package.json` - Added @sentry/vue dependency
+- `el-templo-admin/src/boot/sentry.ts` - @sentry/vue init with browser tracing and Vue Router integration
+- `el-templo-admin/src/utils/logger.ts` - createLogger() utility with Sentry.captureMessage on error()
+- `el-templo-admin/quasar.config.js` - Added sentry as first boot file
+- `el-templo-admin/package.json` - Added @sentry/vue dependency
 
 ## Decisions Made
+
 - Sentry init guarded by SENTRY_DSN -- allows running without Sentry in development
 - instrument.ts as first import in index.ts -- Sentry must instrument modules before they load
 - beforeSend scrubs password, currentPassword, newPassword from request data
 - createLogger suppresses debug/info in production, keeps warn/error for visibility
-- Logger designed as future Sentry.captureMessage() hook point for frontend integration
+- Frontend Sentry guarded by VITE_SENTRY_DSN -- no-op without config, same pattern as API
+- Sentry boot file registered first in both apps to capture errors from other boot files
+- createLogger().error() calls Sentry.captureMessage() with context prefix and extra data
 
 ## Deviations from Plan
 
@@ -97,20 +123,23 @@ None - plan executed exactly as written.
 ## User Setup Required
 
 **External services require manual configuration.** When ready for production Sentry monitoring:
+
 - Create a Sentry account and Node.js project at https://sentry.io
 - Get the DSN from Sentry Dashboard -> Settings -> Client Keys (DSN)
 - Set `SENTRY_DSN` environment variable in production `.env.production`
 - Verify: API logs should show Sentry events in the Sentry dashboard
 
 ## Next Phase Readiness
-- Sentry SDK ready for production -- just set SENTRY_DSN environment variable
-- createLogger() ready for use -- replace raw console.* calls in future refactoring
-- Frontend Sentry can be added later by hooking into the error() method of createLogger
+
+- Sentry SDK ready for production across all 3 apps -- set SENTRY_DSN (API) and VITE_SENTRY_DSN (frontends)
+- createLogger() ready for use -- replace raw console.\* calls in future refactoring
+- Frontend errors automatically sent to Sentry via createLogger().error()
 
 ## Self-Check: PASSED
 
 All 6 files verified present. Both commit hashes (e515891, 59cbd27) confirmed in git log.
 
 ---
-*Phase: 19-technical-debt-audit*
-*Completed: 2026-02-14*
+
+_Phase: 19-technical-debt-audit_
+_Completed: 2026-02-14_

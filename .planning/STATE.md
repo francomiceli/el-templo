@@ -443,6 +443,9 @@ Recent decisions affecting current work:
 - [Phase 19-04]: Node.js standardized to 22 across all CI/deploy jobs via env.NODE_VERSION
 - [Phase 19-09]: AWS S3 for backup cloud storage instead of Backblaze B2 (user already on AWS)
 - [Phase 19-09]: Standard aws s3 cp without --endpoint-url for native S3 (not S3-compatible)
+- [Phase 19-02]: @sentry/vue added to both frontend apps with VITE_SENTRY_DSN guard
+- [Phase 19-02]: Sentry boot file first in boot order for early error capture
+- [Phase 19-02]: createLogger().error() sends to Sentry automatically via captureMessage
 
 ### Roadmap Evolution
 
