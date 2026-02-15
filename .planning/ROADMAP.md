@@ -35,7 +35,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [ ] **Phase 24: Member Booking UI** - Members view availability and reserve training spots
 - [ ] **Phase 25: Exercise Video Sourcing & Processing Pipeline** - Web video sourcing + Python pipeline for background removal + Greek silhouette styling
 - [ ] **Phase 26: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
-- [ ] **Phase 27: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
+- [x] **Phase 27: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
 
 ## Phase Details
 
@@ -345,6 +345,8 @@ Plans:
 
 **Goal**: Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
 **Depends on**: Phase 26 (videos hosted and URLs populated in DB)
+**Status**: Complete
+**Plans:** 2 plans
 **Success Criteria** (what must be TRUE):
 
 1. exercises table has video_url VARCHAR column (migration applied)
@@ -356,7 +358,8 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 27 to break down)
+- [x] 27-01-PLAN.md — Add videoUrl to session API response and admin exercise pool queries
+- [x] 27-02-PLAN.md — Wire videoUrl through frontend types, DayPlayer video display, and admin video badge
 
 ---
 
@@ -381,10 +384,10 @@ Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 | 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |
 | 24. Member Booking UI                              | 0/?            | Not Started    | —          |
 | 25. Exercise Video Processing Pipeline             | 0/?            | Not Started    | —          |
-| 26. Video Hosting & Content Tooling                | 0/?            | Not Started    | —          |
-| 27. App Video Integration                          | 0/?            | Not Started    | —          |
+| 26. Video Hosting & Content Tooling                | 3/3            | Complete       | 2026-02-15 |
+| 27. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
 
 ---
 
 _Roadmap created: 2026-02-04_
-_Last updated: 2026-02-14 — Phase 19 complete (9/9 plans: security, Sentry, tests, CI/deploy, hooks/README, refactoring x2, logging, backups/runbook)_
+_Last updated: 2026-02-15 — Phase 27 complete (2/2 plans: API videoUrl wiring, frontend video display + admin badge)_
