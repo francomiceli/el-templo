@@ -31,7 +31,7 @@
       </q-card-section>
 
       <!-- Section toggle (not in mobility mode) -->
-      <q-card-section v-if="!mobilityMode" class="q-py-sm q-pt-md">
+      <q-card-section v-if="!mobilityMode" class="q-py-sm q-pt-md" style="align-self: center">
         <q-btn-toggle
           v-model="activeSection"
           no-caps
@@ -640,9 +640,6 @@ function contractionColor(contraction: string | null | undefined): string {
 }
 .section-toggle {
   border: 1px solid rgba(0, 0, 0, 0.12);
-  width: 100%;
-}
-.section-toggle :deep(.q-btn) {
-  flex: 1 1 0;
+  align-items: center;
 }
 </style>
