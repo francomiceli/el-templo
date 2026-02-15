@@ -5,36 +5,42 @@
  * throughout the deterministic pipeline.
  */
 
-import type { FormatParams } from '../admin/format-params';
+import type { FormatParams } from "../admin/format-params";
 
 // Re-export FormatParams for convenience
 export type { FormatParams };
 
 /** Level group - aggregation of individual levels for session generation */
-export type LevelGroup = 'alfa_delta' | 'sigma' | 'omega';
+export type LevelGroup = "alfa_delta" | "sigma" | "omega";
 
 /** Individual exercise level - member's actual training level */
-export type ExerciseLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
+export type ExerciseLevel = "alfa" | "delta" | "sigma" | "omega" | "spartan";
 
 /** Block roles in a training session (5 blocks total) */
-export type BlockRole = 'INITIUM' | 'NUCLEUS' | 'DEUTEROS_1' | 'DEUTEROS_2' | 'ATHLOS' | 'EPIKOS';
+export type BlockRole =
+  | "INITIUM"
+  | "NUCLEUS"
+  | "DEUTEROS_1"
+  | "DEUTEROS_2"
+  | "ATHLOS"
+  | "EPIKOS";
 
 /** Final block type - alternates by week */
-export type FinalBlockRole = 'ATHLOS' | 'EPIKOS';
+export type FinalBlockRole = "ATHLOS" | "EPIKOS";
 
 /**
  * Determine the final block type based on week parity
  * Odd weeks = ATHLOS, Even weeks = EPIKOS
  */
 export function getFinalBlockRole(week: number): FinalBlockRole {
-  return week % 2 === 1 ? 'ATHLOS' : 'EPIKOS';
+  return week % 2 === 1 ? "ATHLOS" : "EPIKOS";
 }
 
 /** Contraction types for exercise classification */
-export type Contraction = 'CON' | 'EXC' | 'ISO';
+export type Contraction = "CON" | "EXC" | "ISO";
 
 /** Trace event severity levels */
-export type TraceSeverity = 'INFO' | 'WARNING' | 'ERROR';
+export type TraceSeverity = "INFO" | "WARNING" | "ERROR";
 
 /** Location context for trace events */
 export interface TraceWhere {
@@ -93,7 +99,9 @@ export interface ExercisePrescription {
   /** Linear difficulty scale (1-12) for validation */
   readonly dificultadLineal?: number;
   /** Discriminator: 'main' (default) or 'mobility' */
-  readonly exerciseType?: 'main' | 'mobility';
+  readonly exerciseType?: "main" | "mobility";
+  /** Video demonstration URL from exercises table (resolved at read time) */
+  readonly videoUrl?: string;
 }
 
 /** Complete block plan output */

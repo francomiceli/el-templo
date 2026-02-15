@@ -615,8 +615,25 @@ export class SessionGeneratorService {
 
     for (const block of blocks) {
       const prescriptions = await this.db
-        .select()
+        .select({
+          id: schema.sessionPrescriptions.id,
+          exerciseId: schema.sessionPrescriptions.exerciseId,
+          exerciseName: schema.sessionPrescriptions.exerciseName,
+          contraction: schema.sessionPrescriptions.contraction,
+          reps: schema.sessionPrescriptions.reps,
+          seconds: schema.sessionPrescriptions.seconds,
+          rest: schema.sessionPrescriptions.rest,
+          notes: schema.sessionPrescriptions.notes,
+          difficulty: schema.sessionPrescriptions.difficulty,
+          exerciseType: schema.sessionPrescriptions.exerciseType,
+          sortOrder: schema.sessionPrescriptions.sortOrder,
+          videoUrl: schema.exercises.videoUrl,
+        })
         .from(schema.sessionPrescriptions)
+        .leftJoin(
+          schema.exercises,
+          eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
+        )
         .where(eq(schema.sessionPrescriptions.blockId, block.id))
         .orderBy(schema.sessionPrescriptions.sortOrder);
 
@@ -630,6 +647,7 @@ export class SessionGeneratorService {
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users
         exerciseType: p.exerciseType as "main" | "mobility",
+        videoUrl: p.videoUrl ?? undefined,
       }));
 
       // Transform legacy ATHLOS_EPIKOS to correct role based on week

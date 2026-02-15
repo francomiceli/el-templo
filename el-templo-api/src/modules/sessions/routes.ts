@@ -89,6 +89,7 @@ function sessionToResponse(session: DaySession) {
           seconds: ex.seconds,
           rest: ex.rest,
           notes: ex.notes,
+          videoUrl: ex.videoUrl ?? null,
           sortOrder: exIdx,
         })),
         mobilityExercise: mobilityEx
@@ -100,6 +101,7 @@ function sessionToResponse(session: DaySession) {
               seconds: mobilityEx.seconds,
               rest: mobilityEx.rest,
               notes: mobilityEx.notes,
+              videoUrl: mobilityEx.videoUrl ?? null,
             }
           : null,
       };
