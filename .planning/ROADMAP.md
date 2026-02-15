@@ -33,7 +33,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [ ] **Phase 22: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
 - [ ] **Phase 23: Admin Member Attendance Management** - Manage bookings, capacity, member plans
 - [ ] **Phase 24: Member Booking UI** - Members view availability and reserve training spots
-- [ ] **Phase 25: Exercise Video Processing Pipeline** - Python pipeline for background removal + Greek silhouette styling
+- [ ] **Phase 25: Exercise Video Sourcing & Processing Pipeline** - Web video sourcing + Python pipeline for background removal + Greek silhouette styling
 - [ ] **Phase 26: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
 - [ ] **Phase 27: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
 
@@ -293,18 +293,23 @@ Plans:
 
 ---
 
-### Phase 25: Exercise Video Processing Pipeline
+### Phase 25: Exercise Video Sourcing & Processing Pipeline
 
-**Goal**: Build a Python batch-processing pipeline that transforms exercise demonstration videos into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
+**Goal**: Source exercise demonstration videos from the web and transform them into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
 **Depends on**: None (independent, can run in parallel with other phases)
 **Success Criteria** (what must be TRUE):
 
-1. Python project with MediaPipe Selfie Segmentation for background removal
-2. Silhouette styler produces bronze-tinted figure with cream edge glow on navy background
-3. Videos normalized to consistent resolution, FPS, codec (H.264, yuv420p, faststart)
-4. Batch processing with resume capability (progress.json checkpoints)
-5. Pipeline handles 1300+ videos with error tracking and retry
-6. Output clips are 5-15 seconds, looped if source is too short
+1. Video sourcing tool searches YouTube (curated channels + broad) and stock sites for exercise demos by name
+2. Sourcing runs as automated batch job with rate limiting and skip-and-log for missing exercises
+3. Python project with MediaPipe Selfie Segmentation for background removal
+4. Silhouette styler produces warm golden-bronze figure with cream edge glow on navy background
+5. Smart crop detects person and reframes landscape sources to portrait 720x1280
+6. Videos normalized to portrait 720x1280, 30fps, H.264, yuv420p, faststart, no audio
+7. Auto-trim via movement detection to extract 5-10 second exercise demo clips
+8. Batch processing with resume capability (progress.json checkpoints)
+9. Pipeline handles 1300+ videos with error tracking, retry, and summary report
+10. Thumbnail PNG generated from middle frame for each processed video
+11. Output clips loop (hard cut) if source is too short
 
 Plans:
 
