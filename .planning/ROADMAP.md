@@ -387,7 +387,21 @@ Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 | 26. Video Hosting & Content Tooling                | 3/3            | Complete       | 2026-02-15 |
 | 27. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
 
+### Phase 28: Member App Staging Environment
+
+**Goal:** Full staging environment for all 3 apps on EC2 with separate database, CI/CD pipeline, staging subdomains, and mobile build workflows (Android APK + iOS TestFlight)
+**Depends on:** Phase 27
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 28-01-PLAN.md — Staging seed script, Nginx configs, weekly reset script
+- [ ] 28-02-PLAN.md — Staging deploy workflow (deploy-staging.yml) + CI branch triggers
+- [ ] 28-03-PLAN.md — Android staging APK build workflow + Capacitor/Gradle staging config
+- [ ] 28-04-PLAN.md — iOS staging TestFlight build workflow
+- [ ] 28-05-PLAN.md — Server/DNS setup checkpoint + end-to-end verification
+
 ---
 
 _Roadmap created: 2026-02-04_
-_Last updated: 2026-02-15 — Phase 27 complete (2/2 plans: API videoUrl wiring, frontend video display + admin badge)_
+_Last updated: 2026-02-15 — Phase 28 planned (5 plans: staging infrastructure, CI/CD, Android APK, iOS TestFlight, verification)_
