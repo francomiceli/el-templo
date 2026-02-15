@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 25 (Exercise Video Processing Pipeline) — Plan 03 complete
+**Current focus:** Phase 27 (App Video Integration) — Plan 01 complete
 
 ## Current Position
 
-Phase: 25 (Exercise Video Processing Pipeline)
-Plan: 3 of 5 — 25-03 complete
+Phase: 27 (App Video Integration)
+Plan: 1 of 2 — 27-01 complete
 Status: In progress
-Last activity: 2026-02-15 - Completed 25-03 (Video Processing Pipeline Modules)
+Last activity: 2026-02-15 - Completed 27-01 (API Video URL Wiring)
 
 ### Phase 19 Framing
 
@@ -462,6 +462,9 @@ Recent decisions affecting current work:
 - [Phase 25-03]: Union bounding box across sampled frames for stable crop (avoids jitter)
 - [Phase 25-03]: MJPEG intermediate codec for VideoWriter (fast, re-encoded to H.264 after)
 - [Phase 25-03]: ProcessResult dataclass with non-throwing error handling for batch compatibility
+- [Phase 27-01]: videoUrl resolved at read time via leftJoin, not stored in prescriptions
+- [Phase 27-01]: Response uses null (not undefined) for missing videoUrl to preserve JSON field presence
+- [Phase 27-01]: Added videoUrl column to Drizzle schema + migration 0014 (was missing from master)
 
 ### Roadmap Evolution
 
@@ -490,7 +493,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-15
-Stopped at: Completed 25-03-PLAN.md (Video Processing Pipeline Modules)
+Stopped at: Completed 27-01-PLAN.md (API Video URL Wiring)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
