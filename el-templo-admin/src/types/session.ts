@@ -116,6 +116,7 @@ export interface PoolExercise {
   pattern: string;
   category: string;
   route: string;
+  videoUrl?: string | null;
 }
 
 export interface ExercisePoolResponse {

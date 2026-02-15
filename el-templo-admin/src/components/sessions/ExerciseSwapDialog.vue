@@ -201,6 +201,15 @@
                     >
                       {{ ex.route }}
                     </q-badge>
+                    <q-icon
+                      v-if="ex.videoUrl"
+                      name="videocam"
+                      size="14px"
+                      color="green-7"
+                      class="q-ml-xs"
+                    >
+                      <q-tooltip>Tiene video</q-tooltip>
+                    </q-icon>
                   </q-item-label>
                 </q-item-section>
 
@@ -302,6 +311,15 @@
                     <q-badge color="grey-6" text-color="white" class="q-mr-xs">
                       {{ ex.route }}
                     </q-badge>
+                    <q-icon
+                      v-if="ex.videoUrl"
+                      name="videocam"
+                      size="14px"
+                      color="green-7"
+                      class="q-ml-xs"
+                    >
+                      <q-tooltip>Tiene video</q-tooltip>
+                    </q-icon>
                   </q-item-label>
                 </q-item-section>
 
