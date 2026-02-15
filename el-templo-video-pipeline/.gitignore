@@ -1,0 +1,7 @@
+input/
+output/
+progress.json
+__pycache__/
+*.pyc
+.venv/
+.env
