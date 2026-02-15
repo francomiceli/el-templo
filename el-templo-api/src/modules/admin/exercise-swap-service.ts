@@ -80,6 +80,7 @@ export class ExerciseSwapService {
         pattern: schema.exercises.pattern,
         category: schema.exercises.category,
         route: schema.exercises.route,
+        videoUrl: schema.exercises.videoUrl,
       })
       .from(schema.exercises)
       .where(and(...primaryConditions));
@@ -114,6 +115,7 @@ export class ExerciseSwapService {
           pattern: schema.exercises.pattern,
           category: schema.exercises.category,
           route: schema.exercises.route,
+          videoUrl: schema.exercises.videoUrl,
         })
         .from(schema.exercises)
         .where(and(...crossConditions));
@@ -175,6 +177,7 @@ export class ExerciseSwapService {
         pattern: schema.exercises.pattern,
         category: schema.exercises.category,
         route: schema.exercises.route,
+        videoUrl: schema.exercises.videoUrl,
       })
       .from(schema.exercises)
       .where(and(...conditions))
@@ -312,6 +315,7 @@ export class ExerciseSwapService {
         category: schema.exercises.category,
         route: schema.exercises.route,
         mobilityRelated: schema.exercises.mobilityRelated,
+        videoUrl: schema.exercises.videoUrl,
       })
       .from(schema.exercises)
       .where(eq(schema.exercises.pattern, "MOVILIDAD"));
@@ -336,6 +340,7 @@ export class ExerciseSwapService {
         category: ex.category,
         route: ex.route,
         patternSource: isRelevant ? "pattern_1" : "pattern_2",
+        videoUrl: ex.videoUrl,
       };
 
       if (isRelevant) {

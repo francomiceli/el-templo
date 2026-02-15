@@ -35,6 +35,8 @@ export interface ExercisePoolItem {
   route: string;
   /** Indicates if exercise comes from primary or cross-route pattern */
   patternSource: "pattern_1" | "pattern_2";
+  /** Video demonstration URL from exercises table */
+  videoUrl?: string | null;
 }
 
 export interface SwapExerciseParams {
