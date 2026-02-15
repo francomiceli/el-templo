@@ -149,6 +149,50 @@ export class ExerciseSwapService {
   }
 
   // =========================================================================
+  // searchExercises - Search all exercises by name
+  // =========================================================================
+
+  async searchExercises(params: {
+    query: string;
+    contraction?: string;
+    excludeExerciseIds?: number[];
+    limit: number;
+  }): Promise<ExercisePoolItem[]> {
+    const { query, contraction, excludeExerciseIds = [], limit } = params;
+
+    const conditions = [like(schema.exercises.exercise, `%${query}%`)];
+
+    if (contraction) {
+      conditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
+    }
+
+    const results = await this.db
+      .select({
+        id: schema.exercises.id,
+        exercise: schema.exercises.exercise,
+        effort: schema.exercises.effort,
+        dificultadLineal: schema.exercises.dificultadLineal,
+        pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
+        route: schema.exercises.route,
+      })
+      .from(schema.exercises)
+      .where(and(...conditions))
+      .orderBy(asc(schema.exercises.exercise))
+      .limit(limit);
+
+    let filtered = results;
+    if (excludeExerciseIds.length > 0) {
+      filtered = results.filter((ex) => !excludeExerciseIds.includes(ex.id));
+    }
+
+    return filtered.map((ex) => ({
+      ...ex,
+      patternSource: "pattern_1" as const,
+    }));
+  }
+
+  // =========================================================================
   // swapExercise - Replace one exercise with another
   // =========================================================================
 

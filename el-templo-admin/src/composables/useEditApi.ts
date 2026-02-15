@@ -34,6 +34,22 @@ export function useEditApi() {
     }
   }
 
+  async function searchExercises(params: {
+    q: string;
+    contraction?: string;
+    blockId?: number;
+    limit?: number;
+  }): Promise<ExercisePoolResponse> {
+    try {
+      const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/search', { params });
+      return data;
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      error.value = axiosError.response?.data?.error || 'Error buscando ejercicios';
+      throw err;
+    }
+  }
+
   async function swapExercise(
     sessionId: number,
     blockId: number,
@@ -348,6 +364,7 @@ export function useEditApi() {
     loading,
     error,
     fetchExercisePool,
+    searchExercises,
     swapExercise,
     updatePrescription,
     changeBlockFormat,

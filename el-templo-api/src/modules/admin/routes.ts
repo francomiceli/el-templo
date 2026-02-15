@@ -26,6 +26,7 @@ import {
   getMobilityPoolSchema,
   swapMobilityExerciseSchema,
   updateBlockRoleSchema,
+  searchExercisesSchema,
 } from "./schemas";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
@@ -301,6 +302,39 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         blockRole: block.role,
         excludeExerciseIds,
         maxDifficulty,
+      });
+      return { exercises };
+    },
+  );
+
+  // GET /admin/exercises/search - Search exercises by name for swap dialog
+  fastify.get<{
+    Querystring: {
+      q: string;
+      contraction?: string;
+      blockId?: number;
+      limit?: number;
+    };
+  }>(
+    "/exercises/search",
+    { schema: searchExercisesSchema },
+    async (request) => {
+      const { q, contraction, blockId, limit = 50 } = request.query;
+
+      let excludeExerciseIds: number[] = [];
+      if (blockId) {
+        const prescriptions = await fastify.db
+          .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+          .from(schema.sessionPrescriptions)
+          .where(eq(schema.sessionPrescriptions.blockId, blockId));
+        excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+      }
+
+      const exercises = await editService.searchExercises({
+        query: q,
+        contraction,
+        excludeExerciseIds,
+        limit,
       });
       return { exercises };
     },

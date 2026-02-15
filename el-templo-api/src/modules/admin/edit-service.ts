@@ -91,6 +91,15 @@ export class AdminEditService {
     return this.swapService.getMobilityPool(blockRoute);
   }
 
+  async searchExercises(params: {
+    query: string;
+    contraction?: string;
+    excludeExerciseIds?: number[];
+    limit: number;
+  }): Promise<ExercisePoolItem[]> {
+    return this.swapService.searchExercises(params);
+  }
+
   async swapMobilityExercise(params: {
     sessionId: number;
     blockId: number;
