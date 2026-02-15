@@ -1,5 +1,7 @@
 name: Deploy
 
+# Deploys to production on push to master/main, or via manual trigger.
+# Pipeline: Build all 3 apps in parallel → Deploy to EC2 via rsync → Smoke test → Auto-rollback on failure.
 on:
   push:
     branches: [master, main]
@@ -11,6 +13,8 @@ env:
 jobs:
   # ===========================================
   # Build API (with tests)
+  # Runs integration tests against MySQL before building.
+  # Tests act as a deploy gate — failures prevent deployment.
   # ===========================================
   build-api:
     name: Build API
@@ -84,7 +88,8 @@ jobs:
           retention-days: 1
 
   # ===========================================
-  # Build App
+  # Build Member App
+  # Quasar SPA build. VITE_API_URL from GitHub Secrets points to production API.
   # ===========================================
   build-app:
     name: Build App
@@ -127,7 +132,8 @@ jobs:
           retention-days: 1
 
   # ===========================================
-  # Build Admin
+  # Build Admin App
+  # Web-only Quasar SPA. Artifact uses dist/spa path (flat static files).
   # ===========================================
   build-admin:
     name: Build Admin
@@ -170,6 +176,10 @@ jobs:
 
   # ===========================================
   # Deploy to Server
+  # Runs only after all 3 builds succeed (needs: [...]).
+  # Steps: Download artifacts → Backup current deploy → rsync to EC2 →
+  #         Install deps → Run migrations → Restart PM2 → Smoke test.
+  # On smoke test failure: atomic rollback of all 3 apps.
   # ===========================================
   deploy:
     name: Deploy to Production
@@ -181,6 +191,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # --- Download build artifacts from parallel build jobs ---
       - name: Download API artifact
         uses: actions/download-artifact@v4
         with:
@@ -213,6 +224,7 @@ jobs:
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || sudo apt-get update && sudo apt-get install -y rsync'
 
+      # --- Backup current deploy (*.previous) for rollback capability ---
       - name: Backup current deployment
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
@@ -249,6 +261,7 @@ jobs:
           ADMIN_URL=${{ secrets.ADMIN_URL }}
           EOF
 
+      # --- Deploy all 3 apps via rsync (--delete removes stale files) ---
       - name: Deploy API to server
         run: |
           rsync -avz --delete \
@@ -267,6 +280,7 @@ jobs:
             admin-build/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.ADMIN_DEPLOY_PATH }}
 
+      # --- Post-deploy: install prod deps, run migrations, restart API ---
       - name: Install dependencies
         run: |
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
@@ -288,6 +302,7 @@ jobs:
             NODE_ENV=production pm2 restart eltemplo-api --update-env || NODE_ENV=production pm2 start dist/index.js --name eltemplo-api
           ENDSSH
 
+      # --- Smoke test: hit /health endpoint, auto-rollback all 3 apps on failure ---
       - name: Post-deploy smoke test
         run: |
           sleep 10

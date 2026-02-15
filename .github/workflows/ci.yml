@@ -1,5 +1,7 @@
 name: CI
 
+# Runs on every push and PR to main branches.
+# Validates all 3 projects in parallel: type checks, linting, security audit, and builds.
 on:
   push:
     branches: [master, main, develop]
@@ -12,6 +14,7 @@ env:
 jobs:
   # ===========================================
   # API - Type Check, Audit, and Build
+  # Validates TypeScript compilation, checks for known CVEs, and produces build output.
   # ===========================================
   api-check:
     name: API - Type Check & Build
@@ -43,7 +46,7 @@ jobs:
       - name: Type check
         run: pnpm exec tsc --noEmit
 
-      - name: Security audit
+      - name: Security audit  # Advisory only (|| true) — logs CVEs without blocking
         run: pnpm audit --audit-level=high || true
 
       - name: Build
@@ -51,6 +54,8 @@ jobs:
 
   # ===========================================
   # API - Integration Tests
+  # Runs Vitest against a real MySQL 8.0 service container.
+  # Tests cover auth, sessions, and admin endpoints.
   # ===========================================
   api-test:
     name: API - Integration Tests
@@ -105,7 +110,9 @@ jobs:
           JWT_SECRET: test-secret-for-ci
 
   # ===========================================
-  # App - Lint, Audit, and Build
+  # Member App - Lint, Audit, and Build
+  # Quasar SPA build with Vite env variables.
+  # Lint is advisory (continue-on-error) per user preference.
   # ===========================================
   app-check:
     name: App - Lint & Build
@@ -148,7 +155,8 @@ jobs:
           VITE_APP_NAME: El Templo
 
   # ===========================================
-  # Admin - Lint, Audit, and Build
+  # Admin App - Lint, Audit, and Build
+  # Same structure as member app. Web-only (no Capacitor).
   # ===========================================
   admin-check:
     name: Admin - Lint & Build
