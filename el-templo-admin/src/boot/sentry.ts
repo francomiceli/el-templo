@@ -8,7 +8,7 @@ export default boot(({ app, router }) => {
   Sentry.init({
     app,
     dsn,
-    environment: import.meta.env.MODE,
+    environment: import.meta.env.VITE_APP_ENVIRONMENT || import.meta.env.MODE,
     integrations: [Sentry.browserTracingIntegration({ router })],
     tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
   });

@@ -124,6 +124,7 @@ jobs:
           VITE_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
           VITE_APP_NAME: "El Templo (Staging)"
           VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
+          VITE_APP_ENVIRONMENT: staging
 
       - name: Upload App build artifact
         uses: actions/upload-artifact@v4
@@ -168,6 +169,7 @@ jobs:
         env:
           VITE_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
           VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
+          VITE_APP_ENVIRONMENT: staging
 
       - name: Upload Admin build artifact
         uses: actions/upload-artifact@v4
@@ -256,6 +258,7 @@ jobs:
           FRONTEND_URL=${{ secrets.STAGING_FRONTEND_URL }}
           ADMIN_URL=${{ secrets.STAGING_ADMIN_URL }}
           SENTRY_DSN=${{ secrets.STAGING_SENTRY_DSN }}
+          APP_ENVIRONMENT=staging
           STAGING_SEED_PASSWORD=${{ secrets.STAGING_SEED_PASSWORD }}
           EOF
 
