@@ -243,6 +243,9 @@ jobs:
             fi
           ENDSSH
 
+      # .env.production is a Node/Vite convention: "env vars used when NODE_ENV=production".
+      # The staging server runs NODE_ENV=production for performance/minification,
+      # but APP_ENVIRONMENT=staging tags Sentry errors so they're filterable from production.
       - name: Create .env.production for staging API
         run: |
           cat > api-build/.env.production << 'EOF'
