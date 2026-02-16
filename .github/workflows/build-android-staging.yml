@@ -47,18 +47,26 @@ jobs:
           VITE_APP_NAME: "El Templo (Staging)"
           VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
 
+      - name: Install Capacitor dependencies
+        working-directory: el-templo-app/src-capacitor
+        run: pnpm install --frozen-lockfile
+
       - name: Copy web assets to Capacitor
+        working-directory: el-templo-app/src-capacitor
         env:
           STAGING: 'true'
-        run: npx cap copy android
+        run: |
+          mkdir -p www
+          cp -r ../dist/spa/* www/
+          npx cap copy android
 
-      - name: Build staging debug APK
+      - name: Build debug APK
         working-directory: el-templo-app/src-capacitor/android
-        run: ./gradlew assembleStagingDebug
+        run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: staging-apk-${{ github.sha }}
-          path: el-templo-app/src-capacitor/android/app/build/outputs/apk/staging/debug/app-staging-debug.apk
+          path: el-templo-app/src-capacitor/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
