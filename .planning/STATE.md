@@ -99,7 +99,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 25-03 (7min - Video Processing Pipeline Modules), 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow)
+- Last 5 plans: 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow), 28-01 (2min - Staging Infrastructure)
 - Trend: Phase 28 in progress - 2/5 plans
 
 _Updated after each plan completion_
@@ -131,6 +131,7 @@ _Updated after each plan completion_
 | Phase 27 P01 | 3 | 2 tasks | 7 files |
 | Phase 27 P02 | 4 | 2 tasks | 5 files |
 | Phase 28 P02 | 1 | 2 tasks | 2 files |
+| Phase 28 P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -474,6 +475,9 @@ Recent decisions affecting current work:
 - [Phase 28-02]: No change detection for staging deploys -- always build and deploy all 3 apps to avoid stale mismatches
 - [Phase 28-02]: Same SSH/server credentials as production, staging distinguished by STAGING\_ deploy paths and PM2 process name
 - [Phase 28-02]: VITE_APP_NAME "El Templo (Staging)" for visual distinction and device coexistence
+- [Phase 28-01]: Fixed faker seed (12345) for reproducible staging data across resets
+- [Phase 28-01]: DB_NAME hardcoded as "eltemplo_staging" in reset script to prevent env var override accidents
+- [Phase 28-01]: Staging port convention: API on 4001 (prod on 3000), apps from /opt/el-templo-staging/
 
 ### Roadmap Evolution
 
@@ -503,7 +507,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 28-02-PLAN.md (Staging Deployment Workflow)
+Stopped at: Completed 28-01-PLAN.md (Staging Infrastructure Configuration)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
