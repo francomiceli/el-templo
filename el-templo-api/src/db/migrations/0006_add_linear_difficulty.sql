@@ -4,11 +4,11 @@ ALTER TABLE `exercises` ADD COLUMN `dificultad_lineal` int NOT NULL DEFAULT 1;
 --> statement-breakpoint
 -- Calculate linear difficulty from existing level and difficulty values
 UPDATE `exercises` SET `dificultad_lineal` = CASE
-  WHEN `level` = 'alfa' THEN `difficulty`
-  WHEN `level` = 'delta' THEN `difficulty` + 3
-  WHEN `level` = 'sigma' THEN `difficulty` + 6
-  WHEN `level` = 'omega' THEN `difficulty` + 8
-  WHEN `level` = 'spartan' THEN `difficulty` + 10
+  WHEN `exercise_level` = 'alfa' THEN `difficulty`
+  WHEN `exercise_level` = 'delta' THEN `difficulty` + 3
+  WHEN `exercise_level` = 'sigma' THEN `difficulty` + 6
+  WHEN `exercise_level` = 'omega' THEN `difficulty` + 8
+  WHEN `exercise_level` = 'spartan' THEN `difficulty` + 10
   ELSE `difficulty`
 END;
 --> statement-breakpoint
