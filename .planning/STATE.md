@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 27 (App Video Integration) — Complete
+**Current focus:** Phase 28 (Member App Staging Environment) — In Progress
 
 ## Current Position
 
-Phase: 27 (App Video Integration)
-Plan: 2 of 2 — 27-02 complete
-Status: Complete
-Last activity: 2026-02-15 - Completed 27-02 (Frontend Video Integration)
+Phase: 28 (Member App Staging Environment)
+Plan: 2 of 5 — 28-02 complete
+Status: In Progress
+Last activity: 2026-02-16 - Completed 28-02 (Staging Deployment Workflow)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████████] 100% Phase 27 (2/2 plans complete)
+Progress: [████______] 40% Phase 28 (2/5 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 25-02 (4min - Video Sourcing Tool), 25-03 (7min - Video Processing Pipeline Modules), 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration)
-- Trend: Phase 27 complete - 2/2 plans
+- Last 5 plans: 25-03 (7min - Video Processing Pipeline Modules), 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow)
+- Trend: Phase 28 in progress - 2/5 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -130,6 +130,7 @@ _Updated after each plan completion_
 | Phase 25 P03 | 7 | 2 tasks | 5 files |
 | Phase 27 P01 | 3 | 2 tasks | 7 files |
 | Phase 27 P02 | 4 | 2 tasks | 5 files |
+| Phase 28 P02 | 1 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -470,6 +471,9 @@ Recent decisions affecting current work:
 - [Phase 27-02]: isMobilitySelected ref pattern for toggling video between main exercise and mobility exercise
 - [Phase 27-02]: Navy (#1a2a3e) background and gradient for VideoPlaceholder matching brand dark mode
 - [Phase 27-02]: Silent video error fallback via videoFailed state -- no user-facing error, just shows placeholder
+- [Phase 28-02]: No change detection for staging deploys -- always build and deploy all 3 apps to avoid stale mismatches
+- [Phase 28-02]: Same SSH/server credentials as production, staging distinguished by STAGING\_ deploy paths and PM2 process name
+- [Phase 28-02]: VITE_APP_NAME "El Templo (Staging)" for visual distinction and device coexistence
 
 ### Roadmap Evolution
 
@@ -478,6 +482,7 @@ Recent decisions affecting current work:
 - Phase 17 inserted (2026-02-11): Per-Block Mobility Exercises — 1 route-based mobility exercise per non-INITIUM block across pipeline, DB, API, admin UI, member app, and PDF. Optional completion, fully coach-editable, separate "Descanso Activo" section. Old phases 17-23 renumbered to 18-24.
 - Phase 18 inserted after Phase 17 (2026-02-12): Technical Debt Audit & Domain/Subdomain Deployment — Run technical-debt-manager, configure eltemplo.org domain with subdomains (app.eltemplo.org, admin.eltemplo.org, academy.eltemplo.org), CORS updates, environment config. Old phases 18-24 renumbered to 19-25.
 - Phase 18 narrowed, Phases 19-20 inserted (2026-02-12): Phase 18 scoped to deployment only (subdomains, SSL, Nginx, deploy pipeline). Tech debt split to Phase 19. APK handling (keystore, signing, Play Store) split to Phase 20. Old phases 19-25 renumbered to 21-27.
+- Phase 28 added (2026-02-15): Member App Staging Environment — staging infrastructure for el-templo-app testing before production deployment
 
 ### Pending Todos
 
@@ -497,8 +502,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-15
-Stopped at: Completed 27-02-PLAN.md (Frontend Video Integration)
+Last session: 2026-02-16
+Stopped at: Completed 28-02-PLAN.md (Staging Deployment Workflow)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
