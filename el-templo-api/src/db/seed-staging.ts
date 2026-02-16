@@ -34,10 +34,12 @@ async function seedStaging() {
   const { db, connection } = await createSingleConnection();
 
   try {
-    // Clear users and branches (users has FK to branches, clear first)
+    // Clear users and branches (disable FK checks for cascading references)
     console.log("Clearing users and branches...");
+    await connection.execute("SET FOREIGN_KEY_CHECKS = 0");
     await db.delete(users);
     await db.delete(branches);
+    await connection.execute("SET FOREIGN_KEY_CHECKS = 1");
 
     // Create 5 branches (same as production seed)
     console.log("Creating branches...");
