@@ -21,9 +21,14 @@ async function seedStaging() {
   console.log(`Target database: ${DB_NAME}\n`);
 
   // Step 1: Seed all SPOM reference data (exercises, routes, formats, etc.)
-  console.log("--- Seeding SPOM reference data ---");
-  await seedSPOM();
-  console.log("");
+  // SKIP_SPOM=true skips CSV-based seeding (use when SPOM data was imported from production dump)
+  if (process.env.SKIP_SPOM === "true") {
+    console.log("--- Skipping SPOM seed (SKIP_SPOM=true) ---\n");
+  } else {
+    console.log("--- Seeding SPOM reference data ---");
+    await seedSPOM();
+    console.log("");
+  }
 
   // Step 2: Create branches and users
   const { db, connection } = await createSingleConnection();
