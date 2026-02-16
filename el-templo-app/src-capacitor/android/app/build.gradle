@@ -22,6 +22,18 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+    flavorDimensions "environment"
+    productFlavors {
+        production {
+            dimension "environment"
+            // Uses default applicationId from capacitor.config
+        }
+        staging {
+            dimension "environment"
+            applicationIdSuffix ".staging"
+            // Actual applicationId becomes com.eltemplo.app.staging
+        }
+    }
 }
 
 repositories {
