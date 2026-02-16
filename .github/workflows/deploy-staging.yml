@@ -1,0 +1,336 @@
+name: Deploy Staging
+
+# Deploys to staging environment on push to staging branch, or via manual trigger.
+# Pipeline: Build all 3 projects → Deploy → Migrate → Smoke test → Auto-rollback on failure.
+# No change detection — staging always deploys everything to avoid stale mismatches.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ===========================================
+  # Build API (with tests)
+  # Always builds — no change detection for staging.
+  # ===========================================
+  build-api:
+    name: Build API
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test
+          MYSQL_DATABASE: eltemplo_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    defaults:
+      run:
+        working-directory: el-templo-api
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-api/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Run API tests
+        run: pnpm test
+        env:
+          DB_HOST: localhost
+          DB_USER: root
+          DB_PASSWORD: test
+          DB_NAME: eltemplo_test
+          DB_PORT: 3306
+          NODE_ENV: test
+          JWT_SECRET: test-secret-for-staging-ci
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Copy migration SQL files to dist
+        run: cp -r src/db/migrations dist/db/
+
+      - name: Upload API build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: |
+            el-templo-api/dist
+            el-templo-api/package.json
+            el-templo-api/pnpm-lock.yaml
+          retention-days: 1
+
+  # ===========================================
+  # Build Member App (staging)
+  # Uses staging VITE env vars for API URL and app name.
+  # ===========================================
+  build-app:
+    name: Build App
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for staging
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
+          VITE_APP_NAME: "El Templo (Staging)"
+          VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
+
+      - name: Upload App build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-dist
+          path: el-templo-app/dist
+          retention-days: 1
+
+  # ===========================================
+  # Build Admin App (staging)
+  # Uses staging VITE env vars.
+  # ===========================================
+  build-admin:
+    name: Build Admin
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-admin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-admin/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for staging
+        run: pnpm run build
+        env:
+          VITE_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
+          VITE_SENTRY_DSN: ${{ secrets.STAGING_VITE_SENTRY_DSN }}
+
+      - name: Upload Admin build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist
+          path: el-templo-admin/dist/spa
+          retention-days: 1
+
+  # ===========================================
+  # Deploy to Staging Server
+  # Runs after all 3 builds succeed. Deploys all projects.
+  # Same safety pipeline as production: backup, deploy, migrate, smoke test, rollback.
+  # ===========================================
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-api, build-app, build-admin]
+    if: github.ref == 'refs/heads/staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download API artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-dist
+          path: api-build
+
+      - name: Download App artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-dist
+          path: app-build
+
+      - name: Download Admin artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist
+          path: admin-build
+
+      - name: Install rsync (local)
+        run: sudo apt-get update && sudo apt-get install -y rsync
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Install rsync on server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} 'which rsync || sudo apt-get update && sudo apt-get install -y rsync'
+
+      # --- Backup current staging deploy for rollback ---
+      - name: Backup current staging deployment
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            if [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.STAGING_API_DEPLOY_PATH }} ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous
+            fi
+            if [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.STAGING_APP_DEPLOY_PATH }} ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous
+            fi
+            if [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }} ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous
+            fi
+          ENDSSH
+
+      - name: Create .env.production for staging API
+        run: |
+          cat > api-build/.env.production << 'EOF'
+          NODE_ENV=production
+          PORT=${{ secrets.STAGING_API_PORT }}
+          DB_HOST=${{ secrets.STAGING_DB_HOST }}
+          DB_PORT=${{ secrets.STAGING_DB_PORT }}
+          DB_USER=${{ secrets.STAGING_DB_USER }}
+          DB_PASSWORD=${{ secrets.STAGING_DB_PASSWORD }}
+          DB_NAME=${{ secrets.STAGING_DB_NAME }}
+          JWT_SECRET=${{ secrets.STAGING_JWT_SECRET }}
+          JWT_EXPIRES_IN=7d
+          FRONTEND_URL=${{ secrets.STAGING_FRONTEND_URL }}
+          ADMIN_URL=${{ secrets.STAGING_ADMIN_URL }}
+          SENTRY_DSN=${{ secrets.STAGING_SENTRY_DSN }}
+          STAGING_SEED_PASSWORD=${{ secrets.STAGING_SEED_PASSWORD }}
+          EOF
+
+      # --- Deploy via rsync ---
+      - name: Deploy API to staging
+        run: |
+          rsync -avz --delete \
+            api-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.STAGING_API_DEPLOY_PATH }}
+
+      - name: Deploy App to staging
+        run: |
+          rsync -avz --delete \
+            app-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.STAGING_APP_DEPLOY_PATH }}
+
+      - name: Deploy Admin to staging
+        run: |
+          rsync -avz --delete \
+            admin-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}
+
+      # --- Post-deploy: deps, migrations, restart ---
+      - name: Install API dependencies on staging server
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
+            pnpm install --prod --frozen-lockfile
+          ENDSSH
+
+      - name: Run database migrations (staging)
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
+            NODE_ENV=production node dist/db/run-migrations.js
+          ENDSSH
+
+      - name: Restart staging API
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
+            NODE_ENV=production pm2 restart eltemplo-staging-api --update-env || NODE_ENV=production pm2 start dist/index.js --name eltemplo-staging-api
+          ENDSSH
+
+      # --- Smoke test: hit /health, rollback all on failure ---
+      - name: Post-deploy smoke test
+        id: smoke-test
+        run: |
+          sleep 10
+          API_BASE=$(echo "${{ secrets.STAGING_VITE_API_URL }}" | sed 's|/api$||')
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" ${API_BASE}/health || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Staging health check FAILED (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          echo "Staging health check PASSED (HTTP $HTTP_CODE)"
+
+      - name: Rollback staging on failure
+        if: failure()
+        run: |
+          echo "::warning::Rolling back staging deployment..."
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+            if [ -d "${{ secrets.STAGING_API_DEPLOY_PATH }}.previous" ]; then
+              rm -rf ${{ secrets.STAGING_API_DEPLOY_PATH }}
+              mv ${{ secrets.STAGING_API_DEPLOY_PATH }}.previous ${{ secrets.STAGING_API_DEPLOY_PATH }}
+            fi
+            if [ -d "${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous" ]; then
+              rm -rf ${{ secrets.STAGING_APP_DEPLOY_PATH }}
+              mv ${{ secrets.STAGING_APP_DEPLOY_PATH }}.previous ${{ secrets.STAGING_APP_DEPLOY_PATH }}
+            fi
+            if [ -d "${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous" ]; then
+              rm -rf ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}
+              mv ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}.previous ${{ secrets.STAGING_ADMIN_DEPLOY_PATH }}
+            fi
+            cd ${{ secrets.STAGING_API_DEPLOY_PATH }}
+            pnpm install --prod --frozen-lockfile
+            pm2 restart eltemplo-staging-api --update-env
+          ENDSSH
