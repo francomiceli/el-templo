@@ -39,6 +39,8 @@ async function seedStaging() {
     await connection.execute("SET FOREIGN_KEY_CHECKS = 0");
     await db.delete(users);
     await db.delete(branches);
+    await connection.execute("ALTER TABLE branches AUTO_INCREMENT = 1");
+    await connection.execute("ALTER TABLE users AUTO_INCREMENT = 1");
     await connection.execute("SET FOREIGN_KEY_CHECKS = 1");
 
     // Create 5 branches (same as production seed)
