@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 28 (Member App Staging Environment)
-Plan: 2 of 5 — 28-02 complete
+Plan: 4 of 5 — 28-04 complete
 Status: In Progress
-Last activity: 2026-02-16 - Completed 28-02 (Staging Deployment Workflow)
+Last activity: 2026-02-16 - Completed 28-04 (iOS Staging TestFlight Build Workflow)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [████______] 40% Phase 28 (2/5 plans complete)
+Progress: [████████__] 80% Phase 28 (4/5 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 27-01 (3min - API Video URL Wiring), 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow), 28-01 (2min - Staging Infrastructure)
-- Trend: Phase 28 in progress - 2/5 plans
+- Last 5 plans: 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow), 28-01 (2min - Staging Infrastructure), 28-04 (2min - iOS Staging TestFlight Build)
+- Trend: Phase 28 in progress - 4/5 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -131,6 +131,7 @@ _Updated after each plan completion_
 | Phase 27 P01 | 3 | 2 tasks | 7 files |
 | Phase 27 P02 | 4 | 2 tasks | 5 files |
 | Phase 28 P02 | 1 | 2 tasks | 2 files |
+| Phase 28 P04 | 2 | 1 tasks | 1 files |
 | Phase 28 P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
@@ -478,6 +479,9 @@ Recent decisions affecting current work:
 - [Phase 28-01]: Fixed faker seed (12345) for reproducible staging data across resets
 - [Phase 28-01]: DB_NAME hardcoded as "eltemplo_staging" in reset script to prevent env var override accidents
 - [Phase 28-01]: Staging port convention: API on 4001 (prod on 3000), apps from /opt/el-templo-staging/
+- [Phase 28-04]: Removed spurious notarytool line from iOS workflow (notarytool is for macOS notarization, not iOS TestFlight)
+- [Phase 28-04]: Kept altool for TestFlight upload with deprecation warning and alternatives documented
+- [Phase 28-04]: CODE_SIGN_STYLE=Manual for xcodebuild archive to match CI certificate import pattern
 
 ### Roadmap Evolution
 
@@ -507,7 +511,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 28-01-PLAN.md (Staging Infrastructure Configuration)
+Stopped at: Completed 28-04-PLAN.md (iOS Staging TestFlight Build Workflow)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
