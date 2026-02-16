@@ -51,14 +51,14 @@ jobs:
         working-directory: el-templo-app/src-capacitor
         run: pnpm install --frozen-lockfile
 
-      - name: Copy web assets to Capacitor
+      - name: Sync web assets and native plugins
         working-directory: el-templo-app/src-capacitor
         env:
           STAGING: 'true'
         run: |
           mkdir -p www
           cp -r ../dist/spa/* www/
-          npx cap copy android
+          npx cap sync android
 
       - name: Build debug APK
         working-directory: el-templo-app/src-capacitor/android
