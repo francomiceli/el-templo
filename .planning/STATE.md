@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 28 (Member App Staging Environment) — In Progress
+**Current focus:** Phase 28 (Member App Staging Environment) — Complete
 
 ## Current Position
 
 Phase: 28 (Member App Staging Environment)
-Plan: 4 of 5 — 28-04 complete
-Status: In Progress
-Last activity: 2026-02-16 - Completed 28-04 (iOS Staging TestFlight Build Workflow)
+Plan: 5 of 5 — 28-05 complete
+Status: Complete
+Last activity: 2026-02-16 - Phase 28 complete (staging environment live)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [████████__] 80% Phase 28 (4/5 plans complete)
+Progress: [██████████] 100% Phase 28 (5/5 plans complete)
 
 ## Architecture Reset
 

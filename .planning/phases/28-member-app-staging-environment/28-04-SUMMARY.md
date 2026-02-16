@@ -69,7 +69,7 @@ Each task was committed atomically:
 1. **Task 1: Create iOS staging TestFlight build workflow** - `1a34dab` (feat)
    - Note: Committed as part of 28-03 execution which included this file
 
-**Plan metadata:** [pending]
+**Plan metadata:** `7c0b473` (docs: complete plan)
 
 ## Files Created/Modified
 
