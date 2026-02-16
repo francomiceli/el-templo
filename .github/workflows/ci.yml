@@ -4,9 +4,9 @@ name: CI
 # Validates all 3 projects in parallel: type checks, linting, security audit, and builds.
 on:
   push:
-    branches: [master, main, develop]
+    branches: [master, main, develop, staging]
   pull_request:
-    branches: [master, main, develop]
+    branches: [master, main, develop, staging]
 
 env:
   NODE_VERSION: '22'
