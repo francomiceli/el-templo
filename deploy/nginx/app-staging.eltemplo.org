@@ -8,7 +8,7 @@ server {
     listen [::]:80;
     server_name app-staging.eltemplo.org;
 
-    root /opt/el-templo-staging/app;
+    root /opt/el-templo-staging/app/spa;
     index index.html;
 
     # SPA fallback - all routes serve index.html, Vue Router handles the rest
