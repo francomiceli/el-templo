@@ -10,6 +10,16 @@ export default defineRouter(function () {
     history: createWebHistory(),
   });
 
+  Router.onError((error, to) => {
+    const chunkErrors = [
+      'Failed to fetch dynamically imported module',
+      'Importing a module script failed',
+    ];
+    if (chunkErrors.some((msg) => error.message.includes(msg))) {
+      window.location.href = to.fullPath;
+    }
+  });
+
   Router.beforeEach(async (to) => {
     const authStore = useAuthStore();
 
