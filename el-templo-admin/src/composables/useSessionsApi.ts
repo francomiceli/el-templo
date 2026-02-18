@@ -51,6 +51,22 @@ export function useSessionsApi() {
     }
   }
 
+  async function fetchDaySessionDetails(week: number, day: string): Promise<SessionDetail[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ sessions: SessionDetail[] }>('/admin/sessions/day-details', {
+        params: { week, day },
+      });
+      return data.sessions;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando sesiones del dia');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function approveSession(id: number): Promise<void> {
     await api.post(`/admin/sessions/${id}/approve`);
   }
@@ -91,6 +107,7 @@ export function useSessionsApi() {
     error,
     fetchSessions,
     fetchSessionDetail,
+    fetchDaySessionDetails,
     approveSession,
     revertSession,
     bulkApprove,

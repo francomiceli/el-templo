@@ -373,3 +373,44 @@ export const deleteSavedBlockSchema = {
     },
   },
 };
+
+// ---------------------------------------------------------------------------
+// Batch endpoints (N+1 fixes)
+// ---------------------------------------------------------------------------
+
+export const getDaySessionDetailsSchema = {
+  querystring: {
+    type: "object",
+    required: ["week", "day"],
+    properties: {
+      week: { type: "integer", minimum: 1, maximum: 52 },
+      day: {
+        type: "string",
+        enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
+      },
+    },
+  },
+};
+
+export const getCompatibleFormatsBatchSchema = {
+  body: {
+    type: "object",
+    required: ["blocks"],
+    properties: {
+      blocks: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["blockRole", "level", "intensity"],
+          properties: {
+            blockRole: { type: "string" },
+            level: { type: "string" },
+            intensity: { type: "integer", minimum: 0, maximum: 100 },
+          },
+        },
+        minItems: 1,
+        maxItems: 10,
+      },
+    },
+  },
+};

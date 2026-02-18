@@ -54,6 +54,7 @@
         :block-group="bg"
         :level-group="sessions[0].levelGroup"
         :sibling-level-blocks="deuterosSibling(bg)"
+        :initial-formats="formatsByRole.get(bg.role)"
         @swap-exercise="onSwapExercise"
         @swap-block="onSwapBlock"
         @add-exercise="onAddExercise"
@@ -104,6 +105,7 @@
 import { ref, computed, nextTick, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import axios from 'axios';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useEditApi } from 'src/composables/useEditApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
@@ -116,6 +118,7 @@ import type {
   SessionExercise,
   SessionBlock,
   PrescriptionUpdate,
+  CompatibleFormat,
 } from 'src/types/session';
 import type { BlockGroup } from 'src/types/block-group';
 import { LEVEL_ORDER } from 'src/constants/levels';
@@ -149,6 +152,7 @@ function createEmptyExercise(name = ''): SessionExercise {
 const sessions = ref<SessionDetail[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
+const formatsByRole = ref<Map<string, CompatibleFormat[]>>(new Map());
 
 // Route query params
 const week = computed(() => Number(route.query.week) || 1);
@@ -236,43 +240,60 @@ async function loadDay() {
   error.value = null;
 
   try {
-    // Fetch all sessions for this week
-    const response = await sessionsApi.fetchSessions({
-      week: week.value,
-      day: day.value,
-      limit: 100,
-    });
-
-    // Fetch full details for each session
-    const details = await Promise.all(
-      response.sessions.map((s) => sessionsApi.fetchSessionDetail(s.id))
-    );
+    // Batch fetch all session details for this day (single API call)
+    const details = await sessionsApi.fetchDaySessionDetails(week.value, day.value);
 
     // Sort by level order: alfa, delta, sigma, omega, spartan
     details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
 
     sessions.value = details;
+
+    // Batch fetch compatible formats for all block roles
+    loadFormatsForBlocks(details);
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { error?: string } } };
-    error.value = axiosError.response?.data?.error || 'Error cargando sesiones del dia';
+    if (axios.isAxiosError(err)) {
+      error.value = err.response?.data?.error || 'Error cargando sesiones del dia';
+    } else {
+      error.value = 'Error cargando sesiones del dia';
+    }
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadFormatsForBlocks(details: SessionDetail[]) {
+  if (details.length === 0) return;
+  const first = details[0];
+  const uniqueBlocks = new Map<string, { blockRole: string; level: string; intensity: number }>();
+  for (const block of first.blocks) {
+    if (!uniqueBlocks.has(block.role)) {
+      uniqueBlocks.set(block.role, {
+        blockRole: block.role,
+        level: first.levelGroup,
+        intensity: block.intensity,
+      });
+    }
+  }
+  if (uniqueBlocks.size === 0) return;
+  try {
+    const result = await editApi.fetchCompatibleFormatsBatch([...uniqueBlocks.values()]);
+    const map = new Map<string, CompatibleFormat[]>();
+    for (const [role, response] of result) {
+      map.set(role, response.formats);
+    }
+    formatsByRole.value = map;
+  } catch {
+    // Non-critical — blocks will fetch individually on mount
   }
 }
 
 async function refreshDay(savedScrollY?: number) {
   const scrollY = savedScrollY ?? window.scrollY;
   try {
-    const response = await sessionsApi.fetchSessions({
-      week: week.value,
-      day: day.value,
-      limit: 100,
-    });
-    const details = await Promise.all(
-      response.sessions.map((s) => sessionsApi.fetchSessionDetail(s.id))
-    );
+    const details = await sessionsApi.fetchDaySessionDetails(week.value, day.value);
     details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
     sessions.value = details;
+    loadFormatsForBlocks(details);
   } catch {
     // silent
   }

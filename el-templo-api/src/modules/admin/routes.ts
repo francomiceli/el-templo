@@ -29,6 +29,8 @@ import {
   swapMobilityExerciseSchema,
   updateBlockRoleSchema,
   searchExercisesSchema,
+  getDaySessionDetailsSchema,
+  getCompatibleFormatsBatchSchema,
 } from "./schemas";
 
 import { AppError } from "../shared/errors";
@@ -82,6 +84,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/sessions/coverage", async () => {
     return adminService.getApprovedWeeksCoverage();
   });
+
+  // GET /admin/sessions/day-details - Batch fetch all session details for a day
+  fastify.get<{ Querystring: { week: number; day: string } }>(
+    "/sessions/day-details",
+    { schema: getDaySessionDetailsSchema },
+    async (request) => {
+      const { week, day } = request.query;
+      const sessions = await adminService.getDaySessionDetails(week, day);
+      return { sessions };
+    },
+  );
 
   // GET /admin/sessions/:id - Get session details
   fastify.get<{ Params: { id: number } }>(
@@ -578,6 +591,31 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         intensity: request.query.intensity,
       });
       return { formats };
+    },
+  );
+
+  // POST /admin/formats/compatible-batch - Batch fetch formats for multiple blocks
+  fastify.post<{
+    Body: {
+      blocks: Array<{
+        blockRole: string;
+        level: string;
+        intensity: number;
+      }>;
+    };
+  }>(
+    "/formats/compatible-batch",
+    { schema: getCompatibleFormatsBatchSchema },
+    async (request) => {
+      const results = await Promise.all(
+        request.body.blocks.map((b) => editService.getCompatibleFormats(b)),
+      );
+      return {
+        results: request.body.blocks.map((b, i) => ({
+          blockRole: b.blockRole,
+          formats: results[i],
+        })),
+      };
     },
   );
 

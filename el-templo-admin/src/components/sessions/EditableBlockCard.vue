@@ -246,6 +246,7 @@ const props = defineProps<{
   blockGroup: BlockGroup;
   levelGroup: string;
   siblingLevelBlocks?: LevelBlock[];
+  initialFormats?: CompatibleFormat[];
 }>();
 
 const emit = defineEmits<{
@@ -663,7 +664,13 @@ function onMobilityPrescriptionBlur(field: 'seconds' | 'reps', event: Event) {
   });
 }
 
-onMounted(loadCompatibleFormats);
+onMounted(() => {
+  if (props.initialFormats && props.initialFormats.length > 0) {
+    compatibleFormats.value = props.initialFormats;
+  } else {
+    loadCompatibleFormats();
+  }
+});
 </script>
 
 <style scoped>

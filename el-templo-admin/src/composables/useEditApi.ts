@@ -186,6 +186,21 @@ export function useEditApi() {
     }, 'Error cargando formatos compatibles');
   }
 
+  async function fetchCompatibleFormatsBatch(
+    blocks: Array<{ blockRole: string; level: string; intensity: number }>
+  ): Promise<Map<string, CompatibleFormatsResponse>> {
+    return apiCall(async () => {
+      const { data } = await api.post<{
+        results: Array<{ blockRole: string; formats: CompatibleFormatsResponse['formats'] }>;
+      }>('/admin/formats/compatible-batch', { blocks });
+      const map = new Map<string, CompatibleFormatsResponse>();
+      for (const r of data.results) {
+        map.set(r.blockRole, { formats: r.formats });
+      }
+      return map;
+    }, 'Error cargando formatos compatibles');
+  }
+
   async function fetchPreview(sessionId: number, memberLevel?: string): Promise<SessionPreview> {
     return apiCall(async () => {
       const { data } = await api.get<SessionPreview>(`/admin/sessions/${sessionId}/preview`, {
@@ -271,6 +286,7 @@ export function useEditApi() {
     reorderExercise,
     resetToAlgorithm,
     fetchCompatibleFormats,
+    fetchCompatibleFormatsBatch,
     fetchPreview,
     updateFormatParams,
     saveBlock,

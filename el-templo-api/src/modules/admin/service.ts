@@ -267,6 +267,116 @@ export class AdminSessionService {
     return { ...session, memberLevel, blocks: blocksWithExercises };
   }
 
+  /**
+   * Batch fetch all session details for a given week+day (eliminates N+1).
+   * Returns fully hydrated sessions sorted by memberLevel.
+   */
+  async getDaySessionDetails(week: number, day: string) {
+    // 1. Get all sessions for this week+day
+    const sessions = await this.db
+      .select()
+      .from(schema.sessions)
+      .where(and(eq(schema.sessions.week, week), eq(schema.sessions.day, day)));
+
+    if (sessions.length === 0) return [];
+
+    // 2. Batch fetch all blocks for all sessions
+    const sessionIds = sessions.map((s) => s.id);
+    const allBlocks = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(inArray(schema.sessionBlocks.sessionId, sessionIds))
+      .orderBy(asc(schema.sessionBlocks.sortOrder));
+
+    // 3. Batch fetch all prescriptions for all blocks
+    const blockIds = allBlocks.map((b) => b.id);
+    const allPrescriptions =
+      blockIds.length > 0
+        ? await this.db
+            .select({
+              id: schema.sessionPrescriptions.id,
+              blockId: schema.sessionPrescriptions.blockId,
+              exerciseId: schema.sessionPrescriptions.exerciseId,
+              exerciseName: schema.sessionPrescriptions.exerciseName,
+              contraction: schema.sessionPrescriptions.contraction,
+              reps: schema.sessionPrescriptions.reps,
+              repsMax: schema.sessionPrescriptions.repsMax,
+              seconds: schema.sessionPrescriptions.seconds,
+              secondsMax: schema.sessionPrescriptions.secondsMax,
+              increment: schema.sessionPrescriptions.increment,
+              rest: schema.sessionPrescriptions.rest,
+              notes: schema.sessionPrescriptions.notes,
+              difficulty: schema.sessionPrescriptions.difficulty,
+              sortOrder: schema.sessionPrescriptions.sortOrder,
+              exerciseRoute: schema.exercises.route,
+              exerciseType: schema.sessionPrescriptions.exerciseType,
+            })
+            .from(schema.sessionPrescriptions)
+            .leftJoin(
+              schema.exercises,
+              eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
+            )
+            .where(inArray(schema.sessionPrescriptions.blockId, blockIds))
+            .orderBy(asc(schema.sessionPrescriptions.sortOrder))
+        : [];
+
+    // 4. Group prescriptions by blockId
+    const prescriptionsByBlock = new Map<number, typeof allPrescriptions>();
+    for (const p of allPrescriptions) {
+      const list = prescriptionsByBlock.get(p.blockId) ?? [];
+      list.push(p);
+      prescriptionsByBlock.set(p.blockId, list);
+    }
+
+    // 5. Group blocks by sessionId
+    const blocksBySession = new Map<number, typeof allBlocks>();
+    for (const b of allBlocks) {
+      const list = blocksBySession.get(b.sessionId) ?? [];
+      list.push(b);
+      blocksBySession.set(b.sessionId, list);
+    }
+
+    // 6. Assemble full session details
+    return sessions.map((session) => {
+      const blocks = blocksBySession.get(session.id) ?? [];
+      const blocksWithExercises = blocks.map((block) => {
+        const prescriptions = prescriptionsByBlock.get(block.id) ?? [];
+        const mainPrescriptions = prescriptions.filter(
+          (p) => p.exerciseType !== "mobility",
+        );
+        const mobilityPrescription = prescriptions.find(
+          (p) => p.exerciseType === "mobility",
+        );
+
+        return {
+          ...block,
+          exercises: mainPrescriptions.map((p) => ({
+            ...p,
+            dificultadLineal: p.difficulty,
+            route: p.exerciseRoute || null,
+            exerciseType: p.exerciseType,
+          })),
+          mobilityExercise: mobilityPrescription
+            ? {
+                id: mobilityPrescription.id,
+                exerciseId: mobilityPrescription.exerciseId,
+                exerciseName: mobilityPrescription.exerciseName,
+                contraction: mobilityPrescription.contraction,
+                reps: mobilityPrescription.reps,
+                seconds: mobilityPrescription.seconds,
+                rest: mobilityPrescription.rest,
+                notes: mobilityPrescription.notes,
+                exerciseType: mobilityPrescription.exerciseType,
+              }
+            : null,
+        };
+      });
+
+      const memberLevel = parseDayId(session.dayId).level;
+      return { ...session, memberLevel, blocks: blocksWithExercises };
+    });
+  }
+
   async approveSession(id: number, userId: number): Promise<boolean> {
     const [result] = await this.db
       .update(schema.sessions)
