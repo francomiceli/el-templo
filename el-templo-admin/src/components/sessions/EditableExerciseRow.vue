@@ -280,6 +280,10 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { SessionExercise, PrescriptionUpdate } from 'src/types/session';
+import {
+  normalizeContraction,
+  contractionColor as getContractionColor,
+} from 'src/utils/contraction-helpers';
 
 const props = defineProps<{
   exercise: SessionExercise;
@@ -287,6 +291,8 @@ const props = defineProps<{
   blockId: number;
   blockRoute: string;
   blockFormatName: string;
+  /** Discriminated format type from formatParams (e.g. 'amrap', 'death_by', 'i_go_you_go') */
+  formatType?: string;
   isFirst: boolean;
   isLast: boolean;
 }>();
@@ -304,7 +310,6 @@ const localRepsMax = ref<number | null>(props.exercise.repsMax);
 const localSeconds = ref<number | null>(props.exercise.seconds);
 const localSecondsMax = ref<number | null>(props.exercise.secondsMax);
 const localIncrement = ref<number | null>(props.exercise.increment);
-const localRest = ref<number | null>(props.exercise.rest);
 const localNotes = ref<string>(props.exercise.notes || '');
 
 // Sync local refs when props change (e.g. after API refresh)
@@ -316,7 +321,6 @@ watch(
     localSeconds.value = ex.seconds;
     localSecondsMax.value = ex.secondsMax;
     localIncrement.value = ex.increment;
-    localRest.value = ex.rest;
     localNotes.value = ex.notes || '';
   }
 );
@@ -360,10 +364,6 @@ function emitUpdate() {
     fields.increment = localIncrement.value;
     hasChanges = true;
   }
-  if (localRest.value !== props.exercise.rest) {
-    fields.rest = localRest.value ?? undefined;
-    hasChanges = true;
-  }
   const currentNotes = props.exercise.notes || '';
   if (localNotes.value !== currentNotes) {
     fields.notes = localNotes.value || undefined;
@@ -381,25 +381,25 @@ const isIso = computed(() => {
   return c === 'iso' || c === 'isometrico';
 });
 
-// Whether this block uses AMRAP format (show range inputs)
+// Format detection: prefer discriminated formatType prop, fall back to name matching
 const isAmrap = computed(() => {
+  if (props.formatType) return props.formatType === 'amrap' || props.formatType === 'amrap_series';
   const f = props.blockFormatName.toLowerCase().trim().replace(/\s+/g, '_');
   return f === 'amrap' || f === 'amrap_series';
 });
 
-// Whether this block uses Death By format (show start + increment inputs)
 const isDeathBy = computed(() => {
-  const f = props.blockFormatName.toLowerCase().trim();
-  return f.startsWith('death by');
+  if (props.formatType) return props.formatType === 'death_by';
+  return props.blockFormatName.toLowerCase().trim().startsWith('death by');
 });
 
-// "I Go You Go" format detection — all exercises get PAUSA toggle
 const isIGoYouGo = computed(() => {
+  if (props.formatType) return props.formatType === 'i_go_you_go';
   return props.blockFormatName.toLowerCase().includes('i go');
 });
 
-// Formats where per-exercise prescription is defined by format params, not per exercise
 const isParamDrivenFormat = computed(() => {
+  if (props.formatType) return props.formatType === 'tabata' || props.formatType === 'interval';
   const f = props.blockFormatName.toLowerCase().trim();
   return f === 'tabata' || f === 'interval training' || f === 'hiit';
 });
@@ -412,37 +412,8 @@ const isPausaSelected = computed(() => {
 });
 
 // Contraction display helpers
-const contractionLabel = computed(() => {
-  switch (props.exercise.contraction?.toLowerCase()) {
-    case 'con':
-    case 'concentrico':
-      return 'CON';
-    case 'exc':
-    case 'excentrico':
-      return 'EXC';
-    case 'iso':
-    case 'isometrico':
-      return 'ISO';
-    default:
-      return props.exercise.contraction || '-';
-  }
-});
-
-const contractionColor = computed(() => {
-  switch (props.exercise.contraction?.toLowerCase()) {
-    case 'con':
-    case 'concentrico':
-      return 'blue-grey';
-    case 'exc':
-    case 'excentrico':
-      return 'teal';
-    case 'iso':
-    case 'isometrico':
-      return 'orange';
-    default:
-      return 'grey';
-  }
-});
+const contractionLabel = computed(() => normalizeContraction(props.exercise.contraction) || '-');
+const contractionColor = computed(() => getContractionColor(props.exercise.contraction));
 </script>
 
 <style scoped>

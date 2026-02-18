@@ -14,7 +14,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SpomService } from "../spom/service";
 import {
@@ -38,6 +38,7 @@ import { validateSessionForTrace } from "./validators/session-validator";
 import { createSessionLogger } from "./trace/logger";
 import { aggregateBlockTrace, aggregateSessionTrace } from "./trace/emitter";
 import type { BlockTrace, SessionTrace } from "./trace/types";
+import { MOBILITY_SORT_ORDER } from "../shared/training-constants";
 import { selectMobilityExercise } from "./pipeline/utils/mobility-selection";
 
 /**
@@ -286,7 +287,6 @@ export class SessionGeneratorService {
         levelGroup,
         memberLevel,
         blockId: dayId,
-        role: "INITIUM", // Placeholder for session-level trace
       },
       decision: {
         blocksGenerated: blocks.length,
@@ -319,7 +319,6 @@ export class SessionGeneratorService {
           levelGroup,
           memberLevel,
           blockId: dayId,
-          role: "INITIUM",
         },
         decision: validation,
       });
@@ -340,7 +339,6 @@ export class SessionGeneratorService {
         levelGroup,
         memberLevel,
         blockId: dayId,
-        role: "INITIUM",
       },
       decision: validation,
     });
@@ -395,87 +393,7 @@ export class SessionGeneratorService {
     session: DaySession,
     options?: { generationDurationMs?: number },
   ): Promise<{ sessionId: number }> {
-    // Insert session row
-    const [sessionResult] = await this.db.insert(schema.sessions).values({
-      dayId: session.dayId,
-      week: session.week,
-      day: session.day,
-      levelGroup: session.levelGroup,
-      blockCount: session.blocks.length,
-      traceJson: session.trace,
-    });
-
-    const sessionId = sessionResult.insertId;
-
-    // Insert blocks and prescriptions
-    for (let blockIdx = 0; blockIdx < session.blocks.length; blockIdx++) {
-      const block = session.blocks[blockIdx];
-
-      const [blockResult] = await this.db.insert(schema.sessionBlocks).values({
-        sessionId,
-        blockId: block.blockId,
-        role: block.role,
-        route: block.route,
-        pattern: block.pattern,
-        intensity: block.intensity,
-        repsBudget: block.repsBudget,
-        formatId: block.format.formatId,
-        formatName: block.format.name,
-        formatParams: block.formatParams,
-        exerciseCount: block.exercises.length,
-        sortOrder: blockIdx,
-      });
-
-      const blockId = blockResult.insertId;
-
-      // Insert prescriptions for this block
-      if (block.exercises.length > 0) {
-        const prescriptionValues = block.exercises.map((ex, exIdx) => ({
-          blockId,
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.name,
-          contraction: ex.contraction,
-          reps: ex.reps,
-          repsMax: ex.repsMax ?? null,
-          seconds: ex.seconds,
-          secondsMax: ex.secondsMax ?? null,
-          increment: ex.increment ?? null,
-          rest: ex.rest,
-          notes: ex.notes ?? null,
-          difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
-          sortOrder: exIdx,
-          exerciseType: ex.exerciseType ?? "main",
-        }));
-
-        await this.db
-          .insert(schema.sessionPrescriptions)
-          .values(prescriptionValues);
-      }
-
-      // Insert mobility exercise if present (Phase 17)
-      const mobilityEx = block.mobilityExercise;
-      if (mobilityEx) {
-        await this.db.insert(schema.sessionPrescriptions).values({
-          blockId,
-          exerciseId: mobilityEx.exerciseId,
-          exerciseName: mobilityEx.name,
-          contraction: mobilityEx.contraction,
-          reps: mobilityEx.reps,
-          repsMax: mobilityEx.repsMax ?? null,
-          seconds: mobilityEx.seconds,
-          secondsMax: mobilityEx.secondsMax ?? null,
-          increment: mobilityEx.increment ?? null,
-          rest: mobilityEx.rest,
-          notes: mobilityEx.notes ?? null,
-          difficulty: null, // Mobility exercises don't use difficulty
-          sortOrder: 999, // High sortOrder to always appear last
-          exerciseType: "mobility",
-        });
-      }
-    }
-
-    // Store algorithm snapshot for revert capability (Phase 15)
-    // Captures the original generated blocks + prescriptions as JSON
+    // Build algorithm snapshot before transaction (pure computation)
     const algorithmSnapshot = {
       blocks: session.blocks.map((block, blockIdx) => {
         const snapshotExercises = block.exercises.map((ex, exIdx) => ({
@@ -524,33 +442,118 @@ export class SessionGeneratorService {
       }),
     };
 
-    await this.db
-      .update(schema.sessions)
-      .set({ algorithmSnapshot: algorithmSnapshot })
-      .where(eq(schema.sessions.id, sessionId));
-
-    // Optional: Persist trace data to session_traces table for analytics
-    if (process.env.PERSIST_TRACES === "true") {
-      // Aggregate block traces for summary stats
-      const blockTracesSummary: BlockTrace[] = session.blocks.map((block) =>
-        aggregateBlockTrace(block.blockId, [...block.trace]),
-      );
-
-      const sessionTraceData = aggregateSessionTrace(
-        session.dayId,
-        blockTracesSummary,
-        options?.generationDurationMs ?? 0,
-      );
-
-      await this.db.insert(schema.sessionTraces).values({
-        sessionId,
-        traceJson: sessionTraceData,
-        eventCount: sessionTraceData.summary.totalEvents,
-        warningCount: sessionTraceData.summary.totalWarnings,
-        errorCount: sessionTraceData.summary.totalErrors,
-        generationMs: sessionTraceData.summary.generationDurationMs,
+    // Wrap all DB writes in a transaction to prevent partial session state
+    const sessionId = await this.db.transaction(async (tx) => {
+      // Insert session row
+      const [sessionResult] = await tx.insert(schema.sessions).values({
+        dayId: session.dayId,
+        week: session.week,
+        day: session.day,
+        levelGroup: session.levelGroup,
+        blockCount: session.blocks.length,
+        traceJson: session.trace,
       });
-    }
+
+      const newSessionId = sessionResult.insertId;
+
+      // Insert blocks and prescriptions
+      for (let blockIdx = 0; blockIdx < session.blocks.length; blockIdx++) {
+        const block = session.blocks[blockIdx];
+
+        const [blockResult] = await tx.insert(schema.sessionBlocks).values({
+          sessionId: newSessionId,
+          blockId: block.blockId,
+          role: block.role,
+          route: block.route,
+          pattern: block.pattern,
+          intensity: block.intensity,
+          repsBudget: block.repsBudget,
+          formatId: block.format.formatId,
+          formatName: block.format.name,
+          formatParams: block.formatParams,
+          exerciseCount: block.exercises.length,
+          sortOrder: blockIdx,
+        });
+
+        const blockId = blockResult.insertId;
+
+        // Insert prescriptions for this block
+        if (block.exercises.length > 0) {
+          const prescriptionValues = block.exercises.map((ex, exIdx) => ({
+            blockId,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.name,
+            contraction: ex.contraction,
+            reps: ex.reps,
+            repsMax: ex.repsMax ?? null,
+            seconds: ex.seconds,
+            secondsMax: ex.secondsMax ?? null,
+            increment: ex.increment ?? null,
+            rest: ex.rest,
+            notes: ex.notes ?? null,
+            difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
+            sortOrder: exIdx,
+            exerciseType: ex.exerciseType ?? "main",
+          }));
+
+          await tx
+            .insert(schema.sessionPrescriptions)
+            .values(prescriptionValues);
+        }
+
+        // Insert mobility exercise if present (Phase 17)
+        const mobilityEx = block.mobilityExercise;
+        if (mobilityEx) {
+          await tx.insert(schema.sessionPrescriptions).values({
+            blockId,
+            exerciseId: mobilityEx.exerciseId,
+            exerciseName: mobilityEx.name,
+            contraction: mobilityEx.contraction,
+            reps: mobilityEx.reps,
+            repsMax: mobilityEx.repsMax ?? null,
+            seconds: mobilityEx.seconds,
+            secondsMax: mobilityEx.secondsMax ?? null,
+            increment: mobilityEx.increment ?? null,
+            rest: mobilityEx.rest,
+            notes: mobilityEx.notes ?? null,
+            difficulty: null, // Mobility exercises don't use difficulty
+            sortOrder: MOBILITY_SORT_ORDER,
+            exerciseType: "mobility",
+          });
+        }
+      }
+
+      // Store algorithm snapshot for revert capability (Phase 15)
+      await tx
+        .update(schema.sessions)
+        .set({ algorithmSnapshot: algorithmSnapshot })
+        .where(eq(schema.sessions.id, newSessionId));
+
+      // Optional: Persist trace data to session_traces table for analytics
+      if (process.env.PERSIST_TRACES === "true") {
+        // Aggregate block traces for summary stats
+        const blockTracesSummary: BlockTrace[] = session.blocks.map((block) =>
+          aggregateBlockTrace(block.blockId, [...block.trace]),
+        );
+
+        const sessionTraceData = aggregateSessionTrace(
+          session.dayId,
+          blockTracesSummary,
+          options?.generationDurationMs ?? 0,
+        );
+
+        await tx.insert(schema.sessionTraces).values({
+          sessionId: newSessionId,
+          traceJson: sessionTraceData,
+          eventCount: sessionTraceData.summary.totalEvents,
+          warningCount: sessionTraceData.summary.totalWarnings,
+          errorCount: sessionTraceData.summary.totalErrors,
+          generationMs: sessionTraceData.summary.generationDurationMs,
+        });
+      }
+
+      return newSessionId;
+    });
 
     return { sessionId };
   }
@@ -586,6 +589,149 @@ export class SessionGeneratorService {
     }
 
     return this.reconstructSession(session);
+  }
+
+  /**
+   * Get multiple sessions by dayIds in a single batch
+   *
+   * @param dayIds - Array of day identifiers
+   * @param requireApproved - If true, only return approved sessions
+   * @returns Map of dayId -> DaySession (missing entries mean no session found)
+   */
+  async getSessionsByDayIds(
+    dayIds: string[],
+    requireApproved = false,
+  ): Promise<Map<string, DaySession>> {
+    if (dayIds.length === 0) return new Map();
+
+    const conditions = [inArray(schema.sessions.dayId, dayIds)];
+    if (requireApproved) {
+      conditions.push(eq(schema.sessions.status, "approved"));
+    }
+
+    const sessions = await this.db
+      .select()
+      .from(schema.sessions)
+      .where(and(...conditions));
+
+    if (sessions.length === 0) return new Map();
+
+    // Batch fetch all blocks for all sessions
+    const sessionIds = sessions.map((s) => s.id);
+    const allBlocks = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(inArray(schema.sessionBlocks.sessionId, sessionIds))
+      .orderBy(schema.sessionBlocks.sortOrder);
+
+    // Batch fetch all prescriptions for all blocks
+    const blockIds = allBlocks.map((b) => b.id);
+    const allPrescriptions =
+      blockIds.length > 0
+        ? await this.db
+            .select({
+              id: schema.sessionPrescriptions.id,
+              blockId: schema.sessionPrescriptions.blockId,
+              exerciseId: schema.sessionPrescriptions.exerciseId,
+              exerciseName: schema.sessionPrescriptions.exerciseName,
+              contraction: schema.sessionPrescriptions.contraction,
+              reps: schema.sessionPrescriptions.reps,
+              repsMax: schema.sessionPrescriptions.repsMax,
+              seconds: schema.sessionPrescriptions.seconds,
+              secondsMax: schema.sessionPrescriptions.secondsMax,
+              increment: schema.sessionPrescriptions.increment,
+              rest: schema.sessionPrescriptions.rest,
+              notes: schema.sessionPrescriptions.notes,
+              difficulty: schema.sessionPrescriptions.difficulty,
+              exerciseType: schema.sessionPrescriptions.exerciseType,
+              sortOrder: schema.sessionPrescriptions.sortOrder,
+              videoUrl: schema.exercises.videoUrl,
+            })
+            .from(schema.sessionPrescriptions)
+            .leftJoin(
+              schema.exercises,
+              eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
+            )
+            .where(inArray(schema.sessionPrescriptions.blockId, blockIds))
+            .orderBy(schema.sessionPrescriptions.sortOrder)
+        : [];
+
+    // Group prescriptions by blockId
+    const prescByBlock = new Map<number, typeof allPrescriptions>();
+    for (const p of allPrescriptions) {
+      const list = prescByBlock.get(p.blockId) ?? [];
+      list.push(p);
+      prescByBlock.set(p.blockId, list);
+    }
+
+    // Group blocks by sessionId
+    const blocksBySession = new Map<number, typeof allBlocks>();
+    for (const b of allBlocks) {
+      const list = blocksBySession.get(b.sessionId) ?? [];
+      list.push(b);
+      blocksBySession.set(b.sessionId, list);
+    }
+
+    // Build result map
+    const result = new Map<string, DaySession>();
+    for (const session of sessions) {
+      const blocks = blocksBySession.get(session.id) ?? [];
+      const blockPlans: BlockPlan[] = blocks.map((block) => {
+        const prescriptions = prescByBlock.get(block.id) ?? [];
+        const exercises: ExercisePrescription[] = prescriptions.map((p) => ({
+          exerciseId: p.exerciseId,
+          name: p.exerciseName,
+          contraction: p.contraction as "CON" | "EXC" | "ISO",
+          reps: p.reps,
+          repsMax: p.repsMax ?? undefined,
+          seconds: p.seconds,
+          secondsMax: p.secondsMax ?? undefined,
+          increment: p.increment ?? undefined,
+          rest: p.rest,
+          notes: p.notes ?? undefined,
+          dificultadLineal: p.difficulty ?? undefined,
+          exerciseType: p.exerciseType as "main" | "mobility",
+          videoUrl: p.videoUrl ?? undefined,
+        }));
+
+        let role: BlockRole = block.role as BlockRole;
+        if (block.role === "ATHLOS_EPIKOS") {
+          role = getFinalBlockRole(session.week);
+        }
+
+        const formatParams = block.formatParams
+          ? (block.formatParams as unknown as FormatParams)
+          : ({ type: "standard" } as const);
+
+        return {
+          blockId: block.blockId,
+          role,
+          route: block.route,
+          pattern: block.pattern,
+          intensity: block.intensity,
+          repsBudget: block.repsBudget,
+          format: { formatId: block.formatId, name: block.formatName },
+          formatParams,
+          exercises,
+          trace: [],
+        };
+      });
+
+      const dayIdParts = session.dayId.split("-");
+      const memberLevel = dayIdParts[2] as ExerciseLevel;
+
+      result.set(session.dayId, {
+        dayId: session.dayId,
+        week: session.week,
+        day: session.day,
+        levelGroup: session.levelGroup as LevelGroup,
+        memberLevel,
+        blocks: blockPlans,
+        trace: (session.traceJson as TraceEvent[]) ?? [],
+      });
+    }
+
+    return result;
   }
 
   /**

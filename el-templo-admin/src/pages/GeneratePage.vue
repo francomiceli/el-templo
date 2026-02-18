@@ -29,32 +29,18 @@
       <q-card-section>
         <div class="text-subtitle1 q-mb-md">Nivel de Regeneracion</div>
 
-        <q-option-group
-          v-model="generationScope"
-          :options="scopeOptions"
-          inline
-          class="q-mb-md"
-        />
+        <q-option-group v-model="generationScope" :options="scopeOptions" inline class="q-mb-md" />
 
         <!-- Day selector (visible for 'day' and 'day_level' scopes) -->
         <div v-if="generationScope !== 'week'" class="q-mb-md">
           <div class="text-caption q-mb-sm">Seleccionar Dia:</div>
-          <q-btn-toggle
-            v-model="selectedDay"
-            toggle-color="primary"
-            :options="dayOptions"
-            spread
-          />
+          <q-btn-toggle v-model="selectedDay" toggle-color="primary" :options="dayOptions" spread />
         </div>
 
         <!-- Level selector (visible only for 'day_level' scope) -->
         <div v-if="generationScope === 'day_level'" class="q-mb-md">
           <div class="text-caption q-mb-sm">Seleccionar Nivel:</div>
-          <q-btn-toggle
-            v-model="selectedLevel"
-            toggle-color="primary"
-            :options="levelOptions"
-          />
+          <q-btn-toggle v-model="selectedLevel" toggle-color="primary" :options="levelOptions" />
         </div>
 
         <!-- Generate button -->
@@ -105,7 +91,10 @@
 
       <!-- Regenerate options -->
       <q-card-section v-if="isFutureWeek && hasExistingSessionsInScope" class="bg-grey-2">
-        <q-checkbox v-model="regenerate" label="Regenerar sesiones existentes (se eliminaran permanentemente)" />
+        <q-checkbox
+          v-model="regenerate"
+          label="Regenerar sesiones existentes (se eliminaran permanentemente)"
+        />
       </q-card-section>
     </q-card>
 
@@ -115,9 +104,7 @@
         <q-icon name="check_circle" />
       </template>
       Generadas: {{ lastResult.generated }} sesiones.
-      <span v-if="lastResult.skipped > 0">
-        Omitidas: {{ lastResult.skipped }} (ya existian).
-      </span>
+      <span v-if="lastResult.skipped > 0"> Omitidas: {{ lastResult.skipped }} (ya existian). </span>
     </q-banner>
   </q-page>
 </template>
@@ -125,13 +112,17 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, defineComponent, h } from 'vue';
 import { useQuasar, QIcon } from 'quasar';
-import { useGenerateApi, type WeekSummary, type GenerateResult } from 'src/composables/useGenerateApi';
+import {
+  useGenerateApi,
+  type WeekSummary,
+  type GenerateResult,
+} from 'src/composables/useGenerateApi';
 
 const $q = useQuasar();
 const generateApi = useGenerateApi();
 
-const currentWeek = ref(1); // TODO: Fetch from SPOM config
-const selectedWeek = ref(2); // Default to next week (currentWeek + 1)
+const currentWeek = ref(1);
+const selectedWeek = ref(2);
 const weekSummary = ref<WeekSummary | null>(null);
 const regenerate = ref(false);
 const lastResult = ref<GenerateResult | null>(null);
@@ -180,12 +171,12 @@ const summaryRows = computed(() => {
     sabado: 'Sabado',
   };
 
-  return weekSummary.value.days.map(d => ({
+  return weekSummary.value.days.map((d) => ({
     day: d.day,
     dayLabel: dayLabels[d.day] || d.day,
-    alfa_delta: d.levels.find(l => l.levelGroup === 'alfa_delta')?.status || null,
-    sigma: d.levels.find(l => l.levelGroup === 'sigma')?.status || null,
-    omega: d.levels.find(l => l.levelGroup === 'omega')?.status || null,
+    alfa_delta: d.levels.find((l) => l.levelGroup === 'alfa_delta')?.status || null,
+    sigma: d.levels.find((l) => l.levelGroup === 'sigma')?.status || null,
+    omega: d.levels.find((l) => l.levelGroup === 'omega')?.status || null,
   }));
 });
 
@@ -193,14 +184,14 @@ const hasExistingSessionsInScope = computed(() => {
   if (!weekSummary.value) return false;
 
   if (generationScope.value === 'week') {
-    return weekSummary.value.days.some(d => d.levels.some(l => l.hasSession));
+    return weekSummary.value.days.some((d) => d.levels.some((l) => l.hasSession));
   } else if (generationScope.value === 'day') {
-    const dayData = weekSummary.value.days.find(d => d.day === selectedDay.value);
-    return dayData?.levels.some(l => l.hasSession) || false;
+    const dayData = weekSummary.value.days.find((d) => d.day === selectedDay.value);
+    return dayData?.levels.some((l) => l.hasSession) || false;
   } else {
     // day_level
-    const dayData = weekSummary.value.days.find(d => d.day === selectedDay.value);
-    const levelData = dayData?.levels.find(l => l.levelGroup === selectedLevel.value);
+    const dayData = weekSummary.value.days.find((d) => d.day === selectedDay.value);
+    const levelData = dayData?.levels.find((l) => l.levelGroup === selectedLevel.value);
     return levelData?.hasSession || false;
   }
 });
@@ -213,11 +204,14 @@ const generateButtonLabel = computed(() => {
   if (generationScope.value === 'week') {
     return 'Generar Semana Completa';
   } else if (generationScope.value === 'day') {
-    const dayLabel = dayOptions.find(d => d.value === selectedDay.value)?.label || selectedDay.value;
+    const dayLabel =
+      dayOptions.find((d) => d.value === selectedDay.value)?.label || selectedDay.value;
     return `Generar ${dayLabel}`;
   } else {
-    const dayLabel = dayOptions.find(d => d.value === selectedDay.value)?.label || selectedDay.value;
-    const levelLabel = levelOptions.find(l => l.value === selectedLevel.value)?.label || selectedLevel.value;
+    const dayLabel =
+      dayOptions.find((d) => d.value === selectedDay.value)?.label || selectedDay.value;
+    const levelLabel =
+      levelOptions.find((l) => l.value === selectedLevel.value)?.label || selectedLevel.value;
     return `Generar ${dayLabel} - ${levelLabel}`;
   }
 });
@@ -236,7 +230,10 @@ async function loadWeekSummary() {
 
 async function handleGenerate() {
   if (selectedWeek.value <= currentWeek.value) {
-    $q.notify({ type: 'warning', message: 'No se pueden generar semanas pasadas o la semana actual' });
+    $q.notify({
+      type: 'warning',
+      message: 'No se pueden generar semanas pasadas o la semana actual',
+    });
     return;
   }
 
@@ -244,7 +241,8 @@ async function handleGenerate() {
     // Confirmation dialog for regeneration (permanent deletion)
     $q.dialog({
       title: 'Confirmar Regeneracion',
-      message: 'Las sesiones existentes se ELIMINARAN permanentemente y se generaran nuevas. Esta accion no se puede deshacer. Continuar?',
+      message:
+        'Las sesiones existentes se ELIMINARAN permanentemente y se generaran nuevas. Esta accion no se puede deshacer. Continuar?',
       cancel: true,
       persistent: true,
       ok: {
@@ -326,17 +324,19 @@ const StatusIndicator = defineComponent({
         });
       }
 
-      const iconName = props.status === 'approved'
-        ? 'check_circle'
-        : props.status === 'pending_review'
-        ? 'pending'
-        : 'remove';
+      const iconName =
+        props.status === 'approved'
+          ? 'check_circle'
+          : props.status === 'pending_review'
+            ? 'pending'
+            : 'remove';
 
-      const iconColor = props.status === 'approved'
-        ? 'positive'
-        : props.status === 'pending_review'
-        ? 'warning'
-        : 'grey-5';
+      const iconColor =
+        props.status === 'approved'
+          ? 'positive'
+          : props.status === 'pending_review'
+            ? 'warning'
+            : 'grey-5';
 
       return h(QIcon, {
         name: iconName,
@@ -347,9 +347,13 @@ const StatusIndicator = defineComponent({
   },
 });
 
-onMounted(() => {
-  // TODO: Fetch current SPOM week from API
-  selectedWeek.value = currentWeek.value;
+onMounted(async () => {
+  try {
+    currentWeek.value = await generateApi.getCurrentWeek();
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error cargando semana actual' });
+  }
+  selectedWeek.value = currentWeek.value + 1;
   loadWeekSummary();
 });
 </script>

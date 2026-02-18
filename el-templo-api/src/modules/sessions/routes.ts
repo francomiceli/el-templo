@@ -3,12 +3,18 @@ import { eq, sql, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { SpomService } from "../spom/service";
+import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import {
   getDailySessionSchema,
   generateSessionSchema,
   getSessionByIdSchema,
   getWeeklySessionsSchema,
   completeSessionSchema,
+  dailySessionResponse,
+  weeklySessionsResponse,
+  generateSessionResponse,
+  sessionWithNotFound,
+  completeSessionResponse,
   type GetDailySessionInput,
   type GenerateSessionInput,
   type GetSessionByIdParams,
@@ -39,17 +45,8 @@ function levelToLevelGroup(level: string): LevelGroup {
  * Map date to Spanish day name
  */
 function dateToDayName(date: string): string {
-  const dayMap = [
-    "domingo",
-    "lunes",
-    "martes",
-    "miercoles",
-    "jueves",
-    "viernes",
-    "sabado",
-  ];
   const d = new Date(date + "T00:00:00");
-  return dayMap[d.getDay()];
+  return DAY_OF_WEEK_MAP[d.getDay()] || "domingo";
 }
 
 /**
@@ -126,33 +123,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       onRequest: [fastify.authenticate],
       schema: {
         ...getDailySessionSchema,
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              dayId: { type: "string" },
-              week: { type: "integer" },
-              day: { type: "string" },
-              levelGroup: { type: "string" },
-              memberLevel: { type: "string" },
-              blockCount: { type: "integer" },
-              blocks: { type: "array" },
-            },
-          },
-          400: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-            },
-          },
-          404: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-              message: { type: "string" },
-            },
-          },
-        },
+        response: dailySessionResponse,
       },
     },
     async (request, reply) => {
@@ -206,33 +177,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       onRequest: [fastify.authenticate],
       schema: {
         ...getWeeklySessionsSchema,
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              sessions: {
-                type: "object",
-                additionalProperties: {
-                  oneOf: [
-                    { type: "null" },
-                    {
-                      type: "object",
-                      properties: {
-                        dayId: { type: "string" },
-                        week: { type: "integer" },
-                        day: { type: "string" },
-                        levelGroup: { type: "string" },
-                        memberLevel: { type: "string" },
-                        blockCount: { type: "integer" },
-                        blocks: { type: "array" },
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          },
-        },
+        response: weeklySessionsResponse,
       },
     },
     async (request, reply) => {
@@ -267,27 +212,35 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         weekDates.push(`${year}-${month}-${day}`);
       }
 
-      // 5. Fetch approved sessions for each day (no auto-generation for members)
+      // 5. Build dayIds for all training days and batch fetch
+      const dateToDay = new Map<string, string>();
+      const dayIds: string[] = [];
+      for (const date of weekDates) {
+        const dayName = dateToDayName(date);
+        dateToDay.set(date, dayName);
+        if (dayName !== "domingo") {
+          dayIds.push(`W${week}-${dayName}-${memberLevel}`);
+        }
+      }
+
+      // Batch fetch all approved sessions (single query instead of N+1)
+      const batchSessions = await sessionService.getSessionsByDayIds(
+        dayIds,
+        true,
+      );
+
       const sessionsMap: Record<
         string,
         ReturnType<typeof sessionToResponse> | null
       > = {};
-
       for (const date of weekDates) {
-        const dayName = dateToDayName(date);
-
-        // Skip Sunday
+        const dayName = dateToDay.get(date)!;
         if (dayName === "domingo") {
           sessionsMap[date] = null;
           continue;
         }
-
         const dayId = `W${week}-${dayName}-${memberLevel}`;
-
-        // Only return approved sessions (requireApproved=true)
-        const session = await sessionService.getSessionByDayId(dayId, true);
-
-        // Set null if no approved session exists (no auto-generation)
+        const session = batchSessions.get(dayId);
         sessionsMap[date] = session ? sessionToResponse(session) : null;
       }
 
@@ -302,26 +255,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       onRequest: [fastify.authenticate],
       schema: {
         ...generateSessionSchema,
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              dayId: { type: "string" },
-              week: { type: "integer" },
-              day: { type: "string" },
-              levelGroup: { type: "string" },
-              memberLevel: { type: "string" },
-              blockCount: { type: "integer" },
-              blocks: { type: "array" },
-            },
-          },
-          403: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-            },
-          },
-        },
+        response: generateSessionResponse,
       },
     },
     async (request, reply) => {
@@ -373,26 +307,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       onRequest: [fastify.authenticate],
       schema: {
         ...getSessionByIdSchema,
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              dayId: { type: "string" },
-              week: { type: "integer" },
-              day: { type: "string" },
-              levelGroup: { type: "string" },
-              memberLevel: { type: "string" },
-              blockCount: { type: "integer" },
-              blocks: { type: "array" },
-            },
-          },
-          404: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-            },
-          },
-        },
+        response: sessionWithNotFound,
       },
     },
     async (request, reply) => {
@@ -414,28 +329,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       onRequest: [fastify.authenticate],
       schema: {
         ...completeSessionSchema,
-        response: {
-          200: {
-            type: "object",
-            properties: {
-              success: { type: "boolean" },
-              completedSessionId: { type: "integer" },
-              totalDaysTrained: { type: "integer" },
-            },
-          },
-          400: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-            },
-          },
-          404: {
-            type: "object",
-            properties: {
-              error: { type: "string" },
-            },
-          },
-        },
+        response: completeSessionResponse,
       },
     },
     async (request, reply) => {

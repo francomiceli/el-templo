@@ -8,10 +8,13 @@
  * Output: BlockContextWithContraction (adds exerciseCount, contractionMix)
  */
 
-import { SpomService } from '../../spom/service';
-import type { BlockContextWithBudget, BlockContextWithContraction } from './context';
-import type { ContractionMix } from '../types';
-import { createTraceEvent, appendTrace } from './context';
+import { SpomService } from "../../spom/service";
+import type {
+  BlockContextWithBudget,
+  BlockContextWithContraction,
+} from "./context";
+import type { ContractionMix } from "../types";
+import { createTraceEvent, appendTrace } from "./context";
 
 /**
  * Default contraction mix when no rule found
@@ -36,7 +39,7 @@ const DEFAULT_CONTRACTION_MIX: Record<number, ContractionMix> = {
  */
 export async function deriveContraction(
   ctx: BlockContextWithBudget,
-  spomService: SpomService
+  spomService: SpomService,
 ): Promise<BlockContextWithContraction> {
   // Use minimum exercise count for determinism
   const exerciseCount = ctx.exerciseCountMin;
@@ -44,7 +47,7 @@ export async function deriveContraction(
   // Try exact match first
   let rule = await spomService.getContractionRule(ctx.intensity, exerciseCount);
   let usedFallback = false;
-  let fallbackReason = '';
+  let fallbackReason = "";
 
   // If no exact match, try nearby exercise counts (prefer higher, then lower)
   if (!rule) {
@@ -86,11 +89,13 @@ export async function deriveContraction(
     // Use default fallback when no rules found at all
     usedFallback = true;
     fallbackReason = `No contraction rule found for intensity=${ctx.intensity}, using default mix`;
-    contractionMix = DEFAULT_CONTRACTION_MIX[exerciseCount] || DEFAULT_CONTRACTION_MIX[3];
+    contractionMix =
+      DEFAULT_CONTRACTION_MIX[exerciseCount] || DEFAULT_CONTRACTION_MIX[3];
   }
 
   // Scale contraction mix to match actual exercise count if rule was from different count
-  const ruleTotal = contractionMix.CON + contractionMix.EXC + contractionMix.ISO;
+  const ruleTotal =
+    contractionMix.CON + contractionMix.EXC + contractionMix.ISO;
   if (ruleTotal !== exerciseCount && ruleTotal > 0) {
     // Adjust to match exercise count - scale proportionally, rounding to nearest
     const scale = exerciseCount / ruleTotal;
@@ -98,28 +103,40 @@ export async function deriveContraction(
     let scaledEXC = Math.round(contractionMix.EXC * scale);
     let scaledISO = Math.round(contractionMix.ISO * scale);
 
-    // Ensure total matches exerciseCount (adjust CON as needed)
-    const scaledTotal = scaledCON + scaledEXC + scaledISO;
-    if (scaledTotal !== exerciseCount) {
-      scaledCON += exerciseCount - scaledTotal;
+    // Clamp negatives first, then redistribute any deficit to the largest category
+    scaledCON = Math.max(0, scaledCON);
+    scaledEXC = Math.max(0, scaledEXC);
+    scaledISO = Math.max(0, scaledISO);
+
+    const clampedTotal = scaledCON + scaledEXC + scaledISO;
+    if (clampedTotal !== exerciseCount) {
+      const deficit = exerciseCount - clampedTotal;
+      // Add deficit to the largest category to maintain proportions
+      if (scaledCON >= scaledEXC && scaledCON >= scaledISO) {
+        scaledCON += deficit;
+      } else if (scaledEXC >= scaledISO) {
+        scaledEXC += deficit;
+      } else {
+        scaledISO += deficit;
+      }
     }
 
-    contractionMix = { CON: Math.max(0, scaledCON), EXC: Math.max(0, scaledEXC), ISO: Math.max(0, scaledISO) };
+    contractionMix = { CON: scaledCON, EXC: scaledEXC, ISO: scaledISO };
     usedFallback = true;
     fallbackReason += `, scaled from ${ruleTotal} to ${exerciseCount} exercises`;
   }
 
   const traceEvent = createTraceEvent(
     ctx,
-    usedFallback ? 'CONTRACTION_FALLBACK' : 'CONTRACTION_DERIVED',
-    usedFallback ? 'WARNING' : 'INFO',
+    usedFallback ? "CONTRACTION_FALLBACK" : "CONTRACTION_DERIVED",
+    usedFallback ? "WARNING" : "INFO",
     {
       exerciseCount,
       contractionMix,
       ruleId: rule?.id ?? null,
       fallback: usedFallback,
       reason: fallbackReason || undefined,
-    }
+    },
   );
 
   return {

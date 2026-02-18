@@ -283,21 +283,9 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import { NO_PARAMS_FORMATS } from 'src/constants/formats';
 
 type FormatParamsLocal = Record<string, string | number | null>; // dynamic format param keys
-
-const NO_PARAMS_TYPES = [
-  'standard',
-  'unbroken',
-  'couplet',
-  'triplet',
-  'for_max',
-  'chipper',
-  'cluster',
-  'buy_in_cash_out',
-  'death_by',
-  'death_by_unbroken',
-];
 
 const props = defineProps<{
   formatParams: Record<string, unknown> | null;
@@ -381,7 +369,7 @@ function resolveDefaults(): FormatParamsLocal {
 
 function autoInitIfNeeded() {
   const defaults = resolveDefaults();
-  if (NO_PARAMS_TYPES.includes(String(defaults.type))) return;
+  if (NO_PARAMS_FORMATS.includes(String(defaults.type))) return;
 
   localParams.value = defaults;
   lastEmitted = JSON.stringify(localParams.value);

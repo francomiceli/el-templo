@@ -12,15 +12,21 @@
  * for on-demand use with database exercise data.
  */
 
-import { prescribeByFormat } from '../sessions/pipeline/format-prescribers';
-import type { PrescriptionContext } from '../sessions/pipeline/format-prescribers';
+import { prescribeByFormat } from "../sessions/pipeline/format-prescribers";
+import type { PrescriptionContext } from "../sessions/pipeline/format-prescribers";
 import {
   roundToNearest5,
   calculateInverseDifficultyWeights,
   MIN_REPS_PER_EXERCISE,
-} from '../sessions/pipeline/utils/reps-calculator';
-import { REST_TIMES, ISO_SECONDS } from '../sessions/pipeline/utils/constants';
-import type { SelectedExercise, ExercisePrescription, Contraction } from '../sessions/types';
+} from "../sessions/pipeline/utils/reps-calculator";
+import { REST_TIMES, ISO_SECONDS } from "../sessions/pipeline/utils/constants";
+import { calculateRest } from "../sessions/pipeline/stage-7-prescription";
+import { allocateRepsRounded } from "../sessions/pipeline/utils/reps-calculator";
+import type {
+  SelectedExercise,
+  ExercisePrescription,
+  Contraction,
+} from "../sessions/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,22 +87,6 @@ export interface BlockPrescriptionResult {
 }
 
 // ---------------------------------------------------------------------------
-// Rest Calculation (replicated from stage-7-prescription.ts since not exported)
-// ---------------------------------------------------------------------------
-
-/**
- * Calculate rest time based on intensity.
- * Mirrors the exact logic from stage-7-prescription.ts calculateRest().
- */
-function calculateRest(intensity: number): number {
-  if (intensity <= 30) return REST_TIMES.WARMUP;
-  if (intensity <= 50) return REST_TIMES.SHORT;
-  if (intensity <= 70) return REST_TIMES.MEDIUM;
-  if (intensity <= 85) return REST_TIMES.LONG;
-  return REST_TIMES.MAX;
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -128,7 +118,9 @@ export class PrescribeService {
    *
    * @returns Prescription for the target exercise
    */
-  prescribeExerciseInBlock(params: PrescribeExerciseParams): PrescriptionResult {
+  prescribeExerciseInBlock(
+    params: PrescribeExerciseParams,
+  ): PrescriptionResult {
     const {
       exercise,
       blockFormatName,
@@ -141,10 +133,17 @@ export class PrescribeService {
     const selectedExercises = existingExercises.map(toSelectedExercise);
 
     // Find the index of the target exercise in the block
-    const targetIndex = existingExercises.findIndex(ex => ex.id === exercise.id);
+    const targetIndex = existingExercises.findIndex(
+      (ex) => ex.id === exercise.id,
+    );
     if (targetIndex === -1) {
       // Exercise not found in existing list -- prescribe as standalone
-      return this.prescribeStandalone(exercise, blockRepsBudget, blockIntensity, existingExercises.length);
+      return this.prescribeStandalone(
+        exercise,
+        blockRepsBudget,
+        blockIntensity,
+        existingExercises.length,
+      );
     }
 
     // Run full block prescription to get context-aware result
@@ -163,7 +162,7 @@ export class PrescribeService {
       // Format prescribers may produce more prescriptions than exercises
       // (e.g., Buy-in/Cash-out adds bookend). Find by exercise ID.
       const targetPrescription = formatResult.find(
-        p => p.exerciseId === exercise.id
+        (p) => p.exerciseId === exercise.id,
       );
       if (targetPrescription) {
         return {
@@ -186,7 +185,12 @@ export class PrescribeService {
     }
 
     // Standard inverse difficulty distribution fallback
-    return this.prescribeStandard(selectedExercises, targetIndex, blockRepsBudget, restTime);
+    return this.prescribeStandard(
+      selectedExercises,
+      targetIndex,
+      blockRepsBudget,
+      restTime,
+    );
   }
 
   /**
@@ -214,7 +218,7 @@ export class PrescribeService {
     const formatResult = prescribeByFormat(formatName, ctx);
 
     if (formatResult) {
-      return formatResult.map(p => ({
+      return formatResult.map((p) => ({
         exerciseId: p.exerciseId,
         reps: p.reps,
         seconds: p.seconds,
@@ -233,54 +237,21 @@ export class PrescribeService {
 
   /**
    * Standard inverse difficulty prescription for a single exercise.
-   * Used when format-specific prescriber is not available.
+   * Delegates to prescribeBlockStandard and extracts the target exercise.
    */
   private prescribeStandard(
     exercises: readonly SelectedExercise[],
     targetIndex: number,
     repsBudget: number,
-    restTime: number
+    restTime: number,
   ): PrescriptionResult {
-    const weights = calculateInverseDifficultyWeights(exercises);
-    const exercise = exercises[targetIndex];
-    const isISO = exercise.contraction === 'ISO';
-
-    if (isISO) {
-      return {
-        reps: 0,
-        seconds: ISO_SECONDS.DEFAULT,
-        rest: restTime,
-        notes: null,
-      };
-    }
-
-    // Calculate this exercise's share of the budget
-    const nonIsoIndices = exercises
-      .map((ex, i) => ex.contraction !== 'ISO' ? i : -1)
-      .filter(i => i >= 0);
-
-    const repsAllocation = weights.map((weight, i) => {
-      if (exercises[i].contraction === 'ISO') return 0;
-      const raw = repsBudget * weight;
-      const rounded = roundToNearest5(raw);
-      return Math.max(rounded, MIN_REPS_PER_EXERCISE);
-    });
-
-    // Adjust last non-ISO exercise to match budget exactly
-    if (nonIsoIndices.length > 0) {
-      const currentTotal = repsAllocation.reduce((sum, r) => sum + r, 0);
-      const lastNonIso = nonIsoIndices[nonIsoIndices.length - 1];
-      repsAllocation[lastNonIso] += repsBudget - currentTotal;
-      if (repsAllocation[lastNonIso] < MIN_REPS_PER_EXERCISE) {
-        repsAllocation[lastNonIso] = MIN_REPS_PER_EXERCISE;
-      }
-    }
-
+    const block = this.prescribeBlockStandard(exercises, repsBudget, restTime);
+    const result = block[targetIndex];
     return {
-      reps: repsAllocation[targetIndex],
-      seconds: 0,
-      rest: restTime,
-      notes: null,
+      reps: result.reps,
+      seconds: result.seconds,
+      rest: result.rest,
+      notes: result.notes,
     };
   }
 
@@ -291,33 +262,13 @@ export class PrescribeService {
   private prescribeBlockStandard(
     exercises: readonly SelectedExercise[],
     repsBudget: number,
-    restTime: number
+    restTime: number,
   ): BlockPrescriptionResult[] {
     const weights = calculateInverseDifficultyWeights(exercises);
-
-    const nonIsoIndices = exercises
-      .map((ex, i) => ex.contraction !== 'ISO' ? i : -1)
-      .filter(i => i >= 0);
-
-    const repsAllocation = weights.map((weight, i) => {
-      if (exercises[i].contraction === 'ISO') return 0;
-      const raw = repsBudget * weight;
-      const rounded = roundToNearest5(raw);
-      return Math.max(rounded, MIN_REPS_PER_EXERCISE);
-    });
-
-    // Adjust last non-ISO exercise to match budget exactly
-    if (nonIsoIndices.length > 0) {
-      const currentTotal = repsAllocation.reduce((sum, r) => sum + r, 0);
-      const lastNonIso = nonIsoIndices[nonIsoIndices.length - 1];
-      repsAllocation[lastNonIso] += repsBudget - currentTotal;
-      if (repsAllocation[lastNonIso] < MIN_REPS_PER_EXERCISE) {
-        repsAllocation[lastNonIso] = MIN_REPS_PER_EXERCISE;
-      }
-    }
+    const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
     return exercises.map((ex, i) => {
-      const isISO = ex.contraction === 'ISO';
+      const isISO = ex.contraction === "ISO";
       return {
         exerciseId: ex.exerciseId,
         reps: isISO ? 0 : repsAllocation[i],
@@ -333,13 +284,18 @@ export class PrescribeService {
    * Uses equal share of budget as rough estimate.
    */
   private prescribeStandalone(
-    exercise: { id: number; name: string; contraction: string; difficulty: number },
+    exercise: {
+      id: number;
+      name: string;
+      contraction: string;
+      difficulty: number;
+    },
     blockRepsBudget: number,
     blockIntensity: number,
-    totalExercises: number
+    totalExercises: number,
   ): PrescriptionResult {
     const restTime = calculateRest(blockIntensity);
-    const isISO = exercise.contraction.toUpperCase() === 'ISO';
+    const isISO = exercise.contraction.toUpperCase() === "ISO";
 
     if (isISO) {
       return {

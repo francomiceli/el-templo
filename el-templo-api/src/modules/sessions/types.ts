@@ -49,7 +49,7 @@ export interface TraceWhere {
   readonly levelGroup: LevelGroup;
   readonly memberLevel?: ExerciseLevel;
   readonly blockId: string;
-  readonly role: BlockRole;
+  readonly role?: BlockRole;
 }
 
 /** Structured trace event for pipeline auditability */

@@ -123,6 +123,7 @@
           :block-id="selectedBlock.id"
           :block-route="selectedBlock.route"
           :block-format-name="selectedBlock.formatName"
+          :format-type="(selectedBlock.formatParams as Record<string, unknown>)?.type as string"
           :is-first="idx === 0"
           :is-last="idx === selectedBlock.exercises.length - 1"
           draggable="true"
@@ -234,9 +235,12 @@ import { useQuasar } from 'quasar';
 import type { SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
 import type { BlockGroup, LevelBlock } from 'src/types/block-group';
 import { useEditApi } from 'src/composables/useEditApi';
+import { useDragReorder } from 'src/composables/useDragReorder';
 import EditableExerciseRow from './EditableExerciseRow.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
 import FormatParamsEditor from './FormatParamsEditor.vue';
+import { contractionLabel, contractionColor } from 'src/utils/contraction-helpers';
+import { NO_PARAMS_FORMATS } from 'src/constants/formats';
 
 const props = defineProps<{
   blockGroup: BlockGroup;
@@ -325,18 +329,7 @@ const isAthlosEpikos = computed(() => {
   return role === 'ATHLOS' || role === 'EPIKOS';
 });
 
-const NO_PARAMS_FORMATS = [
-  'standard',
-  'unbroken',
-  'couplet',
-  'triplet',
-  'for_max',
-  'chipper',
-  'cluster',
-  'buy_in_cash_out',
-  'death_by',
-  'death_by_unbroken',
-];
+// NO_PARAMS_FORMATS imported from src/constants/formats
 
 const hasConfigurableParams = computed(() => {
   if (props.blockGroup.formatParams) {
@@ -423,7 +416,7 @@ async function loadCompatibleFormats() {
     });
     compatibleFormats.value = response.formats;
   } catch {
-    // Silent fail
+    $q.notify({ type: 'warning', message: 'No se pudieron cargar formatos compatibles' });
   } finally {
     formatsLoading.value = false;
   }
@@ -580,59 +573,18 @@ async function onMoveExercise(payload: { prescriptionId: number; direction: 'up'
   }
 }
 
-// Drag & drop state
-const dragFromIdx = ref<number | null>(null);
-const dragOverId = ref<number | null>(null);
-
-function onDragStart(event: DragEvent, idx: number) {
-  dragFromIdx.value = idx;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-  }
-}
-
-function onDragOver(_event: DragEvent, exerciseId: number) {
-  dragOverId.value = exerciseId;
-}
-
-function onDragLeave(exerciseId: number) {
-  if (dragOverId.value === exerciseId) {
-    dragOverId.value = null;
-  }
-}
-
-async function onDrop(_event: DragEvent, toIdx: number) {
-  dragOverId.value = null;
-  if (dragFromIdx.value === null || dragFromIdx.value === toIdx || !selectedBlock.value) return;
-
-  const exercises = selectedBlock.value.exercises;
-  const fromIdx = dragFromIdx.value;
-  dragFromIdx.value = null;
-
-  // Move step by step from source to target
-  const direction = fromIdx < toIdx ? 'down' : 'up';
-  const steps = Math.abs(toIdx - fromIdx);
-  const prescriptionId = exercises[fromIdx].id;
-
-  for (let i = 0; i < steps; i++) {
-    try {
-      await editApi.reorderExercise(
-        selectedLevelBlock.value.sessionId,
-        selectedBlock.value.id,
-        prescriptionId,
-        direction
-      );
-    } catch {
-      break;
-    }
-  }
-  emit('refresh');
-}
-
-function onDragEnd() {
-  dragFromIdx.value = null;
-  dragOverId.value = null;
-}
+// Drag & drop (extracted to composable)
+const { dragOverId, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } = useDragReorder({
+  getExercises: () => selectedBlock.value?.exercises ?? [],
+  reorder: (prescriptionId, direction) =>
+    editApi.reorderExercise(
+      selectedLevelBlock.value.sessionId,
+      selectedBlock.value!.id,
+      prescriptionId,
+      direction
+    ),
+  onComplete: () => emit('refresh'),
+});
 
 function emitAddExercise() {
   if (!selectedBlock.value) return;
@@ -675,39 +627,6 @@ function onSaveBlock() {
 }
 
 // Contraction display helpers
-function normalizeContraction(contraction: string | null | undefined): string {
-  switch (contraction?.toUpperCase()) {
-    case 'CON':
-    case 'CONCENTRICO':
-      return 'CON';
-    case 'EXC':
-    case 'EXCENTRICO':
-      return 'EXC';
-    case 'ISO':
-    case 'ISOMETRICO':
-      return 'ISO';
-    default:
-      return contraction?.toUpperCase() || '';
-  }
-}
-
-function contractionLabel(contraction: string | null | undefined): string {
-  return normalizeContraction(contraction) || '-';
-}
-
-function contractionColor(contraction: string | null | undefined): string {
-  switch (normalizeContraction(contraction)) {
-    case 'CON':
-      return 'blue-grey';
-    case 'EXC':
-      return 'teal';
-    case 'ISO':
-      return 'orange';
-    default:
-      return 'grey';
-  }
-}
-
 // Mobility event handlers (shared — always use first level block)
 function onSwapMobility() {
   const firstLb = props.blockGroup.levelBlocks[0];

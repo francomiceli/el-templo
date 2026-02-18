@@ -72,95 +72,31 @@
 
     <!-- Exercise Swap / Add / Mobility Dialog -->
     <exercise-swap-dialog
-      v-if="swapDialogExercise"
-      v-model="swapDialogOpen"
-      :session-id="swapDialogSessionId"
-      :block-id="swapDialogBlockId"
-      :current-exercise="swapDialogExercise"
-      :block-route="swapDialogBlockRoute"
-      :block-pattern="swapDialogBlockPattern"
-      :mode="swapDialogMode"
-      :mobility-mode="swapDialogMobilityMode"
+      v-if="swapDialog"
+      :model-value="true"
+      :session-id="swapDialog.sessionId"
+      :block-id="swapDialog.blockId"
+      :current-exercise="swapDialog.exercise"
+      :block-route="swapDialog.blockRoute"
+      :block-pattern="swapDialog.blockPattern"
+      :mode="swapDialog.mode"
+      :mobility-mode="swapDialog.mobilityMode"
+      @update:model-value="onSwapDialogClose"
       @swapped="onDialogComplete"
       @added="onDialogComplete"
       @swapped-mobility="onDialogComplete"
     />
 
     <!-- Block Swap Dialog -->
-    <q-dialog v-model="blockSwapDialogOpen" persistent>
-      <q-card style="min-width: 500px; max-width: 700px">
-        <q-card-section class="row items-center">
-          <div class="text-h6">Intercambiar Bloque</div>
-          <q-space />
-          <q-btn icon="close" flat round dense v-close-popup />
-        </q-card-section>
-
-        <q-card-section v-if="blockSwapTarget" class="q-pt-none">
-          <div class="text-caption text-grey q-mb-md">
-            Reemplazar bloque {{ blockSwapTarget.role }} ({{ blockSwapTarget.route }}) con uno del
-            pool de sesiones aprobadas
-          </div>
-
-          <div v-if="blockPoolLoading" class="flex flex-center q-pa-lg">
-            <q-spinner-dots size="40px" color="primary" />
-          </div>
-
-          <div v-else-if="blockPool.length === 0" class="text-center q-pa-lg text-grey">
-            <q-icon name="info" size="md" class="q-mb-sm" /><br />
-            No hay bloques disponibles para esta ruta y nivel
-          </div>
-
-          <q-list
-            v-else
-            separator
-            bordered
-            class="rounded-borders"
-            style="max-height: 400px; overflow-y: auto"
-          >
-            <q-item
-              v-for="poolBlock in blockPool"
-              :key="poolBlock.id"
-              clickable
-              @click="handleBlockSwap(poolBlock.id)"
-            >
-              <q-item-section>
-                <q-item-label>
-                  <q-badge :color="poolBlock.formatName ? 'primary' : 'grey'" class="q-mr-sm">
-                    {{ poolBlock.formatName }}
-                  </q-badge>
-                  {{ poolBlock.exerciseCount }} ejercicios
-                </q-item-label>
-                <q-item-label caption>
-                  <span class="q-mr-md">
-                    <q-icon name="speed" size="xs" /> {{ poolBlock.intensity }}%
-                  </span>
-                  <span class="q-mr-md">
-                    <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
-                  </span>
-                  <span class="text-italic">
-                    Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
-                  </span>
-                </q-item-label>
-                <q-item-label caption class="q-mt-xs">
-                  <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
-                    {{ ex.exerciseName
-                    }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
-                  </span>
-                  <span v-if="poolBlock.exercises.length > 4">
-                    ... +{{ poolBlock.exercises.length - 4 }}
-                  </span>
-                </q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-btn flat dense icon="swap_horiz" color="primary">
-                  <q-tooltip>Usar este bloque</q-tooltip>
-                </q-btn>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    <block-swap-dialog
+      v-if="blockSwap"
+      :model-value="true"
+      :session-id="blockSwap.sessionId"
+      :block="blockSwap.block"
+      :member-level="blockSwap.memberLevel"
+      @update:model-value="onBlockSwapClose"
+      @swapped="onBlockSwapComplete"
+    />
   </q-page>
 </template>
 
@@ -174,14 +110,15 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
+import BlockSwapDialog from 'src/components/sessions/BlockSwapDialog.vue';
 import type {
   SessionDetail,
   SessionExercise,
   SessionBlock,
-  PoolBlock,
   PrescriptionUpdate,
 } from 'src/types/session';
 import type { BlockGroup } from 'src/types/block-group';
+import { LEVEL_ORDER } from 'src/constants/levels';
 
 const route = useRoute();
 const router = useRouter();
@@ -189,6 +126,25 @@ const $q = useQuasar();
 const sessionsApi = useSessionsApi();
 const editApi = useEditApi();
 const adminStore = useAdminStore();
+
+function createEmptyExercise(name = ''): SessionExercise {
+  return {
+    id: 0,
+    exerciseId: 0,
+    exerciseName: name,
+    contraction: '',
+    reps: null,
+    repsMax: null,
+    seconds: null,
+    secondsMax: null,
+    increment: null,
+    rest: null,
+    notes: null,
+    dificultadLineal: null,
+    sortOrder: 0,
+    route: null,
+  };
+}
 
 const sessions = ref<SessionDetail[]>([]);
 const loading = ref(true);
@@ -201,22 +157,25 @@ const day = computed(() => (route.query.day as string) || 'lunes');
 // Preview dialog state
 const previewOpen = ref(false);
 
-// Swap/Add/Mobility dialog state
-const swapDialogOpen = ref(false);
-const swapDialogMode = ref<'swap' | 'add'>('swap');
-const swapDialogMobilityMode = ref(false);
-const swapDialogSessionId = ref(0);
-const swapDialogBlockId = ref(0);
-const swapDialogBlockRoute = ref('');
-const swapDialogBlockPattern = ref('');
-const swapDialogExercise = ref<SessionExercise | null>(null);
+// Swap/Add/Mobility dialog state (consolidated — L18)
+interface SwapDialogState {
+  mode: 'swap' | 'add';
+  mobilityMode: boolean;
+  sessionId: number;
+  blockId: number;
+  blockRoute: string;
+  blockPattern: string;
+  exercise: SessionExercise;
+}
+const swapDialog = ref<SwapDialogState | null>(null);
 
-// Block swap dialog state
-const blockSwapDialogOpen = ref(false);
-const blockSwapTarget = ref<SessionBlock | null>(null);
-const blockSwapSessionId = ref(0);
-const blockPool = ref<PoolBlock[]>([]);
-const blockPoolLoading = ref(false);
+// Block swap dialog state (extracted to BlockSwapDialog — L15)
+interface BlockSwapState {
+  sessionId: number;
+  block: SessionBlock;
+  memberLevel: string;
+}
+const blockSwap = ref<BlockSwapState | null>(null);
 
 // Scroll position saved before dialogs open
 const preDialogScrollY = ref(0);
@@ -290,8 +249,7 @@ async function loadDay() {
     );
 
     // Sort by level order: alfa, delta, sigma, omega, spartan
-    const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-    details.sort((a, b) => levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel));
+    details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
 
     sessions.value = details;
   } catch (err: unknown) {
@@ -313,8 +271,7 @@ async function refreshDay(savedScrollY?: number) {
     const details = await Promise.all(
       response.sessions.map((s) => sessionsApi.fetchSessionDetail(s.id))
     );
-    const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-    details.sort((a, b) => levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel));
+    details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
     sessions.value = details;
   } catch {
     // silent
@@ -388,52 +345,23 @@ async function handleResetDay() {
 }
 
 // Block swap
-async function onSwapBlock(payload: { sessionId: number; block: SessionBlock }) {
+function onSwapBlock(payload: { sessionId: number; block: SessionBlock }) {
   preDialogScrollY.value = window.scrollY;
-  blockSwapTarget.value = payload.block;
-  blockSwapSessionId.value = payload.sessionId;
-  blockSwapDialogOpen.value = true;
-  blockPool.value = [];
-  blockPoolLoading.value = true;
-
-  try {
-    const session = sessions.value.find((s) => s.id === payload.sessionId);
-    const memberLevel = session?.memberLevel || 'alfa';
-    const result = await sessionsApi.fetchBlockPool(
-      payload.block.route,
-      memberLevel,
-      payload.sessionId,
-      payload.block.id
-    );
-    blockPool.value = result.blocks;
-  } catch {
-    $q.notify({ type: 'negative', message: 'Error cargando pool de bloques' });
-  } finally {
-    blockPoolLoading.value = false;
-  }
+  const session = sessions.value.find((s) => s.id === payload.sessionId);
+  blockSwap.value = {
+    sessionId: payload.sessionId,
+    block: payload.block,
+    memberLevel: session?.memberLevel || 'alfa',
+  };
 }
 
-async function handleBlockSwap(sourceBlockId: number) {
-  if (!blockSwapTarget.value) return;
+function onBlockSwapClose() {
+  blockSwap.value = null;
+}
 
-  $q.dialog({
-    title: 'Confirmar Intercambio',
-    message: 'Se reemplazara el contenido del bloque actual con el bloque seleccionado. Continuar?',
-    cancel: true,
-  }).onOk(async () => {
-    try {
-      await sessionsApi.swapBlock(
-        blockSwapSessionId.value,
-        blockSwapTarget.value!.id,
-        sourceBlockId
-      );
-      $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
-      blockSwapDialogOpen.value = false;
-      refreshDay(preDialogScrollY.value);
-    } catch {
-      $q.notify({ type: 'negative', message: 'Error intercambiando bloque' });
-    }
-  });
+function onBlockSwapComplete() {
+  blockSwap.value = null;
+  refreshDay(preDialogScrollY.value);
 }
 
 // Exercise swap/add/mobility
@@ -445,14 +373,15 @@ function onSwapExercise(payload: {
   blockPattern: string;
 }) {
   preDialogScrollY.value = window.scrollY;
-  swapDialogMode.value = 'swap';
-  swapDialogMobilityMode.value = false;
-  swapDialogSessionId.value = payload.sessionId;
-  swapDialogBlockId.value = payload.blockId;
-  swapDialogBlockRoute.value = payload.blockRoute;
-  swapDialogBlockPattern.value = payload.blockPattern;
-  swapDialogExercise.value = payload.exercise;
-  swapDialogOpen.value = true;
+  swapDialog.value = {
+    mode: 'swap',
+    mobilityMode: false,
+    sessionId: payload.sessionId,
+    blockId: payload.blockId,
+    blockRoute: payload.blockRoute,
+    blockPattern: payload.blockPattern,
+    exercise: payload.exercise,
+  };
 }
 
 function onAddExercise(payload: {
@@ -463,56 +392,28 @@ function onAddExercise(payload: {
   blockRole: string;
 }) {
   preDialogScrollY.value = window.scrollY;
-  swapDialogMode.value = 'add';
-  swapDialogMobilityMode.value = false;
-  swapDialogSessionId.value = payload.sessionId;
-  swapDialogBlockId.value = payload.blockId;
-  swapDialogBlockRoute.value = payload.blockRoute;
-  swapDialogBlockPattern.value = payload.blockPattern;
-  swapDialogExercise.value = {
-    id: 0,
-    exerciseId: 0,
-    exerciseName: 'Nuevo ejercicio',
-    contraction: '',
-    reps: null,
-    repsMax: null,
-    seconds: null,
-    secondsMax: null,
-    increment: null,
-    rest: null,
-    notes: null,
-    dificultadLineal: null,
-    sortOrder: 0,
-    route: null,
+  swapDialog.value = {
+    mode: 'add',
+    mobilityMode: false,
+    sessionId: payload.sessionId,
+    blockId: payload.blockId,
+    blockRoute: payload.blockRoute,
+    blockPattern: payload.blockPattern,
+    exercise: createEmptyExercise('Nuevo ejercicio'),
   };
-  swapDialogOpen.value = true;
 }
 
 function onSwapMobility(payload: { sessionId: number; blockId: number; blockRoute: string }) {
   preDialogScrollY.value = window.scrollY;
-  swapDialogMode.value = 'swap';
-  swapDialogMobilityMode.value = true;
-  swapDialogSessionId.value = payload.sessionId;
-  swapDialogBlockId.value = payload.blockId;
-  swapDialogBlockRoute.value = payload.blockRoute;
-  swapDialogBlockPattern.value = '';
-  swapDialogExercise.value = {
-    id: 0,
-    exerciseId: 0,
-    exerciseName: '',
-    contraction: '',
-    reps: null,
-    repsMax: null,
-    seconds: null,
-    secondsMax: null,
-    increment: null,
-    rest: null,
-    notes: null,
-    dificultadLineal: null,
-    sortOrder: 0,
-    route: null,
+  swapDialog.value = {
+    mode: 'swap',
+    mobilityMode: true,
+    sessionId: payload.sessionId,
+    blockId: payload.blockId,
+    blockRoute: payload.blockRoute,
+    blockPattern: '',
+    exercise: createEmptyExercise(),
   };
-  swapDialogOpen.value = true;
 }
 
 async function onUpdateMobilityPrescription(payload: {
@@ -548,8 +449,12 @@ async function onUpdateMobilityPrescription(payload: {
   }
 }
 
+function onSwapDialogClose() {
+  swapDialog.value = null;
+}
+
 function onDialogComplete() {
-  swapDialogOpen.value = false;
+  swapDialog.value = null;
   refreshDay(preDialogScrollY.value);
 }
 

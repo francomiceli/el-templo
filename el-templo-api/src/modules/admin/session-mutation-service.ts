@@ -12,6 +12,11 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, asc, desc, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
+import {
+  revertToPendingIfApproved,
+  logEdit,
+  PENDING_REVIEW_RESET,
+} from "./session-edit-helpers";
 import type {
   AddExerciseParams,
   RemoveExerciseParams,
@@ -108,8 +113,8 @@ export class SessionMutationService {
       .where(eq(schema.sessionBlocks.id, blockId));
 
     // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "exercise_add");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "exercise_add");
 
     return {
       id: insertResult.insertId,
@@ -132,14 +137,31 @@ export class SessionMutationService {
   async removeExercise(params: RemoveExerciseParams) {
     const { sessionId, blockId, prescriptionId, userId } = params;
 
-    // Get the prescription to know its sortOrder
+    // Verify block belongs to session
+    const [block] = await this.db
+      .select({ id: schema.sessionBlocks.id })
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
+    if (!block) throw new Error("Bloque no encontrado en esta sesion");
+
+    // Get the prescription, validating it belongs to the block
     const [prescription] = await this.db
       .select()
       .from(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
+      .where(
+        and(
+          eq(schema.sessionPrescriptions.id, prescriptionId),
+          eq(schema.sessionPrescriptions.blockId, blockId),
+        ),
+      );
 
     if (!prescription) {
-      throw new Error("Prescripcion no encontrada");
+      throw new Error("Prescripcion no encontrada en este bloque");
     }
 
     // Delete the prescription
@@ -172,8 +194,8 @@ export class SessionMutationService {
       .where(eq(schema.sessionBlocks.id, blockId));
 
     // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "exercise_remove");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "exercise_remove");
   }
 
   // =========================================================================
@@ -220,8 +242,8 @@ export class SessionMutationService {
       .set({ sortOrder: current.sortOrder })
       .where(eq(schema.sessionPrescriptions.id, neighbor.id));
 
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "exercise_reorder");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "exercise_reorder");
   }
 
   // =========================================================================
@@ -263,8 +285,8 @@ export class SessionMutationService {
       .where(eq(schema.sessionBlocks.id, blockId));
 
     // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "block_role_change");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "block_role_change");
 
     return { blockId, role };
   }
@@ -276,7 +298,7 @@ export class SessionMutationService {
   async resetToAlgorithm(params: ResetToAlgorithmParams) {
     const { sessionId, userId } = params;
 
-    // Get session with snapshot
+    // Get session with snapshot (outside transaction — read-only validation)
     const [session] = await this.db
       .select({
         id: schema.sessions.id,
@@ -297,97 +319,66 @@ export class SessionMutationService {
 
     const snapshot = session.algorithmSnapshot as AlgorithmSnapshot;
 
-    // Delete all existing blocks for this session (cascade handles prescriptions)
-    await this.db
-      .delete(schema.sessionBlocks)
-      .where(eq(schema.sessionBlocks.sessionId, sessionId));
+    // Wrap DELETE + INSERT in a transaction to prevent corrupt state on partial failure
+    await this.db.transaction(async (tx) => {
+      // Delete all existing blocks for this session (cascade handles prescriptions)
+      await tx
+        .delete(schema.sessionBlocks)
+        .where(eq(schema.sessionBlocks.sessionId, sessionId));
 
-    // Re-insert blocks and prescriptions from snapshot
-    for (const snapshotBlock of snapshot.blocks) {
-      const [blockInsert] = await this.db.insert(schema.sessionBlocks).values({
-        sessionId,
-        blockId: snapshotBlock.blockId,
-        role: snapshotBlock.role,
-        route: snapshotBlock.route,
-        pattern: snapshotBlock.pattern,
-        intensity: snapshotBlock.intensity,
-        repsBudget: snapshotBlock.repsBudget,
-        formatId: snapshotBlock.formatId,
-        formatName: snapshotBlock.formatName,
-        exerciseCount: snapshotBlock.exerciseCount,
-        sortOrder: snapshotBlock.sortOrder,
-      });
+      // Re-insert blocks and prescriptions from snapshot
+      for (const snapshotBlock of snapshot.blocks) {
+        const [blockInsert] = await tx.insert(schema.sessionBlocks).values({
+          sessionId,
+          blockId: snapshotBlock.blockId,
+          role: snapshotBlock.role,
+          route: snapshotBlock.route,
+          pattern: snapshotBlock.pattern,
+          intensity: snapshotBlock.intensity,
+          repsBudget: snapshotBlock.repsBudget,
+          formatId: snapshotBlock.formatId,
+          formatName: snapshotBlock.formatName,
+          exerciseCount: snapshotBlock.exerciseCount,
+          sortOrder: snapshotBlock.sortOrder,
+        });
 
-      const newBlockId = blockInsert.insertId;
+        const newBlockId = blockInsert.insertId;
 
-      // Insert prescriptions for this block
-      if (snapshotBlock.exercises.length > 0) {
-        await this.db.insert(schema.sessionPrescriptions).values(
-          snapshotBlock.exercises.map((ex) => ({
-            blockId: newBlockId,
-            exerciseId: ex.exerciseId,
-            exerciseName: ex.exerciseName,
-            contraction: ex.contraction,
-            reps: ex.reps,
-            seconds: ex.seconds,
-            rest: ex.rest,
-            notes: ex.notes,
-            difficulty: ex.difficulty,
-            sortOrder: ex.sortOrder,
-            exerciseType: ex.exerciseType || "main", // Backward compat for old snapshots
-          })),
-        );
+        // Insert prescriptions for this block
+        if (snapshotBlock.exercises.length > 0) {
+          await tx.insert(schema.sessionPrescriptions).values(
+            snapshotBlock.exercises.map((ex) => ({
+              blockId: newBlockId,
+              exerciseId: ex.exerciseId,
+              exerciseName: ex.exerciseName,
+              contraction: ex.contraction,
+              reps: ex.reps,
+              seconds: ex.seconds,
+              rest: ex.rest,
+              notes: ex.notes,
+              difficulty: ex.difficulty,
+              sortOrder: ex.sortOrder,
+              exerciseType: ex.exerciseType || "main", // Backward compat for old snapshots
+            })),
+          );
+        }
       }
-    }
 
-    // Update session: reset status and block count
-    await this.db
-      .update(schema.sessions)
-      .set({
-        status: "pending_review",
-        blockCount: snapshot.blocks.length,
-        approvedAt: null,
-        approvedBy: null,
-        approvedBySystem: false,
-      })
-      .where(eq(schema.sessions.id, sessionId));
-
-    // Log the reset action
-    await this.logEdit(sessionId, userId, "reset_to_algorithm");
-  }
-
-  // =========================================================================
-  // Helpers (shared with other services via composition)
-  // =========================================================================
-
-  async revertToPendingIfApproved(sessionId: number): Promise<void> {
-    const [session] = await this.db
-      .select({ status: schema.sessions.status })
-      .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-
-    if (session?.status === "approved") {
-      await this.db
+      // Update session: reset status and block count
+      await tx
         .update(schema.sessions)
         .set({
-          status: "pending_review",
-          approvedAt: null,
-          approvedBy: null,
-          approvedBySystem: false,
+          ...PENDING_REVIEW_RESET,
+          blockCount: snapshot.blocks.length,
         })
         .where(eq(schema.sessions.id, sessionId));
-    }
-  }
 
-  async logEdit(
-    sessionId: number,
-    userId: number,
-    action: string,
-  ): Promise<void> {
-    await this.db.insert(schema.sessionEditLogs).values({
-      sessionId,
-      userId,
-      action,
+      // Log the reset action
+      await tx.insert(schema.sessionEditLogs).values({
+        sessionId,
+        userId,
+        action: "reset_to_algorithm",
+      });
     });
   }
 }

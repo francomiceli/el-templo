@@ -5,9 +5,12 @@ export type EditAction =
   | "exercise_swap"
   | "prescription_edit"
   | "format_change"
+  | "format_params_update"
   | "exercise_add"
   | "exercise_remove"
   | "exercise_reorder"
+  | "block_role_change"
+  | "mobility_swap"
   | "reset_to_algorithm"
   | "status_change";
 

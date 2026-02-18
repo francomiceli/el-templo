@@ -11,20 +11,22 @@
  * Output: BlockContextComplete (adds prescriptions array)
  */
 
-import type { BlockContextWithExercises, BlockContextComplete } from './context';
-import type { ExercisePrescription } from '../types';
-import { createTraceEvent, appendTrace } from './context';
-import { prescribeByFormat } from './format-prescribers';
+import type {
+  BlockContextWithExercises,
+  BlockContextComplete,
+} from "./context";
+import type { ExercisePrescription } from "../types";
+import { createTraceEvent, appendTrace } from "./context";
+import { prescribeByFormat } from "./format-prescribers";
 import {
-  roundToNearest5,
   calculateInverseDifficultyWeights,
-  MIN_REPS_PER_EXERCISE,
-} from './utils/reps-calculator';
-import { REST_TIMES, ISO_SECONDS } from './utils/constants';
-import { getDefaultFormatParams } from '../../admin/format-params';
+  allocateRepsRounded,
+} from "./utils/reps-calculator";
+import { REST_TIMES, ISO_SECONDS } from "./utils/constants";
+import { getDefaultFormatParams } from "../../admin/format-params";
 
 /** Calculate rest time based on intensity (lower intensity = shorter rest) */
-function calculateRest(intensity: number): number {
+export function calculateRest(intensity: number): number {
   // Rest ranges from 30s (low intensity) to 90s (high intensity)
   if (intensity <= 30) return REST_TIMES.WARMUP;
   if (intensity <= 50) return REST_TIMES.SHORT;
@@ -47,7 +49,7 @@ function calculateRest(intensity: number): number {
  * @returns Complete context with prescriptions
  */
 export function generatePrescriptions(
-  ctx: BlockContextWithExercises
+  ctx: BlockContextWithExercises,
 ): BlockContextComplete {
   const { exercises, repsBudget, intensity, format } = ctx;
   const exerciseCount = exercises.length;
@@ -56,13 +58,13 @@ export function generatePrescriptions(
     // No exercises to prescribe (edge case)
     const traceEvent = createTraceEvent(
       ctx,
-      'PRESCRIPTIONS_GENERATED',
-      'WARNING',
+      "PRESCRIPTIONS_GENERATED",
+      "WARNING",
       {
         exerciseCount: 0,
         repsBudget,
-        message: 'No exercises to prescribe',
-      }
+        message: "No exercises to prescribe",
+      },
     );
 
     // Even with no exercises, populate formatParams for consistency
@@ -92,15 +94,15 @@ export function generatePrescriptions(
     // Format-specific logic was applied
     const traceEvent = createTraceEvent(
       ctx,
-      'PRESCRIPTIONS_GENERATED',
-      'INFO',
+      "PRESCRIPTIONS_GENERATED",
+      "INFO",
       {
         exerciseCount: formatPrescriptions.length,
         repsBudget,
         format: format.name,
-        distributionMethod: 'format_specific',
+        distributionMethod: "format_specific",
         restTime,
-      }
+      },
     );
 
     // Generate format parameters for this block
@@ -118,64 +120,38 @@ export function generatePrescriptions(
 
   // Fall back to standard inverse difficulty distribution
   const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
-  // Get non-ISO exercise indices
-  const nonIsoIndices = exercises
-    .map((ex, i) => ex.contraction !== 'ISO' ? i : -1)
-    .filter(i => i >= 0);
+  const prescriptions: ExercisePrescription[] = exercises.map(
+    (exercise, index) => {
+      // ISO exercises use seconds instead of reps
+      const isIsometric = exercise.contraction === "ISO";
 
-  // Allocate reps: round to nearest 5, apply minimum, then adjust last to match budget
-  let repsAllocation = weights.map((weight, i) => {
-    if (exercises[i].contraction === 'ISO') return 0; // ISO uses seconds, not reps
-    const raw = repsBudget * weight;
-    const rounded = roundToNearest5(raw);
-    return Math.max(rounded, MIN_REPS_PER_EXERCISE);
-  });
-
-  // Adjust last non-ISO exercise to match budget exactly
-  if (nonIsoIndices.length > 0) {
-    const currentTotal = repsAllocation.reduce((sum, r) => sum + r, 0);
-    const lastNonIso = nonIsoIndices[nonIsoIndices.length - 1];
-    repsAllocation[lastNonIso] += repsBudget - currentTotal;
-    // Ensure minimum
-    if (repsAllocation[lastNonIso] < MIN_REPS_PER_EXERCISE) {
-      repsAllocation[lastNonIso] = MIN_REPS_PER_EXERCISE;
-    }
-  }
-
-  const prescriptions: ExercisePrescription[] = exercises.map((exercise, index) => {
-    // ISO exercises use seconds instead of reps
-    const isIsometric = exercise.contraction === 'ISO';
-
-    return {
-      exerciseId: exercise.exerciseId,
-      name: exercise.name,
-      contraction: exercise.contraction,
-      reps: isIsometric ? 0 : repsAllocation[index],
-      seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
-      rest: restTime,
-      dificultadLineal: exercise.difficulty, // Carry over for validation and display
-    };
-  });
-
-  const traceEvent = createTraceEvent(
-    ctx,
-    'PRESCRIPTIONS_GENERATED',
-    'INFO',
-    {
-      exerciseCount,
-      repsBudget,
-      format: format.name,
-      distributionMethod: 'inverse_difficulty',
-      weights: weights.map((w, i) => ({
-        exerciseId: exercises[i].exerciseId,
-        difficulty: exercises[i].difficulty,
-        weight: Math.round(w * 100) + '%',
-        reps: repsAllocation[i],
-      })),
-      restTime,
-    }
+      return {
+        exerciseId: exercise.exerciseId,
+        name: exercise.name,
+        contraction: exercise.contraction,
+        reps: isIsometric ? 0 : repsAllocation[index],
+        seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
+        rest: restTime,
+        dificultadLineal: exercise.difficulty, // Carry over for validation and display
+      };
+    },
   );
+
+  const traceEvent = createTraceEvent(ctx, "PRESCRIPTIONS_GENERATED", "INFO", {
+    exerciseCount,
+    repsBudget,
+    format: format.name,
+    distributionMethod: "inverse_difficulty",
+    weights: weights.map((w, i) => ({
+      exerciseId: exercises[i].exerciseId,
+      difficulty: exercises[i].difficulty,
+      weight: Math.round(w * 100) + "%",
+      reps: repsAllocation[i],
+    })),
+    restTime,
+  });
 
   // Generate format parameters for this block
   const formatParams = getDefaultFormatParams(format.name, {

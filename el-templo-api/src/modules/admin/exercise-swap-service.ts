@@ -11,10 +11,11 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, like, lte, asc } from "drizzle-orm";
+import { eq, and, or, like, lte, asc, notInArray } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { ROUTE_TO_MOBILITY_ROUTES } from "../sessions/pipeline/utils/mobility-routes";
+import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
 import type {
   ExercisePoolParams,
   ExercisePoolItem,
@@ -168,6 +169,10 @@ export class ExerciseSwapService {
       conditions.push(eq(schema.exercises.effort, contraction.toUpperCase()));
     }
 
+    if (excludeExerciseIds.length > 0) {
+      conditions.push(notInArray(schema.exercises.id, excludeExerciseIds));
+    }
+
     const results = await this.db
       .select({
         id: schema.exercises.id,
@@ -184,12 +189,7 @@ export class ExerciseSwapService {
       .orderBy(asc(schema.exercises.exercise))
       .limit(limit);
 
-    let filtered = results;
-    if (excludeExerciseIds.length > 0) {
-      filtered = results.filter((ex) => !excludeExerciseIds.includes(ex.id));
-    }
-
-    return filtered.map((ex) => ({
+    return results.map((ex) => ({
       ...ex,
       patternSource: "pattern_1" as const,
     }));
@@ -281,8 +281,8 @@ export class ExerciseSwapService {
       .where(eq(schema.sessionPrescriptions.id, oldPrescriptionId));
 
     // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "exercise_swap");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "exercise_swap");
 
     // Return updated prescription data
     return {
@@ -415,8 +415,8 @@ export class ExerciseSwapService {
       .where(eq(schema.sessionPrescriptions.id, currentMobility.id));
 
     // Auto-revert and log
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "mobility_swap");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "mobility_swap");
 
     return {
       id: currentMobility.id,
@@ -431,40 +431,5 @@ export class ExerciseSwapService {
       sortOrder: currentMobility.sortOrder,
       exerciseType: "mobility",
     };
-  }
-
-  // =========================================================================
-  // Helpers
-  // =========================================================================
-
-  private async revertToPendingIfApproved(sessionId: number): Promise<void> {
-    const [session] = await this.db
-      .select({ status: schema.sessions.status })
-      .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-
-    if (session?.status === "approved") {
-      await this.db
-        .update(schema.sessions)
-        .set({
-          status: "pending_review",
-          approvedAt: null,
-          approvedBy: null,
-          approvedBySystem: false,
-        })
-        .where(eq(schema.sessions.id, sessionId));
-    }
-  }
-
-  private async logEdit(
-    sessionId: number,
-    userId: number,
-    action: string,
-  ): Promise<void> {
-    await this.db.insert(schema.sessionEditLogs).values({
-      sessionId,
-      userId,
-      action,
-    });
   }
 }

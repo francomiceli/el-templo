@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import axios from 'axios';
 import { api } from 'src/boot/axios';
 import type {
   SessionFilter,
@@ -6,6 +7,15 @@ import type {
   SessionDetail,
   PoolBlocksResponse,
 } from 'src/types/session';
+
+function extractError(err: unknown, fallback: string): string {
+  if (axios.isAxiosError(err)) {
+    const message = err.response?.data?.error;
+    if (typeof message === 'string') return message;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
 
 export function useSessionsApi() {
   const loading = ref(false);
@@ -20,8 +30,7 @@ export function useSessionsApi() {
       });
       return data;
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      error.value = axiosError.response?.data?.error || 'Error cargando sesiones';
+      error.value = extractError(err, 'Error cargando sesiones');
       throw err;
     } finally {
       loading.value = false;
@@ -35,8 +44,7 @@ export function useSessionsApi() {
       const { data } = await api.get<SessionDetail>(`/admin/sessions/${id}`);
       return data;
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      error.value = axiosError.response?.data?.error || 'Error cargando sesion';
+      error.value = extractError(err, 'Error cargando sesion');
       throw err;
     } finally {
       loading.value = false;
@@ -52,23 +60,29 @@ export function useSessionsApi() {
   }
 
   async function bulkApprove(ids: number[]): Promise<{ approvedCount: number }> {
-    const { data } = await api.post<{ approvedCount: number }>('/admin/sessions/bulk-approve', { ids });
+    const { data } = await api.post<{ approvedCount: number }>('/admin/sessions/bulk-approve', {
+      ids,
+    });
     return data;
   }
 
-  async function getPendingCount(): Promise<number> {
-    const { data } = await api.get<{ count: number }>('/admin/sessions/pending-count');
-    return data.count;
-  }
-
-  async function fetchBlockPool(route: string, memberLevel: string, excludeSessionId?: number, excludeBlockId?: number): Promise<PoolBlocksResponse> {
+  async function fetchBlockPool(
+    route: string,
+    memberLevel: string,
+    excludeSessionId?: number,
+    excludeBlockId?: number
+  ): Promise<PoolBlocksResponse> {
     const { data } = await api.get<PoolBlocksResponse>('/admin/blocks/pool', {
       params: { route, memberLevel, excludeSessionId, excludeBlockId },
     });
     return data;
   }
 
-  async function swapBlock(sessionId: number, blockId: number, sourceBlockId: number): Promise<void> {
+  async function swapBlock(
+    sessionId: number,
+    blockId: number,
+    sourceBlockId: number
+  ): Promise<void> {
     await api.post(`/admin/sessions/${sessionId}/blocks/${blockId}/swap`, { sourceBlockId });
   }
 
@@ -80,7 +94,6 @@ export function useSessionsApi() {
     approveSession,
     revertSession,
     bulkApprove,
-    getPendingCount,
     fetchBlockPool,
     swapBlock,
   };

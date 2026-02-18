@@ -21,6 +21,11 @@ export interface GenerateResult {
 export function useGenerateApi() {
   const loading = ref(false);
 
+  async function getCurrentWeek(): Promise<number> {
+    const { data } = await api.get<{ currentWeek: number }>('/admin/sessions/coverage');
+    return data.currentWeek;
+  }
+
   async function getWeekSummary(week: number): Promise<WeekSummary> {
     const { data } = await api.get<WeekSummary>(`/admin/weeks/${week}/summary`);
     return data;
@@ -43,5 +48,5 @@ export function useGenerateApi() {
     }
   }
 
-  return { loading, getWeekSummary, generateWeek };
+  return { loading, getCurrentWeek, getWeekSummary, generateWeek };
 }

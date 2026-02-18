@@ -47,6 +47,10 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { SessionExercise } from 'src/types/session';
+import {
+  normalizeContraction,
+  contractionColor as getContractionColor,
+} from 'src/utils/contraction-helpers';
 
 const props = defineProps<{
   exercise: SessionExercise;
@@ -59,35 +63,6 @@ const deathBySeq = computed(() => {
   return `${start} - ${start + inc} - ${start + inc * 2} - ...`;
 });
 
-const contractionLabel = computed(() => {
-  switch (props.exercise.contraction?.toLowerCase()) {
-    case 'con':
-    case 'concentrico':
-      return 'CON';
-    case 'exc':
-    case 'excentrico':
-      return 'EXC';
-    case 'iso':
-    case 'isometrico':
-      return 'ISO';
-    default:
-      return props.exercise.contraction || '-';
-  }
-});
-
-const contractionColor = computed(() => {
-  switch (props.exercise.contraction?.toLowerCase()) {
-    case 'con':
-    case 'concentrico':
-      return 'blue-grey';
-    case 'exc':
-    case 'excentrico':
-      return 'teal';
-    case 'iso':
-    case 'isometrico':
-      return 'orange';
-    default:
-      return 'grey';
-  }
-});
+const contractionLabel = computed(() => normalizeContraction(props.exercise.contraction) || '-');
+const contractionColor = computed(() => getContractionColor(props.exercise.contraction));
 </script>

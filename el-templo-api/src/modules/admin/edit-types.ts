@@ -115,9 +115,27 @@ export interface SaveBlockParams {
   userId: number;
 }
 
+export interface SavedBlockExercise {
+  exerciseId: number;
+  exerciseName: string;
+  contraction: string;
+  reps: number;
+  seconds: number;
+  rest: number;
+  notes: string | null;
+  effort: string;
+  dificultadLineal: number | null;
+  sortOrder: number;
+}
+
 export interface SavedBlockData {
-  exercises?: unknown[];
-  [key: string]: unknown;
+  role: string;
+  route: string;
+  formatName: string;
+  formatParams: unknown;
+  intensity: number;
+  repsBudget: number;
+  exercises: SavedBlockExercise[];
 }
 
 export interface SavedBlockItem {

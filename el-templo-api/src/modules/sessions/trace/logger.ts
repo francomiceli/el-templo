@@ -5,8 +5,7 @@
  * for tracing session generation decisions.
  */
 
-import pino from 'pino';
-import type { TraceWhere } from './types';
+import pino from "pino";
 
 /**
  * Base session logger with common configuration
@@ -16,7 +15,7 @@ import type { TraceWhere } from './types';
  * - Outputs JSON in production for machine parsing
  */
 export const sessionLogger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || "info",
   formatters: {
     level: (label) => ({ level: label.toUpperCase() }),
   },
@@ -25,30 +24,10 @@ export const sessionLogger = pino({
   redact: [],
   // Use pino-pretty in development
   transport:
-    process.env.NODE_ENV === 'development'
-      ? { target: 'pino-pretty', options: { colorize: true } }
+    process.env.NODE_ENV === "development"
+      ? { target: "pino-pretty", options: { colorize: true } }
       : undefined,
 });
-
-/**
- * Create child logger with block context
- *
- * All log entries from this logger will include block-level context
- * for easy filtering and correlation.
- *
- * @param where - Block location context
- * @returns Child logger with block context
- */
-export function createBlockLogger(where: TraceWhere) {
-  return sessionLogger.child({
-    weekId: where.weekId,
-    dayId: where.dayId,
-    levelGroup: where.levelGroup,
-    blockId: where.blockId,
-    blockRole: where.blockRole,
-    component: 'block-pipeline',
-  });
-}
 
 /**
  * Create child logger with session context
@@ -61,11 +40,15 @@ export function createBlockLogger(where: TraceWhere) {
  * @param levelGroup - Level group identifier
  * @returns Child logger with session context
  */
-export function createSessionLogger(weekId: number, dayId: string, levelGroup: string) {
+export function createSessionLogger(
+  weekId: number,
+  dayId: string,
+  levelGroup: string,
+) {
   return sessionLogger.child({
     weekId,
     dayId,
     levelGroup,
-    component: 'session-generator',
+    component: "session-generator",
   });
 }

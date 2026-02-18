@@ -166,75 +166,17 @@
             </div>
 
             <q-list v-else dense separator bordered class="rounded-borders exercise-pool-list">
-              <q-item
+              <exercise-pool-item
                 v-for="ex in displayedExercises"
                 :key="ex.id"
-                clickable
-                :disable="swapping"
-                @click="handleAction(ex)"
-                class="exercise-item"
-              >
-                <q-item-section>
-                  <q-item-label class="text-weight-medium text-body2">
-                    {{ ex.exercise }}
-                  </q-item-label>
-                  <q-item-label caption>
-                    <q-badge :color="contractionColor(ex.effort)" class="q-mr-xs">
-                      {{ contractionLabel(ex.effort) }}
-                    </q-badge>
-                    <q-badge outline color="grey-7" class="q-mr-xs">
-                      Dif: {{ ex.dificultadLineal }}
-                    </q-badge>
-                    <q-badge
-                      v-if="mobilityMode"
-                      :color="ex.patternSource === 'pattern_1' ? 'green' : 'grey-5'"
-                      text-color="white"
-                      class="q-mr-xs"
-                    >
-                      {{ ex.route }}
-                    </q-badge>
-                    <q-badge
-                      v-if="!mobilityMode"
-                      :color="ex.patternSource === 'pattern_2' ? 'deep-orange' : 'green'"
-                      text-color="white"
-                      class="q-mr-xs"
-                    >
-                      {{ ex.route }}
-                    </q-badge>
-                    <q-icon
-                      v-if="ex.videoUrl"
-                      name="videocam"
-                      size="14px"
-                      color="green-7"
-                      class="q-ml-xs"
-                    >
-                      <q-tooltip>Tiene video</q-tooltip>
-                    </q-icon>
-                  </q-item-label>
-                </q-item-section>
-
-                <q-item-section side>
-                  <q-spinner-dots v-if="swappingId === ex.id" size="24px" color="primary" />
-                  <q-btn
-                    v-else
-                    flat
-                    dense
-                    round
-                    :icon="isAddMode ? 'add_circle' : 'swap_horiz'"
-                    color="primary"
-                    :disable="swapping"
-                    @click.stop="handleAction(ex)"
-                  >
-                    <q-tooltip>{{
-                      isAddMode
-                        ? 'Agregar este ejercicio'
-                        : mobilityMode
-                          ? 'Usar este ejercicio de movilidad'
-                          : 'Reemplazar con este ejercicio'
-                    }}</q-tooltip>
-                  </q-btn>
-                </q-item-section>
-              </q-item>
+                :exercise="ex"
+                :is-add-mode="isAddMode"
+                :mobility-mode="mobilityMode"
+                :disabled="swapping"
+                :show-spinner="swappingId === ex.id"
+                show-pattern-badge
+                @select="handleAction(ex)"
+              />
             </q-list>
           </q-card-section>
         </template>
@@ -289,58 +231,16 @@
 
             <!-- Results list -->
             <q-list v-else dense separator bordered class="rounded-borders exercise-pool-list">
-              <q-item
+              <exercise-pool-item
                 v-for="ex in dbSearchResults"
                 :key="'db-' + ex.id"
-                clickable
-                :disable="swapping"
-                @click="handleAction(ex)"
-                class="exercise-item"
-              >
-                <q-item-section>
-                  <q-item-label class="text-weight-medium text-body2">
-                    {{ ex.exercise }}
-                  </q-item-label>
-                  <q-item-label caption>
-                    <q-badge :color="contractionColor(ex.effort)" class="q-mr-xs">
-                      {{ contractionLabel(ex.effort) }}
-                    </q-badge>
-                    <q-badge outline color="grey-7" class="q-mr-xs">
-                      Dif: {{ ex.dificultadLineal }}
-                    </q-badge>
-                    <q-badge color="grey-6" text-color="white" class="q-mr-xs">
-                      {{ ex.route }}
-                    </q-badge>
-                    <q-icon
-                      v-if="ex.videoUrl"
-                      name="videocam"
-                      size="14px"
-                      color="green-7"
-                      class="q-ml-xs"
-                    >
-                      <q-tooltip>Tiene video</q-tooltip>
-                    </q-icon>
-                  </q-item-label>
-                </q-item-section>
-
-                <q-item-section side>
-                  <q-spinner-dots v-if="swappingId === ex.id" size="24px" color="primary" />
-                  <q-btn
-                    v-else
-                    flat
-                    dense
-                    round
-                    :icon="isAddMode ? 'add_circle' : 'swap_horiz'"
-                    color="primary"
-                    :disable="swapping"
-                    @click.stop="handleAction(ex)"
-                  >
-                    <q-tooltip>{{
-                      isAddMode ? 'Agregar este ejercicio' : 'Reemplazar con este ejercicio'
-                    }}</q-tooltip>
-                  </q-btn>
-                </q-item-section>
-              </q-item>
+                :exercise="ex"
+                :is-add-mode="isAddMode"
+                :mobility-mode="false"
+                :disabled="swapping"
+                :show-spinner="swappingId === ex.id"
+                @select="handleAction(ex)"
+              />
             </q-list>
           </q-card-section>
         </template>
@@ -354,6 +254,12 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useEditApi } from 'src/composables/useEditApi';
 import type { SessionExercise, PoolExercise } from 'src/types/session';
+import {
+  normalizeContraction,
+  contractionLabel,
+  contractionColor,
+} from 'src/utils/contraction-helpers';
+import ExercisePoolItem from './ExercisePoolItem.vue';
 
 interface PoolExerciseWithSource extends PoolExercise {
   patternSource: 'pattern_1' | 'pattern_2';
@@ -610,51 +516,12 @@ async function handleAction(exercise: PoolExerciseWithSource) {
     swappingId.value = null;
   }
 }
-
-// ── Helpers ──
-
-function normalizeContraction(contraction: string | null | undefined): string {
-  switch (contraction?.toUpperCase()) {
-    case 'CON':
-    case 'CONCENTRICO':
-      return 'CON';
-    case 'EXC':
-    case 'EXCENTRICO':
-      return 'EXC';
-    case 'ISO':
-    case 'ISOMETRICO':
-      return 'ISO';
-    default:
-      return contraction?.toUpperCase() || '';
-  }
-}
-
-function contractionLabel(contraction: string | null | undefined): string {
-  return normalizeContraction(contraction) || '-';
-}
-
-function contractionColor(contraction: string | null | undefined): string {
-  switch (normalizeContraction(contraction)) {
-    case 'CON':
-      return 'blue-grey';
-    case 'EXC':
-      return 'teal';
-    case 'ISO':
-      return 'orange';
-    default:
-      return 'grey';
-  }
-}
 </script>
 
 <style scoped>
 .exercise-pool-list {
   max-height: 250px;
   overflow-y: auto;
-}
-.exercise-item {
-  padding-top: 6px;
-  padding-bottom: 6px;
 }
 .section-toggle {
   border: 1px solid rgba(0, 0, 0, 0.12);

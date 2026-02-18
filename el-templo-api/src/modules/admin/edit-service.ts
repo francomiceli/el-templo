@@ -18,12 +18,14 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, gt, asc, desc, sql } from "drizzle-orm";
+import { eq, and, gt, asc, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { getDefaultFormatParams } from "./format-params";
+import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
 import { ExerciseSwapService } from "./exercise-swap-service";
 import { SessionMutationService } from "./session-mutation-service";
+import { parseDayId, LEVEL_DIFFICULTY_MAP } from "../shared/training-constants";
 import type {
   ExercisePoolParams,
   ExercisePoolItem,
@@ -137,10 +139,135 @@ export class AdminEditService {
     return this.mutationService.resetToAlgorithm(params);
   }
 
+  // === Route-level business logic (extracted from routes — L13) ===
+
+  /**
+   * Get exercise pool for a block, handling block lookup, exclusion,
+   * SPOM pattern2 resolution, and difficulty cap.
+   */
+  async getExercisePoolForBlock(params: {
+    blockId: number;
+    route: string;
+    contraction?: string;
+    pattern?: string;
+  }): Promise<ExercisePoolItem[]> {
+    const { blockId, route, contraction, pattern: queryPattern } = params;
+
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(eq(schema.sessionBlocks.id, blockId));
+    if (!block) throw new Error("Bloque no encontrado");
+
+    // Get existing exercise IDs (unless format allows duplicates)
+    const allowDuplicates = /buy[\s-]?in/i.test(block.formatName);
+    let excludeExerciseIds: number[] = [];
+    if (!allowDuplicates) {
+      const prescriptions = await this.db
+        .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+        .from(schema.sessionPrescriptions)
+        .where(eq(schema.sessionPrescriptions.blockId, blockId));
+      excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+    }
+
+    // Resolve pattern2 from SPOM rules and difficulty cap from member level
+    let pattern2: string | null = null;
+    let maxDifficulty: number | undefined;
+    const [session] = await this.db
+      .select({ week: schema.sessions.week, dayId: schema.sessions.dayId })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, block.sessionId));
+
+    if (session) {
+      const { level: memberLevel } = parseDayId(session.dayId);
+      maxDifficulty = LEVEL_DIFFICULTY_MAP[memberLevel];
+
+      const [routeRow] = await this.db
+        .select({ id: schema.routes.id })
+        .from(schema.routes)
+        .where(eq(schema.routes.code, route));
+
+      if (routeRow) {
+        const [spomRule] = await this.db
+          .select({ pattern2: schema.spomRules.pattern2 })
+          .from(schema.spomRules)
+          .where(
+            and(
+              eq(schema.spomRules.week, session.week),
+              eq(schema.spomRules.routeId, routeRow.id),
+            ),
+          );
+        if (spomRule) {
+          pattern2 = spomRule.pattern2 ?? null;
+        }
+      }
+    }
+
+    return this.swapService.getExercisePool({
+      blockId,
+      contraction,
+      route,
+      pattern: queryPattern || block.pattern,
+      pattern2,
+      blockRole: block.role,
+      excludeExerciseIds,
+      maxDifficulty,
+    });
+  }
+
+  /**
+   * Search exercises by name, handling format-based duplicate exclusion.
+   */
+  async searchExercisesForBlock(params: {
+    query: string;
+    contraction?: string;
+    blockId?: number;
+    limit: number;
+  }): Promise<ExercisePoolItem[]> {
+    const { query, contraction, blockId, limit } = params;
+
+    let excludeExerciseIds: number[] = [];
+    if (blockId) {
+      const [block] = await this.db
+        .select({ formatName: schema.sessionBlocks.formatName })
+        .from(schema.sessionBlocks)
+        .where(eq(schema.sessionBlocks.id, blockId));
+      const allowDuplicates = block?.formatName
+        ? /buy[\s-]?in/i.test(block.formatName)
+        : false;
+      if (!allowDuplicates) {
+        const prescriptions = await this.db
+          .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+          .from(schema.sessionPrescriptions)
+          .where(eq(schema.sessionPrescriptions.blockId, blockId));
+        excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+      }
+    }
+
+    return this.swapService.searchExercises({
+      query,
+      contraction,
+      excludeExerciseIds,
+      limit,
+    });
+  }
+
   // === Directly handled ===
 
   async updatePrescription(params: UpdatePrescriptionParams) {
-    const { sessionId, prescriptionId, userId, fields } = params;
+    const { sessionId, blockId, prescriptionId, userId, fields } = params;
+
+    // Verify block belongs to session
+    const [block] = await this.db
+      .select({ id: schema.sessionBlocks.id })
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
+    if (!block) throw new Error("Bloque no encontrado en esta sesion");
 
     const updateSet: Record<string, unknown> = {};
     if (fields.reps !== undefined) updateSet.reps = fields.reps;
@@ -156,13 +283,23 @@ export class AdminEditService {
       throw new Error("No hay campos para actualizar");
     }
 
-    await this.db
+    // Compound WHERE validates prescription belongs to the block
+    const [result] = await this.db
       .update(schema.sessionPrescriptions)
       .set(updateSet)
-      .where(eq(schema.sessionPrescriptions.id, prescriptionId));
+      .where(
+        and(
+          eq(schema.sessionPrescriptions.id, prescriptionId),
+          eq(schema.sessionPrescriptions.blockId, blockId),
+        ),
+      );
 
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "prescription_edit");
+    if (result.affectedRows === 0) {
+      throw new Error("Prescripcion no encontrada en este bloque");
+    }
+
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "prescription_edit");
 
     const [updated] = await this.db
       .select()
@@ -237,8 +374,8 @@ export class AdminEditService {
       }
     }
 
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "format_change");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "format_change");
     return this.getBlockWithExercises(blockId);
   }
 
@@ -261,8 +398,8 @@ export class AdminEditService {
       .update(schema.sessionBlocks)
       .set({ formatParams })
       .where(eq(schema.sessionBlocks.id, blockId));
-    await this.revertToPendingIfApproved(sessionId);
-    await this.logEdit(sessionId, userId, "format_params_update");
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "format_params_update");
     return { formatParams };
   }
 
@@ -439,34 +576,6 @@ export class AdminEditService {
   }
 
   // === Helpers ===
-
-  private async revertToPendingIfApproved(sessionId: number): Promise<void> {
-    const [session] = await this.db
-      .select({ status: schema.sessions.status })
-      .from(schema.sessions)
-      .where(eq(schema.sessions.id, sessionId));
-    if (session?.status === "approved") {
-      await this.db
-        .update(schema.sessions)
-        .set({
-          status: "pending_review",
-          approvedAt: null,
-          approvedBy: null,
-          approvedBySystem: false,
-        })
-        .where(eq(schema.sessions.id, sessionId));
-    }
-  }
-
-  private async logEdit(
-    sessionId: number,
-    userId: number,
-    action: string,
-  ): Promise<void> {
-    await this.db
-      .insert(schema.sessionEditLogs)
-      .values({ sessionId, userId, action });
-  }
 
   private async getBlockWithExercises(blockId: number) {
     const [block] = await this.db

@@ -1,8 +1,9 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, and, asc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
+import { parseDayId } from "../shared/training-constants";
 import {
   getSessionsSchema,
   sessionIdSchema,
@@ -30,7 +31,26 @@ import {
   searchExercisesSchema,
 } from "./schemas";
 
+import { AppError } from "../shared/errors";
+
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+
+/** Map service errors to HTTP responses with consistent status codes */
+function handleServiceError(
+  err: unknown,
+  reply: {
+    status: (code: number) => { send: (body: { error: string }) => void };
+  },
+  fallbackMessage: string,
+  fallbackStatus = 400,
+): void {
+  if (err instanceof AppError) {
+    reply.status(err.statusCode).send({ error: err.message });
+    return;
+  }
+  const message = err instanceof Error ? err.message : fallbackMessage;
+  reply.status(fallbackStatus).send({ error: message });
+}
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
@@ -227,88 +247,14 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getExercisePoolSchema,
     },
     async (request, reply) => {
-      const {
-        route,
-        contraction,
-        blockId,
-        pattern: queryPattern,
-      } = request.query;
-
-      // Look up block to get context (role, pattern, sessionId)
-      const [block] = await fastify.db
-        .select()
-        .from(schema.sessionBlocks)
-        .where(eq(schema.sessionBlocks.id, blockId));
-
-      if (!block) {
-        return reply.status(404).send({ error: "Bloque no encontrado" });
+      try {
+        const exercises = await editService.getExercisePoolForBlock(
+          request.query,
+        );
+        return { exercises };
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, "Bloque no encontrado", 404);
       }
-
-      // Get existing exercise IDs in the block to exclude from pool
-      // Skip exclusion for formats that allow duplicate exercises (e.g. Buy In Cash Out)
-      const allowDuplicates = block.formatName.toLowerCase().includes("buy-in");
-      let excludeExerciseIds: number[] = [];
-      if (!allowDuplicates) {
-        const prescriptions = await fastify.db
-          .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
-          .from(schema.sessionPrescriptions)
-          .where(eq(schema.sessionPrescriptions.blockId, blockId));
-        excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
-      }
-
-      // Look up pattern2 from SPOM rules and member level for difficulty cap
-      let pattern2: string | null = null;
-      let maxDifficulty: number | undefined;
-      const [session] = await fastify.db
-        .select({ week: schema.sessions.week, dayId: schema.sessions.dayId })
-        .from(schema.sessions)
-        .where(eq(schema.sessions.id, block.sessionId));
-
-      if (session) {
-        // Extract memberLevel from dayId (format: "W1-lunes-alfa" -> "alfa")
-        const memberLevel = session.dayId.split("-").pop() || "";
-        const maxDifficultyMap: Record<string, number> = {
-          alfa: 3,
-          delta: 6,
-          sigma: 8,
-          omega: 10,
-          spartan: 12,
-        };
-        maxDifficulty = maxDifficultyMap[memberLevel];
-
-        const [routeRow] = await fastify.db
-          .select({ id: schema.routes.id })
-          .from(schema.routes)
-          .where(eq(schema.routes.code, route));
-
-        if (routeRow) {
-          const [spomRule] = await fastify.db
-            .select({ pattern2: schema.spomRules.pattern2 })
-            .from(schema.spomRules)
-            .where(
-              and(
-                eq(schema.spomRules.week, session.week),
-                eq(schema.spomRules.routeId, routeRow.id),
-              ),
-            );
-
-          if (spomRule) {
-            pattern2 = spomRule.pattern2 ?? null;
-          }
-        }
-      }
-
-      const exercises = await editService.getExercisePool({
-        blockId,
-        contraction,
-        route,
-        pattern: queryPattern || block.pattern,
-        pattern2,
-        blockRole: block.role,
-        excludeExerciseIds,
-        maxDifficulty,
-      });
-      return { exercises };
     },
   );
 
@@ -325,30 +271,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: searchExercisesSchema },
     async (request) => {
       const { q, contraction, blockId, limit = 50 } = request.query;
-
-      let excludeExerciseIds: number[] = [];
-      if (blockId) {
-        // Check if block format allows duplicate exercises (e.g. Buy In Cash Out)
-        const [block] = await fastify.db
-          .select({ formatName: schema.sessionBlocks.formatName })
-          .from(schema.sessionBlocks)
-          .where(eq(schema.sessionBlocks.id, blockId));
-        const allowDuplicates = block?.formatName
-          .toLowerCase()
-          .includes("buy in");
-        if (!allowDuplicates) {
-          const prescriptions = await fastify.db
-            .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
-            .from(schema.sessionPrescriptions)
-            .where(eq(schema.sessionPrescriptions.blockId, blockId));
-          excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
-        }
-      }
-
-      const exercises = await editService.searchExercises({
+      const exercises = await editService.searchExercisesForBlock({
         query: q,
         contraction,
-        excludeExerciseIds,
+        blockId,
         limit,
       });
       return { exercises };
@@ -375,9 +301,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -410,11 +334,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Error al actualizar prescripcion";
-        return reply.status(400).send({ error: message });
+        return handleServiceError(
+          err,
+          reply,
+          "Error al actualizar prescripcion",
+        );
       }
     },
   );
@@ -439,9 +363,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -465,9 +387,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -491,11 +411,11 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Error al cambiar rol del bloque";
-        return reply.status(400).send({ error: message });
+        return handleServiceError(
+          err,
+          reply,
+          "Error al cambiar rol del bloque",
+        );
       }
     },
   );
@@ -519,9 +439,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -544,9 +462,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return { success: true };
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -569,9 +485,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return { success: true };
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Error al reordenar";
-        return reply.status(400).send({ error: message });
+        return handleServiceError(err, reply, "Error al reordenar");
       }
     },
   );
@@ -615,9 +529,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Recurso no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Recurso no encontrado", 404);
       }
     },
   );
@@ -692,7 +604,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       // find the session for that level (same week/day)
       let sessionData = baseSession;
       if (memberLevel) {
-        const currentLevel = baseSession.dayId.split("-").pop() || "";
+        const currentLevel = parseDayId(baseSession.dayId).level;
         if (memberLevel !== currentLevel) {
           // Build target dayId: W{week}-{day}-{memberLevel}
           const parts = baseSession.dayId.split("-");
@@ -768,9 +680,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return savedBlock;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Bloque no encontrado";
-        return reply.status(404).send({ error: message });
+        return handleServiceError(err, reply, "Bloque no encontrado", 404);
       }
     },
   );

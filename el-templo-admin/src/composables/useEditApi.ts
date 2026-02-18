@@ -1,4 +1,5 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import axios from 'axios';
 import { api } from 'src/boot/axios';
 import type {
   ExercisePoolResponse,
@@ -9,8 +10,34 @@ import type {
 } from 'src/types/session';
 
 export function useEditApi() {
-  const loading = ref(false);
+  const activeRequests = ref(0);
+  const loading = computed(() => activeRequests.value > 0);
   const error = ref<string | null>(null);
+
+  function extractError(err: unknown, fallback: string): string {
+    if (axios.isAxiosError(err)) {
+      const message = err.response?.data?.error;
+      if (typeof message === 'string') return message;
+    }
+    if (err instanceof Error) return err.message;
+    return fallback;
+  }
+
+  async function apiCall<T>(
+    fn: () => Promise<T>,
+    fallbackError: string,
+    trackLoading = true
+  ): Promise<T> {
+    if (trackLoading) activeRequests.value++;
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      error.value = extractError(err, fallbackError);
+      throw err;
+    } finally {
+      if (trackLoading) activeRequests.value--;
+    }
+  }
 
   async function fetchExercisePool(params: {
     route: string;
@@ -18,20 +45,10 @@ export function useEditApi() {
     contraction?: string;
     pattern?: string;
   }): Promise<ExercisePoolResponse> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/pool', { params });
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error cargando ejercicios disponibles';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error cargando ejercicios disponibles');
   }
 
   async function searchExercises(params: {
@@ -40,14 +57,14 @@ export function useEditApi() {
     blockId?: number;
     limit?: number;
   }): Promise<ExercisePoolResponse> {
-    try {
-      const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/search', { params });
-      return data;
-    } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      error.value = axiosError.response?.data?.error || 'Error buscando ejercicios';
-      throw err;
-    }
+    return apiCall(
+      async () => {
+        const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/search', { params });
+        return data;
+      },
+      'Error buscando ejercicios',
+      false
+    );
   }
 
   async function swapExercise(
@@ -56,22 +73,15 @@ export function useEditApi() {
     prescriptionId: number,
     newExerciseId: number
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.post(
-        `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}/swap`,
-        { newExerciseId }
-      );
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al cambiar ejercicio';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .post(`/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}/swap`, {
+            newExerciseId,
+          })
+          .then(() => undefined),
+      'Error al cambiar ejercicio'
+    );
   }
 
   async function updatePrescription(
@@ -80,22 +90,16 @@ export function useEditApi() {
     prescriptionId: number,
     fields: PrescriptionUpdate
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.patch(
-        `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}`,
-        fields
-      );
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al actualizar prescripcion';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .patch(
+            `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}`,
+            fields
+          )
+          .then(() => undefined),
+      'Error al actualizar prescripcion'
+    );
   }
 
   async function changeBlockFormat(
@@ -104,22 +108,16 @@ export function useEditApi() {
     formatId: number,
     formatName: string
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.patch(`/admin/sessions/${sessionId}/blocks/${blockId}/format`, {
-        formatId,
-        formatName,
-      });
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al cambiar formato';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .patch(`/admin/sessions/${sessionId}/blocks/${blockId}/format`, {
+            formatId,
+            formatName,
+          })
+          .then(() => undefined),
+      'Error al cambiar formato'
+    );
   }
 
   async function addExercise(
@@ -127,19 +125,13 @@ export function useEditApi() {
     blockId: number,
     exerciseId: number
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.post(`/admin/sessions/${sessionId}/blocks/${blockId}/exercises`, { exerciseId });
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al agregar ejercicio';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .post(`/admin/sessions/${sessionId}/blocks/${blockId}/exercises`, { exerciseId })
+          .then(() => undefined),
+      'Error al agregar ejercicio'
+    );
   }
 
   async function removeExercise(
@@ -147,21 +139,13 @@ export function useEditApi() {
     blockId: number,
     prescriptionId: number
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.delete(
-        `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}`
-      );
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al eliminar ejercicio';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .delete(`/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}`)
+          .then(() => undefined),
+      'Error al eliminar ejercicio'
+    );
   }
 
   async function reorderExercise(
@@ -170,38 +154,23 @@ export function useEditApi() {
     prescriptionId: number,
     direction: 'up' | 'down'
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.patch(
-        `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}/reorder`,
-        { direction }
-      );
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al reordenar ejercicio';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .patch(
+            `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}/reorder`,
+            { direction }
+          )
+          .then(() => undefined),
+      'Error al reordenar ejercicio'
+    );
   }
 
   async function resetToAlgorithm(sessionId: number): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.post(`/admin/sessions/${sessionId}/reset`);
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al restaurar sesion original';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () => api.post(`/admin/sessions/${sessionId}/reset`).then(() => undefined),
+      'Error al restaurar sesion original'
+    );
   }
 
   async function fetchCompatibleFormats(params: {
@@ -209,41 +178,21 @@ export function useEditApi() {
     level: string;
     intensity: number;
   }): Promise<CompatibleFormatsResponse> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.get<CompatibleFormatsResponse>('/admin/formats/compatible', {
         params,
       });
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error cargando formatos compatibles';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error cargando formatos compatibles');
   }
 
   async function fetchPreview(sessionId: number, memberLevel?: string): Promise<SessionPreview> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.get<SessionPreview>(`/admin/sessions/${sessionId}/preview`, {
         params: memberLevel ? { memberLevel } : undefined,
       });
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error cargando vista previa';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error cargando vista previa');
   }
 
   async function updateFormatParams(
@@ -251,79 +200,32 @@ export function useEditApi() {
     blockId: number,
     formatParams: Record<string, unknown>
   ): Promise<{ formatParams: Record<string, unknown> }> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.patch<{ formatParams: Record<string, unknown> }>(
         `/admin/sessions/${sessionId}/blocks/${blockId}/format-params`,
         { formatParams }
       );
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al actualizar parametros de formato';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error al actualizar parametros de formato');
   }
 
   async function saveBlock(blockId: number, name: string): Promise<SavedBlock> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.post<SavedBlock>('/admin/saved-blocks', {
         blockId,
         name,
       });
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al guardar bloque';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function listSavedBlocks(): Promise<SavedBlock[]> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const { data } = await api.get<{ savedBlocks: SavedBlock[] }>('/admin/saved-blocks');
-      return data.savedBlocks || [];
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al cargar bloques guardados';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error al guardar bloque');
   }
 
   async function fetchMobilityPool(blockRoute: string): Promise<ExercisePoolResponse> {
-    loading.value = true;
-    error.value = null;
-    try {
+    return apiCall(async () => {
       const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/mobility-pool', {
         params: { blockRoute },
       });
       return data;
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error cargando ejercicios de movilidad';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    }, 'Error cargando ejercicios de movilidad');
   }
 
   async function swapMobilityExercise(
@@ -331,21 +233,15 @@ export function useEditApi() {
     blockId: number,
     newExerciseId: number
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.post(`/admin/sessions/${sessionId}/blocks/${blockId}/mobility/swap`, {
-        newExerciseId,
-      });
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al cambiar ejercicio de movilidad';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .post(`/admin/sessions/${sessionId}/blocks/${blockId}/mobility/swap`, {
+            newExerciseId,
+          })
+          .then(() => undefined),
+      'Error al cambiar ejercicio de movilidad'
+    );
   }
 
   async function updateBlockRole(
@@ -353,35 +249,13 @@ export function useEditApi() {
     blockId: number,
     role: 'ATHLOS' | 'EPIKOS'
   ): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.patch(`/admin/sessions/${sessionId}/blocks/${blockId}/role`, { role });
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al cambiar rol del bloque';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function deleteSavedBlock(id: number): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    try {
-      await api.delete(`/admin/saved-blocks/${id}`);
-    } catch (err: unknown) {
-      const axiosError = err as {
-        response?: { data?: { error?: string } };
-      };
-      error.value = axiosError.response?.data?.error || 'Error al eliminar bloque';
-      throw err;
-    } finally {
-      loading.value = false;
-    }
+    return apiCall(
+      () =>
+        api
+          .patch(`/admin/sessions/${sessionId}/blocks/${blockId}/role`, { role })
+          .then(() => undefined),
+      'Error al cambiar rol del bloque'
+    );
   }
 
   return {
@@ -400,8 +274,6 @@ export function useEditApi() {
     fetchPreview,
     updateFormatParams,
     saveBlock,
-    listSavedBlocks,
-    deleteSavedBlock,
     fetchMobilityPool,
     swapMobilityExercise,
     updateBlockRole,

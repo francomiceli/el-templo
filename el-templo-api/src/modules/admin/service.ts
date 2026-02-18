@@ -3,6 +3,12 @@ import { eq, and, desc, asc, inArray, count, gte, ne } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import type { SessionStatus } from "./types";
 import type { LevelGroup, ExerciseLevel } from "../sessions/types";
+import { SpomService } from "../spom/service";
+import {
+  TRAINING_DAYS,
+  DAY_OF_WEEK_MAP,
+  parseDayId,
+} from "../shared/training-constants";
 
 export interface SessionFilter {
   week?: number;
@@ -40,7 +46,11 @@ export interface AdminSessionSummary {
 }
 
 export class AdminSessionService {
-  constructor(private db: MySql2Database<typeof schema>) {}
+  private spomService: SpomService;
+
+  constructor(private db: MySql2Database<typeof schema>) {
+    this.spomService = new SpomService(db);
+  }
 
   async getSessions(filter: SessionFilter): Promise<SessionListResult> {
     const page = filter.page || 1;
@@ -135,8 +145,7 @@ export class AdminSessionService {
 
     return {
       sessions: sessions.map((s) => {
-        // Extract memberLevel from dayId (format: "W1-lunes-alfa" -> "alfa")
-        const memberLevel = s.dayId.split("-").pop() || "";
+        const memberLevel = parseDayId(s.dayId).level;
         return {
           id: s.id,
           dayId: s.dayId,
@@ -179,69 +188,82 @@ export class AdminSessionService {
       .where(eq(schema.sessionBlocks.sessionId, id))
       .orderBy(asc(schema.sessionBlocks.sortOrder));
 
-    // Get prescriptions for each block
-    const blocksWithExercises = await Promise.all(
-      blocks.map(async (block) => {
-        const prescriptions = await this.db
-          .select({
-            id: schema.sessionPrescriptions.id,
-            exerciseId: schema.sessionPrescriptions.exerciseId,
-            exerciseName: schema.sessionPrescriptions.exerciseName,
-            contraction: schema.sessionPrescriptions.contraction,
-            reps: schema.sessionPrescriptions.reps,
-            repsMax: schema.sessionPrescriptions.repsMax,
-            seconds: schema.sessionPrescriptions.seconds,
-            secondsMax: schema.sessionPrescriptions.secondsMax,
-            increment: schema.sessionPrescriptions.increment,
-            rest: schema.sessionPrescriptions.rest,
-            notes: schema.sessionPrescriptions.notes,
-            difficulty: schema.sessionPrescriptions.difficulty,
-            sortOrder: schema.sessionPrescriptions.sortOrder,
-            exerciseRoute: schema.exercises.route,
-            exerciseType: schema.sessionPrescriptions.exerciseType,
-          })
-          .from(schema.sessionPrescriptions)
-          .leftJoin(
-            schema.exercises,
-            eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
-          )
-          .where(eq(schema.sessionPrescriptions.blockId, block.id))
-          .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+    if (blocks.length === 0) {
+      const memberLevel = parseDayId(session.dayId).level;
+      return { ...session, memberLevel, blocks: [] };
+    }
 
-        // Separate main exercises from mobility
-        const mainPrescriptions = prescriptions.filter(
-          (p) => p.exerciseType !== "mobility",
-        );
-        const mobilityPrescription = prescriptions.find(
-          (p) => p.exerciseType === "mobility",
-        );
+    // Batch fetch all prescriptions for all blocks (eliminates N+1)
+    const blockIds = blocks.map((b) => b.id);
+    const allPrescriptions = await this.db
+      .select({
+        id: schema.sessionPrescriptions.id,
+        blockId: schema.sessionPrescriptions.blockId,
+        exerciseId: schema.sessionPrescriptions.exerciseId,
+        exerciseName: schema.sessionPrescriptions.exerciseName,
+        contraction: schema.sessionPrescriptions.contraction,
+        reps: schema.sessionPrescriptions.reps,
+        repsMax: schema.sessionPrescriptions.repsMax,
+        seconds: schema.sessionPrescriptions.seconds,
+        secondsMax: schema.sessionPrescriptions.secondsMax,
+        increment: schema.sessionPrescriptions.increment,
+        rest: schema.sessionPrescriptions.rest,
+        notes: schema.sessionPrescriptions.notes,
+        difficulty: schema.sessionPrescriptions.difficulty,
+        sortOrder: schema.sessionPrescriptions.sortOrder,
+        exerciseRoute: schema.exercises.route,
+        exerciseType: schema.sessionPrescriptions.exerciseType,
+      })
+      .from(schema.sessionPrescriptions)
+      .leftJoin(
+        schema.exercises,
+        eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
+      )
+      .where(inArray(schema.sessionPrescriptions.blockId, blockIds))
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-        return {
-          ...block,
-          exercises: mainPrescriptions.map((p) => ({
-            ...p,
-            dificultadLineal: p.difficulty,
-            route: p.exerciseRoute || null,
-            exerciseType: p.exerciseType,
-          })),
-          mobilityExercise: mobilityPrescription
-            ? {
-                id: mobilityPrescription.id,
-                exerciseId: mobilityPrescription.exerciseId,
-                exerciseName: mobilityPrescription.exerciseName,
-                contraction: mobilityPrescription.contraction,
-                reps: mobilityPrescription.reps,
-                seconds: mobilityPrescription.seconds,
-                rest: mobilityPrescription.rest,
-                notes: mobilityPrescription.notes,
-                exerciseType: mobilityPrescription.exerciseType,
-              }
-            : null,
-        };
-      }),
-    );
+    // Group prescriptions by blockId
+    const prescriptionsByBlock = new Map<number, typeof allPrescriptions>();
+    for (const p of allPrescriptions) {
+      const list = prescriptionsByBlock.get(p.blockId) ?? [];
+      list.push(p);
+      prescriptionsByBlock.set(p.blockId, list);
+    }
 
-    const memberLevel = session.dayId.split("-").pop() || "";
+    const blocksWithExercises = blocks.map((block) => {
+      const prescriptions = prescriptionsByBlock.get(block.id) ?? [];
+      const mainPrescriptions = prescriptions.filter(
+        (p) => p.exerciseType !== "mobility",
+      );
+      const mobilityPrescription = prescriptions.find(
+        (p) => p.exerciseType === "mobility",
+      );
+
+      return {
+        ...block,
+        exercises: mainPrescriptions.map((p) => ({
+          ...p,
+          dificultadLineal: p.difficulty,
+          route: p.exerciseRoute || null,
+          exerciseType: p.exerciseType,
+        })),
+        mobilityExercise: mobilityPrescription
+          ? {
+              id: mobilityPrescription.id,
+              exerciseId: mobilityPrescription.exerciseId,
+              exerciseName: mobilityPrescription.exerciseName,
+              contraction: mobilityPrescription.contraction,
+              reps: mobilityPrescription.reps,
+              seconds: mobilityPrescription.seconds,
+              rest: mobilityPrescription.rest,
+              notes: mobilityPrescription.notes,
+              exerciseType: mobilityPrescription.exerciseType,
+            }
+          : null,
+      };
+    });
+
+    const memberLevel = parseDayId(session.dayId).level;
     return { ...session, memberLevel, blocks: blocksWithExercises };
   }
 
@@ -316,14 +338,7 @@ export class AdminSessionService {
       .from(schema.sessions)
       .where(eq(schema.sessions.week, week));
 
-    const days = [
-      "lunes",
-      "martes",
-      "miercoles",
-      "jueves",
-      "viernes",
-      "sabado",
-    ];
+    const days = [...TRAINING_DAYS];
     const levels: LevelGroup[] = ["alfa_delta", "sigma", "omega"];
 
     return {
@@ -363,8 +378,7 @@ export class AdminSessionService {
     weeksAhead: number;
   }> {
     // Get current SPOM week
-    const [configRow] = await this.db.select().from(schema.spomConfig);
-    const currentWeek = configRow?.currentWeek || 1;
+    const currentWeek = await this.spomService.getCurrentWeek();
 
     // Get weeks that have at least one approved session (current week or later)
     const approvedWeeks = await this.db
@@ -398,25 +412,19 @@ export class AdminSessionService {
    */
   async autoApprovePendingSessions(): Promise<{ approved: number }> {
     // Get current SPOM week
-    const [configRow] = await this.db.select().from(schema.spomConfig);
-    const currentWeek = configRow?.currentWeek || 1;
+    const currentWeek = await this.spomService.getCurrentWeek();
 
-    // Calculate tomorrow's day based on branch timezone (Argentina)
+    // Calculate tomorrow's day in Argentina timezone (UTC-3)
+    // Using Intl to avoid server timezone mismatch (server may run in UTC)
+    const argTZ = "America/Argentina/Buenos_Aires";
     const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const dayOfWeek = tomorrow.getDay(); // 0=Sun, 1=Mon, ...
-    const dayMap: Record<number, string> = {
-      1: "lunes",
-      2: "martes",
-      3: "miercoles",
-      4: "jueves",
-      5: "viernes",
-      6: "sabado",
-    };
-
-    const tomorrowDay = dayMap[dayOfWeek];
+    // Get today's date string in Argentina timezone, then add 1 day
+    const argDateStr = now.toLocaleDateString("en-CA", { timeZone: argTZ }); // YYYY-MM-DD
+    const argToday = new Date(argDateStr + "T12:00:00"); // noon to avoid DST edge cases
+    argToday.setDate(argToday.getDate() + 1);
+    const dayOfWeek = argToday.getDay(); // 0=Sun, 1=Mon, ...
+    const tomorrowDay = DAY_OF_WEEK_MAP[dayOfWeek];
 
     // If Sunday (no key in dayMap), skip - no sessions on Sunday
     if (!tomorrowDay) {
@@ -462,14 +470,7 @@ export class AdminSessionService {
       regenerate?: boolean;
     },
   ): Promise<{ generated: number; skipped: number }> {
-    const days = options.days || [
-      "lunes",
-      "martes",
-      "miercoles",
-      "jueves",
-      "viernes",
-      "sabado",
-    ];
+    const days = options.days || [...TRAINING_DAYS];
     const levelGroups = options.levelGroups || ["alfa_delta", "sigma", "omega"];
 
     let generated = 0;
@@ -597,47 +598,61 @@ export class AdminSessionService {
       return blockMemberLevel === memberLevel;
     });
 
-    // Get exercises for each block
-    const result = await Promise.all(
-      filteredBlocks.map(async (block) => {
-        const exercises = await this.db
-          .select({
-            id: schema.sessionPrescriptions.id,
-            exerciseId: schema.sessionPrescriptions.exerciseId,
-            exerciseName: schema.sessionPrescriptions.exerciseName,
-            contraction: schema.sessionPrescriptions.contraction,
-            reps: schema.sessionPrescriptions.reps,
-            seconds: schema.sessionPrescriptions.seconds,
-            rest: schema.sessionPrescriptions.rest,
-            notes: schema.sessionPrescriptions.notes,
-            difficulty: schema.sessionPrescriptions.difficulty,
-            sortOrder: schema.sessionPrescriptions.sortOrder,
-          })
-          .from(schema.sessionPrescriptions)
-          .where(eq(schema.sessionPrescriptions.blockId, block.id))
-          .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+    // Batch fetch all prescriptions for filtered blocks (eliminates N+1)
+    const filteredBlockIds = filteredBlocks.map((b) => b.id);
+    const allExercises =
+      filteredBlockIds.length > 0
+        ? await this.db
+            .select({
+              id: schema.sessionPrescriptions.id,
+              blockId: schema.sessionPrescriptions.blockId,
+              exerciseId: schema.sessionPrescriptions.exerciseId,
+              exerciseName: schema.sessionPrescriptions.exerciseName,
+              contraction: schema.sessionPrescriptions.contraction,
+              reps: schema.sessionPrescriptions.reps,
+              seconds: schema.sessionPrescriptions.seconds,
+              rest: schema.sessionPrescriptions.rest,
+              notes: schema.sessionPrescriptions.notes,
+              difficulty: schema.sessionPrescriptions.difficulty,
+              sortOrder: schema.sessionPrescriptions.sortOrder,
+            })
+            .from(schema.sessionPrescriptions)
+            .where(
+              inArray(schema.sessionPrescriptions.blockId, filteredBlockIds),
+            )
+            .orderBy(asc(schema.sessionPrescriptions.sortOrder))
+        : [];
 
-        return {
-          id: block.id,
-          blockId: block.blockId,
-          role: block.role,
-          route: block.route,
-          pattern: block.pattern,
-          intensity: block.intensity,
-          repsBudget: block.repsBudget,
-          formatId: block.formatId,
-          formatName: block.formatName,
-          exerciseCount: block.exerciseCount,
-          sourceWeek: block.sessionWeek,
-          sourceDay: block.sessionDay,
-          sourceRole: block.role,
-          exercises: exercises.map((e) => ({
-            ...e,
-            dificultadLineal: e.difficulty,
-          })),
-        };
-      }),
-    );
+    // Group exercises by blockId
+    const exercisesByBlock = new Map<number, typeof allExercises>();
+    for (const e of allExercises) {
+      const list = exercisesByBlock.get(e.blockId) ?? [];
+      list.push(e);
+      exercisesByBlock.set(e.blockId, list);
+    }
+
+    const result = filteredBlocks.map((block) => {
+      const exercises = exercisesByBlock.get(block.id) ?? [];
+      return {
+        id: block.id,
+        blockId: block.blockId,
+        role: block.role,
+        route: block.route,
+        pattern: block.pattern,
+        intensity: block.intensity,
+        repsBudget: block.repsBudget,
+        formatId: block.formatId,
+        formatName: block.formatName,
+        exerciseCount: block.exerciseCount,
+        sourceWeek: block.sessionWeek,
+        sourceDay: block.sessionDay,
+        sourceRole: block.role,
+        exercises: exercises.map((e) => ({
+          ...e,
+          dificultadLineal: e.difficulty,
+        })),
+      };
+    });
 
     // Deduplicate blocks by exercise fingerprint (sorted exercise names)
     // Keep the most recent one (first in list since ordered by week DESC)
@@ -726,42 +741,45 @@ export class AdminSessionService {
       .where(eq(schema.sessionPrescriptions.blockId, sourceBlockId))
       .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
-    // Update target block with source block data (preserve sessionId, role, sortOrder)
-    await this.db
-      .update(schema.sessionBlocks)
-      .set({
-        route: sourceBlock.route,
-        pattern: sourceBlock.pattern,
-        intensity: sourceBlock.intensity,
-        repsBudget: sourceBlock.repsBudget,
-        formatId: sourceBlock.formatId,
-        formatName: sourceBlock.formatName,
-        exerciseCount: sourceBlock.exerciseCount,
-      })
-      .where(eq(schema.sessionBlocks.id, targetBlockId));
+    // Wrap UPDATE + DELETE + INSERT in a transaction to prevent corrupt state
+    await this.db.transaction(async (tx) => {
+      // Update target block with source block data (preserve sessionId, role, sortOrder)
+      await tx
+        .update(schema.sessionBlocks)
+        .set({
+          route: sourceBlock.route,
+          pattern: sourceBlock.pattern,
+          intensity: sourceBlock.intensity,
+          repsBudget: sourceBlock.repsBudget,
+          formatId: sourceBlock.formatId,
+          formatName: sourceBlock.formatName,
+          exerciseCount: sourceBlock.exerciseCount,
+        })
+        .where(eq(schema.sessionBlocks.id, targetBlockId));
 
-    // Delete old prescriptions for target block
-    await this.db
-      .delete(schema.sessionPrescriptions)
-      .where(eq(schema.sessionPrescriptions.blockId, targetBlockId));
+      // Delete old prescriptions for target block
+      await tx
+        .delete(schema.sessionPrescriptions)
+        .where(eq(schema.sessionPrescriptions.blockId, targetBlockId));
 
-    // Insert new prescriptions copied from source
-    if (sourcePrescriptions.length > 0) {
-      await this.db.insert(schema.sessionPrescriptions).values(
-        sourcePrescriptions.map((p) => ({
-          blockId: targetBlockId,
-          exerciseId: p.exerciseId,
-          exerciseName: p.exerciseName,
-          contraction: p.contraction,
-          reps: p.reps,
-          seconds: p.seconds,
-          rest: p.rest,
-          notes: p.notes,
-          difficulty: p.difficulty,
-          sortOrder: p.sortOrder,
-        })),
-      );
-    }
+      // Insert new prescriptions copied from source
+      if (sourcePrescriptions.length > 0) {
+        await tx.insert(schema.sessionPrescriptions).values(
+          sourcePrescriptions.map((p) => ({
+            blockId: targetBlockId,
+            exerciseId: p.exerciseId,
+            exerciseName: p.exerciseName,
+            contraction: p.contraction,
+            reps: p.reps,
+            seconds: p.seconds,
+            rest: p.rest,
+            notes: p.notes,
+            difficulty: p.difficulty,
+            sortOrder: p.sortOrder,
+          })),
+        );
+      }
+    });
 
     return true;
   }
