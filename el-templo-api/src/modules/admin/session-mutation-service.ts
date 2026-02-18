@@ -15,6 +15,7 @@ import * as schema from "../../db/schema";
 import type {
   AddExerciseParams,
   RemoveExerciseParams,
+  ReorderExerciseParams,
   ResetToAlgorithmParams,
 } from "./edit-types";
 
@@ -173,6 +174,54 @@ export class SessionMutationService {
     // Auto-revert and log
     await this.revertToPendingIfApproved(sessionId);
     await this.logEdit(sessionId, userId, "exercise_remove");
+  }
+
+  // =========================================================================
+  // reorderExercise - Move an exercise up or down within a block
+  // =========================================================================
+
+  async reorderExercise(params: ReorderExerciseParams) {
+    const { sessionId, blockId, prescriptionId, direction, userId } = params;
+
+    // Get all main exercises in sort order
+    const exercises = await this.db
+      .select({
+        id: schema.sessionPrescriptions.id,
+        sortOrder: schema.sessionPrescriptions.sortOrder,
+      })
+      .from(schema.sessionPrescriptions)
+      .where(
+        and(
+          eq(schema.sessionPrescriptions.blockId, blockId),
+          eq(schema.sessionPrescriptions.exerciseType, "main"),
+        ),
+      )
+      .orderBy(asc(schema.sessionPrescriptions.sortOrder));
+
+    const idx = exercises.findIndex((e) => e.id === prescriptionId);
+    if (idx === -1) throw new Error("Prescripcion no encontrada");
+
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= exercises.length) {
+      throw new Error("No se puede mover en esa direccion");
+    }
+
+    // Swap sortOrder values
+    const current = exercises[idx];
+    const neighbor = exercises[swapIdx];
+
+    await this.db
+      .update(schema.sessionPrescriptions)
+      .set({ sortOrder: neighbor.sortOrder })
+      .where(eq(schema.sessionPrescriptions.id, current.id));
+
+    await this.db
+      .update(schema.sessionPrescriptions)
+      .set({ sortOrder: current.sortOrder })
+      .where(eq(schema.sessionPrescriptions.id, neighbor.id));
+
+    await this.revertToPendingIfApproved(sessionId);
+    await this.logEdit(sessionId, userId, "exercise_reorder");
   }
 
   // =========================================================================

@@ -58,7 +58,10 @@ export interface SessionExercise {
   exerciseName: string;
   contraction: string;
   reps: number | null;
+  repsMax: number | null;
   seconds: number | null;
+  secondsMax: number | null;
+  increment: number | null;
   rest: number | null;
   notes: string | null;
   dificultadLineal: number | null;
@@ -137,7 +140,10 @@ export interface CompatibleFormatsResponse {
 // Prescription update payload
 export interface PrescriptionUpdate {
   reps?: number;
+  repsMax?: number | null;
   seconds?: number;
+  secondsMax?: number | null;
+  increment?: number | null;
   rest?: number;
   notes?: string;
 }

@@ -1,6 +1,10 @@
 <template>
-  <q-expansion-item class="block-choice-card block-bg--deuteros-1" :label="title" expand-separator
-    header-class="text-weight-medium">
+  <q-expansion-item
+    class="block-choice-card block-bg--deuteros-1"
+    :label="title"
+    expand-separator
+    header-class="text-weight-medium"
+  >
     <template #header>
       <q-item-section>
         <q-item-label class="choice-role-name text-body1">
@@ -37,7 +41,11 @@
             </span>
           </div>
           <div class="exercise-list">
-            <div v-for="exercise in option.block.exercises" :key="exercise.exerciseId" class="exercise-item">
+            <div
+              v-for="exercise in option.block.exercises"
+              :key="exercise.exerciseId"
+              class="exercise-item"
+            >
               <span class="exercise-name">{{ exercise.exerciseName }}</span>
               <span class="exercise-prescription">{{ formatPrescription(exercise) }}</span>
             </div>
@@ -49,48 +57,62 @@
 </template>
 
 <script setup lang="ts">
-import type { Block, Prescription } from '../types/session';
-import { getRouteName } from '../utils/routeNames';
+import type { Block, Prescription } from '../types/session'
+import { getRouteName } from '../utils/routeNames'
 
 export interface BlockChoiceOption {
   /** Unique identifier */
-  id: string;
+  id: string
   /** Display label */
-  label: string;
+  label: string
   /** Block data */
-  block: Block;
+  block: Block
 }
 
 interface Props {
   /** Header title */
-  title: string;
+  title: string
   /** Subtitle hint text */
-  subtitle?: string;
+  subtitle?: string
   /** Available options */
-  options: BlockChoiceOption[];
+  options: BlockChoiceOption[]
 }
 
 withDefaults(defineProps<Props>(), {
   subtitle: 'Elige una opción',
-});
+})
 
 /**
  * Format prescription inline (compact format for exercise list)
  */
 function formatPrescription(exercise: Prescription): string {
-  if (exercise.contraction === 'ISO' && exercise.seconds) {
-    return `${exercise.seconds}s ISO`;
+  // PAUSA exercise (I Go You Go)
+  if (exercise.notes === 'PAUSA') return 'PAUSA'
+
+  // Death By sequence
+  if (exercise.increment) {
+    const start = exercise.reps || exercise.seconds || 0
+    const seq = `${start}-${start + exercise.increment}-${start + exercise.increment * 2}-...`
+    return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
   }
 
-  const parts: string[] = [];
+  if (exercise.contraction === 'ISO' && exercise.seconds) {
+    const secsText = exercise.secondsMax
+      ? `${exercise.seconds}-${exercise.secondsMax}`
+      : `${exercise.seconds}`
+    return `${secsText}s ISO`
+  }
+
+  const parts: string[] = []
   if (exercise.reps) {
-    parts.push(`${exercise.reps}`);
+    const repsText = exercise.repsMax ? `${exercise.reps}-${exercise.repsMax}` : `${exercise.reps}`
+    parts.push(repsText)
   }
   if (exercise.contraction) {
-    parts.push(exercise.contraction);
+    parts.push(exercise.contraction)
   }
 
-  return parts.join(' · ');
+  return parts.join(' · ')
 }
 </script>
 

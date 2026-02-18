@@ -54,7 +54,10 @@ export interface UpdatePrescriptionParams {
   userId: number;
   fields: {
     reps?: number;
+    repsMax?: number | null;
     seconds?: number;
+    secondsMax?: number | null;
+    increment?: number | null;
     rest?: number;
     notes?: string | null;
   };
@@ -130,5 +133,13 @@ export interface SavedBlockItem {
 
 export interface DeleteSavedBlockParams {
   savedBlockId: number;
+  userId: number;
+}
+
+export interface ReorderExerciseParams {
+  sessionId: number;
+  blockId: number;
+  prescriptionId: number;
+  direction: "up" | "down";
   userId: number;
 }

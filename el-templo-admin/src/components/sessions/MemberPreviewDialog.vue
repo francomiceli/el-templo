@@ -72,8 +72,23 @@
                 </q-item-label>
                 <q-item-label caption>
                   <!-- Prescription -->
-                  <span v-if="exercise.reps">{{ exercise.reps }} reps</span>
-                  <span v-else-if="exercise.seconds">{{ exercise.seconds }}s</span>
+                  <span v-if="exercise.notes === 'PAUSA'">PAUSA</span>
+                  <span v-else-if="exercise.increment"
+                    >{{ exercise.reps || exercise.seconds || 0 }} -
+                    {{ (exercise.reps || exercise.seconds || 0) + exercise.increment }} -
+                    {{ (exercise.reps || exercise.seconds || 0) + exercise.increment * 2 }} -
+                    ...</span
+                  >
+                  <span v-else-if="exercise.reps"
+                    >{{ exercise.reps
+                    }}<template v-if="exercise.repsMax"> · {{ exercise.repsMax }}</template>
+                    reps</span
+                  >
+                  <span v-else-if="exercise.seconds"
+                    >{{ exercise.seconds
+                    }}<template v-if="exercise.secondsMax"> · {{ exercise.secondsMax }}</template
+                    >s</span
+                  >
                   <!-- Rest -->
                   <span v-if="exercise.rest && exercise.rest > 0" class="q-ml-sm">
                     Descanso: {{ exercise.rest }}s
@@ -131,15 +146,18 @@ const levelOptions = [
 ];
 
 // Watch dialog open state
-watch(() => props.modelValue, (open) => {
-  if (open) {
-    selectedLevel.value = props.currentMemberLevel;
-    loadPreview();
-  } else {
-    preview.value = null;
-    error.value = null;
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) {
+      selectedLevel.value = props.currentMemberLevel;
+      loadPreview();
+    } else {
+      preview.value = null;
+      error.value = null;
+    }
   }
-});
+);
 
 function onLevelChange() {
   loadPreview();

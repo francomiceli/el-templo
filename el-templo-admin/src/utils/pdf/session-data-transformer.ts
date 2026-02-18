@@ -78,12 +78,46 @@ function formatNameWithParams(
   }
 }
 
+/**
+ * Format an INITIUM exercise as a display string with prescription info.
+ * - Param-driven formats (Tabata, HIIT): exercise name only (params define execution).
+ * - I Go You Go: reps/secs or PAUSA per exercise.
+ * - Other formats: standard reps/secs prescription.
+ */
+function formatInitiumExercise(ex: SessionExercise, formatName: string): string {
+  const f = formatName.toLowerCase().trim();
+
+  // Param-driven formats: prescription is defined by format params, not per exercise
+  if (f === 'tabata' || f === 'interval training' || f === 'hiit') {
+    return ex.exerciseName;
+  }
+
+  const isIGoYouGo = f.includes('i go');
+  let prescription = '';
+
+  // PAUSA only applies to I Go You Go exercises with no reps/secs
+  if (isIGoYouGo && !ex.reps && !ex.seconds && ex.notes === 'PAUSA') {
+    prescription = 'PAUSA';
+  } else if (ex.increment) {
+    const start = ex.reps || ex.seconds || 0;
+    prescription = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
+  } else if (ex.reps) {
+    prescription = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+  } else if (ex.seconds) {
+    prescription = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+  }
+  return prescription ? `${ex.exerciseName}  ·  ${prescription}` : ex.exerciseName;
+}
+
 function exerciseToPdf(ex: SessionExercise): PdfExercise {
   return {
     name: ex.exerciseName,
     contraction: ex.contraction,
     reps: ex.reps,
+    repsMax: ex.repsMax,
     seconds: ex.seconds,
+    secondsMax: ex.secondsMax,
+    increment: ex.increment,
     rest: ex.rest,
     notes: ex.notes,
   };
@@ -181,7 +215,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
         role: 'INITIUM',
         blockName: initium.pattern || 'PYROS',
         formatName: formatNameWithParams(initium.formatName, initium.formatParams),
-        simpleExercises: initium.exercises.map((e) => e.exerciseName),
+        simpleExercises: initium.exercises.map((e) => formatInitiumExercise(e, initium.formatName)),
       });
       break;
     }

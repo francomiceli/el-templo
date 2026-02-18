@@ -5,24 +5,24 @@
  * passing enriched context through each stage.
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import * as schema from '../../../db/schema';
-import { SpomService } from '../../spom/service';
-import type { BlockContext, BlockContextComplete } from './context';
-import type { BlockPlan, TraceEvent } from '../types';
-import { createTraceEvent, appendTrace } from './context';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import * as schema from "../../../db/schema";
+import { SpomService } from "../../spom/service";
+import type { BlockContext, BlockContextComplete } from "./context";
+import type { BlockPlan, TraceEvent } from "../types";
+import { createTraceEvent, appendTrace } from "./context";
 
 // Import all stages
-import { resolveRotator } from './stage-1-rotator';
-import { resolveSpom } from './stage-2-spom';
-import { deriveBudget } from './stage-3-budget';
-import { deriveContraction } from './stage-4-contraction';
-import { selectFormat } from './stage-5-format';
-import { selectExercises } from './stage-6-exercises';
-import { generatePrescriptions } from './stage-7-prescription';
+import { resolveRotator } from "./stage-1-rotator";
+import { resolveSpom } from "./stage-2-spom";
+import { deriveBudget } from "./stage-3-budget";
+import { deriveContraction } from "./stage-4-contraction";
+import { selectFormat } from "./stage-5-format";
+import { selectExercises } from "./stage-6-exercises";
+import { generatePrescriptions } from "./stage-7-prescription";
 
 // Import INITIUM special pipeline
-import { runInitiumPipeline } from './initium-pipeline';
+import { runInitiumPipeline } from "./initium-pipeline";
 
 /** Options for block pipeline execution */
 export interface BlockPipelineOptions {
@@ -31,6 +31,8 @@ export interface BlockPipelineOptions {
     formatId: number;
     name: string;
   };
+  /** Format names already used in this day's session (avoid repeats) */
+  excludeFormatNames?: string[];
 }
 
 /**
@@ -49,11 +51,11 @@ export async function runBlockPipeline(
   initialContext: BlockContext,
   spomService: SpomService,
   db: MySql2Database<typeof schema>,
-  options?: BlockPipelineOptions
+  options?: BlockPipelineOptions,
 ): Promise<BlockPlan> {
   // INITIUM uses special pipeline (no SPOM lookup per spec)
-  if (initialContext.role === 'INITIUM') {
-    return runInitiumPipeline(initialContext, db);
+  if (initialContext.role === "INITIUM") {
+    return runInitiumPipeline(initialContext, db, options?.excludeFormatNames);
   }
 
   let ctx: BlockContext | BlockContextComplete = initialContext;
@@ -75,22 +77,17 @@ export async function runBlockPipeline(
     let ctx5;
     if (options?.forcedFormat) {
       // Skip format selection, use forced format (for DEUTEROS_2 to match DEUTEROS_1)
-      const formatTrace = createTraceEvent(
-        ctx4,
-        'FORMAT_FORCED',
-        'INFO',
-        {
-          reason: 'Deuteros blocks must share same format',
-          formatId: options.forcedFormat.formatId,
-          formatName: options.forcedFormat.name,
-        }
-      );
+      const formatTrace = createTraceEvent(ctx4, "FORMAT_FORCED", "INFO", {
+        reason: "Deuteros blocks must share same format",
+        formatId: options.forcedFormat.formatId,
+        formatName: options.forcedFormat.name,
+      });
       ctx5 = {
         ...appendTrace(ctx4, formatTrace),
         format: options.forcedFormat,
       };
     } else {
-      ctx5 = await selectFormat(ctx4, db);
+      ctx5 = await selectFormat(ctx4, db, options?.excludeFormatNames);
     }
 
     // Stage 6: Select exercises
@@ -117,18 +114,13 @@ export async function runBlockPipeline(
   } catch (error) {
     // Add ERROR trace and re-throw
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const errorTrace = createTraceEvent(
-      ctx,
-      'PIPELINE_ERROR',
-      'ERROR',
-      {
-        stage: 'unknown',
-        error: errorMessage,
-      }
-    );
+    const errorTrace = createTraceEvent(ctx, "PIPELINE_ERROR", "ERROR", {
+      stage: "unknown",
+      error: errorMessage,
+    });
     ctx = appendTrace(ctx, errorTrace);
     throw error;
   }
 }
 
-export { createInitialContext } from './context';
+export { createInitialContext } from "./context";

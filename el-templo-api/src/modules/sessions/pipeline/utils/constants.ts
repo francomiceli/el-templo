@@ -30,9 +30,14 @@ export const REPS = {
   MIN_PER_EXERCISE: 10,
   MIN_AMRAP: 5,
   AMRAP_CAP: 30,
+  AMRAP_RANGE_REPS: 5, // +5 reps for AMRAP repsMax range
+  AMRAP_RANGE_SECONDS: 10, // +10 seconds for AMRAP secondsMax range
   UNBROKEN_FACTOR: 0.7,
   LADDER_MIN: 10,
   CLUSTER_SIZE: 5,
+  DEATH_BY_START: 2, // Starting reps for Death By format
+  DEATH_BY_INCREMENT: 1, // Rep increment per round (low intensity)
+  DEATH_BY_INCREMENT_HIGH: 2, // Rep increment per round (high intensity)
 } as const;
 
 /** ISO durations in seconds */
@@ -46,9 +51,9 @@ export const ISO_SECONDS = {
 
 /** EMOM base reps by intensity */
 export const EMOM_REPS = {
-  HIGH_INTENSITY: 10,  // intensity >= 80
+  HIGH_INTENSITY: 10, // intensity >= 80
   MEDIUM_INTENSITY: 10, // intensity >= 70
-  LOW_INTENSITY: 15,    // intensity < 70
+  LOW_INTENSITY: 15, // intensity < 70
 } as const;
 
 /** Interval training durations by intensity */

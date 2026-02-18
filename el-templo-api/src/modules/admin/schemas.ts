@@ -160,7 +160,10 @@ export const updatePrescriptionSchema = {
     type: "object",
     properties: {
       reps: { type: "integer", minimum: 0 },
+      repsMax: { type: ["integer", "null"], minimum: 0 },
       seconds: { type: "integer", minimum: 0 },
+      secondsMax: { type: ["integer", "null"], minimum: 0 },
+      increment: { type: ["integer", "null"], minimum: 0 },
       rest: { type: "integer", minimum: 0 },
       notes: { type: ["string", "null"] },
     },
@@ -213,6 +216,25 @@ export const removeExerciseSchema = {
       sessionId: { type: "integer" },
       blockId: { type: "integer" },
       prescriptionId: { type: "integer" },
+    },
+  },
+};
+
+export const reorderExerciseSchema = {
+  params: {
+    type: "object",
+    required: ["sessionId", "blockId", "prescriptionId"],
+    properties: {
+      sessionId: { type: "integer" },
+      blockId: { type: "integer" },
+      prescriptionId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["direction"],
+    properties: {
+      direction: { type: "string", enum: ["up", "down"] },
     },
   },
 };

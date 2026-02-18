@@ -17,6 +17,7 @@ import {
   changeFormatSchema,
   addExerciseSchema,
   removeExerciseSchema,
+  reorderExerciseSchema,
   resetSessionSchema,
   getCompatibleFormatsSchema,
   getPreviewSchema,
@@ -244,12 +245,16 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get existing exercise IDs in the block to exclude from pool
-      const prescriptions = await fastify.db
-        .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
-        .from(schema.sessionPrescriptions)
-        .where(eq(schema.sessionPrescriptions.blockId, blockId));
-
-      const excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+      // Skip exclusion for formats that allow duplicate exercises (e.g. Buy In Cash Out)
+      const allowDuplicates = block.formatName.toLowerCase().includes("buy-in");
+      let excludeExerciseIds: number[] = [];
+      if (!allowDuplicates) {
+        const prescriptions = await fastify.db
+          .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+          .from(schema.sessionPrescriptions)
+          .where(eq(schema.sessionPrescriptions.blockId, blockId));
+        excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+      }
 
       // Look up pattern2 from SPOM rules and member level for difficulty cap
       let pattern2: string | null = null;
@@ -323,11 +328,21 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       let excludeExerciseIds: number[] = [];
       if (blockId) {
-        const prescriptions = await fastify.db
-          .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
-          .from(schema.sessionPrescriptions)
-          .where(eq(schema.sessionPrescriptions.blockId, blockId));
-        excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+        // Check if block format allows duplicate exercises (e.g. Buy In Cash Out)
+        const [block] = await fastify.db
+          .select({ formatName: schema.sessionBlocks.formatName })
+          .from(schema.sessionBlocks)
+          .where(eq(schema.sessionBlocks.id, blockId));
+        const allowDuplicates = block?.formatName
+          .toLowerCase()
+          .includes("buy in");
+        if (!allowDuplicates) {
+          const prescriptions = await fastify.db
+            .select({ exerciseId: schema.sessionPrescriptions.exerciseId })
+            .from(schema.sessionPrescriptions)
+            .where(eq(schema.sessionPrescriptions.blockId, blockId));
+          excludeExerciseIds = prescriptions.map((p) => p.exerciseId);
+        }
       }
 
       const exercises = await editService.searchExercises({
@@ -372,7 +387,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     Params: { sessionId: number; blockId: number; prescriptionId: number };
     Body: {
       reps?: number;
+      repsMax?: number | null;
       seconds?: number;
+      secondsMax?: number | null;
+      increment?: number | null;
       rest?: number;
       notes?: string | null;
     };
@@ -529,6 +547,31 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         const message =
           err instanceof Error ? err.message : "Recurso no encontrado";
         return reply.status(404).send({ error: message });
+      }
+    },
+  );
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/reorder
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number; prescriptionId: number };
+    Body: { direction: "up" | "down" };
+  }>(
+    "/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId/reorder",
+    { schema: reorderExerciseSchema },
+    async (request, reply) => {
+      try {
+        await editService.reorderExercise({
+          sessionId: request.params.sessionId,
+          blockId: request.params.blockId,
+          prescriptionId: request.params.prescriptionId,
+          direction: request.body.direction,
+          userId: request.user.userId,
+        });
+        return { success: true };
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Error al reordenar";
+        return reply.status(400).send({ error: message });
       }
     },
   );

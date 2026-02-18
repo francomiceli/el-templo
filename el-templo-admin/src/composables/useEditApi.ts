@@ -164,6 +164,30 @@ export function useEditApi() {
     }
   }
 
+  async function reorderExercise(
+    sessionId: number,
+    blockId: number,
+    prescriptionId: number,
+    direction: 'up' | 'down'
+  ): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.patch(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/exercises/${prescriptionId}/reorder`,
+        { direction }
+      );
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: { data?: { error?: string } };
+      };
+      error.value = axiosError.response?.data?.error || 'Error al reordenar ejercicio';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function resetToAlgorithm(sessionId: number): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -370,6 +394,7 @@ export function useEditApi() {
     changeBlockFormat,
     addExercise,
     removeExercise,
+    reorderExercise,
     resetToAlgorithm,
     fetchCompatibleFormats,
     fetchPreview,

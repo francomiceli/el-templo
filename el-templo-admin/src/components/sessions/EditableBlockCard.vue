@@ -36,20 +36,18 @@
             </q-badge>
           </template>
         </q-select>
-      </div>
-    </q-card-section>
-
-    <!-- Format params section (below header, consistent height) -->
-    <q-card-section v-if="hasConfigurableParams && selectedBlock" class="q-py-xs bg-grey-1">
-      <div class="row items-center q-gutter-sm">
-        <span class="text-caption text-weight-bold text-grey-7">Parámetros</span>
-        <format-params-editor
-          :format-params="selectedBlock.formatParams"
-          :format-name="selectedBlock.formatName"
-          :block-id="selectedBlock.id"
-          :session-id="selectedLevelBlock.sessionId"
-          @update:format-params="onUpdateFormatParams"
-        />
+        <div v-if="hasConfigurableParams && selectedBlock" class="q-py-xs bg-grey-1">
+          <div class="row items-center q-gutter-sm">
+            <span class="text-caption text-weight-bold text-grey-7">Parámetros</span>
+            <format-params-editor
+              :format-params="selectedBlock.formatParams"
+              :format-name="selectedBlock.formatName"
+              :block-id="selectedBlock.id"
+              :session-id="selectedLevelBlock.sessionId"
+              @update:format-params="onUpdateFormatParams"
+            />
+          </div>
+        </div>
       </div>
     </q-card-section>
 
@@ -116,18 +114,28 @@
 
     <!-- Editable exercises list (per selected level) -->
     <template v-if="selectedBlock">
-      <q-list separator>
+      <q-list separator class="exercise-drag-list">
         <editable-exercise-row
-          v-for="exercise in selectedBlock.exercises"
+          v-for="(exercise, idx) in selectedBlock.exercises"
           :key="exercise.id"
           :exercise="exercise"
           :session-id="selectedLevelBlock.sessionId"
           :block-id="selectedBlock.id"
           :block-route="selectedBlock.route"
           :block-format-name="selectedBlock.formatName"
+          :is-first="idx === 0"
+          :is-last="idx === selectedBlock.exercises.length - 1"
+          draggable="true"
+          :class="{ 'drag-over': dragOverId === exercise.id }"
+          @dragstart="onDragStart($event, idx)"
+          @dragover.prevent="onDragOver($event, exercise.id)"
+          @dragleave="onDragLeave(exercise.id)"
+          @drop.prevent="onDrop($event, idx)"
+          @dragend="onDragEnd"
           @swap="onSwapExercise"
           @remove="onRemoveExercise"
           @update="onUpdatePrescription"
+          @move="onMoveExercise"
         />
       </q-list>
 
@@ -188,6 +196,7 @@
                   class="prescription-input"
                   suffix="seg"
                   @blur="onMobilityPrescriptionBlur('seconds', $event)"
+                  @keyup.enter="onMobilityPrescriptionBlur('seconds', $event)"
                 />
               </template>
               <template v-else>
@@ -199,6 +208,7 @@
                   class="prescription-input"
                   suffix="reps"
                   @blur="onMobilityPrescriptionBlur('reps', $event)"
+                  @keyup.enter="onMobilityPrescriptionBlur('reps', $event)"
                 />
               </template>
             </div>
@@ -324,6 +334,8 @@ const NO_PARAMS_FORMATS = [
   'chipper',
   'cluster',
   'buy_in_cash_out',
+  'death_by',
+  'death_by_unbroken',
 ];
 
 const hasConfigurableParams = computed(() => {
@@ -469,7 +481,7 @@ async function onRoleChange(newRole: 'ATHLOS' | 'EPIKOS') {
   }
 }
 
-// Format params update cascades to ALL levels
+// Format params update cascades to ALL levels + sibling deuteros
 async function onUpdateFormatParams(newParams: Record<string, unknown>) {
   formatChanging.value = true;
   try {
@@ -477,16 +489,13 @@ async function onUpdateFormatParams(newParams: Record<string, unknown>) {
     await Promise.all(
       allLevelBlocks.map((lb) => editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams))
     );
-    // Update in-place for reactivity
-    for (const lb of allLevelBlocks) {
-      lb.block.formatParams = newParams;
-    }
     $q.notify({
       type: 'positive',
       message: 'Parametros de formato actualizados en todos los niveles',
       color: 'green',
       timeout: 1500,
     });
+    emit('refresh');
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar parametros de formato' });
   } finally {
@@ -553,6 +562,76 @@ async function onUpdatePrescription(payload: {
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion' });
   }
+}
+
+// Move exercise up/down
+async function onMoveExercise(payload: { prescriptionId: number; direction: 'up' | 'down' }) {
+  if (!selectedBlock.value) return;
+  try {
+    await editApi.reorderExercise(
+      selectedLevelBlock.value.sessionId,
+      selectedBlock.value.id,
+      payload.prescriptionId,
+      payload.direction
+    );
+    emit('refresh');
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error al mover ejercicio' });
+  }
+}
+
+// Drag & drop state
+const dragFromIdx = ref<number | null>(null);
+const dragOverId = ref<number | null>(null);
+
+function onDragStart(event: DragEvent, idx: number) {
+  dragFromIdx.value = idx;
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+  }
+}
+
+function onDragOver(_event: DragEvent, exerciseId: number) {
+  dragOverId.value = exerciseId;
+}
+
+function onDragLeave(exerciseId: number) {
+  if (dragOverId.value === exerciseId) {
+    dragOverId.value = null;
+  }
+}
+
+async function onDrop(_event: DragEvent, toIdx: number) {
+  dragOverId.value = null;
+  if (dragFromIdx.value === null || dragFromIdx.value === toIdx || !selectedBlock.value) return;
+
+  const exercises = selectedBlock.value.exercises;
+  const fromIdx = dragFromIdx.value;
+  dragFromIdx.value = null;
+
+  // Move step by step from source to target
+  const direction = fromIdx < toIdx ? 'down' : 'up';
+  const steps = Math.abs(toIdx - fromIdx);
+  const prescriptionId = exercises[fromIdx].id;
+
+  for (let i = 0; i < steps; i++) {
+    try {
+      await editApi.reorderExercise(
+        selectedLevelBlock.value.sessionId,
+        selectedBlock.value.id,
+        prescriptionId,
+        direction
+      );
+    } catch {
+      break;
+    }
+  }
+  emit('refresh');
+}
+
+function onDragEnd() {
+  dragFromIdx.value = null;
+  dragOverId.value = null;
 }
 
 function emitAddExercise() {
@@ -698,5 +777,15 @@ onMounted(loadCompatibleFormats);
 }
 .role-select :deep(.q-field__append) {
   color: white;
+}
+.exercise-drag-list [draggable='true'] {
+  cursor: grab;
+}
+.exercise-drag-list [draggable='true']:active {
+  cursor: grabbing;
+}
+.drag-over {
+  background: rgba(25, 118, 210, 0.08);
+  border-top: 2px solid var(--q-primary);
 }
 </style>

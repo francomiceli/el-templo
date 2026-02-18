@@ -15,19 +15,21 @@
  * - If Nucleus is lower body -> hip/leg mobility exercises
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, or, like, and, lte, isNotNull } from 'drizzle-orm';
-import * as schema from '../../../db/schema';
-import type { BlockContext } from './context';
-import type { BlockPlan, ContractionMix } from '../types';
-import { createTraceEvent, appendTrace } from './context';
-import { selectFormatWithFallback } from '../fallback/format-fallback';
-import type { FormatRequirements } from '../fallback/types';
-import type { ExerciseLevel } from './utils/level-mapping';
-import { ROUTE_TO_MOBILITY_ROUTES } from './utils/mobility-routes';
-import { calculateExerciseOffset, selectWithVariety } from './utils/variety';
-import { REST_TIMES, ISO_SECONDS } from './utils/constants';
-import { getDefaultFormatParams } from '../../admin/format-params';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, or, like, and, lte, isNotNull } from "drizzle-orm";
+import * as schema from "../../../db/schema";
+import type { BlockContext } from "./context";
+import type { BlockPlan, ContractionMix } from "../types";
+import { createTraceEvent, appendTrace } from "./context";
+import {
+  queryFormatsAnyLevel,
+  selectBestFormat,
+} from "../fallback/format-fallback";
+import type { ExerciseLevel } from "./utils/level-mapping";
+import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
+import { calculateExerciseOffset, selectWithVariety } from "./utils/variety";
+import { REST_TIMES, ISO_SECONDS } from "./utils/constants";
+import { getDefaultFormatParams } from "../../admin/format-params";
 
 /**
  * Run INITIUM-specific pipeline
@@ -41,30 +43,31 @@ import { getDefaultFormatParams } from '../../admin/format-params';
  */
 export async function runInitiumPipeline(
   ctx: BlockContext,
-  db: MySql2Database<typeof schema>
+  db: MySql2Database<typeof schema>,
+  excludeFormatNames?: string[],
 ): Promise<BlockPlan> {
   let updatedCtx = ctx;
 
   // Mark that INITIUM special pipeline is being used
   const pipelineTrace = createTraceEvent(
     updatedCtx,
-    'INITIUM_PIPELINE_USED',
-    'INFO',
+    "INITIUM_PIPELINE_USED",
+    "INFO",
     {
-      reason: 'INITIUM bypasses SPOM lookup per spec line 266, 506',
-    }
+      reason: "INITIUM bypasses SPOM lookup per spec line 266, 506",
+    },
   );
   updatedCtx = appendTrace(updatedCtx, pipelineTrace);
 
   // Fixed INITIUM parameters (per spec and existing validator ranges)
-  const route = 'INITIUM'; // Marker, not a real route
+  const route = "INITIUM"; // Marker, not a real route
   const intensity = 30; // Low warmup intensity (INITIUM range: 10-40%)
-  const pattern = 'FLOW'; // Mobility/warmup pattern
-  const category = 'Movilidad'; // Warmup category
+  const pattern = "FLOW"; // Mobility/warmup pattern
+  const category = "Movilidad"; // Warmup category
   // Warmup needs volume - alternate between 80 and 100 based on week parity
   const repsBudget = ctx.week % 2 === 0 ? 100 : 80;
   const exerciseCount = 4; // 3-4 exercises for warmup variety
-  const difficultyBucket = '3'; // Easy warmup exercises (bucket 3 = low difficulty)
+  const difficultyBucket = "3"; // Easy warmup exercises (bucket 3 = low difficulty)
 
   // Calculate offset for exercise variety across sessions
   const exerciseOffset = calculateExerciseOffset(ctx.week, ctx.day);
@@ -79,8 +82,8 @@ export async function runInitiumPipeline(
 
   const paramsTrace = createTraceEvent(
     updatedCtx,
-    'INITIUM_PARAMS_SET',
-    'INFO',
+    "INITIUM_PARAMS_SET",
+    "INFO",
     {
       route,
       intensity,
@@ -90,42 +93,48 @@ export async function runInitiumPipeline(
       exerciseCount,
       difficultyBucket,
       contractionMix,
-    }
+    },
   );
   updatedCtx = appendTrace(updatedCtx, paramsTrace);
 
-  // Select format using fallback system
-  // INITIUM is the same for all levels — use 'alfa' as fixed representative.
+  // Select format using level-agnostic query (INITIUM is shared across all levels)
   // Use intensity=55 (minimum with format compatibility entries, since INITIUM warmup intensity 30 has none)
-  const formatRequirements: FormatRequirements = {
-    block: 'initium',
-    level: 'alfa',
-    intensity: 55,
-  };
+  let formatCandidates = await queryFormatsAnyLevel(db, "initium", 55);
 
-  const formatResult = await selectFormatWithFallback(formatRequirements, db);
-
-  if (formatResult.status === 'failed') {
-    throw new Error('No format found for INITIUM block (even with fallbacks)');
+  if (formatCandidates.length === 0) {
+    throw new Error("No format found for INITIUM block");
   }
 
-  const selectedFormat = formatResult.data[0];
+  // Apply exclusions (avoid repeating formats within the same day)
+  if (excludeFormatNames && excludeFormatNames.length > 0) {
+    const filtered = formatCandidates.filter(
+      (c) => !excludeFormatNames.includes(c.name),
+    );
+    if (filtered.length > 0) formatCandidates = filtered;
+  }
+
+  const selectedFormat = selectBestFormat(formatCandidates);
 
   const formatTrace = createTraceEvent(
     updatedCtx,
-    'INITIUM_FORMAT_SELECTED',
-    'INFO',
+    "INITIUM_FORMAT_SELECTED",
+    "INFO",
     {
       formatId: selectedFormat.formatId,
       formatName: selectedFormat.name,
-      fallbackTier: formatResult.tier,
-      usedFallback: formatResult.status === 'fallback',
-    }
+      candidateCount: formatCandidates.length,
+    },
   );
   updatedCtx = appendTrace(updatedCtx, formatTrace);
 
   // INITIUM is the same for all levels — include exercises from all levels
-  const allowedLevels: ExerciseLevel[] = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+  const allowedLevels: ExerciseLevel[] = [
+    "alfa",
+    "delta",
+    "sigma",
+    "omega",
+    "spartan",
+  ];
   const nucleusRoute = ctx.nucleusRoute;
 
   // Step 1: Try contextual selection if nucleusRoute is provided
@@ -146,13 +155,13 @@ export async function runInitiumPipeline(
     // Trace contextual selection attempt
     const contextAttemptTrace = createTraceEvent(
       updatedCtx,
-      'INITIUM_CONTEXTUAL_ATTEMPT',
-      'INFO',
+      "INITIUM_CONTEXTUAL_ATTEMPT",
+      "INFO",
       {
         nucleusRoute,
         relatedMobilityRoutes,
         hasMapping: relatedMobilityRoutes.length > 0,
-      }
+      },
     );
     updatedCtx = appendTrace(updatedCtx, contextAttemptTrace);
 
@@ -173,22 +182,32 @@ export async function runInitiumPipeline(
         .where(
           and(
             or(
-              like(schema.exercises.pattern, '%FLOW%'),
-              eq(schema.exercises.category, 'Movilidad')
+              like(schema.exercises.pattern, "%FLOW%"),
+              eq(schema.exercises.category, "Movilidad"),
             ),
-            or(...allowedLevels.map(level => eq(schema.exercises.level, level))),
+            or(
+              ...allowedLevels.map((level) =>
+                eq(schema.exercises.level, level),
+              ),
+            ),
             lte(schema.exercises.difficulty, 3), // Easy warmup exercises
             isNotNull(schema.exercises.mobilityRelated),
-            or(...relatedMobilityRoutes.map(route =>
-              like(schema.exercises.mobilityRelated, `%${route}%`)
-            ))
-          )
+            or(
+              ...relatedMobilityRoutes.map((route) =>
+                like(schema.exercises.mobilityRelated, `%${route}%`),
+              ),
+            ),
+          ),
         )
         .orderBy(schema.exercises.id) // Deterministic ordering
         .limit(exercisePoolSize);
 
       // Select with variety using stride-based approach for better day-to-day variation
-      const contextualExercises = selectWithVariety(contextualPool, exerciseCount, exerciseOffset);
+      const contextualExercises = selectWithVariety(
+        contextualPool,
+        exerciseCount,
+        exerciseOffset,
+      );
 
       if (contextualExercises.length >= exerciseCount) {
         exerciseResults = contextualExercises;
@@ -196,36 +215,37 @@ export async function runInitiumPipeline(
 
         const contextSuccessTrace = createTraceEvent(
           updatedCtx,
-          'INITIUM_CONTEXTUAL_SUCCESS',
-          'INFO',
+          "INITIUM_CONTEXTUAL_SUCCESS",
+          "INFO",
           {
             nucleusRoute,
             poolSize: contextualPool.length,
             exerciseOffset,
-            selectionMethod: 'stride_variety',
+            selectionMethod: "stride_variety",
             selectedCount: contextualExercises.length,
             requiredCount: exerciseCount,
-            exercises: contextualExercises.map(e => ({
+            exercises: contextualExercises.map((e) => ({
               id: e.id,
               name: e.name,
               mobilityRelated: e.mobilityRelated,
             })),
-          }
+          },
         );
         updatedCtx = appendTrace(updatedCtx, contextSuccessTrace);
       } else {
         // Not enough contextual matches, will fall back to generic
         const contextFallbackTrace = createTraceEvent(
           updatedCtx,
-          'INITIUM_CONTEXTUAL_FALLBACK',
-          'INFO',
+          "INITIUM_CONTEXTUAL_FALLBACK",
+          "INFO",
           {
             nucleusRoute,
             poolSize: contextualPool.length,
             selectedCount: contextualExercises.length,
             requiredCount: exerciseCount,
-            reason: 'Not enough contextual exercises, falling back to generic selection',
-          }
+            reason:
+              "Not enough contextual exercises, falling back to generic selection",
+          },
         );
         updatedCtx = appendTrace(updatedCtx, contextFallbackTrace);
       }
@@ -249,28 +269,36 @@ export async function runInitiumPipeline(
       .where(
         and(
           or(
-            like(schema.exercises.pattern, '%FLOW%'),
-            eq(schema.exercises.category, 'Movilidad')
+            like(schema.exercises.pattern, "%FLOW%"),
+            eq(schema.exercises.category, "Movilidad"),
           ),
-          or(...allowedLevels.map(level => eq(schema.exercises.level, level))),
-          lte(schema.exercises.difficulty, 3) // Easy warmup exercises
-        )
+          or(
+            ...allowedLevels.map((level) => eq(schema.exercises.level, level)),
+          ),
+          lte(schema.exercises.difficulty, 3), // Easy warmup exercises
+        ),
       )
       .orderBy(schema.exercises.id) // Deterministic ordering
       .limit(exercisePoolSize);
 
     // Select with variety using stride-based approach for better day-to-day variation
-    exerciseResults = selectWithVariety(genericPool, exerciseCount, exerciseOffset);
+    exerciseResults = selectWithVariety(
+      genericPool,
+      exerciseCount,
+      exerciseOffset,
+    );
   }
 
   if (exerciseResults.length === 0) {
-    throw new Error('No INITIUM exercises found (FLOW pattern or Movilidad category)');
+    throw new Error(
+      "No INITIUM exercises found (FLOW pattern or Movilidad category)",
+    );
   }
 
   const exercisesTrace = createTraceEvent(
     updatedCtx,
-    'INITIUM_EXERCISES_SELECTED',
-    'INFO',
+    "INITIUM_EXERCISES_SELECTED",
+    "INFO",
     {
       count: exerciseResults.length,
       usedContextual,
@@ -278,14 +306,14 @@ export async function runInitiumPipeline(
       exerciseOffset,
       week: ctx.week,
       day: ctx.day,
-      exercises: exerciseResults.map(e => ({
+      exercises: exerciseResults.map((e) => ({
         id: e.id,
         name: e.name,
         pattern: e.pattern,
         category: e.category,
         mobilityRelated: e.mobilityRelated,
       })),
-    }
+    },
   );
   updatedCtx = appendTrace(updatedCtx, exercisesTrace);
 
@@ -296,12 +324,12 @@ export async function runInitiumPipeline(
   const repsPerSeries = Math.round(totalRepsPerExercise / series / 5) * 5; // Round to nearest 5
   const minReps = 10; // Minimum reps for warmup
 
-  const prescriptions = exerciseResults.map(ex => {
+  const prescriptions = exerciseResults.map((ex) => {
     // Map 'effort' (CON/EXC/ISO) to contraction type, default to CON for warmup
-    const effort = (ex.effort?.toUpperCase() || 'CON') as 'CON' | 'EXC' | 'ISO';
+    const effort = (ex.effort?.toUpperCase() || "CON") as "CON" | "EXC" | "ISO";
 
     // ISO exercises use seconds instead of reps
-    const isIsometric = effort === 'ISO';
+    const isIsometric = effort === "ISO";
 
     return {
       exerciseId: ex.id,
@@ -310,22 +338,22 @@ export async function runInitiumPipeline(
       reps: isIsometric ? 0 : Math.max(repsPerSeries, minReps),
       seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
       rest: REST_TIMES.WARMUP,
-      notes: 'Warmup - focus on form and activation',
+      notes: "Warmup - focus on form and activation",
       dificultadLineal: ex.difficulty,
     };
   });
 
   const prescriptionTrace = createTraceEvent(
     updatedCtx,
-    'INITIUM_PRESCRIPTIONS_GENERATED',
-    'INFO',
+    "INITIUM_PRESCRIPTIONS_GENERATED",
+    "INFO",
     {
       count: prescriptions.length,
       repsBudget,
       series,
       repsPerSeries,
       restSeconds: REST_TIMES.WARMUP,
-    }
+    },
   );
   updatedCtx = appendTrace(updatedCtx, prescriptionTrace);
 

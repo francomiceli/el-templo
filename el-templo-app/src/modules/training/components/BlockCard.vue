@@ -1,6 +1,11 @@
 <template>
-  <q-expansion-item :class="['block-card', colorClass]" :label="block.role" :caption="blockCaption" expand-separator
-    header-class="text-weight-medium">
+  <q-expansion-item
+    :class="['block-card', colorClass]"
+    :label="block.role"
+    :caption="blockCaption"
+    expand-separator
+    header-class="text-weight-medium"
+  >
     <template #header>
       <q-item-section>
         <q-item-label class="block-role-name text-body1">
@@ -8,17 +13,24 @@
         </q-item-label>
         <div class="block-meta">
           <div class="block-meta__row">
-            <span v-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{ getRouteName(block.route)
-              }}</span>
+            <span v-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{
+              getRouteName(block.route)
+            }}</span>
             <span v-if="block.intensity && block.route != 'INITIUM'" class="block-meta__intensity">
               <span class="block-meta__label">INT</span> {{ block.intensity }}%
             </span>
           </div>
           <div class="block-meta__row block-meta__row--secondary">
-            <span class="block-meta__exercises">{{ block.exercises.length }} ejercicio{{ block.exercises.length !== 1 ?
-              's' : '' }}</span>
-            <span v-if="block.format && typeof block.format === 'string'" class="block-meta__format">{{ block.format
-              }}</span>
+            <span class="block-meta__exercises"
+              >{{ block.exercises.length }} ejercicio{{
+                block.exercises.length !== 1 ? 's' : ''
+              }}</span
+            >
+            <span
+              v-if="block.format && typeof block.format === 'string'"
+              class="block-meta__format"
+              >{{ block.format }}</span
+            >
           </div>
         </div>
       </q-item-section>
@@ -38,18 +50,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Block, BlockRole, Prescription } from '../types/session';
-import { getRouteName } from '../utils/routeNames';
+import { computed } from 'vue'
+import type { Block, BlockRole, Prescription } from '../types/session'
+import { getRouteName } from '../utils/routeNames'
 
 interface Props {
-  block: Block;
-  colorClass?: string;
+  block: Block
+  colorClass?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   colorClass: 'block-bg--default',
-});
+})
 
 // getBlockColorClass is exported from utils/blockColors.ts for external use
 
@@ -64,54 +76,68 @@ function formatRole(role: BlockRole): string {
     DEUTEROS_2: 'Deuteros 2',
     ATHLOS: 'Athlos',
     EPIKOS: 'Epikos',
-  };
-  return roleNames[role] || role;
+  }
+  return roleNames[role] || role
 }
 
 /**
  * Build caption showing route, intensity, exercise count, and format
  */
 const blockCaption = computed(() => {
-  const parts: string[] = [];
+  const parts: string[] = []
 
   if (props.block.route) {
-    parts.push(getRouteName(props.block.route));
+    parts.push(getRouteName(props.block.route))
   }
 
   if (props.block.intensity) {
-    parts.push(`${props.block.intensity}%`);
+    parts.push(`${props.block.intensity}%`)
   }
 
-  const exerciseCount = props.block.exercises.length;
-  parts.push(`${exerciseCount} ejercicio${exerciseCount !== 1 ? 's' : ''}`);
+  const exerciseCount = props.block.exercises.length
+  parts.push(`${exerciseCount} ejercicio${exerciseCount !== 1 ? 's' : ''}`)
 
   if (props.block.format && typeof props.block.format === 'string') {
-    parts.push(props.block.format);
+    parts.push(props.block.format)
   }
 
-  return parts.join(' • ');
-});
+  return parts.join(' • ')
+})
 
 /**
  * Format prescription inline (compact format for exercise list)
  * Returns: "8 · CON" or "30s ISO"
  */
 function formatPrescriptionInline(exercise: Prescription): string {
+  // PAUSA exercise (I Go You Go)
+  if (exercise.notes === 'PAUSA') return 'PAUSA'
+
+  // Death By sequence
+  if (exercise.increment) {
+    const start = exercise.reps || exercise.seconds || 0
+    const seq = `${start}-${start + exercise.increment}-${start + exercise.increment * 2}-...`
+    return exercise.contraction === 'ISO' ? `${seq}s ISO` : `${seq} · ${exercise.contraction}`
+  }
+
   // For isometric exercises, show duration with ISO
   if (exercise.contraction === 'ISO' && exercise.seconds) {
-    return `${exercise.seconds}s ISO`;
+    const secsText = exercise.secondsMax
+      ? `${exercise.seconds}-${exercise.secondsMax}`
+      : `${exercise.seconds}`
+    return `${secsText}s ISO`
   }
 
   // For rep-based exercises, show count and contraction type
-  const parts: string[] = [];
+  const parts: string[] = []
   if (exercise.reps) {
-    parts.push(`${exercise.reps}`);
+    const repsText = exercise.repsMax ? `${exercise.reps}-${exercise.repsMax}` : `${exercise.reps}`
+    parts.push(repsText)
   }
   if (exercise.contraction) {
-    parts.push(exercise.contraction);
+    parts.push(exercise.contraction)
   }
 
-  return parts.join(' · ');
+  return parts.join(' · ')
 }
 </script>
 

@@ -34,8 +34,17 @@ export interface Prescription {
   /** Number of repetitions (null for time-based exercises) */
   reps: number | null
 
+  /** Upper bound of rep range for AMRAP (null if not a range) */
+  repsMax: number | null
+
   /** Duration in seconds (null for rep-based exercises) */
   seconds: number | null
+
+  /** Upper bound of seconds range for AMRAP (null if not a range) */
+  secondsMax: number | null
+
+  /** Per-round increment for Death By format (null if not Death By) */
+  increment: number | null
 
   /** Rest period in seconds after this exercise */
   rest: number

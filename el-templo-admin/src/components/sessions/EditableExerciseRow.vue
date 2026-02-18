@@ -4,13 +4,7 @@
     <q-item-section>
       <q-item-label class="text-weight-medium row items-center">
         {{ exercise.exerciseName }}
-        <q-chip
-          dense
-          size="sm"
-          :color="contractionColor"
-          text-color="white"
-          class="q-ml-sm"
-        >
+        <q-chip dense size="sm" :color="contractionColor" text-color="white" class="q-ml-sm">
           {{ contractionLabel }}
         </q-chip>
         <q-badge
@@ -32,9 +26,10 @@
 
       <!-- Inline editable fields -->
       <q-item-label class="row items-center q-gutter-sm q-mt-xs">
-        <!-- ISO PAUSA mode: Reps + Seg + Pausa toggle -->
-        <template v-if="isIsoPausa">
+        <!-- I Go You Go: reps/secs OR Pausa toggle -->
+        <template v-if="isIGoYouGo">
           <q-input
+            v-if="!isIso"
             v-model.number="localReps"
             type="number"
             dense
@@ -47,6 +42,7 @@
             @keyup.enter="emitUpdate"
           />
           <q-input
+            v-else
             v-model.number="localSeconds"
             type="number"
             dense
@@ -67,6 +63,119 @@
             :outline="!isPausaSelected"
             @click="togglePausa"
           />
+        </template>
+
+        <!-- Death By mode: start + increment -->
+        <template v-else-if="isDeathBy">
+          <template v-if="!isIso">
+            <q-input
+              v-model.number="localReps"
+              type="number"
+              dense
+              outlined
+              label="Reps"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <span class="text-grey-6 text-body2">+</span>
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Inc"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+          <template v-else>
+            <q-input
+              v-model.number="localSeconds"
+              type="number"
+              dense
+              outlined
+              label="Seg"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <span class="text-grey-6 text-body2">+</span>
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Inc"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+        </template>
+
+        <!-- AMRAP range mode -->
+        <template v-else-if="isAmrap">
+          <template v-if="!isIso">
+            <q-input
+              v-model.number="localReps"
+              type="number"
+              dense
+              outlined
+              label="Min"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <span class="text-grey-6 text-body2">·</span>
+            <q-input
+              v-model.number="localRepsMax"
+              type="number"
+              dense
+              outlined
+              label="Max"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+          <template v-else>
+            <q-input
+              v-model.number="localSeconds"
+              type="number"
+              dense
+              outlined
+              label="Min seg"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <span class="text-grey-6 text-body2">·</span>
+            <q-input
+              v-model.number="localSecondsMax"
+              type="number"
+              dense
+              outlined
+              label="Max seg"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+        </template>
+
+        <!-- Param-driven formats (Tabata, HIIT): no per-exercise prescription -->
+        <template v-else-if="isParamDrivenFormat">
+          <span class="text-caption text-grey-6 q-ml-sm">Definido por formato</span>
         </template>
 
         <template v-else>
@@ -115,7 +224,34 @@
 
     <!-- Action buttons -->
     <q-item-section side>
-      <div class="row q-gutter-xs">
+      <div class="row items-center q-gutter-xs">
+        <!-- Move up/down -->
+        <div class="column q-mr-xs">
+          <q-btn
+            flat
+            dense
+            round
+            size="xs"
+            icon="keyboard_arrow_up"
+            color="grey-7"
+            :disable="isFirst"
+            @click="$emit('move', { prescriptionId: exercise.id, direction: 'up' })"
+          >
+            <q-tooltip>Mover arriba</q-tooltip>
+          </q-btn>
+          <q-btn
+            flat
+            dense
+            round
+            size="xs"
+            icon="keyboard_arrow_down"
+            color="grey-7"
+            :disable="isLast"
+            @click="$emit('move', { prescriptionId: exercise.id, direction: 'down' })"
+          >
+            <q-tooltip>Mover abajo</q-tooltip>
+          </q-btn>
+        </div>
         <q-btn
           flat
           dense
@@ -151,27 +287,39 @@ const props = defineProps<{
   blockId: number;
   blockRoute: string;
   blockFormatName: string;
+  isFirst: boolean;
+  isLast: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'swap', payload: { exercise: SessionExercise }): void;
   (e: 'remove', payload: { prescriptionId: number }): void;
   (e: 'update', payload: { prescriptionId: number; fields: PrescriptionUpdate }): void;
+  (e: 'move', payload: { prescriptionId: number; direction: 'up' | 'down' }): void;
 }>();
 
 // Local refs for editable fields
 const localReps = ref<number | null>(props.exercise.reps);
+const localRepsMax = ref<number | null>(props.exercise.repsMax);
 const localSeconds = ref<number | null>(props.exercise.seconds);
+const localSecondsMax = ref<number | null>(props.exercise.secondsMax);
+const localIncrement = ref<number | null>(props.exercise.increment);
 const localRest = ref<number | null>(props.exercise.rest);
 const localNotes = ref<string>(props.exercise.notes || '');
 
 // Sync local refs when props change (e.g. after API refresh)
-watch(() => props.exercise, (ex) => {
-  localReps.value = ex.reps;
-  localSeconds.value = ex.seconds;
-  localRest.value = ex.rest;
-  localNotes.value = ex.notes || '';
-});
+watch(
+  () => props.exercise,
+  (ex) => {
+    localReps.value = ex.reps;
+    localRepsMax.value = ex.repsMax;
+    localSeconds.value = ex.seconds;
+    localSecondsMax.value = ex.secondsMax;
+    localIncrement.value = ex.increment;
+    localRest.value = ex.rest;
+    localNotes.value = ex.notes || '';
+  }
+);
 
 function togglePausa() {
   if (isPausaSelected.value) {
@@ -196,8 +344,20 @@ function emitUpdate() {
     fields.reps = localReps.value ?? undefined;
     hasChanges = true;
   }
+  if (localRepsMax.value !== props.exercise.repsMax) {
+    fields.repsMax = localRepsMax.value;
+    hasChanges = true;
+  }
   if (localSeconds.value !== props.exercise.seconds) {
     fields.seconds = localSeconds.value ?? undefined;
+    hasChanges = true;
+  }
+  if (localSecondsMax.value !== props.exercise.secondsMax) {
+    fields.secondsMax = localSecondsMax.value;
+    hasChanges = true;
+  }
+  if (localIncrement.value !== props.exercise.increment) {
+    fields.increment = localIncrement.value;
     hasChanges = true;
   }
   if (localRest.value !== props.exercise.rest) {
@@ -221,19 +381,34 @@ const isIso = computed(() => {
   return c === 'iso' || c === 'isometrico';
 });
 
-// "I Go You Go" format detection
-const isIGoYouGo = computed(() => {
-  return props.blockFormatName.toLowerCase().includes('i go you go');
+// Whether this block uses AMRAP format (show range inputs)
+const isAmrap = computed(() => {
+  const f = props.blockFormatName.toLowerCase().trim().replace(/\s+/g, '_');
+  return f === 'amrap' || f === 'amrap_series';
 });
 
-// ISO exercise inside "I Go You Go" → show PAUSA toggle
-const isIsoPausa = computed(() => isIso.value && isIGoYouGo.value);
+// Whether this block uses Death By format (show start + increment inputs)
+const isDeathBy = computed(() => {
+  const f = props.blockFormatName.toLowerCase().trim();
+  return f.startsWith('death by');
+});
+
+// "I Go You Go" format detection — all exercises get PAUSA toggle
+const isIGoYouGo = computed(() => {
+  return props.blockFormatName.toLowerCase().includes('i go');
+});
+
+// Formats where per-exercise prescription is defined by format params, not per exercise
+const isParamDrivenFormat = computed(() => {
+  const f = props.blockFormatName.toLowerCase().trim();
+  return f === 'tabata' || f === 'interval training' || f === 'hiit';
+});
 
 // Whether PAUSA is currently active
 const isPausaSelected = computed(() => {
-  return props.exercise.reps === 0
-    && props.exercise.seconds === 0
-    && props.exercise.notes === 'PAUSA';
+  return (
+    props.exercise.reps === 0 && props.exercise.seconds === 0 && props.exercise.notes === 'PAUSA'
+  );
 });
 
 // Contraction display helpers

@@ -320,8 +320,12 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
   const exerciseLines: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
     let volume = '';
-    if (ex.seconds) volume = `${ex.seconds}"`;
-    else if (ex.reps) volume = `${ex.reps}`;
+    if (ex.increment) {
+      const start = ex.reps || ex.seconds || 0;
+      volume = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
+    } else if (ex.seconds)
+      volume = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+    else if (ex.reps) volume = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
 
     return {
       columns: [
@@ -519,8 +523,12 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
     let volume = '';
-    if (ex.seconds) volume = `${ex.seconds}"`;
-    else if (ex.reps) volume = `${ex.reps}`;
+    if (ex.increment) {
+      const start = ex.reps || ex.seconds || 0;
+      volume = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
+    } else if (ex.seconds)
+      volume = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+    else if (ex.reps) volume = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
 
     return {
       columns: [

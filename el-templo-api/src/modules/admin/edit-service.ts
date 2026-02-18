@@ -32,6 +32,7 @@ import type {
   ChangeBlockFormatParams,
   AddExerciseParams,
   RemoveExerciseParams,
+  ReorderExerciseParams,
   UpdateFormatParamsParams,
   ResetToAlgorithmParams,
   CompatibleFormatsParams,
@@ -119,6 +120,10 @@ export class AdminEditService {
     return this.mutationService.removeExercise(params);
   }
 
+  async reorderExercise(params: ReorderExerciseParams) {
+    return this.mutationService.reorderExercise(params);
+  }
+
   async updateBlockRole(params: {
     sessionId: number;
     blockId: number;
@@ -139,7 +144,11 @@ export class AdminEditService {
 
     const updateSet: Record<string, unknown> = {};
     if (fields.reps !== undefined) updateSet.reps = fields.reps;
+    if (fields.repsMax !== undefined) updateSet.repsMax = fields.repsMax;
     if (fields.seconds !== undefined) updateSet.seconds = fields.seconds;
+    if (fields.secondsMax !== undefined)
+      updateSet.secondsMax = fields.secondsMax;
+    if (fields.increment !== undefined) updateSet.increment = fields.increment;
     if (fields.rest !== undefined) updateSet.rest = fields.rest;
     if (fields.notes !== undefined) updateSet.notes = fields.notes;
 
@@ -219,6 +228,10 @@ export class AdminEditService {
             seconds: newP.seconds,
             rest: newP.rest,
             notes: newP.notes,
+            // Reset format-specific fields so stale data doesn't carry over
+            repsMax: null,
+            secondsMax: null,
+            increment: null,
           })
           .where(eq(schema.sessionPrescriptions.id, current.id));
       }
@@ -476,7 +489,10 @@ export class AdminEditService {
         exerciseName: p.exerciseName,
         contraction: p.contraction,
         reps: p.reps,
+        repsMax: p.repsMax,
         seconds: p.seconds,
+        secondsMax: p.secondsMax,
+        increment: p.increment,
         rest: p.rest,
         notes: p.notes,
         difficulty: p.difficulty,

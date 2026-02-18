@@ -7,7 +7,7 @@
       :class="[
         'exercise-item',
         { 'exercise-item--selected': index === selectedIndex },
-        { 'exercise-item--completed': isExerciseCompleted(exercise.exerciseId) }
+        { 'exercise-item--completed': isExerciseCompleted(exercise.exerciseId) },
       ]"
       header-class="exercise-header"
       expand-icon-class="text-grey-6"
@@ -87,37 +87,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Prescription } from '../../types/session';
-import { getBlockCSSColor } from '../../utils/blockColors';
-import type { BlockRole } from '../../types/session';
+import { computed } from 'vue'
+import type { Prescription } from '../../types/session'
+import { getBlockCSSColor } from '../../utils/blockColors'
+import type { BlockRole } from '../../types/session'
 
 interface Props {
   /** Array of exercises to display */
-  exercises: Prescription[];
+  exercises: Prescription[]
   /** Block role for accent color */
-  blockRole: BlockRole;
+  blockRole: BlockRole
   /** Currently selected exercise index */
-  selectedIndex: number;
+  selectedIndex: number
   /** Array of completed exercise (prescription) IDs */
-  completedExercises?: number[];
+  completedExercises?: number[]
 }
 
 interface Emits {
-  (e: 'update:selectedIndex', index: number): void;
-  (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void;
+  (e: 'update:selectedIndex', index: number): void
+  (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   completedExercises: () => [],
-});
-const emit = defineEmits<Emits>();
+})
+const emit = defineEmits<Emits>()
 
 /**
  * Check if a specific exercise is completed
  */
 function isExerciseCompleted(exerciseId: number): boolean {
-  return props.completedExercises.includes(exerciseId);
+  return props.completedExercises.includes(exerciseId)
 }
 
 /**
@@ -127,7 +127,7 @@ function isExerciseCompleted(exerciseId: number): boolean {
 function handleExpand(index: number, expanded: boolean): void {
   if (expanded) {
     // When expanding an item, emit its index
-    emit('update:selectedIndex', index);
+    emit('update:selectedIndex', index)
   }
   // When collapsing, we don't change selection (keep video playing)
   // The user must expand another exercise to change selection
@@ -138,30 +138,52 @@ function handleExpand(index: number, expanded: boolean): void {
  */
 const accentBorderStyle = computed(() => ({
   borderLeft: `3px solid ${getBlockCSSColor(props.blockRole)}`,
-}));
+}))
 
 /**
  * Format quick info for collapsed header
  */
+function formatDeathBySeq(start: number, inc: number): string {
+  return `${start} - ${start + inc} - ${start + inc * 2} - ...`
+}
+
 function formatQuickInfo(exercise: Prescription): string {
+  if (exercise.notes === 'PAUSA') return 'PAUSA'
   if (exercise.reps !== null) {
-    return `${exercise.reps} reps`;
+    if (exercise.increment) return `${formatDeathBySeq(exercise.reps, exercise.increment)} reps`
+    const repsText = exercise.repsMax
+      ? `${exercise.reps} · ${exercise.repsMax}`
+      : `${exercise.reps}`
+    return `${repsText} reps`
   } else if (exercise.seconds !== null) {
-    return `${exercise.seconds}s`;
+    if (exercise.increment) return `${formatDeathBySeq(exercise.seconds, exercise.increment)}s`
+    const secsText = exercise.secondsMax
+      ? `${exercise.seconds} · ${exercise.secondsMax}`
+      : `${exercise.seconds}`
+    return `${secsText}s`
   }
-  return '-';
+  return '-'
 }
 
 /**
  * Format dose (reps or duration)
  */
 function formatDose(exercise: Prescription): string {
+  if (exercise.notes === 'PAUSA') return 'PAUSA'
   if (exercise.reps !== null) {
-    return `${exercise.reps} repeticiones`;
+    if (exercise.increment) return formatDeathBySeq(exercise.reps, exercise.increment)
+    const repsText = exercise.repsMax
+      ? `${exercise.reps} · ${exercise.repsMax}`
+      : `${exercise.reps}`
+    return `${repsText} repeticiones`
   } else if (exercise.seconds !== null) {
-    return `${exercise.seconds} segundos`;
+    if (exercise.increment) return formatDeathBySeq(exercise.seconds, exercise.increment)
+    const secsText = exercise.secondsMax
+      ? `${exercise.seconds} · ${exercise.secondsMax}`
+      : `${exercise.seconds}`
+    return `${secsText} segundos`
   }
-  return '-';
+  return '-'
 }
 
 /**
@@ -172,8 +194,8 @@ function formatContraction(contraction: string): string {
     CON: 'Concentrica',
     EXC: 'Excentrica',
     ISO: 'Isometrica',
-  };
-  return contractionNames[contraction] || contraction;
+  }
+  return contractionNames[contraction] || contraction
 }
 
 /**
@@ -182,11 +204,11 @@ function formatContraction(contraction: string): string {
 function getContractionColor(contraction: string): string {
   // Use brand colors with different opacity effects via Quasar color modifiers
   const colorMap: Record<string, string> = {
-    CON: 'primary',     // Navy - concentric
-    EXC: 'secondary',   // Bronze - eccentric
-    ISO: 'primary',     // Navy - isometric
-  };
-  return colorMap[contraction] || 'primary';
+    CON: 'primary', // Navy - concentric
+    EXC: 'secondary', // Bronze - eccentric
+    ISO: 'primary', // Navy - isometric
+  }
+  return colorMap[contraction] || 'primary'
 }
 </script>
 
@@ -246,7 +268,9 @@ function getContractionColor(contraction: string): string {
 }
 
 .exercise-check-icon {
-  transition: color 0.3s ease, transform 0.3s ease;
+  transition:
+    color 0.3s ease,
+    transform 0.3s ease;
   -webkit-tap-highlight-color: transparent;
 }
 </style>

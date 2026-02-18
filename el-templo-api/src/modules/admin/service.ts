@@ -1,8 +1,8 @@
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, desc, asc, inArray, count, gte, ne } from 'drizzle-orm';
-import * as schema from '../../db/schema';
-import type { SessionStatus } from './types';
-import type { LevelGroup, ExerciseLevel } from '../sessions/types';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and, desc, asc, inArray, count, gte, ne } from "drizzle-orm";
+import * as schema from "../../db/schema";
+import type { SessionStatus } from "./types";
+import type { LevelGroup, ExerciseLevel } from "../sessions/types";
 
 export interface SessionFilter {
   week?: number;
@@ -51,8 +51,10 @@ export class AdminSessionService {
     const conditions = [];
     if (filter.week) conditions.push(eq(schema.sessions.week, filter.week));
     if (filter.day) conditions.push(eq(schema.sessions.day, filter.day));
-    if (filter.levelGroup) conditions.push(eq(schema.sessions.levelGroup, filter.levelGroup));
-    if (filter.status) conditions.push(eq(schema.sessions.status, filter.status));
+    if (filter.levelGroup)
+      conditions.push(eq(schema.sessions.levelGroup, filter.levelGroup));
+    if (filter.status)
+      conditions.push(eq(schema.sessions.status, filter.status));
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -83,51 +85,58 @@ export class AdminSessionService {
       .leftJoin(schema.users, eq(schema.sessions.approvedBy, schema.users.id))
       .where(whereClause)
       .orderBy(
-        filter.sortBy === 'status'
-          ? (filter.descending ? desc(schema.sessions.status) : asc(schema.sessions.status))
-          : filter.sortBy === 'week'
-          ? (filter.descending ? desc(schema.sessions.week) : asc(schema.sessions.week))
-          : (filter.descending ? desc(schema.sessions.day) : asc(schema.sessions.day))
+        filter.sortBy === "status"
+          ? filter.descending
+            ? desc(schema.sessions.status)
+            : asc(schema.sessions.status)
+          : filter.sortBy === "week"
+            ? filter.descending
+              ? desc(schema.sessions.week)
+              : asc(schema.sessions.week)
+            : filter.descending
+              ? desc(schema.sessions.day)
+              : asc(schema.sessions.day),
       )
       .limit(limit)
       .offset(offset);
 
     // Fetch routes for all sessions in a single query
-    const sessionIds = sessions.map(s => s.id);
-    const blocks = sessionIds.length > 0
-      ? await this.db
-          .select({
-            sessionId: schema.sessionBlocks.sessionId,
-            role: schema.sessionBlocks.role,
-            route: schema.sessionBlocks.route,
-            intensity: schema.sessionBlocks.intensity,
-            sortOrder: schema.sessionBlocks.sortOrder,
-          })
-          .from(schema.sessionBlocks)
-          .where(inArray(schema.sessionBlocks.sessionId, sessionIds))
-          .orderBy(asc(schema.sessionBlocks.sortOrder))
-      : [];
+    const sessionIds = sessions.map((s) => s.id);
+    const blocks =
+      sessionIds.length > 0
+        ? await this.db
+            .select({
+              sessionId: schema.sessionBlocks.sessionId,
+              role: schema.sessionBlocks.role,
+              route: schema.sessionBlocks.route,
+              intensity: schema.sessionBlocks.intensity,
+              sortOrder: schema.sessionBlocks.sortOrder,
+            })
+            .from(schema.sessionBlocks)
+            .where(inArray(schema.sessionBlocks.sessionId, sessionIds))
+            .orderBy(asc(schema.sessionBlocks.sortOrder))
+        : [];
 
     // Build routes summary map: sessionId -> "I, N: SU 55%, D1: PHS 60%, D2: HT 65%, A: FLR 60%"
     const routesBySession = new Map<number, string>();
     for (const sessionId of sessionIds) {
-      const sessionBlocks = blocks.filter(b => b.sessionId === sessionId);
+      const sessionBlocks = blocks.filter((b) => b.sessionId === sessionId);
       const routesSummary = sessionBlocks
-        .map(b => {
-          if (b.role === 'INITIUM') return 'I';
+        .map((b) => {
+          if (b.role === "INITIUM") return "I";
           let label = b.role.charAt(0);
-          if (b.role === 'DEUTEROS_1') label = 'D1';
-          else if (b.role === 'DEUTEROS_2') label = 'D2';
+          if (b.role === "DEUTEROS_1") label = "D1";
+          else if (b.role === "DEUTEROS_2") label = "D2";
           return `${label}: ${b.route} ${b.intensity}%`;
         })
-        .join(', ');
+        .join(", ");
       routesBySession.set(sessionId, routesSummary);
     }
 
     return {
-      sessions: sessions.map(s => {
+      sessions: sessions.map((s) => {
         // Extract memberLevel from dayId (format: "W1-lunes-alfa" -> "alfa")
-        const memberLevel = s.dayId.split('-').pop() || '';
+        const memberLevel = s.dayId.split("-").pop() || "";
         return {
           id: s.id,
           dayId: s.dayId,
@@ -135,14 +144,15 @@ export class AdminSessionService {
           day: s.day,
           levelGroup: s.levelGroup,
           memberLevel,
-          routesSummary: routesBySession.get(s.id) || '',
+          routesSummary: routesBySession.get(s.id) || "",
           status: s.status as SessionStatus,
           blockCount: s.blockCount,
           approvedAt: s.approvedAt,
           approvedBy: s.approvedBy,
-          approvedByName: s.approverFirstName && s.approverLastName
-            ? `${s.approverFirstName} ${s.approverLastName}`
-            : null,
+          approvedByName:
+            s.approverFirstName && s.approverLastName
+              ? `${s.approverFirstName} ${s.approverLastName}`
+              : null,
           approvedBySystem: s.approvedBySystem ?? false,
           createdAt: s.createdAt!,
         };
@@ -179,7 +189,10 @@ export class AdminSessionService {
             exerciseName: schema.sessionPrescriptions.exerciseName,
             contraction: schema.sessionPrescriptions.contraction,
             reps: schema.sessionPrescriptions.reps,
+            repsMax: schema.sessionPrescriptions.repsMax,
             seconds: schema.sessionPrescriptions.seconds,
+            secondsMax: schema.sessionPrescriptions.secondsMax,
+            increment: schema.sessionPrescriptions.increment,
             rest: schema.sessionPrescriptions.rest,
             notes: schema.sessionPrescriptions.notes,
             difficulty: schema.sessionPrescriptions.difficulty,
@@ -188,38 +201,47 @@ export class AdminSessionService {
             exerciseType: schema.sessionPrescriptions.exerciseType,
           })
           .from(schema.sessionPrescriptions)
-          .leftJoin(schema.exercises, eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id))
+          .leftJoin(
+            schema.exercises,
+            eq(schema.sessionPrescriptions.exerciseId, schema.exercises.id),
+          )
           .where(eq(schema.sessionPrescriptions.blockId, block.id))
           .orderBy(asc(schema.sessionPrescriptions.sortOrder));
 
         // Separate main exercises from mobility
-        const mainPrescriptions = prescriptions.filter(p => p.exerciseType !== 'mobility');
-        const mobilityPrescription = prescriptions.find(p => p.exerciseType === 'mobility');
+        const mainPrescriptions = prescriptions.filter(
+          (p) => p.exerciseType !== "mobility",
+        );
+        const mobilityPrescription = prescriptions.find(
+          (p) => p.exerciseType === "mobility",
+        );
 
         return {
           ...block,
-          exercises: mainPrescriptions.map(p => ({
+          exercises: mainPrescriptions.map((p) => ({
             ...p,
             dificultadLineal: p.difficulty,
             route: p.exerciseRoute || null,
             exerciseType: p.exerciseType,
           })),
-          mobilityExercise: mobilityPrescription ? {
-            id: mobilityPrescription.id,
-            exerciseId: mobilityPrescription.exerciseId,
-            exerciseName: mobilityPrescription.exerciseName,
-            contraction: mobilityPrescription.contraction,
-            reps: mobilityPrescription.reps,
-            seconds: mobilityPrescription.seconds,
-            rest: mobilityPrescription.rest,
-            notes: mobilityPrescription.notes,
-            exerciseType: mobilityPrescription.exerciseType,
-          } : null,
+          mobilityExercise: mobilityPrescription
+            ? {
+                id: mobilityPrescription.id,
+                exerciseId: mobilityPrescription.exerciseId,
+                exerciseName: mobilityPrescription.exerciseName,
+                contraction: mobilityPrescription.contraction,
+                reps: mobilityPrescription.reps,
+                seconds: mobilityPrescription.seconds,
+                rest: mobilityPrescription.rest,
+                notes: mobilityPrescription.notes,
+                exerciseType: mobilityPrescription.exerciseType,
+              }
+            : null,
         };
-      })
+      }),
     );
 
-    const memberLevel = session.dayId.split('-').pop() || '';
+    const memberLevel = session.dayId.split("-").pop() || "";
     return { ...session, memberLevel, blocks: blocksWithExercises };
   }
 
@@ -227,7 +249,7 @@ export class AdminSessionService {
     const [result] = await this.db
       .update(schema.sessions)
       .set({
-        status: 'approved',
+        status: "approved",
         approvedAt: new Date(),
         approvedBy: userId,
         approvedBySystem: false,
@@ -241,7 +263,7 @@ export class AdminSessionService {
     const [result] = await this.db
       .update(schema.sessions)
       .set({
-        status: 'pending_review',
+        status: "pending_review",
         approvedAt: null,
         approvedBy: null,
         approvedBySystem: false,
@@ -255,7 +277,7 @@ export class AdminSessionService {
     const [result] = await this.db
       .update(schema.sessions)
       .set({
-        status: 'approved',
+        status: "approved",
         approvedAt: new Date(),
         approvedBy: userId,
         approvedBySystem: false,
@@ -269,7 +291,7 @@ export class AdminSessionService {
     const [result] = await this.db
       .select({ count: count() })
       .from(schema.sessions)
-      .where(eq(schema.sessions.status, 'pending_review'));
+      .where(eq(schema.sessions.status, "pending_review"));
 
     return result?.count ?? 0;
   }
@@ -294,20 +316,33 @@ export class AdminSessionService {
       .from(schema.sessions)
       .where(eq(schema.sessions.week, week));
 
-    const days = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-    const levels: LevelGroup[] = ['alfa_delta', 'sigma', 'omega'];
+    const days = [
+      "lunes",
+      "martes",
+      "miercoles",
+      "jueves",
+      "viernes",
+      "sabado",
+    ];
+    const levels: LevelGroup[] = ["alfa_delta", "sigma", "omega"];
 
     return {
       week,
-      days: days.map(day => ({
+      days: days.map((day) => ({
         day,
-        levels: levels.map(levelGroup => {
-          const groupSessions = sessions.filter(s => s.day === day && s.levelGroup === levelGroup);
+        levels: levels.map((levelGroup) => {
+          const groupSessions = sessions.filter(
+            (s) => s.day === day && s.levelGroup === levelGroup,
+          );
           // Show worst status: pending > approved
-          const worstStatus = groupSessions.length === 0 ? null
-            : groupSessions.some(s => s.status === 'pending_review') ? 'pending_review'
-            : groupSessions.every(s => s.status === 'approved') ? 'approved'
-            : (groupSessions[0].status as SessionStatus);
+          const worstStatus =
+            groupSessions.length === 0
+              ? null
+              : groupSessions.some((s) => s.status === "pending_review")
+                ? "pending_review"
+                : groupSessions.every((s) => s.status === "approved")
+                  ? "approved"
+                  : (groupSessions[0].status as SessionStatus);
           return {
             levelGroup,
             hasSession: groupSessions.length > 0,
@@ -337,15 +372,18 @@ export class AdminSessionService {
       .from(schema.sessions)
       .where(
         and(
-          eq(schema.sessions.status, 'approved'),
-          gte(schema.sessions.week, currentWeek)
-        )
+          eq(schema.sessions.status, "approved"),
+          gte(schema.sessions.week, currentWeek),
+        ),
       );
 
-    const weeksWithApproved = approvedWeeks.map(r => r.week).sort((a, b) => a - b);
-    const weeksAhead = weeksWithApproved.length > 0
-      ? Math.max(...weeksWithApproved) - currentWeek
-      : 0;
+    const weeksWithApproved = approvedWeeks
+      .map((r) => r.week)
+      .sort((a, b) => a - b);
+    const weeksAhead =
+      weeksWithApproved.length > 0
+        ? Math.max(...weeksWithApproved) - currentWeek
+        : 0;
 
     return {
       currentWeek,
@@ -370,12 +408,12 @@ export class AdminSessionService {
 
     const dayOfWeek = tomorrow.getDay(); // 0=Sun, 1=Mon, ...
     const dayMap: Record<number, string> = {
-      1: 'lunes',
-      2: 'martes',
-      3: 'miercoles',
-      4: 'jueves',
-      5: 'viernes',
-      6: 'sabado',
+      1: "lunes",
+      2: "martes",
+      3: "miercoles",
+      4: "jueves",
+      5: "viernes",
+      6: "sabado",
     };
 
     const tomorrowDay = dayMap[dayOfWeek];
@@ -391,10 +429,10 @@ export class AdminSessionService {
       .from(schema.sessions)
       .where(
         and(
-          eq(schema.sessions.status, 'pending_review'),
+          eq(schema.sessions.status, "pending_review"),
           eq(schema.sessions.week, currentWeek),
-          eq(schema.sessions.day, tomorrowDay)
-        )
+          eq(schema.sessions.day, tomorrowDay),
+        ),
       );
 
     if (pendingSessions.length === 0) {
@@ -402,11 +440,11 @@ export class AdminSessionService {
     }
 
     // Auto-approve them with approvedBySystem=true flag
-    const sessionIds = pendingSessions.map(s => s.id);
+    const sessionIds = pendingSessions.map((s) => s.id);
     await this.db
       .update(schema.sessions)
       .set({
-        status: 'approved',
+        status: "approved",
         approvedAt: new Date(),
         approvedBy: null, // null indicates auto-approved (no user)
         approvedBySystem: true, // Flag to distinguish from manual approval
@@ -416,33 +454,46 @@ export class AdminSessionService {
     return { approved: pendingSessions.length };
   }
 
-  async generateWeek(week: number, options: {
-    days?: string[];
-    levelGroups?: string[];
-    regenerate?: boolean;
-  }): Promise<{ generated: number; skipped: number }> {
-    const days = options.days || ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-    const levelGroups = options.levelGroups || ['alfa_delta', 'sigma', 'omega'];
+  async generateWeek(
+    week: number,
+    options: {
+      days?: string[];
+      levelGroups?: string[];
+      regenerate?: boolean;
+    },
+  ): Promise<{ generated: number; skipped: number }> {
+    const days = options.days || [
+      "lunes",
+      "martes",
+      "miercoles",
+      "jueves",
+      "viernes",
+      "sabado",
+    ];
+    const levelGroups = options.levelGroups || ["alfa_delta", "sigma", "omega"];
 
     let generated = 0;
     let skipped = 0;
 
     // Import SessionGeneratorService dynamically to avoid circular deps
-    const { SessionGeneratorService } = await import('../sessions/service.js');
+    const { SessionGeneratorService } = await import("../sessions/service.js");
     const sessionService = new SessionGeneratorService(this.db);
 
     for (const day of days) {
       // Shared formats for cross-level consistency per day
       // Captured from the first generated level, then forced on subsequent levels
-      let sharedFormats: Map<string, { formatId: number; name: string }> | undefined;
+      let sharedFormats:
+        | Map<string, { formatId: number; name: string }>
+        | undefined;
 
       for (const levelGroup of levelGroups) {
         // Map levelGroup to memberLevels
-        const memberLevels: ExerciseLevel[] = levelGroup === 'alfa_delta'
-          ? ['alfa', 'delta']
-          : levelGroup === 'sigma'
-          ? ['sigma']
-          : ['omega', 'spartan'];
+        const memberLevels: ExerciseLevel[] =
+          levelGroup === "alfa_delta"
+            ? ["alfa", "delta"]
+            : levelGroup === "sigma"
+              ? ["sigma"]
+              : ["omega", "spartan"];
 
         for (const memberLevel of memberLevels) {
           const dayId = `W${week}-${day}-${memberLevel}`;
@@ -476,7 +527,7 @@ export class AdminSessionService {
           if (!sharedFormats) {
             sharedFormats = new Map();
             for (const block of session.blocks) {
-              if (block.role !== 'INITIUM') {
+              if (block.role !== "INITIUM") {
                 sharedFormats.set(block.role, {
                   formatId: block.format.formatId,
                   name: block.format.name,
@@ -497,10 +548,15 @@ export class AdminSessionService {
   /**
    * Get pool of blocks from approved sessions matching route + memberLevel
    */
-  async getBlockPool(route: string, memberLevel: string, excludeSessionId?: number, excludeBlockId?: number) {
+  async getBlockPool(
+    route: string,
+    memberLevel: string,
+    excludeSessionId?: number,
+    excludeBlockId?: number,
+  ) {
     // Build conditions
     const conditions = [
-      eq(schema.sessions.status, 'approved'),
+      eq(schema.sessions.status, "approved"),
       eq(schema.sessionBlocks.route, route),
     ];
 
@@ -528,13 +584,16 @@ export class AdminSessionService {
         sessionDayId: schema.sessions.dayId,
       })
       .from(schema.sessionBlocks)
-      .innerJoin(schema.sessions, eq(schema.sessionBlocks.sessionId, schema.sessions.id))
+      .innerJoin(
+        schema.sessions,
+        eq(schema.sessionBlocks.sessionId, schema.sessions.id),
+      )
       .where(and(...conditions))
       .orderBy(desc(schema.sessions.week), asc(schema.sessions.day));
 
     // Filter by memberLevel (extracted from dayId)
-    const filteredBlocks = blocks.filter(b => {
-      const blockMemberLevel = b.sessionDayId.split('-').pop() || '';
+    const filteredBlocks = blocks.filter((b) => {
+      const blockMemberLevel = b.sessionDayId.split("-").pop() || "";
       return blockMemberLevel === memberLevel;
     });
 
@@ -572,53 +631,64 @@ export class AdminSessionService {
           sourceWeek: block.sessionWeek,
           sourceDay: block.sessionDay,
           sourceRole: block.role,
-          exercises: exercises.map(e => ({
+          exercises: exercises.map((e) => ({
             ...e,
             dificultadLineal: e.difficulty,
           })),
         };
-      })
+      }),
     );
 
     // Deduplicate blocks by exercise fingerprint (sorted exercise names)
     // Keep the most recent one (first in list since ordered by week DESC)
     // Pre-seed with current block's fingerprint so identical blocks are excluded
-    const seen = new Map<string, typeof result[number]>();
+    const seen = new Map<string, (typeof result)[number]>();
     if (excludeBlockId) {
       const currentExercises = await this.db
         .select({ exerciseName: schema.sessionPrescriptions.exerciseName })
         .from(schema.sessionPrescriptions)
         .where(eq(schema.sessionPrescriptions.blockId, excludeBlockId));
       if (currentExercises.length > 0) {
-        const currentFingerprint = currentExercises.map(e => e.exerciseName).sort().join('|');
-        seen.set(currentFingerprint, {} as typeof result[number]);
+        const currentFingerprint = currentExercises
+          .map((e) => e.exerciseName)
+          .sort()
+          .join("|");
+        seen.set(currentFingerprint, {} as (typeof result)[number]);
       }
     }
     for (const block of result) {
       const fingerprint = block.exercises
-        .map(e => e.exerciseName)
+        .map((e) => e.exerciseName)
         .sort()
-        .join('|');
+        .join("|");
       if (!seen.has(fingerprint)) {
         seen.set(fingerprint, block);
       }
     }
 
-    return { blocks: Array.from(seen.values()).filter(b => b.id !== undefined) };
+    return {
+      blocks: Array.from(seen.values()).filter((b) => b.id !== undefined),
+    };
   }
 
   /**
    * Swap a block in a session with a block from the pool (approved session)
    */
-  async swapBlock(sessionId: number, targetBlockId: number, sourceBlockId: number): Promise<boolean> {
+  async swapBlock(
+    sessionId: number,
+    targetBlockId: number,
+    sourceBlockId: number,
+  ): Promise<boolean> {
     // Validate target block belongs to the given session
     const [targetBlock] = await this.db
       .select()
       .from(schema.sessionBlocks)
-      .where(and(
-        eq(schema.sessionBlocks.id, targetBlockId),
-        eq(schema.sessionBlocks.sessionId, sessionId),
-      ));
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, targetBlockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
 
     if (!targetBlock) return false;
 
@@ -636,11 +706,16 @@ export class AdminSessionService {
         sessionStatus: schema.sessions.status,
       })
       .from(schema.sessionBlocks)
-      .innerJoin(schema.sessions, eq(schema.sessionBlocks.sessionId, schema.sessions.id))
-      .where(and(
-        eq(schema.sessionBlocks.id, sourceBlockId),
-        eq(schema.sessions.status, 'approved'),
-      ));
+      .innerJoin(
+        schema.sessions,
+        eq(schema.sessionBlocks.sessionId, schema.sessions.id),
+      )
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, sourceBlockId),
+          eq(schema.sessions.status, "approved"),
+        ),
+      );
 
     if (!sourceBlock) return false;
 
@@ -673,7 +748,7 @@ export class AdminSessionService {
     // Insert new prescriptions copied from source
     if (sourcePrescriptions.length > 0) {
       await this.db.insert(schema.sessionPrescriptions).values(
-        sourcePrescriptions.map(p => ({
+        sourcePrescriptions.map((p) => ({
           blockId: targetBlockId,
           exerciseId: p.exerciseId,
           exerciseName: p.exerciseName,
@@ -684,7 +759,7 @@ export class AdminSessionService {
           notes: p.notes,
           difficulty: p.difficulty,
           sortOrder: p.sortOrder,
-        }))
+        })),
       );
     }
 

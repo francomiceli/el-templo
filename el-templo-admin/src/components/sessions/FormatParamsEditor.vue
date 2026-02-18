@@ -2,7 +2,6 @@
   <div class="format-params-editor">
     <!-- AMRAP (regular - minutes only) -->
     <div v-if="localParams?.type === 'amrap'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">AMRAP:</span>
       <q-input
         v-model.number="localParams.minutes"
         type="number"
@@ -12,14 +11,14 @@
         :min="1"
         :max="30"
         label="Minutos"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- AMRAP Series (minutes + rounds) -->
     <div v-else-if="localParams?.type === 'amrap_series'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">AMRAP Series:</span>
       <q-input
         v-model.number="localParams.minutes"
         type="number"
@@ -29,8 +28,9 @@
         :min="1"
         :max="30"
         label="Minutos"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.rounds"
@@ -41,14 +41,14 @@
         :min="1"
         :max="10"
         label="Rondas"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- EMOM -->
     <div v-else-if="localParams?.type === 'emom'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">EMOM:</span>
       <q-input
         v-model.number="localParams.intervalSeconds"
         type="number"
@@ -58,8 +58,9 @@
         :min="10"
         :max="180"
         label="Intervalo (seg)"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.totalMinutes"
@@ -70,14 +71,14 @@
         :min="1"
         :max="60"
         label="Minutos totales"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Complex -->
     <div v-else-if="localParams?.type === 'complex'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Complex:</span>
       <q-input
         v-model.number="localParams.rounds"
         type="number"
@@ -87,14 +88,14 @@
         :min="1"
         :max="10"
         label="Rondas"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Tabata -->
     <div v-else-if="localParams?.type === 'tabata'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Tabata:</span>
       <q-input
         v-model.number="localParams.workSeconds"
         type="number"
@@ -104,8 +105,9 @@
         :min="5"
         :max="60"
         label="Trabajo (seg)"
-        style="max-width: 110px"
+        style="min-width: 110px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.restSeconds"
@@ -116,8 +118,9 @@
         :min="5"
         :max="60"
         label="Descanso (seg)"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.rounds"
@@ -128,14 +131,14 @@
         :min="1"
         :max="20"
         label="Rondas"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Interval -->
     <div v-else-if="localParams?.type === 'interval'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">HIIT:</span>
       <q-input
         v-model.number="localParams.workSeconds"
         type="number"
@@ -145,8 +148,9 @@
         :min="5"
         :max="120"
         label="Trabajo (seg)"
-        style="max-width: 110px"
+        style="min-width: 110px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.restSeconds"
@@ -157,8 +161,9 @@
         :min="5"
         :max="120"
         label="Descanso (seg)"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.rounds"
@@ -169,14 +174,14 @@
         :min="1"
         :max="20"
         label="Rondas"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- For Time -->
     <div v-else-if="localParams?.type === 'for_time'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">For Time:</span>
       <q-input
         v-model.number="localParams.timeCapMinutes"
         type="number"
@@ -187,16 +192,14 @@
         :max="60"
         label="Tiempo limite (min)"
         clearable
-        style="max-width: 140px"
+        style="min-width: 140px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Buy-in/Cash-out -->
     <div v-else-if="localParams?.type === 'buy_in_cash_out'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'"
-        >Buy-in/Cash-out:</span
-      >
       <q-input
         v-model.number="localParams.rounds"
         type="number"
@@ -206,14 +209,14 @@
         :min="1"
         :max="10"
         label="Rondas"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Cluster -->
     <div v-else-if="localParams?.type === 'cluster'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Cluster:</span>
       <q-input
         v-model.number="localParams.clusterSize"
         type="number"
@@ -223,8 +226,9 @@
         :min="1"
         :max="10"
         label="Reps por cluster"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
       <q-input
         v-model.number="localParams.restBetweenClusters"
@@ -235,14 +239,14 @@
         :min="10"
         :max="300"
         label="Descanso (seg)"
-        style="max-width: 120px"
+        style="min-width: 120px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
 
     <!-- Ladder -->
     <div v-else-if="localParams?.type === 'ladder'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Ladder:</span>
       <q-select
         v-model="localParams.direction"
         :options="ladderOptions"
@@ -260,7 +264,6 @@
 
     <!-- Time Cap -->
     <div v-else-if="localParams?.type === 'time_cap'" class="row items-center q-gutter-sm">
-      <span class="text-caption" :class="dark ? 'text-white' : 'text-grey-7'">Time Cap:</span>
       <q-input
         v-model.number="localParams.minutes"
         type="number"
@@ -270,8 +273,9 @@
         :min="1"
         :max="60"
         label="Minutos"
-        style="max-width: 100px"
+        style="min-width: 100px"
         @blur="onBlur"
+        @keyup.enter="onBlur"
       />
     </div>
   </div>
@@ -291,6 +295,8 @@ const NO_PARAMS_TYPES = [
   'chipper',
   'cluster',
   'buy_in_cash_out',
+  'death_by',
+  'death_by_unbroken',
 ];
 
 const props = defineProps<{

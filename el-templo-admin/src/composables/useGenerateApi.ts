@@ -34,7 +34,9 @@ export function useGenerateApi() {
   }): Promise<GenerateResult> {
     loading.value = true;
     try {
-      const { data } = await api.post<GenerateResult>('/admin/generate', options);
+      const { data } = await api.post<GenerateResult>('/admin/generate', options, {
+        timeout: 120_000, // 2 min — full week generation is slow
+      });
       return data;
     } finally {
       loading.value = false;

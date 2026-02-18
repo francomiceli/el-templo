@@ -13,23 +13,30 @@
 // =============================================================================
 
 export type FormatParams =
-  | { type: 'amrap'; minutes: number }
-  | { type: 'amrap_series'; minutes: number; rounds: number }
-  | { type: 'emom'; intervalSeconds: number; totalMinutes: number }
-  | { type: 'complex'; rounds: number }
-  | { type: 'tabata'; workSeconds: number; restSeconds: number; rounds: number }
-  | { type: 'interval'; workSeconds: number; restSeconds: number; rounds: number }
-  | { type: 'for_time'; timeCapMinutes?: number }
-  | { type: 'chipper'; rounds: number }
-  | { type: 'buy_in_cash_out'; rounds?: number }
-  | { type: 'cluster'; clusterSize: number; restBetweenClusters: number }
-  | { type: 'ladder'; direction: 'ascending' | 'descending' }
-  | { type: 'unbroken' }
-  | { type: 'couplet' }
-  | { type: 'triplet' }
-  | { type: 'for_max' }
-  | { type: 'time_cap'; minutes: number }
-  | { type: 'standard' };
+  | { type: "amrap"; minutes: number }
+  | { type: "amrap_series"; minutes: number; rounds: number }
+  | { type: "emom"; intervalSeconds: number; totalMinutes: number }
+  | { type: "complex"; rounds: number }
+  | { type: "tabata"; workSeconds: number; restSeconds: number; rounds: number }
+  | {
+      type: "interval";
+      workSeconds: number;
+      restSeconds: number;
+      rounds: number;
+    }
+  | { type: "for_time"; timeCapMinutes?: number }
+  | { type: "chipper"; rounds: number }
+  | { type: "buy_in_cash_out"; rounds?: number }
+  | { type: "cluster"; clusterSize: number; restBetweenClusters: number }
+  | { type: "ladder"; direction: "ascending" | "descending" }
+  | { type: "unbroken" }
+  | { type: "couplet" }
+  | { type: "triplet" }
+  | { type: "for_max" }
+  | { type: "time_cap"; minutes: number }
+  | { type: "death_by" }
+  | { type: "i_go_you_go" }
+  | { type: "standard" };
 
 // =============================================================================
 // Default Value Constants
@@ -80,39 +87,43 @@ export interface FormatParamsContext {
  */
 export function getDefaultFormatParams(
   formatName: string,
-  context: FormatParamsContext
+  context: FormatParamsContext,
 ): FormatParams {
-  const normalized = formatName.toLowerCase().trim().replace(/\s+/g, '_');
+  const normalized = formatName.toLowerCase().trim().replace(/\s+/g, "_");
   const { intensity, exerciseCount } = context;
 
   // AMRAP Series (must check before generic amrap)
-  if (normalized.includes('amrap') && normalized.includes('series')) {
-    return { type: 'amrap_series', minutes: DEFAULTS.AMRAP_MINUTES, rounds: DEFAULTS.AMRAP_SERIES_ROUNDS };
+  if (normalized.includes("amrap") && normalized.includes("series")) {
+    return {
+      type: "amrap_series",
+      minutes: DEFAULTS.AMRAP_MINUTES,
+      rounds: DEFAULTS.AMRAP_SERIES_ROUNDS,
+    };
   }
 
   // AMRAP formats
-  if (normalized.includes('amrap')) {
-    return { type: 'amrap', minutes: DEFAULTS.AMRAP_MINUTES };
+  if (normalized.includes("amrap")) {
+    return { type: "amrap", minutes: DEFAULTS.AMRAP_MINUTES };
   }
 
   // EMOM formats
-  if (normalized.includes('emom')) {
+  if (normalized.includes("emom")) {
     return {
-      type: 'emom',
+      type: "emom",
       intervalSeconds: DEFAULTS.EMOM_INTERVAL_SECONDS,
       totalMinutes: exerciseCount, // 1 minute per exercise
     };
   }
 
   // Complex
-  if (normalized === 'complex') {
-    return { type: 'complex', rounds: DEFAULTS.COMPLEX_ROUNDS };
+  if (normalized === "complex") {
+    return { type: "complex", rounds: DEFAULTS.COMPLEX_ROUNDS };
   }
 
   // Tabata
-  if (normalized === 'tabata') {
+  if (normalized === "tabata") {
     return {
-      type: 'tabata',
+      type: "tabata",
       workSeconds: DEFAULTS.TABATA_WORK_SECONDS,
       restSeconds: DEFAULTS.TABATA_REST_SECONDS,
       rounds: DEFAULTS.TABATA_ROUNDS,
@@ -120,7 +131,7 @@ export function getDefaultFormatParams(
   }
 
   // Interval Training
-  if (normalized.includes('interval')) {
+  if (normalized.includes("interval")) {
     let workSeconds: number;
     let restSeconds: number;
     if (intensity >= 80) {
@@ -134,7 +145,7 @@ export function getDefaultFormatParams(
       restSeconds = DEFAULTS.INTERVAL_LOW_REST;
     }
     return {
-      type: 'interval',
+      type: "interval",
       workSeconds,
       restSeconds,
       rounds: DEFAULTS.INTERVAL_DEFAULT_ROUNDS,
@@ -142,63 +153,76 @@ export function getDefaultFormatParams(
   }
 
   // For Time
-  if (normalized.includes('for_time') || normalized === 'for_time') {
-    return { type: 'for_time' }; // No time cap by default
+  if (normalized.includes("for_time") || normalized === "for_time") {
+    return { type: "for_time" }; // No time cap by default
   }
 
   // Chipper
-  if (normalized === 'chipper') {
-    return { type: 'chipper', rounds: DEFAULTS.CHIPPER_ROUNDS };
+  if (normalized === "chipper") {
+    return { type: "chipper", rounds: DEFAULTS.CHIPPER_ROUNDS };
   }
 
   // Buy-in / Cash-out
-  if (normalized.includes('buy') || normalized.includes('cash')) {
-    return { type: 'buy_in_cash_out' };
+  if (normalized.includes("buy") || normalized.includes("cash")) {
+    return { type: "buy_in_cash_out" };
   }
 
   // Cluster
-  if (normalized === 'cluster') {
+  if (normalized === "cluster") {
     return {
-      type: 'cluster',
+      type: "cluster",
       clusterSize: DEFAULTS.CLUSTER_SIZE,
       restBetweenClusters: DEFAULTS.CLUSTER_REST_SECONDS,
     };
   }
 
   // Ladder
-  if (normalized.includes('ladder')) {
+  if (normalized.includes("ladder")) {
     // High intensity = descending (harder first), per decision 13-07
-    const direction = intensity >= DEFAULTS.LADDER_HIGH_INTENSITY_THRESHOLD ? 'descending' : 'ascending';
-    return { type: 'ladder', direction };
+    const direction =
+      intensity >= DEFAULTS.LADDER_HIGH_INTENSITY_THRESHOLD
+        ? "descending"
+        : "ascending";
+    return { type: "ladder", direction };
   }
 
   // Unbroken
-  if (normalized.includes('unbroken')) {
-    return { type: 'unbroken' };
+  if (normalized.includes("unbroken")) {
+    return { type: "unbroken" };
   }
 
   // Couplet
-  if (normalized === 'couplet') {
-    return { type: 'couplet' };
+  if (normalized === "couplet") {
+    return { type: "couplet" };
   }
 
   // Triplet
-  if (normalized === 'triplet') {
-    return { type: 'triplet' };
+  if (normalized === "triplet") {
+    return { type: "triplet" };
   }
 
   // For Max
-  if (normalized.includes('for_max') || normalized.includes('max_reps')) {
-    return { type: 'for_max' };
+  if (normalized.includes("for_max") || normalized.includes("max_reps")) {
+    return { type: "for_max" };
   }
 
   // Time Cap
-  if (normalized.includes('time_cap')) {
-    return { type: 'time_cap', minutes: DEFAULTS.TIME_CAP_MINUTES };
+  if (normalized.includes("time_cap")) {
+    return { type: "time_cap", minutes: DEFAULTS.TIME_CAP_MINUTES };
+  }
+
+  // Death By
+  if (normalized.startsWith("death_by") || normalized.startsWith("death by")) {
+    return { type: "death_by" };
+  }
+
+  // I Go, You Go
+  if (normalized.includes("i_go") || normalized.includes("i go")) {
+    return { type: "i_go_you_go" };
   }
 
   // Default fallback for unknown formats
-  return { type: 'standard' };
+  return { type: "standard" };
 }
 
 // =============================================================================
@@ -213,64 +237,70 @@ export function getDefaultFormatParams(
  */
 export function formatParamsLabel(params: FormatParams): string {
   switch (params.type) {
-    case 'amrap':
+    case "amrap":
       return `AMRAP - ${params.minutes} min`;
 
-    case 'amrap_series':
+    case "amrap_series":
       return `AMRAP Series - ${params.minutes} min x ${params.rounds} rondas`;
 
-    case 'emom':
+    case "emom":
       return `EMOM - ${params.intervalSeconds}s / ${params.totalMinutes} min total`;
 
-    case 'complex':
+    case "complex":
       return `Complex - ${params.rounds} rondas`;
 
-    case 'tabata':
+    case "tabata":
       return `Tabata - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
 
-    case 'interval':
+    case "interval":
       return `HIIT - ${params.workSeconds}s/${params.restSeconds}s x ${params.rounds} rondas`;
 
-    case 'for_time':
+    case "for_time":
       return params.timeCapMinutes
         ? `For Time - ${params.timeCapMinutes} min cap`
-        : 'For Time';
+        : "For Time";
 
-    case 'chipper':
-      return `Chipper - ${params.rounds} ronda${params.rounds > 1 ? 's' : ''}`;
+    case "chipper":
+      return `Chipper - ${params.rounds} ronda${params.rounds > 1 ? "s" : ""}`;
 
-    case 'buy_in_cash_out':
+    case "buy_in_cash_out":
       return params.rounds
         ? `Buy-in/Cash-out - ${params.rounds} rondas`
-        : 'Buy-in/Cash-out';
+        : "Buy-in/Cash-out";
 
-    case 'cluster':
+    case "cluster":
       return `Cluster - ${params.clusterSize} reps, ${params.restBetweenClusters}s rest`;
 
-    case 'ladder':
-      return `Ladder - ${params.direction === 'ascending' ? 'Ascendente' : 'Descendente'}`;
+    case "ladder":
+      return `Ladder - ${params.direction === "ascending" ? "Ascendente" : "Descendente"}`;
 
-    case 'unbroken':
-      return 'Unbroken';
+    case "unbroken":
+      return "Unbroken";
 
-    case 'couplet':
-      return 'Couplet';
+    case "couplet":
+      return "Couplet";
 
-    case 'triplet':
-      return 'Triplet';
+    case "triplet":
+      return "Triplet";
 
-    case 'for_max':
-      return 'For Max Reps';
+    case "for_max":
+      return "For Max Reps";
 
-    case 'time_cap':
+    case "time_cap":
       return `Time Cap - ${params.minutes} min`;
 
-    case 'standard':
-      return 'Standard';
+    case "death_by":
+      return "Death By";
+
+    case "i_go_you_go":
+      return "I Go, You Go";
+
+    case "standard":
+      return "Standard";
 
     default:
       // TypeScript exhaustiveness check
       const _exhaustive: never = params;
-      return 'Unknown';
+      return "Unknown";
   }
 }

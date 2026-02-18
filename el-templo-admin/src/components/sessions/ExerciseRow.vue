@@ -17,16 +17,23 @@
           {{ exercise.route }}
         </q-badge>
         <span class="q-ml-sm">
-          <template v-if="exercise.reps">{{ exercise.reps }} reps</template>
-          <template v-else-if="exercise.seconds">{{ exercise.seconds }}s</template>
+          <template v-if="exercise.notes === 'PAUSA'">PAUSA</template>
+          <template v-else-if="exercise.increment">{{ deathBySeq }}</template>
+          <template v-else-if="exercise.reps"
+            >{{ exercise.reps
+            }}<template v-if="exercise.repsMax"> · {{ exercise.repsMax }}</template> reps</template
+          >
+          <template v-else-if="exercise.seconds"
+            >{{ exercise.seconds
+            }}<template v-if="exercise.secondsMax"> · {{ exercise.secondsMax }}</template
+            >s</template
+          >
         </span>
       </q-item-label>
     </q-item-section>
 
     <q-item-section side v-if="exercise.dificultadLineal">
-      <div class="text-caption text-grey">
-        Dif: {{ exercise.dificultadLineal }}
-      </div>
+      <div class="text-caption text-grey">Dif: {{ exercise.dificultadLineal }}</div>
     </q-item-section>
 
     <q-item-section side v-if="exercise.notes">
@@ -45,6 +52,12 @@ const props = defineProps<{
   exercise: SessionExercise;
   blockRoute: string;
 }>();
+
+const deathBySeq = computed(() => {
+  const start = props.exercise.reps || props.exercise.seconds || 0;
+  const inc = props.exercise.increment || 0;
+  return `${start} - ${start + inc} - ${start + inc * 2} - ...`;
+});
 
 const contractionLabel = computed(() => {
   switch (props.exercise.contraction?.toLowerCase()) {

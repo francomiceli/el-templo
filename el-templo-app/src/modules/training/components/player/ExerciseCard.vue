@@ -3,7 +3,7 @@
     :class="[
       'exercise-card',
       { 'exercise-card--active': isActive },
-      { 'exercise-card--completed': completed }
+      { 'exercise-card--completed': completed },
     ]"
     :style="isActive ? { borderLeftColor: `var(--q-${accentColor})` } : {}"
     flat
@@ -18,24 +18,36 @@
             <div class="text-h6 exercise-card__name">
               {{ exercise.exerciseName }}
             </div>
-            <q-badge
-              :color="accentColor"
-              text-color="white"
-              class="exercise-card__badge"
-            >
+            <q-badge :color="accentColor" text-color="white" class="exercise-card__badge">
               {{ exercise.contraction }}
             </q-badge>
           </div>
 
-          <!-- Main metrics: reps OR seconds -->
+          <!-- Main metrics: PAUSA / reps / seconds -->
           <div class="exercise-card__metrics">
-            <div v-if="hasReps" class="exercise-card__metric">
-              <span class="exercise-card__metric-value">{{ exercise.reps }}</span>
+            <div v-if="isPausa" class="exercise-card__metric">
+              <span class="exercise-card__metric-value">PAUSA</span>
+            </div>
+
+            <div v-else-if="hasReps" class="exercise-card__metric">
+              <span v-if="exercise.increment" class="exercise-card__metric-value">{{
+                deathBySequence
+              }}</span>
+              <span v-else class="exercise-card__metric-value"
+                >{{ exercise.reps
+                }}<template v-if="exercise.repsMax"> · {{ exercise.repsMax }}</template></span
+              >
               <span class="exercise-card__metric-label">reps</span>
             </div>
 
             <div v-else-if="hasTime" class="exercise-card__metric">
-              <span class="exercise-card__metric-value">{{ exercise.seconds }}</span>
+              <span v-if="exercise.increment" class="exercise-card__metric-value">{{
+                deathBySequence
+              }}</span>
+              <span v-else class="exercise-card__metric-value"
+                >{{ exercise.seconds
+                }}<template v-if="exercise.secondsMax"> · {{ exercise.secondsMax }}</template></span
+              >
               <span class="exercise-card__metric-label">seg</span>
             </div>
           </div>
@@ -61,38 +73,53 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Prescription } from '../../types/session';
+import { computed } from 'vue'
+import type { Prescription } from '../../types/session'
 
 interface Props {
   /** Exercise prescription data */
-  exercise: Prescription;
+  exercise: Prescription
   /** Quasar color name for accents (from block) */
-  accentColor: string;
+  accentColor: string
   /** Whether this exercise is currently selected */
-  isActive?: boolean;
+  isActive?: boolean
   /** Whether this exercise has been completed */
-  completed?: boolean;
+  completed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isActive: false,
   completed: false,
-});
+})
 
 const emit = defineEmits<{
-  (e: 'toggle-complete'): void;
-}>();
+  (e: 'toggle-complete'): void
+}>()
+
+/**
+ * Whether this exercise is a PAUSA (I Go You Go format)
+ */
+const isPausa = computed(() => props.exercise.notes === 'PAUSA')
 
 /**
  * Whether exercise has repetition-based prescription
  */
-const hasReps = computed(() => props.exercise.reps !== null);
+const hasReps = computed(() => props.exercise.reps !== null)
 
 /**
  * Whether exercise has time-based prescription
  */
-const hasTime = computed(() => props.exercise.seconds !== null);
+const hasTime = computed(() => props.exercise.seconds !== null)
+
+/**
+ * Death By sequence string (e.g., "2 - 4 - 6 - ...")
+ */
+const deathBySequence = computed(() => {
+  const start = (hasReps.value ? props.exercise.reps : props.exercise.seconds) ?? 0
+  const inc = props.exercise.increment ?? 0
+  const steps = [start, start + inc, start + inc * 2]
+  return steps.join(' - ') + ' - ...'
+})
 </script>
 
 <style scoped lang="scss">
@@ -142,7 +169,9 @@ const hasTime = computed(() => props.exercise.seconds !== null);
 }
 
 .exercise-card__check-icon {
-  transition: color 0.3s ease, transform 0.3s ease;
+  transition:
+    color 0.3s ease,
+    transform 0.3s ease;
 }
 
 .exercise-card--completed .exercise-card__check-icon {

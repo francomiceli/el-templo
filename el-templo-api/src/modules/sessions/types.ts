@@ -93,7 +93,10 @@ export interface ExercisePrescription {
   readonly name: string;
   readonly contraction: Contraction;
   readonly reps: number;
+  readonly repsMax?: number;
   readonly seconds: number;
+  readonly secondsMax?: number;
+  readonly increment?: number;
   readonly rest: number;
   readonly notes?: string;
   /** Linear difficulty scale (1-12) for validation */

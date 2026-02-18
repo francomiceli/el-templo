@@ -17,12 +17,12 @@
  * Returns null if format should use standard prescription logic.
  */
 
-import type { SelectedExercise, ExercisePrescription } from '../types';
+import type { SelectedExercise, ExercisePrescription } from "../types";
 import {
   roundToNearest5,
   calculateInverseDifficultyWeights,
   allocateRepsRounded,
-} from './utils/reps-calculator';
+} from "./utils/reps-calculator";
 import {
   REST_TIMES,
   REPS,
@@ -30,7 +30,7 @@ import {
   INTENSITY_THRESHOLDS,
   EMOM_REPS,
   INTERVAL_SECONDS,
-} from './utils/constants';
+} from "./utils/constants";
 
 export interface PrescriptionContext {
   readonly exercises: readonly SelectedExercise[];
@@ -41,60 +41,19 @@ export interface PrescriptionContext {
 
 type Prescriber = (ctx: PrescriptionContext) => ExercisePrescription[] | null;
 
-/**
- * Registry mapping format names to their prescriber functions.
- * Multiple names can map to the same prescriber for format aliases.
- */
-const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
-  // HIGH priority formats (13-06)
-  'buy-in / cash-out': prescribeBuyInCashOut,
-  'buy-in/cash-out': prescribeBuyInCashOut,
-  'complex': prescribeComplex,
-  'amrap': prescribeAMRAP,
-  'amrap series': prescribeAMRAP,
-  'emom': prescribeEMOM,
-  'emom + for time': prescribeEMOM,
-  'chipper': prescribeChipper,
-
-  // MEDIUM priority - Time-based formats (13-07)
-  'for time': prescribeForTime,
-  'tabata': prescribeTabata,
-  'interval training': prescribeIntervalTraining,
-  'interval': prescribeIntervalTraining,
-  'time cap': prescribeTimeCap,
-
-  // MEDIUM priority - Rep-based formats (13-07)
-  'cluster': prescribeCluster,
-  'unbroken reps': prescribeUnbrokenReps,
-  'unbroken': prescribeUnbrokenReps,
-  'for max (reps)': prescribeForMaxReps,
-  'for max reps': prescribeForMaxReps,
-  'max reps': prescribeForMaxReps,
-
-  // MEDIUM priority - Structure formats (13-07)
-  'couplet': prescribeCouplet,
-  'triplet': prescribeTriplet,
-  'ladder': prescribeLadder,
-  'ladder block': prescribeLadder,
-  'ladder corta': prescribeLadder,
-};
-
-/**
- * Route to format-specific prescriber based on format name.
- * Returns null for unhandled formats (use standard prescription).
- */
-export function prescribeByFormat(
-  format: string,
-  ctx: PrescriptionContext
-): ExercisePrescription[] | null {
-  const normalizedFormat = format.toLowerCase().trim();
-  const prescriber = PRESCRIBER_REGISTRY[normalizedFormat];
-  return prescriber ? prescriber(ctx) : null;
-}
+// Registry and prescribeByFormat are defined at the bottom of the file
+// (after all prescriber functions) to avoid ReferenceError with const initialization.
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+/** Optional overrides for format-specific prescription fields */
+interface PrescriptionOverrides {
+  repsMax?: number;
+  secondsMax?: number;
+  increment?: number;
+}
 
 /**
  * Create a prescription object from exercise and parameters.
@@ -105,9 +64,10 @@ function createPrescription(
   reps: number,
   rest: number,
   notes?: string,
-  seconds?: number
+  seconds?: number,
+  overrides?: PrescriptionOverrides,
 ): ExercisePrescription {
-  const isISO = exercise.contraction === 'ISO';
+  const isISO = exercise.contraction === "ISO";
   return {
     exerciseId: exercise.exerciseId,
     name: exercise.name,
@@ -117,6 +77,7 @@ function createPrescription(
     rest,
     notes,
     dificultadLineal: exercise.difficulty,
+    ...overrides,
   };
 }
 
@@ -129,7 +90,9 @@ function createPrescription(
  * Structure: A -> B -> C -> A
  * Budget split: A gets 40% (20% + 20%), others split remaining 60%
  */
-function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[] | null {
+function prescribeBuyInCashOut(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] | null {
   const { exercises, repsBudget, restTime } = ctx;
   if (exercises.length < 3) return null;
 
@@ -147,7 +110,9 @@ function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[]
   const prescriptions: ExercisePrescription[] = [];
 
   // Opening bookend
-  prescriptions.push(createPrescription(bookendExercise, bookendReps, restTime, 'Buy-in'));
+  prescriptions.push(
+    createPrescription(bookendExercise, bookendReps, restTime, "Buy-in"),
+  );
 
   // Middle exercises
   for (const ex of middleExercises) {
@@ -155,7 +120,9 @@ function prescribeBuyInCashOut(ctx: PrescriptionContext): ExercisePrescription[]
   }
 
   // Closing bookend (same exercise as first)
-  prescriptions.push(createPrescription(bookendExercise, bookendReps, restTime, 'Cash-out'));
+  prescriptions.push(
+    createPrescription(bookendExercise, bookendReps, restTime, "Cash-out"),
+  );
 
   return prescriptions;
 }
@@ -176,8 +143,8 @@ function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       repsPerExercise,
       i === exercises.length - 1 ? restTime : 0, // Only rest after last exercise
-      i === 0 ? 'Complex - no rest between exercises' : undefined
-    )
+      i === 0 ? "Complex - no rest between exercises" : undefined,
+    ),
   );
 }
 
@@ -185,6 +152,7 @@ function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
  * AMRAP: Reps per round, athletes do as many rounds as possible
  * Structure: Rounds of (A + B + C), total time-capped
  * Budget represents reps PER ROUND, not total
+ * Sets repsMax/secondsMax for ranges (e.g., "10-15 reps") typical of AMRAP
  */
 function prescribeAMRAP(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget } = ctx;
@@ -195,12 +163,20 @@ function prescribeAMRAP(ctx: PrescriptionContext): ExercisePrescription[] {
   const repsAllocation = allocateRepsRounded(exercises, repsPerRound, weights);
 
   return exercises.map((ex, i) => {
+    const isISO = ex.contraction === "ISO";
+    const baseReps = isISO ? 0 : Math.max(repsAllocation[i], REPS.MIN_AMRAP);
+    const baseSeconds = isISO ? ISO_SECONDS.AMRAP : 0;
+
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : Math.max(repsAllocation[i], REPS.MIN_AMRAP),
+      baseReps,
       0, // No rest in AMRAP rounds
-      i === 0 ? 'AMRAP - complete max rounds' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.AMRAP : 0
+      i === 0 ? "AMRAP - complete max rounds" : undefined,
+      baseSeconds,
+      // Range: +5 reps or +10 seconds for flexibility
+      isISO
+        ? { secondsMax: baseSeconds + REPS.AMRAP_RANGE_SECONDS }
+        : { repsMax: baseReps + REPS.AMRAP_RANGE_REPS },
     );
   });
 }
@@ -226,11 +202,11 @@ function prescribeEMOM(ctx: PrescriptionContext): ExercisePrescription[] {
   return exercises.map((ex, i) =>
     createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : baseReps,
+      ex.contraction === "ISO" ? 0 : baseReps,
       0, // Rest is built into the minute
-      i === 0 ? 'EMOM - rotate each minute' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
-    )
+      i === 0 ? "EMOM - rotate each minute" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
+    ),
   );
 }
 
@@ -249,10 +225,10 @@ function prescribeChipper(ctx: PrescriptionContext): ExercisePrescription[] {
   return exercises.map((ex, i) => {
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
+      ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? 'Chipper - complete each exercise before moving on' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.CHIPPER : 0
+      i === 0 ? "Chipper - complete each exercise before moving on" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.CHIPPER : 0,
     );
   });
 }
@@ -274,10 +250,10 @@ function prescribeForTime(ctx: PrescriptionContext): ExercisePrescription[] {
   return exercises.map((ex, i) => {
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
+      ex.contraction === "ISO" ? 0 : repsAllocation[i],
       0, // No prescribed rest - athlete moves continuously
-      i === 0 ? 'For Time - complete ASAP' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
+      i === 0 ? "For Time - complete ASAP" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
 }
@@ -297,9 +273,9 @@ function prescribeTabata(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       0, // Tabata uses time, not fixed reps
       REST_TIMES.TABATA, // 10s rest between rounds
-      i === 0 ? 'Tabata: 20s work / 10s rest x 8 rounds' : undefined,
-      ISO_SECONDS.TABATA_WORK // 20 seconds work
-    )
+      i === 0 ? "Tabata: 20s work / 10s rest x 8 rounds" : undefined,
+      ISO_SECONDS.TABATA_WORK, // 20 seconds work
+    ),
   );
 }
 
@@ -307,7 +283,9 @@ function prescribeTabata(ctx: PrescriptionContext): ExercisePrescription[] {
  * Interval Training: Structured work/rest periods
  * Structure: Work period followed by rest period, multiple rounds
  */
-function prescribeIntervalTraining(ctx: PrescriptionContext): ExercisePrescription[] {
+function prescribeIntervalTraining(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] {
   const { exercises, intensity } = ctx;
 
   // Work duration based on intensity
@@ -329,9 +307,11 @@ function prescribeIntervalTraining(ctx: PrescriptionContext): ExercisePrescripti
       ex,
       0, // Time-based, not rep-based
       intervalRest,
-      i === 0 ? `Interval: ${workSeconds}s work / ${intervalRest}s rest` : undefined,
-      workSeconds
-    )
+      i === 0
+        ? `Interval: ${workSeconds}s work / ${intervalRest}s rest`
+        : undefined,
+      workSeconds,
+    ),
   );
 }
 
@@ -347,7 +327,7 @@ function prescribeTimeCap(ctx: PrescriptionContext): ExercisePrescription[] {
     const first = prescriptions[0];
     prescriptions[0] = {
       ...first,
-      notes: 'Time Cap - complete within limit',
+      notes: "Time Cap - complete within limit",
     };
   }
   return prescriptions;
@@ -375,10 +355,12 @@ function prescribeCluster(ctx: PrescriptionContext): ExercisePrescription[] {
 
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : totalReps,
+      ex.contraction === "ISO" ? 0 : totalReps,
       REST_TIMES.CLUSTER,
-      i === 0 ? `Cluster: ${clusters}x${clusterSize} reps, ${REST_TIMES.CLUSTER}s between clusters` : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
+      i === 0
+        ? `Cluster: ${clusters}x${clusterSize} reps, ${REST_TIMES.CLUSTER}s between clusters`
+        : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
 }
@@ -387,20 +369,26 @@ function prescribeCluster(ctx: PrescriptionContext): ExercisePrescription[] {
  * Unbroken Reps: Complete all reps without stopping
  * Structure: Standard reps but must be unbroken
  */
-function prescribeUnbrokenReps(ctx: PrescriptionContext): ExercisePrescription[] {
+function prescribeUnbrokenReps(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] {
   const { exercises, restTime } = ctx;
   // Lower rep counts for unbroken requirement
   const adjustedBudget = roundToNearest5(ctx.repsBudget * REPS.UNBROKEN_FACTOR);
   const weights = calculateInverseDifficultyWeights(exercises);
-  const repsAllocation = allocateRepsRounded(exercises, adjustedBudget, weights);
+  const repsAllocation = allocateRepsRounded(
+    exercises,
+    adjustedBudget,
+    weights,
+  );
 
   return exercises.map((ex, i) => {
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
+      ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? 'Unbroken - no rest during set' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
+      i === 0 ? "Unbroken - no rest during set" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
 }
@@ -418,10 +406,10 @@ function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
   return exercises.map((ex, i) => {
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsAllocation[i],
+      ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? 'For Max Reps - max effort' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.MAX_EFFORT : 0
+      i === 0 ? "For Max Reps - max effort" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.MAX_EFFORT : 0,
     );
   });
 }
@@ -434,7 +422,9 @@ function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
  * Couplet: Exactly 2 exercises alternating
  * Returns null if not exactly 2 exercises to trigger standard fallback.
  */
-function prescribeCouplet(ctx: PrescriptionContext): ExercisePrescription[] | null {
+function prescribeCouplet(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] | null {
   const { exercises, repsBudget } = ctx;
 
   // Couplet requires exactly 2 exercises - return null to use standard fallback
@@ -447,11 +437,11 @@ function prescribeCouplet(ctx: PrescriptionContext): ExercisePrescription[] | nu
   return exercises.map((ex, i) =>
     createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsPerExercise,
+      ex.contraction === "ISO" ? 0 : repsPerExercise,
       0, // Alternate without rest
-      i === 0 ? 'Couplet - alternate between exercises' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
-    )
+      i === 0 ? "Couplet - alternate between exercises" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
+    ),
   );
 }
 
@@ -459,7 +449,9 @@ function prescribeCouplet(ctx: PrescriptionContext): ExercisePrescription[] | nu
  * Triplet: Exactly 3 exercises in rotation
  * Returns null if not exactly 3 exercises to trigger standard fallback.
  */
-function prescribeTriplet(ctx: PrescriptionContext): ExercisePrescription[] | null {
+function prescribeTriplet(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] | null {
   const { exercises, repsBudget } = ctx;
 
   // Triplet requires exactly 3 exercises - return null to use standard fallback
@@ -472,11 +464,11 @@ function prescribeTriplet(ctx: PrescriptionContext): ExercisePrescription[] | nu
   return exercises.map((ex, i) =>
     createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : repsPerExercise,
+      ex.contraction === "ISO" ? 0 : repsPerExercise,
       0,
-      i === 0 ? 'Triplet - rotate through 3 exercises' : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
-    )
+      i === 0 ? "Triplet - rotate through 3 exercises" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
+    ),
   );
 }
 
@@ -505,10 +497,132 @@ function prescribeLadder(ctx: PrescriptionContext): ExercisePrescription[] {
 
     return createPrescription(
       ex,
-      ex.contraction === 'ISO' ? 0 : reps,
+      ex.contraction === "ISO" ? 0 : reps,
       restTime,
-      i === 0 ? `Ladder - ${descending ? 'descending' : 'ascending'} reps` : undefined,
-      ex.contraction === 'ISO' ? ISO_SECONDS.DEFAULT : 0
+      i === 0
+        ? `Ladder - ${descending ? "descending" : "ascending"} reps`
+        : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
+}
+
+// =============================================================================
+// Death By & I Go, You Go Formats
+// =============================================================================
+
+/**
+ * Death By: Start at X reps in minute 1, add increment each round until failure
+ * Structure: Min 1 → 2 reps, Min 2 → 3 reps, Min 3 → 4 reps, ...
+ * Uses `increment` field per exercise. Low starting reps, progressive overload.
+ * Higher intensity → increment of 2 instead of 1.
+ */
+function prescribeDeathBy(ctx: PrescriptionContext): ExercisePrescription[] {
+  const { exercises, intensity } = ctx;
+
+  const startReps = REPS.DEATH_BY_START;
+  const increment =
+    intensity >= INTENSITY_THRESHOLDS.HIGH
+      ? REPS.DEATH_BY_INCREMENT_HIGH
+      : REPS.DEATH_BY_INCREMENT;
+
+  return exercises.map((ex, i) => {
+    const isISO = ex.contraction === "ISO";
+
+    return createPrescription(
+      ex,
+      isISO ? 0 : startReps,
+      0, // No rest - each round is time-bounded (1 minute)
+      i === 0
+        ? `Death By - start at ${startReps}, +${increment} each round`
+        : undefined,
+      isISO ? ISO_SECONDS.DEFAULT : 0,
+      isISO ? undefined : { increment },
+    );
+  });
+}
+
+/**
+ * I Go, You Go: Partner alternating format
+ * Structure: Partner A does exercise, Partner B rests, then swap.
+ * Each partner does half the total rounds, but reps per turn stay the same.
+ * No explicit rest (partner's work time is your rest).
+ * Uses standard rep distribution but with no programmed rest.
+ */
+function prescribeIGoYouGo(ctx: PrescriptionContext): ExercisePrescription[] {
+  const { exercises, repsBudget } = ctx;
+
+  // Standard rep distribution - each partner does these reps on their turn
+  const weights = calculateInverseDifficultyWeights(exercises);
+  const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
+
+  return exercises.map((ex, i) => {
+    return createPrescription(
+      ex,
+      ex.contraction === "ISO" ? 0 : repsAllocation[i],
+      0, // No rest - partner's work is your rest
+      i === 0 ? "I Go, You Go - alternate with partner" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
+    );
+  });
+}
+
+// =============================================================================
+// Registry & Router (must be after all prescriber function definitions)
+// =============================================================================
+
+/**
+ * Registry mapping format names to their prescriber functions.
+ * Multiple names can map to the same prescriber for format aliases.
+ */
+const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
+  // HIGH priority formats (13-06)
+  "buy-in / cash-out": prescribeBuyInCashOut,
+  "buy-in/cash-out": prescribeBuyInCashOut,
+  complex: prescribeComplex,
+  amrap: prescribeAMRAP,
+  "amrap series": prescribeAMRAP,
+  emom: prescribeEMOM,
+  "emom + for time": prescribeEMOM,
+  chipper: prescribeChipper,
+
+  // MEDIUM priority - Time-based formats (13-07)
+  "for time": prescribeForTime,
+  tabata: prescribeTabata,
+  "interval training": prescribeIntervalTraining,
+  interval: prescribeIntervalTraining,
+  "time cap": prescribeTimeCap,
+
+  // Death By and I Go, You Go formats
+  "death by": prescribeDeathBy,
+  "i go, you go": prescribeIGoYouGo,
+  "i go you go": prescribeIGoYouGo,
+
+  // MEDIUM priority - Rep-based formats (13-07)
+  cluster: prescribeCluster,
+  "unbroken reps": prescribeUnbrokenReps,
+  unbroken: prescribeUnbrokenReps,
+  "for max (reps)": prescribeForMaxReps,
+  "for max reps": prescribeForMaxReps,
+  "max reps": prescribeForMaxReps,
+
+  // MEDIUM priority - Structure formats (13-07)
+  couplet: prescribeCouplet,
+  triplet: prescribeTriplet,
+  ladder: prescribeLadder,
+  "ladder block": prescribeLadder,
+  "ladder corta": prescribeLadder,
+};
+
+/**
+ * Route to format-specific prescriber based on format name.
+ * Returns null for unhandled formats (use standard prescription).
+ */
+export function prescribeByFormat(
+  format: string,
+  ctx: PrescriptionContext,
+): ExercisePrescription[] | null {
+  const normalizedFormat = format.toLowerCase().trim();
+  const prescriber = PRESCRIBER_REGISTRY[normalizedFormat];
+  return prescriber ? prescriber(ctx) : null;
 }

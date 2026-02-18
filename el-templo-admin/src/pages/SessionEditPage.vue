@@ -18,9 +18,7 @@
       <div class="row items-center justify-between q-mb-md">
         <div class="row items-center">
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
-          <span class="text-h5">
-            Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }}
-          </span>
+          <span class="text-h5"> Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }} </span>
         </div>
         <q-badge
           :color="allApproved ? 'green' : 'amber'"
@@ -44,18 +42,8 @@
           label="Revertir Dia"
           @click="handleRevertDay"
         />
-        <q-btn
-          color="secondary"
-          icon="restore"
-          label="Resetear Dia"
-          @click="handleResetDay"
-        />
-        <q-btn
-          color="info"
-          icon="preview"
-          label="Vista Previa"
-          @click="previewOpen = true"
-        />
+        <q-btn color="secondary" icon="restore" label="Resetear Dia" @click="handleResetDay" />
+        <q-btn color="info" icon="preview" label="Vista Previa" @click="previewOpen = true" />
       </div>
 
       <!-- Block groups -->
@@ -109,7 +97,8 @@
 
         <q-card-section v-if="blockSwapTarget" class="q-pt-none">
           <div class="text-caption text-grey q-mb-md">
-            Reemplazar bloque {{ blockSwapTarget.role }} ({{ blockSwapTarget.route }}) con uno del pool de sesiones aprobadas
+            Reemplazar bloque {{ blockSwapTarget.role }} ({{ blockSwapTarget.route }}) con uno del
+            pool de sesiones aprobadas
           </div>
 
           <div v-if="blockPoolLoading" class="flex flex-center q-pa-lg">
@@ -117,11 +106,17 @@
           </div>
 
           <div v-else-if="blockPool.length === 0" class="text-center q-pa-lg text-grey">
-            <q-icon name="info" size="md" class="q-mb-sm" /><br>
+            <q-icon name="info" size="md" class="q-mb-sm" /><br />
             No hay bloques disponibles para esta ruta y nivel
           </div>
 
-          <q-list v-else separator bordered class="rounded-borders" style="max-height: 400px; overflow-y: auto">
+          <q-list
+            v-else
+            separator
+            bordered
+            class="rounded-borders"
+            style="max-height: 400px; overflow-y: auto"
+          >
             <q-item
               v-for="poolBlock in blockPool"
               :key="poolBlock.id"
@@ -148,7 +143,8 @@
                 </q-item-label>
                 <q-item-label caption class="q-mt-xs">
                   <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
-                    {{ ex.exerciseName }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
+                    {{ ex.exerciseName
+                    }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
                   </span>
                   <span v-if="poolBlock.exercises.length > 4">
                     ... +{{ poolBlock.exercises.length - 4 }}
@@ -178,7 +174,13 @@ import { useAdminStore } from 'src/stores/useAdminStore';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import ExerciseSwapDialog from 'src/components/sessions/ExerciseSwapDialog.vue';
-import type { SessionDetail, SessionExercise, SessionBlock, PoolBlock, PrescriptionUpdate } from 'src/types/session';
+import type {
+  SessionDetail,
+  SessionExercise,
+  SessionBlock,
+  PoolBlock,
+  PrescriptionUpdate,
+} from 'src/types/session';
 import type { BlockGroup } from 'src/types/block-group';
 
 const route = useRoute();
@@ -220,15 +222,11 @@ const blockPoolLoading = ref(false);
 const preDialogScrollY = ref(0);
 
 // Status computeds
-const allApproved = computed(() =>
-  sessions.value.length > 0 && sessions.value.every(s => s.status === 'approved')
+const allApproved = computed(
+  () => sessions.value.length > 0 && sessions.value.every((s) => s.status === 'approved')
 );
-const hasPending = computed(() =>
-  sessions.value.some(s => s.status === 'pending_review')
-);
-const hasApproved = computed(() =>
-  sessions.value.some(s => s.status === 'approved')
-);
+const hasPending = computed(() => sessions.value.some((s) => s.status === 'pending_review'));
+const hasApproved = computed(() => sessions.value.some((s) => s.status === 'approved'));
 
 // Block grouping: merge blocks across sessions by role + sortOrder
 const blockGroups = computed<BlockGroup[]>(() => {
@@ -237,18 +235,21 @@ const blockGroups = computed<BlockGroup[]>(() => {
   // Use first session as the canonical block structure
   const firstSession = sessions.value[0];
   return firstSession.blocks.map((refBlock) => {
-    const levelBlocks = sessions.value.map(s => {
-      const matchingBlock = s.blocks.find(b =>
-        b.role === refBlock.role && b.sortOrder === refBlock.sortOrder
+    const levelBlocks = sessions.value
+      .map((s) => {
+        const matchingBlock = s.blocks.find(
+          (b) => b.role === refBlock.role && b.sortOrder === refBlock.sortOrder
+        );
+        return {
+          sessionId: s.id,
+          memberLevel: s.memberLevel,
+          block: matchingBlock ?? null,
+        };
+      })
+      .filter(
+        (lb): lb is { sessionId: number; memberLevel: string; block: SessionBlock } =>
+          lb.block !== null
       );
-      return {
-        sessionId: s.id,
-        memberLevel: s.memberLevel,
-        block: matchingBlock ?? null,
-      };
-    }).filter((lb): lb is { sessionId: number; memberLevel: string; block: SessionBlock } =>
-      lb.block !== null
-    );
 
     return {
       role: refBlock.role,
@@ -263,10 +264,10 @@ const blockGroups = computed<BlockGroup[]>(() => {
 
 function deuterosSibling(bg: BlockGroup) {
   if (bg.role === 'DEUTEROS_1') {
-    return blockGroups.value.find(b => b.role === 'DEUTEROS_2')?.levelBlocks;
+    return blockGroups.value.find((b) => b.role === 'DEUTEROS_2')?.levelBlocks;
   }
   if (bg.role === 'DEUTEROS_2') {
-    return blockGroups.value.find(b => b.role === 'DEUTEROS_1')?.levelBlocks;
+    return blockGroups.value.find((b) => b.role === 'DEUTEROS_1')?.levelBlocks;
   }
   return undefined;
 }
@@ -285,14 +286,12 @@ async function loadDay() {
 
     // Fetch full details for each session
     const details = await Promise.all(
-      response.sessions.map(s => sessionsApi.fetchSessionDetail(s.id))
+      response.sessions.map((s) => sessionsApi.fetchSessionDetail(s.id))
     );
 
     // Sort by level order: alfa, delta, sigma, omega, spartan
     const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-    details.sort((a, b) =>
-      levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel)
-    );
+    details.sort((a, b) => levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel));
 
     sessions.value = details;
   } catch (err: unknown) {
@@ -312,12 +311,10 @@ async function refreshDay(savedScrollY?: number) {
       limit: 100,
     });
     const details = await Promise.all(
-      response.sessions.map(s => sessionsApi.fetchSessionDetail(s.id))
+      response.sessions.map((s) => sessionsApi.fetchSessionDetail(s.id))
     );
     const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-    details.sort((a, b) =>
-      levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel)
-    );
+    details.sort((a, b) => levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel));
     sessions.value = details;
   } catch {
     // silent
@@ -332,9 +329,7 @@ function goBack() {
 
 // Day-level actions
 async function handleApproveDay() {
-  const pendingIds = sessions.value
-    .filter(s => s.status === 'pending_review')
-    .map(s => s.id);
+  const pendingIds = sessions.value.filter((s) => s.status === 'pending_review').map((s) => s.id);
   if (pendingIds.length === 0) return;
 
   $q.dialog({
@@ -362,8 +357,8 @@ async function handleRevertDay() {
     cancel: true,
   }).onOk(async () => {
     try {
-      const approvedSessions = sessions.value.filter(s => s.status === 'approved');
-      await Promise.all(approvedSessions.map(s => sessionsApi.revertSession(s.id)));
+      const approvedSessions = sessions.value.filter((s) => s.status === 'approved');
+      await Promise.all(approvedSessions.map((s) => sessionsApi.revertSession(s.id)));
       $q.notify({ type: 'info', message: `${approvedSessions.length} sesiones revertidas` });
       refreshDay();
       adminStore.fetchPendingCount();
@@ -377,12 +372,13 @@ async function handleRevertDay() {
 async function handleResetDay() {
   $q.dialog({
     title: 'Resetear Dia',
-    message: 'Se restauraran TODAS las sesiones del dia al algoritmo original. Todos los cambios manuales se perderan. Continuar?',
+    message:
+      'Se restauraran TODAS las sesiones del dia al algoritmo original. Todos los cambios manuales se perderan. Continuar?',
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Resetear', color: 'negative' },
   }).onOk(async () => {
     try {
-      await Promise.all(sessions.value.map(s => editApi.resetToAlgorithm(s.id)));
+      await Promise.all(sessions.value.map((s) => editApi.resetToAlgorithm(s.id)));
       $q.notify({ type: 'positive', message: 'Sesiones restauradas al algoritmo' });
       refreshDay();
     } catch {
@@ -401,7 +397,7 @@ async function onSwapBlock(payload: { sessionId: number; block: SessionBlock }) 
   blockPoolLoading.value = true;
 
   try {
-    const session = sessions.value.find(s => s.id === payload.sessionId);
+    const session = sessions.value.find((s) => s.id === payload.sessionId);
     const memberLevel = session?.memberLevel || 'alfa';
     const result = await sessionsApi.fetchBlockPool(
       payload.block.route,
@@ -441,7 +437,13 @@ async function handleBlockSwap(sourceBlockId: number) {
 }
 
 // Exercise swap/add/mobility
-function onSwapExercise(payload: { sessionId: number; blockId: number; exercise: SessionExercise; blockRoute: string; blockPattern: string }) {
+function onSwapExercise(payload: {
+  sessionId: number;
+  blockId: number;
+  exercise: SessionExercise;
+  blockRoute: string;
+  blockPattern: string;
+}) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'swap';
   swapDialogMobilityMode.value = false;
@@ -453,7 +455,13 @@ function onSwapExercise(payload: { sessionId: number; blockId: number; exercise:
   swapDialogOpen.value = true;
 }
 
-function onAddExercise(payload: { sessionId: number; blockId: number; blockRoute: string; blockPattern: string; blockRole: string }) {
+function onAddExercise(payload: {
+  sessionId: number;
+  blockId: number;
+  blockRoute: string;
+  blockPattern: string;
+  blockRole: string;
+}) {
   preDialogScrollY.value = window.scrollY;
   swapDialogMode.value = 'add';
   swapDialogMobilityMode.value = false;
@@ -467,7 +475,10 @@ function onAddExercise(payload: { sessionId: number; blockId: number; blockRoute
     exerciseName: 'Nuevo ejercicio',
     contraction: '',
     reps: null,
+    repsMax: null,
     seconds: null,
+    secondsMax: null,
+    increment: null,
     rest: null,
     notes: null,
     dificultadLineal: null,
@@ -491,7 +502,10 @@ function onSwapMobility(payload: { sessionId: number; blockId: number; blockRout
     exerciseName: '',
     contraction: '',
     reps: null,
+    repsMax: null,
     seconds: null,
+    secondsMax: null,
+    increment: null,
     rest: null,
     notes: null,
     dificultadLineal: null,
@@ -501,19 +515,34 @@ function onSwapMobility(payload: { sessionId: number; blockId: number; blockRout
   swapDialogOpen.value = true;
 }
 
-async function onUpdateMobilityPrescription(payload: { sessionId: number; blockId: number; prescriptionId: number; fields: PrescriptionUpdate }) {
-  const session = sessions.value.find(s => s.id === payload.sessionId);
+async function onUpdateMobilityPrescription(payload: {
+  sessionId: number;
+  blockId: number;
+  prescriptionId: number;
+  fields: PrescriptionUpdate;
+}) {
+  const session = sessions.value.find((s) => s.id === payload.sessionId);
   if (!session) return;
 
-  const block = session.blocks.find(b => b.id === payload.blockId);
+  const block = session.blocks.find((b) => b.id === payload.blockId);
   if (!block) return;
 
   try {
-    await editApi.updatePrescription(payload.sessionId, block.id, payload.prescriptionId, payload.fields);
+    await editApi.updatePrescription(
+      payload.sessionId,
+      block.id,
+      payload.prescriptionId,
+      payload.fields
+    );
     if (block.mobilityExercise) {
       Object.assign(block.mobilityExercise, payload.fields);
     }
-    $q.notify({ type: 'positive', message: 'Prescripcion de movilidad actualizada', color: 'green', timeout: 1500 });
+    $q.notify({
+      type: 'positive',
+      message: 'Prescripcion de movilidad actualizada',
+      color: 'green',
+      timeout: 1500,
+    });
   } catch {
     $q.notify({ type: 'negative', message: 'Error al actualizar prescripcion de movilidad' });
   }

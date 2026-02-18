@@ -141,6 +141,8 @@ export class SessionGeneratorService {
     // Generate each block in sequence (determinism requires sequential execution)
     // Track DEUTEROS_1 format to enforce consistency with DEUTEROS_2
     let deuteros1Format: FormatInstance | undefined;
+    // Track formats used in this session to avoid repeats within the same day
+    const usedFormatNames: string[] = [];
 
     const blockRoles = getBlockRoles(week);
     for (const role of blockRoles) {
@@ -180,11 +182,14 @@ export class SessionGeneratorService {
       // DEUTEROS_2 must use same format as DEUTEROS_1 for consistency
       // sharedFormats enforces cross-level format consistency (same format for all levels on a day)
       const sharedFormat = input.sharedFormats?.get(role);
-      const pipelineOptions: BlockPipelineOptions | undefined = sharedFormat
-        ? { forcedFormat: sharedFormat }
+      const pipelineOptions: BlockPipelineOptions = sharedFormat
+        ? { forcedFormat: sharedFormat, excludeFormatNames: usedFormatNames }
         : role === "DEUTEROS_2" && deuteros1Format
-          ? { forcedFormat: deuteros1Format }
-          : undefined;
+          ? {
+              forcedFormat: deuteros1Format,
+              excludeFormatNames: usedFormatNames,
+            }
+          : { excludeFormatNames: usedFormatNames };
 
       // Run the 7-stage pipeline
       const blockPlan = await runBlockPipeline(
@@ -193,6 +198,9 @@ export class SessionGeneratorService {
         this.db,
         pipelineOptions,
       );
+
+      // Track used format for same-day deduplication
+      usedFormatNames.push(blockPlan.format.name);
 
       // Capture DEUTEROS_1's format for DEUTEROS_2 consistency
       if (role === "DEUTEROS_1") {
@@ -428,7 +436,10 @@ export class SessionGeneratorService {
           exerciseName: ex.name,
           contraction: ex.contraction,
           reps: ex.reps,
+          repsMax: ex.repsMax ?? null,
           seconds: ex.seconds,
+          secondsMax: ex.secondsMax ?? null,
+          increment: ex.increment ?? null,
           rest: ex.rest,
           notes: ex.notes ?? null,
           difficulty: ex.dificultadLineal ?? null, // Store difficulty for display to users
@@ -450,7 +461,10 @@ export class SessionGeneratorService {
           exerciseName: mobilityEx.name,
           contraction: mobilityEx.contraction,
           reps: mobilityEx.reps,
+          repsMax: mobilityEx.repsMax ?? null,
           seconds: mobilityEx.seconds,
+          secondsMax: mobilityEx.secondsMax ?? null,
+          increment: mobilityEx.increment ?? null,
           rest: mobilityEx.rest,
           notes: mobilityEx.notes ?? null,
           difficulty: null, // Mobility exercises don't use difficulty
@@ -621,7 +635,10 @@ export class SessionGeneratorService {
           exerciseName: schema.sessionPrescriptions.exerciseName,
           contraction: schema.sessionPrescriptions.contraction,
           reps: schema.sessionPrescriptions.reps,
+          repsMax: schema.sessionPrescriptions.repsMax,
           seconds: schema.sessionPrescriptions.seconds,
+          secondsMax: schema.sessionPrescriptions.secondsMax,
+          increment: schema.sessionPrescriptions.increment,
           rest: schema.sessionPrescriptions.rest,
           notes: schema.sessionPrescriptions.notes,
           difficulty: schema.sessionPrescriptions.difficulty,
@@ -642,7 +659,10 @@ export class SessionGeneratorService {
         name: p.exerciseName,
         contraction: p.contraction as "CON" | "EXC" | "ISO",
         reps: p.reps,
+        repsMax: p.repsMax ?? undefined,
         seconds: p.seconds,
+        secondsMax: p.secondsMax ?? undefined,
+        increment: p.increment ?? undefined,
         rest: p.rest,
         notes: p.notes ?? undefined,
         dificultadLineal: p.difficulty ?? undefined, // Load difficulty for display to users

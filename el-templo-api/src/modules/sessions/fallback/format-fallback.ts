@@ -10,15 +10,15 @@
  * 2: Use default format (Straight Sets for strength, AMRAP for conditioning)
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, gt, between, or } from 'drizzle-orm';
-import * as schema from '../../../db/schema';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and, gt, between, or } from "drizzle-orm";
+import * as schema from "../../../db/schema";
 import type {
   FallbackResult,
   FallbackAction,
   FallbackPolicy,
   FormatRequirements,
-} from './types';
+} from "./types";
 
 /** Format data returned from queries */
 export interface FormatCandidate {
@@ -28,22 +28,23 @@ export interface FormatCandidate {
 }
 
 /** Default formats for different block types when all else fails */
-const DEFAULT_FORMATS: Record<FormatRequirements['block'], string> = {
-  initium: 'EMOM', // Time-based warmup (changed from 'Movilidad' which doesn't exist)
-  nucleus: 'Straight Sets', // Classic sets for main strength work
-  deuteros: 'Straight Sets', // Accessory strength
-  athlos: 'AMRAP', // Conditioning
-  epikos: 'AMRAP', // Conditioning
+const DEFAULT_FORMATS: Record<FormatRequirements["block"], string> = {
+  initium: "EMOM", // Time-based warmup (changed from 'Movilidad' which doesn't exist)
+  nucleus: "Straight Sets", // Classic sets for main strength work
+  deuteros: "Straight Sets", // Accessory strength
+  athlos: "AMRAP", // Conditioning
+  epikos: "AMRAP", // Conditioning
 };
 
 /**
- * Query formats with given criteria
+ * Query formats across ALL levels for a block+intensity.
+ * Deduplicates by formatId, keeping the best (lowest) compatibility.
+ * Used for level-independent blocks like INITIUM.
  */
-async function queryFormats(
+export async function queryFormatsAnyLevel(
   db: MySql2Database<typeof schema>,
-  block: FormatRequirements['block'],
-  level: FormatRequirements['level'],
-  intensity: number
+  block: FormatRequirements["block"],
+  intensity: number,
 ): Promise<FormatCandidate[]> {
   const results = await db
     .select({
@@ -52,15 +53,64 @@ async function queryFormats(
       name: schema.formats.name,
     })
     .from(schema.formatCompatibility)
-    .innerJoin(schema.formats, eq(schema.formatCompatibility.formatId, schema.formats.id))
-    .where(and(
-      eq(schema.formatCompatibility.block, block),
-      eq(schema.formatCompatibility.level, level),
-      eq(schema.formatCompatibility.intensity, intensity),
-      gt(schema.formatCompatibility.compatibility, 0)
-    ));
+    .innerJoin(
+      schema.formats,
+      eq(schema.formatCompatibility.formatId, schema.formats.id),
+    )
+    .where(
+      and(
+        eq(schema.formatCompatibility.block, block),
+        eq(schema.formatCompatibility.intensity, intensity),
+        gt(schema.formatCompatibility.compatibility, 0),
+      ),
+    );
 
-  return results.map(r => ({
+  // Deduplicate by formatId, keep best (lowest) compatibility
+  const byFormat = new Map<number, FormatCandidate>();
+  for (const r of results) {
+    const existing = byFormat.get(r.formatId);
+    if (!existing || r.compatibility < existing.compatibility) {
+      byFormat.set(r.formatId, {
+        formatId: r.formatId,
+        name: r.name,
+        compatibility: r.compatibility,
+      });
+    }
+  }
+
+  return [...byFormat.values()];
+}
+
+/**
+ * Query formats with given criteria
+ */
+async function queryFormats(
+  db: MySql2Database<typeof schema>,
+  block: FormatRequirements["block"],
+  level: FormatRequirements["level"],
+  intensity: number,
+): Promise<FormatCandidate[]> {
+  const results = await db
+    .select({
+      formatId: schema.formatCompatibility.formatId,
+      compatibility: schema.formatCompatibility.compatibility,
+      name: schema.formats.name,
+    })
+    .from(schema.formatCompatibility)
+    .innerJoin(
+      schema.formats,
+      eq(schema.formatCompatibility.formatId, schema.formats.id),
+    )
+    .where(
+      and(
+        eq(schema.formatCompatibility.block, block),
+        eq(schema.formatCompatibility.level, level),
+        eq(schema.formatCompatibility.intensity, intensity),
+        gt(schema.formatCompatibility.compatibility, 0),
+      ),
+    );
+
+  return results.map((r) => ({
     formatId: r.formatId,
     name: r.name,
     compatibility: r.compatibility,
@@ -72,10 +122,10 @@ async function queryFormats(
  */
 async function queryFormatsWithRelaxedIntensity(
   db: MySql2Database<typeof schema>,
-  block: FormatRequirements['block'],
-  level: FormatRequirements['level'],
+  block: FormatRequirements["block"],
+  level: FormatRequirements["level"],
   intensity: number,
-  range: number
+  range: number,
 ): Promise<FormatCandidate[]> {
   const minIntensity = Math.max(0, intensity - range);
   const maxIntensity = Math.min(100, intensity + range);
@@ -87,15 +137,24 @@ async function queryFormatsWithRelaxedIntensity(
       name: schema.formats.name,
     })
     .from(schema.formatCompatibility)
-    .innerJoin(schema.formats, eq(schema.formatCompatibility.formatId, schema.formats.id))
-    .where(and(
-      eq(schema.formatCompatibility.block, block),
-      eq(schema.formatCompatibility.level, level),
-      between(schema.formatCompatibility.intensity, minIntensity, maxIntensity),
-      gt(schema.formatCompatibility.compatibility, 0)
-    ));
+    .innerJoin(
+      schema.formats,
+      eq(schema.formatCompatibility.formatId, schema.formats.id),
+    )
+    .where(
+      and(
+        eq(schema.formatCompatibility.block, block),
+        eq(schema.formatCompatibility.level, level),
+        between(
+          schema.formatCompatibility.intensity,
+          minIntensity,
+          maxIntensity,
+        ),
+        gt(schema.formatCompatibility.compatibility, 0),
+      ),
+    );
 
-  return results.map(r => ({
+  return results.map((r) => ({
     formatId: r.formatId,
     name: r.name,
     compatibility: r.compatibility,
@@ -107,7 +166,7 @@ async function queryFormatsWithRelaxedIntensity(
  */
 async function getDefaultFormat(
   db: MySql2Database<typeof schema>,
-  block: FormatRequirements['block']
+  block: FormatRequirements["block"],
 ): Promise<FormatCandidate | null> {
   const defaultName = DEFAULT_FORMATS[block];
   if (!defaultName) return null;
@@ -136,10 +195,12 @@ async function getDefaultFormat(
  * best group, then picks randomly within that group to ensure variety
  * across sessions generated in the same run.
  */
-function selectBestFormat(candidates: FormatCandidate[]): FormatCandidate {
+export function selectBestFormat(
+  candidates: FormatCandidate[],
+): FormatCandidate {
   // Find best (lowest) compatibility score
-  const bestCompat = Math.min(...candidates.map(c => c.compatibility));
-  const bestGroup = candidates.filter(c => c.compatibility === bestCompat);
+  const bestCompat = Math.min(...candidates.map((c) => c.compatibility));
+  const bestGroup = candidates.filter((c) => c.compatibility === bestCompat);
 
   // Random pick among equally-compatible formats
   const idx = Math.floor(Math.random() * bestGroup.length);
@@ -160,18 +221,33 @@ function selectBestFormat(candidates: FormatCandidate[]): FormatCandidate {
 export async function selectFormatWithFallback(
   requirements: FormatRequirements,
   db: MySql2Database<typeof schema>,
-  policy: FallbackPolicy = { maxTier: 2, relaxationOrder: ['difficulty', 'level'] }
+  policy: FallbackPolicy = {
+    maxTier: 2,
+    relaxationOrder: ["difficulty", "level"],
+  },
+  excludeFormatNames?: string[],
 ): Promise<FallbackResult<FormatCandidate>> {
   const { block, level, intensity } = requirements;
   const actions: FallbackAction[] = [];
+
+  // Helper: filter out already-used formats (best-effort, don't exclude if it would empty the pool)
+  function applyExclusions(candidates: FormatCandidate[]): FormatCandidate[] {
+    if (!excludeFormatNames || excludeFormatNames.length === 0)
+      return candidates;
+    const filtered = candidates.filter(
+      (c) => !excludeFormatNames.includes(c.name),
+    );
+    // Fall back to unfiltered if exclusion would leave no candidates
+    return filtered.length > 0 ? filtered : candidates;
+  }
 
   // Tier 0: Exact match
   let pool = await queryFormats(db, block, level, intensity);
 
   if (pool.length > 0) {
-    const selected = selectBestFormat(pool);
+    const selected = selectBestFormat(applyExclusions(pool));
     return {
-      status: 'exact',
+      status: "exact",
       data: [selected],
       tier: 0,
       actions: [],
@@ -180,19 +256,25 @@ export async function selectFormatWithFallback(
 
   // Tier 1: Relax intensity (+/- 5)
   if (policy.maxTier >= 1) {
-    pool = await queryFormatsWithRelaxedIntensity(db, block, level, intensity, 5);
+    pool = await queryFormatsWithRelaxedIntensity(
+      db,
+      block,
+      level,
+      intensity,
+      5,
+    );
 
     actions.push({
-      type: 'DIFFICULTY_RELAXED',
+      type: "DIFFICULTY_RELAXED",
       tier: 1,
       from: intensity,
       to: intensity, // Indicates range was used, not exact
     });
 
     if (pool.length > 0) {
-      const selected = selectBestFormat(pool);
+      const selected = selectBestFormat(applyExclusions(pool));
       return {
-        status: 'fallback',
+        status: "fallback",
         data: [selected],
         tier: 1,
         actions,
@@ -205,7 +287,7 @@ export async function selectFormatWithFallback(
     const defaultFormat = await getDefaultFormat(db, block);
 
     actions.push({
-      type: 'SCOPE_WIDENED',
+      type: "SCOPE_WIDENED",
       tier: 2,
       from: `${block}/${level}/${intensity}`,
       to: `default(${DEFAULT_FORMATS[block]})`,
@@ -213,7 +295,7 @@ export async function selectFormatWithFallback(
 
     if (defaultFormat) {
       return {
-        status: 'fallback',
+        status: "fallback",
         data: [defaultFormat],
         tier: 2,
         actions,
@@ -223,7 +305,7 @@ export async function selectFormatWithFallback(
 
   // Failed: No format found
   return {
-    status: 'failed',
+    status: "failed",
     data: [] as [],
     tier: policy.maxTier,
     actions,

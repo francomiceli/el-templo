@@ -4,7 +4,7 @@
     @update:model-value="$emit('update:modelValue', $event)"
     :persistent="swapping"
   >
-    <q-card style="width: 700px; max-width: 90vw; max-height: 90vh" class="column">
+    <q-card style="width: 700px; max-width: 90vw; max-height: 90vh; display: block" class="column">
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">{{ dialogTitle }}</div>
@@ -31,7 +31,7 @@
       </q-card-section>
 
       <!-- Section toggle (not in mobility mode) -->
-      <q-card-section v-if="!mobilityMode" class="q-py-sm q-pt-md" style="align-self: center">
+      <q-card-section v-if="!mobilityMode" class="q-py-sm q-pt-md" style="justify-self: center">
         <q-btn-toggle
           v-model="activeSection"
           no-caps
