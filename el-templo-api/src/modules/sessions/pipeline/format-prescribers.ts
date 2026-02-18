@@ -1,7 +1,7 @@
 /**
  * Format-Specific Prescription Logic
  *
- * Different workout formats require different prescription structures:
+ * Each format produces different prescription structures:
  * - Buy-in/Cash-out: Bookend pattern (first exercise repeats at end)
  * - AMRAP: Reps per round, not total reps
  * - EMOM: Reps per minute with exercise rotation
