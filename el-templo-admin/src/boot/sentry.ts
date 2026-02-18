@@ -8,11 +8,24 @@ const IGNORED_ERRORS = [
   'Load failed',
   'NetworkError when attempting to fetch resource',
   'ResizeObserver loop',
+  'Script error.',
+];
+
+const DENY_URLS = [
+  /extensions\//i,
+  /^chrome-extension:\/\//i,
+  /^moz-extension:\/\//i,
+  /^safari-extension:\/\//i,
 ];
 
 function shouldDropEvent(event: Sentry.ErrorEvent): boolean {
   const message = event.exception?.values?.[0]?.value || event.message || '';
-  return IGNORED_ERRORS.some((ignored) => message.includes(ignored));
+  if (IGNORED_ERRORS.some((ignored) => message.includes(ignored))) return true;
+
+  const frames = event.exception?.values?.[0]?.stacktrace?.frames || [];
+  if (frames.some((f) => f.filename && DENY_URLS.some((re) => re.test(f.filename!)))) return true;
+
+  return false;
 }
 
 export default boot(({ app, router }) => {
