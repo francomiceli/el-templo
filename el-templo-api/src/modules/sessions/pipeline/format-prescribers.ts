@@ -135,8 +135,11 @@ function prescribeBuyInCashOut(
 function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget, restTime } = ctx;
 
-  // Equal distribution for complex, rounded to 5
-  const repsPerExercise = roundToNearest5(repsBudget / exercises.length);
+  // Complex is 3 rounds — budget represents total volume, so divide by rounds
+  // to get per-round reps (which is what's displayed to the athlete)
+  const COMPLEX_ROUNDS = 3;
+  const budgetPerRound = repsBudget / COMPLEX_ROUNDS;
+  const repsPerExercise = roundToNearest5(budgetPerRound / exercises.length);
 
   return exercises.map((ex, i) =>
     createPrescription(
@@ -179,6 +182,19 @@ function prescribeAMRAP(ctx: PrescriptionContext): ExercisePrescription[] {
         : { repsMax: baseReps + REPS.AMRAP_RANGE_REPS },
     );
   });
+}
+
+/**
+ * AMRAP Series: Multiple rounds of AMRAP
+ * Structure: 3 rounds of (A + B + C), each round is an AMRAP
+ * Budget represents total volume — divide by rounds to get per-round reps
+ */
+function prescribeAMRAPSeries(
+  ctx: PrescriptionContext,
+): ExercisePrescription[] {
+  const AMRAP_SERIES_ROUNDS = 3;
+  const budgetPerRound = ctx.repsBudget / AMRAP_SERIES_ROUNDS;
+  return prescribeAMRAP({ ...ctx, repsBudget: budgetPerRound });
 }
 
 /**
@@ -581,7 +597,7 @@ const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
   "buy-in/cash-out": prescribeBuyInCashOut,
   complex: prescribeComplex,
   amrap: prescribeAMRAP,
-  "amrap series": prescribeAMRAP,
+  "amrap series": prescribeAMRAPSeries,
   emom: prescribeEMOM,
   "emom + for time": prescribeEMOM,
   chipper: prescribeChipper,

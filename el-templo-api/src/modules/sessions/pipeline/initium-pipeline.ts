@@ -38,7 +38,7 @@ const INITIUM_CATEGORY = "Movilidad";
 const INITIUM_EXERCISE_COUNT = 4;
 const INITIUM_DIFFICULTY_BUCKET = 3;
 const INITIUM_POOL_SIZE = 20;
-const INITIUM_MIN_REPS = 10;
+const INITIUM_REPS_PER_EXERCISE = 30;
 const INITIUM_SERIES = 2;
 const INITIUM_CONTRACTION_MIX: ContractionMix = { CON: 2, EXC: 1, ISO: 0 };
 const INITIUM_LEVELS: ExerciseLevel[] = [
@@ -249,10 +249,7 @@ async function selectGenericExercises(
 /**
  * Generate warmup prescriptions with proper volume distribution.
  */
-function generateInitiumPrescriptions(
-  exercises: InitiumExercise[],
-  repsBudget: number,
-): {
+function generateInitiumPrescriptions(exercises: InitiumExercise[]): {
   exerciseId: number;
   name: string;
   contraction: "CON" | "EXC" | "ISO";
@@ -262,10 +259,6 @@ function generateInitiumPrescriptions(
   notes: string;
   dificultadLineal: number;
 }[] {
-  const totalRepsPerExercise = repsBudget / exercises.length;
-  const repsPerSeries =
-    Math.round(totalRepsPerExercise / INITIUM_SERIES / 5) * 5;
-
   return exercises.map((ex) => {
     const effort = (ex.effort?.toUpperCase() || "CON") as "CON" | "EXC" | "ISO";
     const isIsometric = effort === "ISO";
@@ -274,7 +267,7 @@ function generateInitiumPrescriptions(
       exerciseId: ex.id,
       name: ex.name,
       contraction: effort,
-      reps: isIsometric ? 0 : Math.max(repsPerSeries, INITIUM_MIN_REPS),
+      reps: isIsometric ? 0 : INITIUM_REPS_PER_EXERCISE,
       seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
       rest: REST_TIMES.WARMUP,
       notes: "Warmup - focus on form and activation",
@@ -390,11 +383,8 @@ export async function runInitiumPipeline(
   );
   updatedCtx = appendTrace(updatedCtx, exercisesTrace);
 
-  // Step 3: Generate prescriptions
-  const prescriptions = generateInitiumPrescriptions(
-    exerciseResults,
-    repsBudget,
-  );
+  // Step 3: Generate prescriptions (fixed 30 reps per exercise)
+  const prescriptions = generateInitiumPrescriptions(exerciseResults);
 
   const prescriptionTrace = createTraceEvent(
     updatedCtx,
@@ -404,9 +394,7 @@ export async function runInitiumPipeline(
       count: prescriptions.length,
       repsBudget,
       series: INITIUM_SERIES,
-      repsPerSeries:
-        Math.round(repsBudget / exerciseResults.length / INITIUM_SERIES / 5) *
-        5,
+      repsPerExercise: INITIUM_REPS_PER_EXERCISE,
       restSeconds: REST_TIMES.WARMUP,
     },
   );
