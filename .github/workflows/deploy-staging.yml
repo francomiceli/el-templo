@@ -268,7 +268,7 @@ jobs:
       # --- Deploy via rsync ---
       - name: Deploy API to staging
         run: |
-          rsync -avz --delete \
+          rsync -avz --delete --exclude node_modules \
             api-build/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.STAGING_API_DEPLOY_PATH }}
 
