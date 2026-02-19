@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 27 (Member App Staging Environment) — Complete
+**Current focus:** Phase 28 (R2 Video Upload Infrastructure) — In Progress
 
 ## Current Position
 
-Phase: 27 (Member App Staging Environment)
-Plan: 5 of 5 — 27-05 complete
-Status: Complete
-Last activity: 2026-02-16 - Phase 27 complete (staging environment live)
+Phase: 28 (R2 Video Upload Infrastructure)
+Plan: 1 of 3 — 28-01 complete
+Status: In Progress
+Last activity: 2026-02-19 - Phase 28 Plan 01 complete (API infrastructure for R2 video upload)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████████] 100% Phase 27 (5/5 plans complete)
+Progress: [███-------] 33% Phase 28 (1/3 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure), 27-04 (2min - iOS Staging TestFlight Build)
-- Trend: Phase 27 complete - 5/5 plans
+- Last 5 plans: 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure), 27-04 (2min - iOS Staging TestFlight Build)
+- Trend: Phase 28 in progress - 1/3 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -132,6 +132,7 @@ _Updated after each plan completion_
 | Phase 26 P02 | 4 | 2 tasks | 5 files |
 | Phase 27 P02 | 1 | 2 tasks | 2 files |
 | Phase 27 P04 | 2 | 1 tasks | 1 files |
+| Phase 28 P01 | 5 | 2 tasks | 12 files |
 | Phase 27 P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
@@ -482,6 +483,10 @@ Recent decisions affecting current work:
 - [Phase 27-04]: Removed spurious notarytool line from iOS workflow (notarytool is for macOS notarization, not iOS TestFlight)
 - [Phase 27-04]: Kept altool for TestFlight upload with deprecation warning and alternatives documented
 - [Phase 27-04]: CODE_SIGN_STYLE=Manual for xcodebuild archive to match CI certificate import pattern
+- [Phase 28-01]: R2 plugin graceful no-op when env vars missing (dev without R2 config works)
+- [Phase 28-01]: assembleVideoUrl at read time allows CDN domain changes without DB migration
+- [Phase 28-01]: Fire-and-forget post-processing pattern for upload-complete endpoint
+- [Phase 28-01]: requestChecksumCalculation WHEN_REQUIRED for AWS SDK v3.729+ R2 compatibility
 
 ### Roadmap Evolution
 
@@ -512,8 +517,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-16
-Stopped at: Completed 27-04-PLAN.md (iOS Staging TestFlight Build Workflow)
+Last session: 2026-02-19
+Stopped at: Completed 28-01-PLAN.md (R2 Video Upload Infrastructure API)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
