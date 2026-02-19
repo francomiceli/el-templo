@@ -9,10 +9,9 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 3. **Mobility Exercises** (Phase 17) - Per-block mobility exercise integration across full stack
 4. **Domain Deployment** (Phase 18) - eltemplo.org subdomains, SSL, Nginx, deploy pipeline
 5. **Technical Debt** (Phase 19) - Audit and repair accumulated tech debt
-6. **APK Handling** (Phase 20) - Android keystore, signing, Play Store submission
-7. **Admin Session Creation** (Phase 21) - Build sessions from scratch
+6. **Personalized Sessions** (Phase 20) - Per-member journey selection based on body zones
+7. **APK Handling** (Phase 21) - Android keystore, signing, Play Store submission
 8. **Branch Attendance** (Phases 22-24) - Member plans, booking system, and capacity management
-9. **Exercise Videos** (Phases 25-27) - Video processing pipeline, hosting, and app integration (independent track)
 
 ## Phases
 
@@ -28,14 +27,11 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [x] **Phase 17: Per-Block Mobility Exercises** - Route-based mobility exercise across pipeline, DB, admin, member app, PDF
 - [x] **Phase 18: Domain/Subdomain Deployment** - eltemplo.org subdomains, SSL, Nginx, CORS, deploy pipeline for admin app
 - [x] **Phase 19: Technical Debt Audit** - Audit and repair accumulated tech debt across codebase
-- [ ] **Phase 20: APK Handling** - Android keystore creation, signed release build, Play Store submission
-- [ ] **Phase 21: Admin Session Creation** - Build sessions from scratch using exercise database
+- [ ] **Phase 20: Per-Member Personalized Sessions** - Journey selection based on body zones, personalized session generation
+- [ ] **Phase 21: APK Handling** - Android keystore creation, signed release build, Play Store submission
 - [ ] **Phase 22: Branch Attendance Data Model** - Spots, schedules, member plans (awaiting docs)
 - [ ] **Phase 23: Admin Member Attendance Management** - Manage bookings, capacity, member plans
 - [ ] **Phase 24: Member Booking UI** - Members view availability and reserve training spots
-- [ ] **Phase 25: Exercise Video Sourcing & Processing Pipeline** - Web video sourcing + Python pipeline for background removal + Greek silhouette styling
-- [ ] **Phase 26: Video Hosting & Content Tooling** - Cloudflare R2 setup, upload scripts, manifest generator
-- [x] **Phase 27: App Video Integration** - DB schema, API propagation, frontend DayPlayer wiring
 
 ## Phase Details
 
@@ -222,30 +218,26 @@ Plans:
 
 ---
 
-### Phase 20: APK Handling
+### Phase 20: Per-Member Personalized Sessions
+
+**Goal**: Members can select "journeys" based on body zones they want to work, and the session generation algorithm personalizes their sessions accordingly
+**Depends on**: Phase 19 (tech debt complete, stable platform)
+**Status**: Not Started — Needs discussion
+
+Plans:
+
+- [ ] TBD (needs thorough discussion before planning)
+
+---
+
+### Phase 21: APK Handling
 
 **Goal**: Create Android signing keystore, build signed release APK/AAB with production HTTPS URLs, submit to Google Play Store
 **Depends on**: Phase 18 (production HTTPS URLs required for APK)
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 20 to break down)
-
----
-
-### Phase 21: Admin Session Creation
-
-**Goal**: Coaches can build sessions from scratch without algorithm
-**Depends on**: Phase 19
-**Success Criteria** (what must be TRUE):
-
-1. Coach can create new session for any date/level
-2. Coach can add blocks with chosen format
-3. Coach can search/filter exercise database and add exercises
-4. Coach can set prescriptions manually
-5. Created sessions follow same approval workflow
-6. Templates: save session as template, create from template
-7. Copy: duplicate existing session to new date
+- [ ] TBD (run /gsd:plan-phase 21 to break down)
 
 ---
 
@@ -293,81 +285,12 @@ Plans:
 
 ---
 
-### Phase 25: Exercise Video Sourcing & Processing Pipeline
-
-**Goal**: Source exercise demonstration videos from the web and transform them into a uniform Greek-themed visual style (bronze silhouette on navy background with cream edge glow) using MediaPipe and FFmpeg
-**Depends on**: None (independent, can run in parallel with other phases)
-**Success Criteria** (what must be TRUE):
-
-1. Video sourcing tool searches YouTube (curated channels + broad) and stock sites for exercise demos by name
-2. Sourcing runs as automated batch job with rate limiting and skip-and-log for missing exercises
-3. Python project with MediaPipe Selfie Segmentation for background removal
-4. Silhouette styler produces warm golden-bronze figure with cream edge glow on navy background
-5. Smart crop detects person and reframes landscape sources to portrait 720x1280
-6. Videos normalized to portrait 720x1280, 30fps, H.264, yuv420p, faststart, no audio
-7. Auto-trim via movement detection to extract 5-10 second exercise demo clips
-8. Batch processing with resume capability (progress.json checkpoints)
-9. Pipeline handles 1300+ videos with error tracking, retry, and summary report
-10. Thumbnail PNG generated from middle frame for each processed video
-11. Output clips loop (hard cut) if source is too short
-
-**Plans:** 5 plans
-
-Plans:
-
-- [ ] 25-01-PLAN.md — Python project setup, MediaPipe segmenter, Greek-themed styler
-- [ ] 25-02-PLAN.md — Video sourcing tool (YouTube curated channels + stock sites)
-- [ ] 25-03-PLAN.md — Encoder, smart cropper, movement trimmer, single-video processor
-- [ ] 25-04-PLAN.md — Batch runner, CLI entry point, progress checkpointing, report
-- [ ] 25-05-PLAN.md — End-to-end test and visual QA checkpoint
-
----
-
-### Phase 26: Video Hosting & Content Tooling
-
-**Goal**: Set up Cloudflare R2 for free video hosting, build manifest generator to map exercises to source videos, and create upload/population scripts
-**Depends on**: Phase 25 (processed videos exist to upload)
-**Success Criteria** (what must be TRUE):
-
-1. Cloudflare R2 bucket configured with public access and direct MP4 URLs
-2. Manifest generator exports all 1300 exercises from DB for source video mapping
-3. Upload script batch-uploads processed videos to R2 via S3-compatible API
-4. DB population script sets video_url for each exercise based on manifest
-5. Incremental workflow supported (process/upload batches, add more later)
-
-Plans:
-
-- [ ] TBD (run /gsd:plan-phase 26 to break down)
-
----
-
-### Phase 27: App Video Integration
-
-**Goal**: Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
-**Depends on**: Phase 26 (videos hosted and URLs populated in DB)
-**Status**: Complete
-**Plans:** 2 plans
-**Success Criteria** (what must be TRUE):
-
-1. exercises table has video_url VARCHAR column (migration applied)
-2. videoUrl included in ExercisePrescription type and selected in exercise queries
-3. Session API response includes videoUrl per exercise prescription
-4. DayPlayer.vue currentExerciseVideoUrl computed reads from exercise data
-5. VideoPlaceholder shows video when URL exists, placeholder when null
-6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile
-
-Plans:
-
-- [x] 27-01-PLAN.md — Add videoUrl to session API response and admin exercise pool queries
-- [x] 27-02-PLAN.md — Wire videoUrl through frontend types, DayPlayer video display, and admin video badge
-
 ---
 
 ## Progress
 
 **Execution Order:**
-Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployment) → Phase 19 (Tech Debt) → Phase 20 (APK) → Phase 21 (Session Creation) → Phases 22-24 (Branch Attendance)
-Phases 25-27 (Exercise Videos) — Independent, can run in parallel
+Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployment) → Phase 19 (Tech Debt) → Phase 20 (Personalized Sessions) → Phase 21 (APK) → Phases 22-24 (Branch Attendance)
 
 | Phase                                              | Plans Complete | Status         | Completed  |
 | -------------------------------------------------- | -------------- | -------------- | ---------- |
@@ -378,32 +301,53 @@ Phases 25-27 (Exercise Videos) — Independent, can run in parallel
 | 17. Per-Block Mobility Exercises                   | 4/4            | Complete       | 2026-02-12 |
 | 18. Domain/Subdomain Deployment                    | 3/3            | Complete       | 2026-02-13 |
 | 19. Technical Debt Audit                           | 9/9            | Complete       | 2026-02-14 |
-| 20. APK Handling                                   | 0/?            | Not Started    | —          |
-| 21. Admin Session Creation                         | 0/?            | Not Started    | —          |
+| 26. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
+| 27. Member App Staging Environment                 | 5/5            | Complete       | 2026-02-16 |
+| 20. Per-Member Personalized Sessions               | 0/?            | Not Started    | —          |
+| 21. APK Handling                                   | 0/?            | Not Started    | —          |
 | 22. Branch Attendance Data Model                   | 0/?            | Blocked (docs) | —          |
 | 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |
 | 24. Member Booking UI                              | 0/?            | Not Started    | —          |
-| 25. Exercise Video Processing Pipeline             | 0/?            | Not Started    | —          |
-| 26. Video Hosting & Content Tooling                | 3/3            | Complete       | 2026-02-15 |
-| 27. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
-| 28. Member App Staging Environment                 | 5/5            | Complete       | 2026-02-16 |
 
-### Phase 28: Member App Staging Environment
+### Phase 27: Member App Staging Environment
 
 **Goal:** Full staging environment for all 3 apps on EC2 with separate database, CI/CD pipeline, staging subdomains, and mobile build workflows (Android APK + iOS TestFlight)
-**Depends on:** Phase 27
+**Depends on:** Phase 26
 **Status**: Complete
 **Plans:** 5 plans
 
 Plans:
 
-- [x] 28-01-PLAN.md — Staging seed script, Nginx configs, weekly reset script
-- [x] 28-02-PLAN.md — Staging deploy workflow (deploy-staging.yml) + CI branch triggers
-- [x] 28-03-PLAN.md — Android staging APK build workflow + Capacitor/Gradle staging config
-- [x] 28-04-PLAN.md — iOS staging TestFlight build workflow
-- [x] 28-05-PLAN.md — Server/DNS setup checkpoint + end-to-end verification
+- [x] 27-01-PLAN.md — Staging seed script, Nginx configs, weekly reset script
+- [x] 27-02-PLAN.md — Staging deploy workflow (deploy-staging.yml) + CI branch triggers
+- [x] 27-03-PLAN.md — Android staging APK build workflow + Capacitor/Gradle staging config
+- [x] 27-04-PLAN.md — iOS staging TestFlight build workflow
+- [x] 27-05-PLAN.md — Server/DNS setup checkpoint + end-to-end verification
+
+---
+
+### Phase 28: R2 Video Upload Infrastructure
+
+**Goal:** Cloudflare R2 bucket setup, upload mechanism, CDN URL pattern, and exercise video_url population so the existing frontend video player (Phase 26) has actual videos to display
+**Depends on:** Phase 26 (App Video Integration — frontend player and API wiring already complete)
+**Status**: Not Started
+**Plans:** 3 plans
+**Success Criteria** (what must be TRUE):
+
+1. Cloudflare R2 bucket created and configured for public read access
+2. Upload mechanism exists (API endpoint or admin UI) for uploading exercise videos to R2
+3. CDN/public URL pattern defined and documented for serving videos
+4. exercises.video_url populated for uploaded exercises
+5. Videos play correctly in the member app DayPlayer via existing VideoPlaceholder component
+6. Admin app shows which exercises have videos (existing green badge already wired)
+
+Plans:
+
+- [ ] 28-01-PLAN.md — R2 plugin + video/exercise services + API routes + assembleVideoUrl
+- [ ] 28-02-PLAN.md — Admin Exercises page + single upload + search/filters
+- [ ] 28-03-PLAN.md — Bulk upload dialog + end-to-end verification
 
 ---
 
 _Roadmap created: 2026-02-04_
-_Last updated: 2026-02-16 — Phase 28 complete (staging environment live with CI/CD, Android APK workflow, iOS TestFlight workflow)_
+_Last updated: 2026-02-19 — Removed Phase 26 (Video Hosting & Content Tooling — never delivered). Renumbered: Phase 27 (App Video Integration) → 26, Phase 28 (Member App Staging) → 27. New Phase 28: R2 Video Upload Infrastructure._
