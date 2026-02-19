@@ -35,6 +35,9 @@ export interface VideoMetadata {
   height: number;
 }
 
+/** Media type: video for CON/EXC exercises, image for ISO exercises */
+export type MediaType = "video" | "image";
+
 /** Maximum allowed video duration in seconds */
 const MAX_DURATION_SECONDS = 20;
 
@@ -43,6 +46,22 @@ const PRESIGN_EXPIRY_SECONDS = 900;
 
 /** FFmpeg compression timeout (120 seconds) */
 const FFMPEG_TIMEOUT_MS = 120_000;
+
+/** Derive media type from exercise contraction (effort) type */
+export function mediaTypeFromEffort(effort: string): MediaType {
+  return effort === "ISO" ? "image" : "video";
+}
+
+/** Get the R2 key for an exercise's media file */
+function mediaKey(exerciseId: number, mediaType: MediaType): string {
+  const ext = mediaType === "image" ? "jpg" : "mp4";
+  return `exercises/${exerciseId}.${ext}`;
+}
+
+/** Get the content type for a media type */
+function mediaContentType(mediaType: MediaType): string {
+  return mediaType === "image" ? "image/jpeg" : "video/mp4";
+}
 
 export class VideoService {
   constructor(
@@ -57,20 +76,21 @@ export class VideoService {
 
   async generateUploadUrl(
     exerciseId: number,
-  ): Promise<{ uploadUrl: string; key: string }> {
-    const key = `exercises/${exerciseId}.mp4`;
+    type: MediaType = "video",
+  ): Promise<{ uploadUrl: string; key: string; mediaType: MediaType }> {
+    const key = mediaKey(exerciseId, type);
 
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
-      ContentType: "video/mp4",
+      ContentType: mediaContentType(type),
     });
 
     const uploadUrl = await getSignedUrl(this.r2, command, {
       expiresIn: PRESIGN_EXPIRY_SECONDS,
     });
 
-    return { uploadUrl, key };
+    return { uploadUrl, key, mediaType: type };
   }
 
   // =========================================================================
@@ -80,8 +100,9 @@ export class VideoService {
   async confirmUpload(
     exerciseId: number,
     db: MySql2Database<typeof schema>,
+    type: MediaType = "video",
   ): Promise<{ videoUrl: string; thumbnailUrl: string }> {
-    const key = `exercises/${exerciseId}.mp4`;
+    const key = mediaKey(exerciseId, type);
 
     // Update exercise video_url in DB
     await db
@@ -89,13 +110,16 @@ export class VideoService {
       .set({ videoUrl: key })
       .where(eq(schema.exercises.id, exerciseId));
 
-    // Fire-and-forget post-processing (do NOT await)
-    this.processVideo(exerciseId, db).catch((err: unknown) => {
-      this.log.error(
-        { err, exerciseId },
-        "Post-processing failed (fire-and-forget)",
-      );
-    });
+    // Only run post-processing for videos (not images)
+    if (type === "video") {
+      // Fire-and-forget post-processing (do NOT await)
+      this.processVideo(exerciseId, db).catch((err: unknown) => {
+        this.log.error(
+          { err, exerciseId },
+          "Post-processing failed (fire-and-forget)",
+        );
+      });
+    }
 
     return {
       videoUrl: key,
@@ -192,12 +216,13 @@ export class VideoService {
   async deleteVideo(
     exerciseId: number,
     db: MySql2Database<typeof schema>,
+    type: MediaType = "video",
   ): Promise<void> {
-    const videoKey = `exercises/${exerciseId}.mp4`;
+    const fileKey = mediaKey(exerciseId, type);
     const thumbnailKey = `thumbnails/${exerciseId}.jpg`;
 
-    // Delete video from R2
-    await this.deleteFromR2(videoKey);
+    // Delete media file from R2
+    await this.deleteFromR2(fileKey);
 
     // Delete thumbnail from R2 (ignore 404)
     try {

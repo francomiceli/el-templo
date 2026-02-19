@@ -7,7 +7,7 @@
     <q-card style="min-width: 700px; max-width: 900px">
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
-        <div class="text-h6">Subida Masiva de Videos</div>
+        <div class="text-h6">Subida Masiva</div>
         <q-space />
         <q-btn v-if="phase !== 'uploading'" flat round dense icon="close" @click="closeDialog" />
       </q-card-section>
@@ -15,8 +15,8 @@
       <!-- Phase 1: File Selection -->
       <q-card-section v-if="phase === 'select'">
         <div class="text-body2 q-mb-md text-grey-7">
-          Selecciona archivos MP4 con el formato <strong>{id}-{nombre}.mp4</strong> para asignar
-          automaticamente a ejercicios.
+          Selecciona archivos con el formato <strong>{id}-{nombre}.mp4</strong> (o .jpg/.png para
+          ejercicios ISO) para asignar automaticamente a ejercicios.
         </div>
 
         <div
@@ -27,14 +27,16 @@
         >
           <q-icon name="cloud_upload" size="48px" color="grey-5" />
           <div class="text-body1 q-mt-sm">Arrastra archivos aqui o haz clic para seleccionar</div>
-          <div class="text-caption text-grey-6">Solo archivos MP4 (max 20MB cada uno)</div>
+          <div class="text-caption text-grey-6">
+            MP4 para ejercicios CON/EXC, JPG/PNG para ISO (max 20MB cada uno)
+          </div>
         </div>
 
         <input
           ref="fileInputRef"
           type="file"
           multiple
-          accept=".mp4,video/mp4"
+          accept=".mp4,video/mp4,.jpg,.jpeg,.png,image/jpeg,image/png"
           style="display: none"
           @change="onFilesSelected"
         />
@@ -143,7 +145,7 @@
         <!-- Overall progress -->
         <div class="q-mb-md">
           <div class="text-body2 q-mb-xs">
-            Subiendo {{ completedUploads }} de {{ totalUploads }} videos
+            Subiendo {{ completedUploads }} de {{ totalUploads }} archivos
           </div>
           <q-linear-progress :value="overallProgress" color="primary" size="8px" rounded />
         </div>
@@ -210,7 +212,7 @@
           <q-btn
             :disable="matchedCount === 0"
             color="primary"
-            :label="`Subir ${matchedCount} Videos`"
+            :label="`Subir ${matchedCount} Archivos`"
             icon="cloud_upload"
             @click="startBatchUpload"
           />
@@ -234,6 +236,7 @@ import { ref, computed } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { createLogger } from 'src/utils/logger';
+import { isImageExercise } from 'src/composables/useVideoUpload';
 import type { Exercise } from 'src/types/exercise';
 
 const log = createLogger('BulkUploadDialog');
@@ -294,7 +297,7 @@ function parseFilename(filename: string): {
   exerciseId: number | null;
   slug: string;
 } {
-  const match = filename.match(/^(\d+)-(.+)\.mp4$/i);
+  const match = filename.match(/^(\d+)-(.+)\.(mp4|jpe?g|png)$/i);
   if (!match) return { exerciseId: null, slug: filename };
   return { exerciseId: parseInt(match[1], 10), slug: match[2] };
 }
@@ -328,14 +331,21 @@ function processFiles(files: FileList | File[]) {
       continue;
     }
 
-    if (!file.type.includes('mp4') && !file.name.toLowerCase().endsWith('.mp4')) {
+    const isVideo = file.type.includes('mp4') || file.name.toLowerCase().endsWith('.mp4');
+    const isImage =
+      file.type.includes('jpeg') ||
+      file.type.includes('jpg') ||
+      file.type.includes('png') ||
+      !!file.name.match(/\.(jpe?g|png)$/i);
+
+    if (!isVideo && !isImage) {
       newEntries.push({
         id: fileKey,
         file,
         status: 'error',
         exerciseId: null,
         exerciseName: null,
-        errorMessage: 'Solo se aceptan archivos MP4',
+        errorMessage: 'Solo se aceptan archivos MP4, JPG o PNG',
         selectedExercise: null,
         uploadStatus: 'pending',
         uploadProgress: 0,
@@ -352,6 +362,36 @@ function processFiles(files: FileList | File[]) {
     if (parsed.exerciseId !== null) {
       const found = props.exercises.find((e) => e.id === parsed.exerciseId);
       if (found) {
+        // Validate file type matches exercise effort
+        const expectsImage = isImageExercise(found.effort);
+        if (expectsImage && !isImage) {
+          newEntries.push({
+            id: fileKey,
+            file,
+            status: 'error',
+            exerciseId: null,
+            exerciseName: null,
+            errorMessage: `"${found.exercise}" es ISO — se espera JPG/PNG, no MP4`,
+            selectedExercise: null,
+            uploadStatus: 'pending',
+            uploadProgress: 0,
+          });
+          continue;
+        }
+        if (!expectsImage && !isVideo) {
+          newEntries.push({
+            id: fileKey,
+            file,
+            status: 'error',
+            exerciseId: null,
+            exerciseName: null,
+            errorMessage: `"${found.exercise}" espera video MP4, no imagen`,
+            selectedExercise: null,
+            uploadStatus: 'pending',
+            uploadProgress: 0,
+          });
+          continue;
+        }
         status = 'matched';
         exerciseId = found.id;
         exerciseName = found.exercise;
@@ -432,11 +472,36 @@ function onExerciseFilter(val: string, update: (fn: () => void) => void) {
 
 function onManualAssign(entry: FileEntry, exerciseId: number) {
   const found = props.exercises.find((e) => e.id === exerciseId);
-  if (found) {
-    entry.status = 'matched-manual';
-    entry.exerciseId = found.id;
-    entry.exerciseName = found.exercise;
+  if (!found) return;
+
+  // Validate file type matches exercise effort
+  const expectsImage = isImageExercise(found.effort);
+  const fileIsVideo =
+    entry.file.type.includes('mp4') || entry.file.name.toLowerCase().endsWith('.mp4');
+  const fileIsImage =
+    entry.file.type.includes('jpeg') ||
+    entry.file.type.includes('png') ||
+    !!entry.file.name.match(/\.(jpe?g|png)$/i);
+
+  if (expectsImage && !fileIsImage) {
+    entry.status = 'error';
+    entry.exerciseId = null;
+    entry.exerciseName = null;
+    entry.errorMessage = `"${found.exercise}" es ISO — se espera JPG/PNG, no MP4`;
+    return;
   }
+  if (!expectsImage && !fileIsVideo) {
+    entry.status = 'error';
+    entry.exerciseId = null;
+    entry.exerciseName = null;
+    entry.errorMessage = `"${found.exercise}" espera video MP4, no imagen`;
+    return;
+  }
+
+  entry.status = 'matched-manual';
+  entry.exerciseId = found.id;
+  entry.exerciseName = found.exercise;
+  entry.errorMessage = null;
 }
 
 // =========================================================================
@@ -531,14 +596,15 @@ async function startBatchUpload() {
     entry.uploadProgress = 0;
 
     try {
-      // Step 1: Get presigned URL
-      const { data } = await api.post<{ uploadUrl: string; key: string }>(
+      // Step 1: Get presigned URL (API determines media type from exercise effort)
+      const { data } = await api.post<{ uploadUrl: string; key: string; mediaType: string }>(
         `/admin/exercises/${entry.exerciseId}/upload-url`
       );
 
-      // Step 2: Upload to R2
+      // Step 2: Upload to R2 (content type MUST match what the presigned URL was signed with)
+      const contentType = data.mediaType === 'image' ? 'image/jpeg' : 'video/mp4';
       await axios.put(data.uploadUrl, entry.file, {
-        headers: { 'Content-Type': 'video/mp4' },
+        headers: { 'Content-Type': contentType },
         onUploadProgress: (e) => {
           if (e.total) {
             entry.uploadProgress = Math.round((e.loaded / e.total) * 100);

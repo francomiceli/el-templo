@@ -1,10 +1,19 @@
 <template>
   <div class="video-container">
-    <!-- Placeholder when no video URL or video failed to load -->
-    <div v-if="!videoUrl || videoFailed" class="video-placeholder">
+    <!-- Placeholder when no media URL or media failed to load -->
+    <div v-if="!videoUrl || mediaFailed" class="video-placeholder">
       <q-icon name="videocam" size="48px" color="grey-6" />
       <span class="video-placeholder__text">Video proximamente</span>
     </div>
+
+    <!-- Static image for ISO exercises (jpg/png URLs) -->
+    <img
+      v-else-if="isImageUrl"
+      class="video-player"
+      :src="videoUrl"
+      alt="Ejercicio"
+      @error="handleMediaError"
+    />
 
     <!-- HTML5 video with iOS compatibility attributes -->
     <video
@@ -17,19 +26,19 @@
       playsinline
       :poster="posterUrl"
       :src="videoUrl"
-      @error="handleVideoError"
+      @error="handleMediaError"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('VideoPlaceholder')
 
 interface Props {
-  /** URL for video (null shows placeholder) */
+  /** URL for video or image (null shows placeholder) */
   videoUrl?: string | null
   /** Poster image during loading */
   posterUrl?: string
@@ -41,21 +50,27 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const videoRef = ref<HTMLVideoElement | null>(null)
-const videoFailed = ref(false)
+const mediaFailed = ref(false)
+
+/** Detect image URLs by extension (ISO exercises store .jpg) */
+const isImageUrl = computed(() => {
+  if (!props.videoUrl) return false
+  return /\.(jpe?g|png)(\?|$)/i.test(props.videoUrl)
+})
 
 /**
- * Handle video load error by silently falling back to placeholder
+ * Handle media load error by silently falling back to placeholder
  */
-function handleVideoError(): void {
-  videoFailed.value = true
-  log.debug('Video load failed, showing placeholder')
+function handleMediaError(): void {
+  mediaFailed.value = true
+  log.debug('Media load failed, showing placeholder')
 }
 
 /**
  * Attempt autoplay with fallback for browsers that block it
  */
 async function attemptAutoplay(): Promise<void> {
-  if (!videoRef.value || !props.videoUrl) return
+  if (!videoRef.value || !props.videoUrl || isImageUrl.value) return
 
   try {
     await videoRef.value.play()
@@ -70,7 +85,7 @@ async function attemptAutoplay(): Promise<void> {
 watch(
   () => props.videoUrl,
   (newUrl) => {
-    videoFailed.value = false
+    mediaFailed.value = false
     if (newUrl && videoRef.value) {
       videoRef.value.load()
       attemptAutoplay()
@@ -87,7 +102,9 @@ onMounted(() => {
 <style scoped lang="scss">
 .video-container {
   width: 100%;
-  height: 40vh;
+  max-width: 640px;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
   position: relative;
   background-color: #1a2a3e;
 }
