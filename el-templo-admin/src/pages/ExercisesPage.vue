@@ -109,19 +109,11 @@
       :rows-per-page-options="[25, 50, 100]"
       @request="onTableRequest"
     >
-      <!-- Video/Image status column -->
+      <!-- Video status column -->
       <template #body-cell-video="props">
         <q-td :props="props">
           <q-icon
-            :name="
-              isImageExercise(props.row.effort)
-                ? props.row.videoUrl
-                  ? 'image'
-                  : 'hide_image'
-                : props.row.videoUrl
-                  ? 'videocam'
-                  : 'videocam_off'
-            "
+            :name="props.row.videoUrl ? 'videocam' : 'videocam_off'"
             :color="props.row.videoUrl ? 'green' : 'grey-5'"
             size="sm"
           />
@@ -146,22 +138,22 @@
             <span class="text-caption">{{ videoUpload.getProgress(props.row.id) }}%</span>
           </div>
 
-          <!-- No media: Upload button -->
+          <!-- No video: Upload button -->
           <div v-else-if="!props.row.videoUrl" class="row no-wrap q-gutter-xs">
             <q-btn
               flat
               dense
               icon="upload"
               color="primary"
-              :label="isImageExercise(props.row.effort) ? 'Subir Foto' : 'Subir Video'"
+              label="Subir"
               :disable="!uploadsEnabled"
-              @click="triggerUpload(props.row.id, props.row.effort)"
+              @click="triggerUpload(props.row.id)"
             >
               <q-tooltip v-if="!uploadsEnabled">Solo disponible en produccion</q-tooltip>
             </q-btn>
           </div>
 
-          <!-- Has media: View/Replace/Delete -->
+          <!-- Has video: View/Replace/Delete -->
           <div v-else class="row no-wrap q-gutter-xs">
             <q-btn
               flat
@@ -170,9 +162,7 @@
               color="primary"
               @click="openVideo(props.row.videoUrl)"
             >
-              <q-tooltip>{{
-                isImageExercise(props.row.effort) ? 'Ver foto' : 'Ver video'
-              }}</q-tooltip>
+              <q-tooltip>Ver video</q-tooltip>
             </q-btn>
             <q-btn
               flat
@@ -180,7 +170,7 @@
               icon="swap_horiz"
               color="primary"
               :disable="!uploadsEnabled"
-              @click="triggerUpload(props.row.id, props.row.effort)"
+              @click="triggerUpload(props.row.id)"
             >
               <q-tooltip>{{
                 uploadsEnabled ? 'Reemplazar' : 'Solo disponible en produccion'
@@ -192,14 +182,10 @@
               icon="delete"
               color="negative"
               :disable="!uploadsEnabled"
-              @click="confirmDeleteVideo(props.row.id, props.row.exercise, props.row.effort)"
+              @click="confirmDeleteVideo(props.row.id, props.row.exercise)"
             >
               <q-tooltip>{{
-                uploadsEnabled
-                  ? isImageExercise(props.row.effort)
-                    ? 'Eliminar foto'
-                    : 'Eliminar video'
-                  : 'Solo disponible en produccion'
+                uploadsEnabled ? 'Eliminar video' : 'Solo disponible en produccion'
               }}</q-tooltip>
             </q-btn>
           </div>
@@ -207,11 +193,11 @@
       </template>
     </q-table>
 
-    <!-- Hidden file input (accept set dynamically in triggerUpload) -->
+    <!-- Hidden file input -->
     <input
       ref="fileInputRef"
       type="file"
-      :accept="acceptedFileTypes(uploadTargetEffort)"
+      accept=".mp4,video/mp4"
       style="display: none"
       @change="onFileSelected"
     />
@@ -226,16 +212,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { useExercisesApi } from 'src/composables/useExercisesApi';
-import {
-  useVideoUpload,
-  isImageExercise,
-  acceptedFileTypes,
-  uploadsEnabled,
-} from 'src/composables/useVideoUpload';
+import { useVideoUpload, uploadsEnabled } from 'src/composables/useVideoUpload';
 import BulkUploadDialog from 'src/components/exercises/BulkUploadDialog.vue';
 import type { Exercise } from 'src/types/exercise';
 
@@ -250,7 +231,6 @@ const videoUpload = useVideoUpload();
 const exercises = ref<Exercise[]>([]);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const uploadTargetId = ref<number | null>(null);
-const uploadTargetEffort = ref<string>('CON');
 const videoFilter = ref<string>('all');
 const showBulkUpload = ref(false);
 const allExercises = ref<Exercise[]>([]);
@@ -330,7 +310,7 @@ const columns: QTableProps['columns'] = [
   { name: 'effort', label: 'Contraccion', field: 'effort', align: 'left', sortable: false },
   {
     name: 'video',
-    label: 'Media',
+    label: 'Video',
     field: 'videoUrl',
     align: 'center',
     sortable: false,
@@ -393,11 +373,8 @@ function onTableRequest(props: { pagination: { page: number; rowsPerPage: number
   loadExercises();
 }
 
-async function triggerUpload(exerciseId: number, effort = 'CON') {
+function triggerUpload(exerciseId: number) {
   uploadTargetId.value = exerciseId;
-  uploadTargetEffort.value = effort;
-  // Wait for Vue to flush the DOM so the file input's accept attribute is updated
-  await nextTick();
   if (fileInputRef.value) {
     fileInputRef.value.value = '';
     fileInputRef.value.click();
@@ -409,26 +386,19 @@ function onFileSelected(event: Event) {
   const file = input.files?.[0];
   if (!file || uploadTargetId.value == null) return;
 
-  videoUpload.uploadVideo(
-    uploadTargetId.value,
-    file,
-    () => {
-      loadExercises();
-    },
-    uploadTargetEffort.value
-  );
+  videoUpload.uploadVideo(uploadTargetId.value, file, () => {
+    loadExercises();
+  });
 }
 
 function openVideo(url: string) {
   window.open(url, '_blank');
 }
 
-function confirmDeleteVideo(exerciseId: number, exerciseName: string, effort = 'CON') {
-  const isImage = isImageExercise(effort);
-  const mediaLabel = isImage ? 'foto' : 'video';
+function confirmDeleteVideo(exerciseId: number, exerciseName: string) {
   $q.dialog({
-    title: `Eliminar ${isImage ? 'Foto' : 'Video'}`,
-    message: `Eliminar ${mediaLabel === 'foto' ? 'la foto' : 'el video'} de "${exerciseName}"? Esta accion no se puede deshacer.`,
+    title: 'Eliminar Video',
+    message: `Eliminar el video de "${exerciseName}"? Esta accion no se puede deshacer.`,
     cancel: true,
     persistent: true,
     ok: {
@@ -438,7 +408,7 @@ function confirmDeleteVideo(exerciseId: number, exerciseName: string, effort = '
   }).onOk(async () => {
     try {
       await exercisesApi.deleteVideo(exerciseId);
-      $q.notify({ type: 'positive', message: `${isImage ? 'Foto eliminada' : 'Video eliminado'}` });
+      $q.notify({ type: 'positive', message: 'Video eliminado' });
       loadExercises();
     } catch {
       // Error already handled by composable

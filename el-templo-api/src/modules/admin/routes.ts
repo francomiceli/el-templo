@@ -4,7 +4,7 @@ import * as schema from "../../db/schema";
 import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
 import { ExerciseService } from "./exercise-service";
-import { VideoService, mediaTypeFromEffort } from "./video-service";
+import { VideoService } from "./video-service";
 import { parseDayId } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
@@ -801,12 +801,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Video storage not configured" });
       }
 
-      // Validate exercise exists and get effort type
+      // Validate exercise exists
       const [exercise] = await fastify.db
-        .select({
-          id: schema.exercises.id,
-          effort: schema.exercises.effort,
-        })
+        .select({ id: schema.exercises.id })
         .from(schema.exercises)
         .where(eq(schema.exercises.id, request.params.exerciseId));
 
@@ -814,16 +811,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Ejercicio no encontrado" });
       }
 
-      const mediaType = mediaTypeFromEffort(exercise.effort ?? "CON");
       const videoService = new VideoService(
         fastify.r2,
         fastify.r2Bucket,
         request.log,
       );
-      return videoService.generateUploadUrl(
-        request.params.exerciseId,
-        mediaType,
-      );
+      return videoService.generateUploadUrl(request.params.exerciseId);
     },
   );
 
@@ -838,12 +831,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Video storage not configured" });
       }
 
-      // Validate exercise exists and get effort type
+      // Validate exercise exists
       const [exercise] = await fastify.db
-        .select({
-          id: schema.exercises.id,
-          effort: schema.exercises.effort,
-        })
+        .select({ id: schema.exercises.id })
         .from(schema.exercises)
         .where(eq(schema.exercises.id, request.params.exerciseId));
 
@@ -851,7 +841,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Ejercicio no encontrado" });
       }
 
-      const mediaType = mediaTypeFromEffort(exercise.effort ?? "CON");
       const videoService = new VideoService(
         fastify.r2,
         fastify.r2Bucket,
@@ -860,7 +849,6 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       const result = await videoService.confirmUpload(
         request.params.exerciseId,
         fastify.db,
-        mediaType,
       );
 
       return {
@@ -882,12 +870,9 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Video storage not configured" });
       }
 
-      // Validate exercise exists and get effort type
+      // Validate exercise exists
       const [exercise] = await fastify.db
-        .select({
-          id: schema.exercises.id,
-          effort: schema.exercises.effort,
-        })
+        .select({ id: schema.exercises.id })
         .from(schema.exercises)
         .where(eq(schema.exercises.id, request.params.exerciseId));
 
@@ -895,17 +880,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Ejercicio no encontrado" });
       }
 
-      const mediaType = mediaTypeFromEffort(exercise.effort ?? "CON");
       const videoService = new VideoService(
         fastify.r2,
         fastify.r2Bucket,
         request.log,
       );
-      await videoService.deleteVideo(
-        request.params.exerciseId,
-        fastify.db,
-        mediaType,
-      );
+      await videoService.deleteVideo(request.params.exerciseId, fastify.db);
 
       return { success: true };
     },
@@ -924,19 +904,14 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { exercises } = request.body;
 
-      // Validate all exercise IDs exist and get effort types
+      // Validate all exercise IDs exist
       const exerciseIds = exercises.map((e) => e.exerciseId);
       const existingExercises = await fastify.db
-        .select({
-          id: schema.exercises.id,
-          effort: schema.exercises.effort,
-        })
+        .select({ id: schema.exercises.id })
         .from(schema.exercises);
-      const existingMap = new Map(
-        existingExercises.map((e) => [e.id, e.effort ?? "CON"]),
-      );
+      const existingIds = new Set(existingExercises.map((e) => e.id));
 
-      const invalidIds = exerciseIds.filter((id) => !existingMap.has(id));
+      const invalidIds = exerciseIds.filter((id) => !existingIds.has(id));
       if (invalidIds.length > 0) {
         return reply.status(404).send({
           error: `Ejercicios no encontrados: ${invalidIds.join(", ")}`,
@@ -951,12 +926,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       const urls = await Promise.all(
         exercises.map(async (e) => {
-          const effort = existingMap.get(e.exerciseId) ?? "CON";
-          const type = mediaTypeFromEffort(effort);
-          const result = await videoService.generateUploadUrl(
-            e.exerciseId,
-            type,
-          );
+          const result = await videoService.generateUploadUrl(e.exerciseId);
           return { exerciseId: e.exerciseId, ...result };
         }),
       );
