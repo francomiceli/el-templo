@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 28 (R2 Video Upload Infrastructure)
-Plan: 1 of 3 — 28-01 complete
+Plan: 2 of 3 — 28-02 complete
 Status: In Progress
-Last activity: 2026-02-19 - Phase 28 Plan 01 complete (API infrastructure for R2 video upload)
+Last activity: 2026-02-19 - Phase 28 Plan 02 complete (Admin exercise management UI)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [███-------] 33% Phase 28 (1/3 plans complete)
+Progress: [██████----] 67% Phase 28 (2/3 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure), 27-04 (2min - iOS Staging TestFlight Build)
-- Trend: Phase 28 in progress - 1/3 plans
+- Last 5 plans: 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure)
+- Trend: Phase 28 in progress - 2/3 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -133,6 +133,7 @@ _Updated after each plan completion_
 | Phase 27 P02 | 1 | 2 tasks | 2 files |
 | Phase 27 P04 | 2 | 1 tasks | 1 files |
 | Phase 28 P01 | 5 | 2 tasks | 12 files |
+| Phase 28 P02 | 3 | 2 tasks | 6 files |
 | Phase 27 P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
@@ -487,6 +488,9 @@ Recent decisions affecting current work:
 - [Phase 28-01]: assembleVideoUrl at read time allows CDN domain changes without DB migration
 - [Phase 28-01]: Fire-and-forget post-processing pattern for upload-complete endpoint
 - [Phase 28-01]: requestChecksumCalculation WHEN_REQUIRED for AWS SDK v3.729+ R2 compatibility
+- [Phase 28-02]: Category/route filter options hardcoded from known domain values (not fetched from API)
+- [Phase 28-02]: Client-side video duration validation via HTML5 video element with graceful fallback
+- [Phase 28-02]: Hidden file input ref pattern with uploadTargetId for triggering upload from action buttons
 
 ### Roadmap Evolution
 
@@ -518,7 +522,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-19
-Stopped at: Completed 28-01-PLAN.md (R2 Video Upload Infrastructure API)
+Stopped at: Completed 28-02-PLAN.md (Admin Exercise Management UI)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
