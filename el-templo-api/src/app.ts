@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import * as Sentry from "@sentry/node";
 import cors from "@fastify/cors";
 import databasePlugin from "./plugins/database";
+import r2Plugin from "./plugins/r2";
 import authPlugin from "./plugins/auth";
 import spomPlugin from "./plugins/spom";
 import sessionsPlugin from "./plugins/sessions";
@@ -34,6 +35,9 @@ export async function buildApp() {
 
   // Database plugin (decorates fastify.db)
   await app.register(databasePlugin);
+
+  // R2 plugin (decorates fastify.r2 and fastify.r2Bucket)
+  await app.register(r2Plugin);
 
   // Auth plugin (decorates fastify.jwt and fastify.authenticate)
   await app.register(authPlugin);
