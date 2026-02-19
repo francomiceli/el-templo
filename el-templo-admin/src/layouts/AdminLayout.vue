@@ -28,6 +28,12 @@
           </q-item-section>
           <q-item-section>Generar</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/exercises">
+          <q-item-section avatar>
+            <q-icon name="sports_gymnastics" />
+          </q-item-section>
+          <q-item-section>Ejercicios</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
@@ -72,7 +78,10 @@ onMounted(() => {
 });
 
 // Refresh pending count on route change
-watch(() => route.path, () => {
-  adminStore.fetchPendingCount();
-});
+watch(
+  () => route.path,
+  () => {
+    adminStore.fetchPendingCount();
+  }
+);
 </script>
