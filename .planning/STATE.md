@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 28 (Member App Staging Environment) — Complete
+**Current focus:** Phase 27 (Member App Staging Environment) — Complete
 
 ## Current Position
 
-Phase: 28 (Member App Staging Environment)
-Plan: 5 of 5 — 28-05 complete
+Phase: 27 (Member App Staging Environment)
+Plan: 5 of 5 — 27-05 complete
 Status: Complete
-Last activity: 2026-02-16 - Phase 28 complete (staging environment live)
+Last activity: 2026-02-16 - Phase 27 complete (staging environment live)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████████] 100% Phase 28 (5/5 plans complete)
+Progress: [██████████] 100% Phase 27 (5/5 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 27-02 (4min - Frontend Video Integration), 28-02 (1min - Staging Deployment Workflow), 28-01 (2min - Staging Infrastructure), 28-04 (2min - iOS Staging TestFlight Build)
-- Trend: Phase 28 in progress - 4/5 plans
+- Last 5 plans: 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure), 27-04 (2min - iOS Staging TestFlight Build)
+- Trend: Phase 27 complete - 5/5 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -128,11 +128,11 @@ _Updated after each plan completion_
 | Phase 25 P01 | 4 | 3 tasks | 9 files |
 | Phase 25 P02 | 4 | 2 tasks | 7 files |
 | Phase 25 P03 | 7 | 2 tasks | 5 files |
-| Phase 27 P01 | 3 | 2 tasks | 7 files |
-| Phase 27 P02 | 4 | 2 tasks | 5 files |
-| Phase 28 P02 | 1 | 2 tasks | 2 files |
-| Phase 28 P04 | 2 | 1 tasks | 1 files |
-| Phase 28 P01 | 2 | 2 tasks | 6 files |
+| Phase 26 P01 | 3 | 2 tasks | 7 files |
+| Phase 26 P02 | 4 | 2 tasks | 5 files |
+| Phase 27 P02 | 1 | 2 tasks | 2 files |
+| Phase 27 P04 | 2 | 1 tasks | 1 files |
+| Phase 27 P01 | 2 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -467,30 +467,32 @@ Recent decisions affecting current work:
 - [Phase 25-03]: Union bounding box across sampled frames for stable crop (avoids jitter)
 - [Phase 25-03]: MJPEG intermediate codec for VideoWriter (fast, re-encoded to H.264 after)
 - [Phase 25-03]: ProcessResult dataclass with non-throwing error handling for batch compatibility
-- [Phase 27-01]: videoUrl resolved at read time via leftJoin, not stored in prescriptions
-- [Phase 27-01]: Response uses null (not undefined) for missing videoUrl to preserve JSON field presence
-- [Phase 27-01]: Added videoUrl column to Drizzle schema + migration 0014 (was missing from master)
-- [Phase 27-02]: isMobilitySelected ref pattern for toggling video between main exercise and mobility exercise
-- [Phase 27-02]: Navy (#1a2a3e) background and gradient for VideoPlaceholder matching brand dark mode
-- [Phase 27-02]: Silent video error fallback via videoFailed state -- no user-facing error, just shows placeholder
-- [Phase 28-02]: No change detection for staging deploys -- always build and deploy all 3 apps to avoid stale mismatches
-- [Phase 28-02]: Same SSH/server credentials as production, staging distinguished by STAGING\_ deploy paths and PM2 process name
-- [Phase 28-02]: VITE_APP_NAME "El Templo (Staging)" for visual distinction and device coexistence
-- [Phase 28-01]: Fixed faker seed (12345) for reproducible staging data across resets
-- [Phase 28-01]: DB_NAME hardcoded as "eltemplo_staging" in reset script to prevent env var override accidents
-- [Phase 28-01]: Staging port convention: API on 4001 (prod on 3000), apps from /opt/el-templo-staging/
-- [Phase 28-04]: Removed spurious notarytool line from iOS workflow (notarytool is for macOS notarization, not iOS TestFlight)
-- [Phase 28-04]: Kept altool for TestFlight upload with deprecation warning and alternatives documented
-- [Phase 28-04]: CODE_SIGN_STYLE=Manual for xcodebuild archive to match CI certificate import pattern
+- [Phase 26-01]: videoUrl resolved at read time via leftJoin, not stored in prescriptions
+- [Phase 26-01]: Response uses null (not undefined) for missing videoUrl to preserve JSON field presence
+- [Phase 26-01]: Added videoUrl column to Drizzle schema + migration 0014 (was missing from master)
+- [Phase 26-02]: isMobilitySelected ref pattern for toggling video between main exercise and mobility exercise
+- [Phase 26-02]: Navy (#1a2a3e) background and gradient for VideoPlaceholder matching brand dark mode
+- [Phase 26-02]: Silent video error fallback via videoFailed state -- no user-facing error, just shows placeholder
+- [Phase 27-02]: No change detection for staging deploys -- always build and deploy all 3 apps to avoid stale mismatches
+- [Phase 27-02]: Same SSH/server credentials as production, staging distinguished by STAGING\_ deploy paths and PM2 process name
+- [Phase 27-02]: VITE_APP_NAME "El Templo (Staging)" for visual distinction and device coexistence
+- [Phase 27-01]: Fixed faker seed (12345) for reproducible staging data across resets
+- [Phase 27-01]: DB_NAME hardcoded as "eltemplo_staging" in reset script to prevent env var override accidents
+- [Phase 27-01]: Staging port convention: API on 4001 (prod on 3000), apps from /opt/el-templo-staging/
+- [Phase 27-04]: Removed spurious notarytool line from iOS workflow (notarytool is for macOS notarization, not iOS TestFlight)
+- [Phase 27-04]: Kept altool for TestFlight upload with deprecation warning and alternatives documented
+- [Phase 27-04]: CODE_SIGN_STYLE=Manual for xcodebuild archive to match CI certificate import pattern
 
 ### Roadmap Evolution
 
-- Phases 20-22 added (2026-02-09): Exercise Video Pipeline split into 3 phases — Processing Pipeline (Python/MediaPipe/FFmpeg), Video Hosting & Content Tooling (Cloudflare R2/manifest/upload), App Video Integration (DB/API/frontend wiring). Independent of admin phases, can run in parallel. _(Now renumbered to Phases 21-23)_
+- Phases 20-22 added (2026-02-09): Exercise Video Pipeline split into 3 phases — Processing Pipeline (Python/MediaPipe/FFmpeg), Video Hosting & Content Tooling (Cloudflare R2/manifest/upload), App Video Integration (DB/API/frontend wiring). Independent of admin phases, can run in parallel. _(Video Processing Pipeline and Video Hosting phases later removed; App Video Integration became Phase 26)_
 - Phase 16 inserted (2026-02-10): PDF Generation for approved sessions, format parameter configuration for high/medium importance formats, exercise swap UX (category instead of pattern), per-exercise completion tracking in member app. Old phases 16-22 renumbered to 17-23.
 - Phase 17 inserted (2026-02-11): Per-Block Mobility Exercises — 1 route-based mobility exercise per non-INITIUM block across pipeline, DB, API, admin UI, member app, and PDF. Optional completion, fully coach-editable, separate "Descanso Activo" section. Old phases 17-23 renumbered to 18-24.
 - Phase 18 inserted after Phase 17 (2026-02-12): Technical Debt Audit & Domain/Subdomain Deployment — Run technical-debt-manager, configure eltemplo.org domain with subdomains (app.eltemplo.org, admin.eltemplo.org, academy.eltemplo.org), CORS updates, environment config. Old phases 18-24 renumbered to 19-25.
 - Phase 18 narrowed, Phases 19-20 inserted (2026-02-12): Phase 18 scoped to deployment only (subdomains, SSL, Nginx, deploy pipeline). Tech debt split to Phase 19. APK handling (keystore, signing, Play Store) split to Phase 20. Old phases 19-25 renumbered to 21-27.
 - Phase 28 added (2026-02-15): Member App Staging Environment — staging infrastructure for el-templo-app testing before production deployment
+- Roadmap rework (2026-02-18): Removed Phase 21 (Admin Session Creation) and Phase 25 (Exercise Video Processing Pipeline). New Phase 20: Per-Member Personalized Sessions (journeys based on body zones). Old Phase 20 (APK Handling) renumbered to Phase 21.
+- Phase renumbering (2026-02-19): Removed Phase 26 (Video Hosting & Content Tooling — marked complete but never delivered R2 infrastructure). Renumbered: Phase 27 (App Video Integration) → 26, Phase 28 (Member App Staging) → 27. New Phase 28: R2 Video Upload Infrastructure.
 
 ### Pending Todos
 
@@ -511,7 +513,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-16
-Stopped at: Completed 28-04-PLAN.md (iOS Staging TestFlight Build Workflow)
+Stopped at: Completed 27-04-PLAN.md (iOS Staging TestFlight Build Workflow)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
