@@ -4,6 +4,7 @@ import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { SpomService } from "../spom/service";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
+import { assembleVideoUrl } from "../shared/video-url";
 import {
   getDailySessionSchema,
   generateSessionSchema,
@@ -89,7 +90,7 @@ function sessionToResponse(session: DaySession) {
           increment: ex.increment ?? null,
           rest: ex.rest,
           notes: ex.notes,
-          videoUrl: ex.videoUrl ?? null,
+          videoUrl: assembleVideoUrl(ex.videoUrl),
           sortOrder: exIdx,
         })),
         mobilityExercise: mobilityEx
@@ -104,7 +105,7 @@ function sessionToResponse(session: DaySession) {
               increment: mobilityEx.increment ?? null,
               rest: mobilityEx.rest,
               notes: mobilityEx.notes,
-              videoUrl: mobilityEx.videoUrl ?? null,
+              videoUrl: assembleVideoUrl(mobilityEx.videoUrl),
             }
           : null,
       };

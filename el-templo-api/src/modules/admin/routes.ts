@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
+import { ExerciseService } from "./exercise-service";
+import { VideoService } from "./video-service";
 import { parseDayId } from "../shared/training-constants";
+import { assembleVideoUrl } from "../shared/video-url";
 import {
   getSessionsSchema,
   sessionIdSchema,
@@ -32,6 +35,12 @@ import {
   getDaySessionDetailsSchema,
   getCompatibleFormatsBatchSchema,
 } from "./schemas";
+import {
+  listExercisesSchema,
+  exerciseIdParamsSchema,
+  uploadCompleteBodySchema,
+  bulkUploadUrlsBodySchema,
+} from "./video-schemas";
 
 import { AppError } from "../shared/errors";
 
@@ -748,6 +757,181 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Bloque guardado no encontrado" });
       }
       return { success: true };
+    },
+  );
+
+  // ==========================================================================
+  // Exercise Management & Video Upload Routes (Phase 28-01)
+  // ==========================================================================
+
+  // GET /admin/exercises - List exercises with pagination and filters
+  fastify.get<{
+    Querystring: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      category?: string;
+      level?: string;
+      route?: string;
+      effort?: string;
+      hasVideo?: boolean;
+    };
+  }>("/exercises", { schema: listExercisesSchema }, async (request) => {
+    const result = await ExerciseService.listExercises(
+      fastify.db,
+      request.query,
+    );
+    return {
+      ...result,
+      exercises: result.exercises.map((ex) => ({
+        ...ex,
+        videoUrl: assembleVideoUrl(ex.videoUrl),
+      })),
+    };
+  });
+
+  // POST /admin/exercises/:exerciseId/upload-url - Generate presigned upload URL
+  fastify.post<{ Params: { exerciseId: number } }>(
+    "/exercises/:exerciseId/upload-url",
+    { schema: exerciseIdParamsSchema },
+    async (request, reply) => {
+      if (!fastify.r2) {
+        return reply
+          .status(503)
+          .send({ error: "Video storage not configured" });
+      }
+
+      // Validate exercise exists
+      const [exercise] = await fastify.db
+        .select({ id: schema.exercises.id })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, request.params.exerciseId));
+
+      if (!exercise) {
+        return reply.status(404).send({ error: "Ejercicio no encontrado" });
+      }
+
+      const videoService = new VideoService(
+        fastify.r2,
+        fastify.r2Bucket,
+        request.log,
+      );
+      return videoService.generateUploadUrl(request.params.exerciseId);
+    },
+  );
+
+  // POST /admin/exercises/:exerciseId/upload-complete - Confirm upload completed
+  fastify.post<{ Params: { exerciseId: number }; Body: { key: string } }>(
+    "/exercises/:exerciseId/upload-complete",
+    { schema: uploadCompleteBodySchema },
+    async (request, reply) => {
+      if (!fastify.r2) {
+        return reply
+          .status(503)
+          .send({ error: "Video storage not configured" });
+      }
+
+      // Validate exercise exists
+      const [exercise] = await fastify.db
+        .select({ id: schema.exercises.id })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, request.params.exerciseId));
+
+      if (!exercise) {
+        return reply.status(404).send({ error: "Ejercicio no encontrado" });
+      }
+
+      const videoService = new VideoService(
+        fastify.r2,
+        fastify.r2Bucket,
+        request.log,
+      );
+      const result = await videoService.confirmUpload(
+        request.params.exerciseId,
+        fastify.db,
+      );
+
+      return {
+        success: true,
+        videoUrl: assembleVideoUrl(result.videoUrl),
+        thumbnailUrl: assembleVideoUrl(result.thumbnailUrl),
+      };
+    },
+  );
+
+  // DELETE /admin/exercises/:exerciseId/video - Delete video
+  fastify.delete<{ Params: { exerciseId: number } }>(
+    "/exercises/:exerciseId/video",
+    { schema: exerciseIdParamsSchema },
+    async (request, reply) => {
+      if (!fastify.r2) {
+        return reply
+          .status(503)
+          .send({ error: "Video storage not configured" });
+      }
+
+      // Validate exercise exists
+      const [exercise] = await fastify.db
+        .select({ id: schema.exercises.id })
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, request.params.exerciseId));
+
+      if (!exercise) {
+        return reply.status(404).send({ error: "Ejercicio no encontrado" });
+      }
+
+      const videoService = new VideoService(
+        fastify.r2,
+        fastify.r2Bucket,
+        request.log,
+      );
+      await videoService.deleteVideo(request.params.exerciseId, fastify.db);
+
+      return { success: true };
+    },
+  );
+
+  // POST /admin/exercises/bulk-upload-urls - Generate multiple presigned URLs
+  fastify.post<{ Body: { exercises: Array<{ exerciseId: number }> } }>(
+    "/exercises/bulk-upload-urls",
+    { schema: bulkUploadUrlsBodySchema },
+    async (request, reply) => {
+      if (!fastify.r2) {
+        return reply
+          .status(503)
+          .send({ error: "Video storage not configured" });
+      }
+
+      const { exercises } = request.body;
+
+      // Validate all exercise IDs exist
+      const exerciseIds = exercises.map((e) => e.exerciseId);
+      const existingExercises = await fastify.db
+        .select({ id: schema.exercises.id })
+        .from(schema.exercises);
+      const existingIds = new Set(existingExercises.map((e) => e.id));
+
+      const invalidIds = exerciseIds.filter((id) => !existingIds.has(id));
+      if (invalidIds.length > 0) {
+        return reply.status(404).send({
+          error: `Ejercicios no encontrados: ${invalidIds.join(", ")}`,
+        });
+      }
+
+      const videoService = new VideoService(
+        fastify.r2,
+        fastify.r2Bucket,
+        request.log,
+      );
+
+      const urls = await Promise.all(
+        exercises.map(async (e) => {
+          const result = await videoService.generateUploadUrl(e.exerciseId);
+          return { exerciseId: e.exerciseId, ...result };
+        }),
+      );
+
+      return { urls };
     },
   );
 };

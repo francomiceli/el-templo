@@ -16,6 +16,7 @@ import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { ROUTE_TO_MOBILITY_ROUTES } from "../sessions/pipeline/utils/mobility-routes";
 import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
+import { assembleVideoUrl } from "../shared/video-url";
 import type {
   ExercisePoolParams,
   ExercisePoolItem,
@@ -89,6 +90,7 @@ export class ExerciseSwapService {
     // Label primary exercises
     let pool: ExercisePoolItem[] = primaryExercises.map((ex) => ({
       ...ex,
+      videoUrl: assembleVideoUrl(ex.videoUrl),
       patternSource: "pattern_1" as const,
     }));
 
@@ -126,6 +128,7 @@ export class ExerciseSwapService {
           .filter((ex) => ex.route !== route) // Only include if actually cross-route
           .map((ex) => ({
             ...ex,
+            videoUrl: assembleVideoUrl(ex.videoUrl),
             patternSource: "pattern_2" as const,
           })),
       );
@@ -191,6 +194,7 @@ export class ExerciseSwapService {
 
     return results.map((ex) => ({
       ...ex,
+      videoUrl: assembleVideoUrl(ex.videoUrl),
       patternSource: "pattern_1" as const,
     }));
   }
@@ -340,7 +344,7 @@ export class ExerciseSwapService {
         category: ex.category,
         route: ex.route,
         patternSource: isRelevant ? "pattern_1" : "pattern_2",
-        videoUrl: ex.videoUrl,
+        videoUrl: assembleVideoUrl(ex.videoUrl),
       };
 
       if (isRelevant) {
