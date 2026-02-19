@@ -3,7 +3,7 @@ import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import type { ExerciseListResponse, ExerciseFilters } from 'src/types/exercise';
+import type { Exercise, ExerciseListResponse, ExerciseFilters } from 'src/types/exercise';
 
 const log = createLogger('useExercisesApi');
 
@@ -16,9 +16,40 @@ function extractError(err: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Cached full exercise list for bulk matching (shared across composable instances) */
+let allExercisesCache: Exercise[] | null = null;
+
 export function useExercisesApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
+
+  /**
+   * Fetch all exercises in a single API call for bulk matching.
+   * Results are cached so repeated dialog opens don't re-fetch.
+   */
+  async function fetchAllExercises(forceRefresh = false): Promise<Exercise[]> {
+    if (allExercisesCache && !forceRefresh) {
+      return allExercisesCache;
+    }
+
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ExerciseListResponse>('/admin/exercises', {
+        params: { limit: 2000 },
+      });
+      allExercisesCache = data.exercises;
+      return data.exercises;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error cargando ejercicios');
+      error.value = message;
+      log.error('Failed to fetch all exercises', { error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
 
   async function fetchExercises(filters: Partial<ExerciseFilters>): Promise<ExerciseListResponse> {
     loading.value = true;
@@ -65,6 +96,7 @@ export function useExercisesApi() {
     loading,
     error,
     fetchExercises,
+    fetchAllExercises,
     deleteVideo,
   };
 }

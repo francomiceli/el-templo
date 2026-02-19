@@ -10,7 +10,8 @@
         outline
         color="primary"
         class="q-mr-sm"
-        @click="onBulkUploadPlaceholder"
+        :loading="exercisesApi.loading.value && allExercises.length === 0"
+        @click="openBulkUpload"
       />
       <q-btn label="Crear Ejercicio" icon="add" color="primary" disable>
         <q-tooltip>Proximamente</q-tooltip>
@@ -188,6 +189,13 @@
       style="display: none"
       @change="onFileSelected"
     />
+
+    <!-- Bulk Upload Dialog -->
+    <BulkUploadDialog
+      v-model="showBulkUpload"
+      :exercises="allExercises"
+      @upload-complete="loadExercises"
+    />
   </q-page>
 </template>
 
@@ -198,6 +206,7 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useExercisesApi } from 'src/composables/useExercisesApi';
 import { useVideoUpload } from 'src/composables/useVideoUpload';
+import BulkUploadDialog from 'src/components/exercises/BulkUploadDialog.vue';
 import type { Exercise } from 'src/types/exercise';
 
 const log = createLogger('ExercisesPage');
@@ -213,6 +222,8 @@ const exercises = ref<Exercise[]>([]);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const uploadTargetId = ref<number | null>(null);
 const videoFilter = ref<string>('all');
+const showBulkUpload = ref(false);
+const allExercises = ref<Exercise[]>([]);
 
 const filters = reactive({
   search: '',
@@ -395,12 +406,13 @@ function confirmDeleteVideo(exerciseId: number, exerciseName: string) {
   });
 }
 
-function onBulkUploadPlaceholder() {
-  $q.notify({
-    type: 'info',
-    message: 'Subida masiva -- proximamente',
-    icon: 'cloud_upload',
-  });
+async function openBulkUpload() {
+  try {
+    allExercises.value = await exercisesApi.fetchAllExercises();
+    showBulkUpload.value = true;
+  } catch {
+    // Error already handled by composable
+  }
 }
 
 // =========================================================================
