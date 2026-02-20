@@ -452,6 +452,7 @@ export class SessionGeneratorService {
         levelGroup: session.levelGroup,
         blockCount: session.blocks.length,
         traceJson: session.trace,
+        ...(session.journeyType ? { journeyType: session.journeyType } : {}),
       });
 
       const newSessionId = sessionResult.insertId;
