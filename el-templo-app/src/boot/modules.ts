@@ -1,6 +1,13 @@
 import { boot } from 'quasar/wrappers'
-import { manifest as trainingManifest, registerModule as registerTraining } from 'src/modules/training'
-import { manifest as progressionManifest, registerModule as registerProgression } from 'src/modules/progression'
+import {
+  manifest as trainingManifest,
+  registerModule as registerTraining,
+} from 'src/modules/training'
+import {
+  manifest as progressionManifest,
+  registerModule as registerProgression,
+} from 'src/modules/progression'
+import { manifest as journeyManifest, registerModule as registerJourney } from 'src/modules/journey'
 
 // Handle Vite chunk load failures (e.g., after deployment with cleared old chunks)
 if (typeof window !== 'undefined') {
@@ -14,6 +21,7 @@ if (typeof window !== 'undefined') {
 export const modules = [
   trainingManifest,
   progressionManifest,
+  journeyManifest,
   // Future modules added here:
   // academyManifest,
   // agoraManifest,
@@ -23,6 +31,7 @@ export default boot(({ router }) => {
   // Register all module routes
   registerTraining(router)
   registerProgression(router)
+  registerJourney(router)
 
   // Future modules:
   // registerAcademy(router)
