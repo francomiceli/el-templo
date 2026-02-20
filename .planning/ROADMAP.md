@@ -223,7 +223,7 @@ Plans:
 **Goal**: Members can select "journeys" based on body zones they want to work, and the session generation algorithm personalizes their sessions accordingly
 **Depends on**: Phase 19 (tech debt complete, stable platform)
 **Status**: Not Started
-**Plans:** 3/8 plans executed
+**Plans:** 4/8 plans executed
 
 Plans:
 
@@ -311,7 +311,7 @@ Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployme
 | 19. Technical Debt Audit                           | 9/9            | Complete       | 2026-02-14 |
 | 26. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
 | 27. Member App Staging Environment                 | 5/5            | Complete       | 2026-02-16 |
-| 20. Per-Member Personalized Sessions               | 3/8            | In Progress    |            |
+| 20. Per-Member Personalized Sessions               | 4/8            | In Progress    |            |
 | 21. APK Handling                                   | 0/?            | Not Started    | —          |
 | 22. Branch Attendance Data Model                   | 0/?            | Blocked (docs) | —          |
 | 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |

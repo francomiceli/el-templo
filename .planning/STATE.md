@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 20 (Per-Member Personalized Sessions)
-Plan: 2 of 8 — 20-04 complete
+Plan: 4 of 8 — 20-03 complete
 Status: In Progress
-Last activity: 2026-02-20 - Phase 20 Plan 04 complete (Member App Journey Module)
+Last activity: 2026-02-20 - Phase 20 Plan 03 complete (Journey API Endpoints & Integration Tests)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██--------] 25% Phase 20 (2/8 plans complete)
+Progress: [█████-----] 50% Phase 20 (4/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration)
-- Trend: Phase 20 in progress - 2/8 plans
+- Last 5 plans: 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API)
+- Trend: Phase 20 in progress - 4/8 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -138,6 +138,7 @@ _Updated after each plan completion_
 | Phase 20 P01 | 3 | 2 tasks | 7 files |
 | Phase 20 P04 | 4 | 2 tasks | 11 files |
 | Phase 20 P02 | 5 | 2 tasks | 5 files |
+| Phase 20 P03 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -507,6 +508,9 @@ Recent decisions affecting current work:
 - [Phase 20-02]: Cross-route disabled by setting pattern2=null (leverages existing exercise selection logic)
 - [Phase 20-02]: Journey Initium uses pre-computed mobility routes from ROUTE_TO_MOBILITY_ROUTES mapping
 - [Phase 20-02]: DEUTEROS_2 always generated for journey sessions (no rotator null-route check)
+- [Phase 20-03]: Journey routes registered as standalone Fastify plugin at /api prefix for dual member/admin path support
+- [Phase 20-03]: Idempotent journey select: re-selecting same active journey returns 200 with current state
+- [Phase 20-03]: journeySessionToResponse mirrors sessionToResponse for consistent API response shape
 
 ### Roadmap Evolution
 
@@ -538,7 +542,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 20-04-PLAN.md (Member App Journey Module)
+Stopped at: Completed 20-03-PLAN.md (Journey API Endpoints & Integration Tests)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
