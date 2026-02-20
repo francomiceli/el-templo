@@ -386,10 +386,6 @@ function editDay(day: string) {
   router.push({ path: '/sessions/edit', query: { week: String(currentWeek.value), day } });
 }
 
-function editSession(sessionId: number) {
-  router.push({ path: `/sessions/${sessionId}` });
-}
-
 async function handleBulkApproveDay(dayGroup: DayGroup) {
   const pendingIds = dayGroup.sessions
     .filter((s) => s.status === 'pending_review')
