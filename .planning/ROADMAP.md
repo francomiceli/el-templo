@@ -222,11 +222,19 @@ Plans:
 
 **Goal**: Members can select "journeys" based on body zones they want to work, and the session generation algorithm personalizes their sessions accordingly
 **Depends on**: Phase 19 (tech debt complete, stable platform)
-**Status**: Not Started — Needs discussion
+**Status**: Not Started
+**Plans:** 8 plans
 
 Plans:
 
-- [ ] TBD (needs thorough discussion before planning)
+- [ ] 20-01-PLAN.md — DB schema (member_journeys table, session/completion columns) + journey types and constants
+- [ ] 20-02-PLAN.md — Journey pipeline (modified SPOM for zone-biased sessions) + JourneyService
+- [ ] 20-03-PLAN.md — Journey API routes (member + admin endpoints) + integration tests
+- [ ] 20-04-PLAN.md — Member app journey module (selection screen, overview, duration picker)
+- [ ] 20-05-PLAN.md — Member app journey session player (duration filtering, completion)
+- [ ] 20-06-PLAN.md — Member app navigation + Mi Camino journey integration
+- [ ] 20-07-PLAN.md — Admin generation tab + Personalizadas sessions tab
+- [ ] 20-08-PLAN.md — Admin Alumnos page + end-to-end verification
 
 ---
 
