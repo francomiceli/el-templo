@@ -102,7 +102,7 @@ import { useWakeLock } from '../../training/composables/useWakeLock'
 import { useJourneyStore } from '../stores/journeyStore'
 import { createLogger } from 'src/utils/logger'
 
-import type { JourneyDuration, JourneySessionResponse } from '../types'
+import type { JourneySessionResponse } from '../types'
 
 const log = createLogger('JourneySession')
 
