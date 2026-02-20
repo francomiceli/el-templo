@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 20 (Per-Member Personalized Sessions)
-Plan: 7 of 8 — 20-07 complete
+Plan: 7 of 8 — 20-06 complete (7 total: 01-05, 06, 07)
 Status: In Progress
-Last activity: 2026-02-20 - Phase 20 Plan 07 complete (Admin Journey Generation & Sessions)
+Last activity: 2026-02-20 - Phase 20 Plan 06 complete (Mi Camino Journey Integration)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [████████--] 75% Phase 20 (6/8 plans complete)
+Progress: [█████████-] 88% Phase 20 (7/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 20-07 (7min - Admin Journey Generation & Sessions), 20-05 (4min - Journey Session Player), 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System)
-- Trend: Phase 20 in progress - 6/8 plans
+- Last 5 plans: 20-06 (4min - Mi Camino Journey Integration), 20-07 (7min - Admin Journey Generation & Sessions), 20-05 (4min - Journey Session Player), 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module)
+- Trend: Phase 20 in progress - 7/8 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -141,6 +141,7 @@ _Updated after each plan completion_
 | Phase 20 P05 | 4 | 2 tasks | 5 files |
 | Phase 20 P03 | 5 | 2 tasks | 4 files |
 | Phase 20 P07 | 7 | 2 tasks | 7 files |
+| Phase 20 P06 | 4 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -522,6 +523,8 @@ Recent decisions affecting current work:
 - [Phase 20-07]: Sequential generation for 'Generate All' to avoid overwhelming session generation pipeline
 - [Phase 20-07]: Journey session navigation uses existing legacy redirect pattern for edit page reuse
 - [Phase 20-05]: Session completion updates activeJourney from API response for immediate UI update
+- [Phase 20-06]: Journey types imported from journey module directly (DRY) instead of duplicating in progression/types.ts
+- [Phase 20-06]: JourneySection receives data via props for testability; cross-module composable import pattern for journey data in Mi Camino
 
 ### Roadmap Evolution
 
@@ -553,7 +556,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 20-07-PLAN.md (Admin Journey Generation & Sessions)
+Stopped at: Completed 20-06-PLAN.md (Mi Camino Journey Integration)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
