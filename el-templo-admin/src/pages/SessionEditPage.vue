@@ -18,7 +18,16 @@
       <div class="row items-center justify-between q-mb-md">
         <div class="row items-center">
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
-          <span class="text-h5"> Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }} </span>
+          <span class="text-h5">
+            Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }}
+            <q-badge
+              v-if="journeyType"
+              :color="JOURNEY_TIER_COLORS[JOURNEY_TIER_MAP[journeyType as JourneyType]]"
+              :label="JOURNEY_TYPE_LABELS[journeyType as JourneyType]"
+              class="q-ml-sm"
+              style="font-size: 0.6em; vertical-align: middle"
+            />
+          </span>
         </div>
         <q-badge
           :color="allApproved ? 'green' : 'amber'"
@@ -122,6 +131,12 @@ import type {
 } from 'src/types/session';
 import type { BlockGroup } from 'src/types/block-group';
 import { LEVEL_ORDER } from 'src/constants/levels';
+import {
+  JOURNEY_TYPE_LABELS,
+  JOURNEY_TIER_MAP,
+  JOURNEY_TIER_COLORS,
+  type JourneyType,
+} from 'src/types/journey';
 
 const route = useRoute();
 const router = useRouter();
@@ -157,6 +172,7 @@ const formatsByRole = ref<Map<string, CompatibleFormat[]>>(new Map());
 // Route query params
 const week = computed(() => Number(route.query.week) || 1);
 const day = computed(() => (route.query.day as string) || 'lunes');
+const journeyType = computed(() => (route.query.journeyType as string) || undefined);
 
 // Preview dialog state
 const previewOpen = ref(false);
@@ -241,7 +257,11 @@ async function loadDay() {
 
   try {
     // Batch fetch all session details for this day (single API call)
-    const details = await sessionsApi.fetchDaySessionDetails(week.value, day.value);
+    const details = await sessionsApi.fetchDaySessionDetails(
+      week.value,
+      day.value,
+      journeyType.value
+    );
 
     // Sort by level order: alfa, delta, sigma, omega, spartan
     details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
@@ -290,7 +310,11 @@ async function loadFormatsForBlocks(details: SessionDetail[]) {
 async function refreshDay(savedScrollY?: number) {
   const scrollY = savedScrollY ?? window.scrollY;
   try {
-    const details = await sessionsApi.fetchDaySessionDetails(week.value, day.value);
+    const details = await sessionsApi.fetchDaySessionDetails(
+      week.value,
+      day.value,
+      journeyType.value
+    );
     details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
     sessions.value = details;
     loadFormatsForBlocks(details);
@@ -302,7 +326,9 @@ async function refreshDay(savedScrollY?: number) {
 }
 
 function goBack() {
-  router.push({ path: '/sessions', query: { week: String(week.value) } });
+  const query: Record<string, string> = { week: String(week.value) };
+  if (journeyType.value) query.tab = 'personalizadas';
+  router.push({ path: '/sessions', query });
 }
 
 // Day-level actions

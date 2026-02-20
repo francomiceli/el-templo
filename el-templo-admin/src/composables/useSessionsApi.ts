@@ -51,12 +51,18 @@ export function useSessionsApi() {
     }
   }
 
-  async function fetchDaySessionDetails(week: number, day: string): Promise<SessionDetail[]> {
+  async function fetchDaySessionDetails(
+    week: number,
+    day: string,
+    journeyType?: string
+  ): Promise<SessionDetail[]> {
     loading.value = true;
     error.value = null;
     try {
+      const params: { week: number; day: string; journeyType?: string } = { week, day };
+      if (journeyType) params.journeyType = journeyType;
       const { data } = await api.get<{ sessions: SessionDetail[] }>('/admin/sessions/day-details', {
-        params: { week, day },
+        params,
       });
       return data.sessions;
     } catch (err: unknown) {

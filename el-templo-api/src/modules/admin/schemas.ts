@@ -389,6 +389,7 @@ export const getDaySessionDetailsSchema = {
         type: "string",
         enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
       },
+      journeyType: { type: "string" },
     },
   },
 };

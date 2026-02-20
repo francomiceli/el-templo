@@ -134,35 +134,31 @@
       <!-- PERSONALIZADAS TAB (journey sessions) -->
       <!-- ============================================================ -->
       <q-tab-panel name="personalizadas" class="q-pa-none">
-        <!-- Week selector + journey type filter -->
+        <!-- Week selector -->
         <div class="row items-center q-mb-md q-gutter-sm">
           <q-btn icon="chevron_left" flat round @click="prevJourneyWeek" />
           <div class="text-subtitle1">Semana {{ journeyWeek }}</div>
           <q-btn icon="chevron_right" flat round @click="nextJourneyWeek" />
-          <q-space />
-          <q-select
-            v-model="journeyTypeFilter"
-            :options="journeyFilterOptions"
-            emit-value
-            map-options
-            dense
-            outlined
-            style="min-width: 160px"
-            label="Tipo de Journey"
-            @update:model-value="loadJourneySessions"
-          />
         </div>
 
-        <!-- Day tabs -->
+        <!-- Journey type sub-tabs -->
         <q-tabs
-          v-model="journeyDayTab"
+          v-model="selectedJourneyTab"
           dense
           class="text-grey q-mb-md"
           active-color="primary"
           indicator-color="primary"
           align="left"
+          narrow-indicator
+          @update:model-value="loadJourneySessions"
         >
-          <q-tab v-for="d in DAYS" :key="d" :name="d" :label="dayLabel(d)" />
+          <q-tab v-for="jt in ALL_JOURNEY_TYPES" :key="jt" :name="jt">
+            <q-badge
+              :color="getJourneyBadgeColor(jt)"
+              :label="getJourneyLabel(jt)"
+              class="q-px-sm"
+            />
+          </q-tab>
         </q-tabs>
 
         <!-- Loading -->
@@ -170,63 +166,85 @@
           <q-spinner-dots size="50px" color="primary" />
         </div>
 
-        <!-- Journey session cards for selected day -->
+        <!-- Day cards (mirrors General tab structure) -->
         <template v-else>
           <q-card
-            v-for="session in filteredJourneySessions"
-            :key="session.id"
+            v-for="dayGroup in journeyDayGroups"
+            :key="dayGroup.day"
             flat
             bordered
-            class="q-mb-sm cursor-pointer"
-            @click="editSession(session.id)"
+            class="q-mb-sm"
           >
             <q-card-section class="q-py-sm">
-              <div class="row items-center no-wrap">
-                <!-- Status icon -->
-                <q-icon
-                  :name="session.status === 'approved' ? 'check_circle' : 'schedule'"
-                  :color="session.status === 'approved' ? 'green' : 'amber-8'"
-                  size="16px"
-                  class="q-mr-sm"
-                />
-
-                <!-- Level -->
-                <span
-                  class="text-body2 text-weight-bold q-mr-sm"
-                  :class="`text-${levelColor(session.memberLevel)}`"
-                  style="min-width: 52px"
-                >
-                  {{ memberLevelLabel(session.memberLevel) }}
-                </span>
-
-                <!-- Journey type badge -->
-                <q-badge
-                  v-if="session.journeyType"
-                  :color="getJourneyBadgeColor(session.journeyType)"
-                  :label="getJourneyLabel(session.journeyType)"
-                  class="q-mr-sm"
-                />
-
-                <!-- Routes summary -->
-                <span v-if="session.routesSummary" class="text-caption text-grey-7 ellipsis">
-                  {{ session.routesSummary }}
-                </span>
-
+              <!-- Day name row with action icons -->
+              <div class="row items-center no-wrap q-mb-xs">
+                <div class="text-subtitle1 text-weight-bold">
+                  {{ dayLabel(dayGroup.day) }}
+                </div>
                 <q-space />
+                <div class="row items-center no-wrap q-gutter-sm">
+                  <q-btn
+                    flat
+                    dense
+                    round
+                    icon="edit"
+                    color="primary"
+                    size="md"
+                    @click="editJourneyDay(dayGroup.day)"
+                  >
+                    <q-tooltip>Editar dia</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    v-if="dayGroup.pendingCount > 0"
+                    flat
+                    dense
+                    round
+                    icon="check_circle"
+                    color="positive"
+                    size="md"
+                    @click="handleBulkApproveJourneyDay(dayGroup)"
+                  >
+                    <q-tooltip>Aprobar {{ dayGroup.pendingCount }} pendientes</q-tooltip>
+                    <q-badge floating color="red" :label="dayGroup.pendingCount" />
+                  </q-btn>
+                </div>
+              </div>
 
-                <!-- Block count -->
-                <span class="text-caption text-grey-6"> {{ session.blockCount }} bloques </span>
-
-                <q-icon name="chevron_right" color="grey-5" class="q-ml-sm" />
+              <!-- Level rows (same as General) -->
+              <div>
+                <div
+                  v-for="level in dayGroup.levels"
+                  :key="level.memberLevel"
+                  v-show="level.status"
+                  class="row items-center no-wrap level-row q-py-xs"
+                >
+                  <q-icon
+                    :name="level.status === 'approved' ? 'check_circle' : 'schedule'"
+                    :color="level.status === 'approved' ? 'green' : 'amber-8'"
+                    size="16px"
+                    class="q-mr-xs"
+                  />
+                  <span
+                    class="text-body2 text-weight-bold q-mr-sm"
+                    :class="`text-${levelColor(level.memberLevel)}`"
+                    style="min-width: 52px"
+                  >
+                    {{ memberLevelLabel(level.memberLevel) }}
+                  </span>
+                  <span v-if="level.routesSummary" class="text-caption text-grey-7">
+                    {{ level.routesSummary }}
+                  </span>
+                </div>
               </div>
             </q-card-section>
           </q-card>
 
-          <!-- No sessions for this day -->
-          <div v-if="filteredJourneySessions.length === 0" class="text-center q-pa-xl text-grey">
+          <!-- No sessions -->
+          <div v-if="journeyDayGroups.length === 0" class="text-center q-pa-xl text-grey">
             <q-icon name="info" size="xl" class="q-mb-md" />
             <div class="text-h6">
-              No hay sesiones personalizadas para {{ dayLabel(journeyDayTab) }}
+              No hay sesiones de {{ getJourneyLabel(selectedJourneyTab) }} para la semana
+              {{ journeyWeek }}
             </div>
             <div class="text-caption q-mt-sm">
               Genera sesiones en la pestana "Generar Sesiones" > Personalizadas
@@ -460,50 +478,93 @@ async function onDownloadWeekPdf() {
 // Personalizadas tab state
 // ============================================================
 const journeyWeek = ref(initialWeek);
-const journeyDayTab = ref<string>('lunes');
-const journeyTypeFilter = ref<string>('all');
+const selectedJourneyTab = ref<JourneyType>(ALL_JOURNEY_TYPES[0]);
 const journeySessions = ref<SessionSummary[]>([]);
 const journeyLoading = ref(false);
 
-const journeyFilterOptions = computed(() => [
-  { label: 'Todos', value: 'all' },
-  ...ALL_JOURNEY_TYPES.map((jt) => ({
-    label: JOURNEY_TYPE_LABELS[jt],
-    value: jt,
-  })),
-]);
+interface JourneyDayLevelStatus {
+  memberLevel: string;
+  status: string | null;
+  sessionId: number | null;
+  routesSummary: string | null;
+  blockCount: number;
+}
 
-const filteredJourneySessions = computed(() => {
-  let filtered = journeySessions.value.filter((s) => s.day === journeyDayTab.value);
-  if (journeyTypeFilter.value !== 'all') {
-    filtered = filtered.filter((s) => s.journeyType === journeyTypeFilter.value);
-  }
-  // Sort: pending first, then by level
-  const levelOrder = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
-  return filtered.sort((a, b) => {
-    // Pending first
-    if (a.status === 'pending_review' && b.status !== 'pending_review') return -1;
-    if (a.status !== 'pending_review' && b.status === 'pending_review') return 1;
-    // Then by level
-    return levelOrder.indexOf(a.memberLevel) - levelOrder.indexOf(b.memberLevel);
-  });
+interface JourneyDayGroup {
+  day: string;
+  levels: JourneyDayLevelStatus[];
+  sessions: SessionSummary[];
+  pendingCount: number;
+}
+
+const journeyDayGroups = computed<JourneyDayGroup[]>(() => {
+  return DAYS.map((day) => {
+    const daySessions = journeySessions.value.filter((s) => s.day === day);
+    const levels = DISPLAY_LEVELS.map((level) => {
+      const session = daySessions.find((s) => s.memberLevel === level);
+      return {
+        memberLevel: level,
+        status: session?.status ?? null,
+        sessionId: session?.id ?? null,
+        routesSummary: session?.routesSummary ?? null,
+        blockCount: session?.blockCount ?? 0,
+      };
+    });
+    const pendingCount = daySessions.filter((s) => s.status === 'pending_review').length;
+    return { day, levels, sessions: daySessions, pendingCount };
+  }).filter((dg) => dg.sessions.length > 0);
 });
 
 async function loadJourneySessions() {
   journeyLoading.value = true;
   try {
-    const filter: { week: number; journeyType: string; limit: number } = {
+    const response = await sessionsApi.fetchSessions({
       week: journeyWeek.value,
-      journeyType: journeyTypeFilter.value === 'all' ? 'notnull' : journeyTypeFilter.value,
+      journeyType: selectedJourneyTab.value,
       limit: 100,
-    };
-    const response = await sessionsApi.fetchSessions(filter);
+    });
     journeySessions.value = response.sessions;
   } catch {
     $q.notify({ type: 'negative', message: 'Error cargando sesiones personalizadas' });
   } finally {
     journeyLoading.value = false;
   }
+}
+
+function editJourneyDay(day: string) {
+  router.push({
+    path: '/sessions/edit',
+    query: {
+      week: String(journeyWeek.value),
+      day,
+      journeyType: selectedJourneyTab.value,
+    },
+  });
+}
+
+async function handleBulkApproveJourneyDay(dayGroup: JourneyDayGroup) {
+  const pendingIds = dayGroup.sessions
+    .filter((s) => s.status === 'pending_review')
+    .map((s) => s.id);
+
+  if (pendingIds.length === 0) return;
+
+  $q.dialog({
+    title: 'Aprobar Sesiones',
+    message: `Aprobar ${pendingIds.length} sesiones pendientes de ${getJourneyLabel(selectedJourneyTab.value)} para ${dayLabel(dayGroup.day)}?`,
+    cancel: true,
+    persistent: true,
+  }).onOk(async () => {
+    try {
+      const result = await sessionsApi.bulkApprove(pendingIds);
+      $q.notify({ type: 'positive', message: `${result.approvedCount} sesiones aprobadas` });
+      loadJourneySessions();
+      adminStore.fetchPendingCount();
+      adminStore.checkSessionCoverage();
+    } catch {
+      $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
+    }
+  });
 }
 
 function prevJourneyWeek() {

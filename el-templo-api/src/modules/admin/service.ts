@@ -296,12 +296,23 @@ export class AdminSessionService {
    * Batch fetch all session details for a given week+day (eliminates N+1).
    * Returns fully hydrated sessions sorted by memberLevel.
    */
-  async getDaySessionDetails(week: number, day: string) {
-    // 1. Get all sessions for this week+day
+  async getDaySessionDetails(week: number, day: string, journeyType?: string) {
+    // 1. Get all sessions for this week+day, optionally filtered by journeyType
+    const conditions = [
+      eq(schema.sessions.week, week),
+      eq(schema.sessions.day, day),
+    ];
+
+    if (journeyType) {
+      conditions.push(eq(schema.sessions.journeyType, journeyType));
+    } else {
+      conditions.push(isNull(schema.sessions.journeyType));
+    }
+
     const sessions = await this.db
       .select()
       .from(schema.sessions)
-      .where(and(eq(schema.sessions.week, week), eq(schema.sessions.day, day)));
+      .where(and(...conditions));
 
     if (sessions.length === 0) return [];
 
