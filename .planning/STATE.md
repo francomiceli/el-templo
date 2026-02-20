@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 20 (Per-Member Personalized Sessions)
-Plan: 1 of 8 — 20-01 complete
+Plan: 2 of 8 — 20-04 complete
 Status: In Progress
-Last activity: 2026-02-20 - Phase 20 Plan 01 complete (Database Foundation & Type System)
+Last activity: 2026-02-20 - Phase 20 Plan 04 complete (Member App Journey Module)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [█---------] 13% Phase 20 (1/8 plans complete)
+Progress: [██--------] 25% Phase 20 (2/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow)
-- Trend: Phase 20 in progress - 1/8 plans
+- Last 5 plans: 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration)
+- Trend: Phase 20 in progress - 2/8 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -136,6 +136,7 @@ _Updated after each plan completion_
 | Phase 28 P02 | 3 | 2 tasks | 6 files |
 | Phase 27 P01 | 2 | 2 tasks | 6 files |
 | Phase 20 P01 | 3 | 2 tasks | 7 files |
+| Phase 20 P04 | 4 | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -496,6 +497,10 @@ Recent decisions affecting current work:
 - [Phase 20-01]: Nullable journey_type on sessions and completed_sessions for backward-compatible scoping
 - [Phase 20-01]: FLR route verified as existing in routes reference table for front_lever journey
 - [Phase 20-01]: Static JOURNEY_METADATA hardcoded per user decision (not coach-managed)
+- [Phase 20]: Journey types mirror API types (not shared package) for frontend isolation
+- [Phase 20]: Store creates fresh API composable per action call for proper cleanup lifecycle
+- [Phase 20]: JourneySession placeholder page for Plan 05 implementation
+- [Phase 20]: Journey nav placed between Entrenamiento and Conceptos in drawer
 
 ### Roadmap Evolution
 
@@ -527,7 +532,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 20-01-PLAN.md (Database Foundation & Type System)
+Stopped at: Completed 20-04-PLAN.md (Member App Journey Module)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
