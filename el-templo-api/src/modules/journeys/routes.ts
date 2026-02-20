@@ -424,7 +424,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
 
         const total = countResult?.count ?? 0;
 
-        // Get paginated members with left join to active journeys
+        // Get paginated members with left join to active journeys and branch
         const members = await fastify.db
           .select({
             userId: schema.users.id,
@@ -432,6 +432,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             firstName: schema.users.firstName,
             lastName: schema.users.lastName,
             level: schema.users.level,
+            branchName: schema.branches.name,
             journeyType: schema.memberJourneys.journeyType,
             semana20: schema.memberJourneys.semana20,
             semana40: schema.memberJourneys.semana40,
@@ -439,6 +440,10 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             startedAt: schema.memberJourneys.startedAt,
           })
           .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
           .leftJoin(
             schema.memberJourneys,
             and(
@@ -470,6 +475,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           firstName: m.firstName,
           lastName: m.lastName,
           level: m.level,
+          branchName: m.branchName,
           journeyType: m.journeyType,
           journeyName: m.journeyType
             ? (journeyNameMap.get(m.journeyType as JourneyType) ?? null)
@@ -506,10 +512,20 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { userId } = request.params;
 
-      // Verify user exists
+      // Get user with branch info
       const [user] = await fastify.db
-        .select({ id: schema.users.id })
+        .select({
+          id: schema.users.id,
+          firstName: schema.users.firstName,
+          lastName: schema.users.lastName,
+          level: schema.users.level,
+          branchName: schema.branches.name,
+        })
         .from(schema.users)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.users.branchId),
+        )
         .where(eq(schema.users.id, userId));
 
       if (!user) {
@@ -523,7 +539,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
         // Get archived journeys
         const archived = await journeyService.getArchivedJourneys(userId);
 
-        // Get completed journey sessions
+        // Get all completions (both entrenamiento and journey)
         const completions = await fastify.db
           .select({
             dayId: schema.completedSessions.dayId,
@@ -535,18 +551,74 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             completedAt: schema.completedSessions.completedAt,
           })
           .from(schema.completedSessions)
-          .where(
-            and(
-              eq(schema.completedSessions.userId, userId),
-              sql`${schema.completedSessions.journeyType} IS NOT NULL`,
-            ),
-          )
+          .where(eq(schema.completedSessions.userId, userId))
           .orderBy(desc(schema.completedSessions.completedAt))
           .limit(50);
 
+        // Compute entrenamiento stats (journeyType IS NULL)
+        const entrenamientoCompletions = completions.filter(
+          (c) => c.journeyType === null,
+        );
+
+        // Compute journey stats (journeyType IS NOT NULL)
+        const journeyCompletions = completions.filter(
+          (c) => c.journeyType !== null,
+        );
+
+        // Unique training days for entrenamiento
+        const entrenamientoDays = new Set(
+          entrenamientoCompletions.map((c) => c.date),
+        );
+
+        // Streak calculation: consecutive days from today backwards
+        const today = new Date();
+        const allDates = new Set(completions.map((c) => c.date));
+        let streak = 0;
+        const checkDate = new Date(today);
+        // Check today first
+        const todayStr = checkDate.toISOString().slice(0, 10);
+        if (allDates.has(todayStr)) {
+          streak = 1;
+          checkDate.setDate(checkDate.getDate() - 1);
+          while (allDates.has(checkDate.toISOString().slice(0, 10))) {
+            streak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+          }
+        } else {
+          // Check yesterday
+          checkDate.setDate(checkDate.getDate() - 1);
+          if (allDates.has(checkDate.toISOString().slice(0, 10))) {
+            streak = 1;
+            checkDate.setDate(checkDate.getDate() - 1);
+            while (allDates.has(checkDate.toISOString().slice(0, 10))) {
+              streak++;
+              checkDate.setDate(checkDate.getDate() - 1);
+            }
+          }
+        }
+
         return {
+          user: {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            level: user.level,
+            branchName: user.branchName,
+          },
           active,
           archived,
+          entrenamientoStats: {
+            totalSessions: entrenamientoCompletions.length,
+            totalDays: entrenamientoDays.size,
+            currentStreak: streak,
+          },
+          journeyStats: {
+            totalSessions: journeyCompletions.length,
+            byDuration: {
+              d20: journeyCompletions.filter((c) => c.duration === 20).length,
+              d40: journeyCompletions.filter((c) => c.duration === 40).length,
+              d60: journeyCompletions.filter((c) => c.duration === 60).length,
+            },
+          },
           completions: completions.map((c) => ({
             dayId: c.dayId,
             date: c.date,

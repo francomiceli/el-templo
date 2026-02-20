@@ -34,6 +34,12 @@
           </q-item-section>
           <q-item-section>Ejercicios</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/alumnos">
+          <q-item-section avatar>
+            <q-icon name="people" />
+          </q-item-section>
+          <q-item-section>Alumnos</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 

@@ -25,6 +25,7 @@ export interface MemberJourneyInfo {
   firstName: string | null;
   lastName: string | null;
   level: string;
+  branchName: string;
   journeyType: JourneyType | null;
   journeyName: string | null;
   semana20: number | null;
@@ -34,6 +35,12 @@ export interface MemberJourneyInfo {
 }
 
 export interface MemberJourneyDetail {
+  user: {
+    firstName: string | null;
+    lastName: string | null;
+    level: string;
+    branchName: string;
+  };
   active: {
     journeyType: JourneyType;
     semana20: number;
@@ -50,6 +57,19 @@ export interface MemberJourneyDetail {
     startedAt: string;
     archivedAt: string;
   }>;
+  entrenamientoStats: {
+    totalSessions: number;
+    totalDays: number;
+    currentStreak: number;
+  };
+  journeyStats: {
+    totalSessions: number;
+    byDuration: {
+      d20: number;
+      d40: number;
+      d60: number;
+    };
+  };
   completions: Array<{
     dayId: string;
     date: string;

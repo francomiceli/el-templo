@@ -318,6 +318,7 @@ export const getAdminJourneyMembersSchema = {
               firstName: { type: ["string", "null"] },
               lastName: { type: ["string", "null"] },
               level: { type: "string" },
+              branchName: { type: "string" },
               journeyType: { type: ["string", "null"] },
               journeyName: { type: ["string", "null"] },
               semana20: { type: ["integer", "null"] },
@@ -352,6 +353,15 @@ export const getAdminJourneyMemberDetailSchema = {
     200: {
       type: "object",
       properties: {
+        user: {
+          type: "object",
+          properties: {
+            firstName: { type: ["string", "null"] },
+            lastName: { type: ["string", "null"] },
+            level: { type: "string" },
+            branchName: { type: "string" },
+          },
+        },
         active: {
           oneOf: [
             { type: "null" },
@@ -379,6 +389,28 @@ export const getAdminJourneyMemberDetailSchema = {
               semana60: { type: "integer" },
               startedAt: { type: "string" },
               archivedAt: { type: "string" },
+            },
+          },
+        },
+        entrenamientoStats: {
+          type: "object",
+          properties: {
+            totalSessions: { type: "integer" },
+            totalDays: { type: "integer" },
+            currentStreak: { type: "integer" },
+          },
+        },
+        journeyStats: {
+          type: "object",
+          properties: {
+            totalSessions: { type: "integer" },
+            byDuration: {
+              type: "object",
+              properties: {
+                d20: { type: "integer" },
+                d40: { type: "integer" },
+                d60: { type: "integer" },
+              },
             },
           },
         },
