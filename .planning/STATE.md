@@ -137,6 +137,7 @@ _Updated after each plan completion_
 | Phase 27 P01 | 2 | 2 tasks | 6 files |
 | Phase 20 P01 | 3 | 2 tasks | 7 files |
 | Phase 20 P04 | 4 | 2 tasks | 11 files |
+| Phase 20 P02 | 5 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -501,6 +502,11 @@ Recent decisions affecting current work:
 - [Phase 20]: Store creates fresh API composable per action call for proper cleanup lifecycle
 - [Phase 20]: JourneySession placeholder page for Plan 05 implementation
 - [Phase 20]: Journey nav placed between Entrenamiento and Conceptos in drawer
+- [Phase 20-02]: Deterministic hash-based route selection from JOURNEY_ROUTE_MAP for reproducible journey routing
+- [Phase 20-02]: SPOM fallback: nearest week first, then default 50% intensity for routes without any SPOM rules
+- [Phase 20-02]: Cross-route disabled by setting pattern2=null (leverages existing exercise selection logic)
+- [Phase 20-02]: Journey Initium uses pre-computed mobility routes from ROUTE_TO_MOBILITY_ROUTES mapping
+- [Phase 20-02]: DEUTEROS_2 always generated for journey sessions (no rotator null-route check)
 
 ### Roadmap Evolution
 
