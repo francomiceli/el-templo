@@ -1,5 +1,16 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, desc, asc, inArray, count, gte, ne } from "drizzle-orm";
+import {
+  eq,
+  and,
+  desc,
+  asc,
+  inArray,
+  count,
+  gte,
+  ne,
+  isNull,
+  isNotNull,
+} from "drizzle-orm";
 import * as schema from "../../db/schema";
 import type { SessionStatus } from "./types";
 import type { LevelGroup, ExerciseLevel } from "../sessions/types";
@@ -15,6 +26,8 @@ export interface SessionFilter {
   day?: string;
   levelGroup?: string;
   status?: SessionStatus;
+  /** "null" = general (no journey), "notnull" = any journey, or specific journey type */
+  journeyType?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -38,6 +51,7 @@ export interface AdminSessionSummary {
   routesSummary: string;
   status: SessionStatus;
   blockCount: number;
+  journeyType: string | null;
   approvedAt: Date | null;
   approvedBy: number | null;
   approvedByName: string | null;
@@ -66,6 +80,15 @@ export class AdminSessionService {
     if (filter.status)
       conditions.push(eq(schema.sessions.status, filter.status));
 
+    // Journey type filtering: "null" = general only, "notnull" = journey only, else specific type
+    if (filter.journeyType === "null") {
+      conditions.push(isNull(schema.sessions.journeyType));
+    } else if (filter.journeyType === "notnull") {
+      conditions.push(isNotNull(schema.sessions.journeyType));
+    } else if (filter.journeyType) {
+      conditions.push(eq(schema.sessions.journeyType, filter.journeyType));
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Get total count
@@ -84,6 +107,7 @@ export class AdminSessionService {
         levelGroup: schema.sessions.levelGroup,
         status: schema.sessions.status,
         blockCount: schema.sessions.blockCount,
+        journeyType: schema.sessions.journeyType,
         approvedAt: schema.sessions.approvedAt,
         approvedBy: schema.sessions.approvedBy,
         approvedBySystem: schema.sessions.approvedBySystem,
@@ -156,6 +180,7 @@ export class AdminSessionService {
           routesSummary: routesBySession.get(s.id) || "",
           status: s.status as SessionStatus,
           blockCount: s.blockCount,
+          journeyType: s.journeyType ?? null,
           approvedAt: s.approvedAt,
           approvedBy: s.approvedBy,
           approvedByName:
