@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 20 (Per-Member Personalized Sessions)
-Plan: 6 of 8 — 20-05 complete
+Plan: 7 of 8 — 20-07 complete
 Status: In Progress
-Last activity: 2026-02-20 - Phase 20 Plan 05 complete (Journey Session Player)
+Last activity: 2026-02-20 - Phase 20 Plan 07 complete (Admin Journey Generation & Sessions)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [███████---] 75% Phase 20 (6/8 plans complete)
+Progress: [████████--] 75% Phase 20 (6/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,7 +99,7 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 20-05 (4min - Journey Session Player), 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI)
+- Last 5 plans: 20-07 (7min - Admin Journey Generation & Sessions), 20-05 (4min - Journey Session Player), 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System)
 - Trend: Phase 20 in progress - 6/8 plans
 
 _Updated after each plan completion_
@@ -140,6 +140,7 @@ _Updated after each plan completion_
 | Phase 20 P02 | 5 | 2 tasks | 5 files |
 | Phase 20 P05 | 4 | 2 tasks | 5 files |
 | Phase 20 P03 | 5 | 2 tasks | 4 files |
+| Phase 20 P07 | 7 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -516,6 +517,10 @@ Recent decisions affecting current work:
 - [Phase 20-05]: Reuse sessionPlayerStore for journey progress persistence (same storage pattern as regular sessions)
 - [Phase 20-05]: JourneyProgressBar created for variable block count (ProgressBar hardcodes 4 blocks)
 - [Phase 20-05]: Post-session return navigates to duration picker for next session selection
+- [Phase 20-07]: journeyType filter uses null/notnull/specific convention for clean API session scoping
+- [Phase 20-07]: General tab passes journeyType=null to exclude journey sessions from original view
+- [Phase 20-07]: Sequential generation for 'Generate All' to avoid overwhelming session generation pipeline
+- [Phase 20-07]: Journey session navigation uses existing legacy redirect pattern for edit page reuse
 - [Phase 20-05]: Session completion updates activeJourney from API response for immediate UI update
 
 ### Roadmap Evolution
@@ -548,7 +553,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 20-05-PLAN.md (Journey Session Player)
+Stopped at: Completed 20-07-PLAN.md (Admin Journey Generation & Sessions)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
