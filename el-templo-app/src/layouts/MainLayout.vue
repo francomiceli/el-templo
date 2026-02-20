@@ -5,21 +5,11 @@
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
 
         <q-toolbar-title class="header-title">
-          <img
-            src="/icons/icon-48.webp"
-            alt="El Templo"
-            class="header-logo"
-          />
+          <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           El Templo
         </q-toolbar-title>
 
-        <q-btn
-          v-if="authStore.isAuthenticated"
-          flat
-          round
-          icon="logout"
-          @click="onLogout"
-        >
+        <q-btn v-if="authStore.isAuthenticated" flat round icon="logout" @click="onLogout">
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
       </q-toolbar>
@@ -48,6 +38,13 @@
             <q-icon name="fitness_center" />
           </q-item-section>
           <q-item-section>Entrenamiento</q-item-section>
+        </q-item>
+
+        <q-item clickable to="/journey" @click="leftDrawerOpen = false">
+          <q-item-section avatar>
+            <q-icon name="explore" />
+          </q-item-section>
+          <q-item-section>Journey</q-item-section>
         </q-item>
 
         <q-item clickable to="/training/conceptos" @click="leftDrawerOpen = false">
