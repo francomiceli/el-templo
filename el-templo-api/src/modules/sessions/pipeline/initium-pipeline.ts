@@ -213,6 +213,113 @@ async function selectContextualExercises(
 }
 
 /**
+ * Journey-specific contextual exercise selection using pre-computed mobility routes.
+ * Used when journey pipeline provides zone-specific mobility routes directly,
+ * bypassing the nucleusRoute -> ROUTE_TO_MOBILITY_ROUTES lookup.
+ */
+async function selectJourneyContextualExercises(
+  db: MySql2Database<typeof schema>,
+  ctx: BlockContext,
+  journeyMobilityRoutes: string[],
+  exerciseOffset: number,
+): Promise<{
+  exercises: InitiumExercise[] | null;
+  ctx: BlockContext;
+}> {
+  let updatedCtx = ctx;
+
+  const contextAttemptTrace = createTraceEvent(
+    updatedCtx,
+    "INITIUM_JOURNEY_CONTEXTUAL_ATTEMPT",
+    "INFO",
+    {
+      journeyMobilityRoutes,
+      routeCount: journeyMobilityRoutes.length,
+    },
+  );
+  updatedCtx = appendTrace(updatedCtx, contextAttemptTrace);
+
+  if (journeyMobilityRoutes.length === 0) {
+    return { exercises: null, ctx: updatedCtx };
+  }
+
+  const contextualPool = await db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      effort: schema.exercises.effort,
+      difficulty: schema.exercises.difficulty,
+      pattern: schema.exercises.pattern,
+      category: schema.exercises.category,
+      mobilityRelated: schema.exercises.mobilityRelated,
+    })
+    .from(schema.exercises)
+    .where(
+      and(
+        or(
+          like(schema.exercises.pattern, "%FLOW%"),
+          eq(schema.exercises.category, INITIUM_CATEGORY),
+        ),
+        or(...INITIUM_LEVELS.map((level) => eq(schema.exercises.level, level))),
+        lte(schema.exercises.difficulty, INITIUM_DIFFICULTY_BUCKET),
+        isNotNull(schema.exercises.mobilityRelated),
+        or(
+          ...journeyMobilityRoutes.map((route) =>
+            like(schema.exercises.mobilityRelated, `%${route}%`),
+          ),
+        ),
+      ),
+    )
+    .orderBy(schema.exercises.id)
+    .limit(INITIUM_POOL_SIZE);
+
+  const contextualExercises = selectWithVariety(
+    contextualPool,
+    INITIUM_EXERCISE_COUNT,
+    exerciseOffset,
+  );
+
+  if (contextualExercises.length >= INITIUM_EXERCISE_COUNT) {
+    const successTrace = createTraceEvent(
+      updatedCtx,
+      "INITIUM_JOURNEY_CONTEXTUAL_SUCCESS",
+      "INFO",
+      {
+        journeyMobilityRoutes,
+        poolSize: contextualPool.length,
+        exerciseOffset,
+        selectionMethod: "stride_variety",
+        selectedCount: contextualExercises.length,
+        requiredCount: INITIUM_EXERCISE_COUNT,
+        exercises: contextualExercises.map((e) => ({
+          id: e.id,
+          name: e.name,
+          mobilityRelated: e.mobilityRelated,
+        })),
+      },
+    );
+    updatedCtx = appendTrace(updatedCtx, successTrace);
+    return { exercises: contextualExercises, ctx: updatedCtx };
+  }
+
+  const fallbackTrace = createTraceEvent(
+    updatedCtx,
+    "INITIUM_JOURNEY_CONTEXTUAL_FALLBACK",
+    "INFO",
+    {
+      journeyMobilityRoutes,
+      poolSize: contextualPool.length,
+      selectedCount: contextualExercises.length,
+      requiredCount: INITIUM_EXERCISE_COUNT,
+      reason:
+        "Not enough journey-contextual exercises, falling back to generic selection",
+    },
+  );
+  updatedCtx = appendTrace(updatedCtx, fallbackTrace);
+  return { exercises: null, ctx: updatedCtx };
+}
+
+/**
  * Generic FLOW/Movilidad exercise selection (fallback when contextual fails).
  */
 async function selectGenericExercises(
@@ -284,12 +391,16 @@ function generateInitiumPrescriptions(exercises: InitiumExercise[]): {
  *
  * @param ctx - Initial block context with week, day, levelGroup, role='INITIUM'
  * @param db - Database connection for format/exercise queries
+ * @param excludeFormatNames - Format names to exclude for variety
+ * @param journeyRoutes - Optional zone-specific mobility routes for journey sessions.
+ *   When provided, overrides nucleusRoute-based contextual selection with journey zone routes.
  * @returns Complete BlockPlan with warmup configuration
  */
 export async function runInitiumPipeline(
   ctx: BlockContext,
   db: MySql2Database<typeof schema>,
   excludeFormatNames?: string[],
+  journeyRoutes?: string[],
 ): Promise<BlockPlan> {
   let updatedCtx = ctx;
 
@@ -337,7 +448,21 @@ export async function runInitiumPipeline(
   let exerciseResults: InitiumExercise[] = [];
   let usedContextual = false;
 
-  if (ctx.nucleusRoute) {
+  if (journeyRoutes && journeyRoutes.length > 0) {
+    // Journey mode: use zone-specific mobility routes directly
+    const journeyContextResult = await selectJourneyContextualExercises(
+      db,
+      updatedCtx,
+      journeyRoutes,
+      exerciseOffset,
+    );
+    updatedCtx = journeyContextResult.ctx;
+    if (journeyContextResult.exercises) {
+      exerciseResults = journeyContextResult.exercises;
+      usedContextual = true;
+    }
+  } else if (ctx.nucleusRoute) {
+    // Standard mode: derive mobility routes from nucleus route
     const contextualResult = await selectContextualExercises(
       db,
       updatedCtx,
