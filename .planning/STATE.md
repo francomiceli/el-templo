@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-04)
 ## Current Position
 
 Phase: 20 (Per-Member Personalized Sessions)
-Plan: 4 of 8 — 20-03 complete
+Plan: 6 of 8 — 20-05 complete
 Status: In Progress
-Last activity: 2026-02-20 - Phase 20 Plan 03 complete (Journey API Endpoints & Integration Tests)
+Last activity: 2026-02-20 - Phase 20 Plan 05 complete (Journey Session Player)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [█████-----] 50% Phase 20 (4/8 plans complete)
+Progress: [███████---] 75% Phase 20 (6/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API)
-- Trend: Phase 20 in progress - 4/8 plans
+- Last 5 plans: 20-05 (4min - Journey Session Player), 20-03 (5min - Journey API Endpoints & Tests), 20-04 (4min - Member App Journey Module), 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI)
+- Trend: Phase 20 in progress - 6/8 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -138,6 +138,7 @@ _Updated after each plan completion_
 | Phase 20 P01 | 3 | 2 tasks | 7 files |
 | Phase 20 P04 | 4 | 2 tasks | 11 files |
 | Phase 20 P02 | 5 | 2 tasks | 5 files |
+| Phase 20 P05 | 4 | 2 tasks | 5 files |
 | Phase 20 P03 | 5 | 2 tasks | 4 files |
 
 ## Accumulated Context
@@ -511,6 +512,11 @@ Recent decisions affecting current work:
 - [Phase 20-03]: Journey routes registered as standalone Fastify plugin at /api prefix for dual member/admin path support
 - [Phase 20-03]: Idempotent journey select: re-selecting same active journey returns 200 with current state
 - [Phase 20-03]: journeySessionToResponse mirrors sessionToResponse for consistent API response shape
+- [Phase 20-05]: Journey sessions have no Deuteros choice -- duration determines visible blocks
+- [Phase 20-05]: Reuse sessionPlayerStore for journey progress persistence (same storage pattern as regular sessions)
+- [Phase 20-05]: JourneyProgressBar created for variable block count (ProgressBar hardcodes 4 blocks)
+- [Phase 20-05]: Post-session return navigates to duration picker for next session selection
+- [Phase 20-05]: Session completion updates activeJourney from API response for immediate UI update
 
 ### Roadmap Evolution
 
@@ -542,7 +548,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 20-03-PLAN.md (Journey API Endpoints & Integration Tests)
+Stopped at: Completed 20-05-PLAN.md (Journey Session Player)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
