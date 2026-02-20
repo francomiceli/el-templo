@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-04)
 
 **Core value:** Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels.
-**Current focus:** Phase 28 (R2 Video Upload Infrastructure) — In Progress
+**Current focus:** Phase 20 (Per-Member Personalized Sessions) — In Progress
 
 ## Current Position
 
-Phase: 28 (R2 Video Upload Infrastructure)
-Plan: 2 of 3 — 28-02 complete
+Phase: 20 (Per-Member Personalized Sessions)
+Plan: 1 of 8 — 20-01 complete
 Status: In Progress
-Last activity: 2026-02-19 - Phase 28 Plan 02 complete (Admin exercise management UI)
+Last activity: 2026-02-20 - Phase 20 Plan 01 complete (Database Foundation & Type System)
 
 ### Phase 19 Framing
 
@@ -23,7 +23,7 @@ Reference: `.docs/be-staff.md` — staff engineering habits as audit lens
 - **Reusable patterns:** extract repeated code into shared abstractions
 - **Leverage over busywork:** skip cosmetic fixes, focus on what slows the next 10 phases or breaks under load
 
-Progress: [██████----] 67% Phase 28 (2/3 plans complete)
+Progress: [█---------] 13% Phase 20 (1/8 plans complete)
 
 ## Architecture Reset
 
@@ -99,8 +99,8 @@ The engine is a **deterministic pipeline** with 9 stages:
 
 **Recent Trend:**
 
-- Last 5 plans: 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow), 27-01 (2min - Staging Infrastructure)
-- Trend: Phase 28 in progress - 2/3 plans
+- Last 5 plans: 20-01 (3min - Database Foundation & Type System), 28-02 (3min - Admin Exercise Management UI), 28-01 (5min - R2 Video Upload API), 26-02 (4min - Frontend Video Integration), 27-02 (1min - Staging Deployment Workflow)
+- Trend: Phase 20 in progress - 1/8 plans
 
 _Updated after each plan completion_
 | Phase 16 P02 | 5 | 2 tasks | 7 files |
@@ -135,6 +135,7 @@ _Updated after each plan completion_
 | Phase 28 P01 | 5 | 2 tasks | 12 files |
 | Phase 28 P02 | 3 | 2 tasks | 6 files |
 | Phase 27 P01 | 2 | 2 tasks | 6 files |
+| Phase 20 P01 | 3 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -491,6 +492,10 @@ Recent decisions affecting current work:
 - [Phase 28-02]: Category/route filter options hardcoded from known domain values (not fetched from API)
 - [Phase 28-02]: Client-side video duration validation via HTML5 video element with graceful fallback
 - [Phase 28-02]: Hidden file input ref pattern with uploadTargetId for triggering upload from action buttons
+- [Phase 20-01]: Per-duration semana tracking with semana20/semana40/semana60 columns for independent progression
+- [Phase 20-01]: Nullable journey_type on sessions and completed_sessions for backward-compatible scoping
+- [Phase 20-01]: FLR route verified as existing in routes reference table for front_lever journey
+- [Phase 20-01]: Static JOURNEY_METADATA hardcoded per user decision (not coach-managed)
 
 ### Roadmap Evolution
 
@@ -521,8 +526,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-19
-Stopped at: Completed 28-02-PLAN.md (Admin Exercise Management UI)
+Last session: 2026-02-20
+Stopped at: Completed 20-01-PLAN.md (Database Foundation & Type System)
 Resume file: None
 
 **MILESTONE v1 COMPLETE** (2026-02-03)
