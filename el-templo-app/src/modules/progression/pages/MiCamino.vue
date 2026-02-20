@@ -10,9 +10,7 @@
     <div v-else-if="progressionStore.error" class="mi-camino__error">
       <q-icon name="error_outline" class="mi-camino__error-icon" />
       <p class="mi-camino__error-text">{{ progressionStore.error }}</p>
-      <q-btn color="primary" unelevated no-caps @click="fetchStats">
-        Reintentar
-      </q-btn>
+      <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
     </div>
 
     <!-- Empty State (new user with no sessions) -->
@@ -22,9 +20,7 @@
       <p class="mi-camino__empty-text">
         Completa tu primera sesion de entrenamiento para ver tu progreso aqui.
       </p>
-      <q-btn color="primary" unelevated no-caps to="/training">
-        Ir a Entrenar
-      </q-btn>
+      <q-btn color="primary" unelevated no-caps to="/training"> Ir a Entrenar </q-btn>
     </div>
 
     <!-- Content State -->
@@ -36,26 +32,34 @@
           <h1 class="mi-camino__name">{{ userName }}</h1>
           <p class="mi-camino__date">{{ todayFormatted }}</p>
         </div>
-        <LevelDisplay v-if="progressionStore.level" :greek-letter="progressionStore.level.greekLetter"
-          :level-name="progressionStore.level.displayName" class="mi-camino__level-badge" />
+        <LevelDisplay
+          v-if="progressionStore.level"
+          :greek-letter="progressionStore.level.greekLetter"
+          :level-name="progressionStore.level.displayName"
+          class="mi-camino__level-badge"
+        />
       </div>
 
       <!-- Today's Training CTA -->
       <q-card class="mi-camino__today-card" flat bordered>
         <q-card-section class="mi-camino__today-content">
           <div class="mi-camino__today-info">
-            <q-icon :name="todayCompleted ? 'check_circle' : 'fitness_center'"
-              :color="todayCompleted ? 'positive' : 'secondary'" size="40px" />
+            <q-icon
+              :name="todayCompleted ? 'check_circle' : 'fitness_center'"
+              :color="todayCompleted ? 'positive' : 'secondary'"
+              size="40px"
+            />
             <div class="mi-camino__today-text">
               <p class="mi-camino__today-title">
                 {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
               </p>
-              <p v-if="!todayCompleted" class="mi-camino__today-subtitle">
-                Lista para comenzar
-              </p>
+              <p v-if="!todayCompleted" class="mi-camino__today-subtitle">Lista para comenzar</p>
               <!-- Session summary when completed -->
               <div v-else class="mi-camino__session-summary">
-                <span v-if="progressionStore.todaySession?.durationMinutes" class="mi-camino__summary-item">
+                <span
+                  v-if="progressionStore.todaySession?.durationMinutes"
+                  class="mi-camino__summary-item"
+                >
                   <q-icon name="timer" size="14px" />
                   {{ progressionStore.todaySession.durationMinutes }} min
                 </span>
@@ -63,21 +67,35 @@
                   <q-icon name="speed" size="14px" />
                   RPE {{ progressionStore.todaySession.rpe }}
                 </span>
-                <span v-if="progressionStore.todaySession?.notes"
-                  class="mi-camino__summary-item mi-camino__summary-notes">
+                <span
+                  v-if="progressionStore.todaySession?.notes"
+                  class="mi-camino__summary-item mi-camino__summary-notes"
+                >
                   <q-icon name="notes" size="14px" />
                   {{ progressionStore.todaySession.notes }}
                 </span>
               </div>
             </div>
           </div>
-          <q-btn v-if="!todayCompleted" color="secondary" text-color="primary" unelevated no-caps label="Entrenar"
-            icon-right="arrow_forward" to="/training" />
+          <q-btn
+            v-if="!todayCompleted"
+            color="secondary"
+            text-color="primary"
+            unelevated
+            no-caps
+            label="Entrenar"
+            icon-right="arrow_forward"
+            to="/training"
+          />
         </q-card-section>
       </q-card>
 
       <!-- Training Stats (4 cards in grid) -->
-      <TrainingStats v-if="progressionStore.stats" :stats="progressionStore.stats" class="mi-camino__stats" />
+      <TrainingStats
+        v-if="progressionStore.stats"
+        :stats="progressionStore.stats"
+        class="mi-camino__stats"
+      />
 
       <!-- RPE Trend Chart in a Card (only shown if user has submitted RPE) -->
       <q-card v-if="hasRpeData" class="mi-camino__chart-card" flat bordered>
@@ -88,15 +106,34 @@
               Promedio: <strong>{{ progressionStore.rpeTrend?.averageRpe.toFixed(1) }}</strong>
             </div>
           </div>
-          <RpeTrendChart :labels="progressionStore.rpeTrend?.labels ?? []" :data="progressionStore.rpeTrend?.data ?? []" />
+          <RpeTrendChart
+            :labels="progressionStore.rpeTrend?.labels ?? []"
+            :data="progressionStore.rpeTrend?.data ?? []"
+          />
         </q-card-section>
       </q-card>
 
-      <!-- Evaluation Request (bottom) -->
-      <EvaluationRequest v-if="progressionStore.evaluation" :eligible="progressionStore.evaluation.eligible"
+      <!-- Evaluation Request -->
+      <EvaluationRequest
+        v-if="progressionStore.evaluation"
+        :eligible="progressionStore.evaluation.eligible"
         :pending="progressionStore.evaluation.pendingRequest"
-        :average-rpe="progressionStore.evaluation.averageRpeLast2Weeks" class="mi-camino__evaluation"
-        @request="handleRequestEvaluation" />
+        :average-rpe="progressionStore.evaluation.averageRpeLast2Weeks"
+        class="mi-camino__evaluation"
+        @request="handleRequestEvaluation"
+      />
+
+      <!-- Journey Section Divider -->
+      <q-separator class="mi-camino__journey-divider" />
+
+      <!-- Journey Progress & History -->
+      <JourneySection
+        :active-journey="journeyActiveJourney"
+        :archived-journeys="journeyArchivedJourneys"
+        :all-metadata="journeyAllMetadata"
+        :loading="journeyLoading"
+        :error="journeyError"
+      />
     </div>
   </q-page>
 </template>
@@ -110,28 +147,40 @@
  * - Training statistics (sessions, days, streak)
  * - RPE trend chart with average
  * - Evaluation request status and button
+ * - Journey progress and archived history
  *
- * Fetches progression data on mount and handles loading/error/empty states.
+ * Fetches progression data and journey data on mount.
  */
-import { computed, onMounted } from 'vue';
-import { useProgressionStore } from '../stores/progressionStore';
-import { useProgressionApi } from '../composables/useProgressionApi';
-import { useUserStore } from 'src/stores/useUserStore';
-import LevelDisplay from '../components/LevelDisplay.vue';
-import TrainingStats from '../components/TrainingStats.vue';
-import RpeTrendChart from '../components/RpeTrendChart.vue';
-import EvaluationRequest from '../components/EvaluationRequest.vue';
+import { computed, onMounted, onUnmounted } from 'vue'
+import { useProgressionStore } from '../stores/progressionStore'
+import { useProgressionApi } from '../composables/useProgressionApi'
+import { useJourneyProgress } from '../composables/useJourneyProgress'
+import { useUserStore } from 'src/stores/useUserStore'
+import LevelDisplay from '../components/LevelDisplay.vue'
+import TrainingStats from '../components/TrainingStats.vue'
+import RpeTrendChart from '../components/RpeTrendChart.vue'
+import EvaluationRequest from '../components/EvaluationRequest.vue'
+import JourneySection from '../components/JourneySection.vue'
 
-const progressionStore = useProgressionStore();
-const userStore = useUserStore();
-const { fetchStats, requestEvaluation } = useProgressionApi();
+const progressionStore = useProgressionStore()
+const userStore = useUserStore()
+const { fetchStats, requestEvaluation } = useProgressionApi()
+const {
+  activeJourney: journeyActiveJourney,
+  archivedJourneys: journeyArchivedJourneys,
+  allMetadata: journeyAllMetadata,
+  loading: journeyLoading,
+  error: journeyError,
+  fetchJourneyData,
+  cleanup: journeyCleanup,
+} = useJourneyProgress()
 
 /**
  * User's display name - uses fullName computed from userStore
  */
 const userName = computed(() => {
-  return userStore.fullName || 'Atleta';
-});
+  return userStore.fullName || 'Atleta'
+})
 
 /**
  * Today's date formatted in Spanish
@@ -141,19 +190,19 @@ const todayFormatted = computed(() => {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  };
-  const date = new Date().toLocaleDateString('es-ES', options);
+  }
+  const date = new Date().toLocaleDateString('es-ES', options)
   // Capitalize first letter
-  return date.charAt(0).toUpperCase() + date.slice(1);
-});
+  return date.charAt(0).toUpperCase() + date.slice(1)
+})
 
 /**
  * Check if today's session is completed
  * Uses progressionStore.todaySession from API (more reliable than weekStore)
  */
 const todayCompleted = computed(() => {
-  return progressionStore.todaySession?.completed ?? false;
-});
+  return progressionStore.todaySession?.completed ?? false
+})
 
 /**
  * Check if this is a new user with no training data
@@ -161,32 +210,37 @@ const todayCompleted = computed(() => {
 const isEmptyState = computed(() => {
   // Empty if stats exist but show 0 sessions
   if (progressionStore.stats && progressionStore.stats.totalSessions === 0) {
-    return true;
+    return true
   }
   // Also empty if no data loaded at all (shouldn't happen normally)
-  return !progressionStore.level && !progressionStore.stats && !progressionStore.error;
-});
+  return !progressionStore.level && !progressionStore.stats && !progressionStore.error
+})
 
 /**
  * Check if user has any RPE data to display the trend chart
  */
 const hasRpeData = computed(() => {
-  const data = progressionStore.rpeTrend?.data;
-  if (!data || data.length === 0) return false;
+  const data = progressionStore.rpeTrend?.data
+  if (!data || data.length === 0) return false
   // Check if at least one RPE value is not null
-  return data.some(rpe => rpe !== null);
-});
+  return data.some((rpe) => rpe !== null)
+})
 
 /**
  * Handle evaluation request button click
  */
 async function handleRequestEvaluation() {
-  await requestEvaluation();
+  await requestEvaluation()
 }
 
 onMounted(() => {
-  fetchStats();
-});
+  fetchStats()
+  fetchJourneyData()
+})
+
+onUnmounted(() => {
+  journeyCleanup()
+})
 </script>
 
 <style scoped lang="scss">
@@ -389,6 +443,11 @@ onMounted(() => {
       color: $primary;
       font-weight: 600;
     }
+  }
+
+  &__journey-divider {
+    margin: 8px 0;
+    background-color: rgba($secondary, 0.2);
   }
 }
 </style>
