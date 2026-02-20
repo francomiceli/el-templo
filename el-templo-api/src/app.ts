@@ -9,6 +9,7 @@ import sessionsPlugin from "./plugins/sessions";
 import progressionPlugin from "./plugins/progression";
 import { authRoutes } from "./modules/auth/routes";
 import { adminRoutes } from "./modules/admin";
+import { journeyRoutes } from "./modules/journeys/routes";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -56,6 +57,9 @@ export async function buildApp() {
 
   // Admin routes (session management for coaches/admins)
   await app.register(adminRoutes, { prefix: "/api/admin" });
+
+  // Journey routes (member journey lifecycle + admin journey management)
+  await app.register(journeyRoutes, { prefix: "/api" });
 
   // Health check endpoint
   app.get("/health", async () => {
