@@ -49,10 +49,10 @@ export function useJourneyApi() {
    */
   async function getMetadata(): Promise<JourneyMetadata[]> {
     try {
-      const response = await api.get<JourneyMetadata[]>('/journeys/metadata', {
+      const response = await api.get<{ journeys: JourneyMetadata[] }>('/journeys/metadata', {
         signal: createAbortSignal(),
       })
-      return response.data
+      return response.data.journeys
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'CanceledError') {
         return []
