@@ -33,6 +33,9 @@ export const useJourneyStore = defineStore('journey', () => {
   /** Current journey session being played */
   const currentSession = ref<JourneySessionResponse | null>(null)
 
+  /** Current SPOM week (fetched from session or API) */
+  const currentWeek = ref<number>(1)
+
   /** Loading state for async operations */
   const loading = ref(false)
 
@@ -156,6 +159,63 @@ export const useJourneyStore = defineStore('journey', () => {
     }
   }
 
+  /**
+   * Complete a journey session and update progress.
+   * Returns true on success, false on failure.
+   */
+  async function completeJourneySession(data: {
+    dayId: string
+    duration: JourneyDuration
+    date: string
+    startedAt: string
+    blocksCompleted: string[]
+    rpe: number | null
+    notes: string | null
+    exercisesCompleted: Record<string, number[]> | null
+  }): Promise<boolean> {
+    if (!activeJourney.value) {
+      log.warn('Cannot complete session without active journey')
+      return false
+    }
+    const api = useJourneyApi()
+    try {
+      const result = await api.completeSession({
+        dayId: data.dayId,
+        journeyType: activeJourney.value.journeyType,
+        duration: data.duration,
+        date: data.date,
+        startedAt: data.startedAt,
+        finishedAt: new Date().toISOString(),
+        blocksCompleted: data.blocksCompleted,
+        rpe: data.rpe,
+        notes: data.notes,
+        exercisesCompleted: data.exercisesCompleted,
+      })
+      // Update progress from API response
+      if (result.progress) {
+        activeJourney.value = result.progress
+      }
+      log.info('Journey session completed', {
+        dayId: data.dayId,
+        duration: data.duration,
+      })
+      return true
+    } catch (err: unknown) {
+      log.error('Failed to complete journey session', {
+        error: err instanceof Error ? err.message : String(err),
+        dayId: data.dayId,
+      })
+      return false
+    } finally {
+      api.cleanup()
+    }
+  }
+
+  /** Set current week from session data */
+  function setCurrentWeek(week: number): void {
+    currentWeek.value = week
+  }
+
   /** Clear the current session data */
   function clearSession(): void {
     currentSession.value = null
@@ -168,6 +228,7 @@ export const useJourneyStore = defineStore('journey', () => {
     selectedDuration.value = null
     journeyMetadata.value = []
     currentSession.value = null
+    currentWeek.value = 1
     loading.value = false
     error.value = null
   }
@@ -178,6 +239,7 @@ export const useJourneyStore = defineStore('journey', () => {
     selectedDuration,
     journeyMetadata,
     currentSession,
+    currentWeek,
     loading,
     error,
     // Computed
@@ -190,6 +252,8 @@ export const useJourneyStore = defineStore('journey', () => {
     selectJourney,
     setDuration,
     fetchSession,
+    completeJourneySession,
+    setCurrentWeek,
     clearSession,
     reset,
   }
