@@ -37,13 +37,31 @@ export const LEVEL_DIFFICULTY_MAP: Record<string, number> = {
 };
 
 /**
- * Parse a dayId string like "W1-lunes-alfa" into its components.
+ * Parse a dayId string into its components.
+ *
+ * General format: "W1-lunes-alfa"
+ * Journey format: "J-tren_superior-W1-lunes-alfa"
  */
 export function parseDayId(dayId: string): {
   week: string;
   day: string;
   level: string;
 } {
+  if (dayId.startsWith("J-")) {
+    // Journey format: J-{journeyType}-W{week}-{day}-{memberLevel}
+    const parts = dayId.split("-");
+    // Journey type may contain underscores, so find the W{n} part to anchor
+    const weekIdx = parts.findIndex((p) => p.startsWith("W"));
+    if (weekIdx >= 0) {
+      return {
+        week: parts[weekIdx] || "",
+        day: parts[weekIdx + 1] || "",
+        level: parts[weekIdx + 2] || "",
+      };
+    }
+  }
+
+  // General format: W{week}-{day}-{memberLevel}
   const parts = dayId.split("-");
   return {
     week: parts[0] || "",
