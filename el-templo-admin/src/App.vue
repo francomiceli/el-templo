@@ -1,3 +1,4 @@
+<!-- Admin app root component -->
 <template>
   <router-view />
 </template>

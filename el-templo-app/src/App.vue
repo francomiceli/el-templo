@@ -1,3 +1,4 @@
+<!-- App root component -->
 <template>
   <router-view />
 </template>

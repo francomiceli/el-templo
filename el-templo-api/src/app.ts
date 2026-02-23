@@ -1,3 +1,4 @@
+// Application entry point
 import Fastify from "fastify";
 import * as Sentry from "@sentry/node";
 import cors from "@fastify/cors";
