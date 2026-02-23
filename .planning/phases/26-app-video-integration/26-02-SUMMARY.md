@@ -1,12 +1,12 @@
 ---
-phase: 27-app-video-integration
+phase: 26-app-video-integration
 plan: 02
 subsystem: ui
 tags: [vue, quasar, video, dayplayer, exercise-swap, capacitor]
 
 # Dependency graph
 requires:
-  - phase: 27-app-video-integration
+  - phase: 26-app-video-integration
     plan: 01
     provides: "videoUrl field in session API response and admin exercise pool queries"
 provides:
@@ -46,7 +46,7 @@ duration: 4min
 completed: 2026-02-15
 ---
 
-# Phase 27 Plan 02: Frontend Video Integration Summary
+# Phase 26 Plan 02: Frontend Video Integration Summary
 
 **DayPlayer wired to exercise videoUrl with mobility selection, navy placeholder styling, error fallback, and admin video badge**
 
@@ -101,7 +101,7 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- Phase 27 (App Video Integration) is now complete
+- Phase 26 (App Video Integration) is now complete
 - Both API (Plan 01) and frontend (Plan 02) are wired end-to-end
 - Videos will display automatically once exercises have video_url populated in the database
 - Admin coaches can see which exercises have videos when swapping

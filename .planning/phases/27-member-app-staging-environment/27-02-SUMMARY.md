@@ -1,5 +1,5 @@
 ---
-phase: 28-member-app-staging-environment
+phase: 27-member-app-staging-environment
 plan: 02
 subsystem: infra
 tags: [github-actions, staging, ci-cd, pm2, rsync, deployment]
@@ -11,7 +11,7 @@ requires:
 provides:
   - Staging deployment workflow (deploy-staging.yml) with full safety pipeline
   - CI triggers for staging branch (push and PR)
-affects: [28-03, 28-04, 28-05]
+affects: [27-03, 27-04, 27-05]
 
 # Tech tracking
 tech-stack:
@@ -41,7 +41,7 @@ duration: 1min
 completed: 2026-02-16
 ---
 
-# Phase 28 Plan 02: Staging Deployment Workflow Summary
+# Phase 27 Plan 02: Staging Deployment Workflow Summary
 
 **GitHub Actions staging deploy pipeline mirroring production safety (backup/rollback/smoke test) with STAGING\_ prefixed secrets, separate PM2 process, and CI triggers for staging branch**
 

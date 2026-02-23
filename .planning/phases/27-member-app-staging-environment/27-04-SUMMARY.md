@@ -1,14 +1,14 @@
 ---
-phase: 28-member-app-staging-environment
+phase: 27-member-app-staging-environment
 plan: 04
 subsystem: infra
 tags: [ios, testflight, github-actions, xcode, capacitor, ci-cd]
 
 # Dependency graph
 requires:
-  - phase: 28-02
+  - phase: 27-02
     provides: "Staging deployment workflow and STAGING_VITE_* secrets convention"
-  - phase: 28-03
+  - phase: 27-03
     provides: "Dynamic capacitor.config.ts with STAGING env var support"
 provides:
   - "iOS staging TestFlight build workflow via GitHub Actions macOS runner"
@@ -44,7 +44,7 @@ duration: 2min
 completed: 2026-02-16
 ---
 
-# Phase 28 Plan 04: iOS Staging TestFlight Build Workflow Summary
+# Phase 27 Plan 04: iOS Staging TestFlight Build Workflow Summary
 
 **GitHub Actions macOS workflow for iOS staging builds with manual trigger, certificate management, Xcode archive, and TestFlight upload via altool**
 
@@ -67,7 +67,7 @@ completed: 2026-02-16
 Each task was committed atomically:
 
 1. **Task 1: Create iOS staging TestFlight build workflow** - `1a34dab` (feat)
-   - Note: Committed as part of 28-03 execution which included this file
+   - Note: Committed as part of 27-03 execution which included this file
 
 **Plan metadata:** `7c0b473` (docs: complete plan)
 
@@ -101,7 +101,7 @@ Each task was committed atomically:
 
 ## Issues Encountered
 
-- The workflow file was already committed by the 28-03 plan execution (commit `1a34dab`). Verified the committed content matches all plan requirements. No re-commit needed.
+- The workflow file was already committed by the 27-03 plan execution (commit `1a34dab`). Verified the committed content matches all plan requirements. No re-commit needed.
 
 ## User Setup Required
 
@@ -118,13 +118,13 @@ This workflow requires Apple Developer Program membership and manual configurati
 ## Next Phase Readiness
 
 - iOS staging build workflow is ready for use once Apple Developer account and secrets are configured
-- Plan 28-05 (staging seed script) can proceed independently
+- Plan 27-05 (staging seed script) can proceed independently
 
 ## Self-Check: PASSED
 
 - [x] `.github/workflows/build-ios-staging.yml` - FOUND (168 lines, valid YAML)
 - [x] Commit `1a34dab` - FOUND (verified via git log)
-- [x] `28-04-SUMMARY.md` - FOUND
+- [x] `27-04-SUMMARY.md` - FOUND
 
 ---
 

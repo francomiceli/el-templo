@@ -1,4 +1,4 @@
-# Phase 28: Member App Staging Environment - Context
+# Phase 27: Member App Staging Environment - Context
 
 **Gathered:** 2026-02-15
 **Status:** Ready for planning

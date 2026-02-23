@@ -1,5 +1,5 @@
 ---
-phase: 28-member-app-staging-environment
+phase: 27-member-app-staging-environment
 plan: 01
 subsystem: infra
 tags: [nginx, staging, faker, seed, cron, mysql]
@@ -12,7 +12,7 @@ provides:
   - Staging seed script with faker data and production safety check
   - 3 Nginx configs for staging subdomains (api/app/admin)
   - Weekly cron reset script for staging database
-affects: [28-02, 28-03, 28-04, 28-05]
+affects: [27-02, 27-03, 27-04, 27-05]
 
 # Tech tracking
 tech-stack:
@@ -48,7 +48,7 @@ duration: 2min
 completed: 2026-02-16
 ---
 
-# Phase 28 Plan 01: Staging Infrastructure Summary
+# Phase 27 Plan 01: Staging Infrastructure Summary
 
 **Staging seed script with faker-generated users, 3 Nginx subdomain configs, and weekly cron reset script with production safety checks**
 

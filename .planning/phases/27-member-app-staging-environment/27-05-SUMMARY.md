@@ -1,17 +1,17 @@
 ---
-phase: 28-member-app-staging-environment
+phase: 27-member-app-staging-environment
 plan: 05
 subsystem: infra
 tags: [staging, dns, ssl, nginx, mysql, pm2, github-secrets]
 
 requires:
-  - phase: 28-01
+  - phase: 27-01
     provides: "Nginx configs, seed script, reset script"
-  - phase: 28-02
+  - phase: 27-02
     provides: "Staging deploy workflow"
-  - phase: 28-03
+  - phase: 27-03
     provides: "Android staging APK build"
-  - phase: 28-04
+  - phase: 27-04
     provides: "iOS staging TestFlight build"
 provides:
   - "Working staging environment at staging subdomains"
@@ -41,7 +41,7 @@ duration: 30min
 completed: 2026-02-16
 ---
 
-# Plan 28-05: Server/DNS Setup & E2E Verification Summary
+# Plan 27-05: Server/DNS Setup & E2E Verification Summary
 
 **Staging environment live at 3 subdomains with SSL, production SPOM data, and 20 fake users**
 

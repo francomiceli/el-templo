@@ -1,4 +1,4 @@
-# Phase 28: Member App Staging Environment - Research
+# Phase 27: Member App Staging Environment - Research
 
 **Researched:** 2026-02-15
 **Domain:** DevOps / CI-CD / Mobile Builds / Infrastructure

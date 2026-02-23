@@ -1,18 +1,18 @@
 ---
-phase: 27-app-video-integration
+phase: 26-app-video-integration
 plan: 01
 subsystem: api
 tags: [drizzle, fastify, video, exercises, session-api, admin-api]
 
 # Dependency graph
-requires:
-  - phase: 26-video-hosting-content-tooling
-    provides: "video_url column in exercises table (migration 0014)"
+requires: []
+  # Note: Originally depended on Phase 26 (Video Hosting & Content Tooling) which was removed.
+  # The video_url column migration (0014) was created directly in this plan.
 provides:
   - "videoUrl field in session API response per exercise"
   - "videoUrl field in admin exercise pool queries"
   - "Drizzle schema + migration for exercises.video_url column"
-affects: [27-02-PLAN, el-templo-app, el-templo-admin]
+affects: [26-02-PLAN, el-templo-app, el-templo-admin]
 
 # Tech tracking
 tech-stack:
@@ -43,7 +43,7 @@ duration: 3min
 completed: 2026-02-15
 ---
 
-# Phase 27 Plan 01: API Video URL Wiring Summary
+# Phase 26 Plan 01: API Video URL Wiring Summary
 
 **Session and admin pool APIs return videoUrl per exercise via leftJoin on exercises table at read time**
 
@@ -117,7 +117,7 @@ ALTER TABLE `exercises` ADD COLUMN `video_url` varchar(500) DEFAULT NULL;
 
 ## Next Phase Readiness
 
-- API layer complete, ready for frontend integration (Phase 27 Plan 02)
+- API layer complete, ready for frontend integration (Phase 26 Plan 02)
 - Frontend apps can now consume videoUrl from session and exercise pool responses
 
 ## Self-Check: PASSED

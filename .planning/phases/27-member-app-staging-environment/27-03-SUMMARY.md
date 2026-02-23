@@ -1,17 +1,17 @@
 ---
-phase: 28-member-app-staging-environment
+phase: 27-member-app-staging-environment
 plan: 03
 subsystem: infra
 tags: [capacitor, gradle, android, github-actions, staging]
 
 requires:
-  - phase: 28-02
+  - phase: 27-02
     provides: "Staging deploy workflow and CI triggers"
 provides:
   - "Dynamic Capacitor config for staging/production app identity"
   - "Gradle product flavors for staging applicationId"
   - "Android staging APK build workflow"
-affects: [28-05]
+affects: [27-05]
 
 tech-stack:
   added: []
@@ -40,7 +40,7 @@ duration: 2min
 completed: 2026-02-16
 ---
 
-# Plan 28-03: Android Staging APK Build Summary
+# Plan 27-03: Android Staging APK Build Summary
 
 **Dynamic Capacitor config (.ts) with staging/production toggle, Gradle product flavors, and manual Android APK build workflow**
 

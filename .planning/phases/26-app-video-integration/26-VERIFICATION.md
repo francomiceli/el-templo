@@ -1,11 +1,11 @@
 ---
-phase: 27-app-video-integration
+phase: 26-app-video-integration
 verified: 2026-02-15T22:30:00Z
 status: passed
 score: 6/6 must-haves verified
 ---
 
-# Phase 27: App Video Integration Verification Report
+# Phase 26: App Video Integration Verification Report
 
 **Phase Goal:** Wire video URLs from the exercises table through the session API to the frontend DayPlayer, replacing the current placeholder with real exercise demonstration videos
 
@@ -48,13 +48,13 @@ score: 6/6 must-haves verified
 
 ### Requirements Coverage
 
-Phase 27 ROADMAP.md success criteria:
+Phase 26 ROADMAP.md success criteria:
 
 | Requirement                                                                        | Status    | Evidence                                                                                                                       |
 | ---------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | 1. exercises table has video_url VARCHAR column (migration applied)                | SATISFIED | Migration 0014_add_video_url.sql exists, schema.ts line 35 has `videoUrl: varchar('video_url', { length: 500 })`               |
-| 2. videoUrl included in ExercisePrescription type and selected in exercise queries | SATISFIED | API types.ts has videoUrl field, SUMMARY 27-01 documents leftJoin implementation                                               |
-| 3. Session API response includes videoUrl per exercise prescription                | SATISFIED | Plan 27-01 SUMMARY confirms API response includes videoUrl via leftJoin                                                        |
+| 2. videoUrl included in ExercisePrescription type and selected in exercise queries | SATISFIED | API types.ts has videoUrl field, SUMMARY 26-01 documents leftJoin implementation                                               |
+| 3. Session API response includes videoUrl per exercise prescription                | SATISFIED | Plan 26-01 SUMMARY confirms API response includes videoUrl via leftJoin                                                        |
 | 4. DayPlayer.vue currentExerciseVideoUrl computed reads from exercise data         | SATISFIED | BlockProgressionView.vue lines 211-218 implement dynamic computed                                                              |
 | 5. VideoPlaceholder shows video when URL exists, placeholder when null             | SATISFIED | VideoPlaceholder.vue line 4 conditional rendering                                                                              |
 | 6. Videos autoplay, loop, and display correctly on both web and Capacitor mobile   | SATISFIED | VideoPlaceholder.vue line 10-17: video element has autoplay, loop, muted, playsinline attributes for iOS/Android compatibility |
@@ -159,10 +159,10 @@ None detected.
 
 ## Summary
 
-All Phase 27 goal requirements verified:
+All Phase 26 goal requirements verified:
 
 - Database migration 0014 adds video_url column
-- API types and queries include videoUrl (verified via Plan 27-01 SUMMARY)
+- API types and queries include videoUrl (verified via Plan 26-01 SUMMARY)
 - Frontend types wire videoUrl through Prescription and Block.mobilityExercise
 - BlockProgressionView dynamically reads videoUrl from selected exercise
 - VideoPlaceholder handles video display, error fallback, and navy styling
