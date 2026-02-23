@@ -1,5 +1,12 @@
 export type AdminRole = 'coach' | 'admin' | 'superadmin';
 
+declare module 'vue-router' {
+  interface RouteMeta {
+    public?: boolean;
+    allowedRoles?: AdminRole[];
+  }
+}
+
 export interface AdminUser {
   id: number;
   email: string;

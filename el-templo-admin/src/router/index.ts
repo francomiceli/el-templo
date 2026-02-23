@@ -2,6 +2,7 @@ import { defineRouter } from '#q-app/wrappers';
 import { createRouter, createWebHistory } from 'vue-router';
 import routes from './routes';
 import { useAuthStore } from 'stores/useAuthStore';
+import type { AdminRole } from 'src/types/admin';
 
 export default defineRouter(function () {
   const Router = createRouter({
@@ -32,6 +33,12 @@ export default defineRouter(function () {
     const isValid = await authStore.checkAuth();
     if (!isValid) {
       return '/login';
+    }
+
+    // Role-based access: if route specifies allowedRoles, check user's role
+    const allowedRoles = to.meta.allowedRoles;
+    if (allowedRoles && !allowedRoles.includes(authStore.user?.role as AdminRole)) {
+      return '/sessions';
     }
 
     return true;
