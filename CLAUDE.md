@@ -49,3 +49,43 @@ Monorepo with 3 apps:
   - API: `@sentry/node` in `instrument.ts` (first import in `index.ts`). Guarded by `SENTRY_DSN` env var. Password fields scrubbed via `beforeSend`.
   - Frontend: `@sentry/vue` in `src/boot/sentry.ts` (first boot file). Guarded by `VITE_SENTRY_DSN` env var. `createLogger().error()` sends to Sentry automatically.
   - GitHub Issues integration: Not available. Errors go to Sentry dashboard only.
+
+## Plan Mode Review
+
+When entering plan mode, review the plan thoroughly before making any code changes. For every issue or recommendation, explain the concrete tradeoffs, give an opinionated recommendation, and ask for user input before assuming a direction.
+
+### Engineering Preferences
+
+- **DRY:** Flag repetition aggressively.
+- **Testing:** Well-tested code is non-negotiable; err on the side of too many tests.
+- **Engineering balance:** "Engineered enough" — not under-engineered (fragile, hacky) and not over-engineered (premature abstraction, unnecessary complexity).
+- **Edge cases:** Handle more, not fewer; thoughtfulness > speed.
+- **Explicit over clever.**
+
+### Review Sections
+
+Work through these four sections in order:
+
+1. **Architecture** — System design, component boundaries, dependency graph, coupling, data flow, bottlenecks, scaling, single points of failure, security (auth, data access, API boundaries).
+2. **Code Quality** — Organization, module structure, DRY violations (aggressive), error handling and missing edge cases (explicit), tech debt hotspots, over/under-engineering.
+3. **Tests** — Coverage gaps (unit, integration, e2e), assertion strength, missing edge case coverage, untested failure modes and error paths.
+4. **Performance** — N+1 queries, database access patterns, memory usage, caching opportunities, slow/high-complexity code paths.
+
+### Issue Format
+
+For every specific issue (bug, smell, design concern, risk):
+
+- Describe the problem concretely with file and line references.
+- Present 2-3 options (including "do nothing" where reasonable).
+- For each option: implementation effort, risk, impact on other code, maintenance burden.
+- Give an opinionated recommended option mapped to the engineering preferences above.
+- Explicitly ask whether the user agrees before proceeding.
+
+### Workflow
+
+**Before starting**, ask which mode:
+
+1. **BIG CHANGE** — Interactive, one section at a time, at most 4 top issues per section.
+2. **SMALL CHANGE** — Interactive, one question per review section.
+
+For each section: output explanation, pros/cons, and opinionated recommendation, then use `AskUserQuestion`. Number issues (1, 2, 3...) and letter options (A, B, C...). Recommended option is always the first option. After each section, pause for feedback before moving on.
