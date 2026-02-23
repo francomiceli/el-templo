@@ -7,52 +7,56 @@
  * - Seeds minimal reference data needed for integration tests
  */
 
-import dotenv from 'dotenv';
-import mysql from 'mysql2/promise';
-import fs from 'fs';
-import path from 'path';
-import argon2 from 'argon2';
+import dotenv from "dotenv";
+import mysql from "mysql2/promise";
+import fs from "fs";
+import path from "path";
+import argon2 from "argon2";
 
 // Load env from the API project root (globalSetup runs in its own context)
-dotenv.config({ path: path.resolve(__dirname, '../.env.development') });
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, "../.env.development") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
-const DB_USER = process.env.DB_USER || 'root';
-const DB_PASSWORD = process.env.DB_PASSWORD || '';
-const TEST_DB = 'eltemplo_test';
+const DB_USER = process.env.DB_USER || "root";
+const DB_PASSWORD = process.env.DB_PASSWORD || "";
+const TEST_DB = "eltemplo_test";
 
-const MIGRATIONS_DIR = path.resolve(__dirname, '../src/db/migrations');
+const MIGRATIONS_DIR = path.resolve(__dirname, "../src/db/migrations");
 
 /**
  * Run all .sql migration files against the test database
  */
 async function runMigrations(connection: mysql.Connection): Promise<void> {
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql'))
+  const files = fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith(".sql"))
     .sort();
 
   for (const file of files) {
-    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
+    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
+
+    // Skip data-only migrations — they operate on production data, not test data
+    if (sql.includes("@data-only")) continue;
 
     let statements: string[];
-    if (sql.includes('--> statement-breakpoint')) {
+    if (sql.includes("--> statement-breakpoint")) {
       statements = sql
-        .split('--> statement-breakpoint')
-        .map(s => s.trim())
-        .filter(s => s.length > 0);
+        .split("--> statement-breakpoint")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
     } else {
       statements = sql
-        .split(';')
-        .map(s =>
+        .split(";")
+        .map((s) =>
           s
-            .split('\n')
-            .filter(line => !line.trimStart().startsWith('--'))
-            .join('\n')
-            .trim()
+            .split("\n")
+            .filter((line) => !line.trimStart().startsWith("--"))
+            .join("\n")
+            .trim(),
         )
-        .filter(s => s.length > 0);
+        .filter((s) => s.length > 0);
     }
 
     for (const stmt of statements) {
@@ -61,19 +65,23 @@ async function runMigrations(connection: mysql.Connection): Promise<void> {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         // Strip SQL comments to get the actual statement keyword
-        const stmtBody = stmt.split('\n').filter(l => !l.trimStart().startsWith('--')).join('\n').trim();
+        const stmtBody = stmt
+          .split("\n")
+          .filter((l) => !l.trimStart().startsWith("--"))
+          .join("\n")
+          .trim();
         const stmtUpper = stmtBody.toUpperCase();
         const isDuplicate =
-          msg.includes('Duplicate column name') ||
-          msg.includes('Duplicate key name') ||
-          msg.includes('Duplicate foreign key') ||
-          msg.includes('already exists');
+          msg.includes("Duplicate column name") ||
+          msg.includes("Duplicate key name") ||
+          msg.includes("Duplicate foreign key") ||
+          msg.includes("already exists");
         // DML statements (UPDATE/DELETE) in migrations operate on existing data.
         // On a fresh empty DB they can fail due to column name mismatches
         // (e.g. Drizzle property name vs actual column name). Safe to skip.
         const isDmlOnEmptyTable =
-          (stmtUpper.startsWith('UPDATE') || stmtUpper.startsWith('DELETE')) &&
-          msg.includes('Unknown column');
+          (stmtUpper.startsWith("UPDATE") || stmtUpper.startsWith("DELETE")) &&
+          msg.includes("Unknown column");
         if (!isDuplicate && !isDmlOnEmptyTable) {
           throw err;
         }
@@ -91,20 +99,20 @@ async function runMigrations(connection: mysql.Connection): Promise<void> {
 async function seedTestData(connection: mysql.Connection): Promise<void> {
   // Branch
   await connection.execute(
-    `INSERT INTO branches (name, code) VALUES ('Test Branch', 'TEST')`
+    `INSERT INTO branches (name, code) VALUES ('Test Branch', 'TEST')`,
   );
 
   // SPOM config (singleton, week 1)
   await connection.execute(
-    `INSERT INTO spom_config (id, current_week) VALUES (1, 1)`
+    `INSERT INTO spom_config (id, current_week) VALUES (1, 1)`,
   );
 
   // Admin user (password: 'adminpass123')
-  const adminHash = await argon2.hash('adminpass123');
+  const adminHash = await argon2.hash("adminpass123");
   await connection.execute(
     `INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, level)
      VALUES ('admin@test.com', ?, 'Test', 'Admin', 'superadmin', 1, 'spartan')`,
-    [adminHash]
+    [adminHash],
   );
 }
 
