@@ -25,8 +25,25 @@
         <!-- Week selector -->
         <div class="row items-center q-mb-lg q-gutter-sm">
           <q-btn icon="chevron_left" flat round @click="prevWeek" />
-          <div class="text-subtitle1">Semana {{ currentWeek }}</div>
+          <div class="text-subtitle1">{{ formatWeekLabel(currentWeek) }}</div>
           <q-btn icon="chevron_right" flat round @click="nextWeek" />
+          <q-btn icon="event" flat round dense>
+            <q-popup-proxy
+              v-model="showGeneralDatePicker"
+              cover
+              transition-show="scale"
+              transition-hide="scale"
+            >
+              <q-date
+                :model-value="weekToQDate(currentWeek)"
+                @update:model-value="onGeneralDatePicked"
+                minimal
+                first-day-of-week="1"
+                navigation-min-year-month="2026/02"
+                navigation-max-year-month="2027/02"
+              />
+            </q-popup-proxy>
+          </q-btn>
           <q-space />
           <q-btn
             icon="collections_bookmark"
@@ -125,7 +142,7 @@
           <!-- No sessions -->
           <div v-if="sessions.length === 0" class="text-center q-pa-xl text-grey">
             <q-icon name="info" size="xl" class="q-mb-md" />
-            <div class="text-h6">No hay sesiones para la semana {{ currentWeek }}</div>
+            <div class="text-h6">No hay sesiones para {{ formatWeekLabel(currentWeek) }}</div>
           </div>
         </template>
       </q-tab-panel>
@@ -137,8 +154,25 @@
         <!-- Week selector -->
         <div class="row items-center q-mb-md q-gutter-sm">
           <q-btn icon="chevron_left" flat round @click="prevJourneyWeek" />
-          <div class="text-subtitle1">Semana {{ journeyWeek }}</div>
+          <div class="text-subtitle1">{{ formatWeekLabel(journeyWeek) }}</div>
           <q-btn icon="chevron_right" flat round @click="nextJourneyWeek" />
+          <q-btn icon="event" flat round dense>
+            <q-popup-proxy
+              v-model="showJourneyDatePicker"
+              cover
+              transition-show="scale"
+              transition-hide="scale"
+            >
+              <q-date
+                :model-value="weekToQDate(journeyWeek)"
+                @update:model-value="onJourneyDatePicked"
+                minimal
+                first-day-of-week="1"
+                navigation-min-year-month="2026/02"
+                navigation-max-year-month="2027/02"
+              />
+            </q-popup-proxy>
+          </q-btn>
         </div>
 
         <!-- Journey type sub-tabs -->
@@ -243,8 +277,8 @@
           <div v-if="journeyDayGroups.length === 0" class="text-center q-pa-xl text-grey">
             <q-icon name="info" size="xl" class="q-mb-md" />
             <div class="text-h6">
-              No hay sesiones de {{ getJourneyLabel(selectedJourneyTab) }} para la semana
-              {{ journeyWeek }}
+              No hay sesiones de {{ getJourneyLabel(selectedJourneyTab) }} para
+              {{ formatWeekLabel(journeyWeek) }}
             </div>
             <div class="text-caption q-mt-sm">
               Genera sesiones en la pestana "Generar Sesiones" > Personalizadas
@@ -268,6 +302,14 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import {
+  formatWeekLabel,
+  weekToUrlParam,
+  urlParamToWeek,
+  getCurrentWeekNumber,
+  weekToQDate,
+  qDateToWeek,
+} from 'src/utils/weekDates';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
@@ -295,7 +337,10 @@ const activeTab = ref(route.query.tab === 'personalizadas' ? 'personalizadas' : 
 // General tab state
 // ============================================================
 const sessions = ref<SessionSummary[]>([]);
-const initialWeek = Number(route.query.week) || 1;
+const weekParam = route.query.week as string | undefined;
+const initialWeek = weekParam
+  ? (urlParamToWeek(weekParam) ?? getCurrentWeekNumber())
+  : getCurrentWeekNumber();
 const currentWeek = ref(initialWeek);
 
 // Preview dialog state
@@ -306,6 +351,9 @@ const previewMemberLevel = ref('alfa');
 // PDF state
 const pdfWeekLoading = ref(false);
 const pdfDayLoading = ref<string | null>(null);
+
+// Date picker state
+const showGeneralDatePicker = ref(false);
 
 const DAYS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DISPLAY_LEVELS = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
@@ -360,7 +408,7 @@ async function loadSessions() {
 function syncWeekUrl() {
   router.replace({
     query: {
-      week: String(currentWeek.value),
+      week: weekToUrlParam(currentWeek.value),
       ...(activeTab.value !== 'general' ? { tab: activeTab.value } : {}),
     },
   });
@@ -382,8 +430,16 @@ function nextWeek() {
   }
 }
 
+function onGeneralDatePicked(val: string | null) {
+  showGeneralDatePicker.value = false;
+  if (!val) return;
+  currentWeek.value = qDateToWeek(val);
+  syncWeekUrl();
+  loadSessions();
+}
+
 function editDay(day: string) {
-  router.push({ path: '/sessions/edit', query: { week: String(currentWeek.value), day } });
+  router.push({ path: '/sessions/edit', query: { week: weekToUrlParam(currentWeek.value), day } });
 }
 
 async function handleBulkApproveDay(dayGroup: DayGroup) {
@@ -477,6 +533,7 @@ const journeyWeek = ref(initialWeek);
 const selectedJourneyTab = ref<JourneyType>(ALL_JOURNEY_TYPES[0]);
 const journeySessions = ref<SessionSummary[]>([]);
 const journeyLoading = ref(false);
+const showJourneyDatePicker = ref(false);
 
 interface JourneyDayLevelStatus {
   memberLevel: string;
@@ -531,7 +588,7 @@ function editJourneyDay(day: string) {
   router.push({
     path: '/sessions/edit',
     query: {
-      week: String(journeyWeek.value),
+      week: weekToUrlParam(journeyWeek.value),
       day,
       journeyType: selectedJourneyTab.value,
     },
@@ -575,6 +632,13 @@ function nextJourneyWeek() {
     journeyWeek.value++;
     loadJourneySessions();
   }
+}
+
+function onJourneyDatePicked(val: string | null) {
+  showJourneyDatePicker.value = false;
+  if (!val) return;
+  journeyWeek.value = qDateToWeek(val);
+  loadJourneySessions();
 }
 
 function getJourneyBadgeColor(journeyType: string): string {

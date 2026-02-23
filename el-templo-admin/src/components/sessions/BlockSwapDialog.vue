@@ -54,7 +54,7 @@
                   <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
                 </span>
                 <span class="text-italic">
-                  Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
+                  {{ formatWeekLabel(poolBlock.sourceWeek) }} - {{ dayLabel(poolBlock.sourceDay) }}
                 </span>
               </q-item-label>
               <q-item-label caption class="q-mt-xs">
@@ -83,6 +83,7 @@
 import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { formatWeekLabel } from 'src/utils/weekDates';
 import type { SessionBlock, PoolBlock } from 'src/types/session';
 
 const props = defineProps<{

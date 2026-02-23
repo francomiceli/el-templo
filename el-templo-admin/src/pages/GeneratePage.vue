@@ -38,7 +38,7 @@
                 @update:model-value="loadWeekSummary"
               />
               <span class="text-caption text-grey">
-                Semana actual: {{ currentWeek }} (solo semanas futuras)
+                Actual: {{ formatWeekLabel(currentWeek) }} (solo semanas futuras)
               </span>
             </div>
           </q-card-section>
@@ -94,7 +94,7 @@
         <!-- Week summary -->
         <q-card v-if="weekSummary" flat bordered>
           <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Estado de Semana {{ selectedWeek }}</div>
+            <div class="text-subtitle1 q-mb-md">Estado de {{ formatWeekLabel(selectedWeek) }}</div>
 
             <q-table
               :rows="summaryRows"
@@ -163,7 +163,7 @@
                 style="width: 100px"
               />
               <span class="text-caption text-grey">
-                Semana actual: {{ currentWeek }} (solo semanas futuras)
+                Actual: {{ formatWeekLabel(currentWeek) }} (solo semanas futuras)
               </span>
             </div>
           </q-card-section>
@@ -267,8 +267,8 @@
           <template #avatar>
             <q-icon name="info" />
           </template>
-          Selecciona una semana futura (mayor a {{ currentWeek }}) para generar sesiones
-          personalizadas.
+          Selecciona una semana futura (posterior a {{ formatWeekLabel(currentWeek) }}) para generar
+          sesiones personalizadas.
         </q-banner>
       </q-tab-panel>
     </q-tab-panels>
@@ -279,6 +279,7 @@
 import { ref, computed, onMounted, defineComponent, h } from 'vue';
 import { useQuasar, QIcon } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatWeekLabel } from 'src/utils/weekDates';
 import {
   useGenerateApi,
   type WeekSummary,

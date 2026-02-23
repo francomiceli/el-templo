@@ -43,7 +43,7 @@
       <q-card-section v-else-if="preview" class="col scroll q-pt-sm">
         <!-- Session info -->
         <div class="text-caption text-grey q-mb-md">
-          Semana {{ preview.week }} - {{ dayLabel(preview.day) }} -
+          {{ formatWeekLabel(preview.week) }} - {{ dayLabel(preview.day) }} -
           {{ preview.memberLevel.charAt(0).toUpperCase() + preview.memberLevel.slice(1) }}
         </div>
 
@@ -116,6 +116,7 @@
 import { ref, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { useEditApi } from 'src/composables/useEditApi';
+import { formatWeekLabel } from 'src/utils/weekDates';
 import type { SessionPreview } from 'src/types/session';
 
 const $q = useQuasar();

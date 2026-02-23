@@ -2,7 +2,6 @@ import { FastifyPluginAsync } from "fastify";
 import { eq, sql, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
-import { SpomService } from "../spom/service";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
@@ -48,6 +47,20 @@ function levelToLevelGroup(level: string): LevelGroup {
 function dateToDayName(date: string): string {
   const d = new Date(date + "T00:00:00");
   return DAY_OF_WEEK_MAP[d.getDay()] || "domingo";
+}
+
+/**
+ * Derive SPOM week number from a date relative to Week 1 Monday (2026-02-16).
+ * Clamped to 1-52.
+ */
+const WEEK_ONE_MONDAY = new Date("2026-02-16T00:00:00");
+
+function dateToWeekNumber(date: string): number {
+  const d = new Date(date + "T00:00:00");
+  const diffMs = d.getTime() - WEEK_ONE_MONDAY.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const week = Math.floor(diffDays / 7) + 1;
+  return Math.max(1, Math.min(52, week));
 }
 
 /**
@@ -115,7 +128,6 @@ function sessionToResponse(session: DaySession) {
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
-  const spomService = new SpomService(fastify.db);
 
   // GET /sessions/daily - Get member's session for a date
   fastify.get<{ Querystring: GetDailySessionInput }>(
@@ -144,8 +156,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 2. Extract memberLevel and compute levelGroup
       const memberLevel = user.level as ExerciseLevel;
 
-      // 3. Get current SPOM week
-      const week = await spomService.getCurrentWeek();
+      // 3. Derive week number from the requested date
+      const week = dateToWeekNumber(date);
 
       // 4. Convert date to day of week
       const dayName = dateToDayName(date);
@@ -198,8 +210,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 2. Extract memberLevel
       const memberLevel = user.level as ExerciseLevel;
 
-      // 3. Get current SPOM week
-      const week = await spomService.getCurrentWeek();
+      // 3. Derive week number from the requested weekStart date
+      const week = dateToWeekNumber(weekStart);
 
       // 4. Generate dates for the week (Mon-Sun)
       const monday = new Date(weekStart + "T00:00:00");

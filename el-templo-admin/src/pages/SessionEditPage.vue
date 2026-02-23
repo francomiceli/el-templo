@@ -19,7 +19,7 @@
         <div class="row items-center">
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
           <span class="text-h5">
-            Editar Sesion - Semana {{ week }} - {{ dayLabel(day) }}
+            Editar Sesion - {{ formatWeekLabel(week) }} - {{ dayLabel(day) }}
             <q-badge
               v-if="journeyType"
               :color="JOURNEY_TIER_COLORS[JOURNEY_TIER_MAP[journeyType as JourneyType]]"
@@ -116,6 +116,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import axios from 'axios';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { formatWeekLabel, urlParamToWeek, weekToUrlParam } from 'src/utils/weekDates';
 import { useEditApi } from 'src/composables/useEditApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
@@ -170,7 +171,10 @@ const error = ref<string | null>(null);
 const formatsByRole = ref<Map<string, CompatibleFormat[]>>(new Map());
 
 // Route query params
-const week = computed(() => Number(route.query.week) || 1);
+const week = computed(() => {
+  const param = route.query.week as string | undefined;
+  return param ? (urlParamToWeek(param) ?? 1) : 1;
+});
 const day = computed(() => (route.query.day as string) || 'lunes');
 const journeyType = computed(() => (route.query.journeyType as string) || undefined);
 
@@ -326,7 +330,7 @@ async function refreshDay(savedScrollY?: number) {
 }
 
 function goBack() {
-  const query: Record<string, string> = { week: String(week.value) };
+  const query: Record<string, string> = { week: weekToUrlParam(week.value) };
   if (journeyType.value) query.tab = 'personalizadas';
   router.push({ path: '/sessions', query });
 }

@@ -19,7 +19,7 @@
         <div>
           <q-btn flat icon="arrow_back" @click="goBack" class="q-mr-sm" />
           <span class="text-h5">
-            Semana {{ session.week }} - {{ dayLabel(session.day) }}
+            {{ formatWeekLabel(session.week) }} - {{ dayLabel(session.day) }}
           </span>
         </div>
         <status-badge :status="session.status" :by-system="session.approvedBySystem" />
@@ -50,18 +50,8 @@
 
       <!-- Action buttons -->
       <div class="q-mb-md q-gutter-sm">
-        <q-btn
-          color="primary"
-          icon="edit"
-          label="Editar"
-          @click="goToEdit"
-        />
-        <q-btn
-          color="info"
-          icon="preview"
-          label="Vista Previa"
-          @click="previewOpen = true"
-        />
+        <q-btn color="primary" icon="edit" label="Editar" @click="goToEdit" />
+        <q-btn color="info" icon="preview" label="Vista Previa" @click="previewOpen = true" />
         <q-btn
           v-if="session.status === 'pending_review'"
           color="positive"
@@ -108,7 +98,8 @@
 
         <q-card-section v-if="swapTargetBlock" class="q-pt-none">
           <div class="text-caption text-grey q-mb-md">
-            Reemplazar bloque {{ swapTargetBlock.role }} ({{ swapTargetBlock.route }}) con uno del pool de sesiones aprobadas
+            Reemplazar bloque {{ swapTargetBlock.role }} ({{ swapTargetBlock.route }}) con uno del
+            pool de sesiones aprobadas
           </div>
 
           <!-- Loading pool -->
@@ -118,7 +109,7 @@
 
           <!-- Empty pool -->
           <div v-else-if="poolBlocks.length === 0" class="text-center q-pa-lg text-grey">
-            <q-icon name="info" size="md" class="q-mb-sm" /><br>
+            <q-icon name="info" size="md" class="q-mb-sm" /><br />
             No hay bloques disponibles para esta ruta y nivel
           </div>
 
@@ -145,12 +136,14 @@
                     <q-icon name="replay" size="xs" /> {{ poolBlock.repsBudget }} reps
                   </span>
                   <span class="text-italic">
-                    Semana {{ poolBlock.sourceWeek }} - {{ dayLabel(poolBlock.sourceDay) }}
+                    {{ formatWeekLabel(poolBlock.sourceWeek) }} -
+                    {{ dayLabel(poolBlock.sourceDay) }}
                   </span>
                 </q-item-label>
                 <q-item-label caption class="q-mt-xs">
                   <span v-for="(ex, i) in poolBlock.exercises.slice(0, 4)" :key="ex.id">
-                    {{ ex.exerciseName }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
+                    {{ ex.exerciseName
+                    }}<span v-if="i < Math.min(poolBlock.exercises.length, 4) - 1">, </span>
                   </span>
                   <span v-if="poolBlock.exercises.length > 4">
                     ... +{{ poolBlock.exercises.length - 4 }}
@@ -175,6 +168,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { formatWeekLabel } from 'src/utils/weekDates';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import StatusBadge from 'src/components/sessions/StatusBadge.vue';
 import BlockCard from 'src/components/sessions/BlockCard.vue';
@@ -199,7 +193,6 @@ const poolLoading = ref(false);
 
 // Preview dialog state
 const previewOpen = ref(false);
-
 
 async function loadSession() {
   const id = Number(route.params.id);
@@ -288,11 +281,7 @@ async function handleSwap(sourceBlockId: number) {
     cancel: true,
   }).onOk(async () => {
     try {
-      await sessionsApi.swapBlock(
-        session.value!.id,
-        swapTargetBlock.value!.id,
-        sourceBlockId
-      );
+      await sessionsApi.swapBlock(session.value!.id, swapTargetBlock.value!.id, sourceBlockId);
       $q.notify({ type: 'positive', message: 'Bloque intercambiado' });
       swapDialogOpen.value = false;
       loadSession();
@@ -324,10 +313,14 @@ function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): s
     if (level === 'spartan') return 'red';
   }
   switch (group) {
-    case 'alfa_delta': return 'blue';
-    case 'sigma': return 'purple';
-    case 'omega': return 'orange';
-    default: return 'grey';
+    case 'alfa_delta':
+      return 'blue';
+    case 'sigma':
+      return 'purple';
+    case 'omega':
+      return 'orange';
+    default:
+      return 'grey';
   }
 }
 
@@ -336,10 +329,14 @@ function memberLevelLabel(memberLevel: string | undefined, group: LevelGroup): s
     return memberLevel.charAt(0).toUpperCase() + memberLevel.slice(1).toLowerCase();
   }
   switch (group) {
-    case 'alfa_delta': return 'Alfa/Delta';
-    case 'sigma': return 'Sigma';
-    case 'omega': return 'Omega';
-    default: return group;
+    case 'alfa_delta':
+      return 'Alfa/Delta';
+    case 'sigma':
+      return 'Sigma';
+    case 'omega':
+      return 'Omega';
+    default:
+      return group;
   }
 }
 

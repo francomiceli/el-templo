@@ -26,6 +26,7 @@ import {
   GREAT_VIBES_REGULAR_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
+import { formatWeekLabel } from '../weekDates';
 
 // ============================================================
 // BRAND DESIGN TOKENS (from visual guidelines)
@@ -757,7 +758,9 @@ export function buildDayPdf(day: PdfDaySession): void {
   ensureFonts();
   const content = buildDayContent(day);
   const doc = buildDocDefinition(content);
-  pdfMake.createPdf(doc).download(`El-Templo-S${day.week}-${day.dayName}.pdf`);
+  pdfMake
+    .createPdf(doc)
+    .download(`El-Templo-${formatWeekLabel(day.week).replace(/ /g, '')}-${day.dayName}.pdf`);
 }
 
 /**
@@ -777,7 +780,7 @@ export function buildWeekPdf(days: PdfDaySession[]): void {
 
   const doc = buildDocDefinition(content);
   const weekNum = days[0]?.week || 0;
-  pdfMake.createPdf(doc).download(`El-Templo-Semana-${weekNum}.pdf`);
+  pdfMake.createPdf(doc).download(`El-Templo-${formatWeekLabel(weekNum).replace(/ /g, '')}.pdf`);
 }
 
 /**

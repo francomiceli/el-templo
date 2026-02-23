@@ -2,9 +2,7 @@
   <q-page class="weekly-view">
     <!-- Header with week info -->
     <div class="weekly-view__header q-pa-md">
-      <span class="weekly-view__title">Semana {{ weekNumber }}</span>
-      <span class="weekly-view__separator">·</span>
-      <span class="weekly-view__subtitle">{{ weekRangeLabel }}</span>
+      <span class="weekly-view__title">{{ weekRangeLabel }}</span>
     </div>
 
     <!-- Loading state while fetching sessions -->
@@ -31,16 +29,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { createLogger } from 'src/utils/logger';
-import { useWeekStore } from '../stores/weekStore';
-import { useWeekData } from '../composables/useWeekData';
-import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation';
-import type { WeekDay } from '../types/session';
-import WeekCarousel from '../components/WeekCarousel.vue';
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { createLogger } from 'src/utils/logger'
+import { useWeekStore } from '../stores/weekStore'
+import { useWeekData } from '../composables/useWeekData'
+import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
+import type { WeekDay } from '../types/session'
+import WeekCarousel from '../components/WeekCarousel.vue'
 
-const log = createLogger('WeeklyView');
+const log = createLogger('WeeklyView')
 
 /**
  * Main Weekly View page
@@ -60,9 +58,9 @@ const log = createLogger('WeeklyView');
  * 6. Enable Start button when today is selected and not completed
  */
 
-const router = useRouter();
-const weekStore = useWeekStore();
-const { sessions, loading, error, fetchWeekSessions } = useWeekData();
+const router = useRouter()
+const weekStore = useWeekStore()
+const { sessions, loading, error, fetchWeekSessions } = useWeekData()
 
 /**
  * Load week data from API and populate store
@@ -70,20 +68,20 @@ const { sessions, loading, error, fetchWeekSessions } = useWeekData();
 async function loadWeekData() {
   try {
     // Get dates for current week (Monday-Sunday)
-    const dates = getWeekDates();
+    const dates = getWeekDates()
 
     // Fetch sessions for all days in parallel
-    await fetchWeekSessions(dates);
+    await fetchWeekSessions(dates)
 
     // Build WeekDay objects combining calendar info + session data
     const weekDays: WeekDay[] = dates.map((date) => {
-      const dateObj = new Date(date + 'T00:00:00');
-      const dayOfWeek = dateObj.getDay();
-      const session = sessions.value.get(date) || null;
+      const dateObj = new Date(date + 'T00:00:00')
+      const dayOfWeek = dateObj.getDay()
+      const session = sessions.value.get(date) || null
 
       // TODO: Get completed dates from user activity store
       // For now, assume no days are completed
-      const completedDates: string[] = [];
+      const completedDates: string[] = []
 
       return {
         date,
@@ -91,78 +89,72 @@ async function loadWeekData() {
         dayOfWeek,
         state: getDateState(date, completedDates),
         session,
-      };
-    });
+      }
+    })
 
     // Update store with week data
-    weekStore.setWeekDays(weekDays);
+    weekStore.setWeekDays(weekDays)
 
     // Auto-select today (or first non-Sunday if today is not in current week)
     // Use local timezone to match week date generation
-    const now = new Date();
-    const todayYear = now.getFullYear();
-    const todayMonth = String(now.getMonth() + 1).padStart(2, '0');
-    const todayDay = String(now.getDate()).padStart(2, '0');
-    const today = `${todayYear}-${todayMonth}-${todayDay}`;
-    const todayInWeek = dates.includes(today);
+    const now = new Date()
+    const todayYear = now.getFullYear()
+    const todayMonth = String(now.getMonth() + 1).padStart(2, '0')
+    const todayDay = String(now.getDate()).padStart(2, '0')
+    const today = `${todayYear}-${todayMonth}-${todayDay}`
+    const todayInWeek = dates.includes(today)
 
     if (todayInWeek) {
-      weekStore.selectDate(today);
+      weekStore.selectDate(today)
     } else {
       // Select first non-Sunday day
-      const firstNonSunday = weekDays.find(day => day.state !== 'rest');
+      const firstNonSunday = weekDays.find((day) => day.state !== 'rest')
       if (firstNonSunday) {
-        weekStore.selectDate(firstNonSunday.date);
+        weekStore.selectDate(firstNonSunday.date)
       }
     }
   } catch (err) {
-    log.error('Failed to load week data', { error: err instanceof Error ? err.message : String(err) });
+    log.error('Failed to load week data', {
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
-
-/**
- * Week number from first available session
- * Falls back to current calendar week if no sessions
- */
-const weekNumber = computed(() => {
-  const firstSession = weekStore.weekDays.find(day => day.session)?.session;
-  if (firstSession) {
-    return firstSession.week;
-  }
-
-  // Fallback: calculate ISO week number
-  const now = new Date();
-  const start = new Date(now.getFullYear(), 0, 1);
-  const diff = now.getTime() - start.getTime();
-  const oneWeek = 1000 * 60 * 60 * 24 * 7;
-  return Math.ceil(diff / oneWeek);
-});
 
 /**
  * Week range label for header (e.g., "20 Ene - 26 Ene")
  */
 const weekRangeLabel = computed(() => {
-  const dates = weekStore.weekDays;
-  if (dates.length === 0) return '';
+  const dates = weekStore.weekDays
+  if (dates.length === 0) return ''
 
-  const firstDate = new Date(dates[0].date + 'T00:00:00');
-  const lastDate = new Date(dates[dates.length - 1].date + 'T00:00:00');
+  const firstDate = new Date(dates[0].date + 'T00:00:00')
+  const lastDate = new Date(dates[dates.length - 1].date + 'T00:00:00')
 
   const monthNames = [
-    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
-  ];
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
+  ]
 
-  const firstDay = firstDate.getDate();
-  const firstMonth = monthNames[firstDate.getMonth()];
-  const lastDay = lastDate.getDate();
-  const lastMonth = monthNames[lastDate.getMonth()];
+  const firstDay = firstDate.getDate()
+  const firstMonth = monthNames[firstDate.getMonth()]
+  const lastDay = lastDate.getDate()
+  const lastMonth = monthNames[lastDate.getMonth()]
 
   if (firstMonth === lastMonth) {
-    return `${firstDay} - ${lastDay} ${firstMonth}`;
+    return `${firstDay} - ${lastDay} ${firstMonth}`
   }
-  return `${firstDay} ${firstMonth} - ${lastDay} ${lastMonth}`;
-});
+  return `${firstDay} ${firstMonth} - ${lastDay} ${lastMonth}`
+})
 
 /**
  * Navigate to Day Player when Start button clicked
@@ -171,17 +163,16 @@ function handleStartSession(date: string) {
   router.push({
     name: 'day-player',
     params: { date },
-  });
+  })
 }
 
 // Load data on mount
 onMounted(() => {
-  loadWeekData();
-});
+  loadWeekData()
+})
 </script>
 
 <style scoped lang="scss">
-@use 'sass:color';
 // Import brand variables
 @import 'src/css/quasar.variables.scss';
 
@@ -208,17 +199,6 @@ onMounted(() => {
     font-size: 18px;
     font-weight: 700;
     color: $primary;
-  }
-
-  &__separator {
-    color: rgba($primary, 0.4);
-    font-size: 16px;
-  }
-
-  &__subtitle {
-    font-size: 14px;
-    font-weight: 600;
-    color: color.adjust($secondary, $lightness: -10%);
   }
 
   &__carousel {

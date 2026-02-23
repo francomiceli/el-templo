@@ -8,6 +8,7 @@
 import { onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
+import { weekToUrlParam } from 'src/utils/weekDates';
 
 const route = useRoute();
 const router = useRouter();
@@ -24,7 +25,7 @@ onMounted(async () => {
     const session = await sessionsApi.fetchSessionDetail(id);
     router.replace({
       path: '/sessions/edit',
-      query: { week: String(session.week), day: session.day },
+      query: { week: weekToUrlParam(session.week), day: session.day },
     });
   } catch {
     router.replace('/sessions');
