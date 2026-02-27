@@ -340,28 +340,64 @@ function togglePausa() {
   emitUpdate();
 }
 
+/** Coerce v-model.number quirks: empty string / NaN → null */
+function toIntOrNull(v: number | string | null | undefined): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
 function emitUpdate() {
+  // Sanitize all numeric locals — v-model.number can produce "" on empty input
+  const reps = toIntOrNull(localReps.value);
+  const repsMax = toIntOrNull(localRepsMax.value);
+  const seconds = toIntOrNull(localSeconds.value);
+  const secondsMax = toIntOrNull(localSecondsMax.value);
+  const increment = toIntOrNull(localIncrement.value);
+
+  // Revert required fields to their previous value when cleared.
+  // An exercise must always have reps (CON/EXC) or seconds (ISO),
+  // except PAUSA which is handled by togglePausa() directly.
+  if (isIso.value) {
+    if (seconds === null) {
+      localSeconds.value = props.exercise.seconds;
+      return;
+    }
+  } else {
+    if (reps === null) {
+      localReps.value = props.exercise.reps;
+      return;
+    }
+  }
+
+  // Write sanitized values back so the input reflects what we'll send
+  localReps.value = reps;
+  localRepsMax.value = repsMax;
+  localSeconds.value = seconds;
+  localSecondsMax.value = secondsMax;
+  localIncrement.value = increment;
+
   const fields: PrescriptionUpdate = {};
   let hasChanges = false;
 
-  if (localReps.value !== props.exercise.reps) {
-    fields.reps = localReps.value ?? undefined;
+  if (reps !== props.exercise.reps) {
+    fields.reps = reps ?? undefined;
     hasChanges = true;
   }
-  if (localRepsMax.value !== props.exercise.repsMax) {
-    fields.repsMax = localRepsMax.value;
+  if (repsMax !== props.exercise.repsMax) {
+    fields.repsMax = repsMax;
     hasChanges = true;
   }
-  if (localSeconds.value !== props.exercise.seconds) {
-    fields.seconds = localSeconds.value ?? undefined;
+  if (seconds !== props.exercise.seconds) {
+    fields.seconds = seconds ?? undefined;
     hasChanges = true;
   }
-  if (localSecondsMax.value !== props.exercise.secondsMax) {
-    fields.secondsMax = localSecondsMax.value;
+  if (secondsMax !== props.exercise.secondsMax) {
+    fields.secondsMax = secondsMax;
     hasChanges = true;
   }
-  if (localIncrement.value !== props.exercise.increment) {
-    fields.increment = localIncrement.value;
+  if (increment !== props.exercise.increment) {
+    fields.increment = increment;
     hasChanges = true;
   }
   const currentNotes = props.exercise.notes || '';

@@ -643,11 +643,19 @@ function onMobilityPrescriptionBlur(field: 'seconds' | 'reps', event: Event) {
   const firstLb = props.blockGroup.levelBlocks[0];
   if (!firstLb?.block) return;
   const input = event.target as HTMLInputElement;
-  const newValue = Number(input.value);
   const mobility = firstLb.block.mobilityExercise;
   if (!mobility) return;
 
   const currentValue = field === 'seconds' ? mobility.seconds : mobility.reps;
+
+  // Revert to previous value if input is empty or non-numeric
+  const raw = input.value.trim();
+  if (raw === '' || !Number.isFinite(Number(raw))) {
+    input.value = String(currentValue ?? '');
+    return;
+  }
+
+  const newValue = Math.round(Number(raw));
   if (newValue === currentValue) return;
 
   const fields: PrescriptionUpdate = {};
