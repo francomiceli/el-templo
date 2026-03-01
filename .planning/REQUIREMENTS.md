@@ -167,17 +167,17 @@
 - [x] **SEO-02**: Per-page meta tags (title, description, Open Graph, Twitter Card)
 - [x] **SEO-03**: Structured data: Organization, LocalBusiness (per sede), Article (blog), FAQPage (home FAQ)
 - [x] **SEO-04**: Auto-generated sitemap.xml
-- [ ] **SEO-05**: robots.txt with appropriate rules
+- [x] **SEO-05**: robots.txt with appropriate rules
 - [ ] **SEO-06**: Image optimization: lazy loading, WebP/AVIF format, srcset for responsive images
-- [ ] **SEO-07**: Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1
+- [x] **SEO-07**: Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1
 - [x] **SEO-08**: Target keywords: calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad], wellness
 
 ## Analytics & Tracking (TRACK)
 
-- [ ] **TRACK-01**: GA4 integration with page view tracking
+- [x] **TRACK-01**: GA4 integration with page view tracking
 - [ ] **TRACK-02**: GA4 custom events: CTA clicks, form submissions, scroll depth
-- [ ] **TRACK-03**: Meta Pixel integration with Lead event on franchise form submission
-- [ ] **TRACK-04**: Analytics guarded by cookie consent (GDPR-aware)
+- [x] **TRACK-03**: Meta Pixel integration with Lead event on franchise form submission
+- [x] **TRACK-04**: Analytics guarded by cookie consent (GDPR-aware)
 
 ---
 
@@ -302,14 +302,14 @@
 | SEO-02      | Phase 36 | Complete |
 | SEO-03      | Phase 36 | Complete |
 | SEO-04      | Phase 36 | Complete |
-| SEO-05      | Phase 36 | Pending  |
+| SEO-05      | Phase 36 | Complete |
 | SEO-06      | Phase 36 | Pending  |
-| SEO-07      | Phase 36 | Pending  |
+| SEO-07      | Phase 36 | Complete |
 | SEO-08      | Phase 36 | Complete |
-| TRACK-01    | Phase 36 | Pending  |
+| TRACK-01    | Phase 36 | Complete |
 | TRACK-02    | Phase 36 | Pending  |
-| TRACK-03    | Phase 36 | Pending  |
-| TRACK-04    | Phase 36 | Pending  |
+| TRACK-03    | Phase 36 | Complete |
+| TRACK-04    | Phase 36 | Complete |
 
 **Coverage:**
 
