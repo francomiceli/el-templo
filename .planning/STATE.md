@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 36 of 36 (SEO & Analytics)
-Plan: 2 of 4 complete
-Status: Executing Phase 36 -- Plan 02 complete (Structured data, meta tags, sitemap, error page)
-Last activity: 2026-03-01 — Plan 02 complete (JSON-LD schemas, canonical URLs, OG tags, sitemap, 404 page)
+Plan: 4 of 4 complete
+Status: Phase 36 COMPLETE -- All SEO & Analytics plans executed
+Last activity: 2026-03-01 — Plan 04 complete (Semantic HTML, heading hierarchy, keyword optimization, internal linking)
 
-Progress: [█████-----] 50% (2/4 plans)
+Progress: [██████████] 100% (4/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -187,8 +187,11 @@ Progress: [█████-----] 50% (2/4 plans)
 - Sitemap uses defineSitemapEventHandler server route for dynamic blog URLs
 - Error page uses clearError({ redirect: '/' }) for navigation back to home
 - OG image placeholders set for franquicias, gladius, and blog (actual images in Phase 38)
+- H2 keyword optimization uses natural brand voice (not keyword stuffing)
+- NuxtLink for all internal routes; raw <a> only for external URLs (Maps, WhatsApp)
+- Blog cross-link placed in method CTA zone as subtle olive-stone styled link
 
 ### Last Session
 
-- **Stopped at:** Completed 36-01-PLAN.md
-- **Timestamp:** 2026-03-01T21:32:18Z
+- **Stopped at:** Completed 36-04-PLAN.md (Phase 36 complete)
+- **Timestamp:** 2026-03-01T21:40:31Z
