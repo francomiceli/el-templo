@@ -6,87 +6,130 @@ useHead({
 
 <template>
   <main>
-    <!-- Section: Design System Validation -->
-    <section class="section">
-      <div class="section__container">
-        <span class="section__tag">Sistema de Diseno</span>
-        <h2 class="section__title">Validacion visual del design system.</h2>
-        <p class="section__subtitle">
-          Esta pagina valida que todos los tokens, tipografias y componentes del
-          design system estan cargados correctamente.
-        </p>
-      </div>
-    </section>
-
-    <!-- Section: Typography -->
-    <section class="section section--warm-stone">
-      <div class="section__container">
-        <span class="section__tag">Tipografia</span>
-        <h2 class="section__title">Montserrat ExtraBold — Titulos.</h2>
+    <!-- HERO placeholder (Phase 31) -->
+    <section
+      id="hero"
+      class="section section--deep-charcoal"
+      style="
+        min-height: 60vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      "
+    >
+      <div class="section__container" style="text-align: center">
+        <h1
+          style="
+            font-family: var(--font-authority);
+            font-weight: 800;
+            font-size: 48px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--color-marble-cream);
+            line-height: 1.2;
+            margin-bottom: var(--space-comfortable);
+          "
+        >
+          Tu cuerpo es tu templo.
+        </h1>
         <p
-          :style="{
-            fontFamily: 'var(--font-elegance)',
-            fontStyle: 'italic',
-            fontSize: '20px',
-            color: 'var(--color-charcoal-mist)',
-            marginBottom: 'var(--space-spacious)',
-          }"
+          style="
+            font-family: var(--font-elegance);
+            font-style: italic;
+            font-size: 22px;
+            color: rgba(242, 237, 229, 0.9);
+            max-width: 600px;
+            margin: 0 auto var(--space-spacious);
+          "
         >
-          Cormorant Garamond Italic — Subtitulos y frases destacadas.
+          8 sedes donde la calistenia se practica como lo que es: el arte mas
+          antiguo de forjar el cuerpo con su propio peso.
         </p>
+        <a
+          href="#sesion-prueba"
+          class="btn btn--primary"
+          style="margin-bottom: var(--space-base)"
+        >
+          Comenza tu camino
+        </a>
         <p
-          :style="{
-            fontFamily: 'var(--font-clarity)',
-            fontSize: '16px',
-            color: 'var(--color-deep-charcoal)',
-            lineHeight: '1.6',
-          }"
+          style="
+            font-family: var(--font-clarity);
+            font-size: 13px;
+            color: rgba(242, 237, 229, 0.7);
+            margin-bottom: var(--space-base);
+          "
         >
-          Geologica Regular — Texto de cuerpo, botones y texto funcional. Esta
-          fuente se usa para la mayoria del contenido de la pagina.
+          Tu primera sesion es sin cargo.
         </p>
+        <NuxtLink to="/franquicias" class="btn btn--secondary-gold">
+          Abri tu Templo
+        </NuxtLink>
       </div>
     </section>
 
-    <!-- Section: Buttons -->
-    <section class="section">
+    <!-- El Metodo anchor stub (Phase 31) -->
+    <section id="metodo" class="section">
       <div class="section__container">
-        <span class="section__tag">Botones</span>
-        <h2 class="section__title">Variantes de botones.</h2>
-        <div
-          :style="{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: 'var(--space-comfortable)',
-            alignItems: 'center',
-            marginTop: 'var(--space-spacious)',
-          }"
-        >
-          <a href="#" class="btn btn--primary">Primario Terracotta</a>
-          <a href="#" class="btn btn--ghost">Ghost Terracotta &rarr;</a>
-          <a href="#" class="btn btn--secondary-gold">Secundario Gold</a>
-          <a href="#" class="btn btn--secondary-azul">Secundario Azul</a>
-        </div>
+        <span class="section__tag">Metodo</span>
+        <h2 class="section__title">Nuestro metodo.</h2>
+        <p class="section__subtitle">Seccion en desarrollo — Phase 31</p>
+        <PlaceholderBox
+          label="Contenido del metodo pendiente"
+          aspect-ratio="16/9"
+        />
       </div>
     </section>
 
-    <!-- Section: Placeholder -->
-    <section class="section section--warm-stone">
+    <!-- Niveles anchor stub (Phase 32) -->
+    <section id="niveles" class="section section--warm-stone">
       <div class="section__container">
-        <span class="section__tag">Placeholders</span>
-        <h2 class="section__title">Componente placeholder.</h2>
-        <div
-          :style="{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: 'var(--space-spacious)',
-            marginTop: 'var(--space-spacious)',
-          }"
-        >
-          <PlaceholderBox label="Video pendiente" aspect-ratio="16/9" />
-          <PlaceholderBox label="Imagen pendiente" aspect-ratio="4/5" />
-          <PlaceholderBox label="Logo pendiente" height="80px" />
-        </div>
+        <span class="section__tag">Niveles</span>
+        <h2 class="section__title">Sistema de niveles.</h2>
+        <p class="section__subtitle">Seccion en desarrollo — Phase 32</p>
+        <PlaceholderBox
+          label="Contenido de niveles pendiente"
+          aspect-ratio="16/9"
+        />
+      </div>
+    </section>
+
+    <!-- Enfoques anchor stub (Phase 32) -->
+    <section id="enfoques" class="section">
+      <div class="section__container">
+        <span class="section__tag">Enfoques</span>
+        <h2 class="section__title">Los 5 enfoques.</h2>
+        <p class="section__subtitle">Seccion en desarrollo — Phase 32</p>
+        <PlaceholderBox
+          label="Contenido de enfoques pendiente"
+          aspect-ratio="16/9"
+        />
+      </div>
+    </section>
+
+    <!-- Descubri tu Nivel anchor stub (Phase 32) -->
+    <section id="descubri-nivel" class="section section--warm-stone">
+      <div class="section__container">
+        <span class="section__tag">Descubri tu nivel</span>
+        <h2 class="section__title">Descubri tu nivel.</h2>
+        <p class="section__subtitle">Seccion en desarrollo — Phase 32</p>
+        <PlaceholderBox
+          label="Contenido de conversion pendiente"
+          aspect-ratio="16/9"
+        />
+      </div>
+    </section>
+
+    <!-- Sedes anchor stub (Phase 33) -->
+    <section id="sedes" class="section">
+      <div class="section__container">
+        <span class="section__tag">Sedes</span>
+        <h2 class="section__title">Nuestras sedes.</h2>
+        <p class="section__subtitle">Seccion en desarrollo — Phase 33</p>
+        <PlaceholderBox
+          label="Contenido de sedes pendiente"
+          aspect-ratio="16/9"
+        />
       </div>
     </section>
   </main>
