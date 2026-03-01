@@ -87,7 +87,7 @@ async function handleSubmit(): Promise<void> {
   submitting.value = true;
 
   try {
-    const baseUrl = config.public.apiUrl || "http://localhost:3000";
+    const baseUrl = config.public.apiUrl;
     const result = await $fetch<{ message: string; whatsappUrl: string }>(
       `${baseUrl}/api/gladius/inquire`,
       {

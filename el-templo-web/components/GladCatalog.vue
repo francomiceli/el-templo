@@ -23,7 +23,7 @@ interface GladiusProduct {
 }
 
 const config = useRuntimeConfig();
-const apiUrl = config.public.apiUrl || "http://localhost:3000";
+const apiUrl = config.public.apiUrl;
 
 const {
   data: products,

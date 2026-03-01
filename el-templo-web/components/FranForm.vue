@@ -106,7 +106,7 @@ async function handleSubmit(): Promise<void> {
   submitting.value = true;
 
   try {
-    const baseUrl = config.public.apiUrl || "http://localhost:3000";
+    const baseUrl = config.public.apiUrl;
     await $fetch(`${baseUrl}/api/franchise/apply`, {
       method: "POST",
       body: {
