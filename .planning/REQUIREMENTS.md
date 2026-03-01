@@ -66,13 +66,13 @@
 
 ## Home Page — Sistema de Niveles (NIV)
 
-- [ ] **NIV-01**: Interactive 6-tab system (Alfa, Delta, Sigma, Omega, Spartan, Olympic) with ARIA roles
-- [ ] **NIV-02**: Keyboard navigation: arrow keys change tabs, Enter/Space to activate
-- [ ] **NIV-03**: Tab content: split grid (50% text / 50% visual) on desktop, stacked on mobile (visual first)
-- [ ] **NIV-04**: Fade-in animation on tab change (300ms, translateY(8px))
-- [ ] **NIV-05**: Default active: Alfa tab on page load
-- [ ] **NIV-06**: Per-level CTA "¿ESTE SOS VOS? RESERVÁ TU SESIÓN" (ghost button)
-- [ ] **NIV-07**: Mobile: horizontal scroll tabs with snap alignment, hidden scrollbar
+- [x] **NIV-01**: Interactive 6-tab system (Alfa, Delta, Sigma, Omega, Spartan, Olympic) with ARIA roles
+- [x] **NIV-02**: Keyboard navigation: arrow keys change tabs, Enter/Space to activate
+- [x] **NIV-03**: Tab content: split grid (50% text / 50% visual) on desktop, stacked on mobile (visual first)
+- [x] **NIV-04**: Fade-in animation on tab change (300ms, translateY(8px))
+- [x] **NIV-05**: Default active: Alfa tab on page load
+- [x] **NIV-06**: Per-level CTA "¿ESTE SOS VOS? RESERVÁ TU SESIÓN" (ghost button)
+- [x] **NIV-07**: Mobile: horizontal scroll tabs with snap alignment, hidden scrollbar
 
 ## Home Page — Los 5 Enfoques (ENF)
 
@@ -234,13 +234,13 @@
 | MET-03      | Phase 31 | Complete |
 | MET-04      | Phase 31 | Complete |
 | MET-05      | Phase 31 | Complete |
-| NIV-01      | Phase 32 | Pending  |
-| NIV-02      | Phase 32 | Pending  |
-| NIV-03      | Phase 32 | Pending  |
-| NIV-04      | Phase 32 | Pending  |
-| NIV-05      | Phase 32 | Pending  |
-| NIV-06      | Phase 32 | Pending  |
-| NIV-07      | Phase 32 | Pending  |
+| NIV-01      | Phase 32 | Complete |
+| NIV-02      | Phase 32 | Complete |
+| NIV-03      | Phase 32 | Complete |
+| NIV-04      | Phase 32 | Complete |
+| NIV-05      | Phase 32 | Complete |
+| NIV-06      | Phase 32 | Complete |
+| NIV-07      | Phase 32 | Complete |
 | ENF-01      | Phase 32 | Complete |
 | ENF-02      | Phase 32 | Complete |
 | ENF-03      | Phase 32 | Complete |

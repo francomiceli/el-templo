@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 Phase: 32 of 36 (Levels, Approaches & Conversion Sections)
 Plan: 2 of 3 complete
-Status: Plan 02 complete (SectionApproaches) -- Plan 03 next (page integration + conversion)
-Last activity: 2026-03-01 — Plan 02 complete (Approaches Section)
+Status: Plans 01 + 02 complete (SectionLevels + SectionApproaches) -- Plan 03 next (page integration + conversion)
+Last activity: 2026-03-01 — Plan 01 complete (Levels Section)
 
 Progress: [██████░░░░] 67% (2/3 plans)
 
@@ -109,11 +109,16 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Phase 32 Decisions
 
+- Sliding tab indicator uses CSS transform (translateX based on tab index) -- no resize listener needed
+- Per-level ghost CTA links to #descubri-nivel (conversion section) per CONTEXT.md discretion
+- Mobile tabs fall back to per-tab border-bottom instead of sliding indicator for scroll compatibility
+- Mirror phrases use unicode typographic quotes directly in string literals
+- Animation retrigger pattern: toggle animating ref true then false via nextTick to re-run CSS keyframe
 - SVG icons hand-crafted inline (stroke-based, 40x40, Terracotta via currentColor) following ROM/SKILLS pattern
 - Tablet 3+2 approach layout uses natural grid flow (left-aligned row 2) -- acceptable per spec
 - Mobile gradient fade uses sticky pseudo-element inside flex container for scroll hint
 
 ### Last Session
 
-- **Stopped at:** Completed 32-02-PLAN.md
-- **Timestamp:** 2026-03-01T15:05:20Z
+- **Stopped at:** Completed 32-01-PLAN.md
+- **Timestamp:** 2026-03-01T15:05:43Z

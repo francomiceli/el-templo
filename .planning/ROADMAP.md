@@ -558,7 +558,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 29. Nuxt Scaffold + Infrastructure          | 3/3            | Complete    | 2026-03-01 |
 | 30. Design System + Navigation + Footer     | 4/4            | Complete    | 2026-03-01 |
 | 31. Hero + Identity + Method Sections       | 4/4            | Complete    | 2026-03-01 |
-| 32. Levels + Approaches + Conversion        | 1/3            | In Progress |            |
+| 32. Levels + Approaches + Conversion        | 2/3            | In Progress |            |
 | 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —          |
 | 34. Franquicias Page                        | 0/?            | Not Started | —          |
 | 35. Gladius + Blog                          | 0/?            | Not Started | —          |
