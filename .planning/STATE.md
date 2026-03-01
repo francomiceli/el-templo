@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 34-02-PLAN.md
-last_updated: "2026-03-01T17:04:38.824Z"
+stopped_at: Completed 34-04-PLAN.md (Phase 34 complete)
+last_updated: "2026-03-01T17:22:34.999Z"
 progress:
   total_phases: 33
-  completed_phases: 23
+  completed_phases: 24
   total_plans: 146
-  completed_plans: 140
+  completed_plans: 142
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 34 of 36 (Franquicias Page)
-Plan: 3 of 4 complete
-Status: Phase 34 in progress -- bottom sections built (Expansion, Founder, Video)
-Last activity: 2026-03-01 — Plan 03 complete (FranExpansion + FranFounder + FranVideo)
+Plan: 4 of 4 complete
+Status: Phase 34 COMPLETE -- /franquicias page fully assembled with form, WhatsApp, SEO
+Last activity: 2026-03-01 — Plan 04 complete (FranForm + FranWhatsApp + page composition)
 
-Progress: [███████---] 75% (3/4 plans)
+Progress: [██████████] 100% (4/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -151,6 +151,10 @@ Progress: [███████---] 75% (3/4 plans)
 - Manual SQL migration (0018) for franchise_applications due to drizzle-kit interactive prompt conflicts with unrelated schema
 - Email notification failure (Resend) does not fail application submission -- graceful error logging only
 - CORS updated for both production (eltemplo.org) and dev (localhost:9200) to support franchise form
+- FranWhatsApp added to home page in addition to /franquicias (per user visual verification feedback)
+- PlaceholderBox label cleared to empty string to prevent text bleeding through hero overlay
+- Native select elements for mobile form UX (no custom dropdowns)
+- $fetch for form event handler API calls (not useFetch which is for reactive data)
 
 ### Roadmap Evolution
 
@@ -158,5 +162,5 @@ Progress: [███████---] 75% (3/4 plans)
 
 ### Last Session
 
-- **Stopped at:** Completed 34-01-PLAN.md (franchise API backend)
-- **Timestamp:** 2026-03-01T17:04:39Z
+- **Stopped at:** Completed 34-04-PLAN.md (Phase 34 complete)
+- **Timestamp:** 2026-03-01T17:20:45Z

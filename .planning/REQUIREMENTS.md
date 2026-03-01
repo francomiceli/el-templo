@@ -140,8 +140,8 @@
 - [x] **FRAN-07**: Application form: nombre, email, teléfono, ciudad/país, modelo (select), experiencia (select), capital (select), origen (select), mensaje
 - [x] **FRAN-08**: Form submission → email notification + CRM/Mailchimp + GA4 event + Meta Pixel Lead
 - [x] **FRAN-09**: Post-submit confirmation + WhatsApp link for immediate contact
-- [ ] **FRAN-10**: Floating WhatsApp button (always visible)
-- [ ] **FRAN-11**: Shares header/footer with main domain
+- [x] **FRAN-10**: Floating WhatsApp button (always visible)
+- [x] **FRAN-11**: Shares header/footer with main domain
 
 ## Standalone — /gladius (GLAD)
 
@@ -284,8 +284,8 @@
 | FRAN-07     | Phase 34 | Complete |
 | FRAN-08     | Phase 34 | Complete |
 | FRAN-09     | Phase 34 | Complete |
-| FRAN-10     | Phase 34 | Pending  |
-| FRAN-11     | Phase 34 | Pending  |
+| FRAN-10     | Phase 34 | Complete |
+| FRAN-11     | Phase 34 | Complete |
 | GLAD-01     | Phase 35 | Pending  |
 | GLAD-02     | Phase 35 | Pending  |
 | GLAD-03     | Phase 35 | Pending  |
