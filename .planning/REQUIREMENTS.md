@@ -163,14 +163,14 @@
 
 ## SEO & Performance (SEO)
 
-- [ ] **SEO-01**: SSR/SSG rendering for all pages (search engine indexable HTML)
-- [ ] **SEO-02**: Per-page meta tags (title, description, Open Graph, Twitter Card)
-- [ ] **SEO-03**: Structured data: Organization, LocalBusiness (per sede), Article (blog), FAQPage (home FAQ)
-- [ ] **SEO-04**: Auto-generated sitemap.xml
+- [x] **SEO-01**: SSR/SSG rendering for all pages (search engine indexable HTML)
+- [x] **SEO-02**: Per-page meta tags (title, description, Open Graph, Twitter Card)
+- [x] **SEO-03**: Structured data: Organization, LocalBusiness (per sede), Article (blog), FAQPage (home FAQ)
+- [x] **SEO-04**: Auto-generated sitemap.xml
 - [ ] **SEO-05**: robots.txt with appropriate rules
 - [ ] **SEO-06**: Image optimization: lazy loading, WebP/AVIF format, srcset for responsive images
 - [ ] **SEO-07**: Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1
-- [ ] **SEO-08**: Target keywords: calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad], wellness
+- [x] **SEO-08**: Target keywords: calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad], wellness
 
 ## Analytics & Tracking (TRACK)
 
@@ -298,14 +298,14 @@
 | BLOG-04     | Phase 35 | Complete |
 | BLOG-05     | Phase 35 | Complete |
 | BLOG-06     | Phase 35 | Complete |
-| SEO-01      | Phase 36 | Pending  |
-| SEO-02      | Phase 36 | Pending  |
-| SEO-03      | Phase 36 | Pending  |
-| SEO-04      | Phase 36 | Pending  |
+| SEO-01      | Phase 36 | Complete |
+| SEO-02      | Phase 36 | Complete |
+| SEO-03      | Phase 36 | Complete |
+| SEO-04      | Phase 36 | Complete |
 | SEO-05      | Phase 36 | Pending  |
 | SEO-06      | Phase 36 | Pending  |
 | SEO-07      | Phase 36 | Pending  |
-| SEO-08      | Phase 36 | Pending  |
+| SEO-08      | Phase 36 | Complete |
 | TRACK-01    | Phase 36 | Pending  |
 | TRACK-02    | Phase 36 | Pending  |
 | TRACK-03    | Phase 36 | Pending  |

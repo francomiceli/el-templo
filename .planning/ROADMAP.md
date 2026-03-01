@@ -544,7 +544,7 @@ Plans:
 9. All analytics are guarded by cookie consent (GDPR-aware)
 10. Target keywords (calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad]) are present in semantic HTML, headings, and meta descriptions
 
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
 
@@ -593,7 +593,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 33. Locations + Community + Ecosystem + FAQ | 3/3            | Complete    | 2026-03-01 |
 | 34. Franquicias Page                        | 4/4            | Complete    | 2026-03-01 |
 | 35. Gladius + Blog                          | 4/4            | Complete    | 2026-03-01 |
-| 36. SEO + Analytics                         | 0/?            | Not Started | —          |
+| 36. SEO + Analytics                         | 2/4            | In Progress |            |
 | 37. Franchise Application Management        | 0/?            | Not Started | —          |
 | 38. Content & Media Handoff                 | 0/?            | Not Started | —          |
 

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 36 context gathered
-last_updated: "2026-03-01T21:12:26.929Z"
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-03-01T21:33:40.484Z"
 progress:
   total_phases: 35
   completed_phases: 25
-  total_plans: 150
-  completed_plans: 146
+  total_plans: 154
+  completed_plans: 148
 ---
 
 # Project State
@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 35 of 36 (Gladius + Blog)
-Plan: 4 of 4 complete
-Status: Phase 35 COMPLETE -- All 4 plans done (API, Gladius pages, admin panels, blog pages)
-Last activity: 2026-03-01 — Plan 04 complete (Blog index + post pages with pagination, sidebar, SEO)
+Phase: 36 of 36 (SEO & Analytics)
+Plan: 2 of 4 complete
+Status: Executing Phase 36 -- Plan 02 complete (Structured data, meta tags, sitemap, error page)
+Last activity: 2026-03-01 — Plan 02 complete (JSON-LD schemas, canonical URLs, OG tags, sitemap, 404 page)
 
-Progress: [██████████] 100% (4/4 plans)
+Progress: [█████-----] 50% (2/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -180,7 +180,15 @@ Progress: [██████████] 100% (4/4 plans)
 - Social share buttons use inline SVGs for WhatsApp, Twitter/X, and copy-to-clipboard
 - Sidebar sticky top: 80px for nav offset, flows below article on mobile
 
+### Phase 36 Decisions
+
+- Used defineWebPage + defineQuestion pattern for FAQPage (no defineFAQPage in nuxt-schema-org v5)
+- Geo coordinates added as optional lat/lng fields on Sede interface for LocalBusiness schema
+- Sitemap uses defineSitemapEventHandler server route for dynamic blog URLs
+- Error page uses clearError({ redirect: '/' }) for navigation back to home
+- OG image placeholders set for franquicias, gladius, and blog (actual images in Phase 38)
+
 ### Last Session
 
-- **Stopped at:** Phase 36 context gathered
-- **Timestamp:** 2026-03-01T20:15:28Z
+- **Stopped at:** Completed 36-02-PLAN.md
+- **Timestamp:** 2026-03-01T21:31:53Z
