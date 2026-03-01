@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: in-progress
-stopped_at: Completed 30-01-PLAN.md (Design System Foundation)
-last_updated: "2026-03-01T04:05:48Z"
+stopped_at: Completed 30-03-PLAN.md
+last_updated: "2026-03-01T04:12:20.481Z"
 progress:
   total_phases: 28
   completed_phases: 19
-  total_plans: 128
-  completed_plans: 125
+  total_plans: 132
+  completed_plans: 127
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 30 of 36 (Design System, Navigation & Footer)
-Plan: 1 of 4 complete
-Status: Phase 30 plan 01 complete, ready for plan 02
-Last activity: 2026-03-01 — Plan 01 complete (Design System Foundation)
+Plan: 3 of 4 complete
+Status: Phase 30 plan 03 complete, ready for plan 04
+Last activity: 2026-03-01 — Plan 03 complete (Footer)
 
-Progress: [███-------] 25% (1/4 plans)
+Progress: [████████--] 75% (3/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -81,8 +81,10 @@ Progress: [███-------] 25% (1/4 plans)
 ### Phase 30 Decisions
 
 - Fixed lint-staged eslint command for el-templo-web to use `pnpm --filter` for correct cwd resolution (Nuxt-generated ESLint config uses relative imports)
+- Coming-soon links rendered as `<span>` not `<a>` to prevent navigation, with Olive Stone color and no hover/cursor
+- Social media icons use inline SVGs (Instagram, YouTube, TikTok) -- all disabled per CONTEXT.md
 
 ### Last Session
 
-- **Stopped at:** Completed 30-01-PLAN.md (Design System Foundation)
-- **Timestamp:** 2026-03-01T04:05:48Z
+- **Stopped at:** Completed 30-03-PLAN.md
+- **Timestamp:** 2026-03-01T04:10:50Z

@@ -123,11 +123,11 @@
 
 ## Home Page — Footer (FOOT)
 
-- [ ] **FOOT-01**: Pre-footer CTA zone: "TU CUERPO ES TU TEMPLO." + "COMENZÁ TU CAMINO" button on Deep Charcoal bg
-- [ ] **FOOT-02**: 4-column nav: Entrená, Ecosistema, Empresa, Legal (2x2 on tablet, 2-col on mobile)
-- [ ] **FOOT-03**: Contact zone: logo (Marble Cream SVG) + email + phone + social icons (Instagram, YouTube, TikTok)
-- [ ] **FOOT-04**: Legal zone: copyright © 2026, terms/privacy/cookies links
-- [ ] **FOOT-05**: Link hover states: Sandy Beige → Marble Cream (200ms)
+- [x] **FOOT-01**: Pre-footer CTA zone: "TU CUERPO ES TU TEMPLO." + "COMENZÁ TU CAMINO" button on Deep Charcoal bg
+- [x] **FOOT-02**: 4-column nav: Entrená, Ecosistema, Empresa, Legal (2x2 on tablet, 2-col on mobile)
+- [x] **FOOT-03**: Contact zone: logo (Marble Cream SVG) + email + phone + social icons (Instagram, YouTube, TikTok)
+- [x] **FOOT-04**: Legal zone: copyright © 2026, terms/privacy/cookies links
+- [x] **FOOT-05**: Link hover states: Sandy Beige → Marble Cream (200ms)
 
 ## Standalone — /franquicias (FRAN)
 
@@ -270,11 +270,11 @@
 | FAQ-03      | Phase 33 | Pending  |
 | FAQ-04      | Phase 33 | Pending  |
 | FAQ-05      | Phase 33 | Pending  |
-| FOOT-01     | Phase 30 | Pending  |
-| FOOT-02     | Phase 30 | Pending  |
-| FOOT-03     | Phase 30 | Pending  |
-| FOOT-04     | Phase 30 | Pending  |
-| FOOT-05     | Phase 30 | Pending  |
+| FOOT-01     | Phase 30 | Complete |
+| FOOT-02     | Phase 30 | Complete |
+| FOOT-03     | Phase 30 | Complete |
+| FOOT-04     | Phase 30 | Complete |
+| FOOT-05     | Phase 30 | Complete |
 | FRAN-01     | Phase 34 | Pending  |
 | FRAN-02     | Phase 34 | Pending  |
 | FRAN-03     | Phase 34 | Pending  |
