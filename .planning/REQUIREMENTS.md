@@ -100,11 +100,11 @@
 
 ## Home Page — Comunidad + Aura Club (COM)
 
-- [ ] **COM-01**: Zone A — Photo gallery: 6-12 real photos in mosaic grid (mixed aspect ratios), horizontal scroll on mobile
-- [ ] **COM-02**: Zone A — 3 testimonial cards (quote + name + level + time), horizontal scroll on mobile
-- [ ] **COM-03**: Zone A — 4 community stats counters (1000+ alumnos, 8 sedes, 10000+ formados, 10+ años) with optional count-up animation
-- [ ] **COM-04**: Zone B — AURA CLUB section with event photo + ghost CTA "DESCUBRÍ AURA CLUB" (Aged Gold)
-- [ ] **COM-05**: Optional gallery lightbox on click
+- [x] **COM-01**: Zone A — Photo gallery: 6-12 real photos in mosaic grid (mixed aspect ratios), horizontal scroll on mobile
+- [x] **COM-02**: Zone A — 3 testimonial cards (quote + name + level + time), horizontal scroll on mobile
+- [x] **COM-03**: Zone A — 4 community stats counters (1000+ alumnos, 8 sedes, 10000+ formados, 10+ años) with optional count-up animation
+- [x] **COM-04**: Zone B — AURA CLUB section with event photo + ghost CTA "DESCUBRÍ AURA CLUB" (Aged Gold)
+- [x] **COM-05**: Optional gallery lightbox on click
 
 ## Home Page — Ecosistema (ECO)
 
@@ -256,11 +256,11 @@
 | SED-03      | Phase 33 | Pending  |
 | SED-04      | Phase 33 | Pending  |
 | SED-05      | Phase 33 | Pending  |
-| COM-01      | Phase 33 | Pending  |
-| COM-02      | Phase 33 | Pending  |
-| COM-03      | Phase 33 | Pending  |
-| COM-04      | Phase 33 | Pending  |
-| COM-05      | Phase 33 | Pending  |
+| COM-01      | Phase 33 | Complete |
+| COM-02      | Phase 33 | Complete |
+| COM-03      | Phase 33 | Complete |
+| COM-04      | Phase 33 | Complete |
+| COM-05      | Phase 33 | Complete |
 | ECO-01      | Phase 33 | Pending  |
 | ECO-02      | Phase 33 | Pending  |
 | ECO-03      | Phase 33 | Pending  |

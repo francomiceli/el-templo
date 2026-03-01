@@ -459,7 +459,7 @@ Plans:
 3. The Aura Club sub-section displays with event photo and an Aged Gold ghost CTA
 4. 4 ecosystem pathway cards (Entrena, Formate, Inverti, Equipate) link to their respective pages with colored left-border accents
 5. The FAQ accordion opens/closes smoothly with only 1 answer visible at a time, first open by default, with ARIA attributes and icon rotation
-   **Plans:** 3 plans
+   **Plans:** 2/3 plans executed
 
 Plans:
 
@@ -565,7 +565,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 30. Design System + Navigation + Footer     | 4/4            | Complete    | 2026-03-01 |
 | 31. Hero + Identity + Method Sections       | 4/4            | Complete    | 2026-03-01 |
 | 32. Levels + Approaches + Conversion        | 3/3            | Complete    | 2026-03-01 |
-| 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —          |
+| 33. Locations + Community + Ecosystem + FAQ | 2/3            | In Progress |            |
 | 34. Franquicias Page                        | 0/?            | Not Started | —          |
 | 35. Gladius + Blog                          | 0/?            | Not Started | —          |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Phase 33 context gathered
-last_updated: "2026-03-01T15:36:58.637Z"
+status: in-progress
+stopped_at: "Completed 33-01-PLAN.md"
+last_updated: "2026-03-01T15:55:00Z"
 progress:
   total_phases: 31
   completed_phases: 22
   total_plans: 139
-  completed_plans: 135
+  completed_plans: 136
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 32 complete, Phase 33 next (Locations/Sedes)
+**Current focus:** v3.0 Landing Page — Phase 33 in progress (Locations/Community/Ecosystem/FAQ)
 
 ## Current Position
 
-Phase: 32 of 36 (Levels, Approaches & Conversion Sections) -- COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 32 complete -- all 3 sections built and integrated into index.vue
-Last activity: 2026-03-01 — Plan 03 complete (SectionConversion + page integration)
+Phase: 33 of 36 (Locations, Community, Ecosystem & FAQ)
+Plan: 2 of 3 complete
+Status: Plan 02 complete -- SectionCommunity built with gallery, testimonials, stats, AURA CLUB
+Last activity: 2026-03-01 — Plan 02 complete (SectionCommunity)
 
-Progress: [██████████] 100% (3/3 plans)
+Progress: [██████░░░░] 67% (2/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -121,7 +121,15 @@ Progress: [██████████] 100% (3/3 plans)
 - App CTA opens new tab (target \_blank + noopener noreferrer); WhatsApp link opens same tab for native app takeover
 - Dual-card flex-column layout with margin-top:auto on CTA pushes buttons to bottom regardless of content height
 
+### Phase 33 Decisions
+
+- Safe lightbox index access via computed property to satisfy TypeScript strict checks
+- Gallery entrance uses scale(0.95) -> scale(1) for mosaic reveal, distinct from slide-up used by testimonials/stats
+- Lightbox uses Teleport to body for proper z-index stacking above all content
+- Count-up animation: requestAnimationFrame loop with ease-out-cubic easing, prefers-reduced-motion guard
+- Body overflow locked when lightbox is open to prevent background scroll
+
 ### Last Session
 
-- **Stopped at:** Phase 33 context gathered
-- **Timestamp:** 2026-03-01T15:10:53Z
+- **Stopped at:** Completed 33-02-PLAN.md
+- **Timestamp:** 2026-03-01T15:54:16Z
