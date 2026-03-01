@@ -177,7 +177,7 @@ onBeforeUnmount(() => {
       <span class="levels__tag">Progresi&oacute;n</span>
 
       <h2 class="levels__title">
-        No ven&iacute;s solo a entrenar. Ven&iacute;s a recorrer un camino.
+        6 niveles de calistenia. Un camino real de progresi&oacute;n.
       </h2>
 
       <p class="levels__subtitle">

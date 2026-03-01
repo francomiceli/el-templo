@@ -27,7 +27,9 @@ onBeforeUnmount(() => {
       <div class="identity__text">
         <span class="identity__tag">Filosof&iacute;a</span>
 
-        <h2 class="identity__title">M&aacute;s que un lugar para entrenar.</h2>
+        <h2 class="identity__title">
+          Una escuela de calistenia. No un gimnasio.
+        </h2>
 
         <div class="identity__body">
           <p>

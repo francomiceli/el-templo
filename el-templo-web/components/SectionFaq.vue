@@ -22,7 +22,7 @@ function toggle(index: number): void {
     <div class="faq__container">
       <!-- Section header -->
       <span class="faq__tag">FAQ</span>
-      <h2 class="faq__title">LO QUE TODOS PREGUNTAN.</h2>
+      <h2 class="faq__title">PREGUNTAS SOBRE CALISTENIA Y EL TEMPLO.</h2>
 
       <!-- Accordion -->
       <div class="faq__accordion">

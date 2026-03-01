@@ -102,7 +102,7 @@ onBeforeUnmount(() => {
         <span class="method__tag">El M&eacute;todo</span>
 
         <h2 class="method__title">
-          Nada es al azar. Todo es metodolog&iacute;a.
+          Un m&eacute;todo de entrenamiento con peso corporal. Nada es al azar.
         </h2>
 
         <p class="method__subtitle">
