@@ -18,3 +18,4 @@ export * from "./evaluation-requests";
 export * from "./session-edit-logs";
 export * from "./saved-blocks";
 export * from "./member-journeys";
+export * from "./franchise-applications";

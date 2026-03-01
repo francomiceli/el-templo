@@ -11,6 +11,7 @@ import progressionPlugin from "./plugins/progression";
 import { authRoutes } from "./modules/auth/routes";
 import { adminRoutes } from "./modules/admin";
 import { journeyRoutes } from "./modules/journeys/routes";
+import { franchiseRoutes } from "./modules/franchise/routes";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -23,12 +24,14 @@ export async function buildApp() {
             "http://localhost:9000",
             "http://localhost:9100",
             "http://localhost:9101",
+            "http://localhost:9200", // el-templo-web (landing/franchise)
             "capacitor://localhost",
             "http://localhost",
           ]
         : [
             process.env.FRONTEND_URL || "https://app.eltemplo.org",
             process.env.ADMIN_URL || "https://admin.eltemplo.org",
+            "https://eltemplo.org", // Landing / franchise page
             "capacitor://localhost", // Android Capacitor
             "http://localhost", // iOS Capacitor
           ],
@@ -61,6 +64,9 @@ export async function buildApp() {
 
   // Journey routes (member journey lifecycle + admin journey management)
   await app.register(journeyRoutes, { prefix: "/api" });
+
+  // Franchise routes (public franchise application form)
+  await app.register(franchiseRoutes, { prefix: "/api/franchise" });
 
   // Health check endpoint
   app.get("/health", async () => {

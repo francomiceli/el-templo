@@ -1,0 +1,22 @@
+import {
+  mysqlTable,
+  int,
+  varchar,
+  text,
+  timestamp,
+} from "drizzle-orm/mysql-core";
+
+export const franchiseApplications = mysqlTable("franchise_applications", {
+  id: int("id").primaryKey().autoincrement(),
+  nombre: varchar("nombre", { length: 255 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  telefono: varchar("telefono", { length: 50 }).notNull(),
+  ciudadPais: varchar("ciudad_pais", { length: 255 }).notNull(),
+  modelo: varchar("modelo", { length: 50 }).notNull(),
+  experiencia: varchar("experiencia", { length: 100 }).notNull(),
+  capital: varchar("capital", { length: 100 }).notNull(),
+  origen: varchar("origen", { length: 100 }).notNull(),
+  mensaje: text("mensaje"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  status: varchar("status", { length: 50 }).default("new").notNull(),
+});
