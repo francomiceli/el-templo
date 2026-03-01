@@ -358,7 +358,7 @@ Plans:
 ## v3.0 Phases
 
 - [x] **Phase 29: Nuxt Scaffold + Infrastructure** - Nuxt 3 app, monorepo integration, CI/CD, staging/production deploy, Sentry (completed 2026-03-01)
-- [ ] **Phase 30: Design System + Navigation + Footer** - CSS tokens, typography, responsive framework, nav bar, footer, shared layout
+- [x] **Phase 30: Design System + Navigation + Footer** - CSS tokens, typography, responsive framework, nav bar, footer, shared layout (completed 2026-03-01)
 - [ ] **Phase 31: Hero + Identity + Method Sections** - Above-the-fold hero, brand story, method explanation with session structure
 - [ ] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion
 - [ ] **Phase 33: Locations + Community + Ecosystem + FAQ** - Sede cards, community gallery, ecosystem pathways, FAQ accordion
@@ -405,7 +405,13 @@ Plans:
 5. The footer displays navigation columns, contact info, social links, legal links, and a pre-footer CTA zone on every page
 6. Placeholder/skeleton components render gracefully where real images/videos are pending
 7. Primary, Ghost, and Secondary button variants exist as reusable BEM components with correct hover states
-   **Plans**: TBD
+
+Plans:
+
+- [x] 30-01-PLAN.md -- Design system foundation (CSS tokens, fonts, buttons, layout utilities, PlaceholderBox)
+- [x] 30-02-PLAN.md -- Navigation bar (desktop links, mobile drawer, scroll shadow, active section)
+- [x] 30-03-PLAN.md -- Footer (AppPrefooter CTA, AppFooter with nav/contact/social/legal)
+- [x] 30-04-PLAN.md -- Layout integration (wire components into default layout, anchor stubs, visual verification)
 
 ---
 
@@ -550,7 +556,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 29. Nuxt Scaffold + Infrastructure          | 3/3            | Complete    | 2026-03-01 |
-| 30. Design System + Navigation + Footer     | 3/4            | In Progress |            |
+| 30. Design System + Navigation + Footer     | 4/4            | Complete    | 2026-03-01 |
 | 31. Hero + Identity + Method Sections       | 0/?            | Not Started | —          |
 | 32. Levels + Approaches + Conversion        | 0/?            | Not Started | —          |
 | 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —          |
