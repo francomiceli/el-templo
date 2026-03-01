@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 32 context gathered
-last_updated: "2026-03-01T14:51:28.166Z"
+stopped_at: Completed 32-02-PLAN.md
+last_updated: "2026-03-01T15:06:03.657Z"
 progress:
   total_phases: 30
   completed_phases: 21
-  total_plans: 136
-  completed_plans: 132
+  total_plans: 139
+  completed_plans: 133
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 31 complete, ready for Phase 32 (Levels + Approaches)
+**Current focus:** v3.0 Landing Page — Phase 32 in progress (Levels + Approaches + Conversion)
 
 ## Current Position
 
-Phase: 31 of 36 (Hero, Identity & Method Sections) -- COMPLETE
-Plan: 4 of 4 complete
-Status: Phase 31 complete -- all sections wired into home page and visually verified
-Last activity: 2026-03-01 — Plan 04 complete (Page Integration)
+Phase: 32 of 36 (Levels, Approaches & Conversion Sections)
+Plan: 2 of 3 complete
+Status: Plan 02 complete (SectionApproaches) -- Plan 03 next (page integration + conversion)
+Last activity: 2026-03-01 — Plan 02 complete (Approaches Section)
 
-Progress: [██████████] 100% (4/4 plans)
+Progress: [██████░░░░] 67% (2/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -107,7 +107,13 @@ Progress: [██████████] 100% (4/4 plans)
 - No changes needed to layouts/default.vue -- SectionHero handles nav offset internally
 - Dynamic bindings for hero video/poster paths to avoid Vite import resolution on missing assets
 
+### Phase 32 Decisions
+
+- SVG icons hand-crafted inline (stroke-based, 40x40, Terracotta via currentColor) following ROM/SKILLS pattern
+- Tablet 3+2 approach layout uses natural grid flow (left-aligned row 2) -- acceptable per spec
+- Mobile gradient fade uses sticky pseudo-element inside flex container for scroll hint
+
 ### Last Session
 
-- **Stopped at:** Phase 32 context gathered
-- **Timestamp:** 2026-03-01T05:15:09Z
+- **Stopped at:** Completed 32-02-PLAN.md
+- **Timestamp:** 2026-03-01T15:05:20Z

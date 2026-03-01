@@ -76,11 +76,11 @@
 
 ## Home Page — Los 5 Enfoques (ENF)
 
-- [ ] **ENF-01**: 5 cards (Kallós, Sthenos, Motus, Pyros, Dynamis) with equal heights (min-height 320px)
-- [ ] **ENF-02**: Responsive grid: 5-column → 3+2 centered → horizontal scroll with snap on mobile
-- [ ] **ENF-03**: Card hover: translateY(-3px), shadow intensifies (300ms)
-- [ ] **ENF-04**: Hidden scrollbar on mobile, optional gradient fade indicator
-- [ ] **ENF-05**: No CTAs in this section (informational only)
+- [x] **ENF-01**: 5 cards (Kallós, Sthenos, Motus, Pyros, Dynamis) with equal heights (min-height 320px)
+- [x] **ENF-02**: Responsive grid: 5-column → 3+2 centered → horizontal scroll with snap on mobile
+- [x] **ENF-03**: Card hover: translateY(-3px), shadow intensifies (300ms)
+- [x] **ENF-04**: Hidden scrollbar on mobile, optional gradient fade indicator
+- [x] **ENF-05**: No CTAs in this section (informational only)
 
 ## Home Page — Descubrí Tu Nivel (DESC)
 
@@ -241,11 +241,11 @@
 | NIV-05      | Phase 32 | Pending  |
 | NIV-06      | Phase 32 | Pending  |
 | NIV-07      | Phase 32 | Pending  |
-| ENF-01      | Phase 32 | Pending  |
-| ENF-02      | Phase 32 | Pending  |
-| ENF-03      | Phase 32 | Pending  |
-| ENF-04      | Phase 32 | Pending  |
-| ENF-05      | Phase 32 | Pending  |
+| ENF-01      | Phase 32 | Complete |
+| ENF-02      | Phase 32 | Complete |
+| ENF-03      | Phase 32 | Complete |
+| ENF-04      | Phase 32 | Complete |
+| ENF-05      | Phase 32 | Complete |
 | DESC-01     | Phase 32 | Pending  |
 | DESC-02     | Phase 32 | Pending  |
 | DESC-03     | Phase 32 | Pending  |
