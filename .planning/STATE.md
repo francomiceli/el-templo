@@ -5,14 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Defining requirements
+**Current focus:** v3.0 Landing Page — Roadmap complete, ready to plan Phase 29
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 29 of 36 (Nuxt Scaffold + Infrastructure)
 Plan: —
-Status: Paused — requirements definition next
-Last activity: 2026-02-28 — Milestone v3.0 initialized, docs committed (71476cc), research skipped (already done)
+Status: Ready to plan
+Last activity: 2026-02-28 — v3.0 roadmap created (8 phases, 113 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Milestone v3.0 Context
 
@@ -22,24 +24,17 @@ Last activity: 2026-02-28 — Milestone v3.0 initialized, docs committed (71476c
 
 **Remaining workflow steps:**
 
-1. ~~Load context~~ ✓
-2. ~~Gather milestone goals~~ ✓ (extensive discussion in conversation)
-3. ~~Determine version~~ ✓ (v3.0)
-4. ~~Update PROJECT.md~~ ✓
-5. ~~Update STATE.md~~ ✓
-6. ~~Commit docs~~ ✓ (71476cc)
-7. ~~Research decision~~ ✓ Skip (competitor analysis + spec coherence analysis done in conversation)
-8. Define REQUIREMENTS.md — NEXT (scope categories from specs, generate REQ-IDs)
-9. Spawn roadmapper — TODO (phases start at 29)
-10. Approve roadmap — TODO
-
-**Key scope summary for requirements:**
-
-- Home page: Nav, Hero, Qué es El Templo, Nuestro Método, Sistema de Niveles, Los 5 Enfoques, Descubrí Tu Nivel, Sedes, Comunidad + Aura Club, Ecosistema, FAQ, Footer
-- Standalone pages: /franquicias, /gladius, /blog
-- Future pages (specs coming): /filosofia, /academy, /app, /aura-club
-- Infrastructure: Nuxt 3 scaffolding, design system, CI/CD, staging/production, Sentry, deploy pipeline
-- SEO: structured data, sitemap, meta tags, performance optimization
+1. ~~Load context~~ done
+2. ~~Gather milestone goals~~ done
+3. ~~Determine version~~ done (v3.0)
+4. ~~Update PROJECT.md~~ done
+5. ~~Update STATE.md~~ done
+6. ~~Commit docs~~ done (71476cc)
+7. ~~Research decision~~ done (skip)
+8. ~~Define REQUIREMENTS.md~~ done (113 requirements across 19 categories)
+9. ~~Spawn roadmapper~~ done (8 phases: 29-36)
+10. Approve roadmap — CURRENT
+11. Plan Phase 29 — NEXT (`/gsd:plan-phase 29`)
 
 ## Accumulated Context
 
