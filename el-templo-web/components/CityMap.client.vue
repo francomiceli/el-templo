@@ -82,9 +82,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-@import "leaflet/dist/leaflet.css";
-
-/* Unscoped — Leaflet injects its own DOM outside Vue's scope */
+/* Unscoped — Leaflet injects its own DOM outside Vue's scope
+   Leaflet CSS loaded globally via nuxt.config.ts */
 
 /* Map container */
 .city-map {
