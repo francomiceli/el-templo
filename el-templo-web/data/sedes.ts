@@ -17,6 +17,10 @@ export interface Sede {
     text: string;
     variant: "outdoor" | "special" | "intl";
   };
+  /** Approximate latitude for structured data (exact values in Phase 38) */
+  lat?: number;
+  /** Approximate longitude for structured data (exact values in Phase 38) */
+  lng?: number;
 }
 
 const WHATSAPP_URL =
@@ -30,6 +34,8 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Constitucion+6745+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    lat: -38.005,
+    lng: -57.545,
   },
   {
     id: "jujuy",
@@ -38,6 +44,8 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Jujuy+3761+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    lat: -38.008,
+    lng: -57.553,
   },
   {
     id: "moreno",
@@ -46,6 +54,8 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Moreno+3751+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    lat: -38.007,
+    lng: -57.552,
   },
   {
     id: "alem",
@@ -54,6 +64,8 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Alem+3958+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    lat: -38.004,
+    lng: -57.548,
   },
   {
     id: "mario-bravo",
@@ -62,6 +74,8 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Mario+Bravo+618+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    lat: -38.01,
+    lng: -57.555,
   },
   {
     id: "park",
@@ -74,6 +88,8 @@ export const sedes: Sede[] = [
       text: "AL AIRE LIBRE",
       variant: "outdoor",
     },
+    lat: -38.015,
+    lng: -57.56,
   },
   {
     id: "chapadmalal",
@@ -86,6 +102,8 @@ export const sedes: Sede[] = [
       text: "RETIRO",
       variant: "special",
     },
+    lat: -38.18,
+    lng: -57.7,
   },
   {
     id: "barcelona",
@@ -98,6 +116,8 @@ export const sedes: Sede[] = [
       text: "INTERNACIONAL",
       variant: "intl",
     },
+    lat: 41.393,
+    lng: 2.163,
   },
 ];
 
