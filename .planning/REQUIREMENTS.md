@@ -115,11 +115,11 @@
 
 ## Home Page — FAQ (FAQ)
 
-- [ ] **FAQ-01**: Accordion with 9 Q&A pairs, first open by default, only 1 open at a time
-- [ ] **FAQ-02**: Smooth expand/collapse animation (max-height 400ms, opacity 300ms)
-- [ ] **FAQ-03**: Icon rotation (+ to −) on toggle, 300ms
-- [ ] **FAQ-04**: ARIA attributes: aria-expanded on trigger, role="region" on answer
-- [ ] **FAQ-05**: Centered layout (800px max-width)
+- [x] **FAQ-01**: Accordion with 9 Q&A pairs, first open by default, only 1 open at a time
+- [x] **FAQ-02**: Smooth expand/collapse animation (max-height 400ms, opacity 300ms)
+- [x] **FAQ-03**: Icon rotation (+ to −) on toggle, 300ms
+- [x] **FAQ-04**: ARIA attributes: aria-expanded on trigger, role="region" on answer
+- [x] **FAQ-05**: Centered layout (800px max-width)
 
 ## Home Page — Footer (FOOT)
 
@@ -265,11 +265,11 @@
 | ECO-02      | Phase 33 | Complete |
 | ECO-03      | Phase 33 | Complete |
 | ECO-04      | Phase 33 | Complete |
-| FAQ-01      | Phase 33 | Pending  |
-| FAQ-02      | Phase 33 | Pending  |
-| FAQ-03      | Phase 33 | Pending  |
-| FAQ-04      | Phase 33 | Pending  |
-| FAQ-05      | Phase 33 | Pending  |
+| FAQ-01      | Phase 33 | Complete |
+| FAQ-02      | Phase 33 | Complete |
+| FAQ-03      | Phase 33 | Complete |
+| FAQ-04      | Phase 33 | Complete |
+| FAQ-05      | Phase 33 | Complete |
 | FOOT-01     | Phase 30 | Complete |
 | FOOT-02     | Phase 30 | Complete |
 | FOOT-03     | Phase 30 | Complete |

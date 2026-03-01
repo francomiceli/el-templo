@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 33-01-PLAN.md
-last_updated: "2026-03-01T15:56:16.387Z"
+stopped_at: Completed 33-03-PLAN.md (Phase 33 fully complete)
+last_updated: "2026-03-01T16:08:30.035Z"
 progress:
   total_phases: 31
-  completed_phases: 22
+  completed_phases: 23
   total_plans: 142
-  completed_plans: 137
+  completed_plans: 140
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 33 in progress (Locations/Community/Ecosystem/FAQ)
+**Current focus:** v3.0 Landing Page — Phase 33 complete, Phase 34 next (Blog/Content)
 
 ## Current Position
 
-Phase: 33 of 36 (Locations, Community, Ecosystem & FAQ)
-Plan: 2 of 3 complete
-Status: Plans 01 and 02 complete -- SectionLocations, SectionEcosystem, SectionCommunity built
-Last activity: 2026-03-01 — Plan 01 complete (SectionLocations + SectionEcosystem)
+Phase: 33 of 36 (Locations, Community, Ecosystem & FAQ) -- COMPLETE
+Plan: 3 of 3 complete
+Status: Phase 33 complete -- all sections built, full 10-section home page integrated
+Last activity: 2026-03-01 — Plan 03 complete (SectionFaq + home page integration)
 
-Progress: [██████░░░░] 67% (2/3 plans)
+Progress: [██████████] 100% (3/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -132,8 +132,11 @@ Progress: [██████░░░░] 67% (2/3 plans)
 - Lightbox uses Teleport to body for proper z-index stacking above all content
 - Count-up animation: requestAnimationFrame loop with ease-out-cubic easing, prefers-reduced-motion guard
 - Body overflow locked when lightbox is open to prevent background scroll
+- CSS-only icon rotation (+ rotated 45deg to x) for FAQ accordion -- no SVG swap needed
+- Hidden attribute + CSS max-height/opacity dual approach for accessible accordion animation
+- Data file pattern (data/faq.ts) consistent with sedes.ts and ecosystem.ts
 
 ### Last Session
 
-- **Stopped at:** Completed 33-01-PLAN.md
-- **Timestamp:** 2026-03-01T15:55:00Z
+- **Stopped at:** Completed 33-03-PLAN.md (Phase 33 fully complete)
+- **Timestamp:** 2026-03-01T19:07:00Z
