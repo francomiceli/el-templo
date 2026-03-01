@@ -12,6 +12,7 @@ import { authRoutes } from "./modules/auth/routes";
 import { adminRoutes } from "./modules/admin";
 import { journeyRoutes } from "./modules/journeys/routes";
 import { franchiseRoutes } from "./modules/franchise/routes";
+import { gladiusRoutes } from "./modules/gladius/routes";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -67,6 +68,9 @@ export async function buildApp() {
 
   // Franchise routes (public franchise application form)
   await app.register(franchiseRoutes, { prefix: "/api/franchise" });
+
+  // Gladius routes (product catalog + inquiry form)
+  await app.register(gladiusRoutes, { prefix: "/api/gladius" });
 
   // Health check endpoint
   app.get("/health", async () => {
