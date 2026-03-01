@@ -67,6 +67,7 @@ See: .planning/REQUIREMENTS.md (v3.0 scope)
 - **No pure black/white**: Never #000000 or #FFFFFF anywhere in CSS. Deep Charcoal (#3D3732) and Marble Cream (#F2EDE5) instead.
 - **Brand voice**: 3 registers (Ceremonial/Narrativo/Funcional). Never "clase" (use "sesion"), never "tribu" (use "comunidad"), no promos/discounts/urgency. CTA invites, never shouts.
 - **Infrastructure parity**: Same CI/CD, staging/production, Sentry, deploy pipeline quality as el-templo-api/app/admin
+- **Backend**: el-templo-api handles form submissions (franchise application, Gladius inquiry). No separate backend — Nuxt Nitro handles SSR, API calls go to el-templo-api like admin and app do.
 - **Self-hosted**: Deploys to existing EC2 infrastructure
 - **SEO-first**: SSR/SSG rendering, structured data, sitemap, semantic HTML, meta tags per page
 - **Content workflow**: User provides raw info, dev shapes into brand-voice copy for approval
