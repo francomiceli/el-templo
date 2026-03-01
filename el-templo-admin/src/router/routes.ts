@@ -21,6 +21,26 @@ const routes: RouteRecordRaw[] = [
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
       },
+      {
+        path: 'blog',
+        component: () => import('pages/BlogListPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
+        path: 'blog/new',
+        component: () => import('pages/BlogEditorPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
+        path: 'blog/:id',
+        component: () => import('pages/BlogEditorPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
+        path: 'gladius',
+        component: () => import('pages/GladiusProductsPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
     ],
   },
   {

@@ -40,6 +40,23 @@
           </q-item-section>
           <q-item-section>Alumnos</q-item-section>
         </q-item>
+
+        <template v-if="isAdminRole">
+          <q-separator />
+          <q-item-label header>Contenido</q-item-label>
+          <q-item clickable v-ripple to="/blog">
+            <q-item-section avatar>
+              <q-icon name="article" />
+            </q-item-section>
+            <q-item-section>Blog</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/gladius">
+            <q-item-section avatar>
+              <q-icon name="fitness_center" />
+            </q-item-section>
+            <q-item-section>Gladius</q-item-section>
+          </q-item>
+        </template>
       </q-list>
     </q-drawer>
 
@@ -61,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
@@ -71,6 +88,8 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
+
+const isAdminRole = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role ?? ''));
 
 async function handleLogout() {
   await authStore.logout();
