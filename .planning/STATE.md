@@ -190,8 +190,11 @@ Progress: [██████████] 100% (4/4 plans)
 - H2 keyword optimization uses natural brand voice (not keyword stuffing)
 - NuxtLink for all internal routes; raw <a> only for external URLs (Maps, WhatsApp)
 - Blog cross-link placed in method CTA zone as subtle olive-stone styled link
+- Analytics plugins follow .client.ts pattern guarded by runtimeConfig env var (no-op when empty)
+- GladCatalog Consultar CTA also fires click_cta_gladius_consult for complete conversion tracking
+- Blog post cover image gets loading="lazy" (below fold on post page)
 
 ### Last Session
 
-- **Stopped at:** Completed 36-04-PLAN.md (Phase 36 complete)
-- **Timestamp:** 2026-03-01T21:40:31Z
+- **Stopped at:** Completed 36-03-PLAN.md (Phase 36 fully complete -- all 4 plans)
+- **Timestamp:** 2026-03-01T21:41:13Z
