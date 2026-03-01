@@ -58,7 +58,7 @@ const config = useRuntimeConfig();
 const page = computed(() => Number(route.query.page) || 1);
 
 const { data, status } = useFetch<BlogListResponse>(
-  () => `${config.public.apiUrl}/blog/posts?page=${page.value}&limit=10`,
+  () => `${config.public.apiUrl}/api/blog/posts?page=${page.value}&limit=10`,
   {
     watch: [page],
   },

@@ -30,7 +30,7 @@ const config = useRuntimeConfig();
 const slug = computed(() => String(route.params.slug));
 
 const { data: post, error } = await useFetch<BlogPost>(
-  () => `${config.public.apiUrl}/blog/posts/${slug.value}`,
+  () => `${config.public.apiUrl}/api/blog/posts/${slug.value}`,
 );
 
 // Handle 404

@@ -35,7 +35,7 @@ const props = defineProps<{
 const config = useRuntimeConfig();
 
 const { data } = useFetch<BlogListResponse>(
-  () => `${config.public.apiUrl}/blog/posts?limit=5`,
+  () => `${config.public.apiUrl}/api/blog/posts?limit=5`,
 );
 
 const recentPosts = computed(() => {
