@@ -18,5 +18,6 @@ useHead({
     <SectionCommunity />
     <SectionEcosystem />
     <SectionFaq />
+    <FranWhatsApp />
   </main>
 </template>

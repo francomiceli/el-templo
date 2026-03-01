@@ -95,7 +95,7 @@ const parallaxTransform = computed(() => {
   <section id="hero-franquicias" class="fran-hero">
     <!-- IMAGE BACKGROUND (Placeholder for now) -->
     <div class="fran-hero__bg" :style="{ transform: parallaxTransform }">
-      <PlaceholderBox label="Hero Franquicias" height="100%" />
+      <PlaceholderBox label="" height="100%" />
     </div>
 
     <!-- OVERLAY GRADIENT -->
