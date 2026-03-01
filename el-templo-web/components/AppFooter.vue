@@ -28,6 +28,7 @@ const columns: FooterColumn[] = [
       { label: "Academy", href: "/academy", disabled: true },
       { label: "Franquicias", href: "/franquicias", disabled: false },
       { label: "Gladius", href: "/gladius", disabled: false },
+      { label: "Blog", href: "/blog", disabled: false },
       { label: "AURA CLUB", href: "/aura-club", disabled: true },
     ],
   },

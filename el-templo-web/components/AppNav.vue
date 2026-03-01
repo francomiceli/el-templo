@@ -22,6 +22,7 @@ const navLinks: NavLink[] = [
     sectionId: null,
     modifier: "gladius",
   },
+  { label: "Blog", href: "/blog", sectionId: null },
 ];
 
 const ctaLink: NavLink = {
