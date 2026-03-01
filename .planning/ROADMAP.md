@@ -485,7 +485,15 @@ Plans:
 7. A floating WhatsApp button is always visible on the page
 8. Form submission fires a GA4 event and Meta Pixel Lead event (wired in Phase 36)
 9. The page shares the same header and footer as the home page
-   **Plans**: TBD
+
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 34-01-PLAN.md — API backend: DB schema, franchise application endpoint, Resend email, integration tests
+- [ ] 34-02-PLAN.md — Data file, useCountUp composable, hero, value props, models comparison, includes grid
+- [ ] 34-03-PLAN.md — Expansion map with counters, founder bio with timeline, conditional video/PDF section
+- [ ] 34-04-PLAN.md — Application form, floating WhatsApp button, page composition, visual verification
 
 ---
 
@@ -566,7 +574,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 31. Hero + Identity + Method Sections       | 4/4            | Complete    | 2026-03-01 |
 | 32. Levels + Approaches + Conversion        | 3/3            | Complete    | 2026-03-01 |
 | 33. Locations + Community + Ecosystem + FAQ | 3/3            | Complete    | 2026-03-01 |
-| 34. Franquicias Page                        | 0/?            | Not Started | —          |
+| 34. Franquicias Page                        | 0/4            | Planned     | —          |
 | 35. Gladius + Blog                          | 0/?            | Not Started | —          |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |
 | 37. Franchise Application Management        | 0/?            | Not Started | —          |
