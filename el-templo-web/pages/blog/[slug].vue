@@ -52,8 +52,41 @@ useSeoMeta({
   ogImage: () => post.value?.coverImage ?? undefined,
   ogUrl: () => `https://eltemplo.org/blog/${post.value?.slug ?? ""}`,
   ogType: "article",
+  ogSiteName: "El Templo",
   articlePublishedTime: () => post.value?.publishedAt ?? undefined,
 });
+
+// Canonical URL
+useHead({
+  link: [
+    {
+      rel: "canonical",
+      href: `https://eltemplo.org/blog/${post.value?.slug ?? ""}`,
+    },
+  ],
+});
+
+// Article structured data (JSON-LD)
+if (post.value) {
+  useSchemaOrg([
+    defineArticle({
+      headline: post.value.title,
+      description: post.value.excerpt,
+      image: post.value.coverImage || undefined,
+      datePublished: post.value.publishedAt || undefined,
+      dateModified: post.value.updatedAt,
+      author: {
+        name: "El Templo",
+        url: "https://eltemplo.org",
+      },
+      publisher: {
+        name: "El Templo",
+        url: "https://eltemplo.org",
+        logo: "https://eltemplo.org/images/logo-eltemplo.svg",
+      },
+    }),
+  ]);
+}
 
 // Markdown rendering
 const renderedBody = computed(() => {

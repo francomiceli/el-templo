@@ -29,7 +29,13 @@ useHead({
     },
     { property: "og:url", content: "https://eltemplo.org/gladius" },
     { property: "og:type", content: "website" },
+    { property: "og:site_name", content: "El Templo" },
+    {
+      property: "og:image",
+      content: "https://eltemplo.org/images/og-gladius.jpg",
+    },
   ],
+  link: [{ rel: "canonical", href: "https://eltemplo.org/gladius" }],
 });
 </script>
 
