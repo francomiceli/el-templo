@@ -10,13 +10,13 @@
 
 ## Infrastructure (INFRA)
 
-- [ ] **INFRA-01**: Nuxt 3 app scaffolded in `el-templo-web/` with SSR/SSG rendering
-- [ ] **INFRA-02**: Monorepo integration (pnpm workspace, root scripts, shared tooling)
+- [x] **INFRA-01**: Nuxt 3 app scaffolded in `el-templo-web/` with SSR/SSG rendering
+- [x] **INFRA-02**: Monorepo integration (pnpm workspace, root scripts, shared tooling)
 - [x] **INFRA-03**: CI pipeline: type check, lint, build for el-templo-web (extend existing ci.yml)
 - [x] **INFRA-04**: Staging deploy pipeline: build → rsync to EC2 → Nginx config at staging.eltemplo.org
 - [x] **INFRA-05**: Production deploy pipeline: build → backup → rsync → Nginx at eltemplo.org → smoke test → auto-rollback
-- [ ] **INFRA-06**: Sentry error monitoring (@sentry/nuxt or @sentry/vue, guarded by env var)
-- [ ] **INFRA-07**: Environment config (.env.example, VITE\_ prefix for client vars, runtime config for server)
+- [x] **INFRA-06**: Sentry error monitoring (@sentry/nuxt or @sentry/vue, guarded by env var)
+- [x] **INFRA-07**: Environment config (.env.example, VITE\_ prefix for client vars, runtime config for server)
 
 ## Design System (DS)
 
@@ -196,13 +196,13 @@
 
 | Requirement | Phase    | Status   |
 | ----------- | -------- | -------- |
-| INFRA-01    | Phase 29 | Pending  |
-| INFRA-02    | Phase 29 | Pending  |
+| INFRA-01    | Phase 29 | Complete |
+| INFRA-02    | Phase 29 | Complete |
 | INFRA-03    | Phase 29 | Complete |
 | INFRA-04    | Phase 29 | Complete |
 | INFRA-05    | Phase 29 | Complete |
-| INFRA-06    | Phase 29 | Pending  |
-| INFRA-07    | Phase 29 | Pending  |
+| INFRA-06    | Phase 29 | Complete |
+| INFRA-07    | Phase 29 | Complete |
 | DS-01       | Phase 30 | Pending  |
 | DS-02       | Phase 30 | Pending  |
 | DS-03       | Phase 30 | Pending  |

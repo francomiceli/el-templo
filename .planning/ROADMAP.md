@@ -544,7 +544,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
-| 29. Nuxt Scaffold + Infrastructure          | 1/3            | In Progress |           |
+| 29. Nuxt Scaffold + Infrastructure          | 2/3            | In Progress |           |
 | 30. Design System + Navigation + Footer     | 0/?            | Not Started | —         |
 | 31. Hero + Identity + Method Sections       | 0/?            | Not Started | —         |
 | 32. Levels + Approaches + Conversion        | 0/?            | Not Started | —         |

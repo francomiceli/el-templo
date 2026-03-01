@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v3.0
+milestone_name: Landing Page
+status: unknown
+stopped_at: Re-executed 29-01-PLAN.md
+last_updated: "2026-03-01T02:55:01.477Z"
+progress:
+  total_phases: 27
+  completed_phases: 18
+  total_plans: 128
+  completed_plans: 123
+---
+
 # Project State
 
 ## Project Reference
@@ -46,6 +60,9 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Phase 29 Decisions
 
+- Used Nuxt 4.3.1 (latest stable) — plan specified Nuxt 3 but 4.x is current release
+- Added better-sqlite3 as @nuxt/content v3 dependency for local SQLite storage
+- Scoped lint-staged to Nuxt source dirs to avoid ESLint mismatch on root config files
 - Reuse VITE*API_URL and VITE_SENTRY_DSN secrets as NUXT_PUBLIC* env vars (no duplicate secrets)
 - SSG deploy pattern: nuxt generate -> rsync static files -> no PM2 restart needed
 - SSG Nginx try_files: $uri $uri/index.html $uri.html /index.html =404
@@ -60,5 +77,5 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Last Session
 
-- **Stopped at:** Completed 29-02-PLAN.md
-- **Timestamp:** 2026-03-01T02:43:55Z
+- **Stopped at:** Re-executed 29-01-PLAN.md
+- **Timestamp:** 2026-03-01T02:53:17Z
