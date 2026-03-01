@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: in-progress
-stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-03-01T20:00:47Z"
+stopped_at: Completed 35-03-PLAN.md
+last_updated: "2026-03-01T20:13:08Z"
 progress:
   total_phases: 34
   completed_phases: 24
   total_plans: 146
-  completed_plans: 143
+  completed_plans: 145
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 35 of 36 (Gladius + Blog)
-Plan: 1 of 4 complete
-Status: Plan 01 complete -- API backend for Gladius + Blog (3 DB tables, routes, services, 32 tests)
-Last activity: 2026-03-01 — Plan 01 complete (Gladius + Blog API backend infrastructure)
+Plan: 3 of 4 complete
+Status: Plan 03 complete -- Admin panel for Blog + Gladius (editor, list, CRUD, role restriction)
+Last activity: 2026-03-01 — Plan 03 complete (Blog editor with Markdown toolbar, Gladius products CRUD)
 
-Progress: [██░░░░░░░░] 25% (1/4 plans)
+Progress: [███████░░░] 75% (3/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -168,8 +168,11 @@ Progress: [██░░░░░░░░] 25% (1/4 plans)
 - Blog image R2 key uses blog/images/{timestamp}-{sanitized-filename} pattern
 - slugify function duplicated in gladius and blog services for module independence
 - Migration 0019 creates all 3 tables (gladius_products, gladius_inquiries, blog_posts) in one file
+- Admin blog editor uses plain textarea + custom toolbar (not CodeMirror/Monaco) per CONTEXT.md discretion
+- Installed marked library for Markdown-to-HTML preview in blog editor
+- Blog/Gladius sidebar items and routes restricted to admin/superadmin via isAdminRole computed and allowedRoles meta
 
 ### Last Session
 
-- **Stopped at:** Completed 35-01-PLAN.md
-- **Timestamp:** 2026-03-01T20:00:47Z
+- **Stopped at:** Completed 35-03-PLAN.md
+- **Timestamp:** 2026-03-01T20:13:08Z

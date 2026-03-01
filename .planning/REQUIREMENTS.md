@@ -155,7 +155,7 @@
 ## Blog (BLOG)
 
 - [x] **BLOG-01**: Blog post data model in el-templo-api (DB table, CRUD API routes)
-- [ ] **BLOG-02**: Blog editor in el-templo-admin (create, edit, publish posts)
+- [x] **BLOG-02**: Blog editor in el-templo-admin (create, edit, publish posts)
 - [ ] **BLOG-03**: Blog index page in el-templo-web with post cards (title, excerpt, date, reading time), fetched from API at build time
 - [ ] **BLOG-04**: Individual post page with brand typography and design system styling, pre-rendered at build time
 - [ ] **BLOG-05**: SEO: per-post meta tags, Open Graph, structured data (Article schema)
@@ -293,7 +293,7 @@
 | GLAD-05     | Phase 35 | Complete |
 | GLAD-06     | Phase 35 | Pending  |
 | BLOG-01     | Phase 35 | Complete |
-| BLOG-02     | Phase 35 | Pending  |
+| BLOG-02     | Phase 35 | Complete |
 | BLOG-03     | Phase 35 | Pending  |
 | BLOG-04     | Phase 35 | Pending  |
 | BLOG-05     | Phase 35 | Pending  |
