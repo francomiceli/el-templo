@@ -84,11 +84,11 @@
 
 ## Home Page — Descubrí Tu Nivel (DESC)
 
-- [ ] **DESC-01**: Dual-path conversion: 2 cards (Presencial + App) in 50/50 grid, stack on mobile (Presencial first)
-- [ ] **DESC-02**: Distinct button colors: Terracotta (Presencial) + Azul Noche (App) — only Azul Noche button usage on site
-- [ ] **DESC-03**: Presencial CTA links to #sesion-prueba or WhatsApp; App CTA links to /app or app stores
-- [ ] **DESC-04**: Section anchor `#descubri-nivel` — target of Hero CTA scroll
-- [ ] **DESC-05**: Card hover: translateY(-2px), shadow elevation (300ms)
+- [x] **DESC-01**: Dual-path conversion: 2 cards (Presencial + App) in 50/50 grid, stack on mobile (Presencial first)
+- [x] **DESC-02**: Distinct button colors: Terracotta (Presencial) + Azul Noche (App) — only Azul Noche button usage on site
+- [x] **DESC-03**: Presencial CTA links to #sesion-prueba or WhatsApp; App CTA links to /app or app stores
+- [x] **DESC-04**: Section anchor `#descubri-nivel` — target of Hero CTA scroll
+- [x] **DESC-05**: Card hover: translateY(-2px), shadow elevation (300ms)
 
 ## Home Page — Sedes (SED)
 
@@ -246,11 +246,11 @@
 | ENF-03      | Phase 32 | Complete |
 | ENF-04      | Phase 32 | Complete |
 | ENF-05      | Phase 32 | Complete |
-| DESC-01     | Phase 32 | Pending  |
-| DESC-02     | Phase 32 | Pending  |
-| DESC-03     | Phase 32 | Pending  |
-| DESC-04     | Phase 32 | Pending  |
-| DESC-05     | Phase 32 | Pending  |
+| DESC-01     | Phase 32 | Complete |
+| DESC-02     | Phase 32 | Complete |
+| DESC-03     | Phase 32 | Complete |
+| DESC-04     | Phase 32 | Complete |
+| DESC-05     | Phase 32 | Complete |
 | SED-01      | Phase 33 | Pending  |
 | SED-02      | Phase 33 | Pending  |
 | SED-03      | Phase 33 | Pending  |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 32-02-PLAN.md
-last_updated: "2026-03-01T15:06:03.657Z"
+stopped_at: Completed 32-03-PLAN.md (Phase 32 fully complete)
+last_updated: "2026-03-01T15:12:15.789Z"
 progress:
   total_phases: 30
-  completed_phases: 21
+  completed_phases: 22
   total_plans: 139
-  completed_plans: 133
+  completed_plans: 135
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 32 in progress (Levels + Approaches + Conversion)
+**Current focus:** v3.0 Landing Page — Phase 32 complete, Phase 33 next (Locations/Sedes)
 
 ## Current Position
 
-Phase: 32 of 36 (Levels, Approaches & Conversion Sections)
-Plan: 2 of 3 complete
-Status: Plans 01 + 02 complete (SectionLevels + SectionApproaches) -- Plan 03 next (page integration + conversion)
-Last activity: 2026-03-01 — Plan 01 complete (Levels Section)
+Phase: 32 of 36 (Levels, Approaches & Conversion Sections) -- COMPLETE
+Plan: 3 of 3 complete
+Status: Phase 32 complete -- all 3 sections built and integrated into index.vue
+Last activity: 2026-03-01 — Plan 03 complete (SectionConversion + page integration)
 
-Progress: [██████░░░░] 67% (2/3 plans)
+Progress: [██████████] 100% (3/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -117,8 +117,11 @@ Progress: [██████░░░░] 67% (2/3 plans)
 - SVG icons hand-crafted inline (stroke-based, 40x40, Terracotta via currentColor) following ROM/SKILLS pattern
 - Tablet 3+2 approach layout uses natural grid flow (left-aligned row 2) -- acceptable per spec
 - Mobile gradient fade uses sticky pseudo-element inside flex container for scroll hint
+- Conversion section inline SVG icons: stroke-based 48x48 (temple/people presencial, phone/play app)
+- App CTA opens new tab (target \_blank + noopener noreferrer); WhatsApp link opens same tab for native app takeover
+- Dual-card flex-column layout with margin-top:auto on CTA pushes buttons to bottom regardless of content height
 
 ### Last Session
 
-- **Stopped at:** Completed 32-01-PLAN.md
-- **Timestamp:** 2026-03-01T15:05:43Z
+- **Stopped at:** Completed 32-03-PLAN.md (Phase 32 fully complete)
+- **Timestamp:** 2026-03-01T15:10:53Z

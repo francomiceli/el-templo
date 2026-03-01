@@ -360,7 +360,7 @@ Plans:
 - [x] **Phase 29: Nuxt Scaffold + Infrastructure** - Nuxt 3 app, monorepo integration, CI/CD, staging/production deploy, Sentry (completed 2026-03-01)
 - [x] **Phase 30: Design System + Navigation + Footer** - CSS tokens, typography, responsive framework, nav bar, footer, shared layout (completed 2026-03-01)
 - [x] **Phase 31: Hero + Identity + Method Sections** - Above-the-fold hero, brand story, method explanation with session structure (completed 2026-03-01)
-- [ ] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion
+- [x] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion (completed 2026-03-01)
 - [ ] **Phase 33: Locations + Community + Ecosystem + FAQ** - Sede cards, community gallery, ecosystem pathways, FAQ accordion
 - [ ] **Phase 34: Franquicias Page** - Full franchise landing with hero, value props, comparison, form, WhatsApp integration
 - [ ] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts
@@ -558,7 +558,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 29. Nuxt Scaffold + Infrastructure          | 3/3            | Complete    | 2026-03-01 |
 | 30. Design System + Navigation + Footer     | 4/4            | Complete    | 2026-03-01 |
 | 31. Hero + Identity + Method Sections       | 4/4            | Complete    | 2026-03-01 |
-| 32. Levels + Approaches + Conversion        | 2/3            | In Progress |            |
+| 32. Levels + Approaches + Conversion        | 3/3            | Complete    | 2026-03-01 |
 | 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —          |
 | 34. Franquicias Page                        | 0/?            | Not Started | —          |
 | 35. Gladius + Blog                          | 0/?            | Not Started | —          |
