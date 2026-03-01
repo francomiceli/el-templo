@@ -365,6 +365,7 @@ Plans:
 - [x] **Phase 34: Franquicias Page** - Full franchise landing with hero, value props, comparison, form, WhatsApp integration (completed 2026-03-01)
 - [x] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts (completed 2026-03-01)
 - [ ] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent
+- [ ] **Phase 38: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
 
 ## v3.0 Phase Details
 
@@ -586,6 +587,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 35. Gladius + Blog                          | 4/4            | Complete    | 2026-03-01 |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |
 | 37. Franchise Application Management        | 0/?            | Not Started | —          |
+| 38. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
 ### Phase 37: Franchise Application Management
 
@@ -597,6 +599,19 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 Plans:
 
 - [ ] TBD (run /gsd:plan-phase 37 to break down)
+
+---
+
+### Phase 38: Content & Media Handoff
+
+**Goal:** Replace all placeholder images and media with real assets from the team, configure production Meta Pixel ID and GA4 Measurement ID, populate full LocalBusiness structured data per sede (hours, phone, photos, services), and do a final content review pass across all pages
+**Requirements**: TBD
+**Depends on:** Phase 36 (SEO + analytics infrastructure must be in place)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 38 to break down)
 
 ---
 
