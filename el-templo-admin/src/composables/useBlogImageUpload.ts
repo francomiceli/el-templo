@@ -17,7 +17,7 @@ export function useBlogImageUpload() {
     uploading.value = true;
     try {
       // Step 1: Get presigned URL from API
-      const { data } = await api.post<UploadResponse>('/admin/blog/upload-image', {
+      const { data } = await api.post<UploadResponse>('/blog/admin/upload-image', {
         filename: file.name,
       });
 

@@ -47,7 +47,7 @@ export function useGladiusApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<GladiusProduct[]>('/admin/gladius/products');
+      const { data } = await api.get<GladiusProduct[]>('/gladius/admin/products');
       return data;
     } catch (err: unknown) {
       const message = extractError(err, 'Error cargando productos');
@@ -64,7 +64,7 @@ export function useGladiusApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data: product } = await api.post<GladiusProduct>('/admin/gladius/products', data);
+      const { data: product } = await api.post<GladiusProduct>('/gladius/admin/products', data);
       return product;
     } catch (err: unknown) {
       const message = extractError(err, 'Error creando producto');
@@ -85,7 +85,7 @@ export function useGladiusApi() {
     error.value = null;
     try {
       const { data: product } = await api.put<GladiusProduct>(
-        `/admin/gladius/products/${id}`,
+        `/gladius/admin/products/${id}`,
         data
       );
       return product;
@@ -102,7 +102,7 @@ export function useGladiusApi() {
 
   async function deleteProduct(id: number): Promise<void> {
     try {
-      await api.delete(`/admin/gladius/products/${id}`);
+      await api.delete(`/gladius/admin/products/${id}`);
     } catch (err: unknown) {
       const message = extractError(err, 'Error eliminando producto');
       log.error('Failed to delete product', { id, error: message });

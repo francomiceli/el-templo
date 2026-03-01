@@ -65,7 +65,7 @@ export function useBlogApi() {
       if (params?.limit != null) queryParams.limit = params.limit;
       if (params?.status && params.status !== 'all') queryParams.status = params.status;
 
-      const { data } = await api.get<BlogPostListResponse>('/admin/blog/posts', {
+      const { data } = await api.get<BlogPostListResponse>('/blog/admin/posts', {
         params: queryParams,
       });
       return data;
@@ -84,7 +84,7 @@ export function useBlogApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<BlogPost>(`/admin/blog/posts/${id}`);
+      const { data } = await api.get<BlogPost>(`/blog/admin/posts/${id}`);
       return data;
     } catch (err: unknown) {
       const message = extractError(err, 'Error cargando post');
@@ -101,7 +101,7 @@ export function useBlogApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data: post } = await api.post<BlogPost>('/admin/blog/posts', data);
+      const { data: post } = await api.post<BlogPost>('/blog/admin/posts', data);
       return post;
     } catch (err: unknown) {
       const message = extractError(err, 'Error creando post');
@@ -118,7 +118,7 @@ export function useBlogApi() {
     loading.value = true;
     error.value = null;
     try {
-      const { data: post } = await api.put<BlogPost>(`/admin/blog/posts/${id}`, data);
+      const { data: post } = await api.put<BlogPost>(`/blog/admin/posts/${id}`, data);
       return post;
     } catch (err: unknown) {
       const message = extractError(err, 'Error actualizando post');
@@ -133,7 +133,7 @@ export function useBlogApi() {
 
   async function deletePost(id: number): Promise<void> {
     try {
-      await api.delete(`/admin/blog/posts/${id}`);
+      await api.delete(`/blog/admin/posts/${id}`);
     } catch (err: unknown) {
       const message = extractError(err, 'Error eliminando post');
       log.error('Failed to delete post', { id, error: message });
