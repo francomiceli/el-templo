@@ -137,9 +137,9 @@
 - [x] **FRAN-04**: "Qué Incluye" — 6-item grid (3x2 → 2x3 → 1-col): método, formación, Gladius, marca, apertura, digital
 - [x] **FRAN-05**: "De Mar del Plata al Mundo" — animated counters + styled expansion map with pins + sede list
 - [x] **FRAN-06**: Founder section — Ignacio Bordón bio + timeline (horizontal desktop, vertical mobile): 2020→2026→próximo
-- [ ] **FRAN-07**: Application form: nombre, email, teléfono, ciudad/país, modelo (select), experiencia (select), capital (select), origen (select), mensaje
-- [ ] **FRAN-08**: Form submission → email notification + CRM/Mailchimp + GA4 event + Meta Pixel Lead
-- [ ] **FRAN-09**: Post-submit confirmation + WhatsApp link for immediate contact
+- [x] **FRAN-07**: Application form: nombre, email, teléfono, ciudad/país, modelo (select), experiencia (select), capital (select), origen (select), mensaje
+- [x] **FRAN-08**: Form submission → email notification + CRM/Mailchimp + GA4 event + Meta Pixel Lead
+- [x] **FRAN-09**: Post-submit confirmation + WhatsApp link for immediate contact
 - [ ] **FRAN-10**: Floating WhatsApp button (always visible)
 - [ ] **FRAN-11**: Shares header/footer with main domain
 
@@ -281,9 +281,9 @@
 | FRAN-04     | Phase 34 | Complete |
 | FRAN-05     | Phase 34 | Complete |
 | FRAN-06     | Phase 34 | Complete |
-| FRAN-07     | Phase 34 | Pending  |
-| FRAN-08     | Phase 34 | Pending  |
-| FRAN-09     | Phase 34 | Pending  |
+| FRAN-07     | Phase 34 | Complete |
+| FRAN-08     | Phase 34 | Complete |
+| FRAN-09     | Phase 34 | Complete |
 | FRAN-10     | Phase 34 | Pending  |
 | FRAN-11     | Phase 34 | Pending  |
 | GLAD-01     | Phase 35 | Pending  |

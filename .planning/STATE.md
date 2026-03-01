@@ -148,6 +148,9 @@ Progress: [███████---] 75% (3/4 plans)
 - Pin pulse animation via CSS @keyframes on separate stroke circle for active sede markers
 - Timeline connecting line uses transform scaleX/scaleY with transform-origin for progressive draw effect
 - FranVideo uses computed hasContent check so section is completely absent from DOM when both config values are null
+- Manual SQL migration (0018) for franchise_applications due to drizzle-kit interactive prompt conflicts with unrelated schema
+- Email notification failure (Resend) does not fail application submission -- graceful error logging only
+- CORS updated for both production (eltemplo.org) and dev (localhost:9200) to support franchise form
 
 ### Roadmap Evolution
 
@@ -155,5 +158,5 @@ Progress: [███████---] 75% (3/4 plans)
 
 ### Last Session
 
-- **Stopped at:** Completed 34-03-PLAN.md
-- **Timestamp:** 2026-03-01T17:03:56Z
+- **Stopped at:** Completed 34-01-PLAN.md (franchise API backend)
+- **Timestamp:** 2026-03-01T17:04:39Z
