@@ -135,8 +135,8 @@
 - [x] **FRAN-02**: "¿Por Qué El Templo?" — 4 value prop cards (2x2): Método Propio, Marca Premium, Ecosistema Completo, Acompañamiento Real
 - [x] **FRAN-03**: "Dos Caminos" — Franquicia Activa vs Pasiva comparison cards
 - [x] **FRAN-04**: "Qué Incluye" — 6-item grid (3x2 → 2x3 → 1-col): método, formación, Gladius, marca, apertura, digital
-- [ ] **FRAN-05**: "De Mar del Plata al Mundo" — animated counters + styled expansion map with pins + sede list
-- [ ] **FRAN-06**: Founder section — Ignacio Bordón bio + timeline (horizontal desktop, vertical mobile): 2020→2026→próximo
+- [x] **FRAN-05**: "De Mar del Plata al Mundo" — animated counters + styled expansion map with pins + sede list
+- [x] **FRAN-06**: Founder section — Ignacio Bordón bio + timeline (horizontal desktop, vertical mobile): 2020→2026→próximo
 - [ ] **FRAN-07**: Application form: nombre, email, teléfono, ciudad/país, modelo (select), experiencia (select), capital (select), origen (select), mensaje
 - [ ] **FRAN-08**: Form submission → email notification + CRM/Mailchimp + GA4 event + Meta Pixel Lead
 - [ ] **FRAN-09**: Post-submit confirmation + WhatsApp link for immediate contact
@@ -279,8 +279,8 @@
 | FRAN-02     | Phase 34 | Complete |
 | FRAN-03     | Phase 34 | Complete |
 | FRAN-04     | Phase 34 | Complete |
-| FRAN-05     | Phase 34 | Pending  |
-| FRAN-06     | Phase 34 | Pending  |
+| FRAN-05     | Phase 34 | Complete |
+| FRAN-06     | Phase 34 | Complete |
 | FRAN-07     | Phase 34 | Pending  |
 | FRAN-08     | Phase 34 | Pending  |
 | FRAN-09     | Phase 34 | Pending  |

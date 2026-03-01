@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 34 of 36 (Franquicias Page)
-Plan: 2 of 4 complete
-Status: Phase 34 in progress -- franchise top-half sections built (Hero, ValueProps, Models, Includes)
-Last activity: 2026-03-01 — Plan 02 complete (data file + useCountUp + 4 section components)
+Plan: 3 of 4 complete
+Status: Phase 34 in progress -- bottom sections built (Expansion, Founder, Video)
+Last activity: 2026-03-01 — Plan 03 complete (FranExpansion + FranFounder + FranVideo)
 
-Progress: [█████-----] 50% (2/4 plans)
+Progress: [███████---] 75% (3/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -144,6 +144,10 @@ Progress: [█████-----] 50% (2/4 plans)
 - Franchise overlay gradient uses 0.20/0.65 opacity per spec (darker than home 0.15/0.55 for stronger text contrast)
 - FranModels card padding includes 3px offset for accent border to maintain consistent inner spacing
 - fran- BEM prefix for all franchise section components
+- SVG map uses simplified country outlines with dashed connecting arc between Argentina and Spain
+- Pin pulse animation via CSS @keyframes on separate stroke circle for active sede markers
+- Timeline connecting line uses transform scaleX/scaleY with transform-origin for progressive draw effect
+- FranVideo uses computed hasContent check so section is completely absent from DOM when both config values are null
 
 ### Roadmap Evolution
 
@@ -151,5 +155,5 @@ Progress: [█████-----] 50% (2/4 plans)
 
 ### Last Session
 
-- **Stopped at:** Completed 34-02-PLAN.md
-- **Timestamp:** 2026-03-01T17:03:00Z
+- **Stopped at:** Completed 34-03-PLAN.md
+- **Timestamp:** 2026-03-01T17:03:56Z
