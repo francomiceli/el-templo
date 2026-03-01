@@ -1,0 +1,12 @@
+# www to root domain redirect
+# Location: /etc/nginx/sites-available/www-redirect.eltemplo.org
+# Ensures www.eltemplo.org 301-redirects to eltemplo.org
+# SSL will be added by certbot --nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name www.eltemplo.org;
+
+    return 301 https://eltemplo.org$request_uri;
+}

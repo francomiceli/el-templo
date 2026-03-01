@@ -1,0 +1,29 @@
+# Staging Landing Page (SSG)
+# Location: /etc/nginx/sites-available/web-staging.eltemplo.org
+# SSL will be added by certbot --nginx
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name web-staging.eltemplo.org;
+
+    root /var/www/staging/el-templo-web;
+    index index.html;
+
+    # SSG: serve pre-rendered HTML files, fallback to index.html
+    location / {
+        try_files $uri $uri/index.html $uri.html /index.html =404;
+    }
+
+    # Cache static assets aggressively (Nuxt/Vite adds content hashes)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
