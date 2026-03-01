@@ -172,11 +172,11 @@ onBeforeUnmount(() => {
 }
 
 /* ------------------------------------------------------------------
-   Grid — 5 columns desktop
+   Grid — 3 + 2 centered layout (6-col trick)
    ------------------------------------------------------------------ */
 .approaches__grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 24px;
 }
 
@@ -194,6 +194,7 @@ onBeforeUnmount(() => {
   padding: 32px 24px;
   min-height: 320px;
   box-shadow: var(--shadow-subtle);
+  grid-column: span 2;
 
   /* Entrance animation base state */
   opacity: 0;
@@ -202,6 +203,11 @@ onBeforeUnmount(() => {
     opacity 500ms ease,
     transform 500ms ease,
     box-shadow var(--transition-base);
+}
+
+/* Center the last row (2 cards) */
+.approaches__card:nth-child(4) {
+  grid-column: 2 / span 2;
 }
 
 .approaches__grid.is-visible .approaches__card {
@@ -308,7 +314,6 @@ onBeforeUnmount(() => {
   }
 
   .approaches__grid {
-    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
   }
 }
@@ -341,8 +346,19 @@ onBeforeUnmount(() => {
 
   .approaches__card {
     min-width: 260px;
+    max-width: 280px;
     flex-shrink: 0;
     scroll-snap-align: start;
+    grid-column: auto;
+  }
+
+  .approaches__card:nth-child(4) {
+    grid-column: auto;
+  }
+
+  .approaches__desc {
+    overflow-wrap: break-word;
+    word-break: break-word;
   }
 
   /* Gradient fade indicator for scroll hint */

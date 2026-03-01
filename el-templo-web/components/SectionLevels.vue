@@ -139,11 +139,23 @@ function handleKeydown(event: KeyboardEvent): void {
   }
 }
 
-// Sliding indicator position (desktop only -- CSS transform approach)
-const indicatorStyle = computed(() => ({
-  transform: `translateX(${activeIndex.value * 100}%)`,
-  width: `calc(100% / ${levels.length})`,
-}));
+// Mounted trigger so indicator computes correctly on first render
+const isMounted = ref(false);
+onMounted(() => {
+  isMounted.value = true;
+});
+
+// Sliding indicator position (desktop only -- JS-computed from actual DOM)
+const indicatorStyle = computed(() => {
+  // Access isMounted + activeLevel so computed re-evaluates after mount and on tab change
+  if (!isMounted.value) return { opacity: "0" };
+  const el = tabRefs[activeLevel.value];
+  if (!el) return { opacity: "0" };
+  return {
+    transform: `translateX(${el.offsetLeft}px)`,
+    width: `${el.offsetWidth}px`,
+  };
+});
 
 // Scroll reveal
 const { revealed, elementRef: sectionRef, cleanup } = useScrollReveal();
