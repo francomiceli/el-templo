@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 31-03-PLAN.md
-last_updated: "2026-03-01T05:07:10.149Z"
+stopped_at: Completed 31-04-PLAN.md (Phase 31 complete)
+last_updated: "2026-03-01T05:17:04.044Z"
 progress:
   total_phases: 29
-  completed_phases: 20
+  completed_phases: 21
   total_plans: 136
-  completed_plans: 131
+  completed_plans: 132
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 31 in progress (Hero + Identity + Method Sections)
+**Current focus:** v3.0 Landing Page — Phase 31 complete, ready for Phase 32 (Levels + Approaches)
 
 ## Current Position
 
-Phase: 31 of 36 (Hero, Identity & Method Sections)
-Plan: 3 of 4 complete
-Status: Plan 03 complete (Method Section), ready for Plan 04
-Last activity: 2026-03-01 — Plan 03 complete (SectionMethod)
+Phase: 31 of 36 (Hero, Identity & Method Sections) -- COMPLETE
+Plan: 4 of 4 complete
+Status: Phase 31 complete -- all sections wired into home page and visually verified
+Last activity: 2026-03-01 — Plan 04 complete (Page Integration)
 
-Progress: [████████--] 75% (3/4 plans)
+Progress: [██████████] 100% (4/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -104,8 +104,10 @@ Progress: [████████--] 75% (3/4 plans)
 - Session block hover elevated to translateY(-4px) + shadow-medium with watermark opacity shift (0.15->0.25) per CONTEXT.md
 - Special card hover elevated from spec's -2px to -4px to match CONTEXT.md "same elevation as session cards"
 - ROM/SKILLS inline SVG icons: stroke-based, 32x32, Olive Stone color
+- No changes needed to layouts/default.vue -- SectionHero handles nav offset internally
+- Dynamic bindings for hero video/poster paths to avoid Vite import resolution on missing assets
 
 ### Last Session
 
-- **Stopped at:** Completed 31-03-PLAN.md
-- **Timestamp:** 2026-03-01T05:05:40Z
+- **Stopped at:** Completed 31-04-PLAN.md (Phase 31 complete)
+- **Timestamp:** 2026-03-01T05:15:09Z
