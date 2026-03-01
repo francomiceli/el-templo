@@ -83,7 +83,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- SVG Map: Argentina + Spain -->
+      <!-- SVG Map: Atlantic view — South America + Western Europe -->
       <div
         ref="mapRef"
         class="expansion__map-wrap"
@@ -91,74 +91,159 @@ onBeforeUnmount(() => {
       >
         <svg
           class="expansion__map"
-          viewBox="0 0 800 400"
+          viewBox="0 0 960 440"
           xmlns="http://www.w3.org/2000/svg"
           role="img"
           aria-label="Mapa de expansi&oacute;n: Argentina y Espa&ntilde;a"
         >
-          <!-- Argentina outline (simplified) -->
+          <!-- ============================================
+               LEFT PANEL: SOUTH AMERICA
+               ============================================ -->
+
+          <!-- South America continent outline -->
           <path
-            class="expansion__country"
-            d="M180 60 L220 55 L240 70 L250 90 L260 120 L270 140 L265 170 L260 200 L255 230 L245 260 L235 290 L220 310 L200 330 L190 350 L195 370 L180 380 L170 370 L165 350 L160 320 L155 290 L150 260 L145 230 L150 200 L155 170 L160 140 L165 120 L170 90 L175 70 Z"
+            class="expansion__continent"
+            d="M128,48 L142,38 L155,35 L172,30 L192,25 L215,20 L238,18 L258,20 L278,26 L295,36 L308,48 L318,65 L325,78 L322,98 L318,118 L312,138 L305,155 L295,172 L282,190 L272,206 L265,218 L260,230 L254,248 L246,268 L238,288 L228,310 L218,332 L210,350 L202,362 L196,372 L190,380 L195,390 L188,398 L178,392 L170,382 L164,368 L158,350 L152,332 L146,310 L140,288 L134,262 L130,238 L126,212 L122,188 L120,165 L118,142 L117,120 L118,98 L122,78 L128,62 L134,52 Z"
           />
 
-          <!-- Tierra del Fuego (tip of Argentina) -->
+          <!-- Central America (context) -->
           <path
-            class="expansion__country"
-            d="M175 382 L190 385 L200 395 L185 398 L172 392 Z"
+            class="expansion__landmass"
+            d="M128,48 L120,40 L110,34 L98,30 L86,28 L75,32 L68,38"
           />
 
-          <!-- Spain outline (simplified, positioned right-top) -->
+          <!-- Argentina (highlighted fill within continent) -->
           <path
-            class="expansion__country"
-            d="M550 80 L570 70 L600 65 L630 68 L660 75 L680 85 L690 100 L685 120 L670 135 L650 142 L630 145 L610 142 L590 135 L570 125 L555 110 L548 95 Z"
+            class="expansion__highlight"
+            d="M126,172 L140,162 L158,155 L178,158 L198,164 L218,174 L238,182 L255,192 L268,202 L272,206 L265,218 L260,230 L254,248 L246,268 L238,288 L228,310 L218,332 L210,350 L202,362 L196,372 L190,380 L195,390 L188,398 L178,392 L170,382 L164,368 L158,350 L152,332 L146,310 L140,288 L134,262 L130,238 L126,212 L122,188 L120,178 Z"
           />
 
-          <!-- Portugal (small, attached to Spain) -->
-          <path
-            class="expansion__country"
-            d="M548 95 L540 100 L535 115 L538 130 L548 135 L555 125 L555 110 Z"
+          <!-- Falklands / Malvinas (small reference) -->
+          <ellipse
+            class="expansion__landmass-fill"
+            cx="218"
+            cy="398"
+            rx="8"
+            ry="4"
           />
 
-          <!-- Connecting arc (dashed) -->
+          <!-- ============================================
+               RIGHT PANEL: WESTERN EUROPE
+               ============================================ -->
+
+          <!-- British Isles (context) -->
+          <path
+            class="expansion__landmass-fill"
+            d="M638,8 L648,4 L660,2 L670,6 L674,16 L672,26 L666,32 L656,34 L646,30 L640,22 L636,14 Z"
+          />
+          <!-- Ireland -->
+          <path
+            class="expansion__landmass-fill"
+            d="M624,12 L632,8 L638,12 L636,22 L630,26 L624,20 Z"
+          />
+
+          <!-- France -->
+          <path
+            class="expansion__continent"
+            d="M695,102 L710,94 L728,86 L742,76 L750,65 L748,52 L740,40 L726,32 L708,26 L690,24 L672,26 L656,30 L644,38 L636,48 L632,60 L634,72 L638,82 L648,90 L660,96 L675,100 L688,102 Z"
+          />
+
+          <!-- Iberian Peninsula — Spain (highlighted) -->
+          <path
+            class="expansion__highlight"
+            d="M588,118 L602,108 L620,102 L642,98 L662,96 L682,98 L695,102 L698,114 L696,128 L692,140 L686,154 L680,166 L672,176 L660,184 L645,190 L628,192 L612,190 L598,184 L588,176 L584,164 L580,148 L578,134 L582,122 Z"
+          />
+
+          <!-- Portugal -->
+          <path
+            class="expansion__continent"
+            d="M588,118 L582,122 L578,134 L576,148 L578,162 L582,172 L588,176 L580,178 L572,170 L566,156 L564,140 L566,126 L572,116 L580,112 Z"
+          />
+
+          <!-- Italy (boot — context) -->
+          <path
+            class="expansion__landmass-fill"
+            d="M750,65 L758,60 L770,58 L780,62 L784,74 L782,88 L778,102 L772,116 L764,128 L758,136 L752,130 L748,118 L746,104 L748,88 L750,76 Z"
+          />
+
+          <!-- Sicily -->
+          <ellipse
+            class="expansion__landmass-fill"
+            cx="762"
+            cy="142"
+            rx="10"
+            ry="6"
+          />
+
+          <!-- Sardinia + Corsica -->
+          <ellipse
+            class="expansion__landmass-fill"
+            cx="738"
+            cy="118"
+            rx="5"
+            ry="10"
+          />
+          <ellipse
+            class="expansion__landmass-fill"
+            cx="736"
+            cy="102"
+            rx="4"
+            ry="6"
+          />
+
+          <!-- North Africa coastline (subtle context) -->
+          <path
+            class="expansion__coastline"
+            d="M558,200 L588,196 L622,194 L658,192 L695,194 L728,192 L762,196 L790,194"
+          />
+
+          <!-- ============================================
+               CONNECTING ELEMENTS
+               ============================================ -->
+
+          <!-- Dashed arc across Atlantic -->
           <path
             class="expansion__arc"
-            d="M240 100 C350 30 450 30 570 85"
+            d="M305,120 C420,32 530,32 682,98"
             fill="none"
           />
 
-          <!-- Mar del Plata pin (Argentina, southeast coast) -->
+          <!-- ============================================
+               PINS & LABELS
+               ============================================ -->
+
+          <!-- Mar del Plata pin -->
           <circle
             class="expansion__pin expansion__pin--active"
-            cx="245"
-            cy="295"
+            cx="260"
+            cy="240"
             r="6"
           />
-          <circle class="expansion__pin-pulse" cx="245" cy="295" r="6" />
-          <text class="expansion__pin-label" x="258" y="300">
+          <circle class="expansion__pin-pulse" cx="260" cy="240" r="6" />
+          <text class="expansion__pin-label" x="272" y="244">
             Mar del Plata
           </text>
 
-          <!-- Barcelona pin (Spain, northeast) -->
+          <!-- Barcelona pin -->
           <circle
             class="expansion__pin expansion__pin--active"
-            cx="650"
-            cy="95"
+            cx="692"
+            cy="132"
             r="6"
           />
-          <circle class="expansion__pin-pulse" cx="650" cy="95" r="6" />
-          <text class="expansion__pin-label" x="663" y="100">Barcelona</text>
+          <circle class="expansion__pin-pulse" cx="692" cy="132" r="6" />
+          <text class="expansion__pin-label" x="704" y="136">Barcelona</text>
 
-          <!-- "Proximamente" callout -->
+          <!-- "¿Tu ciudad?" callout (Atlantic center) -->
           <circle
             class="expansion__pin expansion__pin--future"
-            cx="420"
-            cy="220"
+            cx="475"
+            cy="230"
             r="8"
             stroke-dasharray="4 3"
             fill="none"
           />
-          <text class="expansion__callout" x="420" y="250" text-anchor="middle">
+          <text class="expansion__callout" x="475" y="258" text-anchor="middle">
             &iquest;Tu ciudad?
           </text>
         </svg>
@@ -278,7 +363,7 @@ onBeforeUnmount(() => {
    SVG Map
    ------------------------------------------------------------------ */
 .expansion__map-wrap {
-  max-width: 800px;
+  max-width: 900px;
   margin: 0 auto var(--space-large) auto;
   opacity: 0;
   transform: scale(0.95);
@@ -298,16 +383,48 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* Country outlines */
-.expansion__country {
+/* Continent outlines (South America, France, Portugal) */
+.expansion__continent {
   fill: none;
-  stroke: rgba(242, 237, 229, 0.15);
-  stroke-width: 1.5;
+  stroke: rgba(242, 237, 229, 0.18);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
 }
 
-/* Connecting arc */
+/* Highlighted countries — Argentina and Spain */
+.expansion__highlight {
+  fill: rgba(192, 122, 86, 0.12);
+  stroke: var(--color-terracotta);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+/* Context landmasses (Central America, UK, Italy, islands) — stroke only */
+.expansion__landmass {
+  fill: none;
+  stroke: rgba(242, 237, 229, 0.12);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+/* Context landmasses — filled (small islands, UK, Italy) */
+.expansion__landmass-fill {
+  fill: rgba(242, 237, 229, 0.06);
+  stroke: rgba(242, 237, 229, 0.12);
+  stroke-width: 0.8;
+}
+
+/* North Africa coastline (subtle reference line) */
+.expansion__coastline {
+  fill: none;
+  stroke: rgba(242, 237, 229, 0.08);
+  stroke-width: 0.8;
+  stroke-dasharray: 4 6;
+}
+
+/* Connecting arc (dashed, across Atlantic) */
 .expansion__arc {
-  stroke: rgba(242, 237, 229, 0.1);
+  stroke: rgba(242, 237, 229, 0.12);
   stroke-width: 1;
   stroke-dasharray: 6 4;
 }
