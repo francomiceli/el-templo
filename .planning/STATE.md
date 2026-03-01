@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Phase 30 context gathered
-last_updated: "2026-03-01T03:46:35.931Z"
+status: in-progress
+stopped_at: Completed 30-01-PLAN.md (Design System Foundation)
+last_updated: "2026-03-01T04:05:48Z"
 progress:
   total_phases: 28
   completed_phases: 19
   total_plans: 128
-  completed_plans: 124
+  completed_plans: 125
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 29 in progress
+**Current focus:** v3.0 Landing Page — Phase 30 in progress
 
 ## Current Position
 
-Phase: 29 of 36 (Nuxt Scaffold + Infrastructure) -- COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 29 complete, ready for Phase 30
-Last activity: 2026-03-01 — Plan 03 complete (DNS, SSL, server setup, GitHub secrets)
+Phase: 30 of 36 (Design System, Navigation & Footer)
+Plan: 1 of 4 complete
+Status: Phase 30 plan 01 complete, ready for plan 02
+Last activity: 2026-03-01 — Plan 01 complete (Design System Foundation)
 
-Progress: [██████████] 100% (3/3 plans)
+Progress: [███-------] 25% (1/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -78,7 +78,11 @@ Progress: [██████████] 100% (3/3 plans)
 - CI: .github/workflows/ (ci.yml, deploy.yml, deploy-staging.yml)
 - Web Nginx configs: deploy/nginx/eltemplo.org, web-staging.eltemplo.org, www-redirect.eltemplo.org
 
+### Phase 30 Decisions
+
+- Fixed lint-staged eslint command for el-templo-web to use `pnpm --filter` for correct cwd resolution (Nuxt-generated ESLint config uses relative imports)
+
 ### Last Session
 
-- **Stopped at:** Phase 30 context gathered
-- **Timestamp:** 2026-03-01T03:16:32Z
+- **Stopped at:** Completed 30-01-PLAN.md (Design System Foundation)
+- **Timestamp:** 2026-03-01T04:05:48Z

@@ -20,14 +20,14 @@
 
 ## Design System (DS)
 
-- [ ] **DS-01**: CSS custom properties (:root) matching canonical token registry (colors, fonts, spacing, radius, shadows, transitions)
-- [ ] **DS-02**: Google Fonts loaded: Montserrat (300,600,700,800), Cormorant Garamond (400,500,600+italic), Geologica (400,500,600)
-- [ ] **DS-03**: BEM component classes (custom, NOT Quasar UI components)
-- [ ] **DS-04**: No pure black (#000000) or pure white (#FFFFFF) anywhere in CSS
-- [ ] **DS-05**: 3 responsive breakpoints: desktop (1200px+), tablet (768px–1199px), mobile (<768px)
-- [ ] **DS-06**: Shared layout components: page container (max-width, padding), section wrapper (vertical spacing)
-- [ ] **DS-07**: Reusable button components: Primary (Terracotta), Ghost (bordered), Secondary (Azul Noche, Aged Gold variants)
-- [ ] **DS-08**: Placeholder/skeleton system for pending assets (images, videos, icons) that renders gracefully
+- [x] **DS-01**: CSS custom properties (:root) matching canonical token registry (colors, fonts, spacing, radius, shadows, transitions)
+- [x] **DS-02**: Google Fonts loaded: Montserrat (300,600,700,800), Cormorant Garamond (400,500,600+italic), Geologica (400,500,600)
+- [x] **DS-03**: BEM component classes (custom, NOT Quasar UI components)
+- [x] **DS-04**: No pure black (#000000) or pure white (#FFFFFF) anywhere in CSS
+- [x] **DS-05**: 3 responsive breakpoints: desktop (1200px+), tablet (768px–1199px), mobile (<768px)
+- [x] **DS-06**: Shared layout components: page container (max-width, padding), section wrapper (vertical spacing)
+- [x] **DS-07**: Reusable button components: Primary (Terracotta), Ghost (bordered), Secondary (Azul Noche, Aged Gold variants)
+- [x] **DS-08**: Placeholder/skeleton system for pending assets (images, videos, icons) that renders gracefully
 
 ## Navigation (NAV)
 
@@ -203,14 +203,14 @@
 | INFRA-05    | Phase 29 | Complete |
 | INFRA-06    | Phase 29 | Complete |
 | INFRA-07    | Phase 29 | Complete |
-| DS-01       | Phase 30 | Pending  |
-| DS-02       | Phase 30 | Pending  |
-| DS-03       | Phase 30 | Pending  |
-| DS-04       | Phase 30 | Pending  |
-| DS-05       | Phase 30 | Pending  |
-| DS-06       | Phase 30 | Pending  |
-| DS-07       | Phase 30 | Pending  |
-| DS-08       | Phase 30 | Pending  |
+| DS-01       | Phase 30 | Complete |
+| DS-02       | Phase 30 | Complete |
+| DS-03       | Phase 30 | Complete |
+| DS-04       | Phase 30 | Complete |
+| DS-05       | Phase 30 | Complete |
+| DS-06       | Phase 30 | Complete |
+| DS-07       | Phase 30 | Complete |
+| DS-08       | Phase 30 | Complete |
 | NAV-01      | Phase 30 | Pending  |
 | NAV-02      | Phase 30 | Pending  |
 | NAV-03      | Phase 30 | Pending  |
