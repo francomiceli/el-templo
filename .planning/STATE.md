@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Phase 35 context gathered
-last_updated: "2026-03-01T19:37:08.706Z"
+status: in-progress
+stopped_at: Completed 35-01-PLAN.md
+last_updated: "2026-03-01T20:00:47Z"
 progress:
   total_phases: 34
   completed_phases: 24
   total_plans: 146
-  completed_plans: 142
+  completed_plans: 143
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 34 in progress (Franquicias Page)
+**Current focus:** v3.0 Landing Page — Phase 35 in progress (Gladius + Blog)
 
 ## Current Position
 
-Phase: 34 of 36 (Franquicias Page)
-Plan: 4 of 4 complete
-Status: Phase 34 COMPLETE -- /franquicias page fully assembled with form, WhatsApp, SEO
-Last activity: 2026-03-01 — Plan 04 complete (FranForm + FranWhatsApp + page composition)
+Phase: 35 of 36 (Gladius + Blog)
+Plan: 1 of 4 complete
+Status: Plan 01 complete -- API backend for Gladius + Blog (3 DB tables, routes, services, 32 tests)
+Last activity: 2026-03-01 — Plan 01 complete (Gladius + Blog API backend infrastructure)
 
-Progress: [██████████] 100% (4/4 plans)
+Progress: [██░░░░░░░░] 25% (1/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -160,7 +160,16 @@ Progress: [██████████] 100% (4/4 plans)
 
 - Phase 37 added: Franchise Application Management — admin panel for managing franchise applications with AI-powered conversion strategies
 
+### Phase 35 Decisions
+
+- Gladius admin routes restricted to admin/superadmin only (not coach) -- consistent with context decisions
+- Blog readingTime computed on read from body word count (~200 words/min), not stored in DB
+- publishedAt preserved when re-publishing (set once on first publish, never overwritten)
+- Blog image R2 key uses blog/images/{timestamp}-{sanitized-filename} pattern
+- slugify function duplicated in gladius and blog services for module independence
+- Migration 0019 creates all 3 tables (gladius_products, gladius_inquiries, blog_posts) in one file
+
 ### Last Session
 
-- **Stopped at:** Phase 35 context gathered
-- **Timestamp:** 2026-03-01T17:20:45Z
+- **Stopped at:** Completed 35-01-PLAN.md
+- **Timestamp:** 2026-03-01T20:00:47Z

@@ -514,7 +514,7 @@ Plans:
 8. Individual blog posts render with brand typography, design system styling, and per-post SEO meta tags
 9. Blog index supports pagination or infinite scroll for browsing posts
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 
@@ -583,7 +583,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 32. Levels + Approaches + Conversion        | 3/3            | Complete    | 2026-03-01 |
 | 33. Locations + Community + Ecosystem + FAQ | 3/3            | Complete    | 2026-03-01 |
 | 34. Franquicias Page                        | 4/4            | Complete    | 2026-03-01 |
-| 35. Gladius + Blog                          | 0/4            | Not Started | —          |
+| 35. Gladius + Blog                          | 1/4            | In Progress |            |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |
 | 37. Franchise Application Management        | 0/?            | Not Started | —          |
 

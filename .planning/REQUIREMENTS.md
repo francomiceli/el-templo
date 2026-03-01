@@ -147,14 +147,14 @@
 
 - [ ] **GLAD-01**: Hero with product imagery on warm dark background, Gladius logo, "FORJADO PARA LOS QUE ENTRENAN EN SERIO." H1
 - [ ] **GLAD-02**: Product philosophy section — why Gladius exists, connection to El Templo, quality/durability
-- [ ] **GLAD-03**: Product catalog — cards with photo + name + description + price, category filter if multiple lines
+- [x] **GLAD-03**: Product catalog — cards with photo + name + description + price, category filter if multiple lines
 - [ ] **GLAD-04**: "En Acción" — real-use photos from sedes, social proof
-- [ ] **GLAD-05**: Contact/purchase section — WhatsApp CTA + simple form (nombre, email, producto de interés)
+- [x] **GLAD-05**: Contact/purchase section — WhatsApp CTA + simple form (nombre, email, producto de interés)
 - [ ] **GLAD-06**: Shares header/footer with main domain
 
 ## Blog (BLOG)
 
-- [ ] **BLOG-01**: Blog post data model in el-templo-api (DB table, CRUD API routes)
+- [x] **BLOG-01**: Blog post data model in el-templo-api (DB table, CRUD API routes)
 - [ ] **BLOG-02**: Blog editor in el-templo-admin (create, edit, publish posts)
 - [ ] **BLOG-03**: Blog index page in el-templo-web with post cards (title, excerpt, date, reading time), fetched from API at build time
 - [ ] **BLOG-04**: Individual post page with brand typography and design system styling, pre-rendered at build time
@@ -288,11 +288,11 @@
 | FRAN-11     | Phase 34 | Complete |
 | GLAD-01     | Phase 35 | Pending  |
 | GLAD-02     | Phase 35 | Pending  |
-| GLAD-03     | Phase 35 | Pending  |
+| GLAD-03     | Phase 35 | Complete |
 | GLAD-04     | Phase 35 | Pending  |
-| GLAD-05     | Phase 35 | Pending  |
+| GLAD-05     | Phase 35 | Complete |
 | GLAD-06     | Phase 35 | Pending  |
-| BLOG-01     | Phase 35 | Pending  |
+| BLOG-01     | Phase 35 | Complete |
 | BLOG-02     | Phase 35 | Pending  |
 | BLOG-03     | Phase 35 | Pending  |
 | BLOG-04     | Phase 35 | Pending  |
