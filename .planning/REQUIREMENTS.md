@@ -145,21 +145,21 @@
 
 ## Standalone — /gladius (GLAD)
 
-- [ ] **GLAD-01**: Hero with product imagery on warm dark background, Gladius logo, "FORJADO PARA LOS QUE ENTRENAN EN SERIO." H1
-- [ ] **GLAD-02**: Product philosophy section — why Gladius exists, connection to El Templo, quality/durability
+- [x] **GLAD-01**: Hero with product imagery on warm dark background, Gladius logo, "FORJADO PARA LOS QUE ENTRENAN EN SERIO." H1
+- [x] **GLAD-02**: Product philosophy section — why Gladius exists, connection to El Templo, quality/durability
 - [x] **GLAD-03**: Product catalog — cards with photo + name + description + price, category filter if multiple lines
-- [ ] **GLAD-04**: "En Acción" — real-use photos from sedes, social proof
+- [x] **GLAD-04**: "En Acción" — real-use photos from sedes, social proof
 - [x] **GLAD-05**: Contact/purchase section — WhatsApp CTA + simple form (nombre, email, producto de interés)
-- [ ] **GLAD-06**: Shares header/footer with main domain
+- [x] **GLAD-06**: Shares header/footer with main domain
 
 ## Blog (BLOG)
 
 - [x] **BLOG-01**: Blog post data model in el-templo-api (DB table, CRUD API routes)
 - [x] **BLOG-02**: Blog editor in el-templo-admin (create, edit, publish posts)
-- [ ] **BLOG-03**: Blog index page in el-templo-web with post cards (title, excerpt, date, reading time), fetched from API at build time
-- [ ] **BLOG-04**: Individual post page with brand typography and design system styling, pre-rendered at build time
-- [ ] **BLOG-05**: SEO: per-post meta tags, Open Graph, structured data (Article schema)
-- [ ] **BLOG-06**: Pagination or infinite scroll on blog index
+- [x] **BLOG-03**: Blog index page in el-templo-web with post cards (title, excerpt, date, reading time), fetched from API at build time
+- [x] **BLOG-04**: Individual post page with brand typography and design system styling, pre-rendered at build time
+- [x] **BLOG-05**: SEO: per-post meta tags, Open Graph, structured data (Article schema)
+- [x] **BLOG-06**: Pagination or infinite scroll on blog index
 
 ## SEO & Performance (SEO)
 
@@ -286,18 +286,18 @@
 | FRAN-09     | Phase 34 | Complete |
 | FRAN-10     | Phase 34 | Complete |
 | FRAN-11     | Phase 34 | Complete |
-| GLAD-01     | Phase 35 | Pending  |
-| GLAD-02     | Phase 35 | Pending  |
+| GLAD-01     | Phase 35 | Complete |
+| GLAD-02     | Phase 35 | Complete |
 | GLAD-03     | Phase 35 | Complete |
-| GLAD-04     | Phase 35 | Pending  |
+| GLAD-04     | Phase 35 | Complete |
 | GLAD-05     | Phase 35 | Complete |
-| GLAD-06     | Phase 35 | Pending  |
+| GLAD-06     | Phase 35 | Complete |
 | BLOG-01     | Phase 35 | Complete |
 | BLOG-02     | Phase 35 | Complete |
-| BLOG-03     | Phase 35 | Pending  |
-| BLOG-04     | Phase 35 | Pending  |
-| BLOG-05     | Phase 35 | Pending  |
-| BLOG-06     | Phase 35 | Pending  |
+| BLOG-03     | Phase 35 | Complete |
+| BLOG-04     | Phase 35 | Complete |
+| BLOG-05     | Phase 35 | Complete |
+| BLOG-06     | Phase 35 | Complete |
 | SEO-01      | Phase 36 | Pending  |
 | SEO-02      | Phase 36 | Pending  |
 | SEO-03      | Phase 36 | Pending  |

@@ -363,7 +363,7 @@ Plans:
 - [x] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion (completed 2026-03-01)
 - [x] **Phase 33: Locations + Community + Ecosystem + FAQ** - Sede cards, community gallery, ecosystem pathways, FAQ accordion (completed 2026-03-01)
 - [x] **Phase 34: Franquicias Page** - Full franchise landing with hero, value props, comparison, form, WhatsApp integration (completed 2026-03-01)
-- [ ] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts
+- [x] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts (completed 2026-03-01)
 - [ ] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent
 
 ## v3.0 Phase Details
@@ -514,7 +514,7 @@ Plans:
 8. Individual blog posts render with brand typography, design system styling, and per-post SEO meta tags
 9. Blog index supports pagination or infinite scroll for browsing posts
 
-**Plans:** 2/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -583,7 +583,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 32. Levels + Approaches + Conversion        | 3/3            | Complete    | 2026-03-01 |
 | 33. Locations + Community + Ecosystem + FAQ | 3/3            | Complete    | 2026-03-01 |
 | 34. Franquicias Page                        | 4/4            | Complete    | 2026-03-01 |
-| 35. Gladius + Blog                          | 2/4            | In Progress |            |
+| 35. Gladius + Blog                          | 4/4            | Complete    | 2026-03-01 |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |
 | 37. Franchise Application Management        | 0/?            | Not Started | —          |
 

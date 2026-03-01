@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 35 of 36 (Gladius + Blog)
-Plan: 3 of 4 complete
-Status: Plan 03 complete -- Admin panel for Blog + Gladius (editor, list, CRUD, role restriction)
-Last activity: 2026-03-01 — Plan 03 complete (Blog editor with Markdown toolbar, Gladius products CRUD)
+Plan: 4 of 4 complete
+Status: Phase 35 COMPLETE -- All 4 plans done (API, Gladius pages, admin panels, blog pages)
+Last activity: 2026-03-01 — Plan 04 complete (Blog index + post pages with pagination, sidebar, SEO)
 
-Progress: [███████░░░] 75% (3/4 plans)
+Progress: [██████████] 100% (4/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -168,11 +168,19 @@ Progress: [███████░░░] 75% (3/4 plans)
 - Blog image R2 key uses blog/images/{timestamp}-{sanitized-filename} pattern
 - slugify function duplicated in gladius and blog services for module independence
 - Migration 0019 creates all 3 tables (gladius_products, gladius_inquiries, blog_posts) in one file
+- GladWhatsApp created as separate component (not reusing FranWhatsApp) due to hardcoded URL and BEM prefix difference
+- Catalog Consultar CTA scrolls to contact form and pre-fills product name via DOM manipulation
+- Contact section uses two-column layout (form 60% + WhatsApp card 40%) for dual conversion path
 - Admin blog editor uses plain textarea + custom toolbar (not CodeMirror/Monaco) per CONTEXT.md discretion
 - Installed marked library for Markdown-to-HTML preview in blog editor
 - Blog/Gladius sidebar items and routes restricted to admin/superadmin via isAdminRole computed and allowedRoles meta
+- Blog date formatting uses manual DD de Mes, YYYY with capitalized month via toLocaleDateString es-AR
+- Markdown rendered via marked library with v-html (admin-authored content trusted, no DOMPurify)
+- Blog post body styled with :deep() scoped selectors for brand typography on generated HTML
+- Social share buttons use inline SVGs for WhatsApp, Twitter/X, and copy-to-clipboard
+- Sidebar sticky top: 80px for nav offset, flows below article on mobile
 
 ### Last Session
 
-- **Stopped at:** Completed 35-03-PLAN.md
-- **Timestamp:** 2026-03-01T20:13:08Z
+- **Stopped at:** Completed 35-04-PLAN.md (Phase 35 complete -- all 4 plans done)
+- **Timestamp:** 2026-03-01T20:15:28Z
