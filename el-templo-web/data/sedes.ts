@@ -89,7 +89,7 @@ export const sedes: Sede[] = [
   },
   {
     id: "barcelona",
-    name: "Barcelona",
+    name: "Eixample",
     address: "Av. Diagonal 368",
     city: "Barcelona",
     mapsUrl: "https://maps.google.com/?q=Av+Diagonal+368+Barcelona",

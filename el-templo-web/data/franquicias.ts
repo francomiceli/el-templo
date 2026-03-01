@@ -135,7 +135,7 @@ export interface ExpansionStat {
 
 export const expansionStats: ExpansionStat[] = [
   { value: 7, prefix: "", label: "sedes en Mar del Plata" },
-  { value: 1, prefix: "", label: "sede internacional" },
+  { value: 1, prefix: "", label: "sede en Barcelona" },
   { value: 30000, prefix: "+", label: "personas en la comunidad" },
   { value: 1, prefix: "", label: "parque p\u00FAblico de calistenia" },
 ];

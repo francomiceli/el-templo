@@ -164,7 +164,8 @@ onBeforeUnmount(() => {
                 rel="noopener noreferrer"
                 class="expansion__sede-link"
               >
-                {{ sede.address }}
+                {{ sede.name }}
+                <span class="expansion__sede-address">{{ sede.address }}</span>
               </a>
             </li>
           </ul>
