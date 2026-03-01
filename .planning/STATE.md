@@ -136,6 +136,10 @@ Progress: [██████████] 100% (3/3 plans)
 - Hidden attribute + CSS max-height/opacity dual approach for accessible accordion animation
 - Data file pattern (data/faq.ts) consistent with sedes.ts and ecosystem.ts
 
+### Roadmap Evolution
+
+- Phase 37 added: Franchise Application Management — admin panel for managing franchise applications with AI-powered conversion strategies
+
 ### Last Session
 
 - **Stopped at:** Completed 33-03-PLAN.md (Phase 33 fully complete)

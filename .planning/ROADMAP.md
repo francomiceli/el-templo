@@ -569,6 +569,18 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 34. Franquicias Page                        | 0/?            | Not Started | —          |
 | 35. Gladius + Blog                          | 0/?            | Not Started | —          |
 | 36. SEO + Analytics                         | 0/?            | Not Started | —          |
+| 37. Franchise Application Management        | 0/?            | Not Started | —          |
+
+### Phase 37: Franchise Application Management
+
+**Goal:** Admin panel in el-templo-admin for managing franchise applications — view/filter/sort applications, track status (new/contacted/negotiating/closed), and AI agent integration for designing tailored conversion strategies based on application data (investor profile, capital, experience, model preference)
+**Requirements**: TBD
+**Depends on:** Phase 34 (franchise form must exist first)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 37 to break down)
 
 ---
 
