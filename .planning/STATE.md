@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Roadmap complete, ready to plan Phase 29
+**Current focus:** v3.0 Landing Page — Phase 29 in progress
 
 ## Current Position
 
 Phase: 29 of 36 (Nuxt Scaffold + Infrastructure)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-02-28 — v3.0 roadmap created (8 phases, 113 requirements mapped)
+Plan: 2 of 3 complete
+Status: Executing
+Last activity: 2026-03-01 — Plan 02 complete (CI/CD + Nginx configs for el-templo-web)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████░░░░] 67% (2/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -44,9 +44,21 @@ Progress: [░░░░░░░░░░] 0%
 - Phase 22-24: Branch Attendance system
 - Pick up post-v3.0
 
+### Phase 29 Decisions
+
+- Reuse VITE*API_URL and VITE_SENTRY_DSN secrets as NUXT_PUBLIC* env vars (no duplicate secrets)
+- SSG deploy pattern: nuxt generate -> rsync static files -> no PM2 restart needed
+- SSG Nginx try_files: $uri $uri/index.html $uri.html /index.html =404
+
 ### Infrastructure Reference
 
 - EC2 deployment with Nginx reverse proxy
 - Subdomains: app/admin/api.eltemplo.org
 - Landing takes root domain eltemplo.org
 - CI: .github/workflows/ (ci.yml, deploy.yml, deploy-staging.yml)
+- Web Nginx configs: deploy/nginx/eltemplo.org, web-staging.eltemplo.org, www-redirect.eltemplo.org
+
+### Last Session
+
+- **Stopped at:** Completed 29-02-PLAN.md
+- **Timestamp:** 2026-03-01T02:43:55Z
