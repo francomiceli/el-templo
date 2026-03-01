@@ -543,7 +543,15 @@ Plans:
 8. Meta Pixel fires Lead event on franchise form submission
 9. All analytics are guarded by cookie consent (GDPR-aware)
 10. Target keywords (calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad]) are present in semantic HTML, headings, and meta descriptions
-    **Plans**: TBD
+
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 36-01-PLAN.md — Nuxt modules, self-hosted fonts, robots.txt, cookie consent, analytics env vars
+- [ ] 36-02-PLAN.md — Structured data (Organization, LocalBusiness, FAQPage, Article), enhanced meta tags, sitemap, canonical URLs, 404 page
+- [ ] 36-03-PLAN.md — GA4 + Meta Pixel plugins, section scroll tracking, CTA click events, image optimization
+- [ ] 36-04-PLAN.md — Semantic HTML audit, heading hierarchy, keyword placement, internal cross-linking
 
 ---
 
