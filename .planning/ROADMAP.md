@@ -459,7 +459,13 @@ Plans:
 3. The Aura Club sub-section displays with event photo and an Aged Gold ghost CTA
 4. 4 ecosystem pathway cards (Entrena, Formate, Inverti, Equipate) link to their respective pages with colored left-border accents
 5. The FAQ accordion opens/closes smoothly with only 1 answer visible at a time, first open by default, with ARIA attributes and icon rotation
-   **Plans**: TBD
+   **Plans:** 3 plans
+
+Plans:
+
+- [ ] 33-01-PLAN.md — SectionLocations (8 sede cards) + SectionEcosystem (4 pathway cards)
+- [ ] 33-02-PLAN.md — SectionCommunity (gallery, testimonials, stats, AURA CLUB, lightbox)
+- [ ] 33-03-PLAN.md — SectionFaq (accordion) + page integration + visual verification
 
 ---
 
