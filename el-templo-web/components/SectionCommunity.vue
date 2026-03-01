@@ -274,10 +274,10 @@ onBeforeUnmount(() => {
             principio.
           </p>
 
-          <NuxtLink to="/aura-club" class="community__aura-cta">
+          <a href="/aura-club" class="community__aura-cta">
             Descubr&iacute; AURA CLUB
             <span class="community__aura-arrow">&rarr;</span>
-          </NuxtLink>
+          </a>
         </div>
       </div>
     </div>

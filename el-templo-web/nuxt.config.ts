@@ -30,6 +30,10 @@ export default defineNuxtConfig({
 
   nitro: {
     preset: "static",
+    prerender: {
+      failOnError: false,
+      ignore: ["/app", "/academy", "/aura-club"],
+    },
   },
 
   runtimeConfig: {
