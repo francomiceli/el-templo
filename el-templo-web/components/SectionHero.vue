@@ -9,6 +9,11 @@
 
 const sedesCount = 8;
 
+// Placeholder paths — replace with real assets when available.
+// Using runtime refs so Vite does not try to resolve these as module imports.
+const heroPoster = "/assets/img/hero-poster.jpg";
+const heroVideo = "/assets/video/hero-loop.mp4";
+
 const entered = ref(false);
 const showScrollIndicator = ref(true);
 const videoFailed = ref(false);
@@ -108,10 +113,10 @@ const parallaxTransform = computed(() => {
       muted
       loop
       playsinline
-      poster="/assets/img/hero-poster.jpg"
+      :poster="heroPoster"
       @error="onVideoError"
     >
-      <source src="/assets/video/hero-loop.mp4" type="video/mp4" >
+      <source :src="heroVideo" type="video/mp4" >
     </video>
 
     <!-- OVERLAY GRADIENT -->
