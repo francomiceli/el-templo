@@ -357,7 +357,7 @@ Plans:
 
 ## v3.0 Phases
 
-- [ ] **Phase 29: Nuxt Scaffold + Infrastructure** - Nuxt 3 app, monorepo integration, CI/CD, staging/production deploy, Sentry
+- [x] **Phase 29: Nuxt Scaffold + Infrastructure** - Nuxt 3 app, monorepo integration, CI/CD, staging/production deploy, Sentry (completed 2026-03-01)
 - [ ] **Phase 30: Design System + Navigation + Footer** - CSS tokens, typography, responsive framework, nav bar, footer, shared layout
 - [ ] **Phase 31: Hero + Identity + Method Sections** - Above-the-fold hero, brand story, method explanation with session structure
 - [ ] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion
@@ -382,7 +382,12 @@ Plans:
 5. Production deploy pipeline builds, backs up current, deploys to eltemplo.org, runs smoke test, and auto-rolls back on failure
 6. Sentry captures and reports runtime errors from the Nuxt app (guarded by env var)
 7. `.env.example` documents all required environment variables for el-templo-web
-   **Plans**: TBD
+
+Plans:
+
+- [x] 29-01-PLAN.md -- Nuxt 3 scaffold, monorepo integration, Sentry, logger
+- [x] 29-02-PLAN.md -- CI/CD pipelines, Nginx configs for SSG serving
+- [x] 29-03-PLAN.md -- DNS, SSL, server setup, GitHub secrets (human-action checkpoint)
 
 ---
 
@@ -542,16 +547,16 @@ Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployme
 **Execution Order:**
 Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics)
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 29. Nuxt Scaffold + Infrastructure          | 2/3            | In Progress |           |
-| 30. Design System + Navigation + Footer     | 0/?            | Not Started | —         |
-| 31. Hero + Identity + Method Sections       | 0/?            | Not Started | —         |
-| 32. Levels + Approaches + Conversion        | 0/?            | Not Started | —         |
-| 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —         |
-| 34. Franquicias Page                        | 0/?            | Not Started | —         |
-| 35. Gladius + Blog                          | 0/?            | Not Started | —         |
-| 36. SEO + Analytics                         | 0/?            | Not Started | —         |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 29. Nuxt Scaffold + Infrastructure          | 3/3            | Complete    | 2026-03-01 |
+| 30. Design System + Navigation + Footer     | 0/?            | Not Started | —          |
+| 31. Hero + Identity + Method Sections       | 0/?            | Not Started | —          |
+| 32. Levels + Approaches + Conversion        | 0/?            | Not Started | —          |
+| 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —          |
+| 34. Franquicias Page                        | 0/?            | Not Started | —          |
+| 35. Gladius + Blog                          | 0/?            | Not Started | —          |
+| 36. SEO + Analytics                         | 0/?            | Not Started | —          |
 
 ---
 

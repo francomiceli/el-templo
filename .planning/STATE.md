@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Re-executed 29-01-PLAN.md
-last_updated: "2026-03-01T02:55:01.477Z"
+status: executing
+stopped_at: Completed 29-03-PLAN.md -- Phase 29 complete
+last_updated: "2026-03-01T03:18:40Z"
 progress:
   total_phases: 27
-  completed_phases: 18
+  completed_phases: 19
   total_plans: 128
-  completed_plans: 123
+  completed_plans: 126
 ---
 
 # Project State
@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 29 of 36 (Nuxt Scaffold + Infrastructure)
-Plan: 2 of 3 complete
-Status: Executing
-Last activity: 2026-03-01 — Plan 02 complete (CI/CD + Nginx configs for el-templo-web)
+Phase: 29 of 36 (Nuxt Scaffold + Infrastructure) -- COMPLETE
+Plan: 3 of 3 complete
+Status: Phase 29 complete, ready for Phase 30
+Last activity: 2026-03-01 — Plan 03 complete (DNS, SSL, server setup, GitHub secrets)
 
-Progress: [██████░░░░] 67% (2/3 plans)
+Progress: [██████████] 100% (3/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -66,6 +66,9 @@ Progress: [██████░░░░] 67% (2/3 plans)
 - Reuse VITE*API_URL and VITE_SENTRY_DSN secrets as NUXT_PUBLIC* env vars (no duplicate secrets)
 - SSG deploy pattern: nuxt generate -> rsync static files -> no PM2 restart needed
 - SSG Nginx try_files: $uri $uri/index.html $uri.html /index.html =404
+- Root domain eltemplo.org serves el-templo-web (landing takes priority)
+- www.eltemplo.org 301-redirects to eltemplo.org (canonical non-www)
+- Individual Certbot certs per domain (not wildcard)
 
 ### Infrastructure Reference
 
@@ -77,5 +80,5 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Last Session
 
-- **Stopped at:** Re-executed 29-01-PLAN.md
-- **Timestamp:** 2026-03-01T02:53:17Z
+- **Stopped at:** Completed 29-03-PLAN.md -- Phase 29 complete
+- **Timestamp:** 2026-03-01T03:16:32Z
