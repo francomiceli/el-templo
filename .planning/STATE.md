@@ -11,8 +11,8 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Milestone v3.0 initialized, requirements and roadmap pending
-Last activity: 2026-02-28 — Milestone v3.0 started, PROJECT.md and MILESTONES.md updated
+Status: Paused — requirements definition next
+Last activity: 2026-02-28 — Milestone v3.0 initialized, docs committed (71476cc), research skipped (already done)
 
 ## Milestone v3.0 Context
 
@@ -27,9 +27,9 @@ Last activity: 2026-02-28 — Milestone v3.0 started, PROJECT.md and MILESTONES.
 3. ~~Determine version~~ ✓ (v3.0)
 4. ~~Update PROJECT.md~~ ✓
 5. ~~Update STATE.md~~ ✓
-6. Commit docs — NEXT
-7. Research decision — Skip (we already did competitor analysis + spec analysis)
-8. Define REQUIREMENTS.md — TODO (scope categories from specs, generate REQ-IDs)
+6. ~~Commit docs~~ ✓ (71476cc)
+7. ~~Research decision~~ ✓ Skip (competitor analysis + spec coherence analysis done in conversation)
+8. Define REQUIREMENTS.md — NEXT (scope categories from specs, generate REQ-IDs)
 9. Spawn roadmapper — TODO (phases start at 29)
 10. Approve roadmap — TODO
 
