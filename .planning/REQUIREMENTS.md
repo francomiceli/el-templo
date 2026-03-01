@@ -40,13 +40,13 @@
 
 ## Home Page — Hero (HERO)
 
-- [ ] **HERO-01**: Full viewport (100vh) video loop background with warm Deep Charcoal overlay gradient
-- [ ] **HERO-02**: Video fallback to poster image on load/error, lazy-load with immediate poster display
-- [ ] **HERO-03**: H1 title + subtitle in brand typography (Montserrat ExtraBold + Cormorant Garamond italic)
-- [ ] **HERO-04**: Primary CTA "COMENZÁ TU CAMINO" (Terracotta) scrolls to #sesion-prueba (Descubrí Tu Nivel section)
-- [ ] **HERO-05**: Secondary CTA "ABRÍ TU TEMPLO" (Gold bordered) navigates to /franquicias
-- [ ] **HERO-06**: Responsive: H1 48px→32px→26px, subtitle 22px→18px→16px across breakpoints
-- [ ] **HERO-07**: Optional parallax on video (50% scroll speed, disabled on mobile) and scroll indicator arrow
+- [x] **HERO-01**: Full viewport (100vh) video loop background with warm Deep Charcoal overlay gradient
+- [x] **HERO-02**: Video fallback to poster image on load/error, lazy-load with immediate poster display
+- [x] **HERO-03**: H1 title + subtitle in brand typography (Montserrat ExtraBold + Cormorant Garamond italic)
+- [x] **HERO-04**: Primary CTA "COMENZÁ TU CAMINO" (Terracotta) scrolls to #sesion-prueba (Descubrí Tu Nivel section)
+- [x] **HERO-05**: Secondary CTA "ABRÍ TU TEMPLO" (Gold bordered) navigates to /franquicias
+- [x] **HERO-06**: Responsive: H1 48px→32px→26px, subtitle 22px→18px→16px across breakpoints
+- [x] **HERO-07**: Optional parallax on video (50% scroll speed, disabled on mobile) and scroll indicator arrow
 
 ## Home Page — Qué es El Templo (IDEN)
 
@@ -217,13 +217,13 @@
 | NAV-04      | Phase 30 | Complete |
 | NAV-05      | Phase 30 | Complete |
 | NAV-06      | Phase 30 | Complete |
-| HERO-01     | Phase 31 | Pending  |
-| HERO-02     | Phase 31 | Pending  |
-| HERO-03     | Phase 31 | Pending  |
-| HERO-04     | Phase 31 | Pending  |
-| HERO-05     | Phase 31 | Pending  |
-| HERO-06     | Phase 31 | Pending  |
-| HERO-07     | Phase 31 | Pending  |
+| HERO-01     | Phase 31 | Complete |
+| HERO-02     | Phase 31 | Complete |
+| HERO-03     | Phase 31 | Complete |
+| HERO-04     | Phase 31 | Complete |
+| HERO-05     | Phase 31 | Complete |
+| HERO-06     | Phase 31 | Complete |
+| HERO-07     | Phase 31 | Complete |
 | IDEN-01     | Phase 31 | Pending  |
 | IDEN-02     | Phase 31 | Pending  |
 | IDEN-03     | Phase 31 | Pending  |

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 31 context gathered
-last_updated: "2026-03-01T04:44:53.121Z"
+stopped_at: Completed 31-01-PLAN.md
+last_updated: "2026-03-01T05:00:26Z"
 progress:
   total_phases: 29
   completed_phases: 20
   total_plans: 132
-  completed_plans: 128
+  completed_plans: 129
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 30 complete, ready for Phase 31
+**Current focus:** v3.0 Landing Page — Phase 31 in progress (Hero + Identity + Method Sections)
 
 ## Current Position
 
-Phase: 30 of 36 (Design System, Navigation & Footer)
-Plan: 4 of 4 complete
-Status: Phase 30 complete, ready for Phase 31 planning
-Last activity: 2026-03-01 — Plan 04 complete (Layout Integration + Visual Verification)
+Phase: 31 of 36 (Hero, Identity & Method Sections)
+Plan: 1 of 4 complete
+Status: Plan 01 complete (Hero + Scroll Reveal), ready for Plan 02
+Last activity: 2026-03-01 — Plan 01 complete (SectionHero + useScrollReveal)
 
-Progress: [██████████] 100% (4/4 plans)
+Progress: [███-------] 25% (1/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -90,7 +90,16 @@ Progress: [██████████] 100% (4/4 plans)
 - Hero section uses actual brand copy and CTAs (not placeholder treatment) per CONTEXT.md
 - Section stubs alternate marble cream / warm stone backgrounds matching spec pattern
 
+### Phase 31 Decisions
+
+- Staggered entrance animation uses CSS transitions with inline transition-delay via :style (consistent with Phase 30 drawer pattern)
+- Parallax uses requestAnimationFrame with matchMedia guard for desktop-only (> 768px), disabled entirely on mobile
+- Hero escapes default layout padding-top with negative margin-top (-64px desktop, -56px mobile) and compensates with padding-top on content
+- Video error handler hides video element on failure, Deep Charcoal background shows through cleanly
+- Primary CTA scrolls to #descubri-nivel (sesion-prueba not yet built as distinct section)
+- HTML entities for accented characters to avoid encoding issues
+
 ### Last Session
 
-- **Stopped at:** Phase 31 context gathered
-- **Timestamp:** 2026-03-01T04:22:13Z
+- **Stopped at:** Completed 31-01-PLAN.md
+- **Timestamp:** 2026-03-01T05:00:26Z
