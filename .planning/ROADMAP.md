@@ -1,6 +1,16 @@
-# Roadmap: El Templo Admin App (v2.0)
+# Roadmap: El Templo
 
-## Overview
+## Milestones
+
+- **v2.0 Admin App** - Phases 13-28 (in progress, phases 13-19 + 26-27 complete)
+- **v3.0 Landing Page** - Phases 29-36 (planned)
+
+---
+
+<details>
+<summary>v2.0 Admin App (Phases 13-28)</summary>
+
+## v2.0 Overview
 
 This roadmap delivers the Admin App module for El Templo. The milestone covers:
 
@@ -13,7 +23,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 7. **APK Handling** (Phase 21) - Android keystore, signing, Play Store submission
 8. **Branch Attendance** (Phases 22-24) - Member plans, booking system, and capacity management
 
-## Phases
+## v2.0 Phases
 
 **Phase Numbering:**
 
@@ -33,7 +43,7 @@ This roadmap delivers the Admin App module for El Templo. The milestone covers:
 - [ ] **Phase 23: Admin Member Attendance Management** - Manage bookings, capacity, member plans
 - [ ] **Phase 24: Member Booking UI** - Members view availability and reserve training spots
 
-## Phase Details
+## v2.0 Phase Details
 
 ### Phase 13: Session Generation Review & Improvement
 
@@ -293,30 +303,6 @@ Plans:
 
 ---
 
----
-
-## Progress
-
-**Execution Order:**
-Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployment) → Phase 19 (Tech Debt) → Phase 20 (Personalized Sessions) → Phase 21 (APK) → Phases 22-24 (Branch Attendance)
-
-| Phase                                              | Plans Complete | Status         | Completed  |
-| -------------------------------------------------- | -------------- | -------------- | ---------- |
-| 13. Session Generation Review                      | 8/8            | Complete       | 2026-02-05 |
-| 14. Admin Session Review UI                        | 8/8            | Complete       | 2026-02-06 |
-| 15. Admin Session Editing                          | 9/9            | Complete       | 2026-02-10 |
-| 16. PDF Gen, Format Config & App Exercise Tracking | 10/10          | Complete       | 2026-02-12 |
-| 17. Per-Block Mobility Exercises                   | 4/4            | Complete       | 2026-02-12 |
-| 18. Domain/Subdomain Deployment                    | 3/3            | Complete       | 2026-02-13 |
-| 19. Technical Debt Audit                           | 9/9            | Complete       | 2026-02-14 |
-| 26. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
-| 27. Member App Staging Environment                 | 5/5            | Complete       | 2026-02-16 |
-| 20. Per-Member Personalized Sessions               | 7/8            | In Progress    |            |
-| 21. APK Handling                                   | 0/?            | Not Started    | —          |
-| 22. Branch Attendance Data Model                   | 0/?            | Blocked (docs) | —          |
-| 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |
-| 24. Member Booking UI                              | 0/?            | Not Started    | —          |
-
 ### Phase 27: Member App Staging Environment
 
 **Goal:** Full staging environment for all 3 apps on EC2 with separate database, CI/CD pipeline, staging subdomains, and mobile build workflows (Android APK + iOS TestFlight)
@@ -357,5 +343,218 @@ Plans:
 
 ---
 
+</details>
+
+---
+
+## v3.0 Landing Page (el-templo-web)
+
+**Milestone Goal:** Build a premium, SEO-optimized public website at eltemplo.org that communicates brand identity, drives trial session conversions, supports franchise acquisition, and establishes web presence for sub-brands (Gladius, Academy, Aura Club).
+
+**App:** `el-templo-web/` — Nuxt 3 SSR/SSG, custom BEM CSS, deployed to EC2 with Nginx reverse proxy.
+
+**Scope:** 113 requirements across 19 categories (INFRA, DS, NAV, HERO, IDEN, MET, NIV, ENF, DESC, SED, COM, ECO, FAQ, FOOT, FRAN, GLAD, BLOG, SEO, TRACK).
+
+## v3.0 Phases
+
+- [ ] **Phase 29: Nuxt Scaffold + Infrastructure** - Nuxt 3 app, monorepo integration, CI/CD, staging/production deploy, Sentry
+- [ ] **Phase 30: Design System + Navigation + Footer** - CSS tokens, typography, responsive framework, nav bar, footer, shared layout
+- [ ] **Phase 31: Hero + Identity + Method Sections** - Above-the-fold hero, brand story, method explanation with session structure
+- [ ] **Phase 32: Levels + Approaches + Conversion Sections** - Interactive level tabs, 5 training approaches, dual-path conversion
+- [ ] **Phase 33: Locations + Community + Ecosystem + FAQ** - Sede cards, community gallery, ecosystem pathways, FAQ accordion
+- [ ] **Phase 34: Franquicias Page** - Full franchise landing with hero, value props, comparison, form, WhatsApp integration
+- [ ] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts
+- [ ] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent
+
+## v3.0 Phase Details
+
+### Phase 29: Nuxt Scaffold + Infrastructure
+
+**Goal**: A deployable Nuxt 3 app exists in the monorepo with full CI/CD parity — staging and production pipelines, Sentry monitoring, environment config — so that all subsequent phases build on a stable, deployable foundation
+**Depends on**: Nothing (v3.0 start)
+**Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05, INFRA-06, INFRA-07
+**Success Criteria** (what must be TRUE):
+
+1. `el-templo-web/` exists as a Nuxt 3 app in the monorepo with pnpm workspace integration
+2. Running `pnpm dev` in el-templo-web starts a local dev server that renders a placeholder page
+3. CI pipeline runs type check, lint, and build for el-templo-web on every push
+4. Pushing to staging branch deploys el-templo-web to staging.eltemplo.org via rsync + Nginx
+5. Production deploy pipeline builds, backs up current, deploys to eltemplo.org, runs smoke test, and auto-rolls back on failure
+6. Sentry captures and reports runtime errors from the Nuxt app (guarded by env var)
+7. `.env.example` documents all required environment variables for el-templo-web
+   **Plans**: TBD
+
+---
+
+### Phase 30: Design System + Navigation + Footer
+
+**Goal**: The complete visual foundation is in place — CSS tokens, typography, responsive breakpoints, reusable components, fixed navigation, and footer — so that every subsequent section phase just composes content within this framework
+**Depends on**: Phase 29 (deployable Nuxt app)
+**Requirements**: DS-01, DS-02, DS-03, DS-04, DS-05, DS-06, DS-07, DS-08, NAV-01, NAV-02, NAV-03, NAV-04, NAV-05, NAV-06, FOOT-01, FOOT-02, FOOT-03, FOOT-04, FOOT-05
+**Success Criteria** (what must be TRUE):
+
+1. All CSS custom properties from the canonical token registry are defined in :root and used consistently (no hardcoded colors, no pure black/white anywhere)
+2. Montserrat, Cormorant Garamond, and Geologica load correctly at specified weights across all pages
+3. The site renders correctly at desktop (1200px+), tablet (768-1199px), and mobile (<768px) breakpoints
+4. A fixed nav bar stays visible on scroll with working section links, smooth scroll to anchors, and a functional mobile hamburger menu
+5. The footer displays navigation columns, contact info, social links, legal links, and a pre-footer CTA zone on every page
+6. Placeholder/skeleton components render gracefully where real images/videos are pending
+7. Primary, Ghost, and Secondary button variants exist as reusable BEM components with correct hover states
+   **Plans**: TBD
+
+---
+
+### Phase 31: Hero + Identity + Method Sections
+
+**Goal**: A visitor landing on eltemplo.org sees a cinematic full-viewport hero, immediately understands El Templo's identity, and can explore the training methodology — the "above the fold" experience that hooks attention
+**Depends on**: Phase 30 (design system and layout ready)
+**Requirements**: HERO-01, HERO-02, HERO-03, HERO-04, HERO-05, HERO-06, HERO-07, IDEN-01, IDEN-02, IDEN-03, IDEN-04, IDEN-05, MET-01, MET-02, MET-03, MET-04, MET-05
+**Success Criteria** (what must be TRUE):
+
+1. The hero fills the viewport with a video loop (or poster fallback), Deep Charcoal overlay, H1 title in Montserrat ExtraBold, and subtitle in Cormorant Garamond italic
+2. "COMENZA TU CAMINO" CTA scrolls smoothly to the Descubri Tu Nivel section; "ABRI TU TEMPLO" navigates to /franquicias
+3. The identity section displays a split text/image layout on desktop and stacks mobile-first with a ghost CTA
+4. The method section shows 4 session structure cards (Initium, Nucleus, Deuteros, Athlos), 2 special session cards (ROM, SKILLS), and an author section
+5. All text scales correctly across the 3 breakpoints (H1 48px to 26px, subtitle 22px to 16px)
+   **Plans**: TBD
+
+---
+
+### Phase 32: Levels + Approaches + Conversion Sections
+
+**Goal**: Visitors can explore all 6 training levels through interactive tabs, understand the 5 training approaches, and reach the conversion section with clear paths to book a trial session or download the app
+**Depends on**: Phase 30 (design system and layout ready)
+**Requirements**: NIV-01, NIV-02, NIV-03, NIV-04, NIV-05, NIV-06, NIV-07, ENF-01, ENF-02, ENF-03, ENF-04, ENF-05, DESC-01, DESC-02, DESC-03, DESC-04, DESC-05
+**Success Criteria** (what must be TRUE):
+
+1. 6 level tabs (Alfa through Olympic) are keyboard-navigable with ARIA roles, Alfa active by default, and content fades in on tab change
+2. On mobile, level tabs scroll horizontally with snap alignment and hidden scrollbar
+3. Each level tab shows split content (text + visual) with a per-level ghost CTA to book a trial session
+4. 5 approach cards (Kallos, Sthenos, Motus, Pyros, Dynamis) display in a responsive grid (5-col to 3+2 to horizontal scroll) with hover elevation
+5. The conversion section presents two distinct cards (Presencial with Terracotta CTA, App with Azul Noche CTA) that link to the trial booking and app download respectively
+   **Plans**: TBD
+
+---
+
+### Phase 33: Locations + Community + Ecosystem + FAQ
+
+**Goal**: Visitors can find their nearest sede, see the community in action through photos and testimonials, discover the broader El Templo ecosystem, and get answers to common questions — completing the full home page
+**Depends on**: Phase 30 (design system and layout ready)
+**Requirements**: SED-01, SED-02, SED-03, SED-04, SED-05, COM-01, COM-02, COM-03, COM-04, COM-05, ECO-01, ECO-02, ECO-03, ECO-04, FAQ-01, FAQ-02, FAQ-03, FAQ-04, FAQ-05
+**Success Criteria** (what must be TRUE):
+
+1. 8 sede cards display with real location data, Google Maps "Como llegar" links, WhatsApp "Reservar sesion" links, and special badges for park/international locations
+2. A community gallery shows photos in a mosaic grid, 3 testimonial cards with member info, and 4 stats counters (1000+ alumnos, 8 sedes, etc.)
+3. The Aura Club sub-section displays with event photo and an Aged Gold ghost CTA
+4. 4 ecosystem pathway cards (Entrena, Formate, Inverti, Equipate) link to their respective pages with colored left-border accents
+5. The FAQ accordion opens/closes smoothly with only 1 answer visible at a time, first open by default, with ARIA attributes and icon rotation
+   **Plans**: TBD
+
+---
+
+### Phase 34: Franquicias Page
+
+**Goal**: A prospective franchise investor can land on /franquicias, understand the investment opportunity, compare franchise models, see the expansion trajectory, and submit an application — the primary franchise acquisition funnel
+**Depends on**: Phase 30 (design system and layout ready)
+**Requirements**: FRAN-01, FRAN-02, FRAN-03, FRAN-04, FRAN-05, FRAN-06, FRAN-07, FRAN-08, FRAN-09, FRAN-10, FRAN-11
+**Success Criteria** (what must be TRUE):
+
+1. /franquicias renders a full-viewport hero with investment figure and "QUIERO APLICAR" CTA
+2. The page presents 4 value proposition cards, a Franquicia Activa vs Pasiva comparison, and a 6-item "Que Incluye" grid
+3. An expansion map with animated counters shows El Templo's geographic reach
+4. The founder section displays Ignacio Bordon's bio with a horizontal timeline (desktop) / vertical timeline (mobile)
+5. The application form collects all required fields (nombre, email, telefono, ciudad/pais, modelo, experiencia, capital, origen, mensaje) and submits successfully
+6. After form submission, the user sees a confirmation message with a WhatsApp link for immediate contact
+7. A floating WhatsApp button is always visible on the page
+8. Form submission fires a GA4 event and Meta Pixel Lead event (wired in Phase 36)
+9. The page shares the same header and footer as the home page
+   **Plans**: TBD
+
+---
+
+### Phase 35: Gladius + Blog
+
+**Goal**: The Gladius equipment brand has a showcase page that drives WhatsApp inquiries, and the blog is API-backed with an editor in el-templo-admin, API routes in el-templo-api, and pre-rendered pages in el-templo-web
+**Depends on**: Phase 30 (design system and layout ready)
+**Requirements**: GLAD-01, GLAD-02, GLAD-03, GLAD-04, GLAD-05, GLAD-06, BLOG-01, BLOG-02, BLOG-03, BLOG-04, BLOG-05, BLOG-06
+**Success Criteria** (what must be TRUE):
+
+1. /gladius renders a hero with Gladius branding, product philosophy section, and real-use photo gallery
+2. A product catalog displays cards with photo, name, description, and price for each product
+3. A contact/purchase section provides WhatsApp CTA and a simple inquiry form (nombre, email, producto de interes)
+4. /gladius shares the same header and footer as the home page
+5. Blog posts are stored in the database with CRUD API routes in el-templo-api
+6. el-templo-admin has a blog editor for creating, editing, and publishing posts
+7. /blog renders an index page with post cards (title, excerpt, date, reading time) fetched from API at build time
+8. Individual blog posts render with brand typography, design system styling, and per-post SEO meta tags
+9. Blog index supports pagination or infinite scroll for browsing posts
+   **Plans**: TBD
+
+---
+
+### Phase 36: SEO + Analytics
+
+**Goal**: The entire site is optimized for search engines and instrumented for conversion tracking — structured data tells Google what every page is, meta tags drive social sharing, performance meets Core Web Vitals targets, and analytics capture every meaningful user action
+**Depends on**: Phases 31-35 (all content pages built)
+**Requirements**: SEO-01, SEO-02, SEO-03, SEO-04, SEO-05, SEO-06, SEO-07, SEO-08, TRACK-01, TRACK-02, TRACK-03, TRACK-04
+**Success Criteria** (what must be TRUE):
+
+1. Every page renders as server-side HTML (SSR/SSG) that is fully indexable by search engine crawlers
+2. Each page has unique title, description, Open Graph, and Twitter Card meta tags
+3. Structured data exists for Organization, LocalBusiness (per sede), Article (blog posts), and FAQPage (home FAQ section)
+4. sitemap.xml is auto-generated and robots.txt is configured with appropriate rules
+5. Images use lazy loading, WebP/AVIF formats where supported, and srcset for responsive sizing
+6. Lighthouse scores meet Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1
+7. GA4 tracks page views, CTA clicks, form submissions, and scroll depth
+8. Meta Pixel fires Lead event on franchise form submission
+9. All analytics are guarded by cookie consent (GDPR-aware)
+10. Target keywords (calistenia, entrenamiento peso corporal, gimnasio funcional [ciudad]) are present in semantic HTML, headings, and meta descriptions
+    **Plans**: TBD
+
+---
+
+## Progress
+
+### v2.0 Progress
+
+**Execution Order:**
+Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployment) → Phase 19 (Tech Debt) → Phase 20 (Personalized Sessions) → Phase 21 (APK) → Phases 22-24 (Branch Attendance)
+
+| Phase                                              | Plans Complete | Status         | Completed  |
+| -------------------------------------------------- | -------------- | -------------- | ---------- |
+| 13. Session Generation Review                      | 8/8            | Complete       | 2026-02-05 |
+| 14. Admin Session Review UI                        | 8/8            | Complete       | 2026-02-06 |
+| 15. Admin Session Editing                          | 9/9            | Complete       | 2026-02-10 |
+| 16. PDF Gen, Format Config & App Exercise Tracking | 10/10          | Complete       | 2026-02-12 |
+| 17. Per-Block Mobility Exercises                   | 4/4            | Complete       | 2026-02-12 |
+| 18. Domain/Subdomain Deployment                    | 3/3            | Complete       | 2026-02-13 |
+| 19. Technical Debt Audit                           | 9/9            | Complete       | 2026-02-14 |
+| 26. App Video Integration                          | 2/2            | Complete       | 2026-02-15 |
+| 27. Member App Staging Environment                 | 5/5            | Complete       | 2026-02-16 |
+| 20. Per-Member Personalized Sessions               | 7/8            | In Progress    |            |
+| 21. APK Handling                                   | 0/?            | Not Started    | —          |
+| 22. Branch Attendance Data Model                   | 0/?            | Blocked (docs) | —          |
+| 23. Admin Member Attendance                        | 0/?            | Not Started    | —          |
+| 24. Member Booking UI                              | 0/?            | Not Started    | —          |
+
+### v3.0 Progress
+
+**Execution Order:**
+Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics)
+
+| Phase                                       | Plans Complete | Status      | Completed |
+| ------------------------------------------- | -------------- | ----------- | --------- |
+| 29. Nuxt Scaffold + Infrastructure          | 0/?            | Not Started | —         |
+| 30. Design System + Navigation + Footer     | 0/?            | Not Started | —         |
+| 31. Hero + Identity + Method Sections       | 0/?            | Not Started | —         |
+| 32. Levels + Approaches + Conversion        | 0/?            | Not Started | —         |
+| 33. Locations + Community + Ecosystem + FAQ | 0/?            | Not Started | —         |
+| 34. Franquicias Page                        | 0/?            | Not Started | —         |
+| 35. Gladius + Blog                          | 0/?            | Not Started | —         |
+| 36. SEO + Analytics                         | 0/?            | Not Started | —         |
+
+---
+
 _Roadmap created: 2026-02-04_
-_Last updated: 2026-02-19 — Removed Phase 26 (Video Hosting & Content Tooling — never delivered). Renumbered: Phase 27 (App Video Integration) → 26, Phase 28 (Member App Staging) → 27. New Phase 28: R2 Video Upload Infrastructure._
+_v2.0 phases: 2026-02-04 through 2026-02-19_
+_v3.0 phases added: 2026-02-28 — 8 phases (29-36), 113 requirements mapped_
