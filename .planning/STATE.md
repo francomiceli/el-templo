@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 31-02-PLAN.md
-last_updated: "2026-03-01T05:04:45Z"
+stopped_at: Completed 31-03-PLAN.md
+last_updated: "2026-03-01T05:07:10.149Z"
 progress:
   total_phases: 29
   completed_phases: 20
-  total_plans: 132
-  completed_plans: 130
+  total_plans: 136
+  completed_plans: 131
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 31 of 36 (Hero, Identity & Method Sections)
-Plan: 2 of 4 complete
-Status: Plan 02 complete (Identity Section), ready for Plan 03
-Last activity: 2026-03-01 — Plan 02 complete (SectionIdentity)
+Plan: 3 of 4 complete
+Status: Plan 03 complete (Method Section), ready for Plan 04
+Last activity: 2026-03-01 — Plan 03 complete (SectionMethod)
 
-Progress: [█████-----] 50% (2/4 plans)
+Progress: [████████--] 75% (3/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -100,8 +100,12 @@ Progress: [█████-----] 50% (2/4 plans)
 - HTML entities for accented characters to avoid encoding issues
 - Identity scroll-reveal uses directional slide from sides (text left, image right) per CONTEXT.md
 - PlaceholderBox mobile aspect-ratio override uses :deep() with !important for inline style override
+- Method section uses dual useScrollReveal instances for independent zone animation (blocks + specials)
+- Session block hover elevated to translateY(-4px) + shadow-medium with watermark opacity shift (0.15->0.25) per CONTEXT.md
+- Special card hover elevated from spec's -2px to -4px to match CONTEXT.md "same elevation as session cards"
+- ROM/SKILLS inline SVG icons: stroke-based, 32x32, Olive Stone color
 
 ### Last Session
 
-- **Stopped at:** Completed 31-02-PLAN.md
-- **Timestamp:** 2026-03-01T05:04:45Z
+- **Stopped at:** Completed 31-03-PLAN.md
+- **Timestamp:** 2026-03-01T05:05:40Z

@@ -58,11 +58,11 @@
 
 ## Home Page — Nuestro Método (MET)
 
-- [ ] **MET-01**: 4-subsection layout with alternating Warm Stone / Marble Cream backgrounds
-- [ ] **MET-02**: 4-block session structure cards (Initium, Nucleus, Deuteros, Athlos) — grid 4→2x2→stack
-- [ ] **MET-03**: 2 special session cards (ROM, SKILLS) with hover elevation
-- [ ] **MET-04**: Author section (Ignacio Bordón) with optional circular photo (gold border, 120px)
-- [ ] **MET-05**: CTA "PROBÁ EL MÉTODO" (Terracotta) scrolling to #sesion-prueba
+- [x] **MET-01**: 4-subsection layout with alternating Warm Stone / Marble Cream backgrounds
+- [x] **MET-02**: 4-block session structure cards (Initium, Nucleus, Deuteros, Athlos) — grid 4→2x2→stack
+- [x] **MET-03**: 2 special session cards (ROM, SKILLS) with hover elevation
+- [x] **MET-04**: Author section (Ignacio Bordón) with optional circular photo (gold border, 120px)
+- [x] **MET-05**: CTA "PROBÁ EL MÉTODO" (Terracotta) scrolling to #sesion-prueba
 
 ## Home Page — Sistema de Niveles (NIV)
 
@@ -229,11 +229,11 @@
 | IDEN-03     | Phase 31 | Complete |
 | IDEN-04     | Phase 31 | Complete |
 | IDEN-05     | Phase 31 | Complete |
-| MET-01      | Phase 31 | Pending  |
-| MET-02      | Phase 31 | Pending  |
-| MET-03      | Phase 31 | Pending  |
-| MET-04      | Phase 31 | Pending  |
-| MET-05      | Phase 31 | Pending  |
+| MET-01      | Phase 31 | Complete |
+| MET-02      | Phase 31 | Complete |
+| MET-03      | Phase 31 | Complete |
+| MET-04      | Phase 31 | Complete |
+| MET-05      | Phase 31 | Complete |
 | NIV-01      | Phase 32 | Pending  |
 | NIV-02      | Phase 32 | Pending  |
 | NIV-03      | Phase 32 | Pending  |
