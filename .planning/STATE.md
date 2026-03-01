@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 34 context gathered
-last_updated: "2026-03-01T16:42:23.917Z"
+stopped_at: Completed 34-02-PLAN.md
+last_updated: "2026-03-01T17:04:38.824Z"
 progress:
   total_phases: 33
   completed_phases: 23
-  total_plans: 142
-  completed_plans: 138
+  total_plans: 146
+  completed_plans: 140
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** A visitor lands on eltemplo.org and within 10 seconds understands that El Templo is not a gym.
-**Current focus:** v3.0 Landing Page — Phase 33 complete, Phase 34 next (Blog/Content)
+**Current focus:** v3.0 Landing Page — Phase 34 in progress (Franquicias Page)
 
 ## Current Position
 
-Phase: 33 of 36 (Locations, Community, Ecosystem & FAQ) -- COMPLETE
-Plan: 3 of 3 complete
-Status: Phase 33 complete -- all sections built, full 10-section home page integrated
-Last activity: 2026-03-01 — Plan 03 complete (SectionFaq + home page integration)
+Phase: 34 of 36 (Franquicias Page)
+Plan: 2 of 4 complete
+Status: Phase 34 in progress -- franchise top-half sections built (Hero, ValueProps, Models, Includes)
+Last activity: 2026-03-01 — Plan 02 complete (data file + useCountUp + 4 section components)
 
-Progress: [██████████] 100% (3/3 plans)
+Progress: [█████-----] 50% (2/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -136,11 +136,20 @@ Progress: [██████████] 100% (3/3 plans)
 - Hidden attribute + CSS max-height/opacity dual approach for accessible accordion animation
 - Data file pattern (data/faq.ts) consistent with sedes.ts and ecosystem.ts
 
+### Phase 34 Decisions
+
+- franquicias.ts centralizes ALL franchise page data (value props, models, includes, expansion, timeline, form selects, config) in a single file
+- useCountUp composable extracted as reusable utility with idempotent trigger(), rAF cleanup(), and SSR/reduced-motion guards
+- FranHero uses 36px H1 (not 48px like home hero) since franchise is a sub-page per spec sizing hierarchy
+- Franchise overlay gradient uses 0.20/0.65 opacity per spec (darker than home 0.15/0.55 for stronger text contrast)
+- FranModels card padding includes 3px offset for accent border to maintain consistent inner spacing
+- fran- BEM prefix for all franchise section components
+
 ### Roadmap Evolution
 
 - Phase 37 added: Franchise Application Management — admin panel for managing franchise applications with AI-powered conversion strategies
 
 ### Last Session
 
-- **Stopped at:** Phase 34 context gathered
-- **Timestamp:** 2026-03-01T19:07:00Z
+- **Stopped at:** Completed 34-02-PLAN.md
+- **Timestamp:** 2026-03-01T17:03:00Z
