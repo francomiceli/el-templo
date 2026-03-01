@@ -140,28 +140,6 @@ export const expansionStats: ExpansionStat[] = [
   { value: 1, prefix: "", label: "parque p\u00FAblico de calistenia" },
 ];
 
-// --- Expansion sede list (FRAN-05) ---
-export interface ExpansionCity {
-  city: string;
-  sedes: string;
-}
-
-export const expansionCities: ExpansionCity[] = [
-  {
-    city: "Mar del Plata, Argentina",
-    sedes:
-      "Constituci\u00F3n \u2022 Jujuy \u2022 Moreno \u2022 Alem \u2022 Mogotes \u2022 Chapa",
-  },
-  {
-    city: "Mar del Plata (Outdoor)",
-    sedes: "El Templo Park \u2014 Parque Primavesi",
-  },
-  {
-    city: "Barcelona, Espa\u00F1a",
-    sedes: "Diagonal (inauguraci\u00F3n marzo 2026)",
-  },
-];
-
 // --- Founder Timeline (FRAN-06) - used by Plan 03 ---
 export interface TimelineMilestone {
   year: string;
