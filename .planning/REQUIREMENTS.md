@@ -50,11 +50,11 @@
 
 ## Home Page — Qué es El Templo (IDEN)
 
-- [ ] **IDEN-01**: Split layout (55% text / 45% image) on desktop, stacked on mobile (image first via order: -1)
-- [ ] **IDEN-02**: Lazy-loaded image with responsive cropping (4:5 desktop, 16:9 mobile, max-height 280px mobile)
-- [ ] **IDEN-03**: Ghost CTA "CONOCÉ NUESTRA FILOSOFÍA" with hover state (Clay color, underline, arrow +4px)
-- [ ] **IDEN-04**: Optional scroll-reveal animation (fade-in + translateY(20px), 600ms, IntersectionObserver)
-- [ ] **IDEN-05**: Parametrized data: sedes count (8), student count (1000+)
+- [x] **IDEN-01**: Split layout (55% text / 45% image) on desktop, stacked on mobile (image first via order: -1)
+- [x] **IDEN-02**: Lazy-loaded image with responsive cropping (4:5 desktop, 16:9 mobile, max-height 280px mobile)
+- [x] **IDEN-03**: Ghost CTA "CONOCÉ NUESTRA FILOSOFÍA" with hover state (Clay color, underline, arrow +4px)
+- [x] **IDEN-04**: Optional scroll-reveal animation (fade-in + translateY(20px), 600ms, IntersectionObserver)
+- [x] **IDEN-05**: Parametrized data: sedes count (8), student count (1000+)
 
 ## Home Page — Nuestro Método (MET)
 
@@ -224,11 +224,11 @@
 | HERO-05     | Phase 31 | Complete |
 | HERO-06     | Phase 31 | Complete |
 | HERO-07     | Phase 31 | Complete |
-| IDEN-01     | Phase 31 | Pending  |
-| IDEN-02     | Phase 31 | Pending  |
-| IDEN-03     | Phase 31 | Pending  |
-| IDEN-04     | Phase 31 | Pending  |
-| IDEN-05     | Phase 31 | Pending  |
+| IDEN-01     | Phase 31 | Complete |
+| IDEN-02     | Phase 31 | Complete |
+| IDEN-03     | Phase 31 | Complete |
+| IDEN-04     | Phase 31 | Complete |
+| IDEN-05     | Phase 31 | Complete |
 | MET-01      | Phase 31 | Pending  |
 | MET-02      | Phase 31 | Pending  |
 | MET-03      | Phase 31 | Pending  |
