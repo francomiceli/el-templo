@@ -92,11 +92,11 @@
 
 ## Home Page — Sedes (SED)
 
-- [ ] **SED-01**: 8 location cards grouped by city (7 Mar del Plata, 1 Barcelona) with real photos
-- [ ] **SED-02**: Per-card micro-CTAs: "Cómo llegar" (Google Maps, new tab) + "Reservar sesión" (WhatsApp)
-- [ ] **SED-03**: Special badges: "AL AIRE LIBRE" (Park), "INTERNACIONAL" (Barcelona)
-- [ ] **SED-04**: Desktop: 4-column grid (row 2 has 3 centered); Tablet: 3-col; Mobile: horizontal scroll with snap
-- [ ] **SED-05**: Fallback CTA for international/remote users: "Probá la app"
+- [x] **SED-01**: 8 location cards grouped by city (7 Mar del Plata, 1 Barcelona) with real photos
+- [x] **SED-02**: Per-card micro-CTAs: "Cómo llegar" (Google Maps, new tab) + "Reservar sesión" (WhatsApp)
+- [x] **SED-03**: Special badges: "AL AIRE LIBRE" (Park), "INTERNACIONAL" (Barcelona)
+- [x] **SED-04**: Desktop: 4-column grid (row 2 has 3 centered); Tablet: 3-col; Mobile: horizontal scroll with snap
+- [x] **SED-05**: Fallback CTA for international/remote users: "Probá la app"
 
 ## Home Page — Comunidad + Aura Club (COM)
 
@@ -108,10 +108,10 @@
 
 ## Home Page — Ecosistema (ECO)
 
-- [ ] **ECO-01**: 4 pathway cards in 2x2 grid: Entrená (App), Formate (Academy), Invertí (Franquicias), Equipáte (Gladius)
-- [ ] **ECO-02**: Each card has colored left border accent (3px): Azul Noche, Terracotta, Aged Gold, Aged Gold
-- [ ] **ECO-03**: Cards link to respective landing pages (/app, /academy, /franquicias, /gladius)
-- [ ] **ECO-04**: Responsive: 2x2 → 2x2 → 1 column
+- [x] **ECO-01**: 4 pathway cards in 2x2 grid: Entrená (App), Formate (Academy), Invertí (Franquicias), Equipáte (Gladius)
+- [x] **ECO-02**: Each card has colored left border accent (3px): Azul Noche, Terracotta, Aged Gold, Aged Gold
+- [x] **ECO-03**: Cards link to respective landing pages (/app, /academy, /franquicias, /gladius)
+- [x] **ECO-04**: Responsive: 2x2 → 2x2 → 1 column
 
 ## Home Page — FAQ (FAQ)
 
@@ -251,20 +251,20 @@
 | DESC-03     | Phase 32 | Complete |
 | DESC-04     | Phase 32 | Complete |
 | DESC-05     | Phase 32 | Complete |
-| SED-01      | Phase 33 | Pending  |
-| SED-02      | Phase 33 | Pending  |
-| SED-03      | Phase 33 | Pending  |
-| SED-04      | Phase 33 | Pending  |
-| SED-05      | Phase 33 | Pending  |
+| SED-01      | Phase 33 | Complete |
+| SED-02      | Phase 33 | Complete |
+| SED-03      | Phase 33 | Complete |
+| SED-04      | Phase 33 | Complete |
+| SED-05      | Phase 33 | Complete |
 | COM-01      | Phase 33 | Complete |
 | COM-02      | Phase 33 | Complete |
 | COM-03      | Phase 33 | Complete |
 | COM-04      | Phase 33 | Complete |
 | COM-05      | Phase 33 | Complete |
-| ECO-01      | Phase 33 | Pending  |
-| ECO-02      | Phase 33 | Pending  |
-| ECO-03      | Phase 33 | Pending  |
-| ECO-04      | Phase 33 | Pending  |
+| ECO-01      | Phase 33 | Complete |
+| ECO-02      | Phase 33 | Complete |
+| ECO-03      | Phase 33 | Complete |
+| ECO-04      | Phase 33 | Complete |
 | FAQ-01      | Phase 33 | Pending  |
 | FAQ-02      | Phase 33 | Pending  |
 | FAQ-03      | Phase 33 | Pending  |

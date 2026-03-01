@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: in-progress
-stopped_at: "Completed 33-01-PLAN.md"
-last_updated: "2026-03-01T15:55:00Z"
+status: unknown
+stopped_at: Completed 33-01-PLAN.md
+last_updated: "2026-03-01T15:56:16.387Z"
 progress:
   total_phases: 31
   completed_phases: 22
-  total_plans: 139
-  completed_plans: 136
+  total_plans: 142
+  completed_plans: 137
 ---
 
 # Project State
@@ -25,8 +25,8 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 Phase: 33 of 36 (Locations, Community, Ecosystem & FAQ)
 Plan: 2 of 3 complete
-Status: Plan 02 complete -- SectionCommunity built with gallery, testimonials, stats, AURA CLUB
-Last activity: 2026-03-01 — Plan 02 complete (SectionCommunity)
+Status: Plans 01 and 02 complete -- SectionLocations, SectionEcosystem, SectionCommunity built
+Last activity: 2026-03-01 — Plan 01 complete (SectionLocations + SectionEcosystem)
 
 Progress: [██████░░░░] 67% (2/3 plans)
 
@@ -123,6 +123,10 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Phase 33 Decisions
 
+- Separate TypeScript data files in data/ directory for section content (sedes.ts, ecosystem.ts) -- establishes pattern for Phase 33
+- sedesByCity pre-grouped export for render-ready city grouping in SectionLocations
+- NuxtLink for ecosystem CTAs (internal routes) vs raw <a> for locations CTAs (external Maps/WhatsApp)
+- Badge variant system: outdoor (Olive Stone), special (Aged Gold), intl (Azul Noche)
 - Safe lightbox index access via computed property to satisfy TypeScript strict checks
 - Gallery entrance uses scale(0.95) -> scale(1) for mosaic reveal, distinct from slide-up used by testimonials/stats
 - Lightbox uses Teleport to body for proper z-index stacking above all content
@@ -131,5 +135,5 @@ Progress: [██████░░░░] 67% (2/3 plans)
 
 ### Last Session
 
-- **Stopped at:** Completed 33-02-PLAN.md
-- **Timestamp:** 2026-03-01T15:54:16Z
+- **Stopped at:** Completed 33-01-PLAN.md
+- **Timestamp:** 2026-03-01T15:55:00Z
