@@ -1,0 +1,102 @@
+/* ==========================================================================
+   Layout Utilities — El Templo
+   Section wrappers, containers, and reusable section typography patterns.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------
+   Section Wrapper
+   ------------------------------------------------------------------ */
+.section {
+  padding: var(--space-hero) 0;
+}
+
+/* ------------------------------------------------------------------
+   Section Background Variants
+   ------------------------------------------------------------------ */
+.section--warm-stone {
+  background: var(--color-warm-stone);
+}
+
+.section--deep-charcoal {
+  background: var(--color-deep-charcoal);
+}
+
+/* ------------------------------------------------------------------
+   Content Container
+   ------------------------------------------------------------------ */
+.section__container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 5%;
+}
+
+/* ------------------------------------------------------------------
+   Section Tag / Label
+   ------------------------------------------------------------------ */
+.section__tag {
+  display: block;
+  font-family: var(--font-authority);
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--color-terracotta);
+  margin-bottom: var(--space-base);
+}
+
+/* ------------------------------------------------------------------
+   Section Title (H2 pattern)
+   ------------------------------------------------------------------ */
+.section__title {
+  font-family: var(--font-authority);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-deep-charcoal);
+  line-height: 1.2;
+  font-size: 36px;
+  margin-bottom: var(--space-spacious);
+}
+
+/* ------------------------------------------------------------------
+   Section Subtitle (Cormorant Garamond italic)
+   ------------------------------------------------------------------ */
+.section__subtitle {
+  font-family: var(--font-elegance);
+  font-weight: 400;
+  font-style: italic;
+  color: var(--color-charcoal-mist);
+  line-height: 1.5;
+  font-size: 20px;
+}
+
+/* ------------------------------------------------------------------
+   Tablet (max-width: 768px)
+   ------------------------------------------------------------------ */
+@media (max-width: 768px) {
+  .section {
+    padding: var(--space-large) 0;
+  }
+
+  .section__title {
+    font-size: 28px;
+  }
+
+  .section__subtitle {
+    font-size: 17px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Mobile (max-width: 480px)
+   ------------------------------------------------------------------ */
+@media (max-width: 480px) {
+  .section__title {
+    font-size: 24px;
+    letter-spacing: 0.03em;
+  }
+
+  .section__subtitle {
+    font-size: 16px;
+  }
+}

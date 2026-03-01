@@ -17,7 +17,7 @@
       "eslint --fix --config el-templo-admin/eslint.config.js"
     ],
     "el-templo-web/{pages,layouts,components,composables,plugins,utils,middleware,server}/**/*.{ts,vue}": [
-      "eslint --fix --config el-templo-web/eslint.config.mjs"
+      "pnpm --filter el-templo-web exec eslint --fix --config eslint.config.mjs"
     ],
     "**/*.{ts,vue,js,json,md}": [
       "prettier --write"
