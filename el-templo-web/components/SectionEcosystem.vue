@@ -55,10 +55,10 @@ onBeforeUnmount(() => {
 
           <p class="ecosystem__card-desc">{{ pathway.description }}</p>
 
-          <a :href="pathway.ctaHref" class="ecosystem__card-cta">
+          <NuxtLink :to="pathway.ctaHref" class="ecosystem__card-cta">
             {{ pathway.ctaText }}
             <span class="ecosystem__card-arrow">&rarr;</span>
-          </a>
+          </NuxtLink>
         </div>
       </div>
     </div>

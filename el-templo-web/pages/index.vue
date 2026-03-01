@@ -2,6 +2,22 @@
 import { sedes } from "~/data/sedes";
 import { faqItems } from "~/data/faq";
 
+const { cleanup: cleanupTracking } = useSectionTracking({
+  sections: {
+    hero: "viewed_hero",
+    "que-es": "viewed_identity",
+    metodo: "viewed_method",
+    niveles: "viewed_levels",
+    enfoques: "viewed_approaches",
+    "descubri-nivel": "viewed_conversion",
+    sedes: "viewed_locations",
+    comunidad: "viewed_community",
+    ecosistema: "viewed_ecosystem",
+    faq: "viewed_faq",
+  },
+});
+onUnmounted(() => cleanupTracking());
+
 useHead({
   title: "El Templo | Escuela de Movimiento y Calistenia",
   meta: [

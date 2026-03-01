@@ -13,6 +13,12 @@ import { sedesByCity } from "~/data/sedes";
 
 const { revealed, elementRef: sectionRef, cleanup } = useScrollReveal();
 
+const { trackEvent } = useAnalytics();
+
+function handleSedeWhatsApp(): void {
+  trackEvent("click_whatsapp_sede");
+}
+
 onBeforeUnmount(() => {
   cleanup();
 });
@@ -77,6 +83,7 @@ onBeforeUnmount(() => {
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
+                  @click="handleSedeWhatsApp"
                 >
                   Reservar sesi&oacute;n
                 </a>
@@ -131,6 +138,7 @@ onBeforeUnmount(() => {
                 <a
                   :href="sede.whatsappUrl"
                   class="locations__action locations__action--book"
+                  @click="handleSedeWhatsApp"
                 >
                   Reservar sesi&oacute;n
                 </a>
@@ -149,7 +157,9 @@ onBeforeUnmount(() => {
           Con Templo Online entren&aacute;s con el m&eacute;todo desde donde
           est&eacute;s.
         </p>
-        <a href="/app" class="btn btn--secondary-azul"> Prob&aacute; la app </a>
+        <NuxtLink to="/app" class="btn btn--secondary-azul">
+          Prob&aacute; la app
+        </NuxtLink>
       </div>
     </div>
   </section>

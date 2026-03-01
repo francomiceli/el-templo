@@ -14,6 +14,17 @@ const sedesCount = 8;
 const heroPoster = "/assets/img/hero-poster.jpg";
 const heroVideo = "/assets/video/hero-loop.mp4";
 
+// Preload hero poster for LCP optimization
+useHead({
+  link: [
+    {
+      rel: "preload",
+      as: "image",
+      href: heroPoster,
+    },
+  ],
+});
+
 const entered = ref(false);
 const showScrollIndicator = ref(true);
 const videoFailed = ref(false);

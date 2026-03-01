@@ -10,6 +10,15 @@
  * SEO meta tags for Gladius equipment keyword targeting.
  */
 
+const { cleanup: cleanupTracking } = useSectionTracking({
+  sections: {
+    "hero-gladius": "viewed_gladius_hero",
+    "catalogo-gladius": "viewed_gladius_catalog",
+    "contacto-gladius": "viewed_gladius_contact",
+  },
+});
+onUnmounted(() => cleanupTracking());
+
 useHead({
   title: "Gladius \u2014 Equipamiento de Calistenia por El Templo",
   meta: [

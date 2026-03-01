@@ -10,6 +10,18 @@
  * SEO meta tags for franchise keyword targeting.
  */
 
+const { cleanup: cleanupTracking } = useSectionTracking({
+  sections: {
+    "hero-franquicias": "viewed_fran_hero",
+    "por-que-el-templo": "viewed_fran_value_props",
+    "modelos-franquicia": "viewed_fran_models",
+    expansion: "viewed_fran_expansion",
+    fundador: "viewed_fran_founder",
+    "formulario-franquicia": "viewed_fran_form",
+  },
+});
+onUnmounted(() => cleanupTracking());
+
 useHead({
   title: "Franquicias El Templo Calistenia \u2014 Abr\u00ED tu Templo",
   meta: [

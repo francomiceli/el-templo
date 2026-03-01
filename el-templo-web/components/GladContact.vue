@@ -103,6 +103,10 @@ async function handleSubmit(): Promise<void> {
 
     whatsappResponseUrl.value = result.whatsappUrl;
     submitted.value = true;
+
+    // Analytics: gladius inquiry form submission
+    const { trackEvent } = useAnalytics();
+    trackEvent("form_submit_gladius");
   } catch (err: unknown) {
     if (err instanceof Error) {
       const fetchError = err as Error & {

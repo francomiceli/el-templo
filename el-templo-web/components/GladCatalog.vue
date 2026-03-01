@@ -38,7 +38,11 @@ const hasProducts = computed(
   () => products.value !== null && products.value.length > 0,
 );
 
+const { trackEvent } = useAnalytics();
+
 function handleConsultar(productName: string): void {
+  trackEvent("click_cta_gladius_consult");
+
   const contactSection = document.getElementById("contacto-gladius");
   if (contactSection) {
     contactSection.scrollIntoView({ behavior: "smooth" });

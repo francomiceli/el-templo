@@ -123,6 +123,11 @@ async function handleSubmit(): Promise<void> {
     });
 
     submitted.value = true;
+
+    // Analytics: franchise form submission
+    const { trackEvent, trackLead } = useAnalytics();
+    trackEvent("form_submit_franchise");
+    trackLead(); // Meta Pixel Lead event
   } catch (err: unknown) {
     if (err instanceof Error) {
       // Try to extract API error message

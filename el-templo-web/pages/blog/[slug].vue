@@ -121,6 +121,7 @@ const formattedDate = computed(() => {
             :src="post.coverImage"
             :alt="post.title"
             class="blog-post__cover"
+            loading="lazy"
           >
           <PlaceholderBox v-else aspect-ratio="21 / 9" label="" />
         </div>

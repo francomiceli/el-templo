@@ -1,3 +1,11 @@
+<script setup lang="ts">
+const { trackEvent } = useAnalytics();
+
+function handlePrefooterCta(): void {
+  trackEvent("click_cta_trial");
+}
+</script>
+
 <template>
   <section id="sesion-prueba" class="prefooter">
     <div class="prefooter__container">
@@ -10,6 +18,7 @@
         class="btn btn--primary prefooter__cta"
         target="_blank"
         rel="noopener"
+        @click="handlePrefooterCta"
       >
         Comenzá tu camino
       </a>

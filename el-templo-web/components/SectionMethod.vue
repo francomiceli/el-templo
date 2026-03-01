@@ -211,6 +211,10 @@ onBeforeUnmount(() => {
         Tu primera sesi&oacute;n es sin cargo. Ven&iacute; a sentir la
         diferencia.
       </p>
+      <NuxtLink to="/blog" class="method__blog-link">
+        Aprend&eacute; m&aacute;s sobre entrenamiento en nuestro blog
+        <span>&rarr;</span>
+      </NuxtLink>
     </div>
   </section>
 </template>
@@ -563,6 +567,23 @@ onBeforeUnmount(() => {
   font-size: 14px;
   color: var(--color-olive-stone);
   margin-top: var(--space-base);
+}
+
+.method__blog-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-clarity);
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--color-olive-stone);
+  text-decoration: none;
+  margin-top: var(--space-comfortable);
+  transition: color var(--transition-base);
+}
+
+.method__blog-link:hover {
+  color: var(--color-terracotta);
 }
 
 /* ------------------------------------------------------------------

@@ -49,6 +49,16 @@ const paths: ConversionPath[] = [
 
 const { revealed, elementRef: gridRef, cleanup } = useScrollReveal();
 
+const { trackEvent } = useAnalytics();
+
+function handleCtaClick(pathId: string): void {
+  if (pathId === "presencial") {
+    trackEvent("click_cta_trial");
+  } else if (pathId === "app") {
+    trackEvent("click_cta_app");
+  }
+}
+
 onBeforeUnmount(() => {
   cleanup();
 });
@@ -99,6 +109,7 @@ onBeforeUnmount(() => {
             :class="path.ctaClass + ' discover__cta'"
             :target="path.id === 'app' ? '_blank' : undefined"
             :rel="path.id === 'app' ? 'noopener noreferrer' : undefined"
+            @click="handleCtaClick(path.id)"
           >
             {{ path.ctaText }}
           </a>

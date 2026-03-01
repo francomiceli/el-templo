@@ -11,6 +11,12 @@
 
 import { gladiusConfig } from "~/data/gladius";
 
+const { trackEvent } = useAnalytics();
+
+function handleWhatsAppClick(): void {
+  trackEvent("click_whatsapp_gladius");
+}
+
 const visible = ref(false);
 
 if (import.meta.client) {
@@ -40,6 +46,7 @@ if (import.meta.client) {
     class="glad-whatsapp"
     :class="{ 'glad-whatsapp--visible': visible }"
     aria-label="Contactar por WhatsApp"
+    @click="handleWhatsAppClick"
   >
     <svg
       class="glad-whatsapp__icon"

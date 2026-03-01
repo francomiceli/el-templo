@@ -7,6 +7,12 @@
  * Subtle scale entrance animation on mount.
  */
 
+const { trackEvent } = useAnalytics();
+
+function handleWhatsAppClick(): void {
+  trackEvent("click_whatsapp_franchise");
+}
+
 const visible = ref(false);
 
 if (import.meta.client) {
@@ -36,6 +42,7 @@ if (import.meta.client) {
     class="fran-whatsapp"
     :class="{ 'fran-whatsapp--visible': visible }"
     aria-label="Contactar por WhatsApp"
+    @click="handleWhatsAppClick"
   >
     <svg
       class="fran-whatsapp__icon"
