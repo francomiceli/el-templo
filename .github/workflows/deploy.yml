@@ -23,6 +23,7 @@ jobs:
       api: ${{ steps.filter.outputs.api }}
       app: ${{ steps.filter.outputs.app }}
       admin: ${{ steps.filter.outputs.admin }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -35,6 +36,8 @@ jobs:
               - 'el-templo-app/**'
             admin:
               - 'el-templo-admin/**'
+            web:
+              - 'el-templo-web/**'
 
   # ===========================================
   # Build API (with tests)
@@ -207,6 +210,53 @@ jobs:
           retention-days: 1
 
   # ===========================================
+  # Build Landing Page (Web) - SSG
+  # Nuxt 3 static site generation. Output: .output/public/
+  # Skipped when no web files changed (unless manual trigger).
+  # ===========================================
+  build-web:
+    name: Build Web
+    needs: detect-changes
+    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: el-templo-web
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+          cache-dependency-path: el-templo-web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build for production (SSG)
+        run: pnpm run generate
+        env:
+          NUXT_PUBLIC_API_URL: ${{ secrets.VITE_API_URL }}
+          NUXT_PUBLIC_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+      - name: Upload Web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: el-templo-web/.output/public
+          retention-days: 1
+
+  # ===========================================
   # Deploy to Server
   # Runs after builds complete. Only deploys projects that were built.
   # Uses always() because skipped builds (unchanged projects) are OK.
@@ -215,14 +265,15 @@ jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
-    needs: [build-api, build-app, build-admin]
+    needs: [build-api, build-app, build-admin, build-web]
     if: >-
       always() &&
       !cancelled() &&
       (needs.build-api.result == 'success' || needs.build-api.result == 'skipped') &&
       (needs.build-app.result == 'success' || needs.build-app.result == 'skipped') &&
       (needs.build-admin.result == 'success' || needs.build-admin.result == 'skipped') &&
-      (needs.build-api.result == 'success' || needs.build-app.result == 'success' || needs.build-admin.result == 'success') &&
+      (needs.build-web.result == 'success' || needs.build-web.result == 'skipped') &&
+      (needs.build-api.result == 'success' || needs.build-app.result == 'success' || needs.build-admin.result == 'success' || needs.build-web.result == 'success') &&
       (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
 
     steps:
@@ -249,6 +300,13 @@ jobs:
         with:
           name: admin-dist
           path: admin-build
+
+      - name: Download Web artifact
+        if: needs.build-web.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web-build
 
       - name: Install rsync (local)
         run: sudo apt-get update && sudo apt-get install -y rsync
@@ -279,6 +337,10 @@ jobs:
             if [ -d "${{ secrets.ADMIN_DEPLOY_PATH }}" ]; then
               rm -rf ${{ secrets.ADMIN_DEPLOY_PATH }}.previous
               cp -r ${{ secrets.ADMIN_DEPLOY_PATH }} ${{ secrets.ADMIN_DEPLOY_PATH }}.previous
+            fi
+            if [ -d "${{ secrets.WEB_DEPLOY_PATH }}" ]; then
+              rm -rf ${{ secrets.WEB_DEPLOY_PATH }}.previous
+              cp -r ${{ secrets.WEB_DEPLOY_PATH }} ${{ secrets.WEB_DEPLOY_PATH }}.previous
             fi
           ENDSSH
 
@@ -327,6 +389,13 @@ jobs:
             admin-build/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.ADMIN_DEPLOY_PATH }}
 
+      - name: Deploy Web to server
+        if: needs.build-web.result == 'success'
+        run: |
+          rsync -avz --delete \
+            web-build/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.WEB_DEPLOY_PATH }}
+
       # --- Post-deploy: deps, migrations, restart (only when API deployed) ---
       - name: Install API dependencies on server
         if: needs.build-api.result == 'success'
@@ -365,6 +434,16 @@ jobs:
           fi
           echo "Health check PASSED (HTTP $HTTP_CODE)"
 
+      - name: Web smoke test
+        if: needs.build-web.result == 'success'
+        run: |
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://eltemplo.org || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Web smoke test FAILED (HTTP $HTTP_CODE)"
+            exit 1
+          fi
+          echo "Web smoke test PASSED (HTTP $HTTP_CODE)"
+
       - name: Rollback on failure
         if: failure()
         run: |
@@ -381,6 +460,10 @@ jobs:
             if [ -d "${{ secrets.ADMIN_DEPLOY_PATH }}.previous" ]; then
               rm -rf ${{ secrets.ADMIN_DEPLOY_PATH }}
               mv ${{ secrets.ADMIN_DEPLOY_PATH }}.previous ${{ secrets.ADMIN_DEPLOY_PATH }}
+            fi
+            if [ -d "${{ secrets.WEB_DEPLOY_PATH }}.previous" ]; then
+              rm -rf ${{ secrets.WEB_DEPLOY_PATH }}
+              mv ${{ secrets.WEB_DEPLOY_PATH }}.previous ${{ secrets.WEB_DEPLOY_PATH }}
             fi
             cd ${{ secrets.API_DEPLOY_PATH }}
             pnpm install --prod --frozen-lockfile
