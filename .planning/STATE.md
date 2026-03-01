@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: in-progress
-stopped_at: Completed 30-03-PLAN.md
-last_updated: "2026-03-01T04:12:20.481Z"
+stopped_at: Completed 30-03-PLAN.md (Footer)
+last_updated: "2026-03-01T04:13:04.433Z"
 progress:
   total_phases: 28
   completed_phases: 19
@@ -81,10 +81,13 @@ Progress: [████████--] 75% (3/4 plans)
 ### Phase 30 Decisions
 
 - Fixed lint-staged eslint command for el-templo-web to use `pnpm --filter` for correct cwd resolution (Nuxt-generated ESLint config uses relative imports)
+- Gladius active nav state uses Aged Gold (consistent with hover) rather than default Terracotta
+- Staggered drawer link animation uses inline transition-delay via :style binding for data-driven simplicity
+- Narrow desktop breakpoint (769-1024px) reduces nav link gap and font size to prevent overflow
 - Coming-soon links rendered as `<span>` not `<a>` to prevent navigation, with Olive Stone color and no hover/cursor
 - Social media icons use inline SVGs (Instagram, YouTube, TikTok) -- all disabled per CONTEXT.md
 
 ### Last Session
 
-- **Stopped at:** Completed 30-03-PLAN.md
-- **Timestamp:** 2026-03-01T04:10:50Z
+- **Stopped at:** Completed 30-03-PLAN.md (Footer), 30-02 re-executed
+- **Timestamp:** 2026-03-01T04:13:04Z

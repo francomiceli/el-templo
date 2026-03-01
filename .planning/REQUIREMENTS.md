@@ -31,12 +31,12 @@
 
 ## Navigation (NAV)
 
-- [ ] **NAV-01**: Fixed nav bar (64px desktop, 56px mobile) with Marble Cream background
-- [ ] **NAV-02**: Desktop horizontal nav links with Terracotta hover (Gladius link uses Aged Gold hover)
-- [ ] **NAV-03**: Mobile hamburger menu with slide-in overlay
-- [ ] **NAV-04**: Smooth scroll to anchor sections (#metodo, #niveles, #enfoques, #sedes, #sesion-prueba)
-- [ ] **NAV-05**: Active section highlighting on scroll (optional IntersectionObserver)
-- [ ] **NAV-06**: Nav links include: El Método, Niveles, Sedes, Franquicias (/franquicias), Gladius (/gladius), Reservar Sesión
+- [x] **NAV-01**: Fixed nav bar (64px desktop, 56px mobile) with Marble Cream background
+- [x] **NAV-02**: Desktop horizontal nav links with Terracotta hover (Gladius link uses Aged Gold hover)
+- [x] **NAV-03**: Mobile hamburger menu with slide-in overlay
+- [x] **NAV-04**: Smooth scroll to anchor sections (#metodo, #niveles, #enfoques, #sedes, #sesion-prueba)
+- [x] **NAV-05**: Active section highlighting on scroll (optional IntersectionObserver)
+- [x] **NAV-06**: Nav links include: El Método, Niveles, Sedes, Franquicias (/franquicias), Gladius (/gladius), Reservar Sesión
 
 ## Home Page — Hero (HERO)
 
@@ -211,12 +211,12 @@
 | DS-06       | Phase 30 | Complete |
 | DS-07       | Phase 30 | Complete |
 | DS-08       | Phase 30 | Complete |
-| NAV-01      | Phase 30 | Pending  |
-| NAV-02      | Phase 30 | Pending  |
-| NAV-03      | Phase 30 | Pending  |
-| NAV-04      | Phase 30 | Pending  |
-| NAV-05      | Phase 30 | Pending  |
-| NAV-06      | Phase 30 | Pending  |
+| NAV-01      | Phase 30 | Complete |
+| NAV-02      | Phase 30 | Complete |
+| NAV-03      | Phase 30 | Complete |
+| NAV-04      | Phase 30 | Complete |
+| NAV-05      | Phase 30 | Complete |
+| NAV-06      | Phase 30 | Complete |
 | HERO-01     | Phase 31 | Pending  |
 | HERO-02     | Phase 31 | Pending  |
 | HERO-03     | Phase 31 | Pending  |
