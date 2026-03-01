@@ -1,0 +1,66 @@
+/* ==========================================================================
+   Base Styles — El Templo
+   CSS reset, global typography, body defaults, heading styles.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------
+   Reset
+   ------------------------------------------------------------------ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* ------------------------------------------------------------------
+   HTML Defaults
+   ------------------------------------------------------------------ */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ------------------------------------------------------------------
+   Body Defaults
+   ------------------------------------------------------------------ */
+body {
+  font-family: var(--font-clarity);
+  color: var(--color-deep-charcoal);
+  background: var(--color-marble-cream);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ------------------------------------------------------------------
+   Headings
+   ------------------------------------------------------------------ */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-authority);
+  font-weight: 800;
+  color: var(--color-deep-charcoal);
+  line-height: 1.2;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   Links
+   ------------------------------------------------------------------ */
+a {
+  color: inherit;
+  text-decoration: none;
+}

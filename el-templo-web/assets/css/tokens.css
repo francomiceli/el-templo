@@ -1,0 +1,58 @@
+/* ==========================================================================
+   Design System Tokens — El Templo
+   Single source of truth for the entire visual system.
+   All values derived from the canonical brand spec.
+   ========================================================================== */
+
+:root {
+  /* ------------------------------------------------------------------
+     Colors
+     ------------------------------------------------------------------ */
+  --color-marble-cream: #f2ede5;
+  --color-terracotta: #c07a56;
+  --color-clay: #a0755a;
+  --color-aged-gold: #b89b5e;
+  --color-deep-charcoal: #3d3732;
+  --color-warm-stone: #d9cfc1;
+  --color-sandy-beige: #e5d9c8;
+  --color-olive-stone: #8a8472;
+  --color-charcoal-mist: #5c554e;
+  --color-azul-noche: #2b3a4e;
+  --color-warm-linen: #ede4d6;
+
+  /* ------------------------------------------------------------------
+     Fonts
+     ------------------------------------------------------------------ */
+  --font-authority: "Montserrat", sans-serif;
+  --font-elegance: "Cormorant Garamond", serif;
+  --font-clarity: "Geologica", sans-serif;
+
+  /* ------------------------------------------------------------------
+     Spacing
+     ------------------------------------------------------------------ */
+  --space-base: 16px;
+  --space-comfortable: 24px;
+  --space-spacious: 32px;
+  --space-section: 48px;
+  --space-large: 64px;
+  --space-hero: 96px;
+
+  /* ------------------------------------------------------------------
+     Border Radius
+     ------------------------------------------------------------------ */
+  --radius-base: 6px;
+  --radius-card: 8px;
+
+  /* ------------------------------------------------------------------
+     Shadows (Deep Charcoal rgba — never black)
+     ------------------------------------------------------------------ */
+  --shadow-subtle: 0 2px 8px rgba(61, 55, 50, 0.1);
+  --shadow-medium: 0 4px 16px rgba(61, 55, 50, 0.15);
+  --shadow-prominent: 0 8px 30px rgba(61, 55, 50, 0.15);
+
+  /* ------------------------------------------------------------------
+     Transitions
+     ------------------------------------------------------------------ */
+  --transition-base: 300ms ease;
+  --transition-fast: 150ms ease;
+}
