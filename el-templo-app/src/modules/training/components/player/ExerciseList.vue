@@ -50,7 +50,7 @@
           <div class="row q-col-gutter-sm">
             <!-- Prescription info -->
             <div class="col-6">
-              <div class="detail-label text-caption text-grey-7">Dosis</div>
+              <div class="detail-label text-caption text-grey-7">Cantidad</div>
               <div class="detail-value text-body1 text-weight-medium">
                 {{ formatDose(exercise) }}
               </div>
