@@ -41,6 +41,16 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/GladiusProductsPage.vue'),
         meta: { allowedRoles: ['admin', 'superadmin'] },
       },
+      {
+        path: 'franquicias',
+        component: () => import('pages/FranchiseListPage.vue'),
+        meta: { allowedRoles: ['superadmin'] },
+      },
+      {
+        path: 'franquicias/:id',
+        component: () => import('pages/FranchiseDetailPage.vue'),
+        meta: { allowedRoles: ['superadmin'] },
+      },
     ],
   },
   {

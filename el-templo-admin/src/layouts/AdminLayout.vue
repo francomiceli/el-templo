@@ -57,6 +57,17 @@
             <q-item-section>Gladius</q-item-section>
           </q-item>
         </template>
+
+        <template v-if="isSuperadminRole">
+          <q-separator />
+          <q-item-label header>Franquicias</q-item-label>
+          <q-item clickable v-ripple to="/franquicias">
+            <q-item-section avatar>
+              <q-icon name="store" />
+            </q-item-section>
+            <q-item-section>Solicitudes</q-item-section>
+          </q-item>
+        </template>
       </q-list>
     </q-drawer>
 
@@ -90,6 +101,7 @@ const authStore = useAuthStore();
 const adminStore = useAdminStore();
 
 const isAdminRole = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role ?? ''));
+const isSuperadminRole = computed(() => authStore.user?.role === 'superadmin');
 
 async function handleLogout() {
   await authStore.logout();
