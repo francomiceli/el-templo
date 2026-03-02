@@ -1,4 +1,10 @@
 <script setup lang="ts">
+// Email obfuscation — assembled at runtime to prevent scraper harvesting
+const emailUser = "info";
+const emailDomain = "eltemplo.org";
+const emailAddress = computed(() => `${emailUser}@${emailDomain}`);
+const emailHref = computed(() => `mailto:${emailAddress.value}`);
+
 interface FooterLink {
   label: string;
   href: string;
@@ -80,17 +86,22 @@ const columns: FooterColumn[] = [
           <NuxtLink to="/" class="footer__logo-text">El Templo</NuxtLink>
         </div>
         <div class="footer__info">
-          <a href="mailto:info@eltemplo.com" class="footer__info-link">
-            info@eltemplo.com
+          <a :href="emailHref" class="footer__info-link">
+            {{ emailAddress }}
           </a>
-          <a href="tel:+54223XXXXXXX" class="footer__info-link">
-            +54 223 XXX XXXX
+          <a href="tel:+5492235820521" class="footer__info-link">
+            +54 9 223 582-0521
           </a>
+          <span class="footer__info-address">
+            Constituci&oacute;n 6745, Mar del Plata, Argentina
+          </span>
         </div>
         <div class="footer__social">
-          <!-- All disabled per CONTEXT.md -->
-          <span
-            class="footer__social-icon footer__social-icon--disabled"
+          <a
+            href="https://www.instagram.com/eltemplomdp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer__social-icon"
             aria-label="Instagram"
           >
             <svg
@@ -106,9 +117,12 @@ const columns: FooterColumn[] = [
               <circle cx="12" cy="12" r="5" />
               <circle cx="17.5" cy="6.5" r="1.5" />
             </svg>
-          </span>
-          <span
-            class="footer__social-icon footer__social-icon--disabled"
+          </a>
+          <a
+            href="https://www.youtube.com/@ElTemplomdp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer__social-icon"
             aria-label="YouTube"
           >
             <svg
@@ -125,10 +139,13 @@ const columns: FooterColumn[] = [
               />
               <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
             </svg>
-          </span>
-          <span
-            class="footer__social-icon footer__social-icon--disabled"
-            aria-label="TikTok"
+          </a>
+          <a
+            href="https://www.facebook.com/eltemplomdp/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="footer__social-icon"
+            aria-label="Facebook"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -139,9 +156,11 @@ const columns: FooterColumn[] = [
               stroke-linecap="round"
               stroke-linejoin="round"
             >
-              <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+              <path
+                d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"
+              />
             </svg>
-          </span>
+          </a>
         </div>
       </div>
 
@@ -252,6 +271,14 @@ const columns: FooterColumn[] = [
   color: var(--color-marble-cream);
 }
 
+/* Address text */
+.footer__info-address {
+  display: block;
+  font-family: var(--font-clarity);
+  font-size: 14px;
+  color: var(--color-sandy-beige);
+}
+
 /* Social icons */
 .footer__social {
   display: flex;
@@ -265,12 +292,12 @@ const columns: FooterColumn[] = [
   width: 40px;
   height: 40px;
   color: var(--color-sandy-beige);
+  text-decoration: none;
   transition: color 200ms ease;
 }
 
-.footer__social-icon--disabled {
-  color: var(--color-olive-stone);
-  cursor: default;
+.footer__social-icon:hover {
+  color: var(--color-marble-cream);
 }
 
 .footer__social-icon svg {

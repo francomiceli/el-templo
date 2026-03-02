@@ -42,7 +42,9 @@ useSchemaOrg([
     description:
       "Escuela de movimiento y calistenia. M\u00E9todo propio, 6 niveles de entrenamiento con peso corporal, 8 sedes en Argentina y Espa\u00F1a.",
     sameAs: [
-      // Placeholder — real social URLs added in Phase 38
+      "https://www.instagram.com/eltemplomdp/",
+      "https://www.youtube.com/@ElTemplomdp/",
+      "https://www.facebook.com/eltemplomdp/",
     ],
     contactPoint: {
       "@type": "ContactPoint",
