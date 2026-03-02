@@ -365,7 +365,9 @@ Plans:
 - [x] **Phase 34: Franquicias Page** - Full franchise landing with hero, value props, comparison, form, WhatsApp integration (completed 2026-03-01)
 - [x] **Phase 35: Gladius + Blog** - Equipment showcase page, Nuxt Content blog with markdown posts (completed 2026-03-01)
 - [x] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent (completed 2026-03-01)
-- [ ] **Phase 38: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
+- [x] **Phase 37: SEO Audit Fixes** - Fix issues from seoptimer audit: SSR rendering, title tag, favicon, HTTP/2, social links, email privacy, compression (completed 2026-03-02)
+- [ ] **Phase 38: Franchise Application Management** - Admin panel for managing franchise applications with AI-powered conversion strategies
+- [ ] **Phase 39: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
 
 ## v3.0 Phase Details
 
@@ -582,7 +584,7 @@ Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployme
 ### v3.0 Progress
 
 **Execution Order:**
-Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics)
+Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics) → Phase 37 (SEO Audit Fixes) → Phase 38 (Franchise Admin) → Phase 39 (Content Handoff)
 
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
@@ -594,10 +596,27 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 34. Franquicias Page                        | 4/4            | Complete    | 2026-03-01 |
 | 35. Gladius + Blog                          | 4/4            | Complete    | 2026-03-01 |
 | 36. SEO + Analytics                         | 4/4            | Complete    | 2026-03-01 |
-| 37. Franchise Application Management        | 0/?            | Not Started | —          |
-| 38. Content & Media Handoff                 | 0/?            | Not Started | —          |
+| 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
+| 38. Franchise Application Management        | 0/?            | Not Started | —          |
+| 39. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
-### Phase 37: Franchise Application Management
+### Phase 37: SEO Audit Fixes
+
+**Goal:** Address issues identified by seoptimer audit (score C+) — fix SSR dynamic rendering (43%), optimize title tag length, add favicon, enable HTTP/2, add social media profile links, hide plain-text emails, improve compression, and add visible business contact info
+**Requirements**: Based on seoptimer audit of eltemplo.org (2026-03-02). See `.docs/brand-landing/landing-seo-analysis.txt`
+**Depends on:** Phase 36 (SEO infrastructure must be in place)
+**Plans:** 4/4 plans complete
+
+Plans:
+
+- [x] 37-01-PLAN.md — Favicon, Nginx HTTP/2 + gzip, SSG rendering investigation + visible SEO intro text
+- [x] 37-02-PLAN.md — Title tag optimization (50-60 chars), OG meta tags, H2 keyword audit across home sections
+- [x] 37-03-PLAN.md — Social media profile links (Instagram/YouTube/Facebook), email obfuscation, real phone/address, inline style reduction
+- [x] 37-04-PLAN.md — Franchise and Gladius heading keyword optimization (H1/H2 keyword clusters)
+
+---
+
+### Phase 38: Franchise Application Management
 
 **Goal:** Admin panel in el-templo-admin for managing franchise applications — view/filter/sort applications, track status (new/contacted/negotiating/closed), and AI agent integration for designing tailored conversion strategies based on application data (investor profile, capital, experience, model preference)
 **Requirements**: TBD
@@ -606,11 +625,11 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 37 to break down)
+- [ ] TBD (run /gsd:plan-phase 38 to break down)
 
 ---
 
-### Phase 38: Content & Media Handoff
+### Phase 39: Content & Media Handoff
 
 **Goal:** Replace all placeholder images and media with real assets from the team, configure production Meta Pixel ID and GA4 Measurement ID, populate full LocalBusiness structured data per sede (hours, phone, photos, services), and do a final content review pass across all pages
 **Requirements**: TBD
@@ -619,10 +638,11 @@ Plans:
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 38 to break down)
+- [ ] TBD (run /gsd:plan-phase 39 to break down)
 
 ---
 
 _Roadmap created: 2026-02-04_
 _v2.0 phases: 2026-02-04 through 2026-02-19_
 _v3.0 phases added: 2026-02-28 — 8 phases (29-36), 113 requirements mapped_
+_Phase 37 (SEO Audit Fixes) inserted, phases 37-38 renumbered to 38-39: 2026-03-02_
