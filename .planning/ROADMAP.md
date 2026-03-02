@@ -597,7 +597,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 35. Gladius + Blog                          | 4/4            | Complete    | 2026-03-01 |
 | 36. SEO + Analytics                         | 4/4            | Complete    | 2026-03-01 |
 | 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
-| 38. Franchise Application Management        | 0/?            | Not Started | —          |
+| 38. Franchise Application Management        | 1/3            | In Progress |            |
 | 39. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
@@ -621,7 +621,7 @@ Plans:
 **Goal:** Admin panel in el-templo-admin for managing franchise applications — view/filter/sort applications, track status (new/contacted/negotiating/closed), and AI agent integration for designing tailored conversion strategies based on application data (investor profile, capital, experience, model preference)
 **Requirements**: TBD
 **Depends on:** Phase 34 (franchise form must exist first)
-**Plans:** 0 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
