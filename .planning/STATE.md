@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 38-03-PLAN.md
-last_updated: "2026-03-02T16:00:23.105Z"
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-03-02T16:00:47.603Z"
 progress:
   total_phases: 36
   completed_phases: 28
@@ -202,11 +202,13 @@ Progress: [===] 100% (3/3 plans)
 - Superadmin-only route guard uses SUPERADMIN_ROLES array (not ADMIN_ROLES) for stricter access control
 - AI agent service: brand-aware system prompt + agent-specific extensions pattern
 - ANTHROPIC_API_KEY read automatically by Anthropic SDK from env (no explicit config)
+- Shared franchise-labels.ts for DRY label maps across admin list and detail pages
+- isSuperadminRole computed separate from isAdminRole for stricter franchise-only sidebar/routing access
 - v-for over AGENT_TYPES array for DRY tab panel rendering instead of 4 separate inline blocks
 - Regenerate dialog message includes agent-type-specific label for clearer user warning
 - AI panel event pattern: child emits 'generated' with agentType+content, parent spreads into application ref
 
 ### Last Session
 
-- **Stopped at:** Completed 38-03-PLAN.md
+- **Stopped at:** Completed 38-02-PLAN.md
 - **Timestamp:** 2026-03-02
