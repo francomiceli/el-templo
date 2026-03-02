@@ -27,11 +27,6 @@ server {
       image/svg+xml
       font/woff2;
 
-    # Redirect SPA app routes to homepage (these are not SSG pages)
-    location ~ ^/(app|academy|aura-club)(/.*)?$ {
-        return 301 /;
-    }
-
     # SSG: serve pre-rendered HTML files, fallback to index.html
     location / {
         try_files $uri $uri/index.html $uri.html /index.html =404;
@@ -78,11 +73,6 @@ server {
       application/xml
       image/svg+xml
       font/woff2;
-
-    # Redirect SPA app routes to homepage (these are not SSG pages)
-    location ~ ^/(app|academy|aura-club)(/.*)?$ {
-        return 301 /;
-    }
 
     # SSG: serve pre-rendered HTML files, fallback to index.html
     location / {
