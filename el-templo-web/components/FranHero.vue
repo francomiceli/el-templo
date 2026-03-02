@@ -104,35 +104,31 @@ const parallaxTransform = computed(() => {
     <!-- CONTENT -->
     <div class="fran-hero__content">
       <h1
-        class="fran-hero__title"
+        class="fran-hero__title fran-hero--delay-1"
         :class="{ 'fran-hero--entered': entered }"
-        :style="{ transitionDelay: '200ms' }"
       >
         ABRI TU FRANQUICIA DE CALISTENIA.
       </h1>
 
       <p
-        class="fran-hero__subtitle"
+        class="fran-hero__subtitle fran-hero--delay-2"
         :class="{ 'fran-hero--entered': entered }"
-        :style="{ transitionDelay: '500ms' }"
       >
         Un m&eacute;todo internacional. Una comunidad en expansi&oacute;n. Tu
         oportunidad.
       </p>
 
       <p
-        class="fran-hero__investment"
+        class="fran-hero__investment fran-hero--delay-3"
         :class="{ 'fran-hero--entered': entered }"
-        :style="{ transitionDelay: '700ms' }"
       >
         Inversi&oacute;n desde {{ franquiciasConfig.investmentFigure }}
       </p>
 
       <a
         href="#formulario-franquicia"
-        class="btn btn--primary fran-hero__cta"
+        class="btn btn--primary fran-hero__cta fran-hero--delay-4"
         :class="{ 'fran-hero--entered': entered }"
-        :style="{ transitionDelay: '900ms' }"
       >
         Quiero aplicar
       </a>
@@ -238,6 +234,20 @@ const parallaxTransform = computed(() => {
 .fran-hero--entered {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Staggered entrance delay classes (replaces inline :style bindings) */
+.fran-hero--delay-1 {
+  transition-delay: 200ms;
+}
+.fran-hero--delay-2 {
+  transition-delay: 500ms;
+}
+.fran-hero--delay-3 {
+  transition-delay: 700ms;
+}
+.fran-hero--delay-4 {
+  transition-delay: 900ms;
 }
 
 /* ------------------------------------------------------------------

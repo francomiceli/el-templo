@@ -105,25 +105,22 @@ const parallaxTransform = computed(() => {
     <!-- CONTENT -->
     <div class="glad-hero__content">
       <h1
-        class="glad-hero__title"
+        class="glad-hero__title glad-hero--delay-1"
         :class="{ 'glad-hero--entered': entered }"
-        :style="{ transitionDelay: '200ms' }"
       >
         {{ gladiusConfig.hero.title }}
       </h1>
 
       <p
-        class="glad-hero__subtitle"
+        class="glad-hero__subtitle glad-hero--delay-2"
         :class="{ 'glad-hero--entered': entered }"
-        :style="{ transitionDelay: '500ms' }"
       >
         {{ gladiusConfig.hero.subtitle }}
       </p>
 
       <div
-        class="glad-hero__ctas"
+        class="glad-hero__ctas glad-hero--delay-3"
         :class="{ 'glad-hero--entered': entered }"
-        :style="{ transitionDelay: '800ms' }"
       >
         <a
           :href="gladiusConfig.hero.ctaAnchor"
@@ -240,6 +237,17 @@ const parallaxTransform = computed(() => {
 .glad-hero--entered {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Staggered entrance delay classes (replaces inline :style bindings) */
+.glad-hero--delay-1 {
+  transition-delay: 200ms;
+}
+.glad-hero--delay-2 {
+  transition-delay: 500ms;
+}
+.glad-hero--delay-3 {
+  transition-delay: 800ms;
 }
 
 /* ------------------------------------------------------------------

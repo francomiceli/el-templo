@@ -168,7 +168,7 @@ if (import.meta.client) {
             [`nav__drawer-link--${link.modifier}`]: link.modifier,
             'nav__drawer-link--active': isLinkActive(link),
           }"
-          :style="{ transitionDelay: `${index * 50}ms` }"
+          :style="{ '--stagger-delay': `${index * 50}ms` }"
           @click="handleLinkClick"
         >
           {{ link.label }}
@@ -176,7 +176,7 @@ if (import.meta.client) {
         <NuxtLink
           :to="ctaLink.href"
           class="nav__drawer-cta btn btn--primary"
-          :style="{ transitionDelay: `${navLinks.length * 50}ms` }"
+          :style="{ '--stagger-delay': `${navLinks.length * 50}ms` }"
           @click="handleLinkClick"
         >
           {{ ctaLink.label }}
@@ -459,6 +459,7 @@ if (import.meta.client) {
     opacity 400ms cubic-bezier(0.16, 1, 0.3, 1),
     transform 400ms cubic-bezier(0.16, 1, 0.3, 1),
     color var(--transition-base);
+  transition-delay: var(--stagger-delay, 0ms);
 }
 
 /* CTA button in drawer */

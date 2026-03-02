@@ -136,17 +136,15 @@ const parallaxTransform = computed(() => {
     <!-- CONTENT -->
     <div class="hero__content">
       <h1
-        class="hero__title"
+        class="hero__title hero--delay-1"
         :class="{ 'hero--entered': entered }"
-        :style="{ transitionDelay: '200ms' }"
       >
         Calistenia y entrenamiento con peso corporal.
       </h1>
 
       <p
-        class="hero__subtitle"
+        class="hero__subtitle hero--delay-2"
         :class="{ 'hero--entered': entered }"
-        :style="{ transitionDelay: '500ms' }"
       >
         {{ sedesCount }} sedes donde la calistenia se practica como lo que es:
         el arte m&aacute;s antiguo de forjar el cuerpo con su propio peso.
@@ -154,26 +152,20 @@ const parallaxTransform = computed(() => {
 
       <a
         href="#descubri-nivel"
-        class="btn btn--primary hero__cta"
+        class="btn btn--primary hero__cta hero--delay-3"
         :class="{ 'hero--entered': entered }"
-        :style="{ transitionDelay: '800ms' }"
       >
         Comenz&aacute; tu camino
       </a>
 
-      <p
-        class="hero__note"
-        :class="{ 'hero--entered': entered }"
-        :style="{ transitionDelay: '1000ms' }"
-      >
+      <p class="hero__note hero--delay-4" :class="{ 'hero--entered': entered }">
         Tu primera sesi&oacute;n es sin cargo.
       </p>
 
       <NuxtLink
         to="/franquicias"
-        class="btn btn--secondary-gold hero__franchise-cta"
+        class="btn btn--secondary-gold hero__franchise-cta hero--delay-5"
         :class="{ 'hero--entered': entered }"
-        :style="{ transitionDelay: '1200ms' }"
       >
         Abr&iacute; tu Templo
       </NuxtLink>
@@ -278,6 +270,23 @@ const parallaxTransform = computed(() => {
 .hero--entered {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Staggered entrance delay classes (replaces inline :style bindings) */
+.hero--delay-1 {
+  transition-delay: 200ms;
+}
+.hero--delay-2 {
+  transition-delay: 500ms;
+}
+.hero--delay-3 {
+  transition-delay: 800ms;
+}
+.hero--delay-4 {
+  transition-delay: 1000ms;
+}
+.hero--delay-5 {
+  transition-delay: 1200ms;
 }
 
 /* ------------------------------------------------------------------
