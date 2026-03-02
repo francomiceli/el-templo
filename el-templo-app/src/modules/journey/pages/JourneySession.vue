@@ -3,21 +3,27 @@
     <!-- Initial Splash Screen -->
     <SplashScreen
       v-if="showSplash && session"
-      :session-info="splashInfo"
-      @complete="onSplashComplete"
+      :day="splashInfo.day"
+      :level="splashInfo.level"
+      @start="onSplashComplete"
     />
 
-    <!-- Block Transition Splash -->
-    <SplashScreen
+    <!-- Between-block Transition Screen -->
+    <TransitionScreen
       v-else-if="showBlockTransition"
-      :completed-block="transitionCompletedBlock"
-      :next-block="transitionNextBlock"
-      :duration="1500"
-      @complete="onTransitionComplete"
+      :completed-block-name="transitionCompletedBlock"
+      :mobility-exercise-name="transitionMobilityName"
+      :quote="transitionQuote"
+      :action-label="transitionActionLabel"
+      @continue="onTransitionContinue"
     />
 
     <!-- Celebration Screen -->
-    <CelebrationScreen v-else-if="showCelebration" @complete="onCelebrationComplete" />
+    <CelebrationScreen
+      v-else-if="showCelebration"
+      :quote="celebrationQuote"
+      @view-summary="onCelebrationComplete"
+    />
 
     <!-- Session Summary -->
     <SessionSummary
@@ -68,14 +74,12 @@
         :day-name="dayLabel"
         :current-block="currentBlock"
         :completed-blocks="completedBlocks"
-        :selected-exercise-index="selectedExerciseIndex"
         :elapsed-seconds="elapsedSeconds"
         :current-block-completed-exercises="currentBlockCompletedExercises"
         :is-session-complete="isSessionComplete"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
-        @select-exercise="onExerciseSelect"
         @toggle-exercise-complete="onToggleExerciseComplete"
       />
     </template>
@@ -89,6 +93,7 @@ import { useQuasar } from 'quasar'
 
 // Reused training components
 import SplashScreen from '../../training/components/player/SplashScreen.vue'
+import TransitionScreen from '../../training/components/player/TransitionScreen.vue'
 import CelebrationScreen from '../../training/components/player/CelebrationScreen.vue'
 import SessionSummary from '../../training/components/player/SessionSummary.vue'
 import BlockProgressionView from '../../training/components/BlockProgressionView.vue'
@@ -102,6 +107,8 @@ import { useWakeLock } from '../../training/composables/useWakeLock'
 import { useJourneyStore } from '../stores/journeyStore'
 import { createLogger } from 'src/utils/logger'
 
+import { getQuoteForBlock } from '../../training/data/quotes'
+import type { Quote } from '../../training/data/quotes'
 import type { JourneySessionResponse } from '../types'
 
 const log = createLogger('JourneySession')
@@ -122,10 +129,13 @@ const splashDismissed = ref(false)
 const isInitialized = ref(false)
 const sessionStartedAt = ref<string | null>(null)
 
-// Block transition splash
+// Block transition state
 const showBlockTransition = ref(false)
 const transitionCompletedBlock = ref('')
-const transitionNextBlock = ref('')
+const transitionMobilityName = ref<string | null>(null)
+const transitionQuote = ref<Quote>({ text: '', goldText: '', author: '' })
+const transitionActionLabel = ref('Siguiente Bloque')
+const pendingCelebration = ref(false)
 
 // Completion flow
 const showCelebration = ref(false)
@@ -159,6 +169,12 @@ const player = computed(() => {
   return useJourneySession(session.value, selectedDuration.value)
 })
 
+// Day offset for quote variety across days
+const dayOffset = computed(() => new Date().getDay())
+
+// Celebration quote (use index 4, distinct from block quotes)
+const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
+
 // Display helpers
 const showSplash = computed(() => !splashDismissed.value && session.value !== null)
 
@@ -175,7 +191,6 @@ const splashInfo = computed(() => ({
 // Bridge player state to sub-components (null-safe accessors)
 const currentBlock = computed(() => player.value?.currentBlock.value ?? null)
 const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
-const selectedExerciseIndex = computed(() => player.value?.selectedExerciseIndex.value ?? 0)
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
 const isSessionComplete = computed(() => player.value?.isSessionComplete.value ?? false)
 const currentBlockCompletedExercises = computed<number[]>(() => {
@@ -227,21 +242,25 @@ function onSplashComplete(): void {
   wakeLock.requestWakeLock()
 }
 
-function onTransitionComplete(): void {
+function onTransitionContinue(): void {
   showBlockTransition.value = false
-  transitionCompletedBlock.value = ''
-  transitionNextBlock.value = ''
+
+  // If transition was for session complete, show celebration
+  if (pendingCelebration.value) {
+    pendingCelebration.value = false
+    showCelebration.value = true
+    return
+  }
+
+  // Advance to next block
+  if (player.value) {
+    void player.value.completeBlock()
+  }
 }
 
 function onCelebrationComplete(): void {
   showCelebration.value = false
   showSummary.value = true
-}
-
-function onExerciseSelect(index: number): void {
-  if (player.value) {
-    player.value.selectExercise(index)
-  }
 }
 
 async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
@@ -253,34 +272,49 @@ async function onToggleExerciseComplete(payload: { prescriptionId: number }): Pr
 async function onBlockComplete(): Promise<void> {
   if (!player.value) return
 
-  if (player.value.isSessionComplete.value) {
-    await finishSession()
-    return
+  const p = player.value
+  const completedRole = p.currentBlock.value?.role ?? ''
+  const completedName = BLOCK_NAMES[completedRole] ?? ''
+  const completedBlockIndex = p.currentBlockIndex.value
+
+  // Get mobility name for the current block
+  const mobilityName = p.currentBlock.value?.mobilityExercise?.exerciseName ?? null
+
+  // Determine what happens next
+  const isLastBlock = p.currentBlockIndex.value >= p.visibleBlocks.value.length - 1
+  let actionLabel = 'Siguiente Bloque'
+
+  if (isLastBlock) {
+    actionLabel = 'Finalizar Sesion'
+  } else {
+    const nb = p.visibleBlocks.value[p.currentBlockIndex.value + 1]
+    if (nb) {
+      actionLabel = `Siguiente: ${BLOCK_NAMES[nb.role] ?? nb.role}`
+    }
   }
 
-  const p = player.value
-  const completedName = BLOCK_NAMES[p.currentBlock.value?.role ?? ''] ?? ''
-
-  // Get next block name
-  const nb = p.visibleBlocks.value[p.currentBlockIndex.value + 1]
-  const nextName = nb ? (BLOCK_NAMES[nb.role] ?? nb.role) : ''
-
+  // Complete the block first (for state tracking)
   await p.completeBlock()
 
+  // Check if session is now complete
   if (p.isSessionComplete.value) {
-    await finishSession()
+    // Show transition with "Finalizar Sesion", then celebration
+    pendingCelebration.value = true
+    transitionCompletedBlock.value = completedName
+    transitionMobilityName.value = mobilityName
+    transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
+    transitionActionLabel.value = 'Finalizar Sesion'
+    showBlockTransition.value = true
+    await wakeLock.releaseWakeLock()
     return
   }
 
+  // Show between-block transition
   transitionCompletedBlock.value = completedName
-  transitionNextBlock.value = nextName
+  transitionMobilityName.value = mobilityName
+  transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
+  transitionActionLabel.value = actionLabel
   showBlockTransition.value = true
-}
-
-async function finishSession(): Promise<void> {
-  if (!session.value || !player.value) return
-  await wakeLock.releaseWakeLock()
-  showCelebration.value = true
 }
 
 async function onSummaryFinish(data: { rpe: number | null; notes: string | null }): Promise<void> {
@@ -365,6 +399,8 @@ async function restartSession(): Promise<void> {
       showCelebration.value = false
       showSummary.value = false
       showProgress.value = false
+      showBlockTransition.value = false
+      pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()
     }

@@ -3,21 +3,27 @@
     <!-- Initial Splash Screen Overlay -->
     <SplashScreen
       v-if="showSplash && session"
-      :session-info="sessionInfo"
-      @complete="onSplashComplete"
+      :day="session.day"
+      :level="userLevel"
+      @start="onSplashStart"
     />
 
-    <!-- Block Transition Splash -->
-    <SplashScreen
+    <!-- Between-block Transition Screen -->
+    <TransitionScreen
       v-else-if="showBlockTransition"
-      :completed-block="transitionCompletedBlock"
-      :next-block="transitionNextBlock"
-      :duration="1500"
-      @complete="onTransitionComplete"
+      :completed-block-name="transitionCompletedBlock"
+      :mobility-exercise-name="transitionMobilityName"
+      :quote="transitionQuote"
+      :action-label="transitionActionLabel"
+      @continue="onTransitionContinue"
     />
 
     <!-- Celebration Screen (after completing all blocks) -->
-    <CelebrationScreen v-else-if="showCelebration" @complete="onCelebrationComplete" />
+    <CelebrationScreen
+      v-else-if="showCelebration"
+      :quote="celebrationQuote"
+      @view-summary="onCelebrationViewSummary"
+    />
 
     <!-- Session Summary (after celebration) -->
     <SessionSummary
@@ -52,20 +58,18 @@
         @select="onDeuterosSelect"
       />
 
-      <!-- Block Progression View -->
+      <!-- Block Progression View (Stories-style) -->
       <BlockProgressionView
         v-else
         :day-name="dayName"
         :current-block="currentBlock"
         :completed-blocks="completedBlocks"
-        :selected-exercise-index="selectedExerciseIndex"
         :elapsed-seconds="elapsedSeconds"
         :current-block-completed-exercises="currentBlockCompletedExercises"
         :is-session-complete="isSessionComplete"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
-        @select-exercise="onExerciseSelect"
         @toggle-exercise-complete="onToggleExerciseComplete"
       />
     </template>
@@ -79,6 +83,7 @@ import { useQuasar } from 'quasar'
 
 // Components
 import SplashScreen from '../components/player/SplashScreen.vue'
+import TransitionScreen from '../components/player/TransitionScreen.vue'
 import CelebrationScreen from '../components/player/CelebrationScreen.vue'
 import SessionSummary from '../components/player/SessionSummary.vue'
 import DeuterosSelector from '../components/DeuterosSelector.vue'
@@ -94,10 +99,14 @@ import { getWeekDates, formatDayName, getDateState } from '../composables/useDat
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 
+// Data
+import { getQuoteForBlock } from '../data/quotes'
+import type { Quote } from '../data/quotes'
+
 const log = createLogger('DayPlayer')
 
 // Day Player Page - Orchestrator for session flow:
-// splash -> deuteros choice -> block progression -> celebration -> summary
+// splash -> deuteros choice -> block progression (stories) -> transition -> ... -> celebration -> summary
 
 const route = useRoute()
 const router = useRouter()
@@ -121,10 +130,12 @@ const session = computed(() => weekDay.value?.session ?? null)
 const splashDismissed = ref(false)
 const isInitialized = ref(false)
 
-// Block transition splash state
+// Block transition state
 const showBlockTransition = ref(false)
 const transitionCompletedBlock = ref('')
-const transitionNextBlock = ref('')
+const transitionMobilityName = ref<string | null>(null)
+const transitionQuote = ref<Quote>({ text: '', goldText: '', author: '' })
+const transitionActionLabel = ref('Siguiente Bloque')
 
 // Completion flow state
 const showCelebration = ref(false)
@@ -137,6 +148,21 @@ const player = computed(() => {
   return useSessionPlayer(session.value)
 })
 
+// User level for splash screen
+const userLevel = computed(() => {
+  return userStore.profile?.level ?? session.value?.levelGroup ?? ''
+})
+
+// Day offset for quote variety across days
+const dayOffset = computed(() => {
+  if (!dateParam.value) return 0
+  const d = new Date(dateParam.value + 'T00:00:00')
+  return d.getDay() // 0=Sunday, 1=Monday, ..., 6=Saturday
+})
+
+// Celebration quote (use index 4, distinct from block quotes)
+const celebrationQuote = computed(() => getQuoteForBlock(4, dayOffset.value))
+
 // Computed display states
 const isLoading = computed(() => weekLoading.value || (!session.value && !weekDay.value))
 
@@ -145,17 +171,6 @@ const showSplash = computed(() => !splashDismissed.value && session.value !== nu
 const showDeuterosChoice = computed(() => {
   if (!player.value) return false
   return splashDismissed.value && player.value.needsDeuterosChoice.value
-})
-
-// Session info for splash screen
-const sessionInfo = computed(() => {
-  if (!session.value) {
-    return { day: '', level: '' }
-  }
-  return {
-    day: session.value.day,
-    level: userStore.profile?.level ?? session.value.levelGroup ?? '',
-  }
 })
 
 // Day name for header
@@ -168,7 +183,6 @@ const dayName = computed(() => {
 // Bridge player state to sub-components (null-safe accessors)
 const currentBlock = computed(() => player.value?.currentBlock.value ?? null)
 const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
-const selectedExerciseIndex = computed(() => player.value?.selectedExerciseIndex.value ?? 0)
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
 const deuteros1Block = computed(() => player.value?.deuteros1Block.value ?? null)
 const deuteros2Block = computed(() => player.value?.deuteros2Block.value ?? null)
@@ -210,7 +224,16 @@ const hasUnsavedProgress = computed(() => {
   )
 })
 
-function onSplashComplete(): void {
+const BLOCK_NAMES: Record<string, string> = {
+  INITIUM: 'Initium',
+  NUCLEUS: 'Nucleus',
+  DEUTEROS_1: 'Deuteros',
+  DEUTEROS_2: 'Deuteros',
+  ATHLOS: 'Athlos',
+  EPIKOS: 'Epikos',
+}
+
+function onSplashStart(): void {
   splashDismissed.value = true
   sessionStartedAt.value = new Date().toISOString()
   if (player.value) {
@@ -225,21 +248,27 @@ function onDeuterosSelect(choiceId: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   }
 }
 
-function onTransitionComplete(): void {
+function onTransitionContinue(): void {
   showBlockTransition.value = false
-  transitionCompletedBlock.value = ''
-  transitionNextBlock.value = ''
+
+  // If transition was for session complete, show celebration
+  if (pendingCelebration.value) {
+    pendingCelebration.value = false
+    showCelebration.value = true
+    return
+  }
+
+  // Advance to next block
+  if (player.value) {
+    void player.value.completeBlock()
+  }
 }
 
-function onCelebrationComplete(): void {
+const pendingCelebration = ref(false)
+
+function onCelebrationViewSummary(): void {
   showCelebration.value = false
   showSummary.value = true
-}
-
-function onExerciseSelect(index: number): void {
-  if (player.value) {
-    player.value.selectExercise(index)
-  }
 }
 
 async function onToggleExerciseComplete(payload: { prescriptionId: number }): Promise<void> {
@@ -248,46 +277,58 @@ async function onToggleExerciseComplete(payload: { prescriptionId: number }): Pr
   }
 }
 
-const BLOCK_NAMES: Record<string, string> = {
-  INITIUM: 'Initium',
-  NUCLEUS: 'Nucleus',
-  DEUTEROS_1: 'Deuteros',
-  DEUTEROS_2: 'Deuteros',
-  ATHLOS: 'Athlos',
-  EPIKOS: 'Epikos',
-}
-
 /** Called when BlockProgressionView confirms block completion (after exercise check dialog) */
 async function onBlockComplete(): Promise<void> {
   if (!player.value) return
-  if (player.value.isSessionComplete.value) {
-    await finishSession()
-    return
-  }
+
   const p = player.value
-  const completedName = BLOCK_NAMES[p.currentBlock.value?.role ?? ''] ?? ''
-  const role = p.currentBlock.value?.role
-  let nextName = ''
-  if (role === 'NUCLEUS' && !p.deuterosChoice.value) nextName = 'Deuteros'
-  else {
-    const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
-    nextName = nb ? (BLOCK_NAMES[nb.role] ?? nb.role) : ''
+  const completedRole = p.currentBlock.value?.role ?? ''
+  const completedName = BLOCK_NAMES[completedRole] ?? ''
+  const completedBlockIndex = p.currentBlockIndex.value
+
+  // Get mobility name for the current block
+  const mobilityName = p.currentBlock.value?.mobilityExercise?.exerciseName ?? null
+
+  // Determine what happens next
+  const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
+  let actionLabel = 'Siguiente Bloque'
+
+  if (isLastBlock) {
+    actionLabel = 'Finalizar Sesion'
+  } else {
+    const role = p.currentBlock.value?.role
+    if (role === 'NUCLEUS' && !p.deuterosChoice.value) {
+      actionLabel = 'Elige Deuteros'
+    } else {
+      const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
+      if (nb) {
+        actionLabel = `Siguiente: ${BLOCK_NAMES[nb.role] ?? nb.role}`
+      }
+    }
   }
 
+  // Complete the block first (for state tracking)
   await p.completeBlock()
+
+  // Check if session is now complete
   if (p.isSessionComplete.value) {
-    await finishSession()
+    // Show transition with "Finalizar Sesion", then celebration
+    pendingCelebration.value = true
+    transitionCompletedBlock.value = completedName
+    transitionMobilityName.value = mobilityName
+    transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
+    transitionActionLabel.value = 'Finalizar Sesion'
+    showBlockTransition.value = true
+    await wakeLock.releaseWakeLock()
     return
   }
-  transitionCompletedBlock.value = completedName
-  transitionNextBlock.value = p.needsDeuterosChoice.value ? 'Elige Deuteros' : nextName
-  showBlockTransition.value = true
-}
 
-async function finishSession(): Promise<void> {
-  if (!session.value || !player.value) return
-  await wakeLock.releaseWakeLock()
-  showCelebration.value = true
+  // Show between-block transition
+  transitionCompletedBlock.value = completedName
+  transitionMobilityName.value = mobilityName
+  transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
+  transitionActionLabel.value = actionLabel
+  showBlockTransition.value = true
 }
 
 async function onSummaryFinish(data: { rpe: number | null; notes: string | null }): Promise<void> {
@@ -365,6 +406,8 @@ async function restartSession(): Promise<void> {
       sessionStartedAt.value = null
       showCelebration.value = false
       showSummary.value = false
+      showBlockTransition.value = false
+      pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()
     }
