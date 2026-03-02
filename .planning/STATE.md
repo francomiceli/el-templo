@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 39 of 41 (App & PDF Brand Alignment)
-Plan: 0 of ? — not yet planned
-Status: Phase 38 complete, Phase 39 next
-Last activity: 2026-03-02 — Roadmap restructured: inserted Phase 39 (App Brand Alignment) and Phase 40 (Day Player Redesign), pushed Content Handoff to Phase 41
+Plan: 5 of 5 — all plans executed
+Status: Phase 39 complete
+Last activity: 2026-03-02 — All 5 plans executed: design foundation, PDF rebrand, component restyling (x2), admin light touch + verification
 
-Progress: [===] 100% (3/3 plans)
+Progress: [=====] 100% (5/5 plans)
 
 ## Milestone v3.0 Context
 
@@ -210,7 +210,19 @@ Progress: [===] 100% (3/3 plans)
 - Regenerate dialog message includes agent-type-specific label for clearer user warning
 - AI panel event pattern: child emits 'generated' with agentType+content, parent spreads into application ref
 
+### Phase 39 Decisions
+
+- Montserrat (headings), Geologica (body), Cormorant Garamond (narrative quotes) — replacing Cinzel, Roboto, NunitoSans, GreatVibes
+- Terracotta (#c07a56) primary, Aged Gold (#b89b5e) secondary, Deep Charcoal (#3d3732) accent — replacing navy/bronze palette
+- Marble Cream (#f2ede5) background — replacing old cream (#f5f0e8) and (#F2EBE1)
+- $info color: Olive Stone (#8a8472) — no blue anywhere in brand (was #31ccec)
+- Semantic colors: warm green positive, brick red negative, warm amber warning
+- Admin gets light brand touch only: Geologica body font, marble cream bg, terracotta primary via quasar.variables.scss
+- PDF builder: TTF fonts from Google Fonts API (pdfmake requires TTF, @fontsource only ships woff2)
+- Both apps build cleanly after all changes
+- Zero legacy values (Cinzel, navy hex, old bronze, old cream, blue info) remain
+
 ### Last Session
 
-- **Stopped at:** Phase 39 context gathered
+- **Stopped at:** Phase 39 complete — all 5 plans executed
 - **Timestamp:** 2026-03-02

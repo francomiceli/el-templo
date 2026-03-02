@@ -367,7 +367,7 @@ Plans:
 - [x] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent (completed 2026-03-01)
 - [x] **Phase 37: SEO Audit Fixes** - Fix issues from seoptimer audit: SSR rendering, title tag, favicon, HTTP/2, social links, email privacy, compression (completed 2026-03-02)
 - [x] **Phase 38: Franchise Application Management** - Admin panel for managing franchise applications with AI-powered conversion strategies (completed 2026-03-02)
-- [ ] **Phase 39: App & PDF Brand Alignment** - Unify el-templo-app and admin PDF with el-templo-web design system: shared tokens, Montserrat/Geologica/Cormorant typography, terracotta/gold/cream palette, component restyling
+- [x] **Phase 39: App & PDF Brand Alignment** - Unify el-templo-app and admin PDF with el-templo-web design system: shared tokens, Montserrat/Geologica/Cormorant typography, terracotta/gold/cream palette, component restyling
 - [ ] **Phase 40: Day Player Redesign** - Instagram Stories-style exercise progression, between-block screens with philosophical quotes, brand-aligned player UI
 - [ ] **Phase 41: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
 
@@ -642,11 +642,11 @@ Plans:
 
 Plans:
 
-- [ ] 39-01-PLAN.md — App design foundation: font packages, Quasar variables, app.scss, blockColors.ts
-- [ ] 39-02-PLAN.md — PDF builder rebrand: base64 fonts, color tokens, cover page
-- [ ] 39-03-PLAN.md — App component restyling: layout, training, player components (15 files)
-- [ ] 39-04-PLAN.md — App component restyling: progression, journey modules (11 files)
-- [ ] 39-05-PLAN.md — Admin light brand touch + build verification + visual inspection
+- [x] 39-01-PLAN.md — App design foundation: font packages, Quasar variables, app.scss, blockColors.ts
+- [x] 39-02-PLAN.md — PDF builder rebrand: base64 fonts, color tokens, cover page
+- [x] 39-03-PLAN.md — App component restyling: layout, training, player components (15 files)
+- [x] 39-04-PLAN.md — App component restyling: progression, journey modules (11 files)
+- [x] 39-05-PLAN.md — Admin light brand touch + build verification + visual inspection
 
 ---
 
