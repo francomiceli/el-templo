@@ -19,7 +19,7 @@ const { cleanup: cleanupTracking } = useSectionTracking({
 onUnmounted(() => cleanupTracking());
 
 useHead({
-  title: "El Templo | Escuela de Movimiento y Calistenia",
+  title: "El Templo | Calistenia, Movimiento Funcional y Peso Corporal",
   meta: [
     {
       name: "description",
@@ -28,12 +28,12 @@ useHead({
     },
     {
       property: "og:title",
-      content: "El Templo | Escuela de Movimiento y Calistenia",
+      content: "El Templo | Calistenia, Movimiento Funcional y Peso Corporal",
     },
     {
       property: "og:description",
       content:
-        "Escuela de calistenia con m\u00E9todo propio. Entrenamiento funcional con peso corporal. 8 sedes, 6 niveles, primera sesi\u00F3n gratis.",
+        "Escuela de calistenia y movimiento funcional. Entrenamiento con peso corporal en 8 sedes. M\u00E9todo propio, 6 niveles. Primera sesi\u00F3n gratis.",
     },
     { property: "og:url", content: "https://eltemplo.org" },
     { property: "og:type", content: "website" },
@@ -81,6 +81,17 @@ useSchemaOrg([
 <template>
   <main>
     <SectionHero />
+
+    <section id="intro" class="seo-intro">
+      <p class="seo-intro__text">
+        El Templo es la escuela de calistenia con m&eacute;todo propio
+        m&aacute;s grande de Argentina. Entrenamiento funcional con peso
+        corporal en 8 sedes de Mar del Plata y Barcelona. 6 niveles de
+        progresi&oacute;n, sesiones ROM y SKILLS, y una comunidad de m&aacute;s
+        de 1000 alumnos.
+      </p>
+    </section>
+
     <SectionIdentity />
     <SectionMethod />
 
@@ -95,3 +106,20 @@ useSchemaOrg([
     <FranWhatsApp />
   </main>
 </template>
+
+<style scoped>
+.seo-intro {
+  padding: var(--space-base) 5%;
+  background: var(--color-warm-stone);
+  text-align: center;
+}
+
+.seo-intro__text {
+  font-family: var(--font-clarity);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-olive-stone);
+  max-width: 720px;
+  margin: 0 auto;
+}
+</style>

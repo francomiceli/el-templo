@@ -140,7 +140,7 @@ const parallaxTransform = computed(() => {
         :class="{ 'hero--entered': entered }"
         :style="{ transitionDelay: '200ms' }"
       >
-        Tu cuerpo es tu templo.
+        Calistenia y entrenamiento con peso corporal.
       </h1>
 
       <p
