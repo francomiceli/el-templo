@@ -20,15 +20,8 @@ describe("Blog Routes", () => {
   });
 
   afterEach(async () => {
-    // Clean up test data
-    await app.db
-      .delete(blogPosts)
-      .where(eq(blogPosts.title, "Calistenia para principiantes"));
-    await app.db.delete(blogPosts).where(eq(blogPosts.title, "Updated Title"));
-    await app.db.delete(blogPosts).where(eq(blogPosts.title, "Draft Post"));
-    await app.db.delete(blogPosts).where(eq(blogPosts.title, "Published Post"));
-    await app.db.delete(blogPosts).where(eq(blogPosts.title, "Page 1 Post"));
-    await app.db.delete(blogPosts).where(eq(blogPosts.title, "Page 2 Post"));
+    // Clean up all blog posts (including seed data from migrations)
+    await app.db.delete(blogPosts);
   });
 
   afterAll(async () => {
