@@ -18,7 +18,7 @@ Full franchise landing page at /franquicias — hero, value props (4 cards), fra
 - API route in el-templo-api with new `franchise_applications` table in MySQL
 - Email notification via Resend to Ignacio (founder) on each submission
 - Post-submit: show confirmation message + derive to WhatsApp with founder's number
-- CRM/Mailchimp integration deferred to Phase 37 (Franchise Application Management)
+- CRM/Mailchimp integration deferred to Phase 38 (Franchise Application Management)
 - GA4 event + Meta Pixel Lead event wired in Phase 36 (SEO + Analytics)
 
 ### Expansion map
@@ -62,7 +62,7 @@ Full franchise landing page at /franquicias — hero, value props (4 cards), fra
 - CTA "QUIERO APLICAR" appears 3 times: post-hero, post-modelos, and as the form submit — each reinforces after adding information
 - The landing must work as an autonomous piece — an investor with a direct link should understand everything without seeing the home page
 - The investor should feel they're "accessing something exclusive, not buying a commodity franchise"
-- Franchise application management (admin panel with AI-powered conversion strategies) was captured as Phase 37
+- Franchise application management (admin panel with AI-powered conversion strategies) was captured as Phase 38
 
 </specifics>
 
@@ -102,8 +102,8 @@ Full franchise landing page at /franquicias — hero, value props (4 cards), fra
 <deferred>
 ## Deferred Ideas
 
-- **Phase 37: Franchise Application Management** — Admin panel in el-templo-admin for managing franchise applications (view/filter/sort, track status, AI agent integration for tailored conversion strategies). Added to roadmap.
-- **CRM/Mailchimp integration** — Wire form submissions to Mailchimp audience. Deferred to Phase 37.
+- **Phase 38: Franchise Application Management** — Admin panel in el-templo-admin for managing franchise applications (view/filter/sort, track status, AI agent integration for tailored conversion strategies). Added to roadmap.
+- **CRM/Mailchimp integration** — Wire form submissions to Mailchimp audience. Deferred to Phase 38.
 
 </deferred>
 

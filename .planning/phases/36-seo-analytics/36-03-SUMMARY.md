@@ -158,7 +158,7 @@ None - analytics plugins are no-ops when env vars are empty. When ready to enabl
 
 - All analytics instrumentation complete and ready for production
 - Image optimization in place (lazy loading + hero preload)
-- Real asset optimization (WebP/AVIF via @nuxt/image) deferred to Phase 38
+- Real asset optimization (WebP/AVIF via @nuxt/image) deferred to Phase 39
 
 ---
 

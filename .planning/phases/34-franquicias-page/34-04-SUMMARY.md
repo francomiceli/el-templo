@@ -147,7 +147,7 @@ None - no external service configuration required.
 - Phase 34 (Franquicias Page) is fully complete -- all 4 plans executed
 - /franquicias page is production-ready pending real hero image/video assets
 - FranVideo section will activate once videoUrl or pdfUrl are configured in data/franquicias.ts
-- Phase 37 (Franchise Application Management) can build admin UI on top of the franchise_applications table and API
+- Phase 38 (Franchise Application Management) can build admin UI on top of the franchise_applications table and API
 
 ## Self-Check: PASSED
 

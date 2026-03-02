@@ -8,7 +8,7 @@ human_verification:
     expected: "LCP < 2.5s, FID (INP) < 100ms, CLS < 0.1 on home, franquicias, gladius, and blog pages"
     why_human: "Core Web Vitals cannot be measured without a running server and real browser. Programmatic checks can only verify code structure (preload hints, lazy loading), not actual rendering performance."
 notes:
-  - "SEO-06 (WebP/AVIF/srcset): @nuxt/image installed and configured, but <NuxtImg> not used in any component — all site images are either PlaceholderBox SVGs or plain <img> tags with external URLs. Format conversion and srcset require <NuxtImg>. Phase 36 Plan 03 explicitly deferred this to Phase 38. The module infrastructure is in place; actual image optimization pending real assets. No gap in implementation given the project state (no real images exist yet)."
+  - "SEO-06 (WebP/AVIF/srcset): @nuxt/image installed and configured, but <NuxtImg> not used in any component — all site images are either PlaceholderBox SVGs or plain <img> tags with external URLs. Format conversion and srcset require <NuxtImg>. Phase 36 Plan 03 explicitly deferred this to Phase 39. The module infrastructure is in place; actual image optimization pending real assets. No gap in implementation given the project state (no real images exist yet)."
   - "TRACK-04 (analytics guarded by consent): Cookie banner is informational-only by explicit project decision (CONTEXT.md). Analytics load immediately regardless of banner state. This is correct implementation of the project decision, not a compliance gap."
 ---
 
@@ -32,7 +32,7 @@ notes:
 | 2   | Each page has unique title, description, Open Graph, and Twitter Card meta tags                      | VERIFIED             | All 6 pages (/, /franquicias, /gladius, /blog, /blog/[slug], error.vue) have useHead/useSeoMeta with unique content; global twitter:card set in app.vue                                                                                                                                                                                |
 | 3   | Structured data exists for Organization, LocalBusiness (per sede), Article (blog posts), and FAQPage | VERIFIED             | Organization in app.vue; LocalBusiness x8 + FAQPage in index.vue; Article in blog/[slug].vue                                                                                                                                                                                                                                           |
 | 4   | sitemap.xml auto-generated and robots.txt configured                                                 | VERIFIED             | robots.txt at public/robots.txt with allow-all + sitemap reference; sitemap config in nuxt.config.ts with dynamic blog source via server/api/**sitemap**/blog.ts                                                                                                                                                                       |
-| 5   | Images use lazy loading, WebP/AVIF formats where supported, and srcset                               | PARTIAL              | Lazy loading: present on GladCatalog, BlogPostCard, blog post cover. Hero preload: present in SectionHero. WebP/AVIF/srcset: @nuxt/image installed but `<NuxtImg>` not used in any component — deferred to Phase 38 (no real image assets exist yet). Plain `<img>` tags with meaningful alt text in place.                            |
+| 5   | Images use lazy loading, WebP/AVIF formats where supported, and srcset                               | PARTIAL              | Lazy loading: present on GladCatalog, BlogPostCard, blog post cover. Hero preload: present in SectionHero. WebP/AVIF/srcset: @nuxt/image installed but `<NuxtImg>` not used in any component — deferred to Phase 39 (no real image assets exist yet). Plain `<img>` tags with meaningful alt text in place.                            |
 | 6   | Lighthouse scores meet Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1                   | UNCERTAIN            | Cannot verify programmatically. Structural signals are positive: hero preload link, font-display:swap, self-hosted fonts (no CDN), lazy loading on non-LCP images. Needs human Lighthouse audit.                                                                                                                                       |
 | 7   | GA4 tracks page views, CTA clicks, form submissions, and scroll depth                                | VERIFIED             | ga4.client.ts loads gtag.js (guarded by env var); router.afterEach fires page_view; useSectionTracking fires section events on all 3 pages; CTA events wired in FranForm, GladContact, FranWhatsApp, GladWhatsApp, SectionConversion, AppPrefooter, SectionLocations, GladCatalog                                                      |
 | 8   | Meta Pixel fires Lead event on franchise form submission                                             | VERIFIED             | meta-pixel.client.ts loads fbevents.js (guarded by env var); FranForm.handleSubmit calls trackLead() after submitted.value = true                                                                                                                                                                                                      |
@@ -89,7 +89,7 @@ notes:
 | SEO-03      | 36-02        | Structured data: Organization, LocalBusiness, Article, FAQPage | SATISFIED             | All 4 schema types implemented with nuxt-schema-org                                                                                                                                                   |
 | SEO-04      | 36-02        | Auto-generated sitemap.xml                                     | SATISFIED             | @nuxtjs/sitemap configured with static pages + dynamic blog source                                                                                                                                    |
 | SEO-05      | 36-01        | robots.txt with appropriate rules                              | SATISFIED             | public/robots.txt: allow all, sitemap reference                                                                                                                                                       |
-| SEO-06      | 36-03        | Image optimization: lazy loading, WebP/AVIF, srcset            | PARTIAL               | Lazy loading on all img elements; @nuxt/image installed. WebP/AVIF and srcset require `<NuxtImg>` — not yet used because no real image assets exist. Hero preload link present. Deferred to Phase 38. |
+| SEO-06      | 36-03        | Image optimization: lazy loading, WebP/AVIF, srcset            | PARTIAL               | Lazy loading on all img elements; @nuxt/image installed. WebP/AVIF and srcset require `<NuxtImg>` — not yet used because no real image assets exist. Hero preload link present. Deferred to Phase 39. |
 | SEO-07      | 36-01, 36-04 | Core Web Vitals targets: LCP < 2.5s, FID < 100ms, CLS < 0.1    | NEEDS HUMAN           | Structural optimizations in place (self-hosted fonts, font-display:swap, hero preload, lazy loading). Actual Lighthouse scores require live environment.                                              |
 | SEO-08      | 36-02, 36-04 | Target keywords in headings and meta                           | SATISFIED             | Keywords in 5 H2 headings across home page; keywords in all page meta descriptions                                                                                                                    |
 | TRACK-01    | 36-01, 36-03 | GA4 integration with page view tracking                        | SATISFIED             | ga4.client.ts: loads gtag.js, router.afterEach fires page_view                                                                                                                                        |
@@ -103,12 +103,12 @@ notes:
 
 | File                    | Pattern                                                                    | Severity | Impact                                                                                                                    |
 | ----------------------- | -------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `app.vue`               | `sameAs: [// Placeholder — real social URLs added in Phase 38]`            | Info     | Empty sameAs array in Organization schema — will be populated in Phase 38. No functional impact.                          |
-| `pages/franquicias.vue` | `og:image: "https://eltemplo.org/images/og-franquicias.jpg"` (placeholder) | Info     | OG image paths are placeholders — real images deferred to Phase 38. Social sharing previews won't show images until then. |
+| `app.vue`               | `sameAs: [// Placeholder — real social URLs added in Phase 39]`            | Info     | Empty sameAs array in Organization schema — will be populated in Phase 39. No functional impact.                          |
+| `pages/franquicias.vue` | `og:image: "https://eltemplo.org/images/og-franquicias.jpg"` (placeholder) | Info     | OG image paths are placeholders — real images deferred to Phase 39. Social sharing previews won't show images until then. |
 | `pages/gladius.vue`     | `og:image: "https://eltemplo.org/images/og-gladius.jpg"` (placeholder)     | Info     | Same as above for Gladius page.                                                                                           |
 | `pages/blog/index.vue`  | `og:image: "https://eltemplo.org/images/og-blog.jpg"` (placeholder)        | Info     | Same as above for Blog index.                                                                                             |
 
-No blockers. All Info-level items are known deferred work for Phase 38.
+No blockers. All Info-level items are known deferred work for Phase 39.
 
 ---
 
@@ -146,11 +146,11 @@ No blocking gaps found. All functional requirements are implemented.
 
 The only items requiring follow-up are:
 
-1. **SEO-06 WebP/AVIF** — Partial. The `@nuxt/image` module is installed and configured. Format optimization will activate automatically when components switch from `<img>` to `<NuxtImg>` in Phase 38 when real image assets arrive. No code change needed now.
+1. **SEO-06 WebP/AVIF** — Partial. The `@nuxt/image` module is installed and configured. Format optimization will activate automatically when components switch from `<img>` to `<NuxtImg>` in Phase 39 when real image assets arrive. No code change needed now.
 
 2. **Core Web Vitals** — Cannot be verified without a live deployment. Structural signals are positive. A Lighthouse audit on staging after deployment will confirm.
 
-3. **OG Images** — Placeholder URLs for franquicias, gladius, and blog. Social sharing previews won't have images until Phase 38 provides real assets.
+3. **OG Images** — Placeholder URLs for franquicias, gladius, and blog. Social sharing previews won't have images until Phase 39 provides real assets.
 
 ---
 

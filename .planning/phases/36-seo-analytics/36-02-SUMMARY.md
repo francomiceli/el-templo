@@ -119,8 +119,8 @@ Each task was committed atomically:
 ## Decisions Made
 
 - Used `defineWebPage({ "@type": "FAQPage" })` + individual `defineQuestion` calls instead of `defineFAQPage` which does not exist in nuxt-schema-org v5 (uses @unhead/schema-org under the hood)
-- Geo coordinates added as optional `lat`/`lng` fields on Sede interface (approximate values, exact values in Phase 38)
-- OG image placeholders set for franquicias, gladius, and blog (actual images in Phase 38)
+- Geo coordinates added as optional `lat`/`lng` fields on Sede interface (approximate values, exact values in Phase 39)
+- OG image placeholders set for franquicias, gladius, and blog (actual images in Phase 39)
 - Error page created as `error.vue` at app root (Nuxt convention) instead of `pages/404.vue`
 
 ## Deviations from Plan
@@ -172,7 +172,7 @@ None - no external service configuration required.
 - All pages have complete SEO meta tags and structured data
 - Sitemap auto-generates with static + dynamic blog URLs
 - Ready for Phase 36 Plan 03 (performance optimization) and Plan 04 (analytics)
-- OG image placeholders ready for real images in Phase 38
+- OG image placeholders ready for real images in Phase 39
 
 ## Self-Check: PASSED
 

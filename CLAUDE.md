@@ -26,6 +26,10 @@ Monorepo with 3 apps:
 - Tests run against real MySQL (`eltemplo_test` database). See `test/helpers.ts` for auth/request utilities.
 - Run tests: `cd el-templo-api && pnpm test`
 
+### Database Changes
+
+- Always modify the database through **migrations** (Drizzle). Never modify SQL directly.
+
 ### Environment Variables
 
 - When adding a new env var, update the corresponding `.env.example` file.

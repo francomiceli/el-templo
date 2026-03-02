@@ -24,7 +24,7 @@ Optimize the entire el-templo-web site for search engines and instrument convers
 
 ### Analytics Events (GA4)
 
-- GA4 Measurement ID stored as env var (`NUXT_PUBLIC_GA4_ID`) — actual ID configured in Phase 38
+- GA4 Measurement ID stored as env var (`NUXT_PUBLIC_GA4_ID`) — actual ID configured in Phase 39
 - Track: page views (automatic), form submissions, WhatsApp CTA clicks, conversion CTA clicks, section-based scroll depth
 - Section-based scroll tracking on ALL pages with sections (home, franquicias, gladius) — fires events like `viewed_method`, `viewed_locations` when sections enter viewport
 - CTA click tracking: conversion CTAs only — "Probá una clase gratis", "Aplicá ahora", WhatsApp buttons, form submits, "Consultá disponibilidad"
@@ -32,7 +32,7 @@ Optimize the entire el-templo-web site for search engines and instrument convers
 
 ### Meta Pixel
 
-- Meta Pixel ID stored as env var (`NUXT_PUBLIC_META_PIXEL_ID`) — actual ID configured in Phase 38
+- Meta Pixel ID stored as env var (`NUXT_PUBLIC_META_PIXEL_ID`) — actual ID configured in Phase 39
 - Fire Lead event on franchise form submission (FranForm.vue)
 - Basic page view tracking on all pages
 - Critical for existing Meta ad campaigns — site needs full integration
@@ -40,8 +40,8 @@ Optimize the entire el-templo-web site for search engines and instrument convers
 ### Structured Data (JSON-LD)
 
 - Use `nuxt-schema-org` module (type-safe, composable-based)
-- Organization schema: name, url, logo, description, sameAs social links (social URLs deferred to Phase 38 as placeholders)
-- LocalBusiness schema per sede: full detail (name, address, geo coords, hours, phone, photos, services) — use whatever location data exists in codebase now, Phase 38 fills gaps
+- Organization schema: name, url, logo, description, sameAs social links (social URLs deferred to Phase 39 as placeholders)
+- LocalBusiness schema per sede: full detail (name, address, geo coords, hours, phone, photos, services) — use whatever location data exists in codebase now, Phase 39 fills gaps
 - Article schema for blog posts: full — headline, datePublished, author (name, url), publisher (El Templo org), image
 - FAQPage schema: Claude's discretion on which pages get it (wherever FAQ content naturally exists)
 
@@ -126,7 +126,7 @@ Optimize the entire el-templo-web site for search engines and instrument convers
 <deferred>
 ## Deferred Ideas
 
-**Phase 38: Content & Media Handoff** (already added to roadmap):
+**Phase 39: Content & Media Handoff** (already added to roadmap):
 
 - Replace placeholder media with real assets from team
 - Configure production Meta Pixel ID from ads team

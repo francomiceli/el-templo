@@ -116,7 +116,7 @@ Note: The API works without these variables -- applications are still persisted 
 ## Next Phase Readiness
 
 - API backend is complete and tested, ready for frontend form integration (Plan 34-02/03)
-- Phase 37 (Franchise Application Management) can build on the franchise_applications table and status column
+- Phase 38 (Franchise Application Management) can build on the franchise_applications table and status column
 
 ---
 
