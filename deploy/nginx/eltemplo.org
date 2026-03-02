@@ -23,10 +23,16 @@ server {
       text/css
       text/javascript
       application/javascript
+      application/x-javascript
       application/json
       application/xml
       image/svg+xml
       font/woff2;
+
+    # Redirect SPA app routes to homepage (these are not SSG pages)
+    location ~ ^/(app|academy|aura-club)(/.*)?$ {
+        return 301 /;
+    }
 
     # SSG: serve pre-rendered HTML files, fallback to index.html
     location / {
@@ -55,7 +61,10 @@ server {
     root /var/www/el-templo-web;
     index index.html;
 
-    # Gzip compression (mirror from port 80 block)
+    # HSTS — enforce HTTPS for 1 year, include subdomains
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Gzip compression
     gzip on;
     gzip_vary on;
     gzip_proxied any;
@@ -66,10 +75,16 @@ server {
       text/css
       text/javascript
       application/javascript
+      application/x-javascript
       application/json
       application/xml
       image/svg+xml
       font/woff2;
+
+    # Redirect SPA app routes to homepage (these are not SSG pages)
+    location ~ ^/(app|academy|aura-club)(/.*)?$ {
+        return 301 /;
+    }
 
     # SSG: serve pre-rendered HTML files, fallback to index.html
     location / {
