@@ -101,9 +101,14 @@ async function copyLink(): Promise<void> {
 
     <!-- Brand CTA -->
     <div class="blog-sidebar__cta">
-      <NuxtLink to="/#descubri-nivel" class="blog-sidebar__cta-btn">
+      <a
+        href="https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="blog-sidebar__cta-btn"
+      >
         Reserv&aacute; tu Sesi&oacute;n de Prueba
-      </NuxtLink>
+      </a>
       <p class="blog-sidebar__cta-tagline">
         Descubr&iacute; tu nivel y empez&aacute; a entrenar.
       </p>

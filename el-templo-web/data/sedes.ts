@@ -30,9 +30,9 @@ export const sedes: Sede[] = [
   {
     id: "constitucion",
     name: "Constituci\u00F3n",
-    address: "Constituci\u00F3n 6745",
+    address: "Av. Constituci\u00F3n 6745",
     city: "Mar del Plata",
-    mapsUrl: "https://maps.google.com/?q=Constitucion+6745+Mar+del+Plata",
+    mapsUrl: "https://maps.google.com/?q=Av+Constitucion+6745+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
     lat: -38.005,
     lng: -57.545,

@@ -25,10 +25,13 @@ const navLinks: NavLink[] = [
   { label: "Blog", href: "/blog", sectionId: null },
 ];
 
+const WHATSAPP_URL =
+  "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
+
 const ctaLink: NavLink = {
   label: "Reservar Sesion",
-  href: "/#sesion-prueba",
-  sectionId: "sesion-prueba",
+  href: WHATSAPP_URL,
+  sectionId: null,
 };
 
 // Active section tracking
@@ -127,14 +130,15 @@ if (import.meta.client) {
         >
           {{ link.label }}
         </NuxtLink>
-        <NuxtLink
-          :to="ctaLink.href"
+        <a
+          :href="ctaLink.href"
+          target="_blank"
+          rel="noopener noreferrer"
           class="nav__cta"
-          :class="{ 'nav__cta--active': isLinkActive(ctaLink) }"
           @click="handleLinkClick"
         >
           {{ ctaLink.label }}
-        </NuxtLink>
+        </a>
       </div>
 
       <!-- Hamburger (mobile only) -->
@@ -173,14 +177,16 @@ if (import.meta.client) {
         >
           {{ link.label }}
         </NuxtLink>
-        <NuxtLink
-          :to="ctaLink.href"
+        <a
+          :href="ctaLink.href"
+          target="_blank"
+          rel="noopener noreferrer"
           class="nav__drawer-cta btn btn--primary"
           :style="{ '--stagger-delay': `${navLinks.length * 50}ms` }"
           @click="handleLinkClick"
         >
           {{ ctaLink.label }}
-        </NuxtLink>
+        </a>
       </div>
     </Transition>
   </nav>

@@ -24,7 +24,11 @@ const columns: FooterColumn[] = [
       { label: "Sistema de Niveles", href: "/#niveles", disabled: false },
       { label: "Los 5 Enfoques", href: "/#enfoques", disabled: false },
       { label: "Descubrí tu Nivel", href: "/#descubri-nivel", disabled: false },
-      { label: "Reservar Sesión", href: "/#sesion-prueba", disabled: false },
+      {
+        label: "Reservar Sesión",
+        href: "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba",
+        disabled: false,
+      },
     ],
   },
   {
@@ -69,6 +73,10 @@ const columns: FooterColumn[] = [
             <NuxtLink
               v-if="!link.disabled"
               :to="link.href"
+              :target="link.href.startsWith('http') ? '_blank' : undefined"
+              :rel="
+                link.href.startsWith('http') ? 'noopener noreferrer' : undefined
+              "
               class="footer__link"
             >
               {{ link.label }}
@@ -93,7 +101,7 @@ const columns: FooterColumn[] = [
             +54 9 223 582-0521
           </a>
           <span class="footer__info-address">
-            Constituci&oacute;n 6745, Mar del Plata, Argentina
+            Av. Constituci&oacute;n 6745, Mar del Plata, Argentina
           </span>
         </div>
         <div class="footer__social">
