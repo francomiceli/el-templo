@@ -19,4 +19,9 @@ export const franchiseApplications = mysqlTable("franchise_applications", {
   mensaje: text("mensaje"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   status: varchar("status", { length: 50 }).default("new").notNull(),
+  notes: text("notes"),
+  aiStrategy: text("ai_strategy"),
+  aiOutreach: text("ai_outreach"),
+  aiFollowup: text("ai_followup"),
+  aiNegotiation: text("ai_negotiation"),
 });
