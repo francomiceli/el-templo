@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 <template>
   <section id="catalogo-gladius" class="glad-catalog">
     <div class="glad-catalog__container">
-      <h2 class="glad-catalog__title">NUESTROS PRODUCTOS</h2>
+      <h2 class="glad-catalog__title">NUESTROS PRODUCTOS DE CALISTENIA</h2>
 
       <p class="glad-catalog__subtitle">
         Equipamiento de calistenia dise&ntilde;ado, probado y aprobado en El
