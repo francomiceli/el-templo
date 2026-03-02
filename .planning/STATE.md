@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Phase 40 context gathered
-last_updated: "2026-03-02T21:01:54.085Z"
+status: phase_complete
+stopped_at: Phase 40 complete — all 5 plans executed
+last_updated: "2026-03-02T23:00:00.000Z"
 progress:
-  total_phases: 40
-  completed_phases: 29
-  total_plans: 166
-  completed_plans: 162
+  total_phases: 42
+  completed_phases: 31
+  total_plans: 171
+  completed_plans: 167
 ---
 
 # Project State
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 39 of 41 (App & PDF Brand Alignment)
+Phase: 40 of 42 (Day Player Redesign)
 Plan: 5 of 5 — all plans executed
-Status: Phase 39 complete
-Last activity: 2026-03-02 — All 5 plans executed: design foundation, PDF rebrand, component restyling (x2), admin light touch + verification
+Status: Phase 40 complete
+Last activity: 2026-03-02 — All 5 plans executed: foundation (quotes, navigation, progress bar), core UI (story card, compact list), overlay screens (splash, transition, celebration), integration (BlockProgressionView + DayPlayer + JourneySession wiring), build verification + decision audit
 
 Progress: [=====] 100% (5/5 plans)
 
@@ -223,7 +223,22 @@ Progress: [=====] 100% (5/5 plans)
 - Both apps build cleanly after all changes
 - Zero legacy values (Cinzel, navy hex, old bronze, old cream, blue info) remain
 
+### Phase 40 Decisions
+
+- Instagram Stories-style tap navigation: right 70% = next, left 30% = prev (navigation only, never completion)
+- SegmentedProgressBar: 3px height bars, Aged Gold for completed/active, glow animation on active segment
+- StoryExerciseCard: split layout 70% video/name hero + 30% detail, Completar button as sole completion mechanism
+- CompactExerciseList: no left icons, green check on right, tapping row navigates to story slide
+- Card-overlay-on-blur pattern shared across SplashScreen, TransitionScreen, CelebrationScreen
+- Button-only dismissal for all overlay screens (no auto-advance, no tap-anywhere)
+- TransitionScreen: mobility name reminder + motivational quote + action button between blocks
+- Flame icon (local_fire_department) replaces trophy (emoji_events) in CelebrationScreen
+- Quotes from quotes.ts (10 brand-curated quotes) with getQuoteForBlock deterministic selector
+- Story navigation managed internally in BlockProgressionView via useStoryNavigation composable
+- JourneySession.vue updated to match new component interfaces (SplashScreen, TransitionScreen, CelebrationScreen, BlockProgressionView)
+- "Dosis" renamed to "Cantidad" throughout all player components
+
 ### Last Session
 
-- **Stopped at:** Phase 40 context gathered
+- **Stopped at:** Phase 40 complete
 - **Timestamp:** 2026-03-02

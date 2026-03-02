@@ -368,7 +368,7 @@ Plans:
 - [x] **Phase 37: SEO Audit Fixes** - Fix issues from seoptimer audit: SSR rendering, title tag, favicon, HTTP/2, social links, email privacy, compression (completed 2026-03-02)
 - [x] **Phase 38: Franchise Application Management** - Admin panel for managing franchise applications with AI-powered conversion strategies (completed 2026-03-02)
 - [x] **Phase 39: App & PDF Brand Alignment** - Unify el-templo-app and admin PDF with el-templo-web design system: shared tokens, Montserrat/Geologica/Cormorant typography, terracotta/gold/cream palette, component restyling
-- [ ] **Phase 40: Day Player Redesign** - Instagram Stories-style exercise progression, between-block screens with philosophical quotes, brand-aligned player UI
+- [x] **Phase 40: Day Player Redesign** - Instagram Stories-style exercise progression, between-block screens with philosophical quotes, brand-aligned player UI (completed 2026-03-02)
 - [ ] **Phase 41: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
 
 ## v3.0 Phase Details
@@ -600,8 +600,8 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 36. SEO + Analytics                         | 4/4            | Complete    | 2026-03-01 |
 | 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
 | 38. Franchise Application Management        | 3/3            | Complete    | 2026-03-02 |
-| 39. App & PDF Brand Alignment               | 0/5            | Planned     | —          |
-| 40. Day Player Redesign                     | 0/5            | Planned     | —          |
+| 39. App & PDF Brand Alignment               | 5/5            | Complete    | 2026-03-02 |
+| 40. Day Player Redesign                     | 5/5            | Complete    | 2026-03-02 |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
@@ -659,11 +659,11 @@ Plans:
 
 Plans:
 
-- [ ] 40-01-PLAN.md — Quotes data module, story navigation composable, segmented progress bar
-- [ ] 40-02-PLAN.md — Story exercise card, compact exercise list, Dosis→Cantidad rename
-- [ ] 40-03-PLAN.md — Overlay screens: splash, between-block transition, celebration redesign
-- [ ] 40-04-PLAN.md — BlockProgressionView rewrite + DayPlayer wiring
-- [ ] 40-05-PLAN.md — Build verification + visual inspection checkpoint
+- [x] 40-01-PLAN.md — Quotes data module, story navigation composable, segmented progress bar
+- [x] 40-02-PLAN.md — Story exercise card, compact exercise list, Dosis→Cantidad rename
+- [x] 40-03-PLAN.md — Overlay screens: splash, between-block transition, celebration redesign
+- [x] 40-04-PLAN.md — BlockProgressionView rewrite + DayPlayer wiring
+- [x] 40-05-PLAN.md — Build verification + visual inspection checkpoint
 
 ---
 
