@@ -306,19 +306,19 @@ function dayLabel(day: string): string {
 function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): string {
   if (memberLevel) {
     const level = memberLevel.toLowerCase();
-    if (level === 'alfa') return 'brown-4';
-    if (level === 'delta') return 'deep-orange-6';
-    if (level === 'sigma') return 'deep-orange-9';
-    if (level === 'omega') return 'orange';
-    if (level === 'spartan') return 'red';
+    if (level === 'alfa') return 'amber-8';
+    if (level === 'delta') return 'deep-orange-7';
+    if (level === 'sigma') return 'brown-8';
+    if (level === 'omega') return 'red-9';
+    if (level === 'spartan') return 'grey-9';
   }
   switch (group) {
     case 'alfa_delta':
-      return 'deep-orange-6';
+      return 'deep-orange-7';
     case 'sigma':
-      return 'deep-orange-9';
+      return 'brown-8';
     case 'omega':
-      return 'orange';
+      return 'red-9';
     default:
       return 'grey';
   }
