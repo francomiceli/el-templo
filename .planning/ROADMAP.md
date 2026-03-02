@@ -601,7 +601,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
 | 38. Franchise Application Management        | 3/3            | Complete    | 2026-03-02 |
 | 39. App & PDF Brand Alignment               | 0/5            | Planned     | —          |
-| 40. Day Player Redesign                     | 0/?            | Not Started | —          |
+| 40. Day Player Redesign                     | 0/5            | Planned     | —          |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
@@ -655,11 +655,15 @@ Plans:
 **Goal:** Redesign the DayPlayer workout experience in el-templo-app with an Instagram Stories-style exercise progression (tap right/left to navigate), exercise info displayed below, ability to view all exercises in the block, new between-block transition screens with philosophical/motivational quotes, and full brand alignment using the design system from Phase 39
 **Requirements**: TBD
 **Depends on:** Phase 39 (brand-aligned design tokens and typography must be in place)
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 40 to break down)
+- [ ] 40-01-PLAN.md — Quotes data module, story navigation composable, segmented progress bar
+- [ ] 40-02-PLAN.md — Story exercise card, compact exercise list, Dosis→Cantidad rename
+- [ ] 40-03-PLAN.md — Overlay screens: splash, between-block transition, celebration redesign
+- [ ] 40-04-PLAN.md — BlockProgressionView rewrite + DayPlayer wiring
+- [ ] 40-05-PLAN.md — Build verification + visual inspection checkpoint
 
 ---
 
@@ -673,6 +677,17 @@ Plans:
 Plans:
 
 - [ ] TBD (run /gsd:plan-phase 41 to break down)
+
+### Phase 42: Blog internal linking system (tags, related posts, cross-page CTAs)
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 41
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 42 to break down)
 
 ---
 
