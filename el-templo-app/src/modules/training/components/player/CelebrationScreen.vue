@@ -1,113 +1,94 @@
 <template>
-  <div
-    class="celebration-screen fixed-full column items-center justify-center"
-    :class="{ 'fade-out': isFading }"
-  >
-    <div class="celebration-content column items-center q-gutter-y-md">
-      <!-- Animated trophy icon -->
-      <div class="trophy-container" :class="{ 'pulse-animation': !isFading }">
-        <q-icon name="emoji_events" size="100px" class="trophy-icon" />
+  <div class="celebration-overlay">
+    <div class="celebration-overlay__backdrop" />
+    <div class="celebration-overlay__card">
+      <!-- Flame icon with pulse animation -->
+      <div class="celebration-overlay__flame">
+        <q-icon name="local_fire_department" size="80px" />
       </div>
 
-      <!-- Congratulations text -->
-      <div class="completion-message text-h4 text-white text-weight-bold text-center">
-        Sesion Completada!
+      <!-- Title -->
+      <div class="celebration-overlay__title">Sesion Completada!</div>
+
+      <!-- Final quote -->
+      <div class="celebration-overlay__quote">
+        <div class="celebration-overlay__quote-text">
+          {{ quote.text
+          }}<span v-if="quote.goldText" class="celebration-overlay__quote-gold">{{
+            quote.goldText
+          }}</span>
+        </div>
+        <div class="celebration-overlay__quote-author">&mdash; {{ quote.author }}</div>
       </div>
 
-      <!-- Subtitle -->
-      <div class="text-subtitle1 text-white-70 text-center">Excelente trabajo</div>
-
-      <!-- Loading indicator for transition -->
-      <div class="loading-dots q-mt-lg">
-        <q-spinner-dots color="white" size="40px" />
+      <!-- Ver Resumen button — NO auto-advance per CONTEXT.md -->
+      <div class="celebration-overlay__action">
+        <q-btn
+          color="primary"
+          unelevated
+          label="Ver Resumen"
+          class="full-width"
+          size="lg"
+          @click="emit('view-summary')"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-
 interface Props {
-  /** Duration before auto-advancing (default: 3500ms per CONTEXT.md) */
-  duration?: number
+  /** Final motivational quote to display */
+  quote: { text: string; goldText: string; author: string }
 }
 
 interface Emits {
-  (e: 'complete'): void
+  (e: 'view-summary'): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  duration: 3500,
-})
+defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-/** Fade-out animation state */
-const isFading = ref(false)
-
-/** Timer references for cleanup */
-let displayTimer: ReturnType<typeof setTimeout> | null = null
-let fadeTimer: ReturnType<typeof setTimeout> | null = null
-
-onMounted(() => {
-  // Display for duration, then start fade
-  displayTimer = setTimeout(() => {
-    isFading.value = true
-    // Complete after fade animation (0.5s)
-    fadeTimer = setTimeout(() => {
-      emit('complete')
-    }, 500)
-  }, props.duration)
-})
-
-onUnmounted(() => {
-  if (displayTimer) clearTimeout(displayTimer)
-  if (fadeTimer) clearTimeout(fadeTimer)
-})
 </script>
 
 <style scoped lang="scss">
-.celebration-screen {
+.celebration-overlay {
+  position: fixed;
+  inset: 0;
   z-index: 9999;
-  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 50%, #2e2a26 100%);
-  transition: opacity 0.5s ease-out;
-
-  &.fade-out {
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-
-.celebration-content {
-  padding: 24px;
-}
-
-.trophy-container {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(184, 155, 94, 0.3) 0%, rgba(184, 155, 94, 0.1) 100%);
-  border: 2px solid rgba(184, 155, 94, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+  padding: 24px;
 }
 
-.trophy-icon {
-  color: #a0755a;
+.celebration-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(46, 42, 38, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.completion-message {
-  font-family: 'Montserrat', sans-serif;
-  letter-spacing: 0.05em;
+.celebration-overlay__card {
+  position: relative;
+  max-width: 360px;
+  width: 100%;
+  border-radius: 20px;
+  background: rgba(61, 55, 50, 0.95);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
 }
 
-.pulse-animation {
-  animation: pulse 1s ease-in-out infinite;
+.celebration-overlay__flame {
+  color: #b89b5e; // Aged Gold
+  animation: flame-pulse 1s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes flame-pulse {
   0%,
   100% {
     transform: scale(1);
@@ -117,11 +98,39 @@ onUnmounted(() => {
   }
 }
 
-.text-white-70 {
-  color: rgba(255, 255, 255, 0.7);
+.celebration-overlay__title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.05em;
+  line-height: 1.2;
 }
 
-.loading-dots {
-  opacity: 0.8;
+.celebration-overlay__quote {
+  margin-top: 8px;
+}
+
+.celebration-overlay__quote-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 18px;
+  color: white;
+  line-height: 1.5;
+}
+
+.celebration-overlay__quote-gold {
+  color: #b89b5e; // Aged Gold
+}
+
+.celebration-overlay__quote-author {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 8px;
+}
+
+.celebration-overlay__action {
+  width: 100%;
+  margin-top: 16px;
 }
 </style>
