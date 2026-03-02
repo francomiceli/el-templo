@@ -4,7 +4,10 @@
  * Generates El Templo-branded session PDFs using pdfmake.
  * Client-side generation - no server infrastructure needed.
  *
- * Design: 1920×1080 landscape, cream background, 2x2 level grids, Greek symbols.
+ * Design: 1920×1080 landscape, marble cream background, 2x2 level grids, Greek symbols.
+ * Brand fonts: Montserrat (headings), Geologica (body), Cormorant Garamond (quotes).
+ * Brand colors: Terracotta primary, Aged Gold accents, Deep Charcoal text.
+ * Aligned with el-templo-web design system (Phase 39).
  */
 
 import pdfMake from 'pdfmake/build/pdfmake';
@@ -16,25 +19,25 @@ import {
   ContextPageSize,
 } from 'pdfmake/interfaces';
 import {
-  CINZEL_REGULAR_BASE64,
-  CINZEL_BOLD_BASE64,
-  NUNITO_SANS_REGULAR_BASE64,
-  NUNITO_SANS_BOLD_BASE64,
-  NUNITO_SANS_BOLD_ITALIC_BASE64,
-  ROBOTO_REGULAR_BASE64,
+  MONTSERRAT_REGULAR_BASE64,
+  MONTSERRAT_BOLD_BASE64,
+  GEOLOGICA_REGULAR_BASE64,
+  GEOLOGICA_SEMIBOLD_BASE64,
+  CORMORANT_GARAMOND_REGULAR_BASE64,
+  CORMORANT_GARAMOND_ITALIC_BASE64,
   LOGO_BASE64,
-  GREAT_VIBES_REGULAR_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { formatWeekLabel } from '../weekDates';
 
 // ============================================================
-// BRAND DESIGN TOKENS (from visual guidelines)
+// BRAND DESIGN TOKENS — aligned with el-templo-web (Phase 39)
 // ============================================================
-const BG_CREAM = '#F2EBE1'; // Crema Mármol - main background
-const NAVY = '#24364A'; // Azul Profundo - headers, primary text
-const GOLD = '#B08D6E'; // Oro Mate - accents, borders, subtitles
-const SAND = '#DBCAB4'; // Arena Suave - card backgrounds
+const BG_CREAM = '#f2ede5'; // Marble Cream - main background
+const CHARCOAL = '#3d3732'; // Deep Charcoal - headers, primary text
+const TERRACOTTA = '#c07a56'; // Terracotta - primary accent color
+const AGED_GOLD = '#b89b5e'; // Aged Gold - accents, borders, subtitles
+const WARM_STONE = '#d9cfc1'; // Warm Stone - card backgrounds
 const BORDER_MUTED = '#c5b9a8'; // Muted border color
 
 // Greek letter level symbols
@@ -87,7 +90,7 @@ function getRouteName(code: string): string {
 }
 
 // Motivational quotes for closing page
-// Each quote is split: main text (navy) + goldText (gold accent on the punchline)
+// Each quote is split: main text (charcoal) + accentText (terracotta accent on the punchline)
 const QUOTES = [
   {
     text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ',
@@ -141,38 +144,31 @@ let fontsReady = false;
 function ensureFonts() {
   if (fontsReady) return;
   pdfMake.vfs = {
-    'Cinzel-Regular.ttf': CINZEL_REGULAR_BASE64,
-    'Cinzel-Bold.ttf': CINZEL_BOLD_BASE64,
-    'NunitoSans-Regular.ttf': NUNITO_SANS_REGULAR_BASE64,
-    'NunitoSans-Bold.ttf': NUNITO_SANS_BOLD_BASE64,
-    'NunitoSans-BoldItalic.ttf': NUNITO_SANS_BOLD_ITALIC_BASE64,
-    'Roboto-Regular.ttf': ROBOTO_REGULAR_BASE64,
-    'GreatVibes-Regular.ttf': GREAT_VIBES_REGULAR_BASE64,
+    'Montserrat-Regular.ttf': MONTSERRAT_REGULAR_BASE64,
+    'Montserrat-Bold.ttf': MONTSERRAT_BOLD_BASE64,
+    'Geologica-Regular.ttf': GEOLOGICA_REGULAR_BASE64,
+    'Geologica-SemiBold.ttf': GEOLOGICA_SEMIBOLD_BASE64,
+    'CormorantGaramond-Regular.ttf': CORMORANT_GARAMOND_REGULAR_BASE64,
+    'CormorantGaramond-Italic.ttf': CORMORANT_GARAMOND_ITALIC_BASE64,
   };
   pdfMake.fonts = {
-    Cinzel: {
-      normal: 'Cinzel-Regular.ttf',
-      bold: 'Cinzel-Bold.ttf',
-      italics: 'Cinzel-Regular.ttf',
-      bolditalics: 'Cinzel-Bold.ttf',
+    Montserrat: {
+      normal: 'Montserrat-Regular.ttf',
+      bold: 'Montserrat-Bold.ttf',
+      italics: 'Montserrat-Regular.ttf',
+      bolditalics: 'Montserrat-Bold.ttf',
     },
-    NunitoSans: {
-      normal: 'NunitoSans-Regular.ttf',
-      bold: 'NunitoSans-Bold.ttf',
-      italics: 'NunitoSans-Regular.ttf',
-      bolditalics: 'NunitoSans-BoldItalic.ttf',
+    Geologica: {
+      normal: 'Geologica-Regular.ttf',
+      bold: 'Geologica-SemiBold.ttf',
+      italics: 'Geologica-Regular.ttf',
+      bolditalics: 'Geologica-SemiBold.ttf',
     },
-    Roboto: {
-      normal: 'Roboto-Regular.ttf',
-      bold: 'Roboto-Regular.ttf',
-      italics: 'Roboto-Regular.ttf',
-      bolditalics: 'Roboto-Regular.ttf',
-    },
-    GreatVibes: {
-      normal: 'GreatVibes-Regular.ttf',
-      bold: 'GreatVibes-Regular.ttf',
-      italics: 'GreatVibes-Regular.ttf',
-      bolditalics: 'GreatVibes-Regular.ttf',
+    CormorantGaramond: {
+      normal: 'CormorantGaramond-Regular.ttf',
+      bold: 'CormorantGaramond-Regular.ttf',
+      italics: 'CormorantGaramond-Italic.ttf',
+      bolditalics: 'CormorantGaramond-Italic.ttf',
     },
   };
   fontsReady = true;
@@ -204,26 +200,26 @@ function buildClosingPage(quoteIndex: number): Content[] {
     // Logo image (small, centered at top)
     { image: LOGO_BASE64, width: 280, alignment: 'center' as const },
     { text: '', margin: [0, 100, 0, 0] },
-    // Quote with navy + gold accent split
+    // Quote with charcoal + terracotta accent split
     {
       text: [
-        { text: quote.text, color: NAVY },
-        { text: quote.goldText, color: GOLD },
+        { text: quote.text, color: CHARCOAL },
+        { text: quote.goldText, color: TERRACOTTA },
       ],
       fontSize: 65,
       bold: true,
       alignment: 'center' as const,
       lineHeight: 1.3,
       margin: [120, 0, 120, 0],
-      font: 'Cinzel',
+      font: 'Montserrat',
     },
     { text: '', margin: [0, 40, 0, 0] },
     {
       text: `\u2013 ${quote.author}`,
       fontSize: 64,
       alignment: 'center' as const,
-      color: NAVY,
-      font: 'GreatVibes',
+      color: CHARCOAL,
+      font: 'CormorantGaramond',
     },
   ];
 }
@@ -238,39 +234,46 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
   return [
     { text: '', pageBreak: 'before' as const },
     { text: '', margin: [0, 60, 0, 0] },
-    // Block name — always PYROS, large Cinzel bold
+    // Block name — always PYROS, large Montserrat bold
     {
       text: 'PYROS',
       fontSize: 130,
       bold: true,
-      color: NAVY,
+      color: CHARCOAL,
       margin: [125, 0, 0, 0],
       characterSpacing: 10,
-      font: 'Cinzel',
+      font: 'Montserrat',
     },
     // INITIUM · FORMAT — bolder
     {
       text: `${block.role}  ·  ${block.formatName}`,
       fontSize: 65,
       bold: true,
-      color: GOLD,
+      color: AGED_GOLD,
       margin: [130, 12, 0, 0],
       characterSpacing: 3,
-      font: 'NunitoSans',
+      font: 'Geologica',
     },
     { text: '', margin: [0, 56, 0, 0] },
     // NIVEL α Δ Σ Ω — bolder
     {
       text: [
-        { text: 'NIVEL  ', fontSize: 50, color: GOLD, bold: true, font: 'NunitoSans' },
-        { text: 'α ', fontSize: 55, color: GOLD, bold: true, font: 'Roboto', characterSpacing: 5 },
+        { text: 'NIVEL  ', fontSize: 50, color: AGED_GOLD, bold: true, font: 'Geologica' },
+        {
+          text: 'α ',
+          fontSize: 55,
+          color: AGED_GOLD,
+          bold: true,
+          font: 'Geologica',
+          characterSpacing: 5,
+        },
         {
           text: ' Δ Σ Ω',
           fontSize: 40,
-          color: GOLD,
+          color: AGED_GOLD,
           bold: true,
           characterSpacing: 10,
-          font: 'Roboto',
+          font: 'Geologica',
         },
       ],
       margin: [130, 0, 0, 0],
@@ -280,20 +283,20 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
     ...(block.simpleExercises || []).map((ex) => ({
       text: `•  ${ex}`,
       fontSize: 45,
-      color: NAVY,
+      color: CHARCOAL,
       margin: [130, exerciseGap, 0, 0] as [number, number, number, number],
-      font: 'NunitoSans',
+      font: 'Geologica',
     })),
     // Format params on the right
     block.formatParams
       ? {
           text: block.formatParams,
           fontSize: 70,
-          color: GOLD,
+          color: AGED_GOLD,
           alignment: 'right' as const,
           margin: [0, -160, 200, 0],
           opacity: 0.7,
-          font: 'NunitoSans',
+          font: 'Geologica',
         }
       : { text: '' },
   ];
@@ -333,18 +336,18 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
         {
           text: `•  ${ex.name} ${contraction}`,
           fontSize: 32,
-          color: NAVY,
+          color: CHARCOAL,
           width: '*',
-          font: 'NunitoSans',
+          font: 'Geologica',
         },
         {
           text: volume,
           fontSize: 32,
-          color: GOLD,
+          color: AGED_GOLD,
           width: 138,
           alignment: 'right' as const,
           bold: true,
-          font: 'NunitoSans',
+          font: 'Geologica',
         },
       ],
       margin: [25, lineGap, 25, 0],
@@ -363,16 +366,22 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
             text: 'NIVEL ',
             fontSize: 47,
             bold: true,
-            color: GOLD,
-            font: 'NunitoSans',
+            color: AGED_GOLD,
+            font: 'Geologica',
             characterSpacing: 2,
           },
-          { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
+          {
+            text: `${symbol}`,
+            fontSize: symbolSize,
+            color: AGED_GOLD,
+            bold: true,
+            font: 'Geologica',
+          },
           {
             text: `  |  ${routeName} ${lb.intensity}%`,
             fontSize: 42,
-            color: GOLD,
-            font: 'NunitoSans',
+            color: AGED_GOLD,
+            font: 'Geologica',
           },
         ],
         margin: [0, 0, 0, 8],
@@ -388,7 +397,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
             h: boxHeight,
             r: 20,
             lineWidth: 4,
-            lineColor: GOLD,
+            lineColor: AGED_GOLD,
           },
         ],
       },
@@ -443,10 +452,10 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     text: headerText,
     fontSize: headerFontSize,
     bold: true,
-    color: SAND,
+    color: WARM_STONE,
     alignment: 'center' as const,
     characterSpacing: 3,
-    font: 'Cinzel',
+    font: 'Montserrat',
     opacity: 0.25,
     margin: [3, 2, 0, 0],
   });
@@ -455,10 +464,10 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     text: headerText,
     fontSize: headerFontSize,
     bold: true,
-    color: NAVY,
+    color: CHARCOAL,
     alignment: 'center' as const,
     characterSpacing: 3,
-    font: 'Cinzel',
+    font: 'Montserrat',
     margin: [0, -(headerFontSize + 4), 0, 0],
   });
 
@@ -469,10 +478,10 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     fontSize: mobilityFontSize,
     bold: true,
     italics: true,
-    color: GOLD,
+    color: AGED_GOLD,
     alignment: 'center' as const,
     margin: [0, 8, 0, 0],
-    font: 'NunitoSans',
+    font: 'Geologica',
   });
 
   content.push({ text: '', margin: [0, isHalf ? 12 : 28, 0, 0] });
@@ -536,18 +545,18 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
         {
           text: `• ${ex.name} ${contraction}`,
           fontSize: 26,
-          color: NAVY,
+          color: CHARCOAL,
           width: '*',
-          font: 'NunitoSans',
+          font: 'Geologica',
         },
         {
           text: volume,
           fontSize: 26,
-          color: GOLD,
+          color: AGED_GOLD,
           width: 100,
           alignment: 'right' as const,
           bold: true,
-          font: 'NunitoSans',
+          font: 'Geologica',
         },
       ],
       margin: [0, 6, 10, 0],
@@ -559,12 +568,18 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
       // Level header: "α | Route Intensity%"
       {
         text: [
-          { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
+          {
+            text: `${symbol}`,
+            fontSize: symbolSize,
+            color: AGED_GOLD,
+            bold: true,
+            font: 'Geologica',
+          },
           {
             text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`,
             fontSize: 29,
-            color: GOLD,
-            font: 'NunitoSans',
+            color: AGED_GOLD,
+            font: 'Geologica',
           },
         ],
         margin: [0, 0, 0, 18],
@@ -590,10 +605,10 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
     text: headerText,
     fontSize: 44,
     bold: true,
-    color: SAND,
+    color: WARM_STONE,
     alignment: 'center' as const,
     characterSpacing: 3,
-    font: 'Cinzel',
+    font: 'Montserrat',
     opacity: 0.25,
     margin: [3, 2, 0, 0],
   });
@@ -601,10 +616,10 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
     text: headerText,
     fontSize: 44,
     bold: true,
-    color: NAVY,
+    color: CHARCOAL,
     alignment: 'center' as const,
     characterSpacing: 3,
-    font: 'Cinzel',
+    font: 'Montserrat',
     margin: [0, -48, 0, 0],
   });
 
@@ -615,10 +630,10 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
     fontSize: 26,
     bold: true,
     italics: true,
-    color: GOLD,
+    color: AGED_GOLD,
     alignment: 'center' as const,
     margin: [0, 6, 0, 10],
-    font: 'NunitoSans',
+    font: 'Geologica',
   });
 
   content.push({ text: '', margin: [0, 16, 0, 0] });
@@ -740,9 +755,9 @@ function buildDocDefinition(content: Content[]): TDocumentDefinitions {
       ],
     }),
     defaultStyle: {
-      font: 'Cinzel',
+      font: 'Geologica',
       fontSize: 20,
-      color: NAVY,
+      color: CHARCOAL,
     },
   };
 }
