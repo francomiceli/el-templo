@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken } from "../helpers";
@@ -19,7 +19,7 @@ describe("Blog Routes", () => {
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
     // Clean up all blog posts (including seed data from migrations)
     await app.db.delete(blogPosts);
   });
