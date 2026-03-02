@@ -182,7 +182,7 @@
               <q-item-section avatar>
                 <q-icon
                   :name="completion.journeyType ? 'explore' : 'fitness_center'"
-                  :color="completion.journeyType ? 'brown-7' : 'primary'"
+                  :color="completion.journeyType ? 'deep-orange-9' : 'primary'"
                 />
               </q-item-section>
               <q-item-section>
@@ -327,7 +327,7 @@ function levelColor(level: string): string {
     case 'delta':
       return 'deep-orange-6';
     case 'sigma':
-      return 'brown-7';
+      return 'deep-orange-9';
     case 'omega':
       return 'orange';
     case 'spartan':

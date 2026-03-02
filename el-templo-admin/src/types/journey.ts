@@ -123,5 +123,5 @@ export const JOURNEY_TIER_LABELS: Record<JourneyTier, string> = {
 export const JOURNEY_TIER_COLORS: Record<JourneyTier, string> = {
   principiante: 'brown-4',
   intermedio: 'deep-orange',
-  avanzado: 'brown-8',
+  avanzado: 'deep-orange-9',
 };

@@ -182,7 +182,7 @@ function blockColorName(role: string): string {
   if (r.includes('initium')) return 'brown-5';
   if (r.includes('nucleus')) return 'deep-orange-8';
   if (r.includes('deuteros')) return 'brown-8';
-  if (r.includes('athlos') || r.includes('epikos')) return 'amber';
+  if (r.includes('athlos') || r.includes('epikos')) return 'brown-6';
   return 'grey';
 }
 

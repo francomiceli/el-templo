@@ -1,5 +1,5 @@
 <template>
-  <q-card :class="['q-mb-md', `border-${blockColor}`]" bordered>
+  <q-card class="q-mb-md" bordered>
     <!-- Colored header (shared across levels) -->
     <q-card-section :class="['text-white q-py-sm', `bg-${blockColor}`]">
       <div class="row items-center no-wrap q-gutter-sm">
@@ -319,7 +319,7 @@ const blockColor = computed(() => {
   if (role.includes('initium')) return 'brown-5';
   if (role.includes('nucleus')) return 'deep-orange-8';
   if (role.includes('deuteros')) return 'brown-8';
-  if (role.includes('athlos') || role.includes('epikos')) return 'amber';
+  if (role.includes('athlos') || role.includes('epikos')) return 'brown-6';
   return 'grey';
 });
 
@@ -392,7 +392,7 @@ function levelColor(level: string): string {
     case 'delta':
       return 'deep-orange-6';
     case 'sigma':
-      return 'brown-7';
+      return 'deep-orange-9';
     case 'omega':
       return 'orange';
     case 'spartan':
@@ -682,21 +682,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.border-brown-5 {
-  border-left: 4px solid #795548 !important;
-}
-.border-deep-orange-8 {
-  border-left: 4px solid #d84315 !important;
-}
-.border-brown-8 {
-  border-left: 4px solid #4e342e !important;
-}
-.border-amber {
-  border-left: 4px solid var(--q-amber) !important;
-}
-.border-grey {
-  border-left: 4px solid var(--q-grey) !important;
-}
 .prescription-input {
   max-width: 100px;
 }

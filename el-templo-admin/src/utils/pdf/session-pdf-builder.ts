@@ -258,11 +258,11 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
     // NIVEL α Δ Σ Ω — bolder
     {
       text: [
-        { text: 'NIVEL  ', fontSize: 50, color: AGED_GOLD, bold: true, font: 'Geologica' },
+        { text: 'NIVEL  ', fontSize: 50, color: TERRACOTTA, bold: true, font: 'Geologica' },
         {
           text: 'α ',
           fontSize: 55,
-          color: AGED_GOLD,
+          color: TERRACOTTA,
           bold: true,
           font: 'Geologica',
           characterSpacing: 5,
@@ -270,7 +270,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
         {
           text: ' Δ Σ Ω',
           fontSize: 40,
-          color: AGED_GOLD,
+          color: TERRACOTTA,
           bold: true,
           characterSpacing: 10,
           font: 'Geologica',
@@ -366,21 +366,21 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
             text: 'NIVEL ',
             fontSize: 47,
             bold: true,
-            color: AGED_GOLD,
+            color: TERRACOTTA,
             font: 'Geologica',
             characterSpacing: 2,
           },
           {
             text: `${symbol}`,
             fontSize: symbolSize,
-            color: AGED_GOLD,
+            color: TERRACOTTA,
             bold: true,
             font: 'Geologica',
           },
           {
             text: `  |  ${routeName} ${lb.intensity}%`,
             fontSize: 42,
-            color: AGED_GOLD,
+            color: TERRACOTTA,
             font: 'Geologica',
           },
         ],
@@ -571,14 +571,14 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
           {
             text: `${symbol}`,
             fontSize: symbolSize,
-            color: AGED_GOLD,
+            color: TERRACOTTA,
             bold: true,
             font: 'Geologica',
           },
           {
             text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`,
             fontSize: 29,
-            color: AGED_GOLD,
+            color: TERRACOTTA,
             font: 'Geologica',
           },
         ],

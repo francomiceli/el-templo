@@ -235,7 +235,7 @@ function levelColor(level: string): string {
     case 'delta':
       return 'deep-orange-6';
     case 'sigma':
-      return 'brown-7';
+      return 'deep-orange-9';
     case 'omega':
       return 'orange';
     case 'spartan':

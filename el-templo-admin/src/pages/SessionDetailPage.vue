@@ -308,7 +308,7 @@ function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): s
     const level = memberLevel.toLowerCase();
     if (level === 'alfa') return 'brown-4';
     if (level === 'delta') return 'deep-orange-6';
-    if (level === 'sigma') return 'purple';
+    if (level === 'sigma') return 'deep-orange-9';
     if (level === 'omega') return 'orange';
     if (level === 'spartan') return 'red';
   }
@@ -316,7 +316,7 @@ function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): s
     case 'alfa_delta':
       return 'deep-orange-6';
     case 'sigma':
-      return 'purple';
+      return 'deep-orange-9';
     case 'omega':
       return 'orange';
     default:

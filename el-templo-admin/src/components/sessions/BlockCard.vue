@@ -76,7 +76,7 @@ const blockColor = computed(() => {
   if (role.includes('initium')) return 'brown-5';
   if (role.includes('nucleus')) return 'deep-orange-8';
   if (role.includes('deuteros')) return 'brown-8';
-  if (role.includes('athlos') || role.includes('epikos')) return 'amber';
+  if (role.includes('athlos') || role.includes('epikos')) return 'brown-6';
   return 'grey';
 });
 
