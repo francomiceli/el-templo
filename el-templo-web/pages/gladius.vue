@@ -20,7 +20,7 @@ const { cleanup: cleanupTracking } = useSectionTracking({
 onUnmounted(() => cleanupTracking());
 
 useHead({
-  title: "Gladius \u2014 Equipamiento de Calistenia por El Templo",
+  title: "Gladius \u2014 Equipamiento Profesional de Calistenia | El Templo",
   meta: [
     {
       name: "description",
@@ -29,12 +29,13 @@ useHead({
     },
     {
       property: "og:title",
-      content: "Gladius \u2014 Equipamiento de Calistenia por El Templo",
+      content:
+        "Gladius \u2014 Equipamiento Profesional de Calistenia | El Templo",
     },
     {
       property: "og:description",
       content:
-        "Barras de calistenia dise\u00F1adas en El Templo. Probadas en 8 sedes. Construidas para durar.",
+        "Barras, paralelas y equipamiento de calistenia dise\u00F1ados en El Templo. Probados en 8 sedes por +1000 alumnos.",
     },
     { property: "og:url", content: "https://eltemplo.org/gladius" },
     { property: "og:type", content: "website" },

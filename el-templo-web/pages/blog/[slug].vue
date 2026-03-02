@@ -45,7 +45,7 @@ if (error.value || !post.value) {
 // Per-post SEO meta
 useSeoMeta({
   title: () =>
-    post.value ? `${post.value.title} \u2014 Blog El Templo` : "Blog El Templo",
+    post.value ? `${post.value.title} | El Templo` : "Blog El Templo",
   description: () => post.value?.excerpt?.substring(0, 160) ?? "",
   ogTitle: () => post.value?.title ?? "",
   ogDescription: () => post.value?.excerpt ?? "",

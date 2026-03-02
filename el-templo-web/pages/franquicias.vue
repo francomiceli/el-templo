@@ -23,21 +23,21 @@ const { cleanup: cleanupTracking } = useSectionTracking({
 onUnmounted(() => cleanupTracking());
 
 useHead({
-  title: "Franquicias El Templo Calistenia \u2014 Abr\u00ED tu Templo",
+  title: "Franquicia de Calistenia y Gimnasio Funcional | El Templo",
   meta: [
     {
       name: "description",
       content:
-        "Franquicia de calistenia premium. M\u00E9todo propio, marca internacional, equipamiento Gladius. Inversi\u00F3n desde USD 50.000. Aplic\u00E1 ahora.",
+        "Abr\u00ED tu franquicia de calistenia y gimnasio funcional. M\u00E9todo propio, marca internacional, equipamiento Gladius. Inversi\u00F3n desde USD 50.000.",
     },
     {
       property: "og:title",
-      content: "Franquicias El Templo \u2014 Abr\u00ED tu Templo",
+      content: "Franquicia de Calistenia y Gimnasio Funcional | El Templo",
     },
     {
       property: "og:description",
       content:
-        "La franquicia de calistenia con m\u00E9todo propio y presencia internacional. Modelos activos y pasivos.",
+        "Franquicia premium de calistenia con m\u00E9todo propio y presencia internacional. Modelos de franquicia activa y pasiva desde USD 50.000.",
     },
     { property: "og:url", content: "https://eltemplo.org/franquicias" },
     { property: "og:type", content: "website" },

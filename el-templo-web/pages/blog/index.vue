@@ -29,8 +29,7 @@ interface BlogListResponse {
 }
 
 useHead({
-  title:
-    "Blog El Templo Calistenia \u2014 Entrenamiento, M\u00E9todo y Movimiento",
+  title: "Blog de Calistenia, Entrenamiento y Peso Corporal | El Templo",
   meta: [
     {
       name: "description",
@@ -39,8 +38,7 @@ useHead({
     },
     {
       property: "og:title",
-      content:
-        "Blog El Templo Calistenia \u2014 Entrenamiento, M\u00E9todo y Movimiento",
+      content: "Blog de Calistenia, Entrenamiento y Peso Corporal | El Templo",
     },
     {
       property: "og:description",
@@ -87,7 +85,7 @@ function handlePageChange(newPage: number): void {
     <div class="blog-index__container">
       <!-- Section header -->
       <div class="blog-index__header">
-        <h1 class="blog-index__title">BLOG</h1>
+        <h1 class="blog-index__title">BLOG DE CALISTENIA Y ENTRENAMIENTO</h1>
         <p class="blog-index__subtitle">
           Entrenamiento, m&eacute;todo y movimiento
         </p>
