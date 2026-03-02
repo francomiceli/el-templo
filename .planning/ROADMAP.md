@@ -600,7 +600,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 36. SEO + Analytics                         | 4/4            | Complete    | 2026-03-01 |
 | 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
 | 38. Franchise Application Management        | 3/3            | Complete    | 2026-03-02 |
-| 39. App & PDF Brand Alignment               | 0/?            | Not Started | —          |
+| 39. App & PDF Brand Alignment               | 0/5            | Planned     | —          |
 | 40. Day Player Redesign                     | 0/?            | Not Started | —          |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
@@ -638,11 +638,15 @@ Plans:
 **Goal:** Unify el-templo-app and el-templo-admin PDF visual identity with el-templo-web's design system — migrate typography from Cinzel to Montserrat (headings) + Geologica (body) + Cormorant Garamond (narrative), align color palette (terracotta primary, aged gold accent, marble cream background, azul noche secondary), create shared design tokens, and restyle all app pages/components and the PDF builder to follow the canonical brand system established in Phase 30
 **Requirements**: TBD
 **Depends on:** Phase 38 (all prior work complete)
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 39 to break down)
+- [ ] 39-01-PLAN.md — App design foundation: font packages, Quasar variables, app.scss, blockColors.ts
+- [ ] 39-02-PLAN.md — PDF builder rebrand: base64 fonts, color tokens, cover page
+- [ ] 39-03-PLAN.md — App component restyling: layout, training, player components (15 files)
+- [ ] 39-04-PLAN.md — App component restyling: progression, journey modules (11 files)
+- [ ] 39-05-PLAN.md — Admin light brand touch + build verification + visual inspection
 
 ---
 
