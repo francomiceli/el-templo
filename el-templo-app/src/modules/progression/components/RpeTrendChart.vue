@@ -49,7 +49,7 @@ interface Props {
 const props = defineProps<Props>()
 
 // Brand colors
-const AGED_GOLD = '#b89b5e'
+const AGED_GOLD = '#a0755a'
 const TERRACOTTA = '#c07a56'
 
 /**

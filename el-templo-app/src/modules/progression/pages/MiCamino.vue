@@ -79,8 +79,8 @@
           </div>
           <q-btn
             v-if="!todayCompleted"
-            color="secondary"
-            text-color="primary"
+            color="primary"
+            text-color="white"
             unelevated
             no-caps
             label="Entrenar"

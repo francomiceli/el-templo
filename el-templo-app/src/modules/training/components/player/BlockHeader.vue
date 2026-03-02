@@ -100,7 +100,7 @@ const headerStyle = computed(() => {
 
 .block-route {
   margin-top: 2px;
-  color: #b89b5e;
+  color: #a0755a;
   font-weight: 500;
   letter-spacing: 0.05em;
 }

@@ -95,7 +95,7 @@ onUnmounted(() => {
 }
 
 .trophy-icon {
-  color: #b89b5e;
+  color: #a0755a;
 }
 
 .completion-message {

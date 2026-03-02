@@ -11,7 +11,7 @@ import type { BlockRole } from '../types/session'
 
 // Brand color constants
 const BRAND_TERRACOTTA = '#c07a56'
-const BRAND_AGED_GOLD = '#b89b5e'
+const BRAND_AGED_GOLD = '#a0755a'
 
 /**
  * Get background color class based on block role
@@ -90,5 +90,5 @@ export function getBlockHeaderGradient(role: BlockRole): string {
   if (isTerracotta) {
     return 'linear-gradient(135deg, #c07a56 0%, #d08b67 100%)'
   }
-  return 'linear-gradient(135deg, #b89b5e 0%, #c9ac6f 100%)'
+  return 'linear-gradient(135deg, #a0755a 0%, #b8896b 100%)'
 }
