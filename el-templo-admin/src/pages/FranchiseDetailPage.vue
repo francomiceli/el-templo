@@ -162,7 +162,17 @@
         </q-card-section>
       </q-card>
 
-      <!-- AI Agent Panel (added by 38-03) -->
+      <!-- ========================================== -->
+      <!-- 5. AI Agent Panel -->
+      <!-- ========================================== -->
+      <FranchiseAiPanel
+        :application-id="applicationId"
+        :ai-strategy="application.aiStrategy"
+        :ai-outreach="application.aiOutreach"
+        :ai-followup="application.aiFollowup"
+        :ai-negotiation="application.aiNegotiation"
+        @generated="onAiGenerated"
+      />
     </template>
   </q-page>
 </template>
@@ -176,6 +186,7 @@ import {
   useFranchiseAdminApi,
   type FranchiseApplication,
 } from 'src/composables/useFranchiseAdminApi';
+import FranchiseAiPanel from 'src/components/FranchiseAiPanel.vue';
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -264,6 +275,24 @@ async function saveNotes() {
     // Error handled by composable
   } finally {
     savingNotes.value = false;
+  }
+}
+
+// =========================================================================
+// AI panel handler
+// =========================================================================
+
+function onAiGenerated(agentType: string, content: string) {
+  if (!application.value) return;
+  const fieldMap: Record<string, string> = {
+    strategy: 'aiStrategy',
+    outreach: 'aiOutreach',
+    followup: 'aiFollowup',
+    negotiation: 'aiNegotiation',
+  };
+  const field = fieldMap[agentType];
+  if (field) {
+    application.value = { ...application.value, [field]: content };
   }
 }
 
