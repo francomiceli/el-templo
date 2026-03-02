@@ -49,7 +49,7 @@ const listPostsSchema = {
     type: "object",
     properties: {
       page: { type: "integer", minimum: 1, default: 1 },
-      limit: { type: "integer", minimum: 1, maximum: 50, default: 10 },
+      limit: { type: "integer", minimum: 1, maximum: 1000, default: 10 },
     },
   },
 };
