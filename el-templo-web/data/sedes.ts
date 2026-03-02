@@ -84,10 +84,6 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Parque+Primavesi+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
-    badge: {
-      text: "AL AIRE LIBRE",
-      variant: "outdoor",
-    },
     lat: -38.015,
     lng: -57.56,
   },
@@ -98,10 +94,6 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Los+Lobos+Chapadmalal+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
-    badge: {
-      text: "RETIRO",
-      variant: "special",
-    },
     lat: -38.18,
     lng: -57.7,
   },
@@ -112,10 +104,6 @@ export const sedes: Sede[] = [
     city: "Barcelona",
     mapsUrl: "https://maps.google.com/?q=Av+Diagonal+368+Barcelona",
     whatsappUrl: WHATSAPP_URL,
-    badge: {
-      text: "INTERNACIONAL",
-      variant: "intl",
-    },
     lat: 41.393,
     lng: 2.163,
   },

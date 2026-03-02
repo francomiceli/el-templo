@@ -84,8 +84,8 @@ useSchemaOrg([
 
     <section id="intro" class="seo-intro">
       <p class="seo-intro__text">
-        El Templo es la escuela de calistenia con m&eacute;todo propio
-        m&aacute;s grande de Argentina. Entrenamiento funcional con peso
+        El Templo es una escuela de calistenia con m&eacute;todo propio con
+        sedes en Argentina y Espa&ntilde;a. Entrenamiento funcional con peso
         corporal en 8 sedes de Mar del Plata y Barcelona. 6 niveles de
         progresi&oacute;n, sesiones ROM y SKILLS, y una comunidad de m&aacute;s
         de 1000 alumnos.
