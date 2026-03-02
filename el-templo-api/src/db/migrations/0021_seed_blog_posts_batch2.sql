@@ -14,6 +14,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-10 10:00:00'
 );
 
+--> statement-breakpoint
+
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
   'Entrenar en comunidad: por qué el progreso se multiplica cuando es compartido',
@@ -26,6 +28,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-12 10:00:00',
   '2026-02-12 10:00:00'
 );
+
+--> statement-breakpoint
 
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
@@ -40,6 +44,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-17 10:00:00'
 );
 
+--> statement-breakpoint
+
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
   '¿Por qué elegir calistenia en vez de un gimnasio tradicional?',
@@ -52,6 +58,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-22 10:00:00',
   '2026-02-22 10:00:00'
 );
+
+--> statement-breakpoint
 
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (

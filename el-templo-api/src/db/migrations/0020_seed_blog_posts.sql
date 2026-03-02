@@ -14,6 +14,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-15 10:00:00'
 );
 
+--> statement-breakpoint
+
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
   'Cinco formas de entrenar el cuerpo: los enfoques de movimiento funcional',
@@ -26,6 +28,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-20 10:00:00',
   '2026-02-20 10:00:00'
 );
+
+--> statement-breakpoint
 
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
@@ -40,6 +44,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-25 10:00:00'
 );
 
+--> statement-breakpoint
+
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
   'Los 6 niveles de calistenia: un camino real de progresión',
@@ -52,6 +58,8 @@ INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, publish
   '2026-02-28 10:00:00',
   '2026-02-28 10:00:00'
 );
+
+--> statement-breakpoint
 
 INSERT INTO blog_posts (title, slug, excerpt, cover_image, body, status, published_at, created_at, updated_at) VALUES
 (
