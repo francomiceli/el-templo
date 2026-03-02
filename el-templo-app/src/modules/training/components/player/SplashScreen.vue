@@ -1,165 +1,162 @@
 <template>
-  <div
-    class="splash-screen fixed-full column items-center justify-center"
-    :class="{ 'fade-out': isFading }"
-  >
-    <div class="splash-content column items-center q-gutter-y-md">
-      <!-- Logo/Icon -->
-      <div class="logo-container">
-        <q-icon :name="iconName" size="80px" color="white" />
+  <div class="splash-overlay">
+    <div class="splash-overlay__backdrop" />
+    <div class="splash-overlay__card">
+      <!-- Flame icon -->
+      <div class="splash-overlay__icon">
+        <q-icon name="local_fire_department" size="64px" />
       </div>
 
-      <!-- Session info or completed block -->
-      <div class="session-info text-center">
-        <div class="text-h6 text-white text-weight-medium">
-          {{ topLabel }}
+      <!-- Day + Level label -->
+      <div class="splash-overlay__label">
+        {{ formattedDayLevel }}
+      </div>
+
+      <!-- Title -->
+      <div class="splash-overlay__title">Vamos a entrenar!</div>
+
+      <!-- Welcome quote -->
+      <div class="splash-overlay__quote">
+        <div class="splash-overlay__quote-text">
+          {{ welcomeQuote.text
+          }}<span v-if="welcomeQuote.goldText" class="splash-overlay__quote-gold">{{
+            welcomeQuote.goldText
+          }}</span>
         </div>
+        <div class="splash-overlay__quote-author">&mdash; {{ welcomeQuote.author }}</div>
       </div>
 
-      <!-- Motivational message or next block -->
-      <div class="motivation text-center">
-        <div class="text-h5 text-white text-weight-bold">
-          {{ mainMessage }}
-        </div>
-      </div>
-
-      <!-- Loading indicator -->
-      <div class="loading-dots q-mt-lg">
-        <q-spinner-dots color="white" size="40px" />
+      <!-- Comenzar button — user MUST tap to start -->
+      <div class="splash-overlay__action">
+        <q-btn
+          color="primary"
+          unelevated
+          label="Comenzar"
+          class="full-width"
+          size="lg"
+          @click="emit('start')"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { getLevelGreek, formatLevelName } from '../../utils/levelDisplay'
+import { QUOTES } from '../../data/quotes'
 
-interface SessionInfo {
-  /** Day name (e.g., "Lunes", "Martes") */
+interface Props {
+  /** Session day (e.g., "lunes") */
   day: string
-  /** Member's level (e.g., "alfa", "delta", "sigma", "omega") */
+  /** Member level (e.g., "alfa") */
   level: string
 }
 
-interface Props {
-  /** Session metadata to display (for initial splash) */
-  sessionInfo?: SessionInfo
-  /** Completed block name (for transition splash) */
-  completedBlock?: string
-  /** Next block name (for transition splash) */
-  nextBlock?: string
-  /** Splash duration in ms (default: 2500) */
-  duration?: number
-}
-
 interface Emits {
-  (e: 'complete'): void
+  (e: 'start'): void
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  duration: 2500,
-})
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-/** Whether this is a block transition (vs initial splash) */
-const isTransition = computed(() => !!props.nextBlock || !!props.completedBlock)
-
-/** Icon to display */
-const iconName = computed(() => {
-  if (isTransition.value) {
-    return 'check_circle'
-  }
-  return 'fitness_center'
+const formattedDayLevel = computed(() => {
+  const dayCapitalized = props.day.charAt(0).toUpperCase() + props.day.slice(1)
+  const greek = getLevelGreek(props.level)
+  const levelName = formatLevelName(props.level)
+  return `${dayCapitalized} - ${greek} ${levelName}`
 })
 
-/** Top label text */
-const topLabel = computed(() => {
-  if (props.completedBlock) {
-    return `${props.completedBlock} completado!`
+/**
+ * Select a welcome quote deterministically based on day string hash.
+ */
+const welcomeQuote = computed(() => {
+  let hash = 0
+  for (let i = 0; i < props.day.length; i++) {
+    hash = ((hash << 5) - hash + props.day.charCodeAt(i)) | 0
   }
-  if (props.sessionInfo) {
-    const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1)
-    const greek = getLevelGreek(props.sessionInfo.level)
-    const levelName = formatLevelName(props.sessionInfo.level)
-    return `${day} - ${greek} ${levelName}`
-  }
-  return ''
-})
-
-/** Main message text */
-const mainMessage = computed(() => {
-  if (props.nextBlock) {
-    return `Siguiente: ${props.nextBlock}`
-  }
-  return 'Vamos a entrenar!'
-})
-
-/** Fade-out animation state */
-const isFading = ref(false)
-
-/** Timer reference for cleanup */
-let splashTimer: ReturnType<typeof setTimeout> | null = null
-let fadeTimer: ReturnType<typeof setTimeout> | null = null
-
-onMounted(() => {
-  // Start fade out after duration
-  splashTimer = setTimeout(() => {
-    isFading.value = true
-    // Complete after fade animation (0.5s)
-    fadeTimer = setTimeout(() => {
-      emit('complete')
-    }, 500)
-  }, props.duration)
-})
-
-onUnmounted(() => {
-  // Clean up timers if component is unmounted early
-  if (splashTimer) clearTimeout(splashTimer)
-  if (fadeTimer) clearTimeout(fadeTimer)
+  const index = Math.abs(hash) % QUOTES.length
+  return QUOTES[index]
 })
 </script>
 
 <style scoped lang="scss">
-.splash-screen {
+.splash-overlay {
+  position: fixed;
+  inset: 0;
   z-index: 9999;
-  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 50%, #2e2a26 100%);
-  transition: opacity 0.5s ease-out;
-
-  &.fade-out {
-    opacity: 0;
-    pointer-events: none;
-  }
-}
-
-.splash-content {
-  padding: 24px;
-}
-
-.logo-container {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: rgba(184, 155, 94, 0.2);
-  border: 2px solid rgba(184, 155, 94, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 24px;
+  padding: 24px;
 }
 
-.session-info {
-  opacity: 0.9;
+.splash-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(46, 42, 38, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.motivation {
-  margin-top: 16px;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+.splash-overlay__card {
+  position: relative;
+  max-width: 360px;
+  width: 100%;
+  border-radius: 20px;
+  background: rgba(61, 55, 50, 0.95);
+  padding: 40px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.splash-overlay__icon {
+  color: #b89b5e; // Aged Gold
+}
+
+.splash-overlay__label {
   font-family: 'Montserrat', sans-serif;
-  letter-spacing: 0.05em;
+  font-size: 16px;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 2px;
 }
 
-.loading-dots {
-  opacity: 0.8;
+.splash-overlay__title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  line-height: 1.2;
+}
+
+.splash-overlay__quote {
+  margin-top: 8px;
+}
+
+.splash-overlay__quote-text {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.splash-overlay__quote-gold {
+  color: #b89b5e; // Aged Gold
+}
+
+.splash-overlay__quote-author {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 8px;
+}
+
+.splash-overlay__action {
+  width: 100%;
+  margin-top: 16px;
 }
 </style>
