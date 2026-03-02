@@ -1,11 +1,21 @@
-// Admin app styles - clean and functional design
+// Admin app styles — light brand alignment (Phase 39)
+// Only body font, palette, and background. No deep restyling.
 
-// Override Quasar variables if needed
-// @import 'quasar.variables.scss';
-
-// Keep admin app design clean and functional (no navy/bronze/marble branding)
-// Brand styling is for member app only
+@import '@fontsource/geologica/400.css';
+@import '@fontsource/geologica/500.css';
+@import '@fontsource/geologica/600.css';
 
 body {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Geologica', sans-serif;
+  background-color: #f2ede5; // Marble Cream
+}
+
+// Q-page default background
+.q-page {
+  background-color: #f2ede5;
+}
+
+// Q-card backgrounds
+.q-card {
+  background-color: #f2ede5;
 }

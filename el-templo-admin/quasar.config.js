@@ -14,7 +14,7 @@ export default defineConfig((/* ctx */) => {
     css: ['app.scss'],
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
-    extras: ['roboto-font', 'material-icons'],
+    extras: ['material-icons'],
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
     build: {
