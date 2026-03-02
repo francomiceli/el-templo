@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 38 of 39 (Franchise Application Management)
-Plan: 3 of 3 complete
-Status: Phase 38 complete — all plans executed
-Last activity: 2026-03-02 — Phase 38 Plan 03 executed (2 tasks, 2 commits)
+Phase: 39 of 41 (App & PDF Brand Alignment)
+Plan: 0 of ? — not yet planned
+Status: Phase 38 complete, Phase 39 next
+Last activity: 2026-03-02 — Roadmap restructured: inserted Phase 39 (App Brand Alignment) and Phase 40 (Day Player Redesign), pushed Content Handoff to Phase 41
 
 Progress: [===] 100% (3/3 plans)
 
@@ -160,6 +160,8 @@ Progress: [===] 100% (3/3 plans)
 
 - Phase 37 inserted: SEO Audit Fixes — address seoptimer audit issues (SSR rendering, title, favicon, HTTP/2, social links, email privacy)
 - Phase 38 (was 37): Franchise Application Management — admin panel for managing franchise applications with AI-powered conversion strategies
+- Phases 39-40 inserted: App & PDF Brand Alignment + Day Player Redesign — unify design system, then redesign workout experience
+- Phase 41 (was 39): Content & Media Handoff — deferred after app redesign work
 
 ### Phase 35 Decisions
 

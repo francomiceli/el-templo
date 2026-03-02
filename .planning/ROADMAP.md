@@ -367,7 +367,9 @@ Plans:
 - [x] **Phase 36: SEO + Analytics** - Structured data, sitemap, meta tags, Core Web Vitals, GA4, Meta Pixel, cookie consent (completed 2026-03-01)
 - [x] **Phase 37: SEO Audit Fixes** - Fix issues from seoptimer audit: SSR rendering, title tag, favicon, HTTP/2, social links, email privacy, compression (completed 2026-03-02)
 - [x] **Phase 38: Franchise Application Management** - Admin panel for managing franchise applications with AI-powered conversion strategies (completed 2026-03-02)
-- [ ] **Phase 39: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
+- [ ] **Phase 39: App & PDF Brand Alignment** - Unify el-templo-app and admin PDF with el-templo-web design system: shared tokens, Montserrat/Geologica/Cormorant typography, terracotta/gold/cream palette, component restyling
+- [ ] **Phase 40: Day Player Redesign** - Instagram Stories-style exercise progression, between-block screens with philosophical quotes, brand-aligned player UI
+- [ ] **Phase 41: Content & Media Handoff** - Replace placeholder media with real assets, configure Meta Pixel ID from ads team, final content review
 
 ## v3.0 Phase Details
 
@@ -584,7 +586,7 @@ Phases 14-16 (Session Management) → Phase 17 (Mobility) → Phase 18 (Deployme
 ### v3.0 Progress
 
 **Execution Order:**
-Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics) → Phase 37 (SEO Audit Fixes) → Phase 38 (Franchise Admin) → Phase 39 (Content Handoff)
+Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content, parallel-capable) → Phase 36 (SEO/Analytics) → Phase 37 (SEO Audit Fixes) → Phase 38 (Franchise Admin) → Phase 39 (App Brand Alignment) → Phase 40 (Day Player Redesign) → Phase 41 (Content Handoff)
 
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
@@ -598,7 +600,9 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 36. SEO + Analytics                         | 4/4            | Complete    | 2026-03-01 |
 | 37. SEO Audit Fixes                         | 4/4            | Complete    | 2026-03-02 |
 | 38. Franchise Application Management        | 3/3            | Complete    | 2026-03-02 |
-| 39. Content & Media Handoff                 | 0/?            | Not Started | —          |
+| 39. App & PDF Brand Alignment               | 0/?            | Not Started | —          |
+| 40. Day Player Redesign                     | 0/?            | Not Started | —          |
+| 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
 
@@ -629,11 +633,11 @@ Plans:
 
 ---
 
-### Phase 39: Content & Media Handoff
+### Phase 39: App & PDF Brand Alignment
 
-**Goal:** Replace all placeholder images and media with real assets from the team, configure production Meta Pixel ID and GA4 Measurement ID, populate full LocalBusiness structured data per sede (hours, phone, photos, services), and do a final content review pass across all pages
+**Goal:** Unify el-templo-app and el-templo-admin PDF visual identity with el-templo-web's design system — migrate typography from Cinzel to Montserrat (headings) + Geologica (body) + Cormorant Garamond (narrative), align color palette (terracotta primary, aged gold accent, marble cream background, azul noche secondary), create shared design tokens, and restyle all app pages/components and the PDF builder to follow the canonical brand system established in Phase 30
 **Requirements**: TBD
-**Depends on:** Phase 36 (SEO + analytics infrastructure must be in place)
+**Depends on:** Phase 38 (all prior work complete)
 **Plans:** 0 plans
 
 Plans:
@@ -642,7 +646,34 @@ Plans:
 
 ---
 
+### Phase 40: Day Player Redesign
+
+**Goal:** Redesign the DayPlayer workout experience in el-templo-app with an Instagram Stories-style exercise progression (tap right/left to navigate), exercise info displayed below, ability to view all exercises in the block, new between-block transition screens with philosophical/motivational quotes, and full brand alignment using the design system from Phase 39
+**Requirements**: TBD
+**Depends on:** Phase 39 (brand-aligned design tokens and typography must be in place)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 40 to break down)
+
+---
+
+### Phase 41: Content & Media Handoff
+
+**Goal:** Replace all placeholder images and media with real assets from the team, configure production Meta Pixel ID and GA4 Measurement ID, populate full LocalBusiness structured data per sede (hours, phone, photos, services), and do a final content review pass across all pages
+**Requirements**: TBD
+**Depends on:** Phase 40 (all app redesign work complete)
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 41 to break down)
+
+---
+
 _Roadmap created: 2026-02-04_
 _v2.0 phases: 2026-02-04 through 2026-02-19_
 _v3.0 phases added: 2026-02-28 — 8 phases (29-36), 113 requirements mapped_
 _Phase 37 (SEO Audit Fixes) inserted, phases 37-38 renumbered to 38-39: 2026-03-02_
+_Phases 39-40 (App Brand Alignment, Day Player Redesign) inserted, Content Handoff moved to 41: 2026-03-02_
