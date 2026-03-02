@@ -67,7 +67,9 @@ onBeforeUnmount(() => {
   <section id="expansion" class="expansion">
     <div class="expansion__container">
       <!-- Section Title -->
-      <h2 class="expansion__title">DE MAR DEL PLATA AL MUNDO.</h2>
+      <h2 class="expansion__title">
+        FRANQUICIAS DE CALISTENIA: DE MAR DEL PLATA AL MUNDO.
+      </h2>
 
       <!-- Stats Counters -->
       <div

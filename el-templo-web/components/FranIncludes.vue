@@ -25,7 +25,7 @@ onBeforeUnmount(() => {
     <div class="fran-includes__container">
       <!-- Title -->
       <h2 class="fran-includes__title">
-        TODO LO QUE NECESIT&Aacute;S PARA ABRIR TU TEMPLO.
+        TODO LO QUE INCLUYE TU FRANQUICIA DE GIMNASIO FUNCIONAL.
       </h2>
 
       <!-- Items Grid -->

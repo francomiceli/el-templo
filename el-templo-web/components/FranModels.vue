@@ -24,7 +24,9 @@ onBeforeUnmount(() => {
   <section id="modelos-franquicia" class="fran-models">
     <div class="fran-models__container">
       <!-- Title -->
-      <h2 class="fran-models__title">DOS CAMINOS. UNA MISMA VISI&Oacute;N.</h2>
+      <h2 class="fran-models__title">
+        DOS MODELOS DE FRANQUICIA. UNA MISMA VISI&Oacute;N.
+      </h2>
 
       <!-- Comparison Cards -->
       <div

@@ -27,7 +27,9 @@ onBeforeUnmount(() => {
       <span class="fran-value__tag">Franquicias</span>
 
       <!-- Title -->
-      <h2 class="fran-value__title">&iquest;POR QU&Eacute; EL TEMPLO?</h2>
+      <h2 class="fran-value__title">
+        &iquest;POR QU&Eacute; UNA FRANQUICIA DE CALISTENIA?
+      </h2>
 
       <!-- Subtitle -->
       <p class="fran-value__subtitle">

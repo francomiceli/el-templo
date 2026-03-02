@@ -36,7 +36,7 @@ onBeforeUnmount(() => {
     <div class="founder__container">
       <!-- Section Title -->
       <h2 class="founder__title">
-        FUNDADO POR UN ATLETA. CONSTRUIDO CON M&Eacute;TODO.
+        EL FUNDADOR DE LA FRANQUICIA DE CALISTENIA.
       </h2>
 
       <!-- Bio Split Layout -->

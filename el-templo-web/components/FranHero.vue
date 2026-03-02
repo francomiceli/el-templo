@@ -108,7 +108,7 @@ const parallaxTransform = computed(() => {
         :class="{ 'fran-hero--entered': entered }"
         :style="{ transitionDelay: '200ms' }"
       >
-        ABRI TU TEMPLO.
+        ABRI TU FRANQUICIA DE CALISTENIA.
       </h1>
 
       <p

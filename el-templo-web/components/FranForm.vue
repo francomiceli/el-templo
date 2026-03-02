@@ -209,7 +209,7 @@ const mensajeCount = computed(() => form.mensaje.length);
 
       <!-- Form State -->
       <template v-else>
-        <h2 class="fran-form__title">APLIC&Aacute; AHORA.</h2>
+        <h2 class="fran-form__title">APLIC&Aacute; A TU FRANQUICIA AHORA.</h2>
         <p class="fran-form__subtitle">
           Complet&aacute; el formulario y nuestro equipo te contacta en las
           pr&oacute;ximas 48 horas.
