@@ -68,7 +68,7 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <q-btn flat dense icon="swap_horiz" color="primary">
+              <q-btn flat dense icon="swap_horiz" color="positive">
                 <q-tooltip>Usar este bloque</q-tooltip>
               </q-btn>
             </q-item-section>

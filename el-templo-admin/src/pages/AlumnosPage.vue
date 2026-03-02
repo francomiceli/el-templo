@@ -231,11 +231,11 @@ function greekLevel(level: string): string {
 function levelColor(level: string): string {
   switch (level.toLowerCase()) {
     case 'alfa':
-      return 'light-blue';
+      return 'brown-4';
     case 'delta':
-      return 'indigo';
+      return 'deep-orange-6';
     case 'sigma':
-      return 'purple';
+      return 'brown-7';
     case 'omega':
       return 'orange';
     case 'spartan':

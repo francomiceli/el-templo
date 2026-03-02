@@ -179,9 +179,9 @@ async function loadPreview() {
 
 function blockColorName(role: string): string {
   const r = role?.toLowerCase() || '';
-  if (r.includes('initium')) return 'light-blue';
-  if (r.includes('nucleus')) return 'deep-purple';
-  if (r.includes('deuteros')) return 'teal';
+  if (r.includes('initium')) return 'brown-5';
+  if (r.includes('nucleus')) return 'deep-orange-8';
+  if (r.includes('deuteros')) return 'brown-8';
   if (r.includes('athlos') || r.includes('epikos')) return 'amber';
   return 'grey';
 }
@@ -200,17 +200,17 @@ function dayLabel(day: string): string {
 </script>
 
 <style scoped>
-.preview-block-light-blue {
-  border-left: 4px solid var(--q-light-blue);
-  background: rgba(3, 169, 244, 0.05);
+.preview-block-brown-5 {
+  border-left: 4px solid #795548;
+  background: rgba(121, 85, 72, 0.05);
 }
-.preview-block-deep-purple {
-  border-left: 4px solid var(--q-deep-purple);
-  background: rgba(103, 58, 183, 0.05);
+.preview-block-deep-orange-8 {
+  border-left: 4px solid #d84315;
+  background: rgba(216, 67, 21, 0.05);
 }
-.preview-block-teal {
-  border-left: 4px solid var(--q-teal);
-  background: rgba(0, 150, 136, 0.05);
+.preview-block-brown-8 {
+  border-left: 4px solid #4e342e;
+  background: rgba(78, 52, 46, 0.05);
 }
 .preview-block-amber {
   border-left: 4px solid var(--q-amber);

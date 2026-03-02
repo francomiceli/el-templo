@@ -90,7 +90,7 @@ function getRouteName(code: string): string {
 }
 
 // Motivational quotes for closing page
-// Each quote is split: main text (charcoal) + accentText (terracotta accent on the punchline)
+// Each quote is split: main text (charcoal) + accentText (gold accent on the punchline)
 const QUOTES = [
   {
     text: '\u201CLAS CADENAS DE LA DISCIPLINA SON LIGERAS COMPARADAS CON ',
@@ -204,7 +204,7 @@ function buildClosingPage(quoteIndex: number): Content[] {
     {
       text: [
         { text: quote.text, color: CHARCOAL },
-        { text: quote.goldText, color: TERRACOTTA },
+        { text: quote.goldText, color: AGED_GOLD },
       ],
       fontSize: 65,
       bold: true,
@@ -249,7 +249,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       text: `${block.role}  ·  ${block.formatName}`,
       fontSize: 65,
       bold: true,
-      color: AGED_GOLD,
+      color: TERRACOTTA,
       margin: [130, 12, 0, 0],
       characterSpacing: 3,
       font: 'Geologica',
@@ -292,7 +292,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       ? {
           text: block.formatParams,
           fontSize: 70,
-          color: AGED_GOLD,
+          color: TERRACOTTA,
           alignment: 'right' as const,
           margin: [0, -160, 200, 0],
           opacity: 0.7,
@@ -343,7 +343,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
         {
           text: volume,
           fontSize: 32,
-          color: AGED_GOLD,
+          color: TERRACOTTA,
           width: 138,
           alignment: 'right' as const,
           bold: true,
@@ -397,7 +397,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
             h: boxHeight,
             r: 20,
             lineWidth: 4,
-            lineColor: AGED_GOLD,
+            lineColor: TERRACOTTA,
           },
         ],
       },
@@ -478,7 +478,7 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     fontSize: mobilityFontSize,
     bold: true,
     italics: true,
-    color: AGED_GOLD,
+    color: TERRACOTTA,
     alignment: 'center' as const,
     margin: [0, 8, 0, 0],
     font: 'Geologica',
@@ -552,7 +552,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
         {
           text: volume,
           fontSize: 26,
-          color: AGED_GOLD,
+          color: TERRACOTTA,
           width: 100,
           alignment: 'right' as const,
           bold: true,
@@ -630,7 +630,7 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
     fontSize: 26,
     bold: true,
     italics: true,
-    color: AGED_GOLD,
+    color: TERRACOTTA,
     alignment: 'center' as const,
     margin: [0, 6, 0, 10],
     font: 'Geologica',

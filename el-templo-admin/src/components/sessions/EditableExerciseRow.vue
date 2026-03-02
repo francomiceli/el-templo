@@ -257,7 +257,7 @@
           dense
           round
           icon="swap_horiz"
-          color="primary"
+          color="positive"
           @click="$emit('swap', { exercise })"
         >
           <q-tooltip>Intercambiar ejercicio</q-tooltip>

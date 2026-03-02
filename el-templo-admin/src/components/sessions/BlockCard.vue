@@ -73,32 +73,31 @@ defineEmits<{
 
 const blockColor = computed(() => {
   const role = props.block.role?.toLowerCase() || '';
-  if (role.includes('initium')) return 'light-blue';
-  if (role.includes('nucleus')) return 'deep-purple';
-  if (role.includes('deuteros')) return 'teal';
+  if (role.includes('initium')) return 'brown-5';
+  if (role.includes('nucleus')) return 'deep-orange-8';
+  if (role.includes('deuteros')) return 'brown-8';
   if (role.includes('athlos') || role.includes('epikos')) return 'amber';
   return 'grey';
 });
 
 const avgDifficulty = computed(() => {
   const difficulties = props.block.exercises
-    .map(e => e.dificultadLineal)
+    .map((e) => e.dificultadLineal)
     .filter((d): d is number => d !== null && d !== undefined);
   if (difficulties.length === 0) return null;
   return difficulties.reduce((a, b) => a + b, 0) / difficulties.length;
 });
-
 </script>
 
 <style scoped>
-.border-light-blue {
-  border-left: 4px solid var(--q-light-blue) !important;
+.border-brown-5 {
+  border-left: 4px solid #795548 !important;
 }
-.border-deep-purple {
-  border-left: 4px solid var(--q-deep-purple) !important;
+.border-deep-orange-8 {
+  border-left: 4px solid #d84315 !important;
 }
-.border-teal {
-  border-left: 4px solid var(--q-teal) !important;
+.border-brown-8 {
+  border-left: 4px solid #4e342e !important;
 }
 .border-amber {
   border-left: 4px solid var(--q-amber) !important;

@@ -121,7 +121,7 @@ export const JOURNEY_TIER_LABELS: Record<JourneyTier, string> = {
 
 /** Color for journey type badges, grouped by tier */
 export const JOURNEY_TIER_COLORS: Record<JourneyTier, string> = {
-  principiante: 'teal',
+  principiante: 'brown-4',
   intermedio: 'deep-orange',
-  avanzado: 'deep-purple',
+  avanzado: 'brown-8',
 };

@@ -1,15 +1,6 @@
 <template>
-  <q-badge
-    :color="badgeColor"
-    :label="badgeLabel"
-    class="q-pa-xs"
-  >
-    <q-icon
-      v-if="bySystem && status === 'approved'"
-      name="schedule"
-      size="xs"
-      class="q-ml-xs"
-    />
+  <q-badge :color="badgeColor" :label="badgeLabel" class="q-pa-xs">
+    <q-icon v-if="bySystem && status === 'approved'" name="schedule" size="xs" class="q-ml-xs" />
   </q-badge>
 </template>
 
@@ -27,7 +18,7 @@ const badgeColor = computed(() => {
     case 'pending_review':
       return 'warning';
     case 'approved':
-      return props.bySystem ? 'blue-grey' : 'positive';
+      return props.bySystem ? 'brown-4' : 'positive';
     default:
       return 'grey';
   }

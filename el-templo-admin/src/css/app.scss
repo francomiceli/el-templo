@@ -19,3 +19,9 @@ body {
 .q-card {
   background-color: #f2ede5;
 }
+
+// Q-tab-panels: remove default white background
+.q-tab-panels,
+.q-tab-panel {
+  background-color: transparent;
+}

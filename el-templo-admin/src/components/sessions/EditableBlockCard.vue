@@ -155,7 +155,7 @@
           flat
           dense
           icon="swap_horiz"
-          color="primary"
+          color="positive"
           label="Intercambiar Bloque"
           @click="emitSwapBlock"
         />
@@ -215,7 +215,7 @@
             </div>
           </div>
           <!-- Swap button -->
-          <q-btn flat dense round icon="swap_horiz" color="grey-7" @click="onSwapMobility">
+          <q-btn flat dense round icon="swap_horiz" color="positive" @click="onSwapMobility">
             <q-tooltip>Cambiar ejercicio de movilidad</q-tooltip>
           </q-btn>
         </div>
@@ -316,9 +316,9 @@ const selectedBlock = computed(() => selectedLevelBlock.value?.block ?? null);
 
 const blockColor = computed(() => {
   const role = props.blockGroup.role?.toLowerCase() || '';
-  if (role.includes('initium')) return 'light-blue';
-  if (role.includes('nucleus')) return 'deep-purple';
-  if (role.includes('deuteros')) return 'teal';
+  if (role.includes('initium')) return 'brown-5';
+  if (role.includes('nucleus')) return 'deep-orange-8';
+  if (role.includes('deuteros')) return 'brown-8';
   if (role.includes('athlos') || role.includes('epikos')) return 'amber';
   return 'grey';
 });
@@ -388,11 +388,11 @@ const formatOptions = computed(() => {
 function levelColor(level: string): string {
   switch (level) {
     case 'alfa':
-      return 'light-blue';
+      return 'brown-4';
     case 'delta':
-      return 'indigo';
+      return 'deep-orange-6';
     case 'sigma':
-      return 'purple';
+      return 'brown-7';
     case 'omega':
       return 'orange';
     case 'spartan':
@@ -682,14 +682,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.border-light-blue {
-  border-left: 4px solid var(--q-light-blue) !important;
+.border-brown-5 {
+  border-left: 4px solid #795548 !important;
 }
-.border-deep-purple {
-  border-left: 4px solid var(--q-deep-purple) !important;
+.border-deep-orange-8 {
+  border-left: 4px solid #d84315 !important;
 }
-.border-teal {
-  border-left: 4px solid var(--q-teal) !important;
+.border-brown-8 {
+  border-left: 4px solid #4e342e !important;
 }
 .border-amber {
   border-left: 4px solid var(--q-amber) !important;

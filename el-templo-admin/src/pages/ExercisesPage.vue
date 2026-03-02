@@ -168,7 +168,7 @@
               flat
               dense
               icon="swap_horiz"
-              color="primary"
+              color="positive"
               :disable="!uploadsEnabled"
               @click="triggerUpload(props.row.id)"
             >

@@ -151,7 +151,7 @@
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
-                <q-btn flat dense icon="swap_horiz" color="primary">
+                <q-btn flat dense icon="swap_horiz" color="positive">
                   <q-tooltip>Usar este bloque</q-tooltip>
                 </q-btn>
               </q-item-section>
@@ -306,15 +306,15 @@ function dayLabel(day: string): string {
 function memberLevelColor(memberLevel: string | undefined, group: LevelGroup): string {
   if (memberLevel) {
     const level = memberLevel.toLowerCase();
-    if (level === 'alfa') return 'light-blue';
-    if (level === 'delta') return 'blue';
+    if (level === 'alfa') return 'brown-4';
+    if (level === 'delta') return 'deep-orange-6';
     if (level === 'sigma') return 'purple';
     if (level === 'omega') return 'orange';
     if (level === 'spartan') return 'red';
   }
   switch (group) {
     case 'alfa_delta':
-      return 'blue';
+      return 'deep-orange-6';
     case 'sigma':
       return 'purple';
     case 'omega':

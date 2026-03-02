@@ -48,7 +48,7 @@
           <q-btn
             icon="collections_bookmark"
             label="PDF Semana"
-            color="deep-purple"
+            color="accent"
             outline
             :loading="pdfWeekLoading"
             @click="onDownloadWeekPdf"
@@ -76,7 +76,7 @@
                     dense
                     round
                     icon="picture_as_pdf"
-                    color="deep-purple"
+                    color="accent"
                     size="md"
                     :loading="pdfDayLoading === dayGroup.day"
                     @click="onDownloadDayPdf(dayGroup)"
@@ -668,11 +668,11 @@ function dayLabel(day: string): string {
 function levelColor(level: string): string {
   switch (level) {
     case 'alfa':
-      return 'light-blue';
+      return 'brown-4';
     case 'delta':
-      return 'indigo';
+      return 'deep-orange-6';
     case 'sigma':
-      return 'purple';
+      return 'brown-7';
     case 'omega':
       return 'orange';
     case 'spartan':
