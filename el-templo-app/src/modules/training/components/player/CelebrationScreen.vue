@@ -15,9 +15,7 @@
       </div>
 
       <!-- Subtitle -->
-      <div class="text-subtitle1 text-white-70 text-center">
-        Excelente trabajo
-      </div>
+      <div class="text-subtitle1 text-white-70 text-center">Excelente trabajo</div>
 
       <!-- Loading indicator for transition -->
       <div class="loading-dots q-mt-lg">
@@ -28,50 +26,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue'
 
 interface Props {
   /** Duration before auto-advancing (default: 3500ms per CONTEXT.md) */
-  duration?: number;
+  duration?: number
 }
 
 interface Emits {
-  (e: 'complete'): void;
+  (e: 'complete'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   duration: 3500,
-});
-const emit = defineEmits<Emits>();
+})
+const emit = defineEmits<Emits>()
 
 /** Fade-out animation state */
-const isFading = ref(false);
+const isFading = ref(false)
 
 /** Timer references for cleanup */
-let displayTimer: ReturnType<typeof setTimeout> | null = null;
-let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+let displayTimer: ReturnType<typeof setTimeout> | null = null
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
   // Display for duration, then start fade
   displayTimer = setTimeout(() => {
-    isFading.value = true;
+    isFading.value = true
     // Complete after fade animation (0.5s)
     fadeTimer = setTimeout(() => {
-      emit('complete');
-    }, 500);
-  }, props.duration);
-});
+      emit('complete')
+    }, 500)
+  }, props.duration)
+})
 
 onUnmounted(() => {
-  if (displayTimer) clearTimeout(displayTimer);
-  if (fadeTimer) clearTimeout(fadeTimer);
-});
+  if (displayTimer) clearTimeout(displayTimer)
+  if (fadeTimer) clearTimeout(fadeTimer)
+})
 </script>
 
 <style scoped lang="scss">
 .celebration-screen {
   z-index: 9999;
-  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 50%, #1a2a3e 100%);
+  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 50%, #2e2a26 100%);
   transition: opacity 0.5s ease-out;
 
   &.fade-out {
@@ -88,8 +86,8 @@ onUnmounted(() => {
   width: 140px;
   height: 140px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(184, 149, 108, 0.3) 0%, rgba(184, 149, 108, 0.1) 100%);
-  border: 2px solid rgba(184, 149, 108, 0.5);
+  background: radial-gradient(circle, rgba(184, 155, 94, 0.3) 0%, rgba(184, 155, 94, 0.1) 100%);
+  border: 2px solid rgba(184, 155, 94, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -97,11 +95,11 @@ onUnmounted(() => {
 }
 
 .trophy-icon {
-  color: #b8956c;
+  color: #b89b5e;
 }
 
 .completion-message {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.05em;
 }
 
@@ -110,7 +108,8 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
   }
   50% {

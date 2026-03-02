@@ -17,18 +17,14 @@
     <div v-if="day.state === 'rest'" class="day-card__rest">
       <q-icon name="self_improvement" size="64px" color="grey-5" />
       <div class="text-h6 text-grey-6 q-mt-md">Descanso</div>
-      <div class="text-caption text-grey-5 q-mt-sm">
-        Domingo es tu día de recuperación
-      </div>
+      <div class="text-caption text-grey-5 q-mt-sm">Domingo es tu día de recuperación</div>
     </div>
 
     <!-- No session content -->
     <div v-else-if="!day.session" class="day-card__empty">
       <q-icon name="event_busy" size="64px" color="grey-5" />
       <div class="text-h6 text-grey-6 q-mt-md">Sin sesión</div>
-      <div class="text-caption text-grey-5 q-mt-sm">
-        No hay entrenamiento programado
-      </div>
+      <div class="text-caption text-grey-5 q-mt-sm">No hay entrenamiento programado</div>
     </div>
 
     <!-- Session blocks (scrollable) -->
@@ -49,8 +45,14 @@
 
     <!-- Start button (only for today with session) -->
     <div v-if="showStartButton" class="day-card__footer">
-      <q-btn color="primary" size="lg" class="start-button" unelevated :disable="day.state === 'completed'"
-        @click="handleStart">
+      <q-btn
+        color="primary"
+        size="lg"
+        class="start-button"
+        unelevated
+        :disable="day.state === 'completed'"
+        @click="handleStart"
+      >
         <q-icon name="play_arrow" size="24px" class="q-mr-sm" />
         <span class="text-weight-bold">
           {{ day.state === 'completed' ? 'Sesión Completada' : 'Comenzar' }}
@@ -61,86 +63,86 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { WeekDay, Block } from '../types/session';
-import { formatShortDate, isToday } from '../composables/useDateNavigation';
-import { getRouteName } from '../utils/routeNames';
-import { getBlockColorClass } from '../utils/blockColors';
-import BlockCard from './BlockCard.vue';
-import BlockChoiceCard from './BlockChoiceCard.vue';
+import { computed } from 'vue'
+import type { WeekDay, Block } from '../types/session'
+import { formatShortDate, isToday } from '../composables/useDateNavigation'
+import { getRouteName } from '../utils/routeNames'
+import { getBlockColorClass } from '../utils/blockColors'
+import BlockCard from './BlockCard.vue'
+import BlockChoiceCard from './BlockChoiceCard.vue'
 
 interface Props {
-  day: WeekDay;
-  isSelected?: boolean;
+  day: WeekDay
+  isSelected?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSelected: false,
-});
+})
 
 const emit = defineEmits<{
-  start: [date: string];
-}>();
+  start: [date: string]
+}>()
 
 /**
  * CSS classes based on day state
  */
 const cardClasses = computed(() => {
-  const classes: string[] = [];
-  const { state } = props.day;
+  const classes: string[] = []
+  const { state } = props.day
 
   if (props.isSelected) {
-    classes.push('day-card--selected');
+    classes.push('day-card--selected')
   }
 
   if (state === 'today') {
-    classes.push('day-card--today');
+    classes.push('day-card--today')
   } else if (state === 'completed') {
-    classes.push('day-card--completed');
+    classes.push('day-card--completed')
   } else if (state === 'past') {
-    classes.push('day-card--past');
+    classes.push('day-card--past')
   } else if (state === 'future') {
-    classes.push('day-card--future');
+    classes.push('day-card--future')
   } else if (state === 'rest') {
-    classes.push('day-card--rest');
+    classes.push('day-card--rest')
   }
 
-  return classes;
-});
+  return classes
+})
 
 /**
  * Sort blocks by sortOrder
  */
 const sortedBlocks = computed(() => {
-  if (!props.day.session?.blocks) return [];
-  return [...props.day.session.blocks].sort((a: Block, b: Block) => a.sortOrder - b.sortOrder);
-});
+  if (!props.day.session?.blocks) return []
+  return [...props.day.session.blocks].sort((a: Block, b: Block) => a.sortOrder - b.sortOrder)
+})
 
 /**
  * Choice option type for BlockChoiceCard
  */
 interface ChoiceOption {
-  id: string;
-  label: string;
-  block: Block;
+  id: string
+  label: string
+  block: Block
 }
 
 /**
  * Group blocks for display - combines DEUTEROS_1 and DEUTEROS_2 into a choice
  */
 const groupedBlocks = computed(() => {
-  const blocks = sortedBlocks.value;
-  const deuteros1 = blocks.find(b => b.role === 'DEUTEROS_1');
-  const deuteros2 = blocks.find(b => b.role === 'DEUTEROS_2');
+  const blocks = sortedBlocks.value
+  const deuteros1 = blocks.find((b) => b.role === 'DEUTEROS_1')
+  const deuteros2 = blocks.find((b) => b.role === 'DEUTEROS_2')
 
   // Build display items in order
   type DisplayItem =
     | { type: 'block'; block: Block }
-    | { type: 'choice'; title: string; options: ChoiceOption[] };
-  const items: DisplayItem[] = [];
+    | { type: 'choice'; title: string; options: ChoiceOption[] }
+  const items: DisplayItem[] = []
 
   // Add blocks in their original order, inserting deuteros choice at DEUTEROS_1's position
-  let choiceInserted = false;
+  let choiceInserted = false
   for (const block of blocks) {
     if (block.role === 'DEUTEROS_1' && deuteros1 && deuteros2 && !choiceInserted) {
       items.push({
@@ -150,41 +152,41 @@ const groupedBlocks = computed(() => {
           { id: 'DEUTEROS_1', label: 'Opción 1', block: deuteros1 },
           { id: 'DEUTEROS_2', label: 'Opción 2', block: deuteros2 },
         ],
-      });
-      choiceInserted = true;
+      })
+      choiceInserted = true
     } else if (block.role === 'DEUTEROS_2') {
       // Skip - already included in the choice
-      continue;
+      continue
     } else if (block.role !== 'DEUTEROS_1') {
-      items.push({ type: 'block', block });
+      items.push({ type: 'block', block })
     }
   }
 
   // Edge case: if only one deuteros exists, show it as regular block
   if (deuteros1 && !deuteros2) {
-    const insertIndex = blocks.findIndex(b => b.role === 'DEUTEROS_1');
-    items.splice(insertIndex, 0, { type: 'block', block: deuteros1 });
+    const insertIndex = blocks.findIndex((b) => b.role === 'DEUTEROS_1')
+    items.splice(insertIndex, 0, { type: 'block', block: deuteros1 })
   }
   if (deuteros2 && !deuteros1) {
-    const insertIndex = blocks.findIndex(b => b.role === 'DEUTEROS_2');
-    items.splice(insertIndex, 0, { type: 'block', block: deuteros2 });
+    const insertIndex = blocks.findIndex((b) => b.role === 'DEUTEROS_2')
+    items.splice(insertIndex, 0, { type: 'block', block: deuteros2 })
   }
 
-  return items;
-});
+  return items
+})
 
 /**
  * Show start button only for today with a session
  */
 const showStartButton = computed(() => {
-  return isToday(props.day.date) && props.day.session !== null;
-});
+  return isToday(props.day.date) && props.day.session !== null
+})
 
 /**
  * Format date for display
  */
 function formatDate(date: string): string {
-  return formatShortDate(date);
+  return formatShortDate(date)
 }
 
 /**
@@ -192,17 +194,17 @@ function formatDate(date: string): string {
  */
 function getSessionRouteName(session: typeof props.day.session): string {
   if (!session || session.blocks.length === 0) {
-    return '';
+    return ''
   }
-  const mainBlock = session.blocks.find(b => b.role === 'NUCLEUS') || session.blocks[0];
-  return getRouteName(mainBlock.route);
+  const mainBlock = session.blocks.find((b) => b.role === 'NUCLEUS') || session.blocks[0]
+  return getRouteName(mainBlock.route)
 }
 
 /**
  * Handle start button click
  */
 function handleStart() {
-  emit('start', props.day.date);
+  emit('start', props.day.date)
 }
 </script>
 
@@ -220,7 +222,10 @@ function handleStart() {
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
   position: relative; // For today badge positioning
 
   &__header {
@@ -255,7 +260,7 @@ function handleStart() {
     font-size: 22px;
     font-weight: 700;
     color: $primary;
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
   }
 
   &__date {
@@ -295,9 +300,7 @@ function handleStart() {
     flex-shrink: 0;
     padding: 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
-    background: linear-gradient(to top,
-        $cream 0%,
-        rgba($cream, 0.95) 100%);
+    background: linear-gradient(to top, $cream 0%, rgba($cream, 0.95) 100%);
     border-top: 1px solid rgba($secondary, 0.2);
   }
 
@@ -352,9 +355,14 @@ function handleStart() {
   height: 52px;
   border-radius: 26px;
   font-size: 16px;
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.08em;
-  background: linear-gradient(135deg, $primary 0%, color.adjust($primary, $lightness: 8%) 50%, mix($primary, $secondary, 70%) 100%) !important;
+  background: linear-gradient(
+    135deg,
+    $primary 0%,
+    color.adjust($primary, $lightness: 8%) 50%,
+    mix($primary, $secondary, 70%) 100%
+  ) !important;
   box-shadow: 0 4px 12px rgba($primary, 0.3);
   transition: all 0.3s ease;
 

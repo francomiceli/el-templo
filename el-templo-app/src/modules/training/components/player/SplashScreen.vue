@@ -32,98 +32,98 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { getLevelGreek, formatLevelName } from '../../utils/levelDisplay';
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { getLevelGreek, formatLevelName } from '../../utils/levelDisplay'
 
 interface SessionInfo {
   /** Day name (e.g., "Lunes", "Martes") */
-  day: string;
+  day: string
   /** Member's level (e.g., "alfa", "delta", "sigma", "omega") */
-  level: string;
+  level: string
 }
 
 interface Props {
   /** Session metadata to display (for initial splash) */
-  sessionInfo?: SessionInfo;
+  sessionInfo?: SessionInfo
   /** Completed block name (for transition splash) */
-  completedBlock?: string;
+  completedBlock?: string
   /** Next block name (for transition splash) */
-  nextBlock?: string;
+  nextBlock?: string
   /** Splash duration in ms (default: 2500) */
-  duration?: number;
+  duration?: number
 }
 
 interface Emits {
-  (e: 'complete'): void;
+  (e: 'complete'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   duration: 2500,
-});
-const emit = defineEmits<Emits>();
+})
+const emit = defineEmits<Emits>()
 
 /** Whether this is a block transition (vs initial splash) */
-const isTransition = computed(() => !!props.nextBlock || !!props.completedBlock);
+const isTransition = computed(() => !!props.nextBlock || !!props.completedBlock)
 
 /** Icon to display */
 const iconName = computed(() => {
   if (isTransition.value) {
-    return 'check_circle';
+    return 'check_circle'
   }
-  return 'fitness_center';
-});
+  return 'fitness_center'
+})
 
 /** Top label text */
 const topLabel = computed(() => {
   if (props.completedBlock) {
-    return `${props.completedBlock} completado!`;
+    return `${props.completedBlock} completado!`
   }
   if (props.sessionInfo) {
-    const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1);
-    const greek = getLevelGreek(props.sessionInfo.level);
-    const levelName = formatLevelName(props.sessionInfo.level);
-    return `${day} - ${greek} ${levelName}`;
+    const day = props.sessionInfo.day.charAt(0).toUpperCase() + props.sessionInfo.day.slice(1)
+    const greek = getLevelGreek(props.sessionInfo.level)
+    const levelName = formatLevelName(props.sessionInfo.level)
+    return `${day} - ${greek} ${levelName}`
   }
-  return '';
-});
+  return ''
+})
 
 /** Main message text */
 const mainMessage = computed(() => {
   if (props.nextBlock) {
-    return `Siguiente: ${props.nextBlock}`;
+    return `Siguiente: ${props.nextBlock}`
   }
-  return 'Vamos a entrenar!';
-});
+  return 'Vamos a entrenar!'
+})
 
 /** Fade-out animation state */
-const isFading = ref(false);
+const isFading = ref(false)
 
 /** Timer reference for cleanup */
-let splashTimer: ReturnType<typeof setTimeout> | null = null;
-let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+let splashTimer: ReturnType<typeof setTimeout> | null = null
+let fadeTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
   // Start fade out after duration
   splashTimer = setTimeout(() => {
-    isFading.value = true;
+    isFading.value = true
     // Complete after fade animation (0.5s)
     fadeTimer = setTimeout(() => {
-      emit('complete');
-    }, 500);
-  }, props.duration);
-});
+      emit('complete')
+    }, 500)
+  }, props.duration)
+})
 
 onUnmounted(() => {
   // Clean up timers if component is unmounted early
-  if (splashTimer) clearTimeout(splashTimer);
-  if (fadeTimer) clearTimeout(fadeTimer);
-});
+  if (splashTimer) clearTimeout(splashTimer)
+  if (fadeTimer) clearTimeout(fadeTimer)
+})
 </script>
 
 <style scoped lang="scss">
 .splash-screen {
   z-index: 9999;
-  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 50%, #1a2a3e 100%);
+  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 50%, #2e2a26 100%);
   transition: opacity 0.5s ease-out;
 
   &.fade-out {
@@ -140,8 +140,8 @@ onUnmounted(() => {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: rgba(184, 149, 108, 0.2);
-  border: 2px solid rgba(184, 149, 108, 0.4);
+  background: rgba(184, 155, 94, 0.2);
+  border: 2px solid rgba(184, 155, 94, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,7 +155,7 @@ onUnmounted(() => {
 .motivation {
   margin-top: 16px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.05em;
 }
 

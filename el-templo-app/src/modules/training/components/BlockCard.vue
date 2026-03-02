@@ -170,7 +170,7 @@ function formatPrescriptionInline(exercise: Prescription): string {
 }
 
 .block-role-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 700;
   letter-spacing: 0.08em;
   color: $primary;

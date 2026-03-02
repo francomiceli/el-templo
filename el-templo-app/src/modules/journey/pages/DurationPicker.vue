@@ -142,7 +142,7 @@ onMounted(async () => {
 }
 
 .context-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.2rem;
   font-weight: 400;
   color: #2a2a2a;
@@ -151,7 +151,7 @@ onMounted(async () => {
 
 /* Page Header */
 .page-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.6rem;
   font-weight: 400;
   color: #2a2a2a;
@@ -194,7 +194,7 @@ onMounted(async () => {
 }
 
 .time-number {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 2rem;
   font-weight: 400;
   color: #c27a5d;

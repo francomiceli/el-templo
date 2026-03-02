@@ -109,7 +109,7 @@ const totalSessions = computed(() => {
 }
 
 .indicator__title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.3rem;
   font-weight: 400;
   color: #2a2a2a;
@@ -117,7 +117,7 @@ const totalSessions = computed(() => {
 }
 
 .indicator__journey-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.1rem;
   color: #4a4a4a;
   margin-bottom: 4px;
@@ -158,7 +158,7 @@ const totalSessions = computed(() => {
 }
 
 .duration-row__number {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.3rem;
   font-weight: 400;
   color: #c27a5d;

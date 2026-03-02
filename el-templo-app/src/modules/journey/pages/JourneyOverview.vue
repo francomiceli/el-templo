@@ -196,7 +196,7 @@ onMounted(async () => {
 }
 
 .journey-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 2rem;
   font-weight: 400;
   color: #2a2a2a;
@@ -233,7 +233,7 @@ onMounted(async () => {
 }
 
 .section-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 0.9rem;
   font-weight: 500;
   color: #2a2a2a;

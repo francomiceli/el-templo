@@ -1,8 +1,6 @@
 <template>
   <div class="rpe-slider">
-    <div class="rpe-slider__label text-subtitle2 q-mb-sm">
-      Esfuerzo Percibido (RPE)
-    </div>
+    <div class="rpe-slider__label text-subtitle2 q-mb-sm">Esfuerzo Percibido (RPE)</div>
 
     <q-slider
       v-model="internalValue"
@@ -31,23 +29,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch } from 'vue'
 
 interface Props {
   /** Current RPE value (1-10 or null) */
-  modelValue: number | null;
+  modelValue: number | null
 }
 
 interface Emits {
-  (e: 'update:modelValue', value: number | null): void;
+  (e: 'update:modelValue', value: number | null): void
 }
 
-const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
+const props = defineProps<Props>()
+const emit = defineEmits<Emits>()
 
 // Internal value starts at 5 if null (center of slider) but doesn't emit until user interacts
-const internalValue = ref<number>(props.modelValue ?? 5);
-const hasInteracted = ref(props.modelValue !== null);
+const internalValue = ref<number>(props.modelValue ?? 5)
+const hasInteracted = ref(props.modelValue !== null)
 
 // Marker labels per CONTEXT.md: every 2 numbers (2, 4, 6, 8, 10)
 const markerLabels: Record<number, string> = {
@@ -56,7 +54,7 @@ const markerLabels: Record<number, string> = {
   6: 'Duro',
   8: 'Muy Duro',
   10: 'Maximo',
-};
+}
 
 // Full descriptions for all values
 const rpeDescriptions: Record<number, string> = {
@@ -70,21 +68,24 @@ const rpeDescriptions: Record<number, string> = {
   8: 'Muy duro',
   9: 'Extremadamente duro',
   10: 'Esfuerzo maximo',
-};
+}
 
 // Watch for user interaction and emit
 watch(internalValue, (newValue) => {
-  hasInteracted.value = true;
-  emit('update:modelValue', newValue);
-});
+  hasInteracted.value = true
+  emit('update:modelValue', newValue)
+})
 
 // Sync from parent if changed externally
-watch(() => props.modelValue, (newValue) => {
-  if (newValue !== null) {
-    internalValue.value = newValue;
-    hasInteracted.value = true;
-  }
-});
+watch(
+  () => props.modelValue,
+  (newValue) => {
+    if (newValue !== null) {
+      internalValue.value = newValue
+      hasInteracted.value = true
+    }
+  },
+)
 </script>
 
 <style scoped lang="scss">
@@ -98,7 +99,7 @@ watch(() => props.modelValue, (newValue) => {
 
 .rpe-slider__label {
   color: $primary;
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   letter-spacing: 0.05em;
 }
 

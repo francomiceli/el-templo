@@ -98,14 +98,14 @@ async function onLogout() {
 @import 'src/css/quasar.variables.scss';
 
 .main-header {
-  background: linear-gradient(135deg, $primary 0%, #3d5275 100%);
+  background: linear-gradient(135deg, $primary 0%, #4a433c 100%);
 }
 
 .header-title {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.1rem;
   letter-spacing: 0.1em;
   font-weight: 500;
@@ -123,7 +123,7 @@ async function onLogout() {
 }
 
 .drawer-header {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   color: $primary;
   letter-spacing: 0.05em;
 }

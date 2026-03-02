@@ -19,12 +19,12 @@
 
 interface Props {
   /** Greek letter symbol (alpha, delta, sigma, omega) */
-  greekLetter: string;
+  greekLetter: string
   /** Full level name (Alfa, Delta, Sigma, Omega, Spartan) */
-  levelName: string;
+  levelName: string
 }
 
-defineProps<Props>();
+defineProps<Props>()
 </script>
 
 <style scoped lang="scss">
@@ -39,7 +39,7 @@ defineProps<Props>();
 }
 
 .level-display__letter {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 64px;
   font-weight: 700;
   color: $secondary;
@@ -48,7 +48,7 @@ defineProps<Props>();
 }
 
 .level-display__name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 18px;
   font-weight: 500;
   color: $primary;

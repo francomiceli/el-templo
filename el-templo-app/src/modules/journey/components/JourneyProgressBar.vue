@@ -69,7 +69,7 @@ const progressColor = computed(() => getBlockAccentColor(props.currentBlock))
   color: rgba($primary, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
 }
 
 .journey-progress__label--completed {

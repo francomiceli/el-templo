@@ -287,7 +287,7 @@ onUnmounted(() => {
   }
 
   &__empty-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 20px;
     font-weight: 600;
     color: $primary;
@@ -326,7 +326,7 @@ onUnmounted(() => {
   }
 
   &__name {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 24px;
     font-weight: 600;
     color: $primary;
@@ -369,7 +369,7 @@ onUnmounted(() => {
   }
 
   &__today-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 15px;
     font-weight: 600;
     color: $primary;
@@ -425,7 +425,7 @@ onUnmounted(() => {
   }
 
   &__chart-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: $primary;

@@ -1,10 +1,6 @@
 <template>
   <div class="rpe-trend-chart">
-    <LineChart
-      :chart-data="chartData"
-      :options="chartOptions"
-      :height="200"
-    />
+    <LineChart :chart-data="chartData" :options="chartOptions" :height="200" />
   </div>
 </template>
 
@@ -14,10 +10,10 @@
  *
  * Displays a line chart showing RPE (Rate of Perceived Exertion) trend over time.
  * Uses Chart.js with tree-shaken imports for optimal bundle size.
- * Brand colors: bronze line (#b8956c), navy points (#2c3e5c).
+ * Brand colors: aged gold line (#b89b5e), terracotta points (#c07a56).
  */
-import { computed } from 'vue';
-import { LineChart } from 'vue-chart-3';
+import { computed } from 'vue'
+import { LineChart } from 'vue-chart-3'
 import {
   Chart,
   CategoryScale,
@@ -28,8 +24,8 @@ import {
   Title,
   Tooltip,
   Filler,
-} from 'chart.js';
-import type { ChartData, ChartOptions } from 'chart.js';
+} from 'chart.js'
+import type { ChartData, ChartOptions } from 'chart.js'
 
 // Register only needed Chart.js components (tree-shaking)
 Chart.register(
@@ -40,21 +36,21 @@ Chart.register(
   LineController,
   Title,
   Tooltip,
-  Filler
-);
+  Filler,
+)
 
 interface Props {
   /** X-axis labels (dates or session identifiers) */
-  labels: string[];
+  labels: string[]
   /** Y-axis data points (RPE values 1-10, null for missing) */
-  data: (number | null)[];
+  data: (number | null)[]
 }
 
-const props = defineProps<Props>();
+const props = defineProps<Props>()
 
 // Brand colors
-const BRONZE = '#b8956c';
-const NAVY = '#2c3e5c';
+const AGED_GOLD = '#b89b5e'
+const TERRACOTTA = '#c07a56'
 
 /**
  * Chart data configuration
@@ -65,19 +61,19 @@ const chartData = computed<ChartData<'line'>>(() => ({
     {
       label: 'RPE',
       data: props.data,
-      borderColor: BRONZE,
-      backgroundColor: `${BRONZE}1A`, // 10% opacity
+      borderColor: AGED_GOLD,
+      backgroundColor: `${AGED_GOLD}1A`, // 10% opacity
       fill: true,
       tension: 0.3,
       spanGaps: true,
-      pointBackgroundColor: NAVY,
-      pointBorderColor: BRONZE,
+      pointBackgroundColor: TERRACOTTA,
+      pointBorderColor: AGED_GOLD,
       pointBorderWidth: 2,
       pointRadius: 4,
       pointHoverRadius: 6,
     },
   ],
-}));
+}))
 
 /**
  * Chart options configuration
@@ -90,15 +86,15 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       display: false,
     },
     tooltip: {
-      backgroundColor: NAVY,
+      backgroundColor: TERRACOTTA,
       titleColor: '#fff',
       bodyColor: '#fff',
       padding: 10,
       displayColors: false,
       callbacks: {
         label: (context) => {
-          const value = context.parsed.y;
-          return value !== null ? `RPE: ${value}` : 'Sin datos';
+          const value = context.parsed.y
+          return value !== null ? `RPE: ${value}` : 'Sin datos'
         },
       },
     },
@@ -109,18 +105,18 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       max: 10,
       ticks: {
         stepSize: 2,
-        color: NAVY,
+        color: TERRACOTTA,
         font: {
           size: 11,
         },
       },
       grid: {
-        color: `${BRONZE}20`, // 12% opacity
+        color: `${AGED_GOLD}20`, // 12% opacity
       },
     },
     x: {
       ticks: {
-        color: NAVY,
+        color: TERRACOTTA,
         font: {
           size: 10,
         },
@@ -132,7 +128,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
       },
     },
   },
-}));
+}))
 </script>
 
 <style scoped lang="scss">

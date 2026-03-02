@@ -89,7 +89,7 @@ onMounted(() => {
   width: 100%;
   height: 40vh;
   position: relative;
-  background-color: #1a2a3e;
+  background-color: #2e2a26;
 }
 
 .video-placeholder {
@@ -99,7 +99,7 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0f1c2e 0%, #1a2a3e 50%, #243548 100%);
+  background: linear-gradient(135deg, #1e1b18 0%, #2e2a26 50%, #3d3732 100%);
   gap: 12px;
 }
 

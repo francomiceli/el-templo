@@ -151,7 +151,7 @@ onMounted(() => {
 }
 
 .page-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.6rem;
   font-weight: 400;
   color: #2a2a2a;
@@ -201,7 +201,7 @@ onMounted(() => {
 }
 
 .banner-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1rem;
   color: #2a2a2a;
   font-weight: 500;
@@ -267,7 +267,7 @@ onMounted(() => {
 }
 
 .card-title {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 1.15rem;
   font-weight: 400;
   color: #2a2a2a;

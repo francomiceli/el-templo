@@ -275,7 +275,7 @@ function onConfirmChange(): void {
   }
 
   &__journey-name {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: $primary;
@@ -325,7 +325,7 @@ function onConfirmChange(): void {
   }
 
   &__semana-value {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: $primary;
@@ -358,7 +358,7 @@ function onConfirmChange(): void {
   }
 
   &__prompt-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: $primary;
@@ -381,7 +381,7 @@ function onConfirmChange(): void {
   }
 
   &__archived-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 16px;
     font-weight: 600;
     color: $primary;
@@ -402,7 +402,7 @@ function onConfirmChange(): void {
   }
 
   &__archived-name {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 14px;
     font-weight: 600;
     color: $primary;
@@ -436,7 +436,7 @@ function onConfirmChange(): void {
   }
 
   &__dialog-title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     color: $primary;
   }
 

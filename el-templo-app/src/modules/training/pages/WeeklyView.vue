@@ -195,7 +195,7 @@ onMounted(() => {
   }
 
   &__title {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 18px;
     font-weight: 700;
     color: $primary;

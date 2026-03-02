@@ -493,7 +493,7 @@ onUnmounted(() => {
 }
 
 .badge-name {
-  font-family: 'Cinzel', serif;
+  font-family: 'Montserrat', sans-serif;
   font-size: 0.85rem;
   font-weight: 400;
   color: #4a4a4a;

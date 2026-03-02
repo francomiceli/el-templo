@@ -4,20 +4,23 @@
       <!--       <q-btn flat round dense icon="arrow_back" color="grey-8" @click="$router.back()" /> -->
     </div>
 
-    <div class="conceptos-page__subtitle text-subtitle1 text-grey-7">
-      Guia de Conceptos
-    </div>
+    <div class="conceptos-page__subtitle text-subtitle1 text-grey-7">Guia de Conceptos</div>
 
     <q-list class="conceptos-page__content">
       <!-- Bloques Section -->
-      <q-expansion-item group="conceptos" icon="view_module" label="Bloques" header-class="conceptos-section-header">
+      <q-expansion-item
+        group="conceptos"
+        icon="view_module"
+        label="Bloques"
+        header-class="conceptos-section-header"
+      >
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
               <div class="conceptos-item__title">Initium</div>
               <div class="conceptos-item__description">
-                Bloque de calentamiento. Prepara tu cuerpo para la sesion con movilidad
-                y activacion muscular progresiva.
+                Bloque de calentamiento. Prepara tu cuerpo para la sesion con movilidad y activacion
+                muscular progresiva.
               </div>
             </div>
 
@@ -26,8 +29,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Nucleus</div>
               <div class="conceptos-item__description">
-                Bloque principal de trabajo. Aqui se concentra el mayor volumen e
-                intensidad de la sesion segun tu ruta del dia.
+                Bloque principal de trabajo. Aqui se concentra el mayor volumen e intensidad de la
+                sesion segun tu ruta del dia.
               </div>
             </div>
 
@@ -36,8 +39,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Deuteros</div>
               <div class="conceptos-item__description">
-                Bloque complementario. Eliges entre dos opciones para trabajar
-                aspectos adicionales segun tus objetivos.
+                Bloque complementario. Eliges entre dos opciones para trabajar aspectos adicionales
+                segun tus objetivos.
               </div>
             </div>
 
@@ -46,8 +49,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Athlos / Epikos</div>
               <div class="conceptos-item__description">
-                Bloque de desafio final. Athlos es un reto corto e intenso.
-                Epikos es un desafio mas largo que aparece alternadamente.
+                Bloque de desafio final. Athlos es un reto corto e intenso. Epikos es un desafio mas
+                largo que aparece alternadamente.
               </div>
             </div>
           </q-card-section>
@@ -55,14 +58,19 @@
       </q-expansion-item>
 
       <!-- Rutas Section -->
-      <q-expansion-item group="conceptos" icon="route" label="Rutas" header-class="conceptos-section-header">
+      <q-expansion-item
+        group="conceptos"
+        icon="route"
+        label="Rutas"
+        header-class="conceptos-section-header"
+      >
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
               <div class="conceptos-item__title">Strength (Fuerza)</div>
               <div class="conceptos-item__description">
-                Desarrollo de fuerza maxima. Ejercicios con menor numero de
-                repeticiones y mayor intensidad.
+                Desarrollo de fuerza maxima. Ejercicios con menor numero de repeticiones y mayor
+                intensidad.
               </div>
             </div>
 
@@ -71,8 +79,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Power (Potencia)</div>
               <div class="conceptos-item__description">
-                Trabajo explosivo. Combina fuerza y velocidad para desarrollar
-                potencia muscular.
+                Trabajo explosivo. Combina fuerza y velocidad para desarrollar potencia muscular.
               </div>
             </div>
 
@@ -81,8 +88,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Endurance (Resistencia)</div>
               <div class="conceptos-item__description">
-                Resistencia muscular. Mayor volumen con intensidad moderada para
-                mejorar capacidad de trabajo.
+                Resistencia muscular. Mayor volumen con intensidad moderada para mejorar capacidad
+                de trabajo.
               </div>
             </div>
 
@@ -91,8 +98,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Hypertrophy (Hipertrofia)</div>
               <div class="conceptos-item__description">
-                Crecimiento muscular. Rango medio de repeticiones con enfoque en
-                tension muscular sostenida.
+                Crecimiento muscular. Rango medio de repeticiones con enfoque en tension muscular
+                sostenida.
               </div>
             </div>
 
@@ -101,8 +108,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Skill (Habilidad)</div>
               <div class="conceptos-item__description">
-                Desarrollo tecnico. Practica de movimientos avanzados y progresiones
-                de calistenia.
+                Desarrollo tecnico. Practica de movimientos avanzados y progresiones de calistenia.
               </div>
             </div>
           </q-card-section>
@@ -110,14 +116,18 @@
       </q-expansion-item>
 
       <!-- Formatos Section -->
-      <q-expansion-item group="conceptos" icon="timer" label="Formatos" header-class="conceptos-section-header">
+      <q-expansion-item
+        group="conceptos"
+        icon="timer"
+        label="Formatos"
+        header-class="conceptos-section-header"
+      >
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
               <div class="conceptos-item__title">EMOM (Every Minute On the Minute)</div>
               <div class="conceptos-item__description">
-                Realiza los ejercicios al inicio de cada minuto. El tiempo
-                restante es tu descanso.
+                Realiza los ejercicios al inicio de cada minuto. El tiempo restante es tu descanso.
               </div>
             </div>
 
@@ -144,8 +154,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Tabata</div>
               <div class="conceptos-item__description">
-                20 segundos de trabajo, 10 segundos de descanso. Repite 8 veces
-                por ejercicio.
+                20 segundos de trabajo, 10 segundos de descanso. Repite 8 veces por ejercicio.
               </div>
             </div>
 
@@ -154,8 +163,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Series</div>
               <div class="conceptos-item__description">
-                Formato tradicional. Realiza las series y repeticiones indicadas
-                con descanso entre series.
+                Formato tradicional. Realiza las series y repeticiones indicadas con descanso entre
+                series.
               </div>
             </div>
           </q-card-section>
@@ -163,7 +172,12 @@
       </q-expansion-item>
 
       <!-- Intensidad Section -->
-      <q-expansion-item group="conceptos" icon="speed" label="Intensidad" header-class="conceptos-section-header">
+      <q-expansion-item
+        group="conceptos"
+        icon="speed"
+        label="Intensidad"
+        header-class="conceptos-section-header"
+      >
         <q-card>
           <q-card-section>
             <div class="conceptos-item">
@@ -178,8 +192,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">50-70% (Moderada)</div>
               <div class="conceptos-item__description">
-                Esfuerzo moderado. Zona de trabajo para resistencia y volumen.
-                Puedes mantener conversacion.
+                Esfuerzo moderado. Zona de trabajo para resistencia y volumen. Puedes mantener
+                conversacion.
               </div>
             </div>
 
@@ -188,8 +202,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">70-85% (Alta)</div>
               <div class="conceptos-item__description">
-                Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentracion
-                y buena tecnica.
+                Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentracion y buena tecnica.
               </div>
             </div>
 
@@ -198,8 +211,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">85-100% (Maxima)</div>
               <div class="conceptos-item__description">
-                Esfuerzo maximo. Para trabajo de fuerza maxima y potencia.
-                Requiere descansos largos.
+                Esfuerzo maximo. Para trabajo de fuerza maxima y potencia. Requiere descansos
+                largos.
               </div>
             </div>
           </q-card-section>
@@ -238,7 +251,7 @@
 }
 
 .conceptos-page__title {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Montserrat', sans-serif;
   color: $primary;
   letter-spacing: 0.1em;
 }
@@ -253,7 +266,7 @@
 }
 
 :deep(.conceptos-section-header) {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   color: $primary;
   background: rgba($secondary, 0.1);

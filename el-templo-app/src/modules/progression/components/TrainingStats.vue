@@ -60,14 +60,14 @@
  *
  * Uses Quasar grid for responsive layout.
  */
-import type { ProgressionStats } from '../types';
+import type { ProgressionStats } from '../types'
 
 interface Props {
   /** Statistics data from progression API */
-  stats: ProgressionStats;
+  stats: ProgressionStats
 }
 
-defineProps<Props>();
+defineProps<Props>()
 </script>
 
 <style scoped lang="scss">
@@ -97,7 +97,7 @@ defineProps<Props>();
   }
 
   &__value {
-    font-family: 'Cinzel', serif;
+    font-family: 'Montserrat', sans-serif;
     font-size: 28px;
     font-weight: 700;
     color: $primary;

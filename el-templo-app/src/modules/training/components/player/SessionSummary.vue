@@ -99,49 +99,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import RpeSlider from './RpeSlider.vue';
+import { ref, computed } from 'vue'
+import RpeSlider from './RpeSlider.vue'
 
 interface BlockData {
-  role: string;
-  exercises: Array<{ name: string }>;
+  role: string
+  exercises: Array<{ name: string }>
 }
 
 interface Props {
   /** Date of the session (YYYY-MM-DD) */
-  date: string;
+  date: string
   /** Block data with exercises for expandable display */
-  blocksData: BlockData[];
+  blocksData: BlockData[]
   /** Days completed this week */
-  daysCompletedThisWeek: number;
+  daysCompletedThisWeek: number
   /** Cumulative days trained (from API response or 0 initially) */
-  totalDaysTrained: number;
+  totalDaysTrained: number
   /** Whether submission is in progress */
-  isSubmitting?: boolean;
+  isSubmitting?: boolean
 }
 
 interface Emits {
-  (e: 'finish', data: { rpe: number | null; notes: string | null }): void;
+  (e: 'finish', data: { rpe: number | null; notes: string | null }): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSubmitting: false,
-});
-const emit = defineEmits<Emits>();
+})
+const emit = defineEmits<Emits>()
 
 // Form state
-const rpeValue = ref<number | null>(null);
-const notesValue = ref<string>('');
+const rpeValue = ref<number | null>(null)
+const notesValue = ref<string>('')
 
 // Computed
 const formattedDate = computed(() => {
-  const d = new Date(props.date + 'T00:00:00');
+  const d = new Date(props.date + 'T00:00:00')
   return d.toLocaleDateString('es-ES', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-  });
-});
+  })
+})
 
 // Block display helpers
 function getBlockName(role: string): string {
@@ -152,13 +152,13 @@ function getBlockName(role: string): string {
     DEUTEROS_2: 'Deuteros 2',
     ATHLOS: 'Athlos',
     EPIKOS: 'Epikos',
-  };
-  return names[role] || role;
+  }
+  return names[role] || role
 }
 
 function getBlockColor(_role: string): string {
   // All blocks use bronze in session summary
-  return 'secondary';
+  return 'secondary'
 }
 
 function getBlockIcon(role: string): string {
@@ -169,8 +169,8 @@ function getBlockIcon(role: string): string {
     DEUTEROS_2: 'layers',
     ATHLOS: 'local_fire_department',
     EPIKOS: 'local_fire_department',
-  };
-  return icons[role] || 'view_module';
+  }
+  return icons[role] || 'view_module'
 }
 
 // Actions
@@ -178,7 +178,7 @@ function onFinish(): void {
   emit('finish', {
     rpe: rpeValue.value,
     notes: notesValue.value.trim() || null,
-  });
+  })
 }
 </script>
 
@@ -191,11 +191,11 @@ function onFinish(): void {
 }
 
 .session-summary__header {
-  background: linear-gradient(135deg, #1a2a3e 0%, #2c3e5c 100%);
+  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 100%);
   color: white;
 
   .text-h5 {
-    font-family: 'Cinzel', Georgia, serif;
+    font-family: 'Montserrat', sans-serif;
     letter-spacing: 0.05em;
   }
 }
@@ -219,7 +219,7 @@ function onFinish(): void {
   display: flex;
   align-items: center;
   background: linear-gradient(135deg, rgba(245, 240, 232, 0.8) 0%, rgba(232, 224, 212, 0.6) 100%);
-  border: 1px solid rgba(184, 149, 108, 0.3);
+  border: 1px solid rgba(184, 155, 94, 0.3);
   border-radius: 16px;
   padding: 24px 16px;
 }
@@ -237,7 +237,7 @@ function onFinish(): void {
 }
 
 .blocks-section {
-  background: #f5f0e8;
+  background: #f2ede5;
   border-radius: 12px;
   padding: 16px;
 }

@@ -217,12 +217,12 @@ const deathBySequence = computed(() => {
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
-  color: #2c3e5c;
+  color: #3d3732;
 }
 
 .exercise-card__metric-label {
   font-size: 12px;
-  color: #b8956c;
+  color: #b89b5e;
   text-transform: uppercase;
   font-weight: 500;
   letter-spacing: 0.05em;
