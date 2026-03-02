@@ -107,7 +107,7 @@ async function handleSubmit(): Promise<void> {
 
   try {
     const baseUrl = config.public.apiUrl;
-    await $fetch(`${baseUrl}/api/franchise/apply`, {
+    await $fetch(`${baseUrl}/franchise/apply`, {
       method: "POST",
       body: {
         nombre: form.nombre.trim(),

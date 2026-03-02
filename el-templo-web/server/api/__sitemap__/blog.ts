@@ -9,7 +9,7 @@ export default defineSitemapEventHandler(async () => {
   try {
     const response = await $fetch<{
       posts: Array<{ slug: string; updatedAt: string }>;
-    }>(`${config.public.apiUrl}/api/blog/posts?limit=1000`);
+    }>(`${config.public.apiUrl}/blog/posts?limit=1000`);
     return response.posts.map((post) => ({
       loc: `/blog/${post.slug}`,
       lastmod: post.updatedAt,

@@ -89,7 +89,7 @@ async function handleSubmit(): Promise<void> {
   try {
     const baseUrl = config.public.apiUrl;
     const result = await $fetch<{ message: string; whatsappUrl: string }>(
-      `${baseUrl}/api/gladius/inquire`,
+      `${baseUrl}/gladius/inquire`,
       {
         method: "POST",
         body: {

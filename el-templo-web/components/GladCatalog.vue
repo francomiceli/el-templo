@@ -29,7 +29,7 @@ const {
   data: products,
   status,
   error,
-} = useFetch<GladiusProduct[]>(`${apiUrl}/api/gladius/products`, {
+} = useFetch<GladiusProduct[]>(`${apiUrl}/gladius/products`, {
   default: () => [],
 });
 

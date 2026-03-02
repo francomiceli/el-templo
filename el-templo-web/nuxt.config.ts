@@ -42,7 +42,7 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiUrl: "http://localhost:3000",
+      apiUrl: "http://localhost:3000/api",
       sentryDsn: "",
       appEnvironment: "",
       ga4Id: "",
