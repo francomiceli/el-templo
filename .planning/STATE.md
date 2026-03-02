@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-03-02T15:52:43Z"
+stopped_at: Completed 38-03-PLAN.md
+last_updated: "2026-03-02T16:00:23.105Z"
 progress:
   total_phases: 36
-  completed_phases: 27
-  total_plans: 158
-  completed_plans: 155
+  completed_phases: 28
+  total_plans: 161
+  completed_plans: 157
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 38 of 39 (Franchise Application Management)
-Plan: 1 of 3 complete
-Status: Executing Phase 38 — Plan 01 complete (API backend)
-Last activity: 2026-03-02 — Phase 38 Plan 01 executed (6 tasks, 6 commits)
+Plan: 3 of 3 complete
+Status: Phase 38 complete — all plans executed
+Last activity: 2026-03-02 — Phase 38 Plan 03 executed (2 tasks, 2 commits)
 
-Progress: [=] 33% (1/3 plans)
+Progress: [===] 100% (3/3 plans)
 
 ## Milestone v3.0 Context
 
@@ -202,8 +202,11 @@ Progress: [=] 33% (1/3 plans)
 - Superadmin-only route guard uses SUPERADMIN_ROLES array (not ADMIN_ROLES) for stricter access control
 - AI agent service: brand-aware system prompt + agent-specific extensions pattern
 - ANTHROPIC_API_KEY read automatically by Anthropic SDK from env (no explicit config)
+- v-for over AGENT_TYPES array for DRY tab panel rendering instead of 4 separate inline blocks
+- Regenerate dialog message includes agent-type-specific label for clearer user warning
+- AI panel event pattern: child emits 'generated' with agentType+content, parent spreads into application ref
 
 ### Last Session
 
-- **Stopped at:** Completed 38-01-PLAN.md
+- **Stopped at:** Completed 38-03-PLAN.md
 - **Timestamp:** 2026-03-02
