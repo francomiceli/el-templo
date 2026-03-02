@@ -1,26 +1,25 @@
 // Quasar SCSS (& Sass) Variables
 // --------------------------------------------------
-// El Templo Brand Theme
-// Classical Greek aesthetic: Navy blue + Bronze/Gold
+// El Templo Brand Theme — aligned with el-templo-web design system (Phase 39)
 
 // El Templo Brand Colors
-$primary: #2c3e5c; // Navy blue - headings, primary actions
-$secondary: #b8956c; // Bronze/gold - accents, icons
-$accent: #b8956c; // Consistent with secondary
+$primary: #c07a56; // Terracotta — primary actions, links, active indicators
+$secondary: #b89b5e; // Aged Gold — accents, icons, badges, highlights
+$accent: #3d3732; // Deep Charcoal — text, subtle accents
 
-// Keep semantic colors for UX feedback
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
-$warning: #f2c037;
+// Warm semantic feedback colors (no cold tones — per brand guidelines, no blue anywhere)
+$positive: #5a9a6b; // Warm green (olive-tinted)
+$negative: #b34a4a; // Warm red (brick-tinted)
+$info: #8a8472; // Olive Stone (replaces cold blue — no blue in brand)
+$warning: #d4a843; // Warm amber
 
-// Dark mode theming (navy-based)
-$dark: #1a2a3e;
-$dark-page: #0f1a28;
+// Dark mode theming (charcoal-based, NOT navy-based)
+$dark: #3d3732; // Deep Charcoal
+$dark-page: #2e2a26; // Darker charcoal shade
 
 // Custom El Templo variables
-$cream: #f5f0e8;
-$cream-dark: #e8e0d4;
+$cream: #f2ede5; // Marble Cream
+$cream-dark: #d9cfc1; // Warm Stone
 $bronze-light: #d4b896;
 
 // Typography base

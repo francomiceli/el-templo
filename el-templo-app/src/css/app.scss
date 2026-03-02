@@ -1,18 +1,29 @@
 // app global css in SCSS form
+// El Templo Brand System — aligned with el-templo-web (Phase 39)
 
 // =============================================================================
 // El Templo Typography
 // =============================================================================
 
-// Import Cinzel font (serif, classical Greek aesthetic)
-@import '@fontsource/cinzel/400.css';
-@import '@fontsource/cinzel/500.css';
-@import '@fontsource/cinzel/700.css';
+// Import brand fonts
+@import '@fontsource/montserrat/300.css';
+@import '@fontsource/montserrat/600.css';
+@import '@fontsource/montserrat/700.css';
+@import '@fontsource/montserrat/800.css';
+@import '@fontsource/geologica/400.css';
+@import '@fontsource/geologica/500.css';
+@import '@fontsource/cormorant-garamond/400.css';
+@import '@fontsource/cormorant-garamond/400-italic.css';
 
 // Custom heading font family variable
-$heading-font: 'Cinzel', serif;
+$heading-font: 'Montserrat', sans-serif;
 
-// Apply Cinzel to all heading elements
+// Body font — Geologica replaces Roboto
+body {
+  font-family: 'Geologica', sans-serif;
+}
+
+// Apply Montserrat to all heading elements
 h1, h2, h3, h4, h5, h6,
 .text-h1, .text-h2, .text-h3, .text-h4, .text-h5, .text-h6,
 .text-subtitle1, .text-subtitle2 {
@@ -26,9 +37,19 @@ h1, h2, h3, h4, h5, h6,
 // Block names utility class (for INITIUM, NUCLEUS, etc.)
 .block-name {
   font-family: $heading-font;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+// =============================================================================
+// El Templo Cormorant Garamond Utility
+// =============================================================================
+
+// Special typography class for quotes and splash — keep it rare
+.text-elegance {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
 }
 
 // =============================================================================
@@ -37,7 +58,7 @@ h1, h2, h3, h4, h5, h6,
 
 // Marble texture mixin using SVG feTurbulence for subtle noise
 // Creates a classical stone-like texture effect
-@mixin marble-texture($base-color: #f5f0e8, $opacity: 0.3) {
+@mixin marble-texture($base-color: #f2ede5, $opacity: 0.3) {
   background-color: $base-color;
   position: relative;
 
@@ -60,9 +81,9 @@ h1, h2, h3, h4, h5, h6,
 // =============================================================================
 
 // Brand colors
-$brand-navy: #2c3e5c;
-$brand-bronze: #b8956c;
-$brand-cream: #f5f0e8;
+$brand-terracotta: #c07a56;
+$brand-aged-gold: #b89b5e;
+$brand-cream: #f2ede5;
 
 // Override white backgrounds globally
 body {
@@ -105,30 +126,30 @@ body {
 // El Templo Block Background Classes
 // =============================================================================
 
-// Block backgrounds - all use bronze gradients at different intensities
+// Block backgrounds — terracotta/aged-gold tint gradients
 // Using !important to override Quasar defaults
 .block-bg--initium {
-  background: linear-gradient(135deg, rgba($brand-bronze, 0.08) 0%, rgba($brand-bronze, 0.15) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-aged-gold, 0.08) 0%, rgba($brand-aged-gold, 0.15) 100%) !important;
 }
 
 .block-bg--nucleus {
-  background: linear-gradient(135deg, rgba($brand-navy, 0.08) 0%, rgba($brand-bronze, 0.15) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-terracotta, 0.08) 0%, rgba($brand-terracotta, 0.15) 100%) !important;
 }
 
 .block-bg--deuteros-1 {
-  background: linear-gradient(135deg, rgba($brand-bronze, 0.10) 0%, rgba($brand-bronze, 0.18) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-terracotta, 0.10) 0%, rgba($brand-aged-gold, 0.18) 100%) !important;
 }
 
 .block-bg--deuteros-2 {
-  background: linear-gradient(135deg, rgba($brand-bronze, 0.10) 0%, rgba($brand-bronze, 0.18) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-aged-gold, 0.10) 0%, rgba($brand-terracotta, 0.18) 100%) !important;
 }
 
 .block-bg--athlos {
-  background: linear-gradient(135deg, rgba($brand-bronze, 0.15) 0%, rgba($brand-bronze, 0.25) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-terracotta, 0.12) 0%, rgba($brand-aged-gold, 0.22) 100%) !important;
 }
 
 .block-bg--default {
-  background: linear-gradient(135deg, rgba($brand-bronze, 0.06) 0%, rgba($brand-bronze, 0.12) 100%) !important;
+  background: linear-gradient(135deg, rgba($brand-aged-gold, 0.06) 0%, rgba($brand-aged-gold, 0.12) 100%) !important;
 }
 
 // Ensure q-expansion-item uses cream, not white
@@ -141,14 +162,13 @@ body {
 }
 
 // =============================================================================
-// El Templo Extended Cinzel Usage
+// El Templo Extended Brand Typography
 // =============================================================================
 
-// Block names should always use Cinzel
+// Block names should always use Montserrat bold
 .block-name,
 .block-role-name {
   font-family: $heading-font;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: 0.08em;
 }
-
