@@ -30,7 +30,9 @@ onBeforeUnmount(() => {
       <!-- Section header -->
       <span class="locations__tag">Sedes</span>
 
-      <h2 class="locations__title">Sedes en Mar del Plata y Barcelona.</h2>
+      <h2 class="locations__title">
+        Sedes de calistenia en Mar del Plata y Barcelona.
+      </h2>
 
       <p class="locations__subtitle">
         8 sedes en Mar del Plata y Barcelona. Cada una con el mismo

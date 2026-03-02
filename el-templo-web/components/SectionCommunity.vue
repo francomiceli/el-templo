@@ -167,7 +167,9 @@ onBeforeUnmount(() => {
         <!-- Header -->
         <span class="community__tag">Comunidad</span>
 
-        <h2 class="community__title">AC&Aacute; NO ENTREN&Aacute;S SOLO.</h2>
+        <h2 class="community__title">
+          ENTRENAMIENTO DE CALISTENIA EN COMUNIDAD.
+        </h2>
 
         <p class="community__subtitle">
           M&aacute;s de 1000 personas eligen El Templo cada semana. No porque

@@ -26,7 +26,7 @@ onBeforeUnmount(() => {
       <!-- Section header -->
       <span class="ecosystem__tag">Ecosistema</span>
 
-      <h2 class="ecosystem__title">El Templo crece con vos.</h2>
+      <h2 class="ecosystem__title">El ecosistema de calistenia El Templo.</h2>
 
       <p class="ecosystem__subtitle">
         El lugar donde crec&eacute;s f&iacute;sicamente puede ser el mismo lugar

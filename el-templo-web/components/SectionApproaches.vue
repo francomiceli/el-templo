@@ -80,7 +80,9 @@ onBeforeUnmount(() => {
     <div class="approaches__container">
       <span class="approaches__tag">Los 5 enfoques</span>
 
-      <h2 class="approaches__title">Cinco formas de entender el cuerpo.</h2>
+      <h2 class="approaches__title">
+        Cinco enfoques de entrenamiento funcional con peso corporal.
+      </h2>
 
       <p class="approaches__subtitle">
         En El Templo no entrenamos m&uacute;sculos. Entrenamos capacidades. Cada

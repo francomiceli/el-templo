@@ -70,9 +70,7 @@ onBeforeUnmount(() => {
       <!-- Section header -->
       <span class="discover__tag">Tu nivel</span>
 
-      <h2 class="discover__title">
-        &iquest;En qu&eacute; punto del camino est&aacute;s?
-      </h2>
+      <h2 class="discover__title">Descubr&iacute; tu nivel de calistenia.</h2>
 
       <p class="discover__subtitle">
         Descubr&iacute; tu nivel. Pod&eacute;s probarlo en nuestra app desde
