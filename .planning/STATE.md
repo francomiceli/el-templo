@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 43 complete
-last_updated: "2026-03-03T12:00:00.000Z"
+stopped_at: Completed 44-01-PLAN.md
+last_updated: "2026-03-03T13:33:50.235Z"
 progress:
-  total_phases: 43
+  total_phases: 42
   completed_phases: 32
   total_plans: 183
-  completed_plans: 175
+  completed_plans: 177
 ---
 
 # Project State
@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 43 of 43 (Academy Landing Page)
-Plan: 4 of 4 — all plans executed
-Status: Phase 43 complete
-Last activity: 2026-03-03 — All 4 plans executed: API backend (schema, service, routes, tests, admin), data + page shell + Hero/QueEs/Programa/Niveles, Flywheel/Modalidades/QuienEnsena/Inversion, FAQ/Form/SideMenu/WhatsApp/NavIntegration
+Phase: 44 of 44 (App Landing Page)
+Plan: 2 of 4
+Status: Plan 44-02 complete
+Last activity: 2026-03-03 — Plan 44-02: Data files + Hero + Ecosystem + Arete + El Templo module sections
 
-Progress: [=====] 100% (4/4 plans)
+Progress: [==---] 50% (2/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -265,7 +265,20 @@ Progress: [=====] 100% (4/4 plans)
 - FlywheelDiagram TS2532 fix: getNodePos helper with nullish coalescing for safe array access
 - Course structured data uses raw object approach (not defineOrganization) for nuxt-schema-org compatibility
 
+### Phase 44 Decisions
+
+- AppLandingService uses generic sendNotificationEmail(subject, body) for DRY across waitlist and labs inquiry notifications
+- Labs inquiry status management uses inline QSelect with QBadge for one-click admin updates
+- CSV export is client-side with BOM prefix for Excel UTF-8 compatibility
+- Status validation in service layer provides defense-in-depth beyond route schema validation
+- Type assertion (as AppModule) for array index access to satisfy TypeScript strict mode, following Phase 43 FlywheelDiagram TS2532 pattern
+- Ecosystem uses vertical card list with arrows (not 2x2 grid) for clearer progressive unlock flow narrative
+- Badge color classes defined with app-landing-badge-- prefix shared across ecosystem and module components
+- Arete section has NO download CTA per spec (reserved for hero, El Templo, download only -- 3 appearances total)
+- app-landing- BEM prefix for all /app section components
+- Module detail split layout: 55% text / 45% visual with reverse variant for visual variety
+
 ### Last Session
 
-- **Stopped at:** Phase 43 complete
+- **Stopped at:** Completed 44-01-PLAN.md
 - **Timestamp:** 2026-03-03

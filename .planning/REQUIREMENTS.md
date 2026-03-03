@@ -345,15 +345,15 @@
 
 ## App Landing Page (APP)
 
-- [ ] **APP-01**: app_waitlist DB table (nombre, email, modulo_interes, ciudad_pais, status, created_at)
-- [ ] **APP-02**: labs_inquiries DB table (nombre, email, telefono, nombre_gimnasio, ciudad_pais, cantidad_socios, sistema_actual, mensaje, status, created_at)
-- [ ] **APP-03**: POST /api/app/waitlist endpoint with validation
-- [ ] **APP-04**: POST /api/app/labs-inquiry endpoint with validation
-- [ ] **APP-05**: Email notifications via Resend for both forms
-- [ ] **APP-06**: APP_NOTIFICATION_EMAIL env var with default
-- [ ] **APP-07**: Admin list view for app waitlist entries (read-only with export)
-- [ ] **APP-08**: Admin list view for Labs inquiries with status tracking (new/contacted/closed)
-- [ ] **APP-09**: Integration tests for both API endpoints
+- [x] **APP-01**: app_waitlist DB table (nombre, email, modulo_interes, ciudad_pais, status, created_at)
+- [x] **APP-02**: labs_inquiries DB table (nombre, email, telefono, nombre_gimnasio, ciudad_pais, cantidad_socios, sistema_actual, mensaje, status, created_at)
+- [x] **APP-03**: POST /api/app/waitlist endpoint with validation
+- [x] **APP-04**: POST /api/app/labs-inquiry endpoint with validation
+- [x] **APP-05**: Email notifications via Resend for both forms
+- [x] **APP-06**: APP_NOTIFICATION_EMAIL env var with default
+- [x] **APP-07**: Admin list view for app waitlist entries (read-only with export)
+- [x] **APP-08**: Admin list view for Labs inquiries with status tracking (new/contacted/closed)
+- [x] **APP-09**: Integration tests for both API endpoints
 - [ ] **APP-10**: /app page exists and renders with default layout
 - [ ] **APP-11**: Hero section with H1 "EL TEMPLO EN TU BOLSILLO.", subtitle, store badges, dual CTAs
 - [ ] **APP-12**: Ecosystem overview section with 4-module preview cards and progressive unlock flow
