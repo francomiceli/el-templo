@@ -23,3 +23,4 @@ export * from "./gladius-products";
 export * from "./gladius-inquiries";
 export * from "./blog-posts";
 export * from "./blog-tags";
+export * from "./academy-inquiries";

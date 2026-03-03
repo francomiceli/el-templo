@@ -48,7 +48,140 @@
       "idx": 6,
       "version": "5",
       "when": 1770319662359,
-      "tag": "0006_wakeful_white_tiger",
+      "tag": "0006_add_linear_difficulty",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1770319662360,
+      "tag": "0007_add_prescription_difficulty",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1770319662361,
+      "tag": "0008_admin_session_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1770838765000,
+      "tag": "0009_session_editing",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1770838765001,
+      "tag": "0010_saved_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1770838765002,
+      "tag": "0011_exercises_completed",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1770925940000,
+      "tag": "0012_exercise_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1770957743000,
+      "tag": "0013_remove_test_member",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1771189126000,
+      "tag": "0014_add_video_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "5",
+      "when": 1771376839000,
+      "tag": "0015_add_prescription_range_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1771624780000,
+      "tag": "0016_member_journeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1771865994000,
+      "tag": "0017_add_coach_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1772492315000,
+      "tag": "0018_franchise_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1772498804000,
+      "tag": "0019_gladius_blog_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1772528441000,
+      "tag": "0020_seed_blog_posts",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1772528441001,
+      "tag": "0021_seed_blog_posts_batch2",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "5",
+      "when": 1772568499000,
+      "tag": "0022_franchise_admin_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1772600943000,
+      "tag": "0023_format_descriptions",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1772602784000,
+      "tag": "0024_blog_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1772690400000,
+      "tag": "0025_academy_inquiries",
       "breakpoints": true
     }
   ]

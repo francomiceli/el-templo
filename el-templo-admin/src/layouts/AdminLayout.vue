@@ -56,6 +56,12 @@
             </q-item-section>
             <q-item-section>Gladius</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/academy">
+            <q-item-section avatar>
+              <q-icon name="school" />
+            </q-item-section>
+            <q-item-section>Academy</q-item-section>
+          </q-item>
         </template>
 
         <template v-if="isSuperadminRole">

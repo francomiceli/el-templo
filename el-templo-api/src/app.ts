@@ -14,6 +14,7 @@ import { journeyRoutes } from "./modules/journeys/routes";
 import { franchiseRoutes } from "./modules/franchise/routes";
 import { gladiusRoutes } from "./modules/gladius/routes";
 import { blogRoutes } from "./modules/blog/routes";
+import { academyRoutes } from "./modules/academy/routes";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -75,6 +76,9 @@ export async function buildApp() {
 
   // Blog routes (public blog + admin CRUD + image upload)
   await app.register(blogRoutes, { prefix: "/api/blog" });
+
+  // Academy routes (enrollment inquiry form)
+  await app.register(academyRoutes, { prefix: "/api/academy" });
 
   // Health check endpoint
   app.get("/health", async () => {
