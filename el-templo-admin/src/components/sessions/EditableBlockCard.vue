@@ -36,7 +36,11 @@
             </q-badge>
           </template>
         </q-select>
-        <div v-if="hasConfigurableParams && selectedBlock" class="q-py-xs bg-grey-1">
+        <div
+          v-if="hasConfigurableParams && selectedBlock"
+          class="q-py-xs q-px-md q-ml-md"
+          style="border-radius: 10px; background-color: #f2ede5"
+        >
           <div class="row items-center q-gutter-sm">
             <span class="text-caption text-weight-bold text-grey-7">Parámetros</span>
             <format-params-editor
