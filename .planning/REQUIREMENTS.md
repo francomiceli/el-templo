@@ -354,11 +354,11 @@
 - [x] **APP-07**: Admin list view for app waitlist entries (read-only with export)
 - [x] **APP-08**: Admin list view for Labs inquiries with status tracking (new/contacted/closed)
 - [x] **APP-09**: Integration tests for both API endpoints
-- [ ] **APP-10**: /app page exists and renders with default layout
-- [ ] **APP-11**: Hero section with H1 "EL TEMPLO EN TU BOLSILLO.", subtitle, store badges, dual CTAs
-- [ ] **APP-12**: Ecosystem overview section with 4-module preview cards and progressive unlock flow
-- [ ] **APP-13**: Arete module detail section (freemium, active, Terracotta accent)
-- [ ] **APP-14**: El Templo module detail section (premium, active, Terracotta accent) with DESCARGA LA APP CTA
+- [x] **APP-10**: /app page exists and renders with default layout
+- [x] **APP-11**: Hero section with H1 "EL TEMPLO EN TU BOLSILLO.", subtitle, store badges, dual CTAs
+- [x] **APP-12**: Ecosystem overview section with 4-module preview cards and progressive unlock flow
+- [x] **APP-13**: Arete module detail section (freemium, active, Terracotta accent)
+- [x] **APP-14**: El Templo module detail section (premium, active, Terracotta accent) with DESCARGA LA APP CTA
 - [ ] **APP-15**: Olympic Academy module detail section (proximamente, Aged Gold accent, opacity 0.6)
 - [ ] **APP-16**: Labs module detail section (proximamente, Azul Noche accent, dual CTA for franchisees/external gyms)
 - [ ] **APP-17**: Flywheel Digital vertical flow (Arete -> El Templo -> Academy -> Labs) on Deep Charcoal background
@@ -369,10 +369,10 @@
 - [ ] **APP-22**: SectionConversion app CTA updated from app.eltemplo.org to /app
 - [ ] **APP-23**: AppNav updated with App/Templo Online link
 - [ ] **APP-24**: AppFooter Templo Online link enabled (disabled: false)
-- [ ] **APP-25**: /app removed from prerender ignore list in nuxt.config.ts
+- [x] **APP-25**: /app removed from prerender ignore list in nuxt.config.ts
 - [ ] **APP-26**: SEO meta tags (title, description, OG, canonical)
 - [ ] **APP-27**: GA4 events: click_cta_app_download, form_submit_app_waitlist, form_submit_labs_inquiry + Meta Pixel trackLead on form B
-- [ ] **APP-28**: Module state flags data-driven (active/proximamente togglable without redesign)
+- [x] **APP-28**: Module state flags data-driven (active/proximamente togglable without redesign)
 
 ## Traceability (continued)
 
