@@ -150,6 +150,14 @@ const columns = [
     format: (val: string) => cantidadSociosLabels[val] ?? val,
   },
   {
+    name: 'sistemaActual',
+    label: 'Sistema',
+    field: 'sistemaActual',
+    align: 'left' as const,
+    sortable: true,
+    format: (val: string) => sistemaActualLabels[val] ?? val,
+  },
+  {
     name: 'status',
     label: 'Estado',
     field: 'status',

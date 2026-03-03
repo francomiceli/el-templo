@@ -56,7 +56,25 @@ onBeforeUnmount(() => {
               transitionDelay: revealed ? index * 200 + 'ms' : '0ms',
             }"
           >
+            <!-- Horizontal arrow (desktop) -->
             <svg
+              class="app-landing-flywheel__arrow-h"
+              xmlns="http://www.w3.org/2000/svg"
+              width="40"
+              height="24"
+              viewBox="0 0 40 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="2" y1="12" x2="32" y2="12" />
+              <polyline points="26 6 32 12 26 18" />
+            </svg>
+            <!-- Vertical arrow (mobile) -->
+            <svg
+              class="app-landing-flywheel__arrow-v"
               xmlns="http://www.w3.org/2000/svg"
               width="24"
               height="40"
@@ -127,7 +145,7 @@ onBeforeUnmount(() => {
 }
 
 .app-landing-flywheel__container {
-  max-width: 600px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 0 5%;
   text-align: center;
@@ -158,14 +176,24 @@ onBeforeUnmount(() => {
 }
 
 /* ------------------------------------------------------------------
-   Vertical flow container
+   Flow container — horizontal on desktop, vertical on mobile
    ------------------------------------------------------------------ */
 .app-landing-flywheel__flow {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  justify-content: center;
   gap: 0;
   margin-bottom: var(--space-section);
+}
+
+/* Arrow visibility: horizontal on desktop, vertical on mobile */
+.app-landing-flywheel__arrow-v {
+  display: none;
+}
+
+.app-landing-flywheel__arrow-h {
+  display: block;
 }
 
 /* ------------------------------------------------------------------
@@ -179,7 +207,7 @@ onBeforeUnmount(() => {
 
   /* Entrance animation */
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateX(-16px);
   transition:
     opacity 500ms ease,
     transform 500ms ease;
@@ -187,7 +215,7 @@ onBeforeUnmount(() => {
 
 .app-landing-flywheel__flow.is-visible .app-landing-flywheel__stage {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 /* ------------------------------------------------------------------
@@ -248,12 +276,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 0;
+  padding: 0 4px;
   color: var(--color-sandy-beige);
 
   /* Entrance animation */
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateX(-10px);
   transition:
     opacity 400ms ease,
     transform 400ms ease;
@@ -261,7 +289,7 @@ onBeforeUnmount(() => {
 
 .app-landing-flywheel__flow.is-visible .app-landing-flywheel__arrow {
   opacity: 0.5;
-  transform: translateY(0);
+  transform: translateX(0);
 }
 
 /* ------------------------------------------------------------------
@@ -279,15 +307,52 @@ onBeforeUnmount(() => {
 }
 
 /* ------------------------------------------------------------------
-   Tablet (max-width: 768px)
+   Tablet (max-width: 768px) — revert to vertical flow
    ------------------------------------------------------------------ */
 @media (max-width: 768px) {
   .app-landing-flywheel {
     padding: var(--space-large) 0;
   }
 
+  .app-landing-flywheel__container {
+    max-width: 600px;
+  }
+
   .app-landing-flywheel__title {
     font-size: 28px;
+  }
+
+  .app-landing-flywheel__flow {
+    flex-direction: column;
+  }
+
+  .app-landing-flywheel__arrow-h {
+    display: none;
+  }
+
+  .app-landing-flywheel__arrow-v {
+    display: block;
+  }
+
+  .app-landing-flywheel__arrow {
+    padding: 4px 0;
+  }
+
+  /* Revert to vertical animations on mobile */
+  .app-landing-flywheel__stage {
+    transform: translateY(16px);
+  }
+
+  .app-landing-flywheel__flow.is-visible .app-landing-flywheel__stage {
+    transform: translateY(0);
+  }
+
+  .app-landing-flywheel__arrow {
+    transform: translateY(10px);
+  }
+
+  .app-landing-flywheel__flow.is-visible .app-landing-flywheel__arrow {
+    transform: translateY(0);
   }
 
   .app-landing-flywheel__circle {
@@ -347,7 +412,7 @@ onBeforeUnmount(() => {
   .app-landing-flywheel__stage,
   .app-landing-flywheel__arrow {
     opacity: 1;
-    transform: none;
+    transform: none !important;
     transition: none;
   }
 }
