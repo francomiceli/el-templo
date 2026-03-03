@@ -604,7 +604,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 40. Day Player Redesign                     | 5/5            | Complete    | 2026-03-02 |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 | 42. Blog Internal Linking System            | 4/4            | Complete    | 2026-03-02 |
-| 43. Academy Landing Page (/academy)         | 0/?            | Not Started | —          |
+| 43. Academy Landing Page (/academy)         | 4/4            | Complete    | staging    |
 | 44. App Landing Page (/app)                 | 0/4            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
@@ -701,7 +701,7 @@ Plans:
 **Goal:** Build the /academy standalone landing page for Olympic Academy (trainer certification program). 10 sections: Hero, ¿Qué es?, Programa (accordion), Niveles (3-tier with próximamente states), Flywheel (reusable circular diagram), Modalidades, Quién Enseña, Inversión (placeholder), FAQ, Formulario (10-field form + API). Includes sticky side menu (desktop), cross-site integration (nav, ecosystem, footer, franquicias links), SEO + analytics, and /curso-entrenadores 301 redirect. Specs: .docs/brand-landing/spec11-pt1.md through spec11-pt4.md.
 **Requirements**: ACAD-01 through ACAD-29
 **Depends on:** Phase 42
-**Plans:** 0/4 plans
+**Plans:** 4/4 plans (complete)
 
 **Success Criteria** (what must be TRUE):
 
@@ -718,10 +718,10 @@ Plans:
 
 Plans:
 
-- [ ] 43-01-PLAN.md — API backend: DB schema (academy_inquiries), service, routes, integration tests, admin list view
-- [ ] 43-02-PLAN.md — Data files, page shell, Hero, QueEs, Programa accordion, Niveles certification cards
-- [ ] 43-03-PLAN.md — FlywheelDiagram (reusable), Modalidades, QuienEnsena (Ignacio stats), Inversion placeholder
-- [ ] 43-04-PLAN.md — FAQ, Form (10 fields + API), SideMenu (sticky active tracking), WhatsApp, nav integration, SEO
+- [x] 43-01-PLAN.md — API backend: DB schema (academy_inquiries), service, routes, integration tests, admin list view
+- [x] 43-02-PLAN.md — Data files, page shell, Hero, QueEs, Programa accordion, Niveles certification cards
+- [x] 43-03-PLAN.md — FlywheelDiagram (reusable), Modalidades, QuienEnsena (Ignacio stats), Inversion placeholder
+- [x] 43-04-PLAN.md — FAQ, Form (10 fields + API), SideMenu (sticky active tracking), WhatsApp, nav integration, SEO
 
 ### Phase 44: App Landing Page (/app)
 

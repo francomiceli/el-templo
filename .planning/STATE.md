@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 44 context gathered
-last_updated: "2026-03-03T03:29:50.345Z"
+stopped_at: Phase 43 complete
+last_updated: "2026-03-03T12:00:00.000Z"
 progress:
-  total_phases: 42
-  completed_phases: 31
-  total_plans: 179
-  completed_plans: 171
+  total_phases: 43
+  completed_phases: 32
+  total_plans: 183
+  completed_plans: 175
 ---
 
 # Project State
@@ -23,10 +23,10 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 42 of 42 (Blog Internal Linking System)
+Phase: 43 of 43 (Academy Landing Page)
 Plan: 4 of 4 — all plans executed
-Status: Phase 42 complete
-Last activity: 2026-03-02 — All 4 plans executed: API backend (tags schema, migration, service, routes, tests), admin UI (tag CRUD, editor integration), public tag UI (pills, bar, browse page with SEO), related posts + CTAs + sitemap
+Status: Phase 43 complete
+Last activity: 2026-03-03 — All 4 plans executed: API backend (schema, service, routes, tests, admin), data + page shell + Hero/QueEs/Programa/Niveles, Flywheel/Modalidades/QuienEnsena/Inversion, FAQ/Form/SideMenu/WhatsApp/NavIntegration
 
 Progress: [=====] 100% (4/4 plans)
 
@@ -254,7 +254,18 @@ Progress: [=====] 100% (4/4 plans)
 - Sitemap extended with tag page URLs using weekly changefreq
 - Batch tag loading (getTagsForPostIds) to prevent N+1 queries on list endpoints
 
+### Phase 43 Decisions
+
+- academy-inquiries schema follows gladius-inquiries pattern exactly (same columns except domain-specific fields)
+- AcademyService cloned from GladiusService: submitInquiry, listInquiries, sendNotificationEmail via Resend
+- FlywheelDiagram built as reusable component with props (nodes, tools, centerIcon) and academy defaults
+- Side menu uses fixed positioning (not sticky) with useActiveSection composable for active tracking
+- AcademyWhatsApp and AcademySideMenu follow per-page component pattern (like FranWhatsApp, GladWhatsApp)
+- FranIncludes academy note added below grid with NuxtLink to /academy
+- FlywheelDiagram TS2532 fix: getNodePos helper with nullish coalescing for safe array access
+- Course structured data uses raw object approach (not defineOrganization) for nuxt-schema-org compatibility
+
 ### Last Session
 
-- **Stopped at:** Phase 44 context gathered
-- **Timestamp:** 2026-03-02
+- **Stopped at:** Phase 43 complete
+- **Timestamp:** 2026-03-03
