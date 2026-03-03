@@ -17,4 +17,5 @@ export const blogPosts = mysqlTable("blog_posts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   publishedAt: timestamp("published_at"),
+  ctaType: varchar("cta_type", { length: 20 }).default("trial").notNull(),
 });
