@@ -50,12 +50,6 @@
             </q-item-section>
             <q-item-section>Blog</q-item-section>
           </q-item>
-          <q-item clickable v-ripple to="/blog/tags" dense class="q-pl-xl">
-            <q-item-section avatar>
-              <q-icon name="label" size="xs" />
-            </q-item-section>
-            <q-item-section>Tags</q-item-section>
-          </q-item>
           <q-item clickable v-ripple to="/gladius">
             <q-item-section avatar>
               <q-icon name="fitness_center" />

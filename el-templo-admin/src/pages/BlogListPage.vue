@@ -4,6 +4,7 @@
     <div class="row items-center q-mb-md">
       <div class="text-h5">Blog</div>
       <q-space />
+      <q-btn flat icon="label" label="Tags" class="q-mr-sm" @click="openTagsDialog" />
       <q-btn label="Nuevo Post" icon="add" color="primary" to="/blog/new" />
     </div>
 
@@ -110,6 +111,62 @@
         </div>
       </template>
     </q-table>
+
+    <!-- Tags management dialog -->
+    <q-dialog v-model="tagsDialogOpen" position="right" full-height>
+      <q-card style="width: 400px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">Tags del Blog</div>
+          <q-space />
+          <q-btn flat round dense icon="close" @click="tagsDialogOpen = false" />
+        </q-card-section>
+
+        <q-card-section>
+          <div class="row q-gutter-sm q-mb-md">
+            <q-input
+              v-model="newTagName"
+              dense
+              outlined
+              placeholder="Nuevo tag..."
+              class="col"
+              @keyup.enter="handleCreateTag"
+            />
+            <q-btn
+              color="primary"
+              icon="add"
+              dense
+              :loading="savingTag"
+              :disable="!newTagName.trim()"
+              @click="handleCreateTag"
+            />
+          </div>
+
+          <q-list separator>
+            <q-item v-for="tag in tagsList" :key="tag.id">
+              <q-item-section>
+                <q-item-label>{{ tag.name }}</q-item-label>
+                <q-item-label caption>{{ tag.slug }}</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn
+                  flat
+                  dense
+                  icon="delete"
+                  color="negative"
+                  size="sm"
+                  @click="confirmDeleteTag(tag)"
+                />
+              </q-item-section>
+            </q-item>
+          </q-list>
+
+          <div v-if="tagsList.length === 0 && !loadingTags" class="text-center text-grey-6 q-py-md">
+            No hay tags
+          </div>
+          <q-inner-loading :showing="loadingTags" />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -118,7 +175,7 @@ import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { useBlogApi } from 'src/composables/useBlogApi';
-import type { BlogPost } from 'src/composables/useBlogApi';
+import type { BlogPost, BlogTag } from 'src/composables/useBlogApi';
 
 const $q = useQuasar();
 const blogApi = useBlogApi();
@@ -267,6 +324,71 @@ function confirmDelete(postId: number, title: string) {
       await blogApi.deletePost(postId);
       $q.notify({ type: 'positive', message: 'Post eliminado' });
       loadPosts();
+    } catch {
+      // Error handled by composable
+    }
+  });
+}
+
+// =========================================================================
+// Lifecycle
+// =========================================================================
+
+// =========================================================================
+// Tag management
+// =========================================================================
+
+const tagsDialogOpen = ref(false);
+const tagsList = ref<BlogTag[]>([]);
+const loadingTags = ref(false);
+const savingTag = ref(false);
+const newTagName = ref('');
+
+async function loadTags() {
+  loadingTags.value = true;
+  try {
+    const result = await blogApi.listAdminTags();
+    tagsList.value = result.tags;
+  } catch {
+    // Error handled by composable
+  } finally {
+    loadingTags.value = false;
+  }
+}
+
+function openTagsDialog() {
+  tagsDialogOpen.value = true;
+  loadTags();
+}
+
+async function handleCreateTag() {
+  const name = newTagName.value.trim();
+  if (!name) return;
+
+  savingTag.value = true;
+  try {
+    await blogApi.createTag({ name });
+    newTagName.value = '';
+    $q.notify({ type: 'positive', message: 'Tag creado' });
+    await loadTags();
+  } catch {
+    // Error handled by composable
+  } finally {
+    savingTag.value = false;
+  }
+}
+
+function confirmDeleteTag(tag: BlogTag) {
+  $q.dialog({
+    title: 'Eliminar Tag',
+    message: `¿Eliminar "${tag.name}"? Se desvinculará de todos los posts.`,
+    cancel: true,
+    persistent: true,
+  }).onOk(async () => {
+    try {
+      await blogApi.deleteTag(tag.id);
+      $q.notify({ type: 'positive', message: 'Tag eliminado' });
+      await loadTags();
     } catch {
       // Error handled by composable
     }

@@ -156,6 +156,21 @@ export class BlogService {
     };
   }
 
+  async getPostById(id: number) {
+    const [post] = await this.db
+      .select()
+      .from(blogPosts)
+      .where(eq(blogPosts.id, id))
+      .limit(1);
+    if (!post) return null;
+    const tagsMap = await this.getTagsForPostIds([post.id]);
+    return {
+      ...post,
+      readingTime: computeReadingTime(post.body),
+      tags: tagsMap.get(post.id) ?? [],
+    };
+  }
+
   async getPublishedPostBySlug(slug: string) {
     const [post] = await this.db
       .select()

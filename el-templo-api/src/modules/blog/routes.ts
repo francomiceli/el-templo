@@ -346,6 +346,24 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /admin/posts/:id — single post by ID (for editor)
+  fastify.get<{ Params: PostIdParams }>(
+    "/admin/posts/:id",
+    { preHandler: [fastify.authenticate], schema: postIdSchema },
+    async (request, reply) => {
+      if (!ADMIN_ROLES.includes(request.user.role)) {
+        return reply
+          .status(403)
+          .send({ error: "Acceso de administrador requerido" });
+      }
+      const post = await service.getPostById(request.params.id);
+      if (!post) {
+        return reply.status(404).send({ error: "Post no encontrado" });
+      }
+      return post;
+    },
+  );
+
   // POST /admin/posts — create post
   fastify.post<{ Body: PostBody }>(
     "/admin/posts",
