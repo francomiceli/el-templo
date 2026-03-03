@@ -62,11 +62,11 @@
       <BlockProgressionView
         v-else
         :day-name="dayName"
-        :current-block="currentBlock"
+        :playable-blocks="playableBlocks"
+        :active-block-index="activeBlockIndex"
         :completed-blocks="completedBlocks"
         :elapsed-seconds="elapsedSeconds"
-        :current-block-completed-exercises="currentBlockCompletedExercises"
-        :is-session-complete="isSessionComplete"
+        :completed-exercises="allCompletedExercises"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
@@ -181,15 +181,14 @@ const dayName = computed(() => {
 })
 
 // Bridge player state to sub-components (null-safe accessors)
-const currentBlock = computed(() => player.value?.currentBlock.value ?? null)
+const playableBlocks = computed(() => player.value?.playableBlocks.value ?? [])
+const activeBlockIndex = computed(() => player.value?.currentBlockIndex.value ?? 0)
 const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
 const deuteros1Block = computed(() => player.value?.deuteros1Block.value ?? null)
 const deuteros2Block = computed(() => player.value?.deuteros2Block.value ?? null)
-const isSessionComplete = computed(() => player.value?.isSessionComplete.value ?? false)
-const currentBlockCompletedExercises = computed<number[]>(() => {
-  if (!player.value || !currentBlock.value) return []
-  return player.value.completedExercises.value[currentBlock.value.role] ?? []
+const allCompletedExercises = computed<Record<string, number[]>>(() => {
+  return player.value?.completedExercises.value ?? {}
 })
 
 // Summary computed data
@@ -255,12 +254,6 @@ function onTransitionContinue(): void {
   if (pendingCelebration.value) {
     pendingCelebration.value = false
     showCelebration.value = true
-    return
-  }
-
-  // Advance to next block
-  if (player.value) {
-    void player.value.completeBlock()
   }
 }
 
@@ -310,15 +303,9 @@ async function onBlockComplete(): Promise<void> {
   // Complete the block first (for state tracking)
   await p.completeBlock()
 
-  // Check if session is now complete
+  // Session complete — go straight to celebration
   if (p.isSessionComplete.value) {
-    // Show transition with "Finalizar Sesion", then celebration
-    pendingCelebration.value = true
-    transitionCompletedBlock.value = completedName
-    transitionMobilityName.value = mobilityName
-    transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
-    transitionActionLabel.value = 'Finalizar Sesion'
-    showBlockTransition.value = true
+    showCelebration.value = true
     await wakeLock.releaseWakeLock()
     return
   }

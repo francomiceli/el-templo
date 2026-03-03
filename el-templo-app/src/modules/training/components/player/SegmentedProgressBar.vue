@@ -5,7 +5,6 @@
       :key="index"
       class="story-progress__segment"
       :class="{
-        'story-progress__segment--completed': completedIndices.has(index - 1),
         'story-progress__segment--active': index - 1 === activeIndex,
       }"
     />
@@ -14,12 +13,8 @@
 
 <script setup lang="ts">
 interface Props {
-  /** Total number of segments (exercises + mobility) */
   totalSegments: number
-  /** Index of the currently active segment (0-based) */
   activeIndex: number
-  /** Set of completed segment indices */
-  completedIndices: Set<number>
 }
 
 defineProps<Props>()
@@ -37,27 +32,10 @@ defineProps<Props>()
   height: 3px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.3);
-  transition:
-    background-color 0.3s ease,
-    box-shadow 0.3s ease;
-}
-
-.story-progress__segment--completed {
-  background: #b89b5e; // Aged Gold
+  transition: background-color 0.3s ease;
 }
 
 .story-progress__segment--active {
-  background: #b89b5e; // Aged Gold
-  animation: segment-glow 1.5s ease-in-out infinite;
-}
-
-@keyframes segment-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 4px rgba(184, 155, 94, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 8px rgba(184, 155, 94, 0.8);
-  }
+  background: #b89b5e;
 }
 </style>

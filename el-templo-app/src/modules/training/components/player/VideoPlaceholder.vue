@@ -87,7 +87,7 @@ onMounted(() => {
 <style scoped lang="scss">
 .video-container {
   width: 100%;
-  height: 40vh;
+  height: 100%;
   position: relative;
   background-color: #2e2a26;
 }
@@ -113,6 +113,6 @@ onMounted(() => {
 .video-player {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
 }
 </style>
