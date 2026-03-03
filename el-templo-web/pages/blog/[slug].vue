@@ -26,6 +26,17 @@ interface BlogPost {
   tags?: Array<{ id: number; name: string; slug: string }>;
 }
 
+interface RelatedPost {
+  id: number;
+  title: string;
+  slug: string;
+  excerpt: string;
+  coverImage: string | null;
+  publishedAt: string | null;
+  readingTime: number;
+  tags: Array<{ id: number; name: string; slug: string }>;
+}
+
 const route = useRoute();
 const config = useRuntimeConfig();
 
@@ -34,6 +45,12 @@ const slug = computed(() => String(route.params.slug));
 const { data: post, error } = await useFetch<BlogPost>(
   () => `${config.public.apiUrl}/blog/posts/${slug.value}`,
 );
+
+// Fetch related posts
+const { data: relatedData } = useFetch<{ posts: RelatedPost[] }>(
+  () => `${config.public.apiUrl}/blog/posts/${slug.value}/related?limit=3`,
+);
+const relatedPosts = computed(() => relatedData.value?.posts ?? []);
 
 // Handle 404
 if (error.value || !post.value) {
@@ -156,6 +173,12 @@ const formattedDate = computed(() => {
       <article class="blog-post__article">
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div class="blog-post__body" v-html="renderedBody" />
+
+        <!-- Cross-page CTA banner -->
+        <BlogPostCta :cta-type="post.ctaType || 'trial'" />
+
+        <!-- Related posts section -->
+        <BlogRelatedPosts :posts="relatedPosts" />
       </article>
 
       <BlogSidebar :current-slug="slug" />
