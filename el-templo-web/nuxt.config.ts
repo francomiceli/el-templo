@@ -32,11 +32,17 @@ export default defineNuxtConfig({
     sources: ["/api/__sitemap__/blog"],
   },
 
+  routeRules: {
+    "/curso-entrenadores": {
+      redirect: { to: "/academy", statusCode: 301 },
+    },
+  },
+
   nitro: {
     preset: "static",
     prerender: {
       failOnError: false,
-      ignore: ["/app", "/academy", "/aura-club"],
+      ignore: ["/app", "/aura-club"],
     },
   },
 

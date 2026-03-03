@@ -343,6 +343,37 @@
 - [ ] **ACAD-28**: Course structured data (JSON-LD)
 - [ ] **ACAD-29**: /academy in sitemap.xml
 
+## App Landing Page (APP)
+
+- [ ] **APP-01**: app_waitlist DB table (nombre, email, modulo_interes, ciudad_pais, status, created_at)
+- [ ] **APP-02**: labs_inquiries DB table (nombre, email, telefono, nombre_gimnasio, ciudad_pais, cantidad_socios, sistema_actual, mensaje, status, created_at)
+- [ ] **APP-03**: POST /api/app/waitlist endpoint with validation
+- [ ] **APP-04**: POST /api/app/labs-inquiry endpoint with validation
+- [ ] **APP-05**: Email notifications via Resend for both forms
+- [ ] **APP-06**: APP_NOTIFICATION_EMAIL env var with default
+- [ ] **APP-07**: Admin list view for app waitlist entries (read-only with export)
+- [ ] **APP-08**: Admin list view for Labs inquiries with status tracking (new/contacted/closed)
+- [ ] **APP-09**: Integration tests for both API endpoints
+- [ ] **APP-10**: /app page exists and renders with default layout
+- [ ] **APP-11**: Hero section with H1 "EL TEMPLO EN TU BOLSILLO.", subtitle, store badges, dual CTAs
+- [ ] **APP-12**: Ecosystem overview section with 4-module preview cards and progressive unlock flow
+- [ ] **APP-13**: Arete module detail section (freemium, active, Terracotta accent)
+- [ ] **APP-14**: El Templo module detail section (premium, active, Terracotta accent) with DESCARGA LA APP CTA
+- [ ] **APP-15**: Olympic Academy module detail section (proximamente, Aged Gold accent, opacity 0.6)
+- [ ] **APP-16**: Labs module detail section (proximamente, Azul Noche accent, dual CTA for franchisees/external gyms)
+- [ ] **APP-17**: Flywheel Digital vertical flow (Arete -> El Templo -> Academy -> Labs) on Deep Charcoal background
+- [ ] **APP-18**: Download section with store badges + phone mockup placeholder
+- [ ] **APP-19**: Form A — module notification waitlist (4 fields: nombre, email, modulo multi-select, ciudad/pais)
+- [ ] **APP-20**: Form B — Labs external gyms (8 fields: nombre, email, telefono, nombre gimnasio, ciudad/pais, cantidad socios, sistema actual, mensaje)
+- [ ] **APP-21**: Floating WhatsApp button (AppWhatsApp.vue)
+- [ ] **APP-22**: SectionConversion app CTA updated from app.eltemplo.org to /app
+- [ ] **APP-23**: AppNav updated with App/Templo Online link
+- [ ] **APP-24**: AppFooter Templo Online link enabled (disabled: false)
+- [ ] **APP-25**: /app removed from prerender ignore list in nuxt.config.ts
+- [ ] **APP-26**: SEO meta tags (title, description, OG, canonical)
+- [ ] **APP-27**: GA4 events: click_cta_app_download, form_submit_app_waitlist, form_submit_labs_inquiry + Meta Pixel trackLead on form B
+- [ ] **APP-28**: Module state flags data-driven (active/proximamente togglable without redesign)
+
 ## Traceability (continued)
 
 | Requirement | Phase    | Status  |
@@ -377,13 +408,42 @@
 | ACAD-28     | Phase 43 | Planned |
 | ACAD-29     | Phase 43 | Planned |
 
+| APP-01 | Phase 44 | Planned |
+| APP-02 | Phase 44 | Planned |
+| APP-03 | Phase 44 | Planned |
+| APP-04 | Phase 44 | Planned |
+| APP-05 | Phase 44 | Planned |
+| APP-06 | Phase 44 | Planned |
+| APP-07 | Phase 44 | Planned |
+| APP-08 | Phase 44 | Planned |
+| APP-09 | Phase 44 | Planned |
+| APP-10 | Phase 44 | Planned |
+| APP-11 | Phase 44 | Planned |
+| APP-12 | Phase 44 | Planned |
+| APP-13 | Phase 44 | Planned |
+| APP-14 | Phase 44 | Planned |
+| APP-15 | Phase 44 | Planned |
+| APP-16 | Phase 44 | Planned |
+| APP-17 | Phase 44 | Planned |
+| APP-18 | Phase 44 | Planned |
+| APP-19 | Phase 44 | Planned |
+| APP-20 | Phase 44 | Planned |
+| APP-21 | Phase 44 | Planned |
+| APP-22 | Phase 44 | Planned |
+| APP-23 | Phase 44 | Planned |
+| APP-24 | Phase 44 | Planned |
+| APP-25 | Phase 44 | Planned |
+| APP-26 | Phase 44 | Planned |
+| APP-27 | Phase 44 | Planned |
+| APP-28 | Phase 44 | Planned |
+
 **Coverage:**
 
-- v3.0 requirements: 143 total across 20 categories (114 original + 29 ACAD)
-- Mapped to phases: 143/143
+- v3.0 requirements: 171 total across 21 categories (114 original + 29 ACAD + 28 APP)
+- Mapped to phases: 171/171
 - Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-02-28_
-_Last updated: 2026-03-03 — ACAD requirements added for Phase 43 (29 requirements)_
+_Last updated: 2026-03-03 — APP requirements added for Phase 44 (28 requirements)_

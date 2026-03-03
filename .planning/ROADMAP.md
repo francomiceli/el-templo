@@ -605,7 +605,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 | 42. Blog Internal Linking System            | 4/4            | Complete    | 2026-03-02 |
 | 43. Academy Landing Page (/academy)         | 0/?            | Not Started | —          |
-| 44. App Landing Page (/app)                 | 0/?            | Not Started | —          |
+| 44. App Landing Page (/app)                 | 0/4            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
 
@@ -726,13 +726,32 @@ Plans:
 ### Phase 44: App Landing Page (/app)
 
 **Goal:** Build the /app standalone landing page for El Templo Online (digital ecosystem). 10 sections: Hero (app download CTAs + store badges), Ecosystem overview (4 modules with progressive unlock flow), Aretē module detail (freemium, active), El Templo module detail (premium, active), Olympic Academy module detail (próximamente), Labs module detail (próximamente + dual CTA for franchisees/external gyms), Flywheel Digital (reusable component from /academy), App Download (store badges + phone mockup), Form A (module notification waitlist for Academy/Labs), Form B (Labs for external gyms — 8 fields including gym size, current system). Includes responsive design (3 breakpoints), module state flags (active/próximamente togglable without redesign), platform-aware store links, GA4 + Meta Pixel event tracking, WhatsApp floating button, SEO meta tags. Specs: .docs/brand-landing/spec12-pt1.md and spec12-pt2.md.
-**Requirements**: APP (to be defined during planning)
+**Requirements**: APP-01 through APP-28
 **Depends on:** Phase 43
-**Plans:** 0 plans
+**Plans:** 4 plans
+
+**Success Criteria** (what must be TRUE):
+
+1. /app renders a full-viewport hero with H1, store badges, and dual CTAs (download + scroll to modules)
+2. Ecosystem overview shows 4 module cards with progressive unlock flow visualization
+3. Arete and El Templo sections show active module details (Terracotta ACTIVO badge, features, properties, download CTA)
+4. Academy and Labs sections show proximamente treatment (opacity 0.6 + colored badge, no download CTA)
+5. Labs has dual CTA: franchisee link to /franquicias + external gym scroll to form B
+6. Flywheel Digital shows vertical Arete -> El Templo -> Academy -> Labs flow on Deep Charcoal
+7. Download section has store badges, phone mockup placeholder, and 3rd DESCARGA LA APP CTA
+8. Form A (waitlist) submits to POST /api/app/waitlist with 4 fields and shows confirmation
+9. Form B (Labs) submits to POST /api/app/labs-inquiry with 8 fields and shows confirmation
+10. Module states are data-driven flags (isActive boolean) togglable without redesign
+11. SectionConversion app CTA links to /app, AppNav has App link, AppFooter enables Templo Online
+12. Admin pages exist for both waitlist (read-only) and Labs inquiries (with status tracking)
+13. GA4 + Meta Pixel events fire on download CTA, Form A, and Form B submissions
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 44 to break down)
+- [ ] 44-01-PLAN.md — API backend: DB schemas (app_waitlist, labs_inquiries), service, routes, integration tests, admin pages
+- [ ] 44-02-PLAN.md — Data files, page shell, Hero, Ecosystem overview, Arete + El Templo module sections
+- [ ] 44-03-PLAN.md — Academy + Labs module sections, Flywheel Digital vertical flow, Download section
+- [ ] 44-04-PLAN.md — Forms (A+B), WhatsApp, cross-site integration (SectionConversion, AppNav, AppFooter), SEO, analytics
 
 ---
 
@@ -741,3 +760,4 @@ _v2.0 phases: 2026-02-04 through 2026-02-19_
 _v3.0 phases added: 2026-02-28 — 8 phases (29-36), 113 requirements mapped_
 _Phase 37 (SEO Audit Fixes) inserted, phases 37-38 renumbered to 38-39: 2026-03-02_
 _Phases 39-40 (App Brand Alignment, Day Player Redesign) inserted, Content Handoff moved to 41: 2026-03-02_
+_Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (APP-01 through APP-28)_
