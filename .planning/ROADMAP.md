@@ -604,6 +604,8 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 40. Day Player Redesign                     | 5/5            | Complete    | 2026-03-02 |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 | 42. Blog Internal Linking System            | 4/4            | Complete    | 2026-03-02 |
+| 43. Academy Landing Page (/academy)         | 0/?            | Not Started | —          |
+| 44. App Landing Page (/app)                 | 0/?            | Not Started | —          |
 
 ### Phase 37: SEO Audit Fixes
 
@@ -693,6 +695,44 @@ Plans:
 - [x] 42-02-PLAN.md — Admin tag CRUD page, blog editor tag assignment + CTA type selector
 - [x] 42-03-PLAN.md — Frontend tag pills, tag bar on index, tag browse page /blog/tag/[slug] with SEO
 - [x] 42-04-PLAN.md — Related posts section, cross-page CTA banners, tag sitemap entries
+
+### Phase 43: Academy Landing Page (/academy)
+
+**Goal:** Build the /academy standalone landing page for Olympic Academy (trainer certification program). 10 sections: Hero, ¿Qué es?, Programa (accordion), Niveles (3-tier with próximamente states), Flywheel (reusable circular diagram), Modalidades, Quién Enseña, Inversión (placeholder), FAQ, Formulario (10-field form + API). Includes sticky side menu (desktop), cross-site integration (nav, ecosystem, footer, franquicias links), SEO + analytics, and /curso-entrenadores 301 redirect. Specs: .docs/brand-landing/spec11-pt1.md through spec11-pt4.md.
+**Requirements**: ACAD-01 through ACAD-29
+**Depends on:** Phase 42
+**Plans:** 0/4 plans
+
+**Success Criteria** (what must be TRUE):
+
+1. /academy renders a full-viewport hero with H1, subtitle, CTA "QUIERO FORMARME", and format data
+2. 3 value proposition cards, 7-module accordion, and 3 certification level cards (Nivel 1 active, 2-3 proximamente with badges) display correctly
+3. Flywheel diagram (circular desktop, vertical mobile) shows the 4-stage ecosystem path with scroll animation
+4. Presencial/Online modalidad cards, Ignacio bio with animated stats, and investment placeholder section render
+5. Academy-specific FAQ accordion (8 questions) and 10-field enrollment form work end-to-end (form -> API -> DB -> email notification -> confirmation)
+6. Sticky side menu (desktop only) tracks active section via IntersectionObserver with Terracotta highlight
+7. AppNav shows Academy link, AppFooter Academy link enabled, FranIncludes has trainer formation note linking to /academy
+8. POST /api/academy/inquire validates and stores inquiries; admin list view at /academy in el-templo-admin
+9. /curso-entrenadores 301 redirects to /academy; /academy in sitemap; Course structured data present
+10. GA4 form_submit_academy event and Meta Pixel trackLead fire on form submission
+
+Plans:
+
+- [ ] 43-01-PLAN.md — API backend: DB schema (academy_inquiries), service, routes, integration tests, admin list view
+- [ ] 43-02-PLAN.md — Data files, page shell, Hero, QueEs, Programa accordion, Niveles certification cards
+- [ ] 43-03-PLAN.md — FlywheelDiagram (reusable), Modalidades, QuienEnsena (Ignacio stats), Inversion placeholder
+- [ ] 43-04-PLAN.md — FAQ, Form (10 fields + API), SideMenu (sticky active tracking), WhatsApp, nav integration, SEO
+
+### Phase 44: App Landing Page (/app)
+
+**Goal:** Build the /app standalone landing page for El Templo Online (digital ecosystem). 10 sections: Hero (app download CTAs + store badges), Ecosystem overview (4 modules with progressive unlock flow), Aretē module detail (freemium, active), El Templo module detail (premium, active), Olympic Academy module detail (próximamente), Labs module detail (próximamente + dual CTA for franchisees/external gyms), Flywheel Digital (reusable component from /academy), App Download (store badges + phone mockup), Form A (module notification waitlist for Academy/Labs), Form B (Labs for external gyms — 8 fields including gym size, current system). Includes responsive design (3 breakpoints), module state flags (active/próximamente togglable without redesign), platform-aware store links, GA4 + Meta Pixel event tracking, WhatsApp floating button, SEO meta tags. Specs: .docs/brand-landing/spec12-pt1.md and spec12-pt2.md.
+**Requirements**: APP (to be defined during planning)
+**Depends on:** Phase 43
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 44 to break down)
 
 ---
 

@@ -311,13 +311,79 @@
 | TRACK-03    | Phase 36 | Complete |
 | TRACK-04    | Phase 36 | Complete |
 
+## Academy Landing Page (ACAD)
+
+- [ ] **ACAD-01**: academy_inquiries DB table with 10 data fields + id/created_at/status
+- [ ] **ACAD-02**: POST /api/academy/inquire endpoint with validation
+- [ ] **ACAD-03**: Email notification via Resend on form submission
+- [ ] **ACAD-04**: Basic admin list view for academy inquiries (read-only)
+- [ ] **ACAD-05**: ACADEMY_NOTIFICATION_EMAIL env var with default
+- [ ] **ACAD-06**: /academy page exists and renders with default layout
+- [ ] **ACAD-07**: Hero section with H1, subtitle, CTA "QUIERO FORMARME", format data
+- [ ] **ACAD-08**: QueEs section with 3 value proposition cards
+- [ ] **ACAD-09**: Programa section with 7-module accordion (single-open)
+- [ ] **ACAD-10**: Niveles section with 3 certification cards (Nivel 1 active, 2-3 proximamente)
+- [ ] **ACAD-11**: SEO meta tags (title, description, OG, canonical)
+- [ ] **ACAD-12**: 301 redirect /curso-entrenadores to /academy
+- [ ] **ACAD-13**: /academy removed from prerender ignore list
+- [ ] **ACAD-14**: Flywheel circular diagram with 4 nodes, arrows, center icon
+- [ ] **ACAD-15**: FlywheelDiagram is a reusable props-driven component
+- [ ] **ACAD-16**: Flywheel scroll-triggered reveal animation with 0.2s stagger
+- [ ] **ACAD-17**: Modalidades section with Presencial/Online dual cards
+- [ ] **ACAD-18**: QuienEnsena section with Ignacio bio, photo, animated stats
+- [ ] **ACAD-19**: Inversion placeholder section with CTA + franchise note
+- [ ] **ACAD-20**: Academy FAQ accordion with 8 questions (separate from home FAQ)
+- [ ] **ACAD-21**: Enrollment form with 10 fields, API submission, confirmation + WhatsApp
+- [ ] **ACAD-22**: Sticky side menu (desktop only, 240px, active section tracking)
+- [ ] **ACAD-23**: Floating WhatsApp button
+- [ ] **ACAD-24**: Academy link added to AppNav (7th link after Blog)
+- [ ] **ACAD-25**: Academy link enabled in AppFooter Ecosistema column
+- [ ] **ACAD-26**: FranIncludes trainer formation note with link to /academy
+- [ ] **ACAD-27**: GA4 form_submit_academy event + Meta Pixel trackLead on form submit
+- [ ] **ACAD-28**: Course structured data (JSON-LD)
+- [ ] **ACAD-29**: /academy in sitemap.xml
+
+## Traceability (continued)
+
+| Requirement | Phase    | Status  |
+| ----------- | -------- | ------- |
+| ACAD-01     | Phase 43 | Planned |
+| ACAD-02     | Phase 43 | Planned |
+| ACAD-03     | Phase 43 | Planned |
+| ACAD-04     | Phase 43 | Planned |
+| ACAD-05     | Phase 43 | Planned |
+| ACAD-06     | Phase 43 | Planned |
+| ACAD-07     | Phase 43 | Planned |
+| ACAD-08     | Phase 43 | Planned |
+| ACAD-09     | Phase 43 | Planned |
+| ACAD-10     | Phase 43 | Planned |
+| ACAD-11     | Phase 43 | Planned |
+| ACAD-12     | Phase 43 | Planned |
+| ACAD-13     | Phase 43 | Planned |
+| ACAD-14     | Phase 43 | Planned |
+| ACAD-15     | Phase 43 | Planned |
+| ACAD-16     | Phase 43 | Planned |
+| ACAD-17     | Phase 43 | Planned |
+| ACAD-18     | Phase 43 | Planned |
+| ACAD-19     | Phase 43 | Planned |
+| ACAD-20     | Phase 43 | Planned |
+| ACAD-21     | Phase 43 | Planned |
+| ACAD-22     | Phase 43 | Planned |
+| ACAD-23     | Phase 43 | Planned |
+| ACAD-24     | Phase 43 | Planned |
+| ACAD-25     | Phase 43 | Planned |
+| ACAD-26     | Phase 43 | Planned |
+| ACAD-27     | Phase 43 | Planned |
+| ACAD-28     | Phase 43 | Planned |
+| ACAD-29     | Phase 43 | Planned |
+
 **Coverage:**
 
-- v3.0 requirements: 114 total across 19 categories
-- Mapped to phases: 114/114
+- v3.0 requirements: 143 total across 20 categories (114 original + 29 ACAD)
+- Mapped to phases: 143/143
 - Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-02-28_
-_Last updated: 2026-02-28 — Phase mappings added (Phases 29-36)_
+_Last updated: 2026-03-03 — ACAD requirements added for Phase 43 (29 requirements)_
