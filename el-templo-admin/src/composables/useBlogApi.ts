@@ -6,6 +6,12 @@ import { createLogger } from 'src/utils/logger';
 
 const log = createLogger('useBlogApi');
 
+export interface BlogTag {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export interface BlogPost {
   id: number;
   title: string;
@@ -15,9 +21,11 @@ export interface BlogPost {
   body: string | null;
   status: 'draft' | 'published';
   readingTime?: number;
+  ctaType?: 'trial' | 'franchise' | 'app';
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  tags?: BlogTag[];
 }
 
 export interface BlogPostListResponse {
@@ -33,6 +41,7 @@ export interface CreateBlogPostData {
   body?: string;
   coverImage?: string;
   slug?: string;
+  ctaType?: string;
 }
 
 export type UpdateBlogPostData = Partial<CreateBlogPostData> & {
@@ -150,6 +159,71 @@ export function useBlogApi() {
     return updatePost(id, { status: 'draft' });
   }
 
+  // =========================================================================
+  // Tag management
+  // =========================================================================
+
+  async function listAdminTags(): Promise<{ tags: BlogTag[] }> {
+    try {
+      const { data } = await api.get<{ tags: BlogTag[] }>('/blog/admin/tags');
+      return data;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error cargando tags');
+      log.error('Failed to fetch tags', { error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
+  async function createTag(data: { name: string; slug?: string }): Promise<BlogTag> {
+    try {
+      const { data: tag } = await api.post<BlogTag>('/blog/admin/tags', data);
+      return tag;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error creando tag');
+      log.error('Failed to create tag', { error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
+  async function updateTag(id: number, data: { name?: string; slug?: string }): Promise<BlogTag> {
+    try {
+      const { data: tag } = await api.put<BlogTag>(`/blog/admin/tags/${id}`, data);
+      return tag;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error actualizando tag');
+      log.error('Failed to update tag', { id, error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
+  async function deleteTag(id: number): Promise<void> {
+    try {
+      await api.delete(`/blog/admin/tags/${id}`);
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error eliminando tag');
+      log.error('Failed to delete tag', { id, error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
+  async function assignPostTags(postId: number, tagIds: number[]): Promise<{ tags: BlogTag[] }> {
+    try {
+      const { data } = await api.put<{ tags: BlogTag[] }>(`/blog/admin/posts/${postId}/tags`, {
+        tagIds,
+      });
+      return data;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error asignando tags');
+      log.error('Failed to assign tags', { postId, error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
   return {
     loading,
     error,
@@ -160,5 +234,10 @@ export function useBlogApi() {
     deletePost,
     publishPost,
     unpublishPost,
+    listAdminTags,
+    createTag,
+    updateTag,
+    deleteTag,
+    assignPostTags,
   };
 }

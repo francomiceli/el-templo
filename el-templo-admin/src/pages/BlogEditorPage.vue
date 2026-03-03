@@ -88,6 +88,39 @@
         />
       </div>
 
+      <!-- Tags -->
+      <div class="q-mb-md">
+        <div class="text-subtitle2 q-mb-xs">Tags (2-5 recomendados)</div>
+        <q-select
+          v-model="selectedTagIds"
+          :options="availableTags"
+          option-value="id"
+          option-label="name"
+          multiple
+          emit-value
+          map-options
+          use-chips
+          outlined
+          dense
+          label="Seleccionar tags"
+          :loading="loadingTags"
+        />
+      </div>
+
+      <!-- CTA type -->
+      <div class="q-mb-md">
+        <div class="text-subtitle2 q-mb-xs">CTA del post</div>
+        <q-select
+          v-model="form.ctaType"
+          :options="ctaOptions"
+          emit-value
+          map-options
+          outlined
+          dense
+          label="Tipo de CTA al final del post"
+        />
+      </div>
+
       <!-- Toolbar + Editor / Preview -->
       <div class="q-mb-md">
         <div class="row items-center q-mb-xs">
@@ -173,7 +206,7 @@ import { marked } from 'marked';
 import { useBlogApi } from 'src/composables/useBlogApi';
 import { useBlogImageUpload } from 'src/composables/useBlogImageUpload';
 import { createLogger } from 'src/utils/logger';
-import type { BlogPost } from 'src/composables/useBlogApi';
+import type { BlogPost, BlogTag } from 'src/composables/useBlogApi';
 
 const log = createLogger('BlogEditor');
 const route = useRoute();
@@ -201,7 +234,19 @@ const form = reactive({
   excerpt: '',
   coverImage: '',
   body: '',
+  ctaType: 'trial' as string,
 });
+
+// Tag state
+const availableTags = ref<BlogTag[]>([]);
+const selectedTagIds = ref<number[]>([]);
+const loadingTags = ref(false);
+
+const ctaOptions = [
+  { label: 'Sesion de Prueba (default)', value: 'trial' },
+  { label: 'Franquicia — Abri tu Templo', value: 'franchise' },
+  { label: 'App / Gladius — Entrena con la App', value: 'app' },
+];
 
 const isEditMode = computed(() => !!route.params.id);
 const postId = computed(() => {
@@ -410,6 +455,14 @@ async function onCoverFileSelected(event: Event) {
 // Save / Publish
 // =========================================================================
 
+async function saveTagAssignment(pId: number) {
+  try {
+    await blogApi.assignPostTags(pId, selectedTagIds.value);
+  } catch {
+    // Error handled by composable
+  }
+}
+
 async function handleSaveDraft() {
   if (!form.title) {
     Notify.create({ type: 'warning', message: 'El titulo es requerido' });
@@ -425,13 +478,16 @@ async function handleSaveDraft() {
       coverImage: form.coverImage || undefined,
       body: form.body || undefined,
       status: 'draft' as const,
+      ctaType: form.ctaType,
     };
 
     if (isEditMode.value && postId.value) {
       currentPost.value = await blogApi.updatePost(postId.value, data);
+      await saveTagAssignment(postId.value);
       Notify.create({ type: 'positive', message: 'Borrador guardado' });
     } else {
       currentPost.value = await blogApi.createPost(data);
+      await saveTagAssignment(currentPost.value.id);
       Notify.create({ type: 'positive', message: 'Borrador creado' });
       // Navigate to edit mode with the new ID
       router.replace(`/blog/${currentPost.value.id}`);
@@ -458,12 +514,15 @@ async function handlePublish() {
       coverImage: form.coverImage || undefined,
       body: form.body || undefined,
       status: 'published' as const,
+      ctaType: form.ctaType,
     };
 
     if (isEditMode.value && postId.value) {
       currentPost.value = await blogApi.updatePost(postId.value, data);
+      await saveTagAssignment(postId.value);
     } else {
       currentPost.value = await blogApi.createPost(data);
+      await saveTagAssignment(currentPost.value.id);
       router.replace(`/blog/${currentPost.value.id}`);
     }
     Notify.create({ type: 'positive', message: 'Post publicado' });
@@ -502,6 +561,8 @@ async function loadPost(id: number) {
     form.excerpt = post.excerpt ?? '';
     form.coverImage = post.coverImage ?? '';
     form.body = post.body ?? '';
+    form.ctaType = post.ctaType ?? 'trial';
+    selectedTagIds.value = post.tags?.map((t) => t.id) ?? [];
   } catch (err: unknown) {
     log.error('Failed to load post', {
       id,
@@ -517,7 +578,20 @@ async function loadPost(id: number) {
 // Lifecycle
 // =========================================================================
 
+async function loadAvailableTags() {
+  loadingTags.value = true;
+  try {
+    const result = await blogApi.listAdminTags();
+    availableTags.value = result.tags;
+  } catch {
+    // Error handled by composable
+  } finally {
+    loadingTags.value = false;
+  }
+}
+
 onMounted(() => {
+  loadAvailableTags();
   if (postId.value) {
     loadPost(postId.value);
   }
