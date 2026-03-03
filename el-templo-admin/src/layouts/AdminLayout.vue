@@ -62,6 +62,18 @@
             </q-item-section>
             <q-item-section>Academy</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/app-waitlist">
+            <q-item-section avatar>
+              <q-icon name="notifications_active" />
+            </q-item-section>
+            <q-item-section>App Waitlist</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/labs-inquiries">
+            <q-item-section avatar>
+              <q-icon name="business" />
+            </q-item-section>
+            <q-item-section>Labs Inquiries</q-item-section>
+          </q-item>
         </template>
 
         <template v-if="isSuperadminRole">

@@ -47,6 +47,16 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'superadmin'] },
       },
       {
+        path: 'app-waitlist',
+        component: () => import('pages/AppWaitlistPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
+        path: 'labs-inquiries',
+        component: () => import('pages/LabsInquiriesPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
         path: 'franquicias',
         component: () => import('pages/FranchiseListPage.vue'),
         meta: { allowedRoles: ['superadmin'] },
