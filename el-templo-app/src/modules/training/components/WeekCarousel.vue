@@ -18,11 +18,7 @@
     </div>
 
     <!-- Swipeable day cards -->
-    <div
-      ref="carouselRef"
-      class="week-carousel__container"
-      @scroll="handleScroll"
-    >
+    <div ref="carouselRef" class="week-carousel__container" @scroll="handleScroll">
       <div
         v-for="(day, index) in weekStore.weekDays"
         :key="day.date"
@@ -41,73 +37,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { useWeekStore } from '../stores/weekStore';
-import DayCard from './DayCard.vue';
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useWeekStore } from '../stores/weekStore'
+import DayCard from './DayCard.vue'
 
 const emit = defineEmits<{
-  start: [date: string];
-}>();
+  start: [date: string]
+}>()
 
-const weekStore = useWeekStore();
-const carouselRef = ref<HTMLElement | null>(null);
-const centerIndex = ref(0);
-let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+const weekStore = useWeekStore()
+const carouselRef = ref<HTMLElement | null>(null)
+const centerIndex = ref(0)
+let scrollTimeout: ReturnType<typeof setTimeout> | null = null
 
 /**
  * Handle scroll events to detect centered card
  */
 function handleScroll() {
-  if (!carouselRef.value) return;
+  if (!carouselRef.value) return
 
   // Debounce scroll detection
   if (scrollTimeout) {
-    clearTimeout(scrollTimeout);
+    clearTimeout(scrollTimeout)
   }
 
   scrollTimeout = setTimeout(() => {
-    detectCenteredCard();
-  }, 100);
+    detectCenteredCard()
+  }, 100)
 }
 
 /**
  * Get all slide elements
  */
 function getSlides(): HTMLElement[] {
-  if (!carouselRef.value) return [];
-  return Array.from(carouselRef.value.querySelectorAll('.week-carousel__slide'));
+  if (!carouselRef.value) return []
+  return Array.from(carouselRef.value.querySelectorAll('.week-carousel__slide'))
 }
 
 /**
  * Detect which card is centered based on scroll position
  */
 function detectCenteredCard() {
-  if (!carouselRef.value) return;
+  if (!carouselRef.value) return
 
-  const container = carouselRef.value;
-  const slides = getSlides();
-  if (slides.length === 0) return;
+  const container = carouselRef.value
+  const slides = getSlides()
+  if (slides.length === 0) return
 
-  const containerCenter = container.scrollLeft + container.offsetWidth / 2;
+  const containerCenter = container.scrollLeft + container.offsetWidth / 2
 
   // Find the slide whose center is closest to the container's center
-  let closestIndex = 0;
-  let closestDistance = Infinity;
+  let closestIndex = 0
+  let closestDistance = Infinity
 
   slides.forEach((slide, index) => {
-    const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
-    const distance = Math.abs(slideCenter - containerCenter);
+    const slideCenter = slide.offsetLeft + slide.offsetWidth / 2
+    const distance = Math.abs(slideCenter - containerCenter)
     if (distance < closestDistance) {
-      closestDistance = distance;
-      closestIndex = index;
+      closestDistance = distance
+      closestIndex = index
     }
-  });
+  })
 
   if (closestIndex !== centerIndex.value) {
-    centerIndex.value = closestIndex;
-    const day = weekStore.weekDays[closestIndex];
+    centerIndex.value = closestIndex
+    const day = weekStore.weekDays[closestIndex]
     if (day && day.date !== weekStore.selectedDate) {
-      weekStore.selectDate(day.date);
+      weekStore.selectDate(day.date)
     }
   }
 }
@@ -116,28 +112,17 @@ function detectCenteredCard() {
  * Scroll to a specific day by index
  */
 function scrollToDay(index: number, behavior: 'smooth' | 'instant' | 'auto' = 'smooth') {
-  if (!carouselRef.value) return;
+  const slides = getSlides()
+  const slide = slides[index]
 
-  const container = carouselRef.value;
-  const slides = getSlides();
-  const slide = slides[index];
+  if (!slide) return
 
-  if (!slide) return;
+  slide.scrollIntoView({ inline: 'center', block: 'nearest', behavior })
 
-  // Calculate scroll position to center the slide
-  const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
-  const containerCenter = container.offsetWidth / 2;
-  const scrollPosition = slideCenter - containerCenter;
-
-  container.scrollTo({
-    left: Math.max(0, scrollPosition),
-    behavior,
-  });
-
-  centerIndex.value = index;
-  const day = weekStore.weekDays[index];
+  centerIndex.value = index
+  const day = weekStore.weekDays[index]
   if (day) {
-    weekStore.selectDate(day.date);
+    weekStore.selectDate(day.date)
   }
 }
 
@@ -145,17 +130,17 @@ function scrollToDay(index: number, behavior: 'smooth' | 'instant' | 'auto' = 's
  * Scroll to today on mount
  */
 function scrollToToday() {
-  const todayIndex = weekStore.todayIndex;
+  const todayIndex = weekStore.todayIndex
   if (todayIndex >= 0) {
     // Use 'auto' for instant scroll on mount
     nextTick(() => {
-      scrollToDay(todayIndex, 'auto');
-    });
+      scrollToDay(todayIndex, 'auto')
+    })
   } else {
     // Default to first day if today not in week
     nextTick(() => {
-      scrollToDay(0, 'auto');
-    });
+      scrollToDay(0, 'auto')
+    })
   }
 }
 
@@ -163,30 +148,30 @@ function scrollToToday() {
  * Handle start button from DayCard
  */
 function handleStart(date: string) {
-  emit('start', date);
+  emit('start', date)
 }
 
 // Setup on mount
 onMounted(() => {
-  setTimeout(scrollToToday, 100);
-});
+  setTimeout(scrollToToday, 100)
+})
 
 // Cleanup
 onUnmounted(() => {
   if (scrollTimeout) {
-    clearTimeout(scrollTimeout);
+    clearTimeout(scrollTimeout)
   }
-});
+})
 
 // Re-center when weekDays change
 watch(
   () => weekStore.weekDays.length,
   () => {
     if (weekStore.weekDays.length > 0) {
-      setTimeout(scrollToToday, 100);
+      setTimeout(scrollToToday, 100)
     }
-  }
-);
+  },
+)
 </script>
 
 <style scoped lang="scss">
@@ -277,22 +262,29 @@ watch(
       display: none;
     }
 
-    // Padding for peek effect
-    padding-left: calc((100% - 85%) / 2);
-    padding-right: calc((100% - 85%) / 2);
+    scroll-padding-inline: calc((100% - 85%) / 2);
   }
 
   &__slide {
-    flex-shrink: 0;
-    width: 85%;
+    flex: 0 0 85%;
     height: 100%;
     scroll-snap-align: center;
     scroll-snap-stop: always;
-    transition: transform 0.3s ease, opacity 0.3s ease;
+    transition:
+      transform 0.3s ease,
+      opacity 0.3s ease;
 
     // Non-centered cards are smaller (80% height effect via scale)
     transform: scale(0.92);
     opacity: 0.7;
+
+    &:first-child {
+      margin-left: calc((100% - 85%) / 2);
+    }
+
+    &:last-child {
+      margin-right: calc((100% - 85%) / 2);
+    }
 
     &--center {
       transform: scale(1);
@@ -305,13 +297,20 @@ watch(
 @media (min-width: 768px) {
   .week-carousel {
     &__container {
-      padding-left: calc((100% - 60%) / 2);
-      padding-right: calc((100% - 60%) / 2);
+      scroll-padding-inline: calc((100% - 60%) / 2);
     }
 
     &__slide {
-      width: 60%;
+      flex: 0 0 60%;
       max-width: 500px;
+
+      &:first-child {
+        margin-left: calc((100% - 60%) / 2);
+      }
+
+      &:last-child {
+        margin-right: calc((100% - 60%) / 2);
+      }
     }
   }
 }

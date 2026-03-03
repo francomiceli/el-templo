@@ -77,6 +77,19 @@ h1, h2, h3, h4, h5, h6,
 }
 
 // =============================================================================
+// Mobile Tab Bar Height Variable
+// =============================================================================
+// Pages using full-height layouts should subtract this from their height calc.
+// The mobile tab bar is 56px and only shows below the md breakpoint (< 1024px).
+:root {
+  --mobile-tabs-height: 0px;
+
+  @media (max-width: 1023px) {
+    --mobile-tabs-height: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+// =============================================================================
 // El Templo Global White Elimination
 // =============================================================================
 

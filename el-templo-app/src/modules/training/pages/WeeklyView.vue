@@ -179,8 +179,8 @@ onMounted(() => {
 .weekly-view {
   display: flex;
   flex-direction: column;
-  // Calculate height minus the header (50px default Quasar toolbar)
-  height: calc(100vh - 50px);
+  // Calculate height minus the header (50px) and mobile tab bar
+  height: calc(100vh - 50px - var(--mobile-tabs-height));
   overflow: hidden;
 
   &__header {
