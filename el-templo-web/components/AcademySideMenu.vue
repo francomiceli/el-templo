@@ -15,23 +15,44 @@ const { activeSection, cleanup } = useActiveSection(sectionIds);
 // Entrance animation
 const visible = ref(false);
 
+// Stop fixed position before footer
+const menuRef = ref<HTMLElement | null>(null);
+const topOffset = ref(100);
+const DEFAULT_TOP = 100;
+let onScroll: (() => void) | null = null;
+
 if (import.meta.client) {
   onMounted(() => {
     requestAnimationFrame(() => {
       visible.value = true;
     });
+
+    const prefooter = document.querySelector(".prefooter");
+    if (prefooter && menuRef.value) {
+      const menu = menuRef.value;
+      onScroll = () => {
+        const prefooterTop = prefooter.getBoundingClientRect().top;
+        const menuHeight = menu.offsetHeight;
+        const limit = prefooterTop - menuHeight;
+        topOffset.value = limit < DEFAULT_TOP ? limit : DEFAULT_TOP;
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+    }
   });
 }
 
 onBeforeUnmount(() => {
   cleanup();
+  if (onScroll) window.removeEventListener("scroll", onScroll);
 });
 </script>
 
 <template>
   <nav
+    ref="menuRef"
     class="academy-side-menu"
     :class="{ 'academy-side-menu--visible': visible }"
+    :style="{ top: `${topOffset}px` }"
     aria-label="Navegación de secciones"
   >
     <ul class="academy-side-menu__list">
@@ -62,11 +83,11 @@ onBeforeUnmount(() => {
 
 .academy-side-menu {
   position: fixed;
-  top: 100px;
+  /* top set dynamically via :style to stop before footer */
   left: 0;
   width: 240px;
   z-index: 50;
-  padding: 0 24px;
+  padding: 0 24px 24px;
   opacity: 0;
   transform: translateX(-20px);
   transition:

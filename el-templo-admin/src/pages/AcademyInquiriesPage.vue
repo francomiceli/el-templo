@@ -108,7 +108,7 @@ async function fetchInquiries(): Promise<void> {
 
   try {
     const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-    const res = await fetch(`${baseUrl}/api/academy/admin/inquiries`, {
+    const res = await fetch(`${baseUrl}/academy/admin/inquiries`, {
       headers: {
         Authorization: `Bearer ${authStore.token}`,
       },
