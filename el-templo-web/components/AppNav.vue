@@ -24,6 +24,7 @@ const navLinks: NavLink[] = [
   },
   { label: "Blog", href: "/blog", sectionId: null },
   { label: "Academy", href: "/academy", sectionId: null },
+  { label: "App", href: "/app", sectionId: null },
 ];
 
 const WHATSAPP_URL =

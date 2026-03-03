@@ -4,7 +4,7 @@
  *
  * Two conversion paths:
  * 1. Presencial — Try in person (WhatsApp CTA, Terracotta)
- * 2. App — Try online (app.eltemplo.org CTA, Azul Noche)
+ * 2. App — Try online (/app internal link, Azul Noche)
  *
  * Target of Hero CTA (#descubri-nivel) and SectionLevels ghost CTAs.
  * Scroll-triggered staggered entrance on cards.
@@ -41,7 +41,7 @@ const paths: ConversionPath[] = [
       "Descarg\u00E1 Templo Online y el sistema te gu\u00EDa. Te propone ejercicios por nivel \u2014 si los super\u00E1s, sube la dificultad. Si te cuestan, ah\u00ED est\u00E1 tu punto de partida. En minutos sab\u00E9s d\u00F3nde est\u00E1s y hacia d\u00F3nde vas.",
     sentence: "No necesit\u00E1s llegar sabiendo. Solo necesit\u00E1s empezar.",
     ctaText: "Prob\u00E1 la app",
-    ctaHref: "https://app.eltemplo.org",
+    ctaHref: "/app",
     ctaClass: "btn btn--secondary-azul",
     iconSvg: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="4" width="20" height="40" rx="3" /><line x1="14" y1="10" x2="34" y2="10" /><line x1="14" y1="38" x2="34" y2="38" /><circle cx="24" cy="42" r="1.5" /><polygon points="21,20 21,30 30,25" /></svg>`,
   },
@@ -102,11 +102,18 @@ onBeforeUnmount(() => {
 
           <p class="discover__card-sentence">{{ path.sentence }}</p>
 
+          <NuxtLink
+            v-if="path.id === 'app'"
+            :to="path.ctaHref"
+            :class="path.ctaClass + ' discover__cta'"
+            @click="handleCtaClick(path.id)"
+          >
+            {{ path.ctaText }}
+          </NuxtLink>
           <a
+            v-else
             :href="path.ctaHref"
             :class="path.ctaClass + ' discover__cta'"
-            :target="path.id === 'app' ? '_blank' : undefined"
-            :rel="path.id === 'app' ? 'noopener noreferrer' : undefined"
             @click="handleCtaClick(path.id)"
           >
             {{ path.ctaText }}
