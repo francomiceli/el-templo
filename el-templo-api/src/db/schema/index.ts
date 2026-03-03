@@ -24,3 +24,5 @@ export * from "./gladius-inquiries";
 export * from "./blog-posts";
 export * from "./blog-tags";
 export * from "./academy-inquiries";
+export * from "./app-waitlist";
+export * from "./labs-inquiries";

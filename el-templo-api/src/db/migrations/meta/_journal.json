@@ -183,6 +183,13 @@
       "when": 1772690400000,
       "tag": "0025_academy_inquiries",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "5",
+      "when": 1772776800000,
+      "tag": "0026_app_waitlist_labs_inquiries",
+      "breakpoints": true
     }
   ]
 }
