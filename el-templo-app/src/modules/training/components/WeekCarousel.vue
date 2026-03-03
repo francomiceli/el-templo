@@ -248,7 +248,7 @@ watch(
     min-height: 0; // Critical for flex child to respect parent height
     display: flex;
     gap: 16px;
-    padding: 8px 0;
+    padding: 16px 0 32px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     scroll-behavior: smooth;
