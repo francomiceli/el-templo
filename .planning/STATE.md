@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: executing
-stopped_at: Phase 42 complete
-last_updated: "2026-03-02"
+status: unknown
+stopped_at: Phase 43 context gathered
+last_updated: "2026-03-03T03:16:04.779Z"
 progress:
-  total_phases: 42
+  total_phases: 41
   completed_phases: 31
   total_plans: 175
   completed_plans: 171
@@ -163,6 +163,7 @@ Progress: [=====] 100% (4/4 plans)
 - Phases 39-40 inserted: App & PDF Brand Alignment + Day Player Redesign — unify design system, then redesign workout experience
 - Phase 41 (was 39): Content & Media Handoff — deferred after app redesign work
 - Phase 42 added: Blog internal linking system (tags, related posts, cross-page CTAs)
+- Phase 43 added: Academy Landing Page (/academy) — Olympic Academy trainer certification, 10 sections, flywheel component, form + API, side menu, cross-site integration
 
 ### Phase 35 Decisions
 
@@ -254,5 +255,5 @@ Progress: [=====] 100% (4/4 plans)
 
 ### Last Session
 
-- **Stopped at:** Phase 42 complete
+- **Stopped at:** Phase 43 context gathered
 - **Timestamp:** 2026-03-02
