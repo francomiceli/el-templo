@@ -680,14 +680,17 @@ Plans:
 
 ### Phase 42: Blog internal linking system (tags, related posts, cross-page CTAs)
 
-**Goal:** [To be planned]
+**Goal:** Add a tag taxonomy, related posts, tag browsing pages, and cross-page CTAs to the blog to improve internal linking for SEO (link equity distribution, topical clustering, crawl depth) and increase reader engagement/time-on-site
 **Requirements**: TBD
 **Depends on:** Phase 41
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 42 to break down)
+- [ ] 42-01-PLAN.md — DB schema (blog_tags, blog_post_tags), seed migration, BlogService tag methods, API routes, integration tests
+- [ ] 42-02-PLAN.md — Admin tag CRUD page, blog editor tag assignment + CTA type selector
+- [ ] 42-03-PLAN.md — Frontend tag pills, tag bar on index, tag browse page /blog/tag/[slug] with SEO
+- [ ] 42-04-PLAN.md — Related posts section, cross-page CTA banners, tag sitemap entries
 
 ---
 
