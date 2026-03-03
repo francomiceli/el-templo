@@ -603,6 +603,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 39. App & PDF Brand Alignment               | 5/5            | Complete    | 2026-03-02 |
 | 40. Day Player Redesign                     | 5/5            | Complete    | 2026-03-02 |
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
+| 42. Blog Internal Linking System            | 4/4            | Complete    | 2026-03-02 |
 
 ### Phase 37: SEO Audit Fixes
 
@@ -683,14 +684,15 @@ Plans:
 **Goal:** Add a tag taxonomy, related posts, tag browsing pages, and cross-page CTAs to the blog to improve internal linking for SEO (link equity distribution, topical clustering, crawl depth) and increase reader engagement/time-on-site
 **Requirements**: TBD
 **Depends on:** Phase 41
-**Plans:** 4 plans
+**Status**: Complete
+**Plans:** 4/4 plans complete
 
 Plans:
 
-- [ ] 42-01-PLAN.md — DB schema (blog_tags, blog_post_tags), seed migration, BlogService tag methods, API routes, integration tests
-- [ ] 42-02-PLAN.md — Admin tag CRUD page, blog editor tag assignment + CTA type selector
-- [ ] 42-03-PLAN.md — Frontend tag pills, tag bar on index, tag browse page /blog/tag/[slug] with SEO
-- [ ] 42-04-PLAN.md — Related posts section, cross-page CTA banners, tag sitemap entries
+- [x] 42-01-PLAN.md — DB schema (blog_tags, blog_post_tags), seed migration, BlogService tag methods, API routes, integration tests
+- [x] 42-02-PLAN.md — Admin tag CRUD page, blog editor tag assignment + CTA type selector
+- [x] 42-03-PLAN.md — Frontend tag pills, tag bar on index, tag browse page /blog/tag/[slug] with SEO
+- [x] 42-04-PLAN.md — Related posts section, cross-page CTA banners, tag sitemap entries
 
 ---
 

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Phase 42 context gathered
-last_updated: "2026-03-03T01:48:47.185Z"
+status: executing
+stopped_at: Phase 42 complete
+last_updated: "2026-03-02"
 progress:
-  total_phases: 40
-  completed_phases: 30
-  total_plans: 171
-  completed_plans: 167
+  total_phases: 42
+  completed_phases: 31
+  total_plans: 175
+  completed_plans: 171
 ---
 
 # Project State
@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 
 ## Current Position
 
-Phase: 40 of 42 (Day Player Redesign)
-Plan: 5 of 5 — all plans executed
-Status: Phase 40 complete
-Last activity: 2026-03-02 — All 5 plans executed: foundation (quotes, navigation, progress bar), core UI (story card, compact list), overlay screens (splash, transition, celebration), integration (BlockProgressionView + DayPlayer + JourneySession wiring), build verification + decision audit
+Phase: 42 of 42 (Blog Internal Linking System)
+Plan: 4 of 4 — all plans executed
+Status: Phase 42 complete
+Last activity: 2026-03-02 — All 4 plans executed: API backend (tags schema, migration, service, routes, tests), admin UI (tag CRUD, editor integration), public tag UI (pills, bar, browse page with SEO), related posts + CTAs + sitemap
 
-Progress: [=====] 100% (5/5 plans)
+Progress: [=====] 100% (4/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -238,7 +238,21 @@ Progress: [=====] 100% (5/5 plans)
 - JourneySession.vue updated to match new component interfaces (SplashScreen, TransitionScreen, CelebrationScreen, BlockProgressionView)
 - "Dosis" renamed to "Cantidad" throughout all player components
 
+### Phase 42 Decisions
+
+- Flat tag taxonomy with junction table (blog_tags + blog_post_tags), 17 seed tags via migration
+- Related posts ranked by shared tag count with recent posts fallback, computed server-side
+- 3 CTA variants (trial/franchise/app) per post, selectable in admin editor, default trial
+- BlogPostCard refactored from NuxtLink wrapper to div wrapper to avoid nested <a> HTML invalidity
+- Tag pills use @click.stop for event bubbling prevention inside card context
+- BlogTagBar horizontal scroll with hidden scrollbar CSS, active tag highlight
+- Tag browse pages at /blog/tag/[slug] with BreadcrumbList JSON-LD, per-tag SEO meta
+- BlogPagination basePath prop for reuse across blog index and tag pages
+- Related post tags shown as plain text spans (not pill links) to avoid nested links inside NuxtLink cards
+- Sitemap extended with tag page URLs using weekly changefreq
+- Batch tag loading (getTagsForPostIds) to prevent N+1 queries on list endpoints
+
 ### Last Session
 
-- **Stopped at:** Phase 42 context gathered
+- **Stopped at:** Phase 42 complete
 - **Timestamp:** 2026-03-02
