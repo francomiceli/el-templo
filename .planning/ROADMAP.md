@@ -605,7 +605,7 @@ Phase 29 (Infrastructure) → Phase 30 (Design System) → Phases 31-35 (Content
 | 41. Content & Media Handoff                 | 0/?            | Not Started | —          |
 | 42. Blog Internal Linking System            | 4/4            | Complete    | 2026-03-02 |
 | 43. Academy Landing Page (/academy)         | 4/4            | Complete    | staging    |
-| 44. App Landing Page (/app)                 | 2/4            | In Progress |            |
+| 44. App Landing Page (/app)                 | 3/4            | In Progress |            |
 
 ### Phase 37: SEO Audit Fixes
 
@@ -728,7 +728,7 @@ Plans:
 **Goal:** Build the /app standalone landing page for El Templo Online (digital ecosystem). 10 sections: Hero (app download CTAs + store badges), Ecosystem overview (4 modules with progressive unlock flow), Aretē module detail (freemium, active), El Templo module detail (premium, active), Olympic Academy module detail (próximamente), Labs module detail (próximamente + dual CTA for franchisees/external gyms), Flywheel Digital (reusable component from /academy), App Download (store badges + phone mockup), Form A (module notification waitlist for Academy/Labs), Form B (Labs for external gyms — 8 fields including gym size, current system). Includes responsive design (3 breakpoints), module state flags (active/próximamente togglable without redesign), platform-aware store links, GA4 + Meta Pixel event tracking, WhatsApp floating button, SEO meta tags. Specs: .docs/brand-landing/spec12-pt1.md and spec12-pt2.md.
 **Requirements**: APP-01 through APP-28
 **Depends on:** Phase 43
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 **Success Criteria** (what must be TRUE):
 

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: in-progress
-stopped_at: Completed 44-02-PLAN.md
-last_updated: "2026-03-03T13:33:50.235Z"
+status: unknown
+stopped_at: Completed 44-03-PLAN.md
+last_updated: "2026-03-03T13:42:50.895Z"
 progress:
-  total_phases: 44
+  total_phases: 42
   completed_phases: 32
-  total_plans: 187
-  completed_plans: 177
+  total_plans: 183
+  completed_plans: 178
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-28)
 ## Current Position
 
 Phase: 44 of 44 (App Landing Page)
-Plan: 2 of 4
-Status: Plan 44-02 complete
-Last activity: 2026-03-03 — Plan 44-02: Data files + Hero + Ecosystem + Arete + El Templo module sections
+Plan: 3 of 4
+Status: Plan 44-03 complete
+Last activity: 2026-03-03 — Plan 44-03: Academy + Labs Modules + Flywheel Digital + Download Section
 
-Progress: [==---] 50% (2/4 plans)
+Progress: [===--] 75% (3/4 plans)
 
 ## Milestone v3.0 Context
 
@@ -277,8 +277,14 @@ Progress: [==---] 50% (2/4 plans)
 - Arete section has NO download CTA per spec (reserved for hero, El Templo, download only -- 3 appearances total)
 - app-landing- BEM prefix for all /app section components
 - Module detail split layout: 55% text / 45% visual with reverse variant for visual variety
+- Academy prop-label width widened to 120px to accommodate longer label names (Relacion /academy)
+- Labs positioning statement inside dimmed wrapper, dual CTA zone outside at full opacity
+- Flywheel accent colors mapped from modules data array for stage-module color consistency
+- Download phone mockup uses 9/19 aspect ratio with 24px border-radius for realistic portrait phone
+- Store badge placeholders at 135x44px (minimum touch target, to be replaced with official assets)
+- Labs Azul Noche CTA uses inline component styles rather than global btn--secondary-azul for self-containment
 
 ### Last Session
 
-- **Stopped at:** Completed 44-02-PLAN.md
+- **Stopped at:** Completed 44-03-PLAN.md
 - **Timestamp:** 2026-03-03

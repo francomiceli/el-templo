@@ -359,10 +359,10 @@
 - [x] **APP-12**: Ecosystem overview section with 4-module preview cards and progressive unlock flow
 - [x] **APP-13**: Arete module detail section (freemium, active, Terracotta accent)
 - [x] **APP-14**: El Templo module detail section (premium, active, Terracotta accent) with DESCARGA LA APP CTA
-- [ ] **APP-15**: Olympic Academy module detail section (proximamente, Aged Gold accent, opacity 0.6)
-- [ ] **APP-16**: Labs module detail section (proximamente, Azul Noche accent, dual CTA for franchisees/external gyms)
-- [ ] **APP-17**: Flywheel Digital vertical flow (Arete -> El Templo -> Academy -> Labs) on Deep Charcoal background
-- [ ] **APP-18**: Download section with store badges + phone mockup placeholder
+- [x] **APP-15**: Olympic Academy module detail section (proximamente, Aged Gold accent, opacity 0.6)
+- [x] **APP-16**: Labs module detail section (proximamente, Azul Noche accent, dual CTA for franchisees/external gyms)
+- [x] **APP-17**: Flywheel Digital vertical flow (Arete -> El Templo -> Academy -> Labs) on Deep Charcoal background
+- [x] **APP-18**: Download section with store badges + phone mockup placeholder
 - [ ] **APP-19**: Form A — module notification waitlist (4 fields: nombre, email, modulo multi-select, ciudad/pais)
 - [ ] **APP-20**: Form B — Labs external gyms (8 fields: nombre, email, telefono, nombre gimnasio, ciudad/pais, cantidad socios, sistema actual, mensaje)
 - [ ] **APP-21**: Floating WhatsApp button (AppWhatsApp.vue)
