@@ -124,49 +124,13 @@
       >
         <q-card>
           <q-card-section>
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">EMOM (Every Minute On the Minute)</div>
-              <div class="conceptos-item__description">
-                Realiza los ejercicios al inicio de cada minuto. El tiempo restante es tu descanso.
+            <template v-for="(fmt, idx) in FORMATS" :key="fmt.name">
+              <q-separator v-if="idx > 0" class="q-my-md" />
+              <div class="conceptos-item">
+                <div class="conceptos-item__title">{{ fmt.name }}</div>
+                <div class="conceptos-item__description">{{ fmt.description }}</div>
               </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">AMRAP (As Many Rounds As Possible)</div>
-              <div class="conceptos-item__description">
-                Completa tantas rondas como puedas en el tiempo establecido.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">For Time</div>
-              <div class="conceptos-item__description">
-                Completa todos los ejercicios lo mas rapido posible con buena tecnica.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Tabata</div>
-              <div class="conceptos-item__description">
-                20 segundos de trabajo, 10 segundos de descanso. Repite 8 veces por ejercicio.
-              </div>
-            </div>
-
-            <q-separator class="q-my-md" />
-
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Series</div>
-              <div class="conceptos-item__description">
-                Formato tradicional. Realiza las series y repeticiones indicadas con descanso entre
-                series.
-              </div>
-            </div>
+            </template>
           </q-card-section>
         </q-card>
       </q-expansion-item>
@@ -232,6 +196,72 @@
  * - Formatos: Workout formats (EMOM, AMRAP, etc.)
  * - Intensidad: Intensity percentages and effort levels
  */
+
+const FORMATS = [
+  {
+    name: 'EMOM (Every Minute On the Minute)',
+    description:
+      'Realiza los ejercicios al inicio de cada minuto. El tiempo restante es tu descanso.',
+  },
+  {
+    name: 'AMRAP (As Many Rounds As Possible)',
+    description: 'Completa tantas rondas como puedas en el tiempo establecido.',
+  },
+  {
+    name: 'For Time',
+    description: 'Completa todos los ejercicios lo mas rapido posible con buena tecnica.',
+  },
+  {
+    name: 'Tabata',
+    description: '20 segundos de trabajo maximo, 10 de descanso. Repite 8 rondas por ejercicio.',
+  },
+  {
+    name: 'Series',
+    description:
+      'Formato tradicional. Realiza las series y repeticiones indicadas con descanso entre series.',
+  },
+  {
+    name: 'Complex',
+    description: 'Ejercicios encadenados sin soltar la barra. Se ejecutan de forma consecutiva.',
+  },
+  {
+    name: 'Chipper',
+    description: 'Lista larga de ejercicios. Se completan uno tras otro sin repetir.',
+  },
+  {
+    name: 'Ladder',
+    description: 'Las repeticiones suben o bajan con cada ronda.',
+  },
+  {
+    name: 'Couplet',
+    description: 'Dos ejercicios que se alternan por rondas.',
+  },
+  {
+    name: 'Triplet',
+    description: 'Tres ejercicios que se alternan por rondas.',
+  },
+  {
+    name: 'HIIT',
+    description: 'Intervalos de alta intensidad seguidos de descanso breve.',
+  },
+  {
+    name: 'Interval Training',
+    description: 'Intervalos de trabajo y descanso con duracion configurable.',
+  },
+  {
+    name: 'Death By',
+    description: 'Cada minuto agregas una repeticion hasta que no puedas completar en el minuto.',
+  },
+  {
+    name: 'Buy-in / Cash-out',
+    description:
+      'Empieza y termina con un ejercicio especifico. El trabajo principal va en el medio.',
+  },
+  {
+    name: 'Cluster',
+    description: 'Grupos cortos de repeticiones con pausas breves entre cada grupo.',
+  },
+]
 </script>
 
 <style scoped lang="scss">

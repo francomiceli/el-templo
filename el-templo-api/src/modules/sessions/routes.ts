@@ -66,7 +66,10 @@ function dateToWeekNumber(date: string): number {
 /**
  * Convert DaySession to API response format
  */
-function sessionToResponse(session: DaySession) {
+function sessionToResponse(
+  session: DaySession,
+  formatDescriptions: Map<string, string>,
+) {
   return {
     dayId: session.dayId,
     week: session.week,
@@ -91,6 +94,10 @@ function sessionToResponse(session: DaySession) {
         intensity: block.intensity,
         repsBudget: block.repsBudget,
         format: block.format?.name || block.format,
+        formatDescription:
+          formatDescriptions.get(
+            (block.format?.name || block.format) as string,
+          ) ?? null,
         sortOrder: idx,
         exercises: mainExercises.map((ex, exIdx) => ({
           exerciseId: ex.exerciseId,
@@ -128,6 +135,19 @@ function sessionToResponse(session: DaySession) {
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
+
+  // Load format descriptions once at startup (small, static table)
+  const formatRows = await fastify.db
+    .select({
+      name: schema.formats.name,
+      description: schema.formats.description,
+    })
+    .from(schema.formats);
+  const formatDescriptions = new Map<string, string>(
+    formatRows
+      .filter((r) => r.description !== null)
+      .map((r) => [r.name, r.description!]),
+  );
 
   // GET /sessions/daily - Get member's session for a date
   fastify.get<{ Querystring: GetDailySessionInput }>(
@@ -179,7 +199,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      return sessionToResponse(session);
+      return sessionToResponse(session, formatDescriptions);
     },
   );
 
@@ -242,10 +262,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         true,
       );
 
-      const sessionsMap: Record<
-        string,
-        ReturnType<typeof sessionToResponse> | null
-      > = {};
+      const sessionsMap: Record<string, unknown> = {};
       for (const date of weekDates) {
         const dayName = dateToDay.get(date)!;
         if (dayName === "domingo") {
@@ -254,7 +271,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         }
         const dayId = `W${week}-${dayName}-${memberLevel}`;
         const session = batchSessions.get(dayId);
-        sessionsMap[date] = session ? sessionToResponse(session) : null;
+        sessionsMap[date] = session
+          ? sessionToResponse(session, formatDescriptions)
+          : null;
       }
 
       return { sessions: sessionsMap };
@@ -295,7 +314,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       const dayId = `W${week}-${day}-${memberLevel}`;
       const existing = await sessionService.getSessionByDayId(dayId);
       if (existing) {
-        return sessionToResponse(existing);
+        return sessionToResponse(existing, formatDescriptions);
       }
 
       // Generate session
@@ -309,7 +328,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // Save to database (explicit persistence)
       await sessionService.saveSession(session);
 
-      return sessionToResponse(session);
+      return sessionToResponse(session, formatDescriptions);
     },
   );
 
@@ -331,7 +350,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Session not found" });
       }
 
-      return sessionToResponse(session);
+      return sessionToResponse(session, formatDescriptions);
     },
   );
 

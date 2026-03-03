@@ -57,6 +57,14 @@
       <!-- Mobility slide subtitle -->
       <div v-if="isMobilitySlide" class="story-card__mobility-label">DESCANSO ACTIVO</div>
 
+      <!-- Format info -->
+      <div v-if="format && !isMobilitySlide" class="story-card__format-row">
+        <span class="story-card__format-name">{{ format }}</span>
+        <span v-if="formatDescription" class="story-card__format-desc">{{
+          formatDescription
+        }}</span>
+      </div>
+
       <!-- Exercise name -->
       <div class="story-card__exercise-name">{{ activeName }}</div>
 
@@ -97,6 +105,8 @@ interface Props {
   mobilityExercise: Block['mobilityExercise']
   isMobilitySlide: boolean
   blockRole: BlockRole
+  format: string
+  formatDescription: string | null
   isCompleted: boolean
   totalExercisesInBlock: number
   allExercisesCompleted: boolean
@@ -288,6 +298,28 @@ const formattedDose = computed(() => {
   letter-spacing: 2px;
   color: rgba(0, 0, 0, 0.45);
   margin-bottom: 4px;
+}
+
+.story-card__format-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.story-card__format-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $secondary;
+  flex-shrink: 0;
+}
+
+.story-card__format-desc {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 1.3;
 }
 
 .story-card__exercise-name {

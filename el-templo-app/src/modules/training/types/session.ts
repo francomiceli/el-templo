@@ -85,6 +85,9 @@ export interface Block {
   /** Format identifier (e.g., 'straight-3x8', 'emom-10min') */
   format: string
 
+  /** Human-readable description of the format (from DB) */
+  formatDescription: string | null
+
   /** Position within the session (0-indexed) */
   sortOrder: number
 

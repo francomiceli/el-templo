@@ -46,6 +46,8 @@
         :mobility-exercise="viewingBlock.mobilityExercise"
         :is-mobility-slide="isMobilitySlide"
         :block-role="viewingBlock.role"
+        :format="viewingBlock.format"
+        :format-description="viewingBlock.formatDescription"
         :is-completed="isCurrentSlideCompleted"
         :total-exercises-in-block="viewingBlock.exercises.length"
         :all-exercises-completed="allExercisesCompleted"
@@ -60,16 +62,6 @@
 
     <!-- Content area — below story, cream background -->
     <div class="block-progression__content">
-      <!-- "Back to current" banner when reviewing -->
-      <div
-        v-if="isReviewingPrevious"
-        class="block-progression__review-banner"
-        @click="returnToCurrent"
-      >
-        <q-icon name="arrow_forward" size="16px" class="q-mr-xs" />
-        Volver a {{ currentBlockName }}
-      </div>
-
       <!-- Compact exercise list — always visible -->
       <CompactExerciseList
         v-if="viewingBlock"
@@ -96,6 +88,16 @@
             <q-icon name="check" size="12px" class="q-ml-xs" />
           </button>
         </div>
+      </div>
+
+      <!-- "Back to current" banner when reviewing — below chips -->
+      <div
+        v-if="isReviewingPrevious"
+        class="block-progression__review-banner"
+        @click="returnToCurrent"
+      >
+        <q-icon name="arrow_forward" size="16px" class="q-mr-xs" />
+        Volver a {{ currentBlockName }}
       </div>
     </div>
   </div>
