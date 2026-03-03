@@ -18,6 +18,11 @@ export function roundToNearest5(value: number): number {
   return Math.round(value / 5) * 5;
 }
 
+/** Round reps to nearest even number (for unilateral exercises done per-side) */
+export function roundToEven(value: number): number {
+  return Math.round(value / 2) * 2;
+}
+
 /**
  * Calculate inverse difficulty weights for rep distribution.
  * Easier exercises (lower difficulty) get more reps.

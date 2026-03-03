@@ -9,20 +9,38 @@
  * Output: BlockContextWithExercises (adds exercises array)
  */
 
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import * as schema from '../../../db/schema';
-import type { BlockContextWithFormat, BlockContextWithExercises } from './context';
-import type { Contraction, SelectedExercise } from '../types';
-import { createTraceEvent, appendTrace } from './context';
-import { selectExercisesWithFallback, queryCrossRouteExercises } from '../fallback/exercise-fallback';
-import type { FallbackAction } from '../fallback/types';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import * as schema from "../../../db/schema";
+import type {
+  BlockContextWithFormat,
+  BlockContextWithExercises,
+} from "./context";
+import type { Contraction, SelectedExercise } from "../types";
+import { createTraceEvent, appendTrace } from "./context";
+import {
+  selectExercisesWithFallback,
+  queryCrossRouteExercises,
+  type ExerciseCandidate,
+} from "../fallback/exercise-fallback";
+import type { FallbackAction } from "../fallback/types";
 import {
   getAllowedLevels,
   LEVEL_LINEAR_BASE,
   LEVEL_LINEAR_MIN,
   LEVEL_PROGRESSION,
   type ExerciseLevel,
-} from './utils/level-mapping';
+} from "./utils/level-mapping";
+
+/** Pattern for detecting unilateral exercises from name or position */
+const UNILATERAL_PATTERN = /\b(O\.?[AL]|ONE\s*(ARM|LEG))\b/i;
+
+/** Check if an exercise is unilateral based on name and position */
+function checkUnilateral(candidate: ExerciseCandidate): boolean {
+  if (UNILATERAL_PATTERN.test(candidate.name)) return true;
+  if (candidate.position && UNILATERAL_PATTERN.test(candidate.position))
+    return true;
+  return false;
+}
 
 /**
  * Calculate linear difficulty target based on member level, intensity, and difficulty bucket
@@ -36,9 +54,15 @@ import {
 function getLinearDifficultyTarget(
   memberLevel: ExerciseLevel,
   intensity: number,
-  difficultyBucket: string
-): { minDificultadLineal: number; maxDificultadLineal: number; targetLevel: ExerciseLevel } {
-  const isNivelSuperior = difficultyBucket === 'Nivel Superior' || difficultyBucket === 'Nivel Superior 1';
+  difficultyBucket: string,
+): {
+  minDificultadLineal: number;
+  maxDificultadLineal: number;
+  targetLevel: ExerciseLevel;
+} {
+  const isNivelSuperior =
+    difficultyBucket === "Nivel Superior" ||
+    difficultyBucket === "Nivel Superior 1";
   const currentIndex = LEVEL_PROGRESSION.indexOf(memberLevel);
 
   // Nivel Superior (at intensity >= 85%): shift to next level's first difficulty
@@ -55,7 +79,7 @@ function getLinearDifficultyTarget(
     return {
       minDificultadLineal: LEVEL_LINEAR_MIN.spartan,
       maxDificultadLineal: LEVEL_LINEAR_BASE.spartan + 2, // 12
-      targetLevel: 'spartan',
+      targetLevel: "spartan",
     };
   }
 
@@ -87,15 +111,15 @@ function getLinearDifficultyTarget(
  */
 function actionToTraceDescription(action: FallbackAction): string {
   switch (action.type) {
-    case 'DIFFICULTY_RELAXED':
+    case "DIFFICULTY_RELAXED":
       return `Relaxed difficulty from ${action.from} to ${action.to}`;
-    case 'EFFORT_RELAXED':
+    case "EFFORT_RELAXED":
       return `Included exercises with empty effort for ${action.contraction}`;
-    case 'SCOPE_WIDENED':
+    case "SCOPE_WIDENED":
       return `Widened scope from ${action.from} to ${action.to}`;
-    case 'LEVEL_WIDENED':
-      return `Widened levels from [${action.from.join(',')}] to [${action.to.join(',')}]`;
-    case 'CONTRACTION_SUBSTITUTED':
+    case "LEVEL_WIDENED":
+      return `Widened levels from [${action.from.join(",")}] to [${action.to.join(",")}]`;
+    case "CONTRACTION_SUBSTITUTED":
       return `Substituted contraction from ${action.needed} to ${action.used}`;
   }
 }
@@ -113,7 +137,7 @@ function actionToTraceDescription(action: FallbackAction): string {
  */
 export async function selectExercises(
   ctx: BlockContextWithFormat,
-  db: MySql2Database<typeof schema>
+  db: MySql2Database<typeof schema>,
 ): Promise<BlockContextWithExercises> {
   const allowedLevels = getAllowedLevels(ctx.levelGroup);
   const selectedExercises: SelectedExercise[] = [];
@@ -124,39 +148,41 @@ export async function selectExercises(
   const excludedNames: Set<string> = new Set();
 
   // Calculate linear difficulty target (handles Nivel Superior and high-intensity shifts)
-  const { minDificultadLineal, maxDificultadLineal, targetLevel } = getLinearDifficultyTarget(
-    ctx.memberLevel,
-    ctx.intensity,
-    ctx.difficultyBucket
-  );
+  const { minDificultadLineal, maxDificultadLineal, targetLevel } =
+    getLinearDifficultyTarget(
+      ctx.memberLevel,
+      ctx.intensity,
+      ctx.difficultyBucket,
+    );
 
   // Add trace if level was shifted
   if (targetLevel !== ctx.memberLevel) {
     const shiftTrace = createTraceEvent(
       updatedCtx,
-      'HIGH_INTENSITY_LEVEL_SHIFT',
-      'INFO',
+      "HIGH_INTENSITY_LEVEL_SHIFT",
+      "INFO",
       {
         fromLevel: ctx.memberLevel,
         toLevel: targetLevel,
         intensity: ctx.intensity,
         maxDificultadLineal,
         difficultyBucket: ctx.difficultyBucket,
-        reason: ctx.difficultyBucket.includes('Nivel Superior')
+        reason: ctx.difficultyBucket.includes("Nivel Superior")
           ? `Nivel Superior at ${ctx.intensity}% maps to ${targetLevel} level`
           : `Intensity ${ctx.intensity}% >= 90% triggers level shift`,
-      }
+      },
     );
     updatedCtx = appendTrace(updatedCtx, shiftTrace);
   }
 
   // Cross-route exercise selection (2+1 split) for non-INITIUM blocks with 3 exercises
-  const totalExercises = ctx.contractionMix.CON + ctx.contractionMix.EXC + ctx.contractionMix.ISO;
+  const totalExercises =
+    ctx.contractionMix.CON + ctx.contractionMix.EXC + ctx.contractionMix.ISO;
   const adjustedMix = { ...ctx.contractionMix };
 
-  if (ctx.role !== 'INITIUM' && totalExercises === 3 && ctx.pattern2) {
+  if (ctx.role !== "INITIUM" && totalExercises === 3 && ctx.pattern2) {
     // Find the last contraction type with count > 0 (order: CON, EXC, ISO)
-    const contractionOrder: Contraction[] = ['CON', 'EXC', 'ISO'];
+    const contractionOrder: Contraction[] = ["CON", "EXC", "ISO"];
     let crossContraction: Contraction | null = null;
     for (let i = contractionOrder.length - 1; i >= 0; i--) {
       if (adjustedMix[contractionOrder[i]] > 0) {
@@ -174,7 +200,7 @@ export async function selectExercises(
         minDificultadLineal,
         maxDificultadLineal,
         allowedLevels,
-        excludedNames
+        excludedNames,
       );
 
       if (crossPool.length > 0) {
@@ -188,6 +214,7 @@ export async function selectExercises(
           contraction: picked.contraction,
           difficulty: picked.dificultadLineal,
           crossRoute: true,
+          isUnilateral: checkUnilateral(picked),
         });
         excludedNames.add(picked.name);
 
@@ -196,27 +223,28 @@ export async function selectExercises(
 
         const crossTrace = createTraceEvent(
           updatedCtx,
-          'CROSS_ROUTE_EXERCISE_SELECTED',
-          'INFO',
+          "CROSS_ROUTE_EXERCISE_SELECTED",
+          "INFO",
           {
             pattern2: ctx.pattern2,
             crossContraction,
             exercise: { id: picked.id, name: picked.name },
             sourceRoute: ctx.route,
-          }
+          },
         );
         updatedCtx = appendTrace(updatedCtx, crossTrace);
       } else {
         // pattern2 is route-specific or no cross-route candidates available
         const emptyTrace = createTraceEvent(
           updatedCtx,
-          'CROSS_ROUTE_POOL_EMPTY',
-          'INFO',
+          "CROSS_ROUTE_POOL_EMPTY",
+          "INFO",
           {
             pattern2: ctx.pattern2,
             route: ctx.route,
-            reason: 'No cross-route exercises found for pattern2; all 3 from block route',
-          }
+            reason:
+              "No cross-route exercises found for pattern2; all 3 from block route",
+          },
         );
         updatedCtx = appendTrace(updatedCtx, emptyTrace);
       }
@@ -224,7 +252,7 @@ export async function selectExercises(
   }
 
   // Process each contraction type (using adjusted mix after cross-route selection)
-  for (const contraction of ['CON', 'EXC', 'ISO'] as const) {
+  for (const contraction of ["CON", "EXC", "ISO"] as const) {
     const requiredCount = adjustedMix[contraction];
 
     if (requiredCount === 0) {
@@ -244,18 +272,18 @@ export async function selectExercises(
         memberLevel: targetLevel, // For Tier 0 exact match (may be shifted up)
         excludeNames: excludedNames, // Prevent duplicate exercise names
       },
-      db
+      db,
     );
 
     // Handle fallback result
-    if (result.status === 'failed') {
+    if (result.status === "failed") {
       anyFailed = true;
 
       // Emit warning trace for failed contraction type
       const warningTrace = createTraceEvent(
         updatedCtx,
-        'EXERCISE_SELECTION_FAILED',
-        'WARNING',
+        "EXERCISE_SELECTION_FAILED",
+        "WARNING",
         {
           contraction,
           required: requiredCount,
@@ -263,25 +291,25 @@ export async function selectExercises(
           route: ctx.route,
           fallbackTier: result.tier,
           actions: result.actions.map(actionToTraceDescription),
-        }
+        },
       );
       updatedCtx = appendTrace(updatedCtx, warningTrace);
       continue; // Continue with other contraction types
     }
 
     // Add fallback traces if any relaxation was applied
-    if (result.status === 'fallback') {
+    if (result.status === "fallback") {
       for (const action of result.actions) {
         const fallbackTrace = createTraceEvent(
           updatedCtx,
-          'EXERCISE_FALLBACK',
-          'WARNING',
+          "EXERCISE_FALLBACK",
+          "WARNING",
           {
             contraction,
             tier: action.tier,
             action: action.type,
             description: actionToTraceDescription(action),
-          }
+          },
         );
         updatedCtx = appendTrace(updatedCtx, fallbackTrace);
       }
@@ -294,6 +322,7 @@ export async function selectExercises(
         name: ex.name,
         contraction: ex.contraction,
         difficulty: ex.dificultadLineal, // Use linear difficulty
+        isUnilateral: checkUnilateral(ex),
       });
       // Add to excluded names for subsequent contraction queries
       excludedNames.add(ex.name);
@@ -302,16 +331,16 @@ export async function selectExercises(
     // Emit success trace for this contraction type
     const traceEvent = createTraceEvent(
       updatedCtx,
-      'EXERCISES_SELECTED',
-      'INFO',
+      "EXERCISES_SELECTED",
+      "INFO",
       {
         contraction,
         required: requiredCount,
         selected: result.data.length,
         fallbackTier: result.tier,
-        usedFallback: result.status === 'fallback',
-        exercises: result.data.map(e => ({ id: e.id, name: e.name })),
-      }
+        usedFallback: result.status === "fallback",
+        exercises: result.data.map((e) => ({ id: e.id, name: e.name })),
+      },
     );
     updatedCtx = appendTrace(updatedCtx, traceEvent);
   }
@@ -320,16 +349,16 @@ export async function selectExercises(
   if (selectedExercises.length === 0) {
     const errorTrace = createTraceEvent(
       updatedCtx,
-      'EXERCISE_SELECTION_TOTAL_FAILURE',
-      'ERROR',
+      "EXERCISE_SELECTION_TOTAL_FAILURE",
+      "ERROR",
       {
         route: ctx.route,
         contractionMix: ctx.contractionMix,
-      }
+      },
     );
     updatedCtx = appendTrace(updatedCtx, errorTrace);
     throw new Error(
-      `No exercises found for any contraction type: route=${ctx.route}, mix=${JSON.stringify(ctx.contractionMix)}`
+      `No exercises found for any contraction type: route=${ctx.route}, mix=${JSON.stringify(ctx.contractionMix)}`,
     );
   }
 
@@ -337,19 +366,24 @@ export async function selectExercises(
   if (anyFailed) {
     const summaryTrace = createTraceEvent(
       updatedCtx,
-      'EXERCISE_SELECTION_PARTIAL',
-      'WARNING',
+      "EXERCISE_SELECTION_PARTIAL",
+      "WARNING",
       {
-        totalRequired: ctx.contractionMix.CON + ctx.contractionMix.EXC + ctx.contractionMix.ISO,
+        totalRequired:
+          ctx.contractionMix.CON +
+          ctx.contractionMix.EXC +
+          ctx.contractionMix.ISO,
         totalSelected: selectedExercises.length,
-      }
+      },
     );
     updatedCtx = appendTrace(updatedCtx, summaryTrace);
   }
 
   // Check for all-ISO block when mix expected non-ISO exercises
   const expectedNonISO = ctx.contractionMix.CON + ctx.contractionMix.EXC;
-  const actualNonISO = selectedExercises.filter(e => e.contraction !== 'ISO').length;
+  const actualNonISO = selectedExercises.filter(
+    (e) => e.contraction !== "ISO",
+  ).length;
   const allISO = actualNonISO === 0 && selectedExercises.length > 0;
 
   if (allISO && expectedNonISO > 0) {
@@ -357,17 +391,17 @@ export async function selectExercises(
     // This can happen when CON/EXC fallbacks substitute to ISO
     const isoWarningTrace = createTraceEvent(
       updatedCtx,
-      'CONTRACTION_MIX_ALL_ISO',
-      'WARNING',
+      "CONTRACTION_MIX_ALL_ISO",
+      "WARNING",
       {
         expected: ctx.contractionMix,
         actualCounts: {
-          CON: selectedExercises.filter(e => e.contraction === 'CON').length,
-          EXC: selectedExercises.filter(e => e.contraction === 'EXC').length,
-          ISO: selectedExercises.filter(e => e.contraction === 'ISO').length,
+          CON: selectedExercises.filter((e) => e.contraction === "CON").length,
+          EXC: selectedExercises.filter((e) => e.contraction === "EXC").length,
+          ISO: selectedExercises.filter((e) => e.contraction === "ISO").length,
         },
-        message: 'All exercises are isometric; mix expected non-ISO exercises',
-      }
+        message: "All exercises are isometric; mix expected non-ISO exercises",
+      },
     );
     updatedCtx = appendTrace(updatedCtx, isoWarningTrace);
   }

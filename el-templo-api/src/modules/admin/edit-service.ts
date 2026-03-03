@@ -278,6 +278,8 @@ export class AdminEditService {
     if (fields.increment !== undefined) updateSet.increment = fields.increment;
     if (fields.rest !== undefined) updateSet.rest = fields.rest;
     if (fields.notes !== undefined) updateSet.notes = fields.notes;
+    if (fields.contraction !== undefined)
+      updateSet.contraction = fields.contraction;
 
     if (Object.keys(updateSet).length === 0) {
       throw new Error("No hay campos para actualizar");

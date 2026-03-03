@@ -5,9 +5,13 @@
         {{ exercise.exerciseName }}
       </q-item-label>
       <q-item-label caption>
-        <q-chip dense size="sm" :color="contractionColor" text-color="white">
-          {{ contractionLabel }}
-        </q-chip>
+        <q-chip
+          dense
+          size="sm"
+          :color="contractionColor"
+          text-color="white"
+          :label="contractionLabel"
+        />
         <q-badge
           v-if="exercise.route"
           :color="exercise.route === blockRoute ? 'green' : 'deep-orange'"

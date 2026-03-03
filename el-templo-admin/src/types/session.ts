@@ -149,6 +149,7 @@ export interface PrescriptionUpdate {
   increment?: number | null;
   rest?: number;
   notes?: string;
+  contraction?: 'CON' | 'EXC' | 'ISO';
 }
 
 // Session preview for member preview modal

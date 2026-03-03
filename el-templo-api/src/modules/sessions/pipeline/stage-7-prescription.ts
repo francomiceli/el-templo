@@ -21,9 +21,34 @@ import { prescribeByFormat } from "./format-prescribers";
 import {
   calculateInverseDifficultyWeights,
   allocateRepsRounded,
+  roundToEven,
 } from "./utils/reps-calculator";
 import { REST_TIMES, ISO_SECONDS } from "./utils/constants";
 import { getDefaultFormatParams } from "../../admin/format-params";
+
+/**
+ * Ensure unilateral exercises (OA/OL) have even rep counts.
+ * Unilateral exercises are done per-side, so odd reps create imbalance.
+ */
+function adjustUnilateralReps(
+  prescriptions: ExercisePrescription[],
+  exercises: readonly import("../types").SelectedExercise[],
+): ExercisePrescription[] {
+  // Build lookup of unilateral exercises by exerciseId
+  const unilateralIds = new Set(
+    exercises.filter((e) => e.isUnilateral).map((e) => e.exerciseId),
+  );
+
+  if (unilateralIds.size === 0) return prescriptions;
+
+  return prescriptions.map((p) => {
+    if (!unilateralIds.has(p.exerciseId)) return p;
+    if (p.reps > 0 && p.reps % 2 !== 0) {
+      return { ...p, reps: roundToEven(p.reps) };
+    }
+    return p;
+  });
+}
 
 /** Calculate rest time based on intensity (lower intensity = shorter rest) */
 export function calculateRest(intensity: number): number {
@@ -91,13 +116,19 @@ export function generatePrescriptions(
   });
 
   if (formatPrescriptions) {
+    // Adjust unilateral exercises to have even reps
+    const adjustedPrescriptions = adjustUnilateralReps(
+      formatPrescriptions,
+      exercises,
+    );
+
     // Format-specific logic was applied
     const traceEvent = createTraceEvent(
       ctx,
       "PRESCRIPTIONS_GENERATED",
       "INFO",
       {
-        exerciseCount: formatPrescriptions.length,
+        exerciseCount: adjustedPrescriptions.length,
         repsBudget,
         format: format.name,
         distributionMethod: "format_specific",
@@ -113,7 +144,7 @@ export function generatePrescriptions(
 
     return {
       ...appendTrace(ctx, traceEvent),
-      prescriptions: formatPrescriptions,
+      prescriptions: adjustedPrescriptions,
       formatParams,
     };
   }
@@ -122,7 +153,7 @@ export function generatePrescriptions(
   const weights = calculateInverseDifficultyWeights(exercises);
   const repsAllocation = allocateRepsRounded(exercises, repsBudget, weights);
 
-  const prescriptions: ExercisePrescription[] = exercises.map(
+  const rawPrescriptions: ExercisePrescription[] = exercises.map(
     (exercise, index) => {
       // ISO exercises use seconds instead of reps
       const isIsometric = exercise.contraction === "ISO";
@@ -138,6 +169,9 @@ export function generatePrescriptions(
       };
     },
   );
+
+  // Adjust unilateral exercises to have even reps
+  const prescriptions = adjustUnilateralReps(rawPrescriptions, exercises);
 
   const traceEvent = createTraceEvent(ctx, "PRESCRIPTIONS_GENERATED", "INFO", {
     exerciseCount,

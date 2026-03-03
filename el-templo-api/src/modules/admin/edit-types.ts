@@ -60,6 +60,7 @@ export interface UpdatePrescriptionParams {
     increment?: number | null;
     rest?: number;
     notes?: string | null;
+    contraction?: "CON" | "EXC" | "ISO";
   };
 }
 

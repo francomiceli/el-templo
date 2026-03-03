@@ -4,9 +4,36 @@
     <q-item-section>
       <q-item-label class="text-weight-medium row items-center">
         {{ exercise.exerciseName }}
-        <q-chip dense size="sm" :color="contractionColor" text-color="white" class="q-ml-sm">
-          {{ contractionLabel }}
-        </q-chip>
+        <span class="q-ml-sm cursor-pointer">
+          <q-chip
+            dense
+            size="sm"
+            :color="contractionColor"
+            text-color="white"
+            clickable
+            :label="contractionLabel"
+          />
+          <q-menu auto-close>
+            <q-list dense style="min-width: 140px">
+              <q-item
+                v-for="opt in contractionOptions"
+                :key="opt.value"
+                clickable
+                :active="normalizeContraction(exercise.contraction) === opt.value"
+                @click="changeContraction(opt.value)"
+              >
+                <q-item-section avatar>
+                  <q-badge
+                    :color="getContractionColor(opt.value)"
+                    text-color="white"
+                    :label="opt.value"
+                  />
+                </q-item-section>
+                <q-item-section>{{ opt.label }}</q-item-section>
+              </q-item>
+            </q-list>
+          </q-menu>
+        </span>
         <q-badge
           v-if="exercise.dificultadLineal"
           outline
@@ -304,6 +331,17 @@ const emit = defineEmits<{
   (e: 'move', payload: { prescriptionId: number; direction: 'up' | 'down' }): void;
 }>();
 
+// Contraction type options for the dropdown
+const contractionOptions = [
+  { value: 'CON' as const, label: 'Concéntrico' },
+  { value: 'EXC' as const, label: 'Excéntrico' },
+  { value: 'ISO' as const, label: 'Isométrico' },
+];
+
+// Guard: suppress blur-triggered emitUpdate during contraction changes
+// (DOM teardown of reps/seconds fields fires @blur with stale data)
+let contractionChanging = false;
+
 // Local refs for editable fields
 const localReps = ref<number | null>(props.exercise.reps);
 const localRepsMax = ref<number | null>(props.exercise.repsMax);
@@ -340,6 +378,40 @@ function togglePausa() {
   emitUpdate();
 }
 
+function changeContraction(newContraction: 'CON' | 'EXC' | 'ISO') {
+  const current = normalizeContraction(props.exercise.contraction);
+  if (current === newContraction) return;
+
+  // Guard: suppress stale blur events from DOM teardown
+  contractionChanging = true;
+  setTimeout(() => {
+    contractionChanging = false;
+  }, 50);
+
+  const fields: PrescriptionUpdate = { contraction: newContraction };
+
+  // Switching to ISO: clear reps, set default seconds
+  if (newContraction === 'ISO') {
+    fields.reps = 0;
+    fields.seconds = 30;
+    fields.repsMax = null;
+    localReps.value = 0;
+    localSeconds.value = 30;
+    localRepsMax.value = null;
+  }
+  // Switching from ISO to CON/EXC: clear seconds, set default reps
+  else if (current === 'ISO') {
+    fields.seconds = 0;
+    fields.reps = 10;
+    fields.secondsMax = null;
+    localSeconds.value = 0;
+    localReps.value = 10;
+    localSecondsMax.value = null;
+  }
+
+  emit('update', { prescriptionId: props.exercise.id, fields });
+}
+
 /** Coerce v-model.number quirks: empty string / NaN → null */
 function toIntOrNull(v: number | string | null | undefined): number | null {
   if (v === '' || v === null || v === undefined) return null;
@@ -348,6 +420,9 @@ function toIntOrNull(v: number | string | null | undefined): number | null {
 }
 
 function emitUpdate() {
+  // Skip blur-triggered updates during contraction type change
+  if (contractionChanging) return;
+
   // Sanitize all numeric locals — v-model.number can produce "" on empty input
   const reps = toIntOrNull(localReps.value);
   const repsMax = toIntOrNull(localRepsMax.value);

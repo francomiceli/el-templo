@@ -85,6 +85,8 @@ export interface SelectedExercise {
   readonly contraction: Contraction;
   readonly difficulty: number;
   readonly crossRoute?: boolean;
+  /** Whether this is a unilateral exercise (OA/OL) — reps should be even */
+  readonly isUnilateral?: boolean;
 }
 
 /** Exercise prescription with dose, rest, and notes */

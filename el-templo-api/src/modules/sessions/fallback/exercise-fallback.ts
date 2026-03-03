@@ -10,8 +10,9 @@
  * Fallback Tiers:
  * 0: Exact match (route + contraction + linear difficulty + level)
  * 1: Relax difficulty (allow any dificultad_lineal)
- * 2: Widen level filter (include lower levels)
- * 3: Widen scope (search parent category if route yields nothing)
+ * 1.5: Include exercises with empty effort field
+ * 2: Widen scope (search parent category — keeps same level)
+ * 3: Widen level filter (graduated — nearby levels first)
  * 4: Substitute contraction (if no ISO, try EXC, then CON)
  */
 
@@ -34,6 +35,8 @@ export interface ExerciseCandidate {
   /** Linear difficulty on 1-12 scale */
   readonly dificultadLineal: number;
   readonly contraction: Contraction;
+  /** Position descriptor (e.g., "O.L", "O.A", "TUCK") */
+  readonly position: string | null;
 }
 
 /** Contraction substitution order for fallback */
@@ -43,7 +46,7 @@ const CONTRACTION_SUBSTITUTION: Record<Contraction, Contraction[]> = {
   CON: ["EXC", "ISO"],
 };
 
-/** Level widening for each level group */
+/** Level widening for each level group (graduated to avoid pulling distant levels) */
 const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
   alfa_delta: [
     ["alfa", "delta"],
@@ -55,7 +58,11 @@ const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
     ["alfa", "delta", "sigma", "omega"],
     ["alfa", "delta", "sigma", "omega", "spartan"],
   ],
-  omega: [["alfa", "delta", "sigma", "omega", "spartan"]],
+  omega: [
+    ["omega", "spartan"],
+    ["sigma", "omega", "spartan"],
+    ["alfa", "delta", "sigma", "omega", "spartan"],
+  ],
 };
 
 /**
@@ -89,6 +96,7 @@ async function queryExercises(
       id: schema.exercises.id,
       name: schema.exercises.exercise,
       dificultadLineal: schema.exercises.dificultadLineal,
+      position: schema.exercises.position,
     })
     .from(schema.exercises)
     .where(
@@ -112,6 +120,7 @@ async function queryExercises(
     name: r.name,
     dificultadLineal: r.dificultadLineal,
     contraction,
+    position: r.position,
   }));
 }
 
@@ -135,6 +144,7 @@ async function queryExercisesIncludingEmptyEffort(
       name: schema.exercises.exercise,
       dificultadLineal: schema.exercises.dificultadLineal,
       effort: schema.exercises.effort,
+      position: schema.exercises.position,
     })
     .from(schema.exercises)
     .where(
@@ -169,6 +179,7 @@ async function queryExercisesIncludingEmptyEffort(
     name: r.name,
     dificultadLineal: r.dificultadLineal,
     contraction, // Assign the requested contraction type
+    position: r.position,
   }));
 }
 
@@ -197,6 +208,7 @@ async function queryExercisesWithScopeWidening(
       id: schema.exercises.id,
       name: schema.exercises.exercise,
       dificultadLineal: schema.exercises.dificultadLineal,
+      position: schema.exercises.position,
     })
     .from(schema.exercises)
     .where(
@@ -220,6 +232,7 @@ async function queryExercisesWithScopeWidening(
     name: r.name,
     dificultadLineal: r.dificultadLineal,
     contraction,
+    position: r.position,
   }));
 }
 
@@ -350,42 +363,8 @@ export async function selectExercisesWithFallback(
     }
   }
 
-  // Tier 2: Widen level filter
-  if (policy.maxTier >= 2 && policy.relaxationOrder.includes("level")) {
-    const originalLevels = currentLevels;
-    currentLevels = getExpandedLevels(levelGroup, 2);
-
-    pool = await queryExercises(
-      db,
-      currentRoute,
-      currentContraction,
-      currentMinDificultadLineal,
-      currentDificultadLineal,
-      currentLevels,
-      excludeNames,
-    );
-
-    actions.push({
-      type: "LEVEL_WIDENED",
-      tier: 2,
-      from: originalLevels,
-      to: currentLevels,
-    });
-
-    if (pool.length >= count) {
-      const sorted = [...pool].sort((a, b) => a.id - b.id);
-      const selected = sorted.slice(0, count);
-      return {
-        status: "fallback",
-        data: selected,
-        tier: 2,
-        actions,
-      };
-    }
-  }
-
-  // Tier 3: Widen scope
-  if (policy.maxTier >= 3 && policy.relaxationOrder.includes("scope")) {
+  // Tier 2: Widen scope (try related routes at same level before widening levels)
+  if (policy.maxTier >= 2 && policy.relaxationOrder.includes("scope")) {
     const originalRoute = currentRoute;
 
     pool = await queryExercisesWithScopeWidening(
@@ -402,7 +381,7 @@ export async function selectExercisesWithFallback(
       const parentRoute = currentRoute.split("-")[0];
       actions.push({
         type: "SCOPE_WIDENED",
-        tier: 3,
+        tier: 2,
         from: originalRoute,
         to: `${parentRoute}*`,
       });
@@ -414,10 +393,44 @@ export async function selectExercisesWithFallback(
         return {
           status: "fallback",
           data: selected,
-          tier: 3,
+          tier: 2,
           actions,
         };
       }
+    }
+  }
+
+  // Tier 3: Widen level filter (graduated — nearby levels first)
+  if (policy.maxTier >= 3 && policy.relaxationOrder.includes("level")) {
+    const originalLevels = currentLevels;
+    currentLevels = getExpandedLevels(levelGroup, 2);
+
+    pool = await queryExercises(
+      db,
+      currentRoute,
+      currentContraction,
+      currentMinDificultadLineal,
+      currentDificultadLineal,
+      currentLevels,
+      excludeNames,
+    );
+
+    actions.push({
+      type: "LEVEL_WIDENED",
+      tier: 3,
+      from: originalLevels,
+      to: currentLevels,
+    });
+
+    if (pool.length >= count) {
+      const sorted = [...pool].sort((a, b) => a.id - b.id);
+      const selected = sorted.slice(0, count);
+      return {
+        status: "fallback",
+        data: selected,
+        tier: 3,
+        actions,
+      };
     }
   }
 
@@ -506,6 +519,7 @@ export async function queryCrossRouteExercises(
         id: schema.exercises.id,
         name: schema.exercises.exercise,
         dificultadLineal: schema.exercises.dificultadLineal,
+        position: schema.exercises.position,
       })
       .from(schema.exercises)
       .where(
@@ -528,6 +542,7 @@ export async function queryCrossRouteExercises(
           id: schema.exercises.id,
           name: schema.exercises.exercise,
           dificultadLineal: schema.exercises.dificultadLineal,
+          position: schema.exercises.position,
         })
         .from(schema.exercises)
         .where(
@@ -556,6 +571,7 @@ export async function queryCrossRouteExercises(
       name: r.name,
       dificultadLineal: r.dificultadLineal,
       contraction,
+      position: r.position,
     }));
   }
 

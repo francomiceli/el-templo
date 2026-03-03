@@ -5,10 +5,10 @@
  * are traced for auditability in the pipeline.
  */
 
-import type { Contraction, LevelGroup, ExerciseLevel } from '../types';
+import type { Contraction, LevelGroup, ExerciseLevel } from "../types";
 
 /** Re-export ExerciseLevel for backward compatibility */
-export type { ExerciseLevel } from '../types';
+export type { ExerciseLevel } from "../types";
 
 /**
  * Fallback result discriminated union
@@ -18,9 +18,9 @@ export type { ExerciseLevel } from '../types';
  * - failed: No matches found even after max relaxation
  */
 export type FallbackResult<T> =
-  | { status: 'exact'; data: T[]; tier: 0; actions: [] }
-  | { status: 'fallback'; data: T[]; tier: number; actions: FallbackAction[] }
-  | { status: 'failed'; data: []; tier: number; actions: FallbackAction[] };
+  | { status: "exact"; data: T[]; tier: 0; actions: [] }
+  | { status: "fallback"; data: T[]; tier: number; actions: FallbackAction[] }
+  | { status: "failed"; data: []; tier: number; actions: FallbackAction[] };
 
 /**
  * Fallback action discriminated union
@@ -28,11 +28,21 @@ export type FallbackResult<T> =
  * Records what relaxation was applied at each tier.
  */
 export type FallbackAction =
-  | { type: 'DIFFICULTY_RELAXED'; tier: number; from: number; to: number }
-  | { type: 'EFFORT_RELAXED'; tier: number; contraction: Contraction }
-  | { type: 'LEVEL_WIDENED'; tier: number; from: readonly ExerciseLevel[]; to: readonly ExerciseLevel[] }
-  | { type: 'SCOPE_WIDENED'; tier: number; from: string; to: string }
-  | { type: 'CONTRACTION_SUBSTITUTED'; tier: number; needed: Contraction; used: Contraction };
+  | { type: "DIFFICULTY_RELAXED"; tier: number; from: number; to: number }
+  | { type: "EFFORT_RELAXED"; tier: number; contraction: Contraction }
+  | {
+      type: "LEVEL_WIDENED";
+      tier: number;
+      from: readonly ExerciseLevel[];
+      to: readonly ExerciseLevel[];
+    }
+  | { type: "SCOPE_WIDENED"; tier: number; from: string; to: string }
+  | {
+      type: "CONTRACTION_SUBSTITUTED";
+      tier: number;
+      needed: Contraction;
+      used: Contraction;
+    };
 
 /**
  * Fallback policy configuration
@@ -41,7 +51,12 @@ export type FallbackAction =
  */
 export interface FallbackPolicy {
   readonly maxTier: number;
-  readonly relaxationOrder: readonly ('difficulty' | 'level' | 'scope' | 'contraction')[];
+  readonly relaxationOrder: readonly (
+    | "difficulty"
+    | "level"
+    | "scope"
+    | "contraction"
+  )[];
 }
 
 /**
@@ -49,13 +64,14 @@ export interface FallbackPolicy {
  *
  * Tier 0: Exact match
  * Tier 1: Relax difficulty
- * Tier 2: Widen level filter
- * Tier 3: Widen scope (search parent category)
+ * Tier 1.5: Include empty effort exercises
+ * Tier 2: Widen scope (search parent category — same level)
+ * Tier 3: Widen level filter (graduated — nearby levels first)
  * Tier 4: Substitute contraction type
  */
 export const DEFAULT_EXERCISE_POLICY: FallbackPolicy = {
   maxTier: 4,
-  relaxationOrder: ['difficulty', 'level', 'scope', 'contraction'],
+  relaxationOrder: ["difficulty", "scope", "level", "contraction"],
 };
 
 /**
@@ -67,7 +83,7 @@ export const DEFAULT_EXERCISE_POLICY: FallbackPolicy = {
  */
 export const DEFAULT_FORMAT_POLICY: FallbackPolicy = {
   maxTier: 2,
-  relaxationOrder: ['difficulty', 'level'], // intensity relaxation handled specially
+  relaxationOrder: ["difficulty", "level"], // intensity relaxation handled specially
 };
 
 /**
@@ -92,7 +108,7 @@ export interface ExerciseRequirements {
  * Format requirements for fallback selection
  */
 export interface FormatRequirements {
-  readonly block: 'initium' | 'nucleus' | 'deuteros' | 'athlos' | 'epikos';
-  readonly level: 'alfa' | 'delta' | 'sigma' | 'omega';
+  readonly block: "initium" | "nucleus" | "deuteros" | "athlos" | "epikos";
+  readonly level: "alfa" | "delta" | "sigma" | "omega";
   readonly intensity: number;
 }
