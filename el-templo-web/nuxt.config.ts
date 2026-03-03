@@ -42,7 +42,7 @@ export default defineNuxtConfig({
     preset: "static",
     prerender: {
       failOnError: false,
-      ignore: ["/app", "/aura-club"],
+      ignore: ["/aura-club"],
     },
   },
 
