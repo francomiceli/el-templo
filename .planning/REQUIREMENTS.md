@@ -363,15 +363,15 @@
 - [x] **APP-16**: Labs module detail section (proximamente, Azul Noche accent, dual CTA for franchisees/external gyms)
 - [x] **APP-17**: Flywheel Digital vertical flow (Arete -> El Templo -> Academy -> Labs) on Deep Charcoal background
 - [x] **APP-18**: Download section with store badges + phone mockup placeholder
-- [ ] **APP-19**: Form A — module notification waitlist (4 fields: nombre, email, modulo multi-select, ciudad/pais)
-- [ ] **APP-20**: Form B — Labs external gyms (8 fields: nombre, email, telefono, nombre gimnasio, ciudad/pais, cantidad socios, sistema actual, mensaje)
-- [ ] **APP-21**: Floating WhatsApp button (AppWhatsApp.vue)
-- [ ] **APP-22**: SectionConversion app CTA updated from app.eltemplo.org to /app
-- [ ] **APP-23**: AppNav updated with App/Templo Online link
-- [ ] **APP-24**: AppFooter Templo Online link enabled (disabled: false)
+- [x] **APP-19**: Form A — module notification waitlist (4 fields: nombre, email, modulo multi-select, ciudad/pais)
+- [x] **APP-20**: Form B — Labs external gyms (8 fields: nombre, email, telefono, nombre gimnasio, ciudad/pais, cantidad socios, sistema actual, mensaje)
+- [x] **APP-21**: Floating WhatsApp button (AppWhatsApp.vue)
+- [x] **APP-22**: SectionConversion app CTA updated from app.eltemplo.org to /app
+- [x] **APP-23**: AppNav updated with App/Templo Online link
+- [x] **APP-24**: AppFooter Templo Online link enabled (disabled: false)
 - [x] **APP-25**: /app removed from prerender ignore list in nuxt.config.ts
-- [ ] **APP-26**: SEO meta tags (title, description, OG, canonical)
-- [ ] **APP-27**: GA4 events: click_cta_app_download, form_submit_app_waitlist, form_submit_labs_inquiry + Meta Pixel trackLead on form B
+- [x] **APP-26**: SEO meta tags (title, description, OG, canonical)
+- [x] **APP-27**: GA4 events: click_cta_app_download, form_submit_app_waitlist, form_submit_labs_inquiry + Meta Pixel trackLead on form B
 - [x] **APP-28**: Module state flags data-driven (active/proximamente togglable without redesign)
 
 ## Traceability (continued)
@@ -408,34 +408,34 @@
 | ACAD-28     | Phase 43 | Planned |
 | ACAD-29     | Phase 43 | Planned |
 
-| APP-01 | Phase 44 | Planned |
-| APP-02 | Phase 44 | Planned |
-| APP-03 | Phase 44 | Planned |
-| APP-04 | Phase 44 | Planned |
-| APP-05 | Phase 44 | Planned |
-| APP-06 | Phase 44 | Planned |
-| APP-07 | Phase 44 | Planned |
-| APP-08 | Phase 44 | Planned |
-| APP-09 | Phase 44 | Planned |
-| APP-10 | Phase 44 | Planned |
-| APP-11 | Phase 44 | Planned |
-| APP-12 | Phase 44 | Planned |
-| APP-13 | Phase 44 | Planned |
-| APP-14 | Phase 44 | Planned |
-| APP-15 | Phase 44 | Planned |
-| APP-16 | Phase 44 | Planned |
-| APP-17 | Phase 44 | Planned |
-| APP-18 | Phase 44 | Planned |
-| APP-19 | Phase 44 | Planned |
-| APP-20 | Phase 44 | Planned |
-| APP-21 | Phase 44 | Planned |
-| APP-22 | Phase 44 | Planned |
-| APP-23 | Phase 44 | Planned |
-| APP-24 | Phase 44 | Planned |
-| APP-25 | Phase 44 | Planned |
-| APP-26 | Phase 44 | Planned |
-| APP-27 | Phase 44 | Planned |
-| APP-28 | Phase 44 | Planned |
+| APP-01 | Phase 44 | Complete |
+| APP-02 | Phase 44 | Complete |
+| APP-03 | Phase 44 | Complete |
+| APP-04 | Phase 44 | Complete |
+| APP-05 | Phase 44 | Complete |
+| APP-06 | Phase 44 | Complete |
+| APP-07 | Phase 44 | Complete |
+| APP-08 | Phase 44 | Complete |
+| APP-09 | Phase 44 | Complete |
+| APP-10 | Phase 44 | Complete |
+| APP-11 | Phase 44 | Complete |
+| APP-12 | Phase 44 | Complete |
+| APP-13 | Phase 44 | Complete |
+| APP-14 | Phase 44 | Complete |
+| APP-15 | Phase 44 | Complete |
+| APP-16 | Phase 44 | Complete |
+| APP-17 | Phase 44 | Complete |
+| APP-18 | Phase 44 | Complete |
+| APP-19 | Phase 44 | Complete |
+| APP-20 | Phase 44 | Complete |
+| APP-21 | Phase 44 | Complete |
+| APP-22 | Phase 44 | Complete |
+| APP-23 | Phase 44 | Complete |
+| APP-24 | Phase 44 | Complete |
+| APP-25 | Phase 44 | Complete |
+| APP-26 | Phase 44 | Complete |
+| APP-27 | Phase 44 | Complete |
+| APP-28 | Phase 44 | Complete |
 
 **Coverage:**
 
@@ -446,4 +446,4 @@
 ---
 
 _Requirements defined: 2026-02-28_
-_Last updated: 2026-03-03 — APP requirements added for Phase 44 (28 requirements)_
+_Last updated: 2026-03-03 — Phase 44 complete, all 28 APP requirements marked complete_
