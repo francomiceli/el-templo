@@ -23,6 +23,7 @@ const navLinks: NavLink[] = [
     modifier: "gladius",
   },
   { label: "Blog", href: "/blog", sectionId: null },
+  { label: "Academy", href: "/academy", sectionId: null },
 ];
 
 const WHATSAPP_URL =

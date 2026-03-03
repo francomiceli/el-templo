@@ -42,12 +42,16 @@ onBeforeUnmount(() => {
 });
 
 // SVG node positions: top, right, bottom, left (clockwise)
-const nodePositions = [
+const nodePositions: { cx: number; cy: number }[] = [
   { cx: 200, cy: 60 }, // top — ENTRENÁ
   { cx: 340, cy: 200 }, // right — FORMATE
   { cx: 200, cy: 340 }, // bottom — LIDERÁ
   { cx: 60, cy: 200 }, // left — INVERTÍ
 ];
+
+function getNodePos(index: number): { cx: number; cy: number } {
+  return nodePositions[index] ?? { cx: 200, cy: 200 };
+}
 
 // Curved arrow paths between nodes (clockwise)
 const arrowPaths = [
@@ -122,8 +126,8 @@ const arrowPaths = [
         >
           <!-- Node circle -->
           <circle
-            :cx="nodePositions[index].cx"
-            :cy="nodePositions[index].cy"
+            :cx="getNodePos(index).cx"
+            :cy="getNodePos(index).cy"
             r="35"
             :fill="node.color"
             :stroke="
@@ -139,8 +143,8 @@ const arrowPaths = [
 
           <!-- Node title -->
           <text
-            :x="nodePositions[index].cx"
-            :y="nodePositions[index].cy + 5"
+            :x="getNodePos(index).cx"
+            :y="getNodePos(index).cy + 5"
             text-anchor="middle"
             fill="var(--color-marble-cream)"
             font-size="11"

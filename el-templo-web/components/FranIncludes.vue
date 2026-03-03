@@ -49,6 +49,15 @@ onBeforeUnmount(() => {
           <p class="fran-includes__item-desc">{{ item.description }}</p>
         </div>
       </div>
+
+      <!-- Academy note -->
+      <p class="fran-includes__academy-note">
+        La formaci&oacute;n de entrenadores est&aacute; incluida en tu
+        franquicia.
+        <NuxtLink to="/academy" class="fran-includes__academy-link">
+          Conoc&eacute; Olympic Academy &rarr;
+        </NuxtLink>
+      </p>
     </div>
   </section>
 </template>
@@ -147,6 +156,29 @@ onBeforeUnmount(() => {
   color: var(--color-charcoal-mist);
   line-height: 1.6;
   margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   Academy Note
+   ------------------------------------------------------------------ */
+.fran-includes__academy-note {
+  font-family: var(--font-clarity);
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--color-olive-stone);
+  text-align: center;
+  margin: var(--space-comfortable) 0 0 0;
+}
+
+.fran-includes__academy-link {
+  color: var(--color-terracotta);
+  text-decoration: none;
+  font-weight: 500;
+  transition: text-decoration 200ms ease;
+}
+
+.fran-includes__academy-link:hover {
+  text-decoration: underline;
 }
 
 /* ------------------------------------------------------------------

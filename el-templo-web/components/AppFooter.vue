@@ -35,7 +35,7 @@ const columns: FooterColumn[] = [
     title: "Ecosistema",
     links: [
       { label: "Templo Online", href: "/app", disabled: true },
-      { label: "Academy", href: "/academy", disabled: true },
+      { label: "Academy", href: "/academy", disabled: false },
       { label: "Franquicias", href: "/franquicias", disabled: false },
       { label: "Gladius", href: "/gladius", disabled: false },
       { label: "Blog", href: "/blog", disabled: false },
