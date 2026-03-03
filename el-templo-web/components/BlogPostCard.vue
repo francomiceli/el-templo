@@ -2,8 +2,8 @@
 /**
  * BlogPostCard -- Post card component for the blog index listing.
  *
- * Vertical card layout: cover image (16:9) -> date + reading time -> title -> excerpt -> "Leer mas" CTA.
- * NuxtLink wrapping entire card for accessibility.
+ * Vertical card layout: cover image (16:9) -> date + reading time -> tag pills -> title -> excerpt -> "Leer mas" CTA.
+ * Uses <div> wrapper (not NuxtLink) so tag pills can be independent NuxtLinks without nested <a>.
  * BEM prefix: blog-card
  */
 
@@ -15,6 +15,7 @@ interface BlogPost {
   coverImage: string | null;
   publishedAt: string | null;
   readingTime: number;
+  tags?: Array<{ id: number; name: string; slug: string }>;
 }
 
 const props = defineProps<{
@@ -37,18 +38,20 @@ const formattedDate = computed(() => {
 </script>
 
 <template>
-  <NuxtLink :to="`/blog/${post.slug}`" class="blog-card">
+  <div class="blog-card">
     <!-- Cover image -->
-    <div class="blog-card__image-wrapper">
-      <img
-        v-if="post.coverImage"
-        :src="post.coverImage"
-        :alt="post.title"
-        class="blog-card__image"
-        loading="lazy"
-      >
-      <PlaceholderBox v-else aspect-ratio="16 / 9" label="" />
-    </div>
+    <NuxtLink :to="`/blog/${post.slug}`" class="blog-card__image-link">
+      <div class="blog-card__image-wrapper">
+        <img
+          v-if="post.coverImage"
+          :src="post.coverImage"
+          :alt="post.title"
+          class="blog-card__image"
+          loading="lazy"
+        >
+        <PlaceholderBox v-else aspect-ratio="16 / 9" label="" />
+      </div>
+    </NuxtLink>
 
     <!-- Content -->
     <div class="blog-card__content">
@@ -61,16 +64,28 @@ const formattedDate = computed(() => {
         >
       </div>
 
-      <h2 class="blog-card__title">{{ post.title }}</h2>
+      <!-- Tag pills -->
+      <div v-if="post.tags?.length" class="blog-card__tags">
+        <BlogTagPill
+          v-for="tag in post.tags"
+          :key="tag.id"
+          :tag="tag"
+          size="sm"
+        />
+      </div>
+
+      <NuxtLink :to="`/blog/${post.slug}`" class="blog-card__title-link">
+        <h2 class="blog-card__title">{{ post.title }}</h2>
+      </NuxtLink>
 
       <p class="blog-card__excerpt">{{ post.excerpt }}</p>
 
-      <span class="blog-card__cta">
+      <NuxtLink :to="`/blog/${post.slug}`" class="blog-card__cta">
         Leer m&aacute;s
         <span class="blog-card__arrow">&rarr;</span>
-      </span>
+      </NuxtLink>
     </div>
-  </NuxtLink>
+  </div>
 </template>
 
 <style scoped>
@@ -84,7 +99,6 @@ const formattedDate = computed(() => {
   background: var(--color-marble-cream);
   border-bottom: 1px solid var(--color-warm-stone);
   padding: var(--space-spacious) 0;
-  text-decoration: none;
   transition:
     box-shadow var(--transition-base),
     transform var(--transition-base);
@@ -97,6 +111,11 @@ const formattedDate = computed(() => {
 /* ------------------------------------------------------------------
    Image
    ------------------------------------------------------------------ */
+.blog-card__image-link {
+  display: block;
+  text-decoration: none;
+}
+
 .blog-card__image-wrapper {
   width: 100%;
   aspect-ratio: 16 / 9;
@@ -135,6 +154,17 @@ const formattedDate = computed(() => {
   color: var(--color-olive-stone);
 }
 
+.blog-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.blog-card__title-link {
+  text-decoration: none;
+}
+
 .blog-card__title {
   font-family: var(--font-authority);
   font-weight: 600;
@@ -170,6 +200,7 @@ const formattedDate = computed(() => {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-terracotta);
+  text-decoration: none;
   transition: color var(--transition-base);
 }
 

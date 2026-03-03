@@ -7,10 +7,14 @@
  * BEM prefix: blog-pagination
  */
 
-const props = defineProps<{
-  currentPage: number;
-  totalPages: number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    currentPage: number;
+    totalPages: number;
+    basePath?: string;
+  }>(),
+  { basePath: "/blog" },
+);
 
 defineEmits<{
   "page-change": [page: number];
@@ -43,8 +47,8 @@ const visiblePages = computed(() => {
 });
 
 function pageLink(page: number): string {
-  if (page <= 1) return "/blog";
-  return `/blog?page=${page}`;
+  if (page <= 1) return props.basePath;
+  return `${props.basePath}?page=${page}`;
 }
 </script>
 

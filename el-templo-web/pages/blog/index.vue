@@ -19,6 +19,14 @@ interface BlogPost {
   updatedAt: string;
   publishedAt: string | null;
   readingTime: number;
+  tags?: Array<{ id: number; name: string; slug: string }>;
+}
+
+interface TagWithCount {
+  id: number;
+  name: string;
+  slug: string;
+  postCount: number;
 }
 
 interface BlogListResponse {
@@ -68,6 +76,11 @@ const { data, status } = useFetch<BlogListResponse>(
   },
 );
 
+const { data: tagsData } = useFetch<{ tags: TagWithCount[] }>(
+  () => `${config.public.apiUrl}/blog/tags`,
+);
+const tags = computed(() => tagsData.value?.tags ?? []);
+
 const posts = computed(() => data.value?.posts ?? []);
 const totalPages = computed(() => data.value?.totalPages ?? 0);
 const isLoading = computed(() => status.value === "pending");
@@ -90,6 +103,9 @@ function handlePageChange(newPage: number): void {
           Entrenamiento, m&eacute;todo y movimiento
         </p>
       </div>
+
+      <!-- Tag bar -->
+      <BlogTagBar v-if="tags.length > 0" :tags="tags" />
 
       <!-- Loading state -->
       <div v-if="isLoading" class="blog-index__loading">

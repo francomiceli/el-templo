@@ -18,10 +18,12 @@ interface BlogPost {
   coverImage: string | null;
   body: string;
   status: "draft" | "published";
+  ctaType?: "trial" | "franchise" | "app";
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
   readingTime: number;
+  tags?: Array<{ id: number; name: string; slug: string }>;
 }
 
 const route = useRoute();
@@ -137,6 +139,15 @@ const formattedDate = computed(() => {
           >
           <span>{{ post.readingTime }} min de lectura</span>
         </div>
+
+        <div v-if="post.tags?.length" class="blog-post__tags">
+          <BlogTagPill
+            v-for="tag in post.tags"
+            :key="tag.id"
+            :tag="tag"
+            size="md"
+          />
+        </div>
       </div>
     </div>
 
@@ -212,6 +223,13 @@ const formattedDate = computed(() => {
 
 .blog-post__meta-sep {
   color: var(--color-warm-stone);
+}
+
+.blog-post__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 /* ------------------------------------------------------------------
