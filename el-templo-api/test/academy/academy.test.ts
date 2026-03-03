@@ -193,6 +193,9 @@ describe("Academy Routes", () => {
         payload: validInquiry,
       });
 
+      // Wait 1s so created_at (second precision) differs
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       await app.inject({
         method: "POST",
         url: "/api/academy/inquire",
