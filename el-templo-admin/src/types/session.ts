@@ -71,6 +71,7 @@ export interface SessionExercise {
   sortOrder: number;
   route: string | null;
   exerciseType?: 'main' | 'mobility';
+  weighted?: boolean;
 }
 
 export interface SessionDetail extends SessionSummary {
@@ -150,6 +151,7 @@ export interface PrescriptionUpdate {
   rest?: number;
   notes?: string;
   contraction?: 'CON' | 'EXC' | 'ISO';
+  weighted?: boolean;
 }
 
 // Session preview for member preview modal

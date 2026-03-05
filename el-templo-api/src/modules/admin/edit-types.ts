@@ -61,6 +61,7 @@ export interface UpdatePrescriptionParams {
     rest?: number;
     notes?: string | null;
     contraction?: "CON" | "EXC" | "ISO";
+    weighted?: boolean;
   };
 }
 

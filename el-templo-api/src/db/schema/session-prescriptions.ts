@@ -1,4 +1,10 @@
-import { mysqlTable, int, varchar, index } from "drizzle-orm/mysql-core";
+import {
+  mysqlTable,
+  int,
+  varchar,
+  boolean,
+  index,
+} from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { sessionBlocks } from "./session-blocks";
 
@@ -24,6 +30,7 @@ export const sessionPrescriptions = mysqlTable(
     exerciseType: varchar("exercise_type", { length: 10 })
       .notNull()
       .default("main"), // 'main' | 'mobility'
+    weighted: boolean("weighted").notNull().default(false),
   },
   (table) => [
     index("session_prescriptions_block_idx").on(table.blockId),

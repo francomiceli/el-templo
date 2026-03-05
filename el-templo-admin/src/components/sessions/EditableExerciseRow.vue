@@ -34,6 +34,20 @@
             </q-list>
           </q-menu>
         </span>
+        <q-btn
+          dense
+          no-caps
+          size="sm"
+          label="W"
+          :color="exercise.weighted ? 'amber-8' : 'grey-4'"
+          :text-color="exercise.weighted ? 'white' : 'grey-7'"
+          :outline="!exercise.weighted"
+          class="q-ml-xs"
+          style="min-width: 28px; padding: 0 4px"
+          @click="toggleWeighted"
+        >
+          <q-tooltip>{{ exercise.weighted ? 'Con peso externo' : 'Sin peso externo' }}</q-tooltip>
+        </q-btn>
         <q-badge
           v-if="exercise.dificultadLineal"
           outline
@@ -376,6 +390,13 @@ function togglePausa() {
     localNotes.value = 'PAUSA';
   }
   emitUpdate();
+}
+
+function toggleWeighted() {
+  emit('update', {
+    prescriptionId: props.exercise.id,
+    fields: { weighted: !props.exercise.weighted },
+  });
 }
 
 function changeContraction(newContraction: 'CON' | 'EXC' | 'ISO') {

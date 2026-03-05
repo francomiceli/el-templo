@@ -168,6 +168,7 @@ export const updatePrescriptionSchema = {
       rest: { type: "integer", minimum: 0 },
       notes: { type: ["string", "null"] },
       contraction: { type: "string", enum: ["CON", "EXC", "ISO"] },
+      weighted: { type: "boolean" },
     },
     additionalProperties: false,
   },

@@ -346,6 +346,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       rest?: number;
       notes?: string | null;
       contraction?: "CON" | "EXC" | "ISO";
+      weighted?: boolean;
     };
   }>(
     "/sessions/:sessionId/blocks/:blockId/exercises/:prescriptionId",

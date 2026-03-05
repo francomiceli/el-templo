@@ -238,6 +238,7 @@ export class AdminSessionService {
         sortOrder: schema.sessionPrescriptions.sortOrder,
         exerciseRoute: schema.exercises.route,
         exerciseType: schema.sessionPrescriptions.exerciseType,
+        weighted: schema.sessionPrescriptions.weighted,
       })
       .from(schema.sessionPrescriptions)
       .leftJoin(
@@ -283,6 +284,7 @@ export class AdminSessionService {
               rest: mobilityPrescription.rest,
               notes: mobilityPrescription.notes,
               exerciseType: mobilityPrescription.exerciseType,
+              weighted: mobilityPrescription.weighted,
             }
           : null,
       };
@@ -346,6 +348,7 @@ export class AdminSessionService {
               sortOrder: schema.sessionPrescriptions.sortOrder,
               exerciseRoute: schema.exercises.route,
               exerciseType: schema.sessionPrescriptions.exerciseType,
+              weighted: schema.sessionPrescriptions.weighted,
             })
             .from(schema.sessionPrescriptions)
             .leftJoin(
@@ -403,6 +406,7 @@ export class AdminSessionService {
                 rest: mobilityPrescription.rest,
                 notes: mobilityPrescription.notes,
                 exerciseType: mobilityPrescription.exerciseType,
+                weighted: mobilityPrescription.weighted,
               }
             : null,
         };

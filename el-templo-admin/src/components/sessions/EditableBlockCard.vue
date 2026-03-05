@@ -18,7 +18,7 @@
         <!-- Format dropdown (inline next to block name) -->
         <q-select
           v-model="selectedFormat"
-          :options="formatOptions"
+          :options="filteredFormatOptions"
           option-label="label"
           option-value="value"
           emit-value
@@ -26,14 +26,26 @@
           dense
           outlined
           dark
+          use-input
+          input-debounce="0"
           :loading="formatsLoading"
-          style="min-width: 140px"
+          style="min-width: 180px"
+          @filter="onFormatFilter"
           @update:model-value="onFormatChange"
         >
           <template #selected-item="scope">
             <q-badge color="white" :text-color="blockColor">
               {{ scope.opt?.label || displayFormatName(blockGroup.formatName) }}
             </q-badge>
+          </template>
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label :class="{ 'text-grey-5': scope.opt.compatibility === 99 }">
+                  {{ scope.opt.label }}
+                </q-item-label>
+              </q-item-section>
+            </q-item>
           </template>
         </q-select>
         <div
@@ -180,19 +192,61 @@
       <div class="q-px-md q-pb-md">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">DESCANSO ACTIVO</div>
         <div class="row items-center q-gutter-sm">
-          <!-- Exercise name + contraction badge -->
+          <!-- Exercise name + contraction badge + weight button -->
           <div class="col">
             <div class="row items-center q-gutter-xs">
               <span class="text-body2 text-weight-medium">
                 {{ sharedMobility.exerciseName }}
               </span>
-              <q-badge :color="contractionColor(sharedMobility.contraction)">
-                {{ contractionLabel(sharedMobility.contraction) }}
-              </q-badge>
+              <span class="cursor-pointer">
+                <q-chip
+                  dense
+                  size="sm"
+                  :color="contractionColor(sharedMobility.contraction)"
+                  text-color="white"
+                  clickable
+                  :label="contractionLabel(sharedMobility.contraction)"
+                />
+                <q-menu auto-close>
+                  <q-list dense style="min-width: 140px">
+                    <q-item
+                      v-for="opt in mobilityContractionOptions"
+                      :key="opt.value"
+                      clickable
+                      :active="normalizeContraction(sharedMobility.contraction) === opt.value"
+                      @click="changeMobilityContraction(opt.value)"
+                    >
+                      <q-item-section avatar>
+                        <q-badge
+                          :color="contractionColor(opt.value)"
+                          text-color="white"
+                          :label="opt.value"
+                        />
+                      </q-item-section>
+                      <q-item-section>{{ opt.label }}</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </span>
+              <q-btn
+                dense
+                no-caps
+                size="sm"
+                label="W"
+                :color="sharedMobility.weighted ? 'amber-8' : 'grey-4'"
+                :text-color="sharedMobility.weighted ? 'white' : 'grey-7'"
+                :outline="!sharedMobility.weighted"
+                style="min-width: 28px; padding: 0 4px"
+                @click="toggleMobilityWeighted"
+              >
+                <q-tooltip>{{
+                  sharedMobility.weighted ? 'Con peso externo' : 'Sin peso externo'
+                }}</q-tooltip>
+              </q-btn>
             </div>
             <!-- Prescription display (editable) -->
             <div class="row items-center q-gutter-sm q-mt-xs">
-              <template v-if="sharedMobility.seconds && sharedMobility.seconds > 0">
+              <template v-if="isMobilityIso">
                 <q-input
                   :model-value="sharedMobility.seconds"
                   type="number"
@@ -243,7 +297,11 @@ import { useDragReorder } from 'src/composables/useDragReorder';
 import EditableExerciseRow from './EditableExerciseRow.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
 import FormatParamsEditor from './FormatParamsEditor.vue';
-import { contractionLabel, contractionColor } from 'src/utils/contraction-helpers';
+import {
+  normalizeContraction,
+  contractionLabel,
+  contractionColor,
+} from 'src/utils/contraction-helpers';
 import { NO_PARAMS_FORMATS } from 'src/constants/formats';
 
 const props = defineProps<{
@@ -365,28 +423,67 @@ const exerciseCapWarning = computed(
 
 const contractionWarning = ref<string | undefined>(undefined);
 
+// Mobility contraction options
+const mobilityContractionOptions = [
+  { value: 'CON' as const, label: 'Concentrico' },
+  { value: 'EXC' as const, label: 'Excentrico' },
+  { value: 'ISO' as const, label: 'Isometrico' },
+];
+
+// Whether mobility exercise is isometric (show seconds vs reps)
+const isMobilityIso = computed(() => {
+  const c = sharedMobility.value?.contraction?.toLowerCase();
+  return c === 'iso' || c === 'isometrico';
+});
+
 // Display-name mapping
 function displayFormatName(name: string): string {
   if (name.toLowerCase() === 'interval training') return 'HIIT';
   return name;
 }
 
-// Format dropdown options
+// Format dropdown options (compatible first, then all others)
 const formatOptions = computed(() => {
   if (compatibleFormats.value.length === 0) {
     return [
-      { label: displayFormatName(props.blockGroup.formatName), value: props.blockGroup.formatName },
+      {
+        label: displayFormatName(props.blockGroup.formatName),
+        value: props.blockGroup.formatName,
+        compatibility: 0,
+      },
     ];
   }
-  return [...compatibleFormats.value]
+  return compatibleFormats.value
     .filter((f) => f.formatName.toLowerCase() !== 'hiit')
-    .sort((a, b) => a.compatibility - b.compatibility)
     .map((f) => ({
-      label: `${displayFormatName(f.formatName)} (${f.compatibility})`,
+      label:
+        f.compatibility < 99
+          ? `${displayFormatName(f.formatName)} (${f.compatibility})`
+          : displayFormatName(f.formatName),
       value: f.formatName,
       formatId: f.formatId,
+      compatibility: f.compatibility,
     }));
 });
+
+// Filtered format options (for search)
+const filteredFormatOptions = ref(formatOptions.value);
+watch(formatOptions, (opts) => {
+  filteredFormatOptions.value = opts;
+});
+
+function onFormatFilter(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const needle = val.toLowerCase().trim();
+    if (!needle) {
+      filteredFormatOptions.value = formatOptions.value;
+    } else {
+      filteredFormatOptions.value = formatOptions.value.filter((opt) =>
+        opt.label.toLowerCase().includes(needle)
+      );
+    }
+  });
+}
 
 // Level helpers
 function levelColor(level: string): string {
@@ -631,8 +728,51 @@ function onSaveBlock() {
   });
 }
 
-// Contraction display helpers
 // Mobility event handlers (shared — always use first level block)
+function changeMobilityContraction(newContraction: 'CON' | 'EXC' | 'ISO') {
+  const firstLb = props.blockGroup.levelBlocks[0];
+  if (!firstLb?.block) return;
+  const mobility = firstLb.block.mobilityExercise;
+  if (!mobility) return;
+
+  const current = normalizeContraction(mobility.contraction);
+  if (current === newContraction) return;
+
+  const fields: PrescriptionUpdate = { contraction: newContraction };
+
+  // Switching to ISO: clear reps, set default seconds
+  if (newContraction === 'ISO') {
+    fields.reps = 0;
+    fields.seconds = 30;
+  }
+  // Switching from ISO to CON/EXC: clear seconds, set default reps
+  else if (current === 'ISO') {
+    fields.seconds = 0;
+    fields.reps = 10;
+  }
+
+  emit('update-mobility-prescription', {
+    sessionId: firstLb.sessionId,
+    blockId: firstLb.block.id,
+    prescriptionId: mobility.id,
+    fields,
+  });
+}
+
+function toggleMobilityWeighted() {
+  const firstLb = props.blockGroup.levelBlocks[0];
+  if (!firstLb?.block) return;
+  const mobility = firstLb.block.mobilityExercise;
+  if (!mobility) return;
+
+  emit('update-mobility-prescription', {
+    sessionId: firstLb.sessionId,
+    blockId: firstLb.block.id,
+    prescriptionId: mobility.id,
+    fields: { weighted: !mobility.weighted },
+  });
+}
+
 function onSwapMobility() {
   const firstLb = props.blockGroup.levelBlocks[0];
   if (!firstLb?.block) return;

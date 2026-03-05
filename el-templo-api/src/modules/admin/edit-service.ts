@@ -280,6 +280,7 @@ export class AdminEditService {
     if (fields.notes !== undefined) updateSet.notes = fields.notes;
     if (fields.contraction !== undefined)
       updateSet.contraction = fields.contraction;
+    if (fields.weighted !== undefined) updateSet.weighted = fields.weighted;
 
     if (Object.keys(updateSet).length === 0) {
       throw new Error("No hay campos para actualizar");
@@ -418,60 +419,87 @@ export class AdminEditService {
       EPIKOS: "epikos",
     };
     const compatBlock = blockMap[blockRole];
-    if (!compatBlock) return [];
 
-    const levelMap: Record<string, string> = {
-      alfa: "alfa",
-      delta: "delta",
-      sigma: "sigma",
-      omega: "omega",
-      spartan: "omega",
-      alfa_delta: "alfa",
-    };
-    const compatLevel = levelMap[level] || "omega";
+    // Fetch compatible formats (if block role maps)
+    let compatibleRows: CompatibleFormat[] = [];
+    if (compatBlock) {
+      const levelMap: Record<string, string> = {
+        alfa: "alfa",
+        delta: "delta",
+        sigma: "sigma",
+        omega: "omega",
+        spartan: "omega",
+        alfa_delta: "alfa",
+      };
+      const compatLevel = levelMap[level] || "omega";
 
-    const conditions = [
-      eq(
-        schema.formatCompatibility.block,
-        compatBlock as "initium" | "nucleus" | "deuteros" | "athlos" | "epikos",
-      ),
-      gt(schema.formatCompatibility.compatibility, 0),
-    ];
-    if (compatBlock !== "initium") {
-      conditions.push(
+      const conditions = [
         eq(
-          schema.formatCompatibility.level,
-          compatLevel as "alfa" | "delta" | "sigma" | "omega",
+          schema.formatCompatibility.block,
+          compatBlock as
+            | "initium"
+            | "nucleus"
+            | "deuteros"
+            | "athlos"
+            | "epikos",
         ),
-      );
-      conditions.push(eq(schema.formatCompatibility.intensity, intensity));
-    }
-
-    const rows = await this.db
-      .select({
-        formatId: schema.formatCompatibility.formatId,
-        formatName: schema.formats.name,
-        compatibility: schema.formatCompatibility.compatibility,
-      })
-      .from(schema.formatCompatibility)
-      .innerJoin(
-        schema.formats,
-        eq(schema.formatCompatibility.formatId, schema.formats.id),
-      )
-      .where(and(...conditions));
-
-    if (compatBlock === "initium") {
-      const bestByFormat = new Map<number, CompatibleFormat>();
-      for (const row of rows) {
-        const existing = bestByFormat.get(row.formatId);
-        if (!existing || row.compatibility < existing.compatibility)
-          bestByFormat.set(row.formatId, row);
+        gt(schema.formatCompatibility.compatibility, 0),
+      ];
+      if (compatBlock !== "initium") {
+        conditions.push(
+          eq(
+            schema.formatCompatibility.level,
+            compatLevel as "alfa" | "delta" | "sigma" | "omega",
+          ),
+        );
+        conditions.push(eq(schema.formatCompatibility.intensity, intensity));
       }
-      return [...bestByFormat.values()].sort(
-        (a, b) => a.compatibility - b.compatibility,
-      );
+
+      const rows = await this.db
+        .select({
+          formatId: schema.formatCompatibility.formatId,
+          formatName: schema.formats.name,
+          compatibility: schema.formatCompatibility.compatibility,
+        })
+        .from(schema.formatCompatibility)
+        .innerJoin(
+          schema.formats,
+          eq(schema.formatCompatibility.formatId, schema.formats.id),
+        )
+        .where(and(...conditions));
+
+      if (compatBlock === "initium") {
+        const bestByFormat = new Map<number, CompatibleFormat>();
+        for (const row of rows) {
+          const existing = bestByFormat.get(row.formatId);
+          if (!existing || row.compatibility < existing.compatibility)
+            bestByFormat.set(row.formatId, row);
+        }
+        compatibleRows = [...bestByFormat.values()];
+      } else {
+        compatibleRows = rows;
+      }
     }
-    return rows.sort((a, b) => a.compatibility - b.compatibility);
+
+    // Sort compatible formats by compatibility score (best first)
+    compatibleRows.sort((a, b) => a.compatibility - b.compatibility);
+    const compatibleIds = new Set(compatibleRows.map((r) => r.formatId));
+
+    // Fetch ALL formats and append non-compatible ones with compatibility=99
+    const allFormats = await this.db
+      .select({ id: schema.formats.id, name: schema.formats.name })
+      .from(schema.formats)
+      .orderBy(asc(schema.formats.name));
+
+    const nonCompatible: CompatibleFormat[] = allFormats
+      .filter((f) => !compatibleIds.has(f.id))
+      .map((f) => ({
+        formatId: f.id,
+        formatName: f.name,
+        compatibility: 99,
+      }));
+
+    return [...compatibleRows, ...nonCompatible];
   }
 
   // === Saved Blocks ===
