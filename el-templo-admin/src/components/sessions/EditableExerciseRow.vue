@@ -106,60 +106,6 @@
           />
         </template>
 
-        <!-- Death By mode: start + increment -->
-        <template v-else-if="isDeathBy">
-          <template v-if="!isIso">
-            <q-input
-              v-model.number="localReps"
-              type="number"
-              dense
-              outlined
-              label="Reps"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
-            <span class="text-grey-6 text-body2">+</span>
-            <q-input
-              v-model.number="localIncrement"
-              type="number"
-              dense
-              outlined
-              label="Inc"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
-          </template>
-          <template v-else>
-            <q-input
-              v-model.number="localSeconds"
-              type="number"
-              dense
-              outlined
-              label="Seg"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
-            <span class="text-grey-6 text-body2">+</span>
-            <q-input
-              v-model.number="localIncrement"
-              type="number"
-              dense
-              outlined
-              label="Inc"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
-          </template>
-        </template>
-
         <!-- AMRAP range mode -->
         <template v-else-if="isAmrap">
           <template v-if="!isIso">
@@ -216,7 +162,9 @@
 
         <!-- Param-driven formats (Tabata, HIIT): no per-exercise prescription -->
         <template v-else-if="isParamDrivenFormat">
-          <span class="text-caption text-grey-6 q-ml-sm">Definido por formato</span>
+          <q-badge outline color="grey" class="text-caption"
+            >Cantidad dictada por el formato</q-badge
+          >
         </template>
 
         <template v-else>
@@ -325,6 +273,11 @@ import {
   normalizeContraction,
   contractionColor as getContractionColor,
 } from 'src/utils/contraction-helpers';
+import {
+  FORMAT_DICTATED_TYPES,
+  normalizeFormatName,
+  isFormatDictatedByName,
+} from 'src/constants/formats';
 
 const props = defineProps<{
   exercise: SessionExercise;
@@ -515,25 +468,28 @@ const isIso = computed(() => {
 
 // Format detection: prefer discriminated formatType prop, fall back to name matching
 const isAmrap = computed(() => {
-  if (props.formatType) return props.formatType === 'amrap' || props.formatType === 'amrap_series';
-  const f = props.blockFormatName.toLowerCase().trim().replace(/\s+/g, '_');
+  if (props.formatType && props.formatType !== 'standard') {
+    return props.formatType === 'amrap' || props.formatType === 'amrap_series';
+  }
+  const f = normalizeFormatName(props.blockFormatName);
   return f === 'amrap' || f === 'amrap_series';
 });
 
-const isDeathBy = computed(() => {
-  if (props.formatType) return props.formatType === 'death_by';
-  return props.blockFormatName.toLowerCase().trim().startsWith('death by');
-});
-
 const isIGoYouGo = computed(() => {
-  if (props.formatType) return props.formatType === 'i_go_you_go';
+  if (props.formatType && props.formatType !== 'standard') {
+    return props.formatType === 'i_go_you_go';
+  }
   return props.blockFormatName.toLowerCase().includes('i go');
 });
 
+// FORMAT_DICTATED_TYPES imported from src/constants/formats
+
 const isParamDrivenFormat = computed(() => {
-  if (props.formatType) return props.formatType === 'tabata' || props.formatType === 'interval';
-  const f = props.blockFormatName.toLowerCase().trim();
-  return f === 'tabata' || f === 'interval training' || f === 'hiit';
+  // Check discriminated type first, but skip stale 'standard' — fall through to name match
+  if (props.formatType && props.formatType !== 'standard') {
+    return FORMAT_DICTATED_TYPES.has(props.formatType);
+  }
+  return isFormatDictatedByName(props.blockFormatName);
 });
 
 // Whether PAUSA is currently active

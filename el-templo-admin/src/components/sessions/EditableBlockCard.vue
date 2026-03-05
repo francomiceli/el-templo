@@ -29,7 +29,7 @@
           use-input
           input-debounce="0"
           :loading="formatsLoading"
-          style="min-width: 180px"
+          style="width: 200px"
           @filter="onFormatFilter"
           @update:model-value="onFormatChange"
         >
@@ -302,7 +302,7 @@ import {
   contractionLabel,
   contractionColor,
 } from 'src/utils/contraction-helpers';
-import { NO_PARAMS_FORMATS } from 'src/constants/formats';
+import { NO_PARAMS_FORMAT_NAMES, normalizeFormatName } from 'src/constants/formats';
 
 const props = defineProps<{
   blockGroup: BlockGroup;
@@ -392,15 +392,11 @@ const isAthlosEpikos = computed(() => {
   return role === 'ATHLOS' || role === 'EPIKOS';
 });
 
-// NO_PARAMS_FORMATS imported from src/constants/formats
-
 const hasConfigurableParams = computed(() => {
-  if (props.blockGroup.formatParams) {
-    const type = (props.blockGroup.formatParams as Record<string, unknown>).type as string;
-    return !NO_PARAMS_FORMATS.includes(type);
-  }
-  const normalized = props.blockGroup.formatName.toLowerCase().trim().replace(/\s+/g, '_');
-  return !NO_PARAMS_FORMATS.includes(normalized);
+  // Determine configurability from the FORMAT NAME (always correct),
+  // not stored params type (can be stale "standard" from before bible expansion).
+  const normalized = normalizeFormatName(props.blockGroup.formatName);
+  return !NO_PARAMS_FORMAT_NAMES.includes(normalized);
 });
 
 // Shared mobility exercise (from first level block — same for all levels)
@@ -584,6 +580,7 @@ async function onUpdateFormatParams(newParams: Record<string, unknown>) {
     await Promise.all(
       allLevelBlocks.map((lb) => editApi.updateFormatParams(lb.sessionId, lb.block.id, newParams))
     );
+
     $q.notify({
       type: 'positive',
       message: 'Parametros de formato actualizados en todos los niveles',

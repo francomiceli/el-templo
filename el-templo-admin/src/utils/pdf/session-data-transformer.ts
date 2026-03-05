@@ -1,5 +1,6 @@
 import type { SessionDetail, SessionBlock, SessionExercise } from 'src/types/session';
 import type { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
+import { isFormatDictatedByName } from 'src/constants/formats';
 
 const DAY_LABELS: Record<string, string> = {
   lunes: 'LUNES',
@@ -34,45 +35,177 @@ function formatNameWithParams(
   if (!type) return name;
 
   switch (type) {
-    case 'amrap': {
+    // Minutes-only formats
+    case 'amrap':
+    case 'time_cap':
+    case 'for_tech':
+    case 'open_style':
       return p.minutes ? `${name} ${p.minutes}'` : name;
-    }
+
     case 'amrap_series': {
       const parts = [name];
       if (p.minutes) parts.push(`${p.minutes}'`);
       if (p.rounds) parts.push(`X${p.rounds}`);
       return parts.join(' ');
     }
-    case 'emom': {
+
+    // EMOM-shape formats (intervalSeconds + totalMinutes)
+    case 'emom':
+    case 'every_x_seconds': {
       const parts = [name];
       if (p.totalMinutes) parts.push(`${p.totalMinutes}'`);
       if (p.intervalSeconds) parts.push(`(${p.intervalSeconds}")`);
       return parts.join(' ');
     }
-    case 'complex':
-      return p.rounds ? `${name} X${p.rounds}` : name;
-    case 'tabata': {
-      const parts = [name];
-      if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
-      if (p.rounds) parts.push(`X${p.rounds}`);
-      return parts.join(' ');
+
+    // On the X:00 (intervalSeconds + rounds)
+    case 'on_the_x': {
+      const mins = Math.floor(Number(p.intervalSeconds) / 60);
+      return p.rounds ? `${name} ${mins}:00 X${p.rounds}` : name;
     }
-    case 'interval': {
-      const parts = [name];
-      if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
-      if (p.rounds) parts.push(`X${p.rounds}`);
-      return parts.join(' ');
-    }
-    case 'for_time':
+
+    // Death By (optional time cap)
+    case 'death_by':
+    case 'death_by_unbroken':
       return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
-    case 'time_cap':
-      return p.minutes ? `${name} ${p.minutes}'` : name;
-    case 'buy_in_cash_out':
+
+    // Rounds-only formats
+    case 'complex':
+    case 'for_quality':
+      return p.rounds ? `${name} X${p.rounds}` : name;
+
+    // Work/rest/rounds formats
+    case 'tabata':
+    case 'interval':
+    case 'hiit': {
+      const parts = [name];
+      if (p.workSeconds && p.restSeconds) parts.push(`${p.workSeconds}"/${p.restSeconds}"`);
+      if (p.rounds) parts.push(`X${p.rounds}`);
+      return parts.join(' ');
+    }
+
+    // Optional time cap formats
+    case 'for_time':
+    case 'for_max_reps':
+    case 'for_max_distancia':
+      return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
+
+    // Rounds for Time (rounds + optional cap)
+    case 'rounds_for_time': {
+      const parts = [`${p.rounds || 5} RFT`];
+      if (p.timeCapMinutes) parts.push(`${p.timeCapMinutes}'`);
+      return parts.join(' ');
+    }
+
+    // Pyramid
+    case 'pyramid': {
+      if (p.step && p.peak) {
+        const up: number[] = [];
+        for (let i = Number(p.step); i <= Number(p.peak); i += Number(p.step)) up.push(i);
+        const down = up.slice(0, -1).reverse();
+        return `${name} ${[...up, ...down].join('-')}`;
+      }
       return name;
-    case 'cluster':
-      return name;
+    }
+
+    // Direction formats with pattern
     case 'ladder':
-      return p.direction === 'descending' ? `${name} DESC` : `${name} ASC`;
+    case 'ladder_corta': {
+      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
+      if (p.start && p.step && p.rounds) {
+        const vals: number[] = [];
+        for (let i = 0; i < Number(p.rounds); i++) {
+          vals.push(
+            p.direction === 'ascending'
+              ? Number(p.start) + i * Number(p.step)
+              : Number(p.start) - i * Number(p.step)
+          );
+        }
+        return `${name} ${vals.join('-')}`;
+      }
+      return `${name} ${dir}`;
+    }
+    case 'ladder_block': {
+      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
+      if (p.start && p.step && p.blockSize) {
+        const parts: string[] = [];
+        for (let i = 0; i < 4; i++) {
+          const reps =
+            p.direction === 'ascending'
+              ? Number(p.start) + i * Number(p.step)
+              : Number(p.start) - i * Number(p.step);
+          parts.push(`${reps}x${p.blockSize}`);
+        }
+        return `${name} ${parts.join('-')}...`;
+      }
+      return `${name} ${dir}`;
+    }
+    case 'broken_ladder': {
+      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
+      if (p.start && p.step && p.breakAfter) {
+        const vals: number[] = [];
+        for (let i = 0; i < Number(p.breakAfter); i++) {
+          vals.push(
+            p.direction === 'ascending'
+              ? Number(p.start) + i * Number(p.step)
+              : Number(p.start) - i * Number(p.step)
+          );
+        }
+        return `${name} ${vals.join('-')} | ${vals.join('-')} | ...`;
+      }
+      return `${name} ${dir}`;
+    }
+
+    // Cluster
+    case 'cluster': {
+      const parts = [name];
+      if (p.clusterSize) parts.push(`${p.clusterSize}reps`);
+      if (p.restBetweenClusters) parts.push(`${p.restBetweenClusters}"rest`);
+      return parts.join(' ');
+    }
+
+    // Tempo
+    case 'tempo_sets':
+      return p.tempo ? `${name} ${p.tempo}` : name;
+
+    // Accumulate
+    case 'accumulate': {
+      const unit = p.unit === 'seconds' ? '"' : 'reps';
+      return p.target ? `${name} ${p.target}${unit}` : name;
+    }
+
+    // I Go, You Go
+    case 'i_go_you_go':
+      return p.totalRounds ? `${name} ${p.totalRounds}R` : name;
+
+    // Buy-in/Cash-out
+    case 'buy_in_cash_out':
+      return p.rounds ? `${name} X${p.rounds}` : name;
+
+    // Wave Loading
+    case 'wave_loading':
+      return p.waves ? `${name} ${p.waves} ondas` : name;
+
+    // Drop Set
+    case 'drop_set':
+      return p.drops ? `${name} ${p.drops} drops` : name;
+
+    // Rest-Pause
+    case 'rest_pause':
+      return p.pauseSeconds ? `${name} ${p.pauseSeconds}"` : name;
+
+    // EMOM + For Time hybrid
+    case 'emom_for_time': {
+      const parts = [name];
+      if (p.emomMinutes) parts.push(`${p.emomMinutes}'`);
+      if (p.intervalSeconds) parts.push(`(${p.intervalSeconds}")`);
+      return parts.join(' ');
+    }
+
+    // Acropolis
+    case 'acropolis':
+      return p.phases ? `${name} ${p.phases} fases` : name;
+
     default:
       return name;
   }
@@ -88,8 +221,8 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
   const f = formatName.toLowerCase().trim();
   const name = ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName;
 
-  // Param-driven formats: prescription is defined by format params, not per exercise
-  if (f === 'tabata' || f === 'interval training' || f === 'hiit') {
+  // Format-dictated: reps/secs are defined by the format, not per exercise
+  if (isFormatDictatedByName(formatName)) {
     return name;
   }
 
@@ -110,26 +243,27 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
   return prescription ? `${name}  ·  ${prescription}` : name;
 }
 
-function exerciseToPdf(ex: SessionExercise): PdfExercise {
+function exerciseToPdf(ex: SessionExercise, formatDictated: boolean): PdfExercise {
   return {
     name: ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName,
     contraction: ex.contraction,
-    reps: ex.reps,
-    repsMax: ex.repsMax,
-    seconds: ex.seconds,
-    secondsMax: ex.secondsMax,
-    increment: ex.increment,
+    reps: formatDictated ? undefined : ex.reps,
+    repsMax: formatDictated ? undefined : ex.repsMax,
+    seconds: formatDictated ? undefined : ex.seconds,
+    secondsMax: formatDictated ? undefined : ex.secondsMax,
+    increment: formatDictated ? undefined : ex.increment,
     rest: ex.rest,
     notes: ex.notes,
   };
 }
 
 function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
+  const dictated = isFormatDictatedByName(block.formatName);
   return {
     level,
     route: block.route,
     intensity: block.intensity,
-    exercises: block.exercises.map(exerciseToPdf),
+    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated)),
   };
 }
 
