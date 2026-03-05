@@ -12,7 +12,7 @@
       <!-- Active Journey Banner -->
       <div v-if="journeyStore.hasActiveJourney" class="active-journey-banner">
         <div class="banner-content">
-          <q-icon name="explore" size="24px" class="banner-icon" />
+          <FlameIcon size="sm" />
           <div class="banner-text">
             <span class="banner-label">Tu Journey Actual</span>
             <span class="banner-name">{{ journeyStore.activeJourneyName }}</span>
@@ -46,6 +46,7 @@
       <template v-else>
         <div v-for="tier in tiers" :key="tier.key" class="tier-section">
           <div class="tier-header">
+            <FlameIcon size="xs" />
             <span class="tier-label">{{ tier.label }}</span>
             <span class="tier-divider" />
           </div>
@@ -86,6 +87,7 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import FlameIcon from 'src/components/FlameIcon.vue'
 import { createLogger } from 'src/utils/logger'
 import { useJourneyStore } from '../stores/journeyStore'
 import type { JourneyType, JourneyTier } from '../types'
@@ -182,10 +184,6 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.banner-icon {
-  color: #c27a5d;
 }
 
 .banner-text {

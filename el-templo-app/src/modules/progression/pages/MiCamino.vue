@@ -3,7 +3,11 @@
     <!-- Loading State -->
     <div v-if="progressionStore.loading" class="mi-camino__loading">
       <q-spinner color="primary" size="60px" />
-      <p class="mi-camino__loading-text">Cargando tu progreso...</p>
+      <div class="mi-camino__loading-row">
+        <FlameIcon size="xs" />
+        <p class="mi-camino__loading-text">Cargando tu progreso...</p>
+        <FlameIcon size="xs" />
+      </div>
     </div>
 
     <!-- Error State -->
@@ -15,7 +19,7 @@
 
     <!-- Empty State (new user with no sessions) -->
     <div v-else-if="isEmptyState" class="mi-camino__empty">
-      <q-icon name="directions_run" class="mi-camino__empty-icon" />
+      <FlameIcon size="md" />
       <p class="mi-camino__empty-title">Comienza Tu Camino</p>
       <p class="mi-camino__empty-text">
         Completa tu primera sesion de entrenamiento para ver tu progreso aqui.
@@ -124,7 +128,11 @@
       />
 
       <!-- Journey Section Divider -->
-      <q-separator class="mi-camino__journey-divider" />
+      <div class="mi-camino__section-divider">
+        <q-separator class="mi-camino__journey-divider" />
+        <FlameIcon size="xs" />
+        <q-separator class="mi-camino__journey-divider" />
+      </div>
 
       <!-- Journey Progress & History -->
       <JourneySection
@@ -152,6 +160,7 @@
  * Fetches progression data and journey data on mount.
  */
 import { computed, onMounted, onUnmounted } from 'vue'
+import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useJourneyProgress } from '../composables/useJourneyProgress'
@@ -262,8 +271,15 @@ onUnmounted(() => {
     padding: 24px;
   }
 
-  &__loading-text {
+  &__loading-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin-top: 16px;
+  }
+
+  &__loading-text {
+    margin: 0;
     font-size: 14px;
     color: rgba($primary, 0.7);
   }
@@ -445,8 +461,15 @@ onUnmounted(() => {
     }
   }
 
-  &__journey-divider {
+  &__section-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin: 8px 0;
+  }
+
+  &__journey-divider {
+    flex: 1;
     background-color: rgba($secondary, 0.2);
   }
 }

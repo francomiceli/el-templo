@@ -82,6 +82,7 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+    <div class="app-bg" />
 
     <!-- Mobile bottom tab bar -->
     <q-footer v-if="$q.screen.lt.md" elevated class="mobile-footer">
@@ -155,6 +156,16 @@ async function onLogout() {
 
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
+
+.app-bg {
+  position: fixed;
+  inset: 0;
+  background: url('/bars-open.webp') left center / cover no-repeat;
+  filter: saturate(0.3) sepia(0.4) contrast(1.05);
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: 0;
+}
 
 .main-header {
   background: linear-gradient(135deg, #c07a56 0%, #a0755a 100%);

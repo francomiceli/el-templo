@@ -4,8 +4,9 @@
     <div class="transition-overlay__card">
       <!-- Completed badge -->
       <div class="transition-overlay__badge">
-        <q-icon name="check_circle" color="positive" size="32px" />
+        <FlameIcon size="sm" intensify />
         <span class="transition-overlay__badge-text">{{ completedBlockName }} completado</span>
+        <FlameIcon size="sm" intensify />
       </div>
 
       <!-- Mobility reminder (if present) -->
@@ -42,6 +43,8 @@
 </template>
 
 <script setup lang="ts">
+import FlameIcon from 'src/components/FlameIcon.vue'
+
 interface Props {
   /** Name of the completed block (e.g., "Initium") */
   completedBlockName: string

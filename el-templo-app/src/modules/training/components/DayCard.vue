@@ -55,7 +55,13 @@
       >
         <q-icon name="play_arrow" size="24px" class="q-mr-sm" />
         <span class="text-weight-bold">
-          {{ day.state === 'completed' ? 'Sesión Completada' : 'Comenzar' }}
+          {{
+            day.state === 'completed'
+              ? 'Sesión Completada'
+              : hasActiveProgress
+                ? 'Continuar'
+                : 'Comenzar'
+          }}
         </span>
       </q-btn>
     </div>
@@ -63,9 +69,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type { WeekDay, Block } from '../types/session'
 import { formatShortDate, isToday } from '../composables/useDateNavigation'
+import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
 import { getRouteName } from '../utils/routeNames'
 import { getBlockColorClass } from '../utils/blockColors'
 import BlockCard from './BlockCard.vue'
@@ -83,6 +90,17 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   start: [date: string]
 }>()
+
+const sessionPlayerStore = useSessionPlayerStore()
+const hasActiveProgress = ref(false)
+
+onMounted(async () => {
+  const dayId = props.day.session?.dayId
+  if (dayId && isToday(props.day.date)) {
+    const progress = await sessionPlayerStore.loadProgress(dayId)
+    hasActiveProgress.value = progress.elapsedSeconds > 0 || progress.completedBlocks.length > 0
+  }
+})
 
 /**
  * CSS classes based on day state

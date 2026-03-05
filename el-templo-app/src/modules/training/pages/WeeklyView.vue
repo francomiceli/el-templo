@@ -185,7 +185,6 @@ onMounted(() => {
 
   &__header {
     flex-shrink: 0;
-    background-color: $cream;
     position: relative;
     padding-bottom: 8px;
     display: flex;

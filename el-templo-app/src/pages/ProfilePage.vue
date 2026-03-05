@@ -43,8 +43,10 @@
             </q-item-section>
             <q-item-section>
               <q-item-label caption>Nivel</q-item-label>
-              <q-item-label>
+              <q-item-label class="level-label-row">
+                <FlameIcon size="xs" />
                 <q-badge :color="levelColor" :label="userStore.displayLevel" />
+                <FlameIcon size="xs" />
               </q-item-label>
             </q-item-section>
           </q-item>
@@ -65,10 +67,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useUserStore } from 'stores/useUserStore';
+import { computed } from 'vue'
+import { useUserStore } from 'stores/useUserStore'
+import FlameIcon from 'src/components/FlameIcon.vue'
 
-const userStore = useUserStore();
+const userStore = useUserStore()
 
 const levelColors = {
   alfa: 'blue',
@@ -76,11 +79,19 @@ const levelColors = {
   sigma: 'orange',
   omega: 'purple',
   spartan: 'red-10',
-};
+}
 
 const levelColor = computed(() => {
-  const level = userStore.profile?.level;
-  if (!level) return 'grey';
-  return levelColors[level] || 'grey';
-});
+  const level = userStore.profile?.level
+  if (!level) return 'grey'
+  return levelColors[level] || 'grey'
+})
 </script>
+
+<style scoped lang="scss">
+.level-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+</style>
