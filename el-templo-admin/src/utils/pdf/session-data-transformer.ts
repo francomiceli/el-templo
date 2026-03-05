@@ -86,10 +86,11 @@ function formatNameWithParams(
  */
 function formatInitiumExercise(ex: SessionExercise, formatName: string): string {
   const f = formatName.toLowerCase().trim();
+  const name = ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName;
 
   // Param-driven formats: prescription is defined by format params, not per exercise
   if (f === 'tabata' || f === 'interval training' || f === 'hiit') {
-    return ex.exerciseName;
+    return name;
   }
 
   const isIGoYouGo = f.includes('i go');
@@ -106,12 +107,12 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
   } else if (ex.seconds) {
     prescription = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
   }
-  return prescription ? `${ex.exerciseName}  ·  ${prescription}` : ex.exerciseName;
+  return prescription ? `${name}  ·  ${prescription}` : name;
 }
 
 function exerciseToPdf(ex: SessionExercise): PdfExercise {
   return {
-    name: ex.exerciseName,
+    name: ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName,
     contraction: ex.contraction,
     reps: ex.reps,
     repsMax: ex.repsMax,
@@ -166,13 +167,14 @@ function buildGridPage(
     // Extract mobility from the block (same exercise for all levels)
     if (!mobilityText && block.mobilityExercise) {
       const mob = block.mobilityExercise;
+      const mobName = mob.weighted ? `${mob.exerciseName} (W)` : mob.exerciseName;
       const prescription =
         mob.seconds && mob.seconds > 0
           ? `${mob.seconds}"`
           : mob.reps && mob.reps > 0
             ? `${mob.reps}`
             : '';
-      mobilityText = `${mob.exerciseName} ${prescription}`.trim();
+      mobilityText = `${mobName} ${prescription}`.trim();
     }
 
     levelBlocks.push(blockToLevelBlock(block, level));
