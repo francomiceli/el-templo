@@ -115,7 +115,12 @@ onBeforeUnmount(() => {
         <!-- Author block -->
         <div class="method__author">
           <div class="method__author-photo-wrap">
-            <PlaceholderBox label="Foto Ignacio" aspect-ratio="1/1" />
+            <img
+              src="/images/photos/ignacio-bordon.webp"
+              alt="Ignacio Bordon"
+              class="method__author-photo"
+              loading="lazy"
+            >
           </div>
           <div class="method__author-info">
             <p class="method__author-name">
@@ -303,6 +308,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border: 2px solid var(--color-aged-gold);
   flex-shrink: 0;
+}
+
+.method__author-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .method__author-name {

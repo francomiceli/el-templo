@@ -29,7 +29,7 @@ export const mdpMapConfig: CityMapConfig = {
     { name: "Jujuy", lat: -38.0117, lng: -57.5684 },
     { name: "Moreno", lat: -37.9958, lng: -57.5605 },
     { name: "Alem", lat: -38.0296, lng: -57.5374 },
-    { name: "Mario Bravo", lat: -38.0797, lng: -57.5468 },
+    { name: "Mogotes", lat: -38.0797, lng: -57.5468 },
     { name: "Park", lat: -38.0287, lng: -57.5424 },
     { name: "Chapadmalal", lat: -38.049, lng: -57.5938 },
   ],

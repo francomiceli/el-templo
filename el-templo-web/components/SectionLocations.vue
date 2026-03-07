@@ -60,7 +60,14 @@ onBeforeUnmount(() => {
             }"
           >
             <div class="locations__card-img">
-              <PlaceholderBox :label="sede.name" aspect-ratio="3 / 2" />
+              <img
+                v-if="sede.photo"
+                :src="sede.photo"
+                :alt="'Sede ' + sede.name + ' — El Templo'"
+                class="locations__card-photo"
+                loading="lazy"
+              >
+              <PlaceholderBox v-else :label="sede.name" aspect-ratio="3 / 2" />
               <span
                 v-if="sede.badge"
                 class="locations__badge"
@@ -115,7 +122,14 @@ onBeforeUnmount(() => {
             }"
           >
             <div class="locations__card-img">
-              <PlaceholderBox :label="sede.name" aspect-ratio="3 / 2" />
+              <img
+                v-if="sede.photo"
+                :src="sede.photo"
+                :alt="'Sede ' + sede.name + ' — El Templo'"
+                class="locations__card-photo"
+                loading="lazy"
+              >
+              <PlaceholderBox v-else :label="sede.name" aspect-ratio="3 / 2" />
               <span
                 v-if="sede.badge"
                 class="locations__badge"
@@ -322,6 +336,13 @@ onBeforeUnmount(() => {
 .locations__card-img {
   position: relative;
   overflow: hidden;
+}
+
+.locations__card-photo {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  display: block;
 }
 
 .locations__card-img :deep(.placeholder-box) {

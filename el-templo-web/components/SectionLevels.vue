@@ -22,6 +22,7 @@ interface Level {
   headline: string;
   description: string;
   mirror: string;
+  image: string;
 }
 
 const levels: Level[] = [
@@ -34,6 +35,7 @@ const levels: Level[] = [
       "Tu cuerpo aprende a moverse de nuevo. Patrones b\u00E1sicos de fuerza, movilidad y control. No importa de d\u00F3nde ven\u00EDs \u2014 importa hacia d\u00F3nde vas. Alfa es el cimiento sobre el que se construye todo lo dem\u00E1s.",
     mirror:
       "\u201CReci\u00E9n empiezo pero quiero hacerlo bien desde el d\u00EDa uno.\u201D",
+    image: "/images/photos/nivel-alfa.webp",
   },
   {
     id: "delta",
@@ -44,6 +46,7 @@ const levels: Level[] = [
       "Los movimientos empiezan a fluir. La fuerza aparece donde antes no estaba. Tu cuerpo ya no solo se adapta \u2014 responde. Delta es donde el m\u00E9todo empieza a demostrarte por qu\u00E9 funciona.",
     mirror:
       "\u201CYa entreno hace unos meses y siento que estoy avanzando de verdad.\u201D",
+    image: "/images/photos/nivel-delta.webp",
   },
   {
     id: "sigma",
@@ -54,6 +57,7 @@ const levels: Level[] = [
       "Movimientos avanzados. Potencia real. Tu cuerpo hace cosas que antes parec\u00EDan imposibles. Sigma es donde la calistenia deja de ser ejercicio y se convierte en dominio. El m\u00E9todo no afloja \u2014 vos tampoco.",
     mirror:
       "\u201CYa no entreno para ponerme en forma. Entreno para ser m\u00E1s fuerte en serio.\u201D",
+    image: "/images/photos/nivel-sigma.webp",
   },
   {
     id: "omega",
@@ -64,6 +68,7 @@ const levels: Level[] = [
       "Progresiones avanzadas, control absoluto, fuerza que se ve y se siente. Omega es para quienes llevan a\u00F1os en el camino y siguen buscando m\u00E1s. No es el final \u2014 es donde el entrenamiento se vuelve arte.",
     mirror:
       "\u201CLlevo a\u00F1os entrenando. Necesito un lugar que me desaf\u00EDe de verdad.\u201D",
+    image: "/images/photos/nivel-omega.webp",
   },
   {
     id: "spartan",
@@ -74,6 +79,7 @@ const levels: Level[] = [
       "Ya no entren\u00E1s solo para vos. Tu presencia eleva a la comunidad. Spartan es el nivel de quien lidera desde la pr\u00E1ctica, no desde la teor\u00EDa. Un referente dentro del Templo.",
     mirror:
       "\u201CQuiero devolver lo que este m\u00E9todo me dio. Quiero inspirar a otros.\u201D",
+    image: "/images/photos/nivel-spartan.webp",
   },
   {
     id: "olympic",
@@ -84,6 +90,7 @@ const levels: Level[] = [
       "Excelencia f\u00EDsica, mental y espiritual. Olympic no es un destino \u2014 es un est\u00E1ndar. La b\u00FAsqueda permanente de ser mejor en el cuerpo, la mente y la vida. El nivel m\u00E1s alto del Templo es tambi\u00E9n el m\u00E1s humilde: quien m\u00E1s sabe es quien m\u00E1s practica.",
     mirror:
       "\u201CEl entrenamiento no es parte de mi vida. Es mi forma de vivir.\u201D",
+    image: "/images/photos/nivel-olympic.webp",
   },
 ];
 
@@ -235,10 +242,14 @@ onBeforeUnmount(() => {
           </a>
         </div>
         <div class="levels__panel-visual">
-          <PlaceholderBox
-            :label="'Foto nivel ' + activeData.name"
-            aspect-ratio="4/5"
-          />
+          <img
+            :src="activeData.image"
+            :alt="
+              'Alumno de calistenia nivel ' + activeData.name + ' en El Templo'
+            "
+            class="levels__panel-img"
+            loading="lazy"
+          >
         </div>
       </div>
 
@@ -510,8 +521,12 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.levels__panel-visual :deep(.placeholder-box) {
+.levels__panel-img {
+  width: 100%;
+  height: 100%;
   max-height: 450px;
+  object-fit: cover;
+  border-radius: var(--radius-card);
 }
 
 /* ------------------------------------------------------------------
@@ -587,8 +602,8 @@ onBeforeUnmount(() => {
     max-height: 250px;
   }
 
-  .levels__panel-visual :deep(.placeholder-box) {
-    aspect-ratio: 16/9 !important;
+  .levels__panel-img {
+    aspect-ratio: 16/9;
     max-height: 250px;
   }
 }

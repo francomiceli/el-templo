@@ -17,6 +17,8 @@ export interface Sede {
     text: string;
     variant: "outdoor" | "special" | "intl";
   };
+  /** Photo path in public/images/photos/ (when available) */
+  photo?: string;
   /** Approximate latitude for structured data (exact values in Phase 38) */
   lat?: number;
   /** Approximate longitude for structured data (exact values in Phase 38) */
@@ -68,8 +70,8 @@ export const sedes: Sede[] = [
     lng: -57.548,
   },
   {
-    id: "mario-bravo",
-    name: "Mario Bravo",
+    id: "mogotes",
+    name: "Mogotes",
     address: "Mario Bravo 618",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Mario+Bravo+618+Mar+del+Plata",
@@ -84,6 +86,7 @@ export const sedes: Sede[] = [
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Parque+Primavesi+Mar+del+Plata",
     whatsappUrl: WHATSAPP_URL,
+    photo: "/images/photos/sede-park.webp",
     lat: -38.015,
     lng: -57.56,
   },

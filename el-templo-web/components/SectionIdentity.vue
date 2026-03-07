@@ -60,10 +60,12 @@ onBeforeUnmount(() => {
 
       <!-- IMAGE COLUMN -->
       <div class="identity__image-wrap">
-        <PlaceholderBox
-          label="Foto de sesi&oacute;n real &mdash; pendiente"
-          aspect-ratio="4/5"
-        />
+        <img
+          src="/images/photos/sesion-real.webp"
+          alt="Sesión real de calistenia en El Templo — coach guiando handstand"
+          class="identity__photo"
+          loading="lazy"
+        >
       </div>
     </div>
   </section>
@@ -179,8 +181,11 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-/* Apply shadow to the placeholder box to match spec image treatment */
-.identity__image-wrap :deep(.placeholder-box) {
+.identity__photo {
+  width: 100%;
+  border-radius: var(--radius-card);
+  object-fit: cover;
+  aspect-ratio: 4 / 5;
   box-shadow: var(--shadow-prominent);
 }
 
@@ -241,9 +246,8 @@ onBeforeUnmount(() => {
     order: -1;
   }
 
-  /* Override PlaceholderBox inline aspect-ratio for mobile */
-  .identity__image-wrap :deep(.placeholder-box) {
-    aspect-ratio: 16 / 9 !important;
+  .identity__photo {
+    aspect-ratio: 16 / 9;
     max-height: 280px;
     box-shadow: 0 4px 20px rgba(61, 55, 50, 0.1);
   }

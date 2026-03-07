@@ -70,11 +70,12 @@ onBeforeUnmount(() => {
 
         <!-- Photo Column (45%) -->
         <div class="founder__bio-image">
-          <PlaceholderBox
-            label="Ignacio Bordon"
-            aspect-ratio="4/5"
+          <img
+            src="/images/photos/ignacio-bordon.webp"
+            alt="Ignacio Bordon — fundador de El Templo"
             class="founder__photo"
-          />
+            loading="lazy"
+          >
         </div>
       </div>
 
@@ -191,6 +192,10 @@ onBeforeUnmount(() => {
 }
 
 .founder__photo {
+  width: 100%;
+  border-radius: var(--radius-card);
+  object-fit: cover;
+  aspect-ratio: 4 / 5;
   box-shadow: var(--shadow-prominent);
 }
 
@@ -310,8 +315,8 @@ onBeforeUnmount(() => {
     order: -1;
   }
 
-  .founder__photo :deep(.placeholder-box) {
-    aspect-ratio: 16 / 9 !important;
+  .founder__photo {
+    aspect-ratio: 16 / 9;
   }
 
   .founder__bio-body p {
