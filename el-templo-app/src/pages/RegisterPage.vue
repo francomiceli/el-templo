@@ -158,13 +158,12 @@ const showPassword = ref(false)
 const loading = ref(false)
 const eyeBounce = ref(false)
 
-// Hardcoded branch options until branches API exists
 const branchOptions = [
-  { label: 'Matriz', value: 1 },
-  { label: 'Norte', value: 2 },
-  { label: 'Sur', value: 3 },
-  { label: 'Centro', value: 4 },
-  { label: 'Playa', value: 5 },
+  { label: 'El Templo Centro', value: 1 },
+  { label: 'El Templo Alem', value: 2 },
+  { label: 'El Templo Constitución', value: 3 },
+  { label: 'El Templo Jujuy', value: 4 },
+  { label: 'El Templo Mogotes', value: 5 },
 ]
 
 const emailRules = [
