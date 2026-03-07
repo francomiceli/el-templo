@@ -56,13 +56,6 @@
           <q-item-section>Entrenamiento</q-item-section>
         </q-item>
 
-        <q-item clickable to="/journey" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="explore" />
-          </q-item-section>
-          <q-item-section>Journey</q-item-section>
-        </q-item>
-
         <q-item clickable to="/training/conceptos" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="menu_book" />
@@ -134,7 +127,6 @@ interface MobileTab {
 const mobileTabs: MobileTab[] = [
   { to: '/mi-camino', icon: 'trending_up', label: 'Mi Camino', badge: true },
   { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
-  { to: '/journey', icon: 'explore', label: 'Journey' },
   { to: '/training/conceptos', icon: 'menu_book', label: 'Conceptos' },
   { to: '/profile', icon: 'person', label: 'Perfil' },
 ]

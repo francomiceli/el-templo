@@ -127,21 +127,7 @@
         @request="handleRequestEvaluation"
       />
 
-      <!-- Journey Section Divider -->
-      <div class="mi-camino__section-divider">
-        <q-separator class="mi-camino__journey-divider" />
-        <FlameIcon size="xs" />
-        <q-separator class="mi-camino__journey-divider" />
-      </div>
-
-      <!-- Journey Progress & History -->
-      <JourneySection
-        :active-journey="journeyActiveJourney"
-        :archived-journeys="journeyArchivedJourneys"
-        :all-metadata="journeyAllMetadata"
-        :loading="journeyLoading"
-        :error="journeyError"
-      />
+      <!-- Journey section hidden from this release -->
     </div>
   </q-page>
 </template>
@@ -159,30 +145,21 @@
  *
  * Fetches progression data and journey data on mount.
  */
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
-import { useJourneyProgress } from '../composables/useJourneyProgress'
+// import { useJourneyProgress } from '../composables/useJourneyProgress' // Hidden from this release
 import { useUserStore } from 'src/stores/useUserStore'
 import LevelDisplay from '../components/LevelDisplay.vue'
 import TrainingStats from '../components/TrainingStats.vue'
 import RpeTrendChart from '../components/RpeTrendChart.vue'
 import EvaluationRequest from '../components/EvaluationRequest.vue'
-import JourneySection from '../components/JourneySection.vue'
+// import JourneySection from '../components/JourneySection.vue' // Hidden from this release
 
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
-const {
-  activeJourney: journeyActiveJourney,
-  archivedJourneys: journeyArchivedJourneys,
-  allMetadata: journeyAllMetadata,
-  loading: journeyLoading,
-  error: journeyError,
-  fetchJourneyData,
-  cleanup: journeyCleanup,
-} = useJourneyProgress()
 
 /**
  * User's display name - uses fullName computed from userStore
@@ -244,11 +221,6 @@ async function handleRequestEvaluation() {
 
 onMounted(() => {
   fetchStats()
-  fetchJourneyData()
-})
-
-onUnmounted(() => {
-  journeyCleanup()
 })
 </script>
 
@@ -459,18 +431,6 @@ onUnmounted(() => {
       color: $primary;
       font-weight: 600;
     }
-  }
-
-  &__section-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 8px 0;
-  }
-
-  &__journey-divider {
-    flex: 1;
-    background-color: rgba($secondary, 0.2);
   }
 }
 </style>
