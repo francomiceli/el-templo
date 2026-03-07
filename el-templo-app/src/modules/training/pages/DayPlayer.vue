@@ -283,15 +283,16 @@ async function onBlockComplete(): Promise<void> {
   const mobilityName = p.currentBlock.value?.mobilityExercise?.exerciseName ?? null
 
   // Determine what happens next
-  const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
+  const role = p.currentBlock.value?.role
   let actionLabel = 'Siguiente Bloque'
 
-  if (isLastBlock) {
-    actionLabel = 'Finalizar Sesion'
+  if (role === 'NUCLEUS' && !p.deuterosChoice.value) {
+    // Deuteros not chosen yet — playableBlocks only has INITIUM+NUCLEUS
+    actionLabel = 'Elige Deuteros'
   } else {
-    const role = p.currentBlock.value?.role
-    if (role === 'NUCLEUS' && !p.deuterosChoice.value) {
-      actionLabel = 'Elige Deuteros'
+    const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
+    if (isLastBlock) {
+      actionLabel = 'Finalizar Sesion'
     } else {
       const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
       if (nb) {
