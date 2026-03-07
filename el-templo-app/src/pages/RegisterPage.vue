@@ -104,20 +104,6 @@
                 color="primary"
               />
 
-              <q-select
-                v-model="branchId"
-                :options="branchOptions"
-                label="Sede"
-                :rules="branchRules"
-                emit-value
-                map-options
-                dark
-                outlined
-                label-color="cream"
-                color="primary"
-                popup-content-class="register-select-popup"
-              />
-
               <q-btn
                 type="submit"
                 label="Crear Cuenta"
@@ -153,18 +139,9 @@ const lastName = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
-const branchId = ref<number | null>(null)
 const showPassword = ref(false)
 const loading = ref(false)
 const eyeBounce = ref(false)
-
-const branchOptions = [
-  { label: 'El Templo Centro', value: 1 },
-  { label: 'El Templo Alem', value: 2 },
-  { label: 'El Templo Constitución', value: 3 },
-  { label: 'El Templo Jujuy', value: 4 },
-  { label: 'El Templo Mogotes', value: 5 },
-]
 
 const emailRules = [
   (val: string) => !!val || 'El email es requerido',
@@ -181,8 +158,6 @@ const confirmPasswordRules = [
   (val: string) => val === password.value || 'Las contraseñas no coinciden',
 ]
 
-const branchRules = [(val: number | null) => !!val || 'Selecciona una sede']
-
 function togglePassword() {
   showPassword.value = !showPassword.value
   eyeBounce.value = true
@@ -192,13 +167,11 @@ function togglePassword() {
 }
 
 async function onSubmit() {
-  if (!branchId.value) return
   loading.value = true
   try {
     await authStore.register({
       email: email.value,
       password: password.value,
-      branchId: branchId.value,
       firstName: firstName.value || undefined,
       lastName: lastName.value || undefined,
     })

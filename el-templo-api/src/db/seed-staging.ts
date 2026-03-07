@@ -51,6 +51,7 @@ async function seedStaging() {
       { name: "El Templo Constitucion", code: "CONST" },
       { name: "El Templo Jujuy", code: "JUJUY" },
       { name: "El Templo Mogotes", code: "MOGOTES" },
+      { name: "El Templo Park", code: "PARK" },
     ];
     await db.insert(branches).values(branchesData);
     console.log(`Created ${branchesData.length} branches`);
