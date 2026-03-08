@@ -812,7 +812,13 @@ Plans:
 
 1. Habits (across 6 areas: Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion), journal prompts, challenges, philosophical tools, factos, and revelations are extracted from Arete source code into structured data files
 2. All extracted content is adapted to El Templo brand voice (Spanish, temple/warrior/stoic tone) and ready for database seeding when the lifestyle module is built
-   **Plans**: TBD
+
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 46-01-PLAN.md — Habits seed (Level 1-2 with full details) + journal questions seed
+- [ ] 46-02-PLAN.md — Factos curation (~40) + philosophical tools + deferred content catalog + module barrel export
 
 ---
 
