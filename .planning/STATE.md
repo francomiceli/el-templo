@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: in-progress
-stopped_at: Completed 46-01-PLAN.md
-last_updated: "2026-03-08T19:21:31.000Z"
-last_activity: 2026-03-08 — Completed 46-01 habits & journal questions seed data
+status: completed
+stopped_at: Completed 46-02-PLAN.md
+last_updated: "2026-03-08T19:26:56.683Z"
+last_activity: 2026-03-08 — Completed 46-02 factos, tools, and deferred content
 progress:
   total_phases: 38
-  completed_phases: 24
+  completed_phases: 25
   total_plans: 129
-  completed_plans: 127
-  percent: 98
+  completed_plans: 128
+  percent: 97
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 46 of 52 (Lifestyle Content Extraction)
-Plan: 1 of 2 in current phase
-Status: Phase 46 in progress
-Last activity: 2026-03-08 — Completed 46-01 habits & journal questions seed data
+Plan: 2 of 2 in current phase (COMPLETE)
+Status: Phase 46 complete
+Last activity: 2026-03-08 — Completed 46-02 factos, tools, and deferred content
 
 Progress: [██████████] 97%
 
@@ -36,20 +36,20 @@ Progress: [██████████] 97%
 
 **Velocity:**
 
-- Total plans completed: 4
-- Average duration: 4min
-- Total execution time: 0.3 hours
+- Total plans completed: 5
+- Average duration: 5min
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
 | Phase                           | Plans | Total | Avg/Plan |
 | ------------------------------- | ----- | ----- | -------- |
 | 45-architecture-foundation      | 3     | 12min | 4min     |
-| 46-lifestyle-content-extraction | 1     | 4min  | 4min     |
+| 46-lifestyle-content-extraction | 2     | 12min | 6min     |
 
 **Recent Trend:**
 
-- Last 5 plans: 45-01 (4min), 45-02 (3min), 45-03 (5min), 46-01 (4min)
+- Last 5 plans: 45-01 (4min), 45-02 (3min), 45-03 (5min), 46-01 (4min), 46-02 (8min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -71,6 +71,10 @@ Recent decisions affecting current work:
 - Merge admin apps: Net features rebuilt in Vue/Quasar within existing el-templo-admin
 - Seed data pattern: typed arrays with 'as const satisfies readonly Type[]' for compile-time validation
 - Lifestyle content: light brand adaptation preserving original rioplatense tone, only removing brand references
+- Facto curation: 42 selected from 60 universal by brand fit, ~40 target with trimming of redundant entries
+- Framework-as-data: tool definitions capture questions/dimensions/output as typed objects, not UI code
+- [Phase 46]: Facto curation: 42 selected from 60 universal by brand fit, trimming redundant entries to meet ~40 target
+- [Phase 46]: Framework-as-data: tool definitions capture questions/dimensions/output as typed objects, decoupled from UI
 
 ### v2.0 Deferrals
 
@@ -93,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T19:21:31.000Z
-Stopped at: Completed 46-01-PLAN.md
-Resume file: .planning/phases/46-lifestyle-content-extraction/46-01-SUMMARY.md
+Last session: 2026-03-08T19:26:50.913Z
+Stopped at: Completed 46-02-PLAN.md
+Resume file: None
