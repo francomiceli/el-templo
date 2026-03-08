@@ -1,5 +1,5 @@
 // Module: aura
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { Logger } from "pino";
 import { auraTransactions, auraBalances, auraConfig } from "../../db/schema";
@@ -116,7 +116,7 @@ export class AuraService {
         sql`SELECT balance FROM aura_balances WHERE user_id = ${userId} FOR UPDATE`,
       );
 
-      const rows = balanceRows[0] as Array<{ balance: number }>;
+      const rows = balanceRows[0] as unknown as Array<{ balance: number }>;
       const currentBalance = rows[0]?.balance ?? 0;
 
       if (currentBalance < amount) {

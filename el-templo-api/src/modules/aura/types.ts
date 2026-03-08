@@ -1,8 +1,18 @@
 // Module: aura
 
+export type AuraSourceType =
+  | "training_completion"
+  | "attendance"
+  | "streak_bonus"
+  | "referral"
+  | "subscription_discount"
+  | "manual_adjustment"
+  | "challenge"
+  | "social";
+
 export interface AwardInput {
   userId: number;
-  sourceType: string; // matches sourceTypeEnum values
+  sourceType: AuraSourceType;
   referenceType?: string;
   referenceId?: number;
   amount?: number; // override config default
