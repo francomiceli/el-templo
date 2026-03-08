@@ -793,7 +793,13 @@ _Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (A
 2. AURA transactions are recorded in a ledger table with source type, amount, and timestamp for every earning/spending event
 3. AURA balance per user is maintained in a dedicated table and updates atomically when a transaction is recorded
 4. API source code is organized into explicit modules (training, members, subscriptions, etc.) with defined inter-module interfaces — no cross-module direct database access
-   **Plans**: TBD
+   **Plans:** 3 plans
+
+Plans:
+
+- [ ] 45-01-PLAN.md — DB schema: virtual branch (is_virtual), AURA tables (transactions, balances, config), migration + seeds
+- [ ] 45-02-PLAN.md — Module barrel exports for all 12 existing modules + app.ts barrel imports
+- [ ] 45-03-PLAN.md — AuraService (award/spend/getBalance) + aura module barrel + integration tests
 
 ---
 
