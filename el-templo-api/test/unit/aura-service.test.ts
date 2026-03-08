@@ -43,7 +43,7 @@ beforeEach(async () => {
 
   // Seed aura_config with test defaults
   await app.db.execute(sql`
-    INSERT INTO aura_config (source_type, default_amount, description, is_active)
+    INSERT INTO aura_config (aura_config_source_type, default_amount, description, is_active)
     VALUES
       ('training_completion', 10, 'Training session completed', true),
       ('attendance', 5, 'Class attendance', true),
