@@ -8,14 +8,14 @@ import authPlugin from "./plugins/auth";
 import spomPlugin from "./plugins/spom";
 import sessionsPlugin from "./plugins/sessions";
 import progressionPlugin from "./plugins/progression";
-import { authRoutes } from "./modules/auth/routes";
+import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
-import { journeyRoutes } from "./modules/journeys/routes";
-import { franchiseRoutes } from "./modules/franchise/routes";
-import { gladiusRoutes } from "./modules/gladius/routes";
-import { blogRoutes } from "./modules/blog/routes";
-import { academyRoutes } from "./modules/academy/routes";
-import { appLandingRoutes } from "./modules/app-landing/routes";
+import { journeyRoutes } from "./modules/journeys";
+import { franchiseRoutes } from "./modules/franchise";
+import { gladiusRoutes } from "./modules/gladius";
+import { blogRoutes } from "./modules/blog";
+import { academyRoutes } from "./modules/academy";
+import { appLandingRoutes } from "./modules/app-landing";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
