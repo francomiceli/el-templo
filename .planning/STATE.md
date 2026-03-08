@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Phase 46 context gathered
-last_updated: "2026-03-08T19:08:42.195Z"
-last_activity: 2026-03-08 — Completed 45-03 AuraService implementation
+status: in-progress
+stopped_at: Completed 46-01-PLAN.md
+last_updated: "2026-03-08T19:21:31.000Z"
+last_activity: 2026-03-08 — Completed 46-01 habits & journal questions seed data
 progress:
   total_phases: 38
   completed_phases: 24
-  total_plans: 127
-  completed_plans: 126
+  total_plans: 129
+  completed_plans: 127
   percent: 98
 ---
 
@@ -21,34 +21,35 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-08)
 
 **Core value:** The operational backbone works — coaches manage from one admin, members check in and reserve spots, architecture ready for AURA/lifestyle/social.
-**Current focus:** v4.0 Ecosystem Foundation — Phase 45 executing
+**Current focus:** v4.0 Ecosystem Foundation — Phase 46 executing
 
 ## Current Position
 
-Phase: 45 of 52 (Architecture Foundation)
-Plan: 3 of 3 in current phase (COMPLETE)
-Status: Phase 45 complete
-Last activity: 2026-03-08 — Completed 45-03 AuraService implementation
+Phase: 46 of 52 (Lifestyle Content Extraction)
+Plan: 1 of 2 in current phase
+Status: Phase 46 in progress
+Last activity: 2026-03-08 — Completed 46-01 habits & journal questions seed data
 
-Progress: [██████████] 98%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: 4min
-- Total execution time: 0.2 hours
+- Total execution time: 0.3 hours
 
 **By Phase:**
 
-| Phase                      | Plans | Total | Avg/Plan |
-| -------------------------- | ----- | ----- | -------- |
-| 45-architecture-foundation | 3     | 12min | 4min     |
+| Phase                           | Plans | Total | Avg/Plan |
+| ------------------------------- | ----- | ----- | -------- |
+| 45-architecture-foundation      | 3     | 12min | 4min     |
+| 46-lifestyle-content-extraction | 1     | 4min  | 4min     |
 
 **Recent Trend:**
 
-- Last 5 plans: 45-01 (4min), 45-02 (3min), 45-03 (5min)
+- Last 5 plans: 45-01 (4min), 45-02 (3min), 45-03 (5min), 46-01 (4min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - AuraService uses constructor DI (db + logger) for testability, not Fastify decorator
 - AuraSourceType union type for compile-time safety on AURA source types
 - Merge admin apps: Net features rebuilt in Vue/Quasar within existing el-templo-admin
+- Seed data pattern: typed arrays with 'as const satisfies readonly Type[]' for compile-time validation
+- Lifestyle content: light brand adaptation preserving original rioplatense tone, only removing brand references
 
 ### v2.0 Deferrals
 
@@ -90,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T19:08:42.191Z
-Stopped at: Phase 46 context gathered
-Resume file: .planning/phases/46-lifestyle-content-extraction/46-CONTEXT.md
+Last session: 2026-03-08T19:21:31.000Z
+Stopped at: Completed 46-01-PLAN.md
+Resume file: .planning/phases/46-lifestyle-content-extraction/46-01-SUMMARY.md

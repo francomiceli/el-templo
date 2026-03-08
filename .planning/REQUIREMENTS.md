@@ -13,7 +13,7 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 - [x] **RSTRC-02**: AURA transaction ledger records all earning/spending events with source, amount, and timestamp
 - [x] **RSTRC-03**: AURA balance is maintained per user and updated atomically on each transaction
 - [x] **RSTRC-04**: API modules have explicit boundaries with defined inter-module interfaces
-- [ ] **RSTRC-05**: Lifestyle content (habits, journal questions, challenges, philosophical tools, factos, revelations) is extracted from Arete and adapted to El Templo brand voice
+- [x] **RSTRC-05**: Lifestyle content (habits, journal questions, challenges, philosophical tools, factos, revelations) is extracted from Arete and adapted to El Templo brand voice
 
 ### Members Management
 
@@ -117,7 +117,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSTRC-02    | Phase 45 | Complete |
 | RSTRC-03    | Phase 45 | Complete |
 | RSTRC-04    | Phase 45 | Complete |
-| RSTRC-05    | Phase 46 | Pending  |
+| RSTRC-05    | Phase 46 | Complete |
 | MEMB-01     | Phase 47 | Pending  |
 | MEMB-02     | Phase 47 | Pending  |
 | MEMB-03     | Phase 47 | Pending  |
