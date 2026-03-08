@@ -111,17 +111,51 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
-| Requirement | Phase | Status |
-| ----------- | ----- | ------ |
-| —           | —     | —      |
+| Requirement | Phase    | Status  |
+| ----------- | -------- | ------- |
+| RSTRC-01    | Phase 45 | Pending |
+| RSTRC-02    | Phase 45 | Pending |
+| RSTRC-03    | Phase 45 | Pending |
+| RSTRC-04    | Phase 45 | Pending |
+| RSTRC-05    | Phase 46 | Pending |
+| MEMB-01     | Phase 47 | Pending |
+| MEMB-02     | Phase 47 | Pending |
+| MEMB-03     | Phase 47 | Pending |
+| MEMB-04     | Phase 47 | Pending |
+| MEMB-05     | Phase 47 | Pending |
+| MEMB-06     | Phase 47 | Pending |
+| SUBS-01     | Phase 48 | Pending |
+| SUBS-02     | Phase 48 | Pending |
+| SUBS-03     | Phase 48 | Pending |
+| SUBS-04     | Phase 48 | Pending |
+| SUBS-05     | Phase 48 | Pending |
+| PAY-01      | Phase 49 | Pending |
+| PAY-02      | Phase 49 | Pending |
+| PAY-03      | Phase 49 | Pending |
+| PAY-04      | Phase 49 | Pending |
+| ATTN-01     | Phase 50 | Pending |
+| ATTN-02     | Phase 50 | Pending |
+| ATTN-03     | Phase 50 | Pending |
+| ATTN-04     | Phase 50 | Pending |
+| ATTN-05     | Phase 50 | Pending |
+| SCHD-01     | Phase 51 | Pending |
+| SCHD-02     | Phase 51 | Pending |
+| SCHD-03     | Phase 51 | Pending |
+| SCHD-04     | Phase 51 | Pending |
+| SCHD-05     | Phase 51 | Pending |
+| SCHD-06     | Phase 51 | Pending |
+| ANLT-01     | Phase 52 | Pending |
+| ANLT-02     | Phase 52 | Pending |
+| ANLT-03     | Phase 52 | Pending |
+| ANLT-04     | Phase 52 | Pending |
 
 **Coverage:**
 
 - v4.0 requirements: 32 total
-- Mapped to phases: 0
-- Unmapped: 32
+- Mapped to phases: 32
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-03-08_
-_Last updated: 2026-03-08 after initial definition_
+_Last updated: 2026-03-08 after roadmap creation — all 32 requirements mapped to phases 45-52_

@@ -4,6 +4,7 @@
 
 - **v2.0 Admin App** - Phases 13-28 (in progress, phases 13-19 + 26-27 complete)
 - **v3.0 Landing Page** - Phases 29-36 (planned)
+- **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
 
 ---
 
@@ -761,3 +762,160 @@ _v3.0 phases added: 2026-02-28 — 8 phases (29-36), 113 requirements mapped_
 _Phase 37 (SEO Audit Fixes) inserted, phases 37-38 renumbered to 38-39: 2026-03-02_
 _Phases 39-40 (App Brand Alignment, Day Player Redesign) inserted, Content Handoff moved to 41: 2026-03-02_
 _Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (APP-01 through APP-28)_
+
+---
+
+### v4.0 Ecosystem Foundation (Phases 45-52)
+
+**Milestone Goal:** Lay the architectural foundation for the unified ecosystem (virtual branch, AURA tracking, modular DB), consolidate admin operations (merge El-Templo-Net features into el-templo-admin), and build the attendance + class scheduling system.
+
+## v4.0 Phases
+
+- [ ] **Phase 45: Architecture Foundation** - Virtual branch, AURA ledger/balances, module boundaries
+- [ ] **Phase 46: Lifestyle Content Extraction** - Extract and adapt Arete content to El Templo brand
+- [ ] **Phase 47: Members Management** - Admin member CRUD with search, filters, profiles, notes
+- [ ] **Phase 48: Subscriptions** - Plan management, member assignments, AURA discounts, status tracking
+- [ ] **Phase 49: Payments** - Payment recording, history, overdue flags, financial summary
+- [ ] **Phase 50: Attendance** - QR check-in, AURA awards, admin fallback, attendance records
+- [ ] **Phase 51: Scheduling** - Activities, recurring slots, member reservations, capacity enforcement
+- [ ] **Phase 52: Analytics Dashboard** - Member, attendance, and financial analytics with branch/date filters
+
+## v4.0 Phase Details
+
+### Phase 45: Architecture Foundation
+
+**Goal**: The codebase has explicit module boundaries, a virtual "Templo Online" branch exists for online members, and AURA transactions are tracked from day one
+**Depends on**: Nothing (first phase of v4.0)
+**Requirements**: RSTRC-01, RSTRC-02, RSTRC-03, RSTRC-04
+**Success Criteria** (what must be TRUE):
+
+1. A "Templo Online" branch exists in the branches table and can be assigned to users without breaking existing branch-dependent logic
+2. AURA transactions are recorded in a ledger table with source type, amount, and timestamp for every earning/spending event
+3. AURA balance per user is maintained in a dedicated table and updates atomically when a transaction is recorded
+4. API source code is organized into explicit modules (training, members, subscriptions, etc.) with defined inter-module interfaces — no cross-module direct database access
+   **Plans**: TBD
+
+---
+
+### Phase 46: Lifestyle Content Extraction
+
+**Goal**: All lifestyle content from the Arete codebase is extracted, cataloged, and adapted to El Templo's brand voice — ready for the v5.0 lifestyle module
+**Depends on**: Phase 45 (module boundaries must be in place)
+**Requirements**: RSTRC-05
+**Success Criteria** (what must be TRUE):
+
+1. Habits (across 6 areas: Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion), journal prompts, challenges, philosophical tools, factos, and revelations are extracted from Arete source code into structured data files
+2. All extracted content is adapted to El Templo brand voice (Spanish, temple/warrior/stoic tone) and ready for database seeding when the lifestyle module is built
+   **Plans**: TBD
+
+---
+
+### Phase 47: Members Management
+
+**Goal**: Coaches can fully manage members from el-templo-admin — search, filter, view profiles, create/edit members, deactivate accounts, and add internal notes
+**Depends on**: Phase 45 (module boundaries and virtual branch must exist)
+**Requirements**: MEMB-01, MEMB-02, MEMB-03, MEMB-04, MEMB-05, MEMB-06
+**Success Criteria** (what must be TRUE):
+
+1. Admin can view a paginated member list with search by name/email and filters by branch, level, and active/inactive status
+2. Admin can open a member's extended profile showing personal info, subscription status, payment history, attendance records, and internal notes
+3. Admin can create a new member with profile details, branch assignment, and level assignment
+4. Admin can edit any member's profile, reassign branch, change level, and deactivate or reactivate their account
+5. Admin can add timestamped internal notes to a member's profile visible only to coaches/admins
+   **Plans**: TBD
+
+---
+
+### Phase 48: Subscriptions
+
+**Goal**: Coaches can create subscription plans, assign them to members, and track subscription status — members can see their own plan in the app
+**Depends on**: Phase 47 (member profiles must exist to assign subscriptions)
+**Requirements**: SUBS-01, SUBS-02, SUBS-03, SUBS-04, SUBS-05
+**Success Criteria** (what must be TRUE):
+
+1. Admin can create and manage subscription plans with name, price, and frequency limits (e.g., "3x/week", "unlimited")
+2. Admin can assign a plan to a member with start date and billing cycle, and the system auto-calculates adjusted price when the member has active AURA discount milestones
+3. Admin can view subscription status (active, expired, cancelled) for any member from their profile or from a subscriptions list view
+4. Member can view their current plan name and subscription status in the app
+   **Plans**: TBD
+
+---
+
+### Phase 49: Payments
+
+**Goal**: Coaches can record payments, view payment history, identify overdue members, and see financial summaries — the financial operations backbone
+**Depends on**: Phase 48 (subscriptions must exist to know what members owe)
+**Requirements**: PAY-01, PAY-02, PAY-03, PAY-04
+**Success Criteria** (what must be TRUE):
+
+1. Admin can record a payment for a member specifying amount, date, and method (cash, transfer, or card)
+2. Admin can view the full payment history for any member from their profile
+3. The system automatically flags members with overdue payments based on subscription billing cycle and last payment date
+4. Admin can view a financial summary report showing revenue by period, by branch, and by payment method
+   **Plans**: TBD
+
+---
+
+### Phase 50: Attendance
+
+**Goal**: Members check in at branches by scanning a QR code, earn AURA for attending, and coaches can view/manage attendance records
+**Depends on**: Phase 45 (AURA tables must exist for check-in awards)
+**Requirements**: ATTN-01, ATTN-02, ATTN-03, ATTN-04, ATTN-05
+**Success Criteria** (what must be TRUE):
+
+1. Each branch displays a QR code (generated by admin or auto-generated) that members can scan
+2. Member scans the branch QR code via the app and a check-in is recorded with branch, timestamp, and member ID
+3. Each successful check-in automatically awards AURA to the member via the AURA transaction ledger
+4. Admin can manually check in a member as a fallback when QR scanning is not possible
+5. Admin can view attendance records filtered by member or by date, seeing who checked in, when, and at which branch
+   **Plans**: TBD
+
+---
+
+### Phase 51: Scheduling
+
+**Goal**: Coaches manage class schedules with capacity limits, and members can browse available slots and reserve/cancel spots from the app
+**Depends on**: Phase 47 (member management must exist for reservation identity)
+**Requirements**: SCHD-01, SCHD-02, SCHD-03, SCHD-04, SCHD-05, SCHD-06
+**Success Criteria** (what must be TRUE):
+
+1. Admin can create activities (e.g., "Sesion Grupal", "Open Gym") with name and description
+2. Admin can create weekly recurring time slots for activities with day, time, branch, and capacity limit
+3. Member can view available class slots for their branch in the app, showing activity name, time, and remaining capacity
+4. Member can reserve a spot in an available slot and cancel a reservation, with the system enforcing capacity limits (full slots cannot be booked)
+   **Plans**: TBD
+
+---
+
+### Phase 52: Analytics Dashboard
+
+**Goal**: Coaches have a unified analytics view showing member, attendance, and financial metrics — all filterable by branch and date range
+**Depends on**: Phases 47-50 (all data sources must be in place)
+**Requirements**: ANLT-01, ANLT-02, ANLT-03, ANLT-04
+**Success Criteria** (what must be TRUE):
+
+1. Admin can view member analytics: total active members, new members per period, churned members per period, and retention rate
+2. Admin can view attendance analytics: check-ins per day/week, peak hours, and occupancy by time slot
+3. Admin can view financial analytics: revenue trends, outstanding balances, and collection rate
+4. All analytics dashboards can be filtered by branch and date range
+   **Plans**: TBD
+
+---
+
+### v4.0 Progress
+
+**Execution Order:**
+Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 (Subscriptions) -> Phase 49 (Payments) -> Phase 50 (Attendance) -> Phase 51 (Scheduling) -> Phase 52 (Analytics)
+
+| Phase                            | Plans Complete | Status      | Completed |
+| -------------------------------- | -------------- | ----------- | --------- |
+| 45. Architecture Foundation      | 0/?            | Not started | -         |
+| 46. Lifestyle Content Extraction | 0/?            | Not started | -         |
+| 47. Members Management           | 0/?            | Not started | -         |
+| 48. Subscriptions                | 0/?            | Not started | -         |
+| 49. Payments                     | 0/?            | Not started | -         |
+| 50. Attendance                   | 0/?            | Not started | -         |
+| 51. Scheduling                   | 0/?            | Not started | -         |
+| 52. Analytics Dashboard          | 0/?            | Not started | -         |
+
+_v4.0 phases added: 2026-03-08 — 8 phases (45-52), 32 requirements mapped_
