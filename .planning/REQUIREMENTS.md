@@ -34,10 +34,10 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Payments
 
-- [ ] **PAY-01**: Admin can record a payment for a member (amount, date, method: cash/transfer/card)
-- [ ] **PAY-02**: Admin can view payment history for any member
-- [ ] **PAY-03**: System flags members with overdue payments
-- [ ] **PAY-04**: Admin can view financial summary report (revenue by period, by branch, by payment method)
+- [x] **PAY-01**: Admin can record a payment for a member (amount, date, method: cash/transfer/card)
+- [x] **PAY-02**: Admin can view payment history for any member
+- [x] **PAY-03**: System flags members with overdue payments
+- [x] **PAY-04**: Admin can view financial summary report (revenue by period, by branch, by payment method)
 
 ### Analytics
 
@@ -144,10 +144,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SUBS-03     | Phase 48 | Complete                    |
 | SUBS-04     | Phase 48 | Complete                    |
 | SUBS-05     | Phase 48 | Complete                    |
-| PAY-01      | Phase 49 | Pending                     |
-| PAY-02      | Phase 49 | Pending                     |
-| PAY-03      | Phase 49 | Pending                     |
-| PAY-04      | Phase 49 | Pending                     |
+| PAY-01      | Phase 49 | Complete                    |
+| PAY-02      | Phase 49 | Complete                    |
+| PAY-03      | Phase 49 | Complete                    |
+| PAY-04      | Phase 49 | Complete                    |
 | ATTN-01     | Phase 50 | Pending                     |
 | ATTN-02     | Phase 50 | Pending                     |
 | ATTN-03     | Phase 50 | Pending                     |
