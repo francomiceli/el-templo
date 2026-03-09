@@ -1,7 +1,10 @@
 /**
  * Philosophical tool definitions for El Templo lifestyle module.
  *
- * 5 tools extracted from Arete's tools feature:
+ * 5 El Templo philosophical frameworks -- original conceptual tools
+ * that don't exist as structured data in arete-web (which has a different
+ * diagnostic concept). These are curated frameworks for self-examination:
+ *
  * - Las 4 Pruebas: belief examination against 4 criteria
  * - Mapa de Friccion: friction source identification and pattern finding
  * - Tabla de Poder: decision evaluation from 4 dimensions
@@ -9,7 +12,9 @@
  * - Test de Virtud: habit motivation examination
  *
  * Each tool is captured as a conceptual framework (questions/dimensions)
- * without any UI concerns.
+ * without any UI concerns. All prompts in rioplatense Spanish.
+ *
+ * @see Phase 46 -- Lifestyle Content Extraction (REDO from arete-web)
  */
 
 // ---------------------------------------------------------------------------
@@ -78,7 +83,7 @@ export const TOOL_SEEDS = [
         },
       ],
       output:
-        "Summary of all four responses alongside the original belief for reflection",
+        "Resumen de las cuatro respuestas junto a la creencia original para reflexion",
     },
   },
 
@@ -90,7 +95,7 @@ export const TOOL_SEEDS = [
     name: "Mapa de Friccion",
     description: "Identifica fuentes de friccion y encuentra patrones",
     framework: {
-      input: "Three current sources of friction, tension, or silent wear",
+      input: "Tres fuentes actuales de friccion, tension o desgaste silencioso",
       steps: [
         {
           name: "Identificar",
@@ -108,7 +113,7 @@ export const TOOL_SEEDS = [
         },
       ],
       output:
-        "Summary showing friction sources, the connecting pattern, and one concrete weekly action",
+        "Resumen mostrando fuentes de friccion, el patron que las conecta, y una accion concreta para la semana",
     },
   },
 
@@ -120,7 +125,7 @@ export const TOOL_SEEDS = [
     name: "Tabla de Poder",
     description: "Evalua una decision desde cuatro dimensiones",
     framework: {
-      input: "A decision that needs to be made",
+      input: "Una decision que necesitas tomar",
       steps: [
         {
           name: "Urgencia",
@@ -140,7 +145,7 @@ export const TOOL_SEEDS = [
         },
       ],
       output:
-        "Computed recommendation based on dimension scores: act with determination, experiment without fear, exercise caution, or reflect longer",
+        "Recomendacion basada en los puntajes: actuar con determinacion, experimentar sin miedo, proceder con cautela, o reflexionar mas",
     },
   },
 
@@ -152,27 +157,27 @@ export const TOOL_SEEDS = [
     name: "Tabla del Estratega",
     description: "Compara dos opciones dimension por dimension",
     framework: {
-      input: "Two options being considered",
+      input: "Dos opciones que estas considerando",
       steps: [
         {
           name: "Riesgo",
-          prompt: "Score each option on risk (1-10)",
+          prompt: "Puntua cada opcion en riesgo (1-10)",
         },
         {
           name: "Beneficio",
-          prompt: "Score each option on benefit (1-10)",
+          prompt: "Puntua cada opcion en beneficio (1-10)",
         },
         {
           name: "Viabilidad",
-          prompt: "Score each option on feasibility (1-10)",
+          prompt: "Puntua cada opcion en viabilidad (1-10)",
         },
         {
           name: "Impacto",
-          prompt: "Score each option on impact (1-10)",
+          prompt: "Puntua cada opcion en impacto (1-10)",
         },
       ],
       output:
-        "Total score comparison with clear winner or balanced verdict, plus per-dimension strengths for each option",
+        "Comparacion de puntajes con ganador claro o veredicto equilibrado, mas fortalezas por dimension de cada opcion",
     },
   },
 
@@ -184,7 +189,7 @@ export const TOOL_SEEDS = [
     name: "Test de Virtud",
     description: "Examina la motivacion detras de cada habito",
     framework: {
-      input: "The user's active habits list",
+      input: "La lista de habitos activos del usuario",
       steps: [
         {
           name: "Examen de motivacion",
@@ -193,7 +198,7 @@ export const TOOL_SEEDS = [
         },
       ],
       output:
-        "Summary of all habits with their motivations, highlighting which arise from conviction versus obligation or fear",
+        "Resumen de todos los habitos con sus motivaciones, destacando cuales nacen de la conviccion vs la obligacion o el miedo",
     },
   },
 ] as const satisfies readonly PhilosophicalToolSeed[];
