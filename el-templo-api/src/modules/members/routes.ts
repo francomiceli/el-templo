@@ -29,6 +29,35 @@ import {
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 
+/**
+ * Check if an error is a MySQL duplicate key error and extract details.
+ * Drizzle wraps MySQL errors: the real MySQL error is in `err.cause`.
+ */
+function isDuplicateKeyError(err: unknown): {
+  isDuplicate: boolean;
+  detail: string;
+} {
+  if (!(err instanceof Error)) return { isDuplicate: false, detail: "" };
+
+  // Drizzle wraps the MySQL error in `cause`
+  const cause = err.cause as Record<string, unknown> | undefined;
+  const causeCode = typeof cause?.code === "string" ? cause.code : "";
+  const causeSqlMessage =
+    typeof cause?.sqlMessage === "string" ? cause.sqlMessage : "";
+  const causeMessage = cause instanceof Error ? cause.message : causeSqlMessage;
+
+  // Check the cause first (Drizzle wrapper), then the error itself
+  const isDuplicate =
+    causeCode === "ER_DUP_ENTRY" ||
+    causeSqlMessage.includes("Duplicate entry") ||
+    causeMessage.includes("Duplicate entry") ||
+    err.message.includes("Duplicate entry");
+
+  const detail = causeSqlMessage || causeMessage || err.message;
+
+  return { isDuplicate, detail };
+}
+
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   const memberService = new MemberService(fastify.db, fastify.log);
 
@@ -38,12 +67,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
     if (!ADMIN_ROLES.includes(request.user.role)) {
-      return reply
-        .code(403)
-        .send({
-          error: "Forbidden",
-          message: "Acceso de administrador requerido",
-        });
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Acceso de administrador requerido",
+      });
     }
   });
 
@@ -120,26 +147,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         const member = await memberService.createMember(request.body);
         return reply.code(201).send(member);
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Error al crear miembro";
+        const { isDuplicate, detail } = isDuplicateKeyError(err);
 
-        // Check for duplicate key errors
-        if (message.includes("Duplicate entry")) {
-          if (message.includes("email")) {
-            return reply
-              .code(409)
-              .send({
-                error: "Conflict",
-                message: "El email ya esta registrado",
-              });
+        if (isDuplicate) {
+          if (detail.includes("email")) {
+            return reply.code(409).send({
+              error: "Conflict",
+              message: "El email ya esta registrado",
+            });
           }
-          if (message.includes("dni")) {
-            return reply
-              .code(409)
-              .send({
-                error: "Conflict",
-                message: "El DNI ya esta registrado",
-              });
+          if (detail.includes("dni")) {
+            return reply.code(409).send({
+              error: "Conflict",
+              message: "El DNI ya esta registrado",
+            });
           }
           return reply
             .code(409)
@@ -171,17 +192,14 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
         return member;
       } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Error al actualizar miembro";
+        const { isDuplicate, detail } = isDuplicateKeyError(err);
 
-        if (message.includes("Duplicate entry")) {
-          if (message.includes("dni")) {
-            return reply
-              .code(409)
-              .send({
-                error: "Conflict",
-                message: "El DNI ya esta registrado",
-              });
+        if (isDuplicate) {
+          if (detail.includes("dni")) {
+            return reply.code(409).send({
+              error: "Conflict",
+              message: "El DNI ya esta registrado",
+            });
           }
           return reply
             .code(409)
@@ -269,12 +287,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.role,
         )
       ) {
-        return reply
-          .code(403)
-          .send({
-            error: "Forbidden",
-            message: "No tienes permiso para editar esta nota",
-          });
+        return reply.code(403).send({
+          error: "Forbidden",
+          message: "No tienes permiso para editar esta nota",
+        });
       }
 
       const updated = await memberService.updateNote(noteId, {
@@ -313,12 +329,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.role,
         )
       ) {
-        return reply
-          .code(403)
-          .send({
-            error: "Forbidden",
-            message: "No tienes permiso para eliminar esta nota",
-          });
+        return reply.code(403).send({
+          error: "Forbidden",
+          message: "No tienes permiso para eliminar esta nota",
+        });
       }
 
       await memberService.deleteNote(noteId);
