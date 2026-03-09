@@ -5,10 +5,10 @@
 
     <!-- Filter bar -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-12 col-sm-4">
+      <div class="col-12 col-sm-3">
         <q-input
           v-model="filters.search"
-          label="Buscar por nombre"
+          label="Buscar por nombre, email o DNI"
           dense
           outlined
           clearable
@@ -20,16 +20,48 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-3">
+      <div class="col-6 col-sm-2">
         <q-select
-          v-model="filters.journeyType"
-          :options="journeyTypeOptions"
-          label="Tipo de Journey"
+          v-model="filters.branchId"
+          :options="branchFilterOptions"
+          label="Sucursal"
           dense
           outlined
           emit-value
           map-options
           @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-2">
+        <q-select
+          v-model="filters.level"
+          :options="levelFilterOptions"
+          label="Nivel"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-2">
+        <q-select
+          v-model="filters.isActive"
+          :options="statusFilterOptions"
+          label="Estado"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-3 text-right">
+        <q-btn
+          icon="person_add"
+          label="Crear Alumno"
+          color="primary"
+          @click="showCreateDialog = true"
         />
       </div>
     </div>
@@ -38,16 +70,19 @@
     <q-table
       :rows="members"
       :columns="columns"
-      row-key="userId"
+      row-key="id"
       :loading="loading"
       :pagination="tablePagination"
       :rows-per-page-options="[20, 50, 100]"
       @request="onTableRequest"
     >
-      <!-- Nombre column -->
+      <!-- Nombre column (clickable) -->
       <template #body-cell-nombre="props">
         <q-td :props="props">
-          <span class="text-weight-medium">
+          <span
+            class="text-weight-medium text-primary cursor-pointer"
+            @click="viewMember(props.row)"
+          >
             {{ displayName(props.row) }}
           </span>
         </q-td>
@@ -62,25 +97,20 @@
         </q-td>
       </template>
 
-      <!-- Journey column with colored badge -->
-      <template #body-cell-journey="props">
+      <!-- Estado column -->
+      <template #body-cell-estado="props">
         <q-td :props="props">
           <q-badge
-            v-if="props.row.journeyType"
-            :color="journeyBadgeColor(props.row.journeyType)"
-            :label="props.row.journeyName"
+            :color="props.row.isActive ? 'positive' : 'grey'"
+            :label="props.row.isActive ? 'Activo' : 'Inactivo'"
           />
-          <span v-else class="text-grey-5 text-italic">Sin journey</span>
         </q-td>
       </template>
 
-      <!-- Semana column -->
-      <template #body-cell-semana="props">
+      <!-- Fecha column -->
+      <template #body-cell-fecha="props">
         <q-td :props="props">
-          <span v-if="props.row.journeyType" class="text-caption">
-            {{ highestSemana(props.row) }}
-          </span>
-          <span v-else class="text-grey-5">—</span>
+          {{ formatDate(props.row.createdAt) }}
         </q-td>
       </template>
 
@@ -93,6 +123,9 @@
         </q-td>
       </template>
     </q-table>
+
+    <!-- Create Member Dialog -->
+    <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
   </q-page>
 </template>
 
@@ -102,31 +135,29 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { useJourneyAdminApi } from 'src/composables/useJourneyAdminApi';
-import {
-  ALL_JOURNEY_TYPES,
-  JOURNEY_TYPE_LABELS,
-  JOURNEY_TIER_MAP,
-  JOURNEY_TIER_COLORS,
-  type JourneyType,
-  type JourneyTier,
-  type MemberJourneyInfo,
-} from 'src/types/journey';
+import { useMembersApi } from 'src/composables/useMembersApi';
+import type { MemberListItem, BranchOption } from 'src/types/member';
+import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
 const router = useRouter();
+const membersApi = useMembersApi();
 
 // =========================================================================
 // State
 // =========================================================================
 
-const members = ref<MemberJourneyInfo[]>([]);
+const members = ref<MemberListItem[]>([]);
+const branches = ref<BranchOption[]>([]);
 const loading = ref(false);
+const showCreateDialog = ref(false);
 
 const filters = reactive({
   search: '',
-  journeyType: '',
+  branchId: null as number | null,
+  level: null as string | null,
+  isActive: true as boolean | null,
 });
 
 const tablePagination = ref({
@@ -141,23 +172,23 @@ const tablePagination = ref({
 // Filter options
 // =========================================================================
 
-const journeyTypeOptions = [
-  { label: 'Todos', value: '' },
-  { label: '— Principiante —', value: '', disable: true },
-  ...ALL_JOURNEY_TYPES.filter((jt) => JOURNEY_TIER_MAP[jt] === 'principiante').map((jt) => ({
-    label: JOURNEY_TYPE_LABELS[jt],
-    value: jt,
-  })),
-  { label: '— Intermedio —', value: '', disable: true },
-  ...ALL_JOURNEY_TYPES.filter((jt) => JOURNEY_TIER_MAP[jt] === 'intermedio').map((jt) => ({
-    label: JOURNEY_TYPE_LABELS[jt],
-    value: jt,
-  })),
-  { label: '— Avanzado —', value: '', disable: true },
-  ...ALL_JOURNEY_TYPES.filter((jt) => JOURNEY_TIER_MAP[jt] === 'avanzado').map((jt) => ({
-    label: JOURNEY_TYPE_LABELS[jt],
-    value: jt,
-  })),
+const branchFilterOptions = ref<Array<{ label: string; value: number | null }>>([
+  { label: 'Todas', value: null },
+]);
+
+const levelFilterOptions = [
+  { label: 'Todos', value: null },
+  { label: 'Alfa', value: 'alfa' },
+  { label: 'Delta', value: 'delta' },
+  { label: 'Sigma', value: 'sigma' },
+  { label: 'Omega', value: 'omega' },
+  { label: 'Spartan', value: 'spartan' },
+];
+
+const statusFilterOptions = [
+  { label: 'Todos', value: null },
+  { label: 'Activos', value: true },
+  { label: 'Inactivos', value: false },
 ];
 
 // =========================================================================
@@ -168,7 +199,21 @@ const columns: QTableProps['columns'] = [
   {
     name: 'nombre',
     label: 'Nombre',
-    field: (row: MemberJourneyInfo) => displayName(row),
+    field: (row: MemberListItem) => displayName(row),
+    align: 'left',
+    sortable: false,
+  },
+  {
+    name: 'email',
+    label: 'Email',
+    field: 'email',
+    align: 'left',
+    sortable: false,
+  },
+  {
+    name: 'sucursal',
+    label: 'Sucursal',
+    field: 'branchName',
     align: 'left',
     sortable: false,
   },
@@ -181,31 +226,25 @@ const columns: QTableProps['columns'] = [
     style: 'width: 80px',
   },
   {
-    name: 'sucursal',
-    label: 'Sucursal',
-    field: 'branchName',
-    align: 'left',
-    sortable: false,
-  },
-  {
-    name: 'journey',
-    label: 'Journey',
-    field: 'journeyType',
-    align: 'left',
-    sortable: false,
-  },
-  {
-    name: 'semana',
-    label: 'Semana',
-    field: 'semana20',
+    name: 'estado',
+    label: 'Estado',
+    field: 'isActive',
     align: 'center',
     sortable: false,
     style: 'width: 100px',
   },
   {
+    name: 'fecha',
+    label: 'Fecha',
+    field: 'createdAt',
+    align: 'left',
+    sortable: false,
+    style: 'width: 110px',
+  },
+  {
     name: 'acciones',
     label: 'Acciones',
-    field: 'userId',
+    field: 'id',
     align: 'center',
     sortable: false,
     style: 'width: 80px',
@@ -249,35 +288,48 @@ function levelColor(level: string): string {
 // Display helpers
 // =========================================================================
 
-function displayName(member: MemberJourneyInfo): string {
+function displayName(member: MemberListItem): string {
   const parts = [member.firstName, member.lastName].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : member.email;
 }
 
-function journeyBadgeColor(journeyType: string): string {
-  const tier: JourneyTier | undefined = JOURNEY_TIER_MAP[journeyType as JourneyType];
-  return tier ? JOURNEY_TIER_COLORS[tier] : 'grey';
-}
-
-function highestSemana(member: MemberJourneyInfo): string {
-  const semanas = [member.semana20, member.semana40, member.semana60].filter(
-    (s): s is number => s !== null
-  );
-  if (semanas.length === 0) return '—';
-  return `S${Math.max(...semanas)}`;
+function formatDate(isoDate: string): string {
+  try {
+    return new Date(isoDate).toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return isoDate;
+  }
 }
 
 // =========================================================================
 // Data loading
 // =========================================================================
 
+async function loadBranches() {
+  try {
+    branches.value = await membersApi.getBranches();
+    branchFilterOptions.value = [
+      { label: 'Todas', value: null },
+      ...branches.value.map((b) => ({ label: b.name, value: b.id })),
+    ];
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading branches', { error: message });
+  }
+}
+
 async function loadMembers() {
   loading.value = true;
   try {
-    const journeyApi = useJourneyAdminApi();
-    const result = await journeyApi.getMembers({
+    const result = await membersApi.getMembers({
       search: filters.search || undefined,
-      journeyType: filters.journeyType || undefined,
+      branchId: filters.branchId ?? undefined,
+      level: filters.level ?? undefined,
+      isActive: filters.isActive ?? undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -307,8 +359,13 @@ function onTableRequest(props: { pagination: { page: number; rowsPerPage: number
   loadMembers();
 }
 
-function viewMember(member: MemberJourneyInfo) {
-  router.push(`/alumnos/${member.userId}`);
+function viewMember(member: MemberListItem) {
+  router.push(`/alumnos/${member.id}`);
+}
+
+function onMemberSaved() {
+  $q.notify({ type: 'positive', message: 'Alumno guardado correctamente' });
+  loadMembers();
 }
 
 // =========================================================================
@@ -316,6 +373,7 @@ function viewMember(member: MemberJourneyInfo) {
 // =========================================================================
 
 onMounted(() => {
+  loadBranches();
   loadMembers();
 });
 </script>
