@@ -8,6 +8,8 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
+import { eq } from "drizzle-orm";
+import * as schema from "../../db/schema";
 import { MemberService } from "./service";
 import type {
   CreateMemberInput,
@@ -72,6 +74,23 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+  });
+
+  // =========================================================================
+  // Branches (must be defined BEFORE :userId param routes)
+  // =========================================================================
+
+  // GET /admin/members/branches — List active branches for dropdowns
+  fastify.get("/branches", async () => {
+    const rows = await fastify.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+      })
+      .from(schema.branches)
+      .where(eq(schema.branches.isActive, true))
+      .orderBy(schema.branches.name);
+    return { branches: rows };
   });
 
   // =========================================================================
