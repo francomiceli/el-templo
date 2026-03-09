@@ -29,3 +29,4 @@ export * from "./labs-inquiries";
 export * from "./aura-transactions";
 export * from "./aura-balances";
 export * from "./aura-config";
+export * from "./member-notes";

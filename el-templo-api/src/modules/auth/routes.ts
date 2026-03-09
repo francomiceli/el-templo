@@ -68,12 +68,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .limit(1);
 
         if (defaultBranch.length === 0) {
-          return reply
-            .code(500)
-            .send({
-              error: "Server Error",
-              message: "Default branch not configured",
-            });
+          return reply.code(500).send({
+            error: "Server Error",
+            message: "Default branch not configured",
+          });
         }
         branchId = defaultBranch[0].id;
       }
@@ -127,6 +125,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: users.role,
           level: users.level,
           branchId: users.branchId,
+          isActive: users.isActive,
         })
         .from(users)
         .where(eq(users.email, email))
@@ -139,6 +138,14 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const user = userResults[0];
+
+      // Block deactivated users from logging in
+      if (!user.isActive) {
+        return reply.code(401).send({
+          error: "Unauthorized",
+          message: "Cuenta desactivada. Contacta a tu coach.",
+        });
+      }
 
       // Verify password
       const validPassword = await argon2.verify(user.passwordHash, password);
@@ -175,6 +182,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: user.level,
           branchId: user.branchId,
           branchName,
+          isActive: user.isActive,
         },
       };
     },
@@ -197,6 +205,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: users.role,
           level: users.level,
           branchId: users.branchId,
+          isActive: users.isActive,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -228,6 +237,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         level: user.level,
         branchId: user.branchId,
         branchName,
+        isActive: user.isActive,
       };
     },
   );
