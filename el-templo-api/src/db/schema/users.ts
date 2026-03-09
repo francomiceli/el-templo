@@ -46,6 +46,7 @@ export const users = mysqlTable("users", {
     length: 50,
   }),
   isActive: boolean("is_active").default(true).notNull(),
+  boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

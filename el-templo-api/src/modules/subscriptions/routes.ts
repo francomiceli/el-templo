@@ -1,0 +1,327 @@
+/**
+ * Subscriptions API Routes
+ *
+ * Admin endpoints for subscription plans CRUD and subscription lifecycle
+ * management (assign, pause, resume, cancel, pricing preview).
+ *
+ * All routes require authentication and coach/admin/superadmin role.
+ */
+
+import { FastifyPluginAsync } from "fastify";
+import {
+  SubscriptionService,
+  ConflictError,
+  NotFoundError,
+  BadRequestError,
+} from "./service";
+import { InsufficientBalanceError } from "../aura";
+import type {
+  AssignPlanInput,
+  CreatePlanInput,
+  UpdatePlanInput,
+  PriceType,
+} from "./types";
+import {
+  listPlansSchema,
+  getPlanSchema,
+  createPlanSchema,
+  updatePlanSchema,
+  deactivatePlanSchema,
+  getMemberSubscriptionSchema,
+  getMemberSubscriptionHistorySchema,
+  assignPlanSchema,
+  pauseSubscriptionSchema,
+  resumeSubscriptionSchema,
+  cancelSubscriptionSchema,
+  pricingPreviewSchema,
+} from "./schemas";
+
+const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+
+export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
+  const subscriptionService = new SubscriptionService(fastify.db, fastify.log);
+
+  /**
+   * Guard: require admin role on all routes in this plugin.
+   */
+  fastify.addHook("onRequest", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+    if (!ADMIN_ROLES.includes(request.user.role)) {
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Acceso de administrador requerido",
+      });
+    }
+  });
+
+  // =========================================================================
+  // Plans CRUD (prefix /plans)
+  // =========================================================================
+
+  // GET /plans — List subscription plans
+  fastify.get<{
+    Querystring: { isActive?: boolean };
+  }>("/plans", { schema: listPlansSchema }, async (request) => {
+    const plans = await subscriptionService.listPlans(request.query.isActive);
+    return { plans };
+  });
+
+  // GET /plans/:planId — Get plan detail
+  fastify.get<{ Params: { planId: number } }>(
+    "/plans/:planId",
+    { schema: getPlanSchema },
+    async (request, reply) => {
+      const plan = await subscriptionService.getPlanById(request.params.planId);
+      if (!plan) {
+        return reply
+          .code(404)
+          .send({ error: "Not Found", message: "Plan no encontrado" });
+      }
+      return plan;
+    },
+  );
+
+  // POST /plans — Create plan
+  fastify.post<{ Body: CreatePlanInput }>(
+    "/plans",
+    { schema: createPlanSchema },
+    async (request, reply) => {
+      const plan = await subscriptionService.createPlan(request.body);
+      return reply.code(201).send(plan);
+    },
+  );
+
+  // PUT /plans/:planId — Update plan
+  fastify.put<{ Params: { planId: number }; Body: UpdatePlanInput }>(
+    "/plans/:planId",
+    { schema: updatePlanSchema },
+    async (request, reply) => {
+      const plan = await subscriptionService.updatePlan(
+        request.params.planId,
+        request.body,
+      );
+      if (!plan) {
+        return reply
+          .code(404)
+          .send({ error: "Not Found", message: "Plan no encontrado" });
+      }
+      return plan;
+    },
+  );
+
+  // PATCH /plans/:planId/deactivate — Deactivate plan
+  fastify.patch<{ Params: { planId: number } }>(
+    "/plans/:planId/deactivate",
+    { schema: deactivatePlanSchema },
+    async (request, reply) => {
+      const plan = await subscriptionService.deactivatePlan(
+        request.params.planId,
+      );
+      if (!plan) {
+        return reply
+          .code(404)
+          .send({ error: "Not Found", message: "Plan no encontrado" });
+      }
+      return plan;
+    },
+  );
+
+  // =========================================================================
+  // Subscription Lifecycle
+  // =========================================================================
+
+  // GET /members/:userId/subscription — Get current subscription
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId/subscription",
+    { schema: getMemberSubscriptionSchema },
+    async (request, reply) => {
+      const sub = await subscriptionService.getMemberSubscription(
+        request.params.userId,
+      );
+      if (!sub) {
+        return reply.code(404).send({
+          error: "Not Found",
+          message: "No se encontro suscripcion activa",
+        });
+      }
+      return sub;
+    },
+  );
+
+  // GET /members/:userId/subscription/history — Get subscription history
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId/subscription/history",
+    { schema: getMemberSubscriptionHistorySchema },
+    async (request) => {
+      const subscriptions =
+        await subscriptionService.getMemberSubscriptionHistory(
+          request.params.userId,
+        );
+      return { subscriptions };
+    },
+  );
+
+  // POST /members/:userId/subscription/assign — Assign plan to member
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+    "/members/:userId/subscription/assign",
+    { schema: assignPlanSchema },
+    async (request, reply) => {
+      try {
+        const subscription = await subscriptionService.assignPlan(
+          request.params.userId,
+          request.body,
+          request.user.userId,
+        );
+        return reply.code(201).send(subscription);
+      } catch (err: unknown) {
+        if (err instanceof ConflictError) {
+          return reply
+            .code(409)
+            .send({ error: "Conflict", message: err.message });
+        }
+        if (err instanceof NotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: "Not Found", message: err.message });
+        }
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        if (err instanceof InsufficientBalanceError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        request.log.error({ err }, "Error assigning subscription");
+        return reply.code(500).send({
+          error: "Server Error",
+          message: "Error al asignar suscripcion",
+        });
+      }
+    },
+  );
+
+  // POST /members/:userId/subscription/pause — Pause subscription
+  fastify.post<{ Params: { userId: number } }>(
+    "/members/:userId/subscription/pause",
+    { schema: pauseSubscriptionSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.pauseSubscription(
+          request.params.userId,
+        );
+        return sub;
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: "Not Found", message: err.message });
+        }
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        request.log.error({ err }, "Error pausing subscription");
+        return reply.code(500).send({
+          error: "Server Error",
+          message: "Error al pausar suscripcion",
+        });
+      }
+    },
+  );
+
+  // POST /members/:userId/subscription/resume — Resume subscription
+  fastify.post<{ Params: { userId: number } }>(
+    "/members/:userId/subscription/resume",
+    { schema: resumeSubscriptionSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.resumeSubscription(
+          request.params.userId,
+        );
+        return sub;
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: "Not Found", message: err.message });
+        }
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        request.log.error({ err }, "Error resuming subscription");
+        return reply.code(500).send({
+          error: "Server Error",
+          message: "Error al reanudar suscripcion",
+        });
+      }
+    },
+  );
+
+  // POST /members/:userId/subscription/cancel — Cancel subscription
+  fastify.post<{ Params: { userId: number }; Body: { notes?: string } }>(
+    "/members/:userId/subscription/cancel",
+    { schema: cancelSubscriptionSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.cancelSubscription(
+          request.params.userId,
+          request.body.notes,
+        );
+        return sub;
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: "Not Found", message: err.message });
+        }
+        if (err instanceof BadRequestError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        request.log.error({ err }, "Error cancelling subscription");
+        return reply.code(500).send({
+          error: "Server Error",
+          message: "Error al cancelar suscripcion",
+        });
+      }
+    },
+  );
+
+  // GET /members/:userId/subscription/pricing-preview — Pricing preview
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { planId: number; priceType: PriceType; auraSpend?: number };
+  }>(
+    "/members/:userId/subscription/pricing-preview",
+    { schema: pricingPreviewSchema },
+    async (request, reply) => {
+      try {
+        const preview = await subscriptionService.getPricingPreview(
+          request.params.userId,
+          request.query.planId,
+          request.query.priceType,
+          request.query.auraSpend,
+        );
+        return preview;
+      } catch (err: unknown) {
+        if (err instanceof NotFoundError) {
+          return reply
+            .code(404)
+            .send({ error: "Not Found", message: err.message });
+        }
+        request.log.error({ err }, "Error getting pricing preview");
+        return reply.code(500).send({
+          error: "Server Error",
+          message: "Error al obtener preview de precio",
+        });
+      }
+    },
+  );
+};

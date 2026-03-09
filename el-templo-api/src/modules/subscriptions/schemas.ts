@@ -1,0 +1,356 @@
+/**
+ * Fastify JSON schemas for Subscriptions API request/response validation.
+ */
+
+// =============================================================================
+// Shared response fragments
+// =============================================================================
+
+const errorSchema = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+  },
+} as const;
+
+const planSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    name: { type: "string" },
+    description: { type: ["string", "null"] },
+    planTier: { type: "string" },
+    bookingMode: { type: "string" },
+    priceRegular: { type: "integer" },
+    priceZero: { type: "integer" },
+    priceCreditCard: { type: ["integer", "null"] },
+    durationDays: { type: "integer" },
+    classesPerWeek: { type: ["integer", "null"] },
+    multiBranch: { type: "boolean" },
+    isTrial: { type: "boolean" },
+    isGroup: { type: "boolean" },
+    groupMaxMembers: { type: ["integer", "null"] },
+    isActive: { type: "boolean" },
+    createdAt: { type: "string" },
+    updatedAt: { type: "string" },
+  },
+} as const;
+
+const subscriptionDetailSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    userId: { type: "integer" },
+    planId: { type: "integer" },
+    planName: { type: "string" },
+    planTier: { type: "string" },
+    branchId: { type: "integer" },
+    branchName: { type: "string" },
+    status: { type: "string" },
+    startDate: { type: "string" },
+    endDate: { type: ["string", "null"] },
+    pricePaid: { type: "integer" },
+    priceTypeApplied: { type: "string" },
+    auraDiscount: { type: ["integer", "null"] },
+    auraDiscountPercent: { type: ["integer", "null"] },
+    boardingPassUsed: { type: "boolean" },
+    priceOverrideAmount: { type: ["integer", "null"] },
+    priceOverrideReason: { type: ["string", "null"] },
+    pausedAt: { type: ["string", "null"] },
+    resumedAt: { type: ["string", "null"] },
+    cancelledAt: { type: ["string", "null"] },
+    notes: { type: ["string", "null"] },
+    createdAt: { type: "string" },
+    updatedAt: { type: "string" },
+  },
+} as const;
+
+const pricingPreviewResponseSchema = {
+  type: "object",
+  properties: {
+    basePrice: { type: "integer" },
+    discountType: { type: "string" },
+    discountAmount: { type: "integer" },
+    finalPrice: { type: "integer" },
+    auraToSpend: { type: "integer" },
+    auraBalance: { type: "integer" },
+    boardingPassEligible: { type: "boolean" },
+    availableTiers: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          spend: { type: "integer" },
+          percent: { type: "integer" },
+        },
+      },
+    },
+  },
+} as const;
+
+// =============================================================================
+// Plans Endpoints
+// =============================================================================
+
+export const listPlansSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      isActive: { type: "boolean" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        plans: { type: "array", items: planSchema },
+      },
+    },
+  },
+};
+
+export const getPlanSchema = {
+  params: {
+    type: "object",
+    required: ["planId"],
+    properties: {
+      planId: { type: "integer" },
+    },
+  },
+  response: {
+    200: planSchema,
+    404: errorSchema,
+  },
+};
+
+export const createPlanSchema = {
+  body: {
+    type: "object",
+    required: [
+      "name",
+      "planTier",
+      "bookingMode",
+      "priceRegular",
+      "priceZero",
+      "durationDays",
+    ],
+    properties: {
+      name: { type: "string", minLength: 1 },
+      description: { type: "string" },
+      planTier: {
+        type: "string",
+        enum: ["flex", "foundation", "performance", "other"],
+      },
+      bookingMode: { type: "string", enum: ["fixed", "flexible"] },
+      priceRegular: { type: "integer", minimum: 0 },
+      priceZero: { type: "integer", minimum: 0 },
+      priceCreditCard: { type: "integer", minimum: 0 },
+      durationDays: { type: "integer", minimum: 1 },
+      classesPerWeek: { type: "integer", minimum: 1 },
+      multiBranch: { type: "boolean" },
+      isTrial: { type: "boolean" },
+      isGroup: { type: "boolean" },
+      groupMaxMembers: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    201: planSchema,
+  },
+};
+
+export const updatePlanSchema = {
+  params: {
+    type: "object",
+    required: ["planId"],
+    properties: {
+      planId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    properties: {
+      name: { type: "string", minLength: 1 },
+      description: { type: ["string", "null"] },
+      planTier: {
+        type: "string",
+        enum: ["flex", "foundation", "performance", "other"],
+      },
+      bookingMode: { type: "string", enum: ["fixed", "flexible"] },
+      priceRegular: { type: "integer", minimum: 0 },
+      priceZero: { type: "integer", minimum: 0 },
+      priceCreditCard: { type: ["integer", "null"] },
+      durationDays: { type: "integer", minimum: 1 },
+      classesPerWeek: { type: ["integer", "null"] },
+      multiBranch: { type: "boolean" },
+      isTrial: { type: "boolean" },
+      isGroup: { type: "boolean" },
+      groupMaxMembers: { type: ["integer", "null"] },
+    },
+  },
+  response: {
+    200: planSchema,
+    404: errorSchema,
+  },
+};
+
+export const deactivatePlanSchema = {
+  params: {
+    type: "object",
+    required: ["planId"],
+    properties: {
+      planId: { type: "integer" },
+    },
+  },
+  response: {
+    200: planSchema,
+    404: errorSchema,
+  },
+};
+
+// =============================================================================
+// Subscription Endpoints
+// =============================================================================
+
+export const getMemberSubscriptionSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    404: errorSchema,
+  },
+};
+
+export const getMemberSubscriptionHistorySchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        subscriptions: { type: "array", items: subscriptionDetailSchema },
+      },
+    },
+  },
+};
+
+export const assignPlanSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["planId", "branchId", "startDate", "priceTypeApplied"],
+    properties: {
+      planId: { type: "integer" },
+      branchId: { type: "integer" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      priceTypeApplied: {
+        type: "string",
+        enum: ["regular", "zero", "credit_card"],
+      },
+      auraSpend: { type: "integer", minimum: 0 },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string" },
+      boardingPass: { type: "boolean" },
+      notes: { type: "string" },
+    },
+  },
+  response: {
+    201: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
+export const pauseSubscriptionSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const resumeSubscriptionSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const cancelSubscriptionSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    properties: {
+      notes: { type: "string" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const pricingPreviewSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  querystring: {
+    type: "object",
+    required: ["planId", "priceType"],
+    properties: {
+      planId: { type: "integer" },
+      priceType: {
+        type: "string",
+        enum: ["regular", "zero", "credit_card"],
+      },
+      auraSpend: { type: "integer", minimum: 0 },
+    },
+  },
+  response: {
+    200: pricingPreviewResponseSchema,
+    404: errorSchema,
+  },
+};

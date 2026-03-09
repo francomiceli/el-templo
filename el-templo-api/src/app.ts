@@ -17,6 +17,7 @@ import { blogRoutes } from "./modules/blog";
 import { academyRoutes } from "./modules/academy";
 import { appLandingRoutes } from "./modules/app-landing";
 import { memberRoutes } from "./modules/members";
+import { subscriptionRoutes } from "./modules/subscriptions";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -87,6 +88,11 @@ export async function buildApp() {
 
   // Member management routes (admin CRUD + notes)
   await app.register(memberRoutes, { prefix: "/api/admin/members" });
+
+  // Subscription management routes (plans CRUD + subscription lifecycle)
+  await app.register(subscriptionRoutes, {
+    prefix: "/api/admin/subscriptions",
+  });
 
   // Health check endpoint
   app.get("/health", async () => {
