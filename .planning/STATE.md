@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 47-03-PLAN.md
-last_updated: "2026-03-09T16:31:49.924Z"
-last_activity: "2026-03-09 — Completed 47-03: tabbed profile hub with profile, training, notes tabs"
+stopped_at: Completed 47-02-PLAN.md
+last_updated: "2026-03-09T16:32:50.995Z"
+last_activity: "2026-03-09 — Completed 47-02: AlumnosPage rewrite with member management filters and MemberFormDialog"
 progress:
   total_phases: 38
-  completed_phases: 25
+  completed_phases: 26
   total_plans: 132
-  completed_plans: 130
+  completed_plans: 131
   percent: 99
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 47 of 52 (Members Management)
-Plan: 3 of 3 in current phase
-Status: Phase 47 plan 03 complete — tabbed member profile hub with notes
-Last activity: 2026-03-09 — Completed 47-03: tabbed profile hub with profile, training, notes tabs
+Plan: 2 of 3 in current phase
+Status: Phase 47 plan 02 complete — admin members UI with filters and create dialog
+Last activity: 2026-03-09 — Completed 47-02: AlumnosPage rewrite with member management filters and MemberFormDialog
 
 Progress: [██████████] 99%
 
@@ -56,6 +56,7 @@ _Updated after each plan completion_
 | Phase 46 P01 | 8min | 2 tasks | 3 files |
 | Phase 47 P01 | 13min | 2 tasks | 12 files |
 | Phase 47 P03 | 5min | 1 task | 4 files |
+| Phase 47 P02 | 6min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Recent decisions affecting current work:
 - [Phase 47-03]: Parallel data loading (profile required, journey non-blocking) for fast page render
 - [Phase 47-03]: Auth store (Pinia) provides currentUser for note permission checks
 - [Phase 47-03]: MemberFormDialog created as Rule 3 deviation (Plan 02 Task 2 not yet executed)
+- [Phase 47]: Added GET /admin/members/branches endpoint — no dedicated branches API existed, placed in members plugin behind same auth guard
+- [Phase 47]: Default status filter to active-only for practical coach workflow in members list
 
 ### v2.0 Deferrals
 
@@ -110,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T16:31:49.920Z
-Stopped at: Completed 47-03-PLAN.md
+Last session: 2026-03-09T16:32:50.992Z
+Stopped at: Completed 47-02-PLAN.md
 Resume file: None
