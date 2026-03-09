@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Phase 50 context gathered
-last_updated: "2026-03-09T23:29:29.066Z"
-last_activity: "2026-03-09 — Completed 49-02: Payments Admin UI"
+stopped_at: Completed 50-01-PLAN.md
+last_updated: "2026-03-09T23:59:43.645Z"
+last_activity: "2026-03-09 — Completed 50-01: Attendance API"
 progress:
   total_phases: 38
   completed_phases: 28
-  total_plans: 136
-  completed_plans: 135
+  total_plans: 139
+  completed_plans: 136
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 49 of 52 (Payments) -- COMPLETE
-Plan: 2 of 2 in current phase (all complete)
-Status: Phase 49 complete — payments API + admin UI with balance cards, financial dashboard, overdue badges
-Last activity: 2026-03-09 — Completed 49-02: Payments Admin UI
+Phase: 50 of 52 (Attendance)
+Plan: 1 of 3 in current phase
+Status: Plan 50-01 complete — attendance API with QR check-in, batch confirm, AURA awards
+Last activity: 2026-03-09 — Completed 50-01: Attendance API
 
 Progress: [██████████] 100%
 
@@ -61,6 +61,7 @@ _Updated after each plan completion_
 | Phase 48 P02 | 8min | 3 tasks | 14 files |
 | Phase 49 P01 | 9min | 2 tasks | 16 files |
 | Phase 49 P02 | 5min | 2 tasks | 10 files |
+| Phase 50 P01 | 11min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 49-02]: MemberPaymentTab shows register button even without subscription for one-off payments
 - [Phase 49-02]: Morosos count badge refreshed every 60s via setInterval in AdminLayout
 - [Phase 49-02]: QToggle for Morosos filter -- visually distinct, doesn't conflict with active/inactive filter
+- [Phase 50]: HMAC-SHA256 QR tokens using JWT_SECRET -- reuse existing env var, base64url(payload).base64url(signature) format
+- [Phase 50]: Two-step attendance model: QR scan creates registrado, coach batch-confirm promotes to confirmado + AURA award
+- [Phase 50]: Overdue check triggers on paused subs past end date; active subs auto-expire first (caught by no-active-sub check)
 
 ### v2.0 Deferrals
 
@@ -134,6 +138,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T23:29:29.060Z
-Stopped at: Phase 50 context gathered
-Resume file: .planning/phases/50-attendance/50-CONTEXT.md
+Last session: 2026-03-09T23:59:43.642Z
+Stopped at: Completed 50-01-PLAN.md
+Resume file: None

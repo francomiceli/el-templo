@@ -48,11 +48,11 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Attendance
 
-- [ ] **ATTN-01**: Branch displays a QR code that members scan to check in
-- [ ] **ATTN-02**: Member scans QR code via the app to record attendance at the branch
-- [ ] **ATTN-03**: Check-in records attendance event and awards AURA to the member
-- [ ] **ATTN-04**: Admin can manually check in a member as fallback
-- [ ] **ATTN-05**: Admin can view attendance records for any member or date
+- [x] **ATTN-01**: Branch displays a QR code that members scan to check in
+- [x] **ATTN-02**: Member scans QR code via the app to record attendance at the branch
+- [x] **ATTN-03**: Check-in records attendance event and awards AURA to the member
+- [x] **ATTN-04**: Admin can manually check in a member as fallback
+- [x] **ATTN-05**: Admin can view attendance records for any member or date
 
 ### Scheduling
 
@@ -148,11 +148,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PAY-02      | Phase 49 | Complete                    |
 | PAY-03      | Phase 49 | Complete                    |
 | PAY-04      | Phase 49 | Complete                    |
-| ATTN-01     | Phase 50 | Pending                     |
-| ATTN-02     | Phase 50 | Pending                     |
-| ATTN-03     | Phase 50 | Pending                     |
-| ATTN-04     | Phase 50 | Pending                     |
-| ATTN-05     | Phase 50 | Pending                     |
+| ATTN-01     | Phase 50 | Complete                    |
+| ATTN-02     | Phase 50 | Complete                    |
+| ATTN-03     | Phase 50 | Complete                    |
+| ATTN-04     | Phase 50 | Complete                    |
+| ATTN-05     | Phase 50 | Complete                    |
 | SCHD-01     | Phase 51 | Pending                     |
 | SCHD-02     | Phase 51 | Pending                     |
 | SCHD-03     | Phase 51 | Pending                     |
