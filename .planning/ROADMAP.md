@@ -772,7 +772,7 @@ _Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (A
 ## v4.0 Phases
 
 - [x] **Phase 45: Architecture Foundation** - Virtual branch, AURA ledger/balances, module boundaries (completed 2026-03-08)
-- [ ] **Phase 46: Lifestyle Content Extraction** - Extract and adapt Arete content to El Templo brand (completed 2026-03-08)
+- [x] **Phase 46: Lifestyle Content Extraction** - Extract and adapt Arete content to El Templo brand (completed 2026-03-08) (completed 2026-03-09)
 - [ ] **Phase 47: Members Management** - Admin member CRUD with search, filters, profiles, notes
 - [ ] **Phase 48: Subscriptions** - Plan management, member assignments, AURA discounts, status tracking
 - [ ] **Phase 49: Payments** - Payment recording, history, overdue flags, financial summary
@@ -815,7 +815,7 @@ Plans:
 2. All extracted content is adapted to El Templo brand voice (rioplatense Spanish, Greek philosophical tone) and ready for database seeding
 3. Complete deferred content inventory documents all arete-web systems for v5.0 planning: 20-level progression, 60 challenges, 160 factos, 25 achievements, 149 wisdom quotes, 12 seasonal habits, axis XP, AURA economy (per-habit scaling, caps, ranks), redemption store, Tummo breathing, celebrations, 5 leagues, 12 badges
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -924,7 +924,7 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | Phase                            | Plans Complete | Status      | Completed  |
 | -------------------------------- | -------------- | ----------- | ---------- |
 | 45. Architecture Foundation      | 3/3            | Complete    | 2026-03-08 |
-| 46. Lifestyle Content Extraction | 1/2            | In Progress |            |
+| 46. Lifestyle Content Extraction | 2/2            | Complete    | 2026-03-09 |
 | 47. Members Management           | 0/?            | Not started | -          |
 | 48. Subscriptions                | 0/?            | Not started | -          |
 | 49. Payments                     | 0/?            | Not started | -          |

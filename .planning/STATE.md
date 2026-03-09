@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Completed 46-02-PLAN.md
-last_updated: "2026-03-09T15:33:35.583Z"
-last_activity: 2026-03-09 — Completed Phase 46 plan 02 (factos, journal questions, tools, barrel)
+status: Phase 46 plan 01 re-executed — habits & areas seed data with full arete-web field set
+stopped_at: Completed 46-01-PLAN.md (re-execution with full arete-web fields)
+last_updated: "2026-03-09T15:34:09.566Z"
+last_activity: 2026-03-09 — Re-executed 46-01 with full arete-web fields (verificationType, dataType, auraScaling)
 progress:
   total_phases: 38
   completed_phases: 25
   total_plans: 129
   completed_plans: 128
-  percent: 96
+  percent: 98
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 46 of 52 (Lifestyle Content Extraction — REDO)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase 46 complete — all seed files extracted from arete-web
-Last activity: 2026-03-09 — Completed Phase 46 plan 02 (factos, journal questions, tools, barrel)
+Plan: 1 of 2 in current phase
+Status: Phase 46 plan 01 re-executed — habits & areas seed data with full arete-web field set
+Last activity: 2026-03-09 — Re-executed 46-01 with full arete-web fields (verificationType, dataType, auraScaling)
 
-Progress: [█████████░] 96%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [█████████░] 96%
 - Trend: Stable
 
 _Updated after each plan completion_
+| Phase 46 P01 | 8min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 46-02]: Curated 46 factos from 172 eligible with diverse category spread (all 7 categories covered)
 - [Phase 46-02]: Tool framework strings translated English->Spanish for brand consistency
 - [Phase 46-02]: Complete lifestyle barrel export wires all 5 seed files with full type coverage
+- [Phase 46]: Full replace of habits.seed.ts from arete-web with complete field set (verificationType, dataType, auraScaling, imageAsset, linkedQuoteArea, facto)
+- [Phase 46]: CUE-04 is Respiracion Tummo at L1 with dataType count (arete-web canonical, not old Respiracion controlada at L2)
 
 ### v2.0 Deferrals
 
@@ -99,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T15:31:00Z
-Stopped at: Completed 46-02-PLAN.md
-Resume file: .planning/phases/46-lifestyle-content-extraction/46-02-SUMMARY.md
+Last session: 2026-03-09T15:34:09.564Z
+Stopped at: Completed 46-01-PLAN.md (re-execution with full arete-web fields)
+Resume file: None

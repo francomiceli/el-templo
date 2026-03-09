@@ -2,82 +2,84 @@
 phase: 46-lifestyle-content-extraction
 plan: 01
 subsystem: api
-tags: [lifestyle, habits, journal, seed-data, content-extraction]
+tags: [seed-data, lifestyle, habits, areas, typescript]
 
-# Dependency graph
 requires:
   - phase: 45-architecture-foundation
-    provides: module barrel export pattern, src/modules/ structure
+    provides: module boundaries, barrel export pattern, seed data conventions
 provides:
-  - HabitSeed type + HABIT_SEEDS array with 17 Level 1-2 habits including full details
-  - JournalQuestionSeed type + JOURNAL_QUESTION_SEEDS array with 19 simple-tier questions
-  - lifestyle/seed/ directory structure
-affects: [lifestyle-module, v5-database-seeding, aura-economy]
+  - 17 L1-2 habit seed records with full arete-web field set
+  - 6 area definitions with Greek philosophical names
+  - HabitSeed, AreaSeed, VerificationType, DataType, AuraScalingThreshold types
+affects: [46-lifestyle-content-extraction, lifestyle-module, aura-economy]
 
-# Tech tracking
 tech-stack:
   added: []
-  patterns: [typed seed data files with as-const-satisfies pattern]
+  patterns:
+    [auraScaling union type (threshold array for timer | flat number for honor)]
 
 key-files:
   created:
+    - el-templo-api/src/modules/lifestyle/seed/areas.seed.ts
+  modified:
     - el-templo-api/src/modules/lifestyle/seed/habits.seed.ts
-    - el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts
-  modified: []
+    - el-templo-api/src/modules/lifestyle/index.ts
 
 key-decisions:
-  - "Included all 17 Level 1-2 habits (5 Level 1 + 12 Level 2) with full howTo/whyItMatters/tips"
-  - "Included all 19 simple-tier journal questions (14 universal + 5 Arete-adapted) rather than just 14"
-  - "Used 'as const satisfies readonly Type[]' pattern for type safety with literal types"
-  - "Neutralized gendered language in a02 ('vos misma' -> neutral phrasing) per brand term mappings"
+  - "Full replace of habits.seed.ts from arete-web canonical source (not incremental update from arete-app)"
+  - "CUE-04 is Respiracion Tummo at L1 with dataType count (replaces old Respiracion controlada at L2)"
+  - "Greek-only philosophy references preserved; all Roman stoic references removed"
+  - "Gender-neutral rioplatense tone: vos misma -> vos"
+  - "auraScaling stored as-is from source: threshold arrays for timer habits, flat number for honor habits"
 
 patterns-established:
-  - "Seed data pattern: TypeScript typed arrays with as-const-satisfies for compile-time validation"
-  - "Brand adaptation: light editing preserving original tone, only removing brand references"
+  - "AreaSeed record + AREAS_ORDERED display array pattern for area definitions"
+  - "HabitSeed with full verification metadata (verificationType, dataType, auraScaling) for v5.0 implementation"
 
 requirements-completed: [RSTRC-05]
 
-# Metrics
-duration: 4min
-completed: 2026-03-08
+duration: 8min
+completed: 2026-03-09
 ---
 
-# Phase 46 Plan 01: Habits & Journal Questions Seed Data Summary
+# Phase 46 Plan 01: Habits & Areas Seed Data Summary
 
-**17 Level 1-2 habits with full details (howTo/whyItMatters/tips) and 19 simple-tier journal questions extracted from Arete, brand-adapted to El Templo voice**
+**17 L1-2 habits with full arete-web field set (verificationType, dataType, auraScaling, facto, imageAsset) and 6 Greek-named area definitions as typed seed data**
 
 ## Performance
 
-- **Duration:** 4 min
-- **Started:** 2026-03-08T19:17:04Z
-- **Completed:** 2026-03-08T19:21:31Z
+- **Duration:** 8 min
+- **Started:** 2026-03-09T15:24:31Z
+- **Completed:** 2026-03-09T15:32:40Z
 - **Tasks:** 2
-- **Files modified:** 2
+- **Files modified:** 3
 
 ## Accomplishments
 
-- Extracted and adapted 17 Level 1-2 habits across all 6 life areas (Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion) with complete howTo/whyItMatters/tips detail content
-- Extracted and adapted 19 simple-tier journal questions including 5 Arete-specific questions neutralized for gender
-- All brand references removed (Aurea Virtus, Arete, AURUM) while preserving Argentine Spanish (rioplatense) tone
+- Fully replaced habits.seed.ts from arete-web canonical source with all new fields (verificationType, dataType, auraScaling, linkedQuoteArea, facto, imageAsset) plus inline details (howTo, whyItMatters, tips)
+- Created areas.seed.ts with 6 area definitions (Nous, Soma, Sophrosyne, Praxis, Philia, Theoria) including philosophy text and metadata
+- Updated barrel exports with new type exports (VerificationType, DataType, AuraScalingThreshold)
 
 ## Task Commits
 
 Each task was committed atomically:
 
-1. **Task 1: Create habits seed file with 17 Level 1-2 habits and full details** - `5951da5` (feat)
-2. **Task 2: Create journal questions seed file with 19 simple-tier questions** - `50ca6e2` (feat)
+1. **Task 1: Create areas.seed.ts with 6 area definitions** - `660b6fc` (feat)
+2. **Task 2: Replace habits.seed.ts with full arete-web field set** - `170dcb9` (feat)
 
 ## Files Created/Modified
 
-- `el-templo-api/src/modules/lifestyle/seed/habits.seed.ts` - HabitSeed type, HabitArea/HabitMoment unions, HABIT_SEEDS array with 17 habits and full detail content
-- `el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts` - JournalQuestionSeed type, JOURNAL_QUESTION_SEEDS array with 19 questions
+- `el-templo-api/src/modules/lifestyle/seed/areas.seed.ts` - 6 area definitions with Greek names, philosophy text, colors, icons, habit prefixes
+- `el-templo-api/src/modules/lifestyle/seed/habits.seed.ts` - 17 L1-2 habits with full arete-web field set and inline details
+- `el-templo-api/src/modules/lifestyle/index.ts` - Updated barrel with new type exports
 
 ## Decisions Made
 
-- Included all 17 Level 1-2 habits (plan estimated ~15) since the actual count of minLevel <= 2 is 17
-- Included all 19 simple-tier journal questions (plan estimated ~14) including all 5 Arete-specific ones adapted to neutral voice, matching the CONTEXT.md guidance
-- Used `as const satisfies readonly Type[]` pattern for maximum type safety while keeping the data readonly
-- For a02, removed gendered 'vos misma' and simplified to neutral phrasing while keeping rioplatense feel: "Que gesto de cuidado tuviste hoy, por chiquito que sea?"
+- Full replace from arete-web (not incremental update): old file had incomplete fields from deprecated arete-app
+- CUE-04 is "Respiracion Tummo" at minLevel 1 with dataType 'count' (arete-web canonical, replaces old "Respiracion controlada" at L2)
+- Gender-neutral rioplatense: "vos misma" in area philosophyText adapted to "vos"
+- Greek-only philosophy references preserved throughout (aligns with El Templo's temple identity)
+- auraScaling stored as union type: AuraScalingThreshold[] for timer habits, flat number for honor habits
 
 ## Deviations from Plan
 
@@ -93,11 +95,16 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- Habits and journal questions seed data ready for plan 46-02 (factos, tools, deferred content catalog)
-- lifestyle/seed/ directory established for additional seed files
-- Types (HabitSeed, JournalQuestionSeed) available for future DB schema design in v5.0
+- Habit and area seed data ready for 46-02 (factos, tools, journal questions)
+- All new arete-web fields captured for v5.0 lifestyle module implementation
+- Barrel exports updated, full project type check passes
+
+## Self-Check: PASSED
+
+- All created files verified on disk
+- All commit hashes verified in git log
 
 ---
 
 _Phase: 46-lifestyle-content-extraction_
-_Completed: 2026-03-08_
+_Completed: 2026-03-09_
