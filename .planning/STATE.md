@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Phase 47 plan 01 complete — members API with CRUD, notes, DNI check, deactivation
-stopped_at: Completed 47-01-PLAN.md
-last_updated: "2026-03-09T15:56:12.993Z"
-last_activity: 2026-03-09 — Completed 47-01: members management API (10 endpoints, 18 tests)
+status: completed
+stopped_at: Completed 47-03-PLAN.md
+last_updated: "2026-03-09T16:31:49.924Z"
+last_activity: "2026-03-09 — Completed 47-03: tabbed profile hub with profile, training, notes tabs"
 progress:
   total_phases: 38
   completed_phases: 25
-  total_plans: 129
-  completed_plans: 128
-  percent: 98
+  total_plans: 132
+  completed_plans: 130
+  percent: 99
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 47 of 52 (Members Management)
-Plan: 1 of 3 in current phase
-Status: Phase 47 plan 01 complete — members API with CRUD, notes, DNI check, deactivation
-Last activity: 2026-03-09 — Completed 47-01: members management API (10 endpoints, 18 tests)
+Plan: 3 of 3 in current phase
+Status: Phase 47 plan 03 complete — tabbed member profile hub with notes
+Last activity: 2026-03-09 — Completed 47-03: tabbed profile hub with profile, training, notes tabs
 
-Progress: [██████████] 98%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████████] 98%
 _Updated after each plan completion_
 | Phase 46 P01 | 8min | 2 tasks | 3 files |
 | Phase 47 P01 | 13min | 2 tasks | 12 files |
+| Phase 47 P03 | 5min | 1 task | 4 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 47-01]: Drizzle wraps MySQL errors in err.cause — isDuplicateKeyError helper checks ER_DUP_ENTRY on cause
 - [Phase 47-01]: Plugin-level onRequest hook for admin role guard on all member routes
 - [Phase 47-01]: check-dni route before :userId parametric routes to avoid Fastify route conflicts
+- [Phase 47-03]: Parallel data loading (profile required, journey non-blocking) for fast page render
+- [Phase 47-03]: Auth store (Pinia) provides currentUser for note permission checks
+- [Phase 47-03]: MemberFormDialog created as Rule 3 deviation (Plan 02 Task 2 not yet executed)
 
 ### v2.0 Deferrals
 
@@ -106,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T16:21:29Z
-Stopped at: Completed 47-01-PLAN.md
-Resume file: .planning/phases/47-members-management/47-02-PLAN.md
+Last session: 2026-03-09T16:31:49.920Z
+Stopped at: Completed 47-03-PLAN.md
+Resume file: None
