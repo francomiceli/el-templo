@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { memberNotes } from "../../src/db/schema/member-notes";
+import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
@@ -38,7 +39,8 @@ describe("Members Management Routes", () => {
    * Also cleans up member_notes.
    */
   async function cleanupTestMembers(): Promise<void> {
-    // Delete in FK constraint order: subscriptions -> plans -> aura -> notes -> users
+    // Delete in FK constraint order: payments -> subscriptions -> plans -> aura -> notes -> users
+    await app.db.delete(payments);
     await app.db.delete(subscriptions);
     await app.db.delete(subscriptionPlans);
     await app.db.delete(auraTransactions);

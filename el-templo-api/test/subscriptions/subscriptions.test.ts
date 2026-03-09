@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { subscriptions } from "../../src/db/schema/subscriptions";
+import { payments } from "../../src/db/schema/payments";
 import { users } from "../../src/db/schema/users";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
@@ -50,7 +51,8 @@ describe("Subscriptions API", () => {
    * Helper: clean up all subscription-related test data.
    */
   async function cleanupSubscriptionData(): Promise<void> {
-    // Delete in FK order: subscriptions first, then plans, then extra users
+    // Delete in FK order: payments first, then subscriptions, then plans, then extra users
+    await app.db.delete(payments);
     await app.db.delete(subscriptions);
     await app.db.delete(subscriptionPlans);
     await app.db.delete(auraTransactions);
