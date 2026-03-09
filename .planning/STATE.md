@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Completed 46-02-PLAN.md
-last_updated: "2026-03-08T19:30:55.568Z"
-last_activity: 2026-03-08 — Completed 46-02 factos, tools, and deferred content
+status: Phase 46 reset — original extraction used outdated arete-app; redoing from arete-web
+stopped_at: Phase 46 context updated
+last_updated: "2026-03-09T15:04:48.179Z"
+last_activity: 2026-03-08 — Reset Phase 46 for arete-web re-extraction
 progress:
   total_phases: 38
-  completed_phases: 25
+  completed_phases: 24
   total_plans: 129
-  completed_plans: 128
-  percent: 97
+  completed_plans: 126
+  percent: 96
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 46 of 52 (Lifestyle Content Extraction)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase 46 complete
-Last activity: 2026-03-08 — Completed 46-02 factos, tools, and deferred content
+Phase: 46 of 52 (Lifestyle Content Extraction — REDO)
+Plan: 0 of ? in current phase (reset for arete-web source)
+Status: Phase 46 reset — original extraction used outdated arete-app; redoing from arete-web
+Last activity: 2026-03-08 — Reset Phase 46 for arete-web re-extraction
 
-Progress: [██████████] 97%
+Progress: [█████████░] 96%
 
 ## Performance Metrics
 
@@ -71,10 +71,9 @@ Recent decisions affecting current work:
 - Merge admin apps: Net features rebuilt in Vue/Quasar within existing el-templo-admin
 - Seed data pattern: typed arrays with 'as const satisfies readonly Type[]' for compile-time validation
 - Lifestyle content: light brand adaptation preserving original rioplatense tone, only removing brand references
-- Facto curation: 42 selected from 60 universal by brand fit, ~40 target with trimming of redundant entries
-- Framework-as-data: tool definitions capture questions/dimensions/output as typed objects, not UI code
-- [Phase 46]: Facto curation: 42 selected from 60 universal by brand fit, trimming redundant entries to meet ~40 target
-- [Phase 46]: Framework-as-data: tool definitions capture questions/dimensions/output as typed objects, decoupled from UI
+- [Phase 46 RESET]: Original extraction from arete-app is outdated — arete-web is canonical source with significantly expanded content (20 levels vs 5, 60 challenges vs 36, 160 factos vs 80, Greek-only philosophy, 7 new systems)
+- [Phase 46 RESET]: Old seed files (habits, factos, journal-questions, tools) need replacement from arete-web
+- [Phase 46 RESET]: DEFERRED-CONTENT.md rewritten with full arete-web inventory
 
 ### v2.0 Deferrals
 
@@ -84,7 +83,7 @@ Recent decisions affecting current work:
 ### Reference Codebases
 
 - El-Templo-Net: members, subscriptions, payments, scheduling, analytics (16 tables)
-- Arete App: habits, journal, challenges, philosophical tools, AURUM economy
+- Arete Web (canonical): Next.js PWA — 39 habits + 12 seasonal, 70 journal questions, 60 challenges, 160 factos, 149 wisdom quotes, 25 achievements, 20 levels, axis XP, AURA economy with per-habit scaling, redemption store, Tummo breathing, 5 leagues, 12 badges. Greek-only philosophy. Replaces the older arete-app (React Native, deprecated).
 - Both reference only — features rebuilt on Vue/Fastify/MySQL stack
 
 ### Pending Todos
@@ -97,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-08T19:26:50.913Z
-Stopped at: Completed 46-02-PLAN.md
-Resume file: None
+Last session: 2026-03-09T15:04:48.177Z
+Stopped at: Phase 46 context updated
+Resume file: .planning/phases/46-lifestyle-content-extraction/46-CONTEXT.md
