@@ -19,6 +19,7 @@ const memberListItemSchema = {
     branchId: { type: "integer" },
     branchName: { type: "string" },
     isActive: { type: "boolean" },
+    isOverdue: { type: "boolean" },
     createdAt: { type: "string" },
   },
 } as const;
@@ -83,6 +84,7 @@ export const listMembersSchema = {
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
       isActive: { type: "boolean" },
+      overdue: { type: "boolean" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },

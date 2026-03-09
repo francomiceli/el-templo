@@ -10,6 +10,7 @@ export interface MemberListParams {
   branchId?: number;
   level?: string;
   isActive?: boolean;
+  overdue?: boolean;
   page: number;
   limit: number;
 }
@@ -25,6 +26,7 @@ export interface MemberListItem {
   branchId: number;
   branchName: string;
   isActive: boolean;
+  isOverdue: boolean;
   createdAt: string;
 }
 

@@ -37,7 +37,7 @@ export class MemberService {
   async listMembers(
     params: MemberListParams,
   ): Promise<{ members: MemberListItem[]; total: number }> {
-    const { search, branchId, level, isActive, page, limit } = params;
+    const { search, branchId, level, isActive, overdue, page, limit } = params;
     const offset = (page - 1) * limit;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -69,6 +69,22 @@ export class MemberService {
       conditions.push(eq(schema.users.isActive, isActive));
     }
 
+    // Overdue subquery: member has a subscription where endDate < CURDATE()
+    // AND total non-voided payments < pricePaid
+    const overdueSubquery = sql<number>`(
+      SELECT COUNT(*) FROM subscriptions s
+      WHERE s.user_id = ${schema.users.id}
+        AND s.end_date < CURDATE()
+        AND s.price_paid > COALESCE((
+          SELECT SUM(p.amount) FROM payments p
+          WHERE p.subscription_id = s.id AND p.voided_at IS NULL
+        ), 0)
+    )`;
+
+    if (overdue === true) {
+      conditions.push(sql`${overdueSubquery} > 0`);
+    }
+
     const whereClause = and(...conditions);
 
     // Get total count
@@ -79,7 +95,7 @@ export class MemberService {
 
     const total = countResult?.count ?? 0;
 
-    // Get paginated members with branch join
+    // Get paginated members with branch join and overdue flag
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -93,6 +109,7 @@ export class MemberService {
         branchName: schema.branches.name,
         isActive: schema.users.isActive,
         createdAt: schema.users.createdAt,
+        overdueCount: overdueSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -112,6 +129,7 @@ export class MemberService {
       branchId: r.branchId,
       branchName: r.branchName,
       isActive: r.isActive,
+      isOverdue: Number(r.overdueCount) > 0,
       createdAt: r.createdAt.toISOString(),
     }));
 

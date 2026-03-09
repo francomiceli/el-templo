@@ -21,6 +21,7 @@ import {
   subscriptionRoutes,
   memberSubscriptionRoutes,
 } from "./modules/subscriptions";
+import { paymentRoutes } from "./modules/payments";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -96,6 +97,9 @@ export async function buildApp() {
   await app.register(subscriptionRoutes, {
     prefix: "/api/admin/subscriptions",
   });
+
+  // Payment management routes (record, void, balance, overdue, summary)
+  await app.register(paymentRoutes, { prefix: "/api/admin/payments" });
 
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {

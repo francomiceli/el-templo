@@ -116,6 +116,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       level?: string;
       isActive?: boolean;
+      overdue?: boolean;
       page?: number;
       limit?: number;
     };
@@ -125,6 +126,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId,
       level,
       isActive,
+      overdue,
       page = 1,
       limit = 20,
     } = request.query;
@@ -134,6 +136,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId,
       level,
       isActive,
+      overdue,
       page,
       limit,
     };
