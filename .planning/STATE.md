@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 49-01-PLAN.md
-last_updated: "2026-03-09T22:49:00Z"
-last_activity: "2026-03-09 — Completed 49-01: Payments API with schema, service, routes, overdue detection, and tests"
+stopped_at: Completed 49-02-PLAN.md
+last_updated: "2026-03-09T22:57:00Z"
+last_activity: "2026-03-09 — Completed 49-02: Payments Admin UI with balance cards, global dashboard, overdue badges"
 progress:
   total_phases: 38
-  completed_phases: 27
+  completed_phases: 28
   total_plans: 136
-  completed_plans: 134
-  percent: 99
+  completed_plans: 136
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 49 of 52 (Payments)
-Plan: 1 of 2 in current phase
-Status: 49-01 complete — payments API with schema, service, routes, overdue detection, and tests
-Last activity: 2026-03-09 — Completed 49-01: Payments API
+Phase: 49 of 52 (Payments) -- COMPLETE
+Plan: 2 of 2 in current phase (all complete)
+Status: Phase 49 complete — payments API + admin UI with balance cards, financial dashboard, overdue badges
+Last activity: 2026-03-09 — Completed 49-02: Payments Admin UI
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ _Updated after each plan completion_
 | Phase 48 P01 | 24min | 2 tasks | 13 files |
 | Phase 48 P02 | 8min | 3 tasks | 14 files |
 | Phase 49 P01 | 9min | 2 tasks | 16 files |
+| Phase 49 P02 | 5min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,10 @@ Recent decisions affecting current work:
 - [Phase 49-01]: Recorder name resolved via raw SQL alias join (users as recorder) to avoid Drizzle self-join conflict
 - [Phase 49-01]: Financial summary defaults to current month when no date range specified
 - [Phase 49-01]: Members overdue subquery counts expired subscriptions with insufficient payment sum
+- [Phase 49-02]: recorderName field matches API response (not recordedByName)
+- [Phase 49-02]: MemberPaymentTab shows register button even without subscription for one-off payments
+- [Phase 49-02]: Morosos count badge refreshed every 60s via setInterval in AdminLayout
+- [Phase 49-02]: QToggle for Morosos filter -- visually distinct, doesn't conflict with active/inactive filter
 
 ### v2.0 Deferrals
 
@@ -129,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T22:49:00Z
-Stopped at: Completed 49-01-PLAN.md
-Resume file: .planning/phases/49-payments/49-01-SUMMARY.md
+Last session: 2026-03-09T22:57:00Z
+Stopped at: Completed 49-02-PLAN.md
+Resume file: .planning/phases/49-payments/49-02-SUMMARY.md
