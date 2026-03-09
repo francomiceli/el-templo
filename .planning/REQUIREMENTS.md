@@ -13,7 +13,7 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 - [x] **RSTRC-02**: AURA transaction ledger records all earning/spending events with source, amount, and timestamp
 - [x] **RSTRC-03**: AURA balance is maintained per user and updated atomically on each transaction
 - [x] **RSTRC-04**: API modules have explicit boundaries with defined inter-module interfaces
-- [x] **RSTRC-05**: Lifestyle content (habits, journal questions, challenges, philosophical tools, factos, revelations) is extracted from Arete and adapted to El Templo brand voice
+- [x] **RSTRC-05**: Lifestyle content (habits, journal questions, factos, wisdom quotes, achievements, areas, challenges, tools, and deferred systems inventory) is extracted from Arete Web and adapted to El Templo brand voice
 
 ### Members Management
 
@@ -67,18 +67,32 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Lifestyle / Mi Camino
 
-- **LIFE-01**: Member can track daily habits across 6 areas (Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion)
-- **LIFE-02**: Member can write journal entries with guided prompts
-- **LIFE-03**: Member can participate in weekly challenges
-- **LIFE-04**: Member can use philosophical tools (Premeditatio Malorum, Examen Nocturno, etc.)
+- **LIFE-01**: Member can track daily habits across 6 areas (Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion) with timer-based and honor-based verification
+- **LIFE-02**: Member can write journal entries with level-gated guided prompts (simple L1, deep L3, philosophical L5)
+- **LIFE-03**: Member can participate in challenges (universal, multi-day, area-combo, intensity)
+- **LIFE-04**: Member can use philosophical tools (Las 4 Pruebas, Mapa de Friccion, Tabla de Poder, Tabla del Estratega, Test de Virtud)
 - **LIFE-05**: Member sees lifestyle module prominently on home screen as "Mi Camino"
+- **LIFE-06**: Member progresses through 20 levels across 4 tiers (Foundation, Growth, Mastery, Wisdom) unlocking content
+- **LIFE-07**: Member earns per-area XP (Axis XP) with 6 sub-levels per area (Neofito→Sabio)
+- **LIFE-08**: Member can view daily wisdom quotes (Greek philosophers, area-linked)
+- **LIFE-09**: Member can view daily factos (historical/scientific, level-gated)
+- **LIFE-10**: Member can unlock 25 achievements across streak, ritual, content, and special categories
+- **LIFE-11**: Member can access 12 seasonal habits (3 per season, Southern Hemisphere, L3+)
+- **LIFE-12**: Member can practice Tummo breathing protocol (3x30 rounds with AURA calculation)
+- **LIFE-13**: Member earns 12 monthly badges (Greek deity themed, L3+)
 
 ### AURA Economy
 
-- **AURA-01**: Member earns AURA from training, attendance, habits, social, referrals
-- **AURA-02**: Lifetime AURA milestones auto-unlock tangible rewards (discounts, guest passes, free months)
-- **AURA-03**: Mini store where members browse and spend AURA on extras
-- **AURA-04**: Member loses AURA automatically when streak breaks
+- **AURA-01**: Member earns AURA from habits (per-habit scaling tables for timer, flat for honor), day close bonus, challenges, quests, milestones, variable rewards
+- **AURA-02**: Daily AURA cap (80/day) and honor habit cap (8/day) enforced
+- **AURA-03**: Redemption store where members spend AURA on consumables (streak freeze, weekend amulet, streak repair) and real-world rewards (event tickets, gym months, merch)
+- **AURA-04**: Streak system with milestones (7/14/21/30/60/90/108 days) awarding bonus AURA
+- **AURA-05**: Streak protection mechanics (freeze, weekend amulet, repair within 4h window)
+- **AURA-06**: 7 AURA ranks (Semilla→Jardin) based on lifetime AURA thresholds
+- **AURA-07**: 5 leaderboard leagues (Bronce→Olimpo) with weekly promotion/demotion
+- **AURA-08**: Quest system (daily/weekly/monthly) with AURA rewards
+- **AURA-09**: Variable rewards (~30% chance on day close, rate-limited)
+- **AURA-10**: Celebration system (toast thresholds, confetti, streak reminders at 18h/20h/22h)
 
 ### Social / Agora
 
@@ -96,58 +110,59 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ## Out of Scope
 
-| Feature                               | Reason                                      |
-| ------------------------------------- | ------------------------------------------- |
-| Payment gateway (Mercado Pago/Stripe) | v6.0+ — build with online model when needed |
-| Physical merch store                  | Start digital rewards, add physical later   |
-| Multi-tenancy / SaaS                  | Not a goal — El Templo only                 |
-| DeportNet import                      | One-time migration, already done            |
-| Coach mode in member app              | Coach Console lives in admin app only       |
-| Theme picker (dark/light)             | Nice-to-have, maybe later                   |
-| Dual brand (Aurea Virtus/Arete)       | Abandoned as gendered concept               |
-| APK signing / Play Store              | Deferred from v2.0, pick up later           |
+| Feature                               | Reason                                             |
+| ------------------------------------- | -------------------------------------------------- |
+| Payment gateway (Mercado Pago/Stripe) | v6.0+ — build with online model when needed        |
+| Physical merch store                  | Start digital rewards, add physical later          |
+| Multi-tenancy / SaaS                  | Not a goal — El Templo only                        |
+| DeportNet import                      | One-time migration, already done                   |
+| Coach mode in member app              | Coach Console lives in admin app only              |
+| Theme picker (dark/light)             | Nice-to-have, maybe later                          |
+| Dual brand (Aurea Virtus/Arete)       | Abandoned — arete-web uses single Greek-only brand |
+| arete-app (React Native)              | Deprecated — arete-web is canonical source         |
+| APK signing / Play Store              | Deferred from v2.0, pick up later                  |
 
 ## Traceability
 
 Which phases cover which requirements. Updated during roadmap creation.
 
-| Requirement | Phase    | Status   |
-| ----------- | -------- | -------- |
-| RSTRC-01    | Phase 45 | Complete |
-| RSTRC-02    | Phase 45 | Complete |
-| RSTRC-03    | Phase 45 | Complete |
-| RSTRC-04    | Phase 45 | Complete |
-| RSTRC-05    | Phase 46 | Complete |
-| MEMB-01     | Phase 47 | Pending  |
-| MEMB-02     | Phase 47 | Pending  |
-| MEMB-03     | Phase 47 | Pending  |
-| MEMB-04     | Phase 47 | Pending  |
-| MEMB-05     | Phase 47 | Pending  |
-| MEMB-06     | Phase 47 | Pending  |
-| SUBS-01     | Phase 48 | Pending  |
-| SUBS-02     | Phase 48 | Pending  |
-| SUBS-03     | Phase 48 | Pending  |
-| SUBS-04     | Phase 48 | Pending  |
-| SUBS-05     | Phase 48 | Pending  |
-| PAY-01      | Phase 49 | Pending  |
-| PAY-02      | Phase 49 | Pending  |
-| PAY-03      | Phase 49 | Pending  |
-| PAY-04      | Phase 49 | Pending  |
-| ATTN-01     | Phase 50 | Pending  |
-| ATTN-02     | Phase 50 | Pending  |
-| ATTN-03     | Phase 50 | Pending  |
-| ATTN-04     | Phase 50 | Pending  |
-| ATTN-05     | Phase 50 | Pending  |
-| SCHD-01     | Phase 51 | Pending  |
-| SCHD-02     | Phase 51 | Pending  |
-| SCHD-03     | Phase 51 | Pending  |
-| SCHD-04     | Phase 51 | Pending  |
-| SCHD-05     | Phase 51 | Pending  |
-| SCHD-06     | Phase 51 | Pending  |
-| ANLT-01     | Phase 52 | Pending  |
-| ANLT-02     | Phase 52 | Pending  |
-| ANLT-03     | Phase 52 | Pending  |
-| ANLT-04     | Phase 52 | Pending  |
+| Requirement | Phase    | Status                      |
+| ----------- | -------- | --------------------------- |
+| RSTRC-01    | Phase 45 | Complete                    |
+| RSTRC-02    | Phase 45 | Complete                    |
+| RSTRC-03    | Phase 45 | Complete                    |
+| RSTRC-04    | Phase 45 | Complete                    |
+| RSTRC-05    | Phase 46 | Reset (redo from arete-web) |
+| MEMB-01     | Phase 47 | Pending                     |
+| MEMB-02     | Phase 47 | Pending                     |
+| MEMB-03     | Phase 47 | Pending                     |
+| MEMB-04     | Phase 47 | Pending                     |
+| MEMB-05     | Phase 47 | Pending                     |
+| MEMB-06     | Phase 47 | Pending                     |
+| SUBS-01     | Phase 48 | Pending                     |
+| SUBS-02     | Phase 48 | Pending                     |
+| SUBS-03     | Phase 48 | Pending                     |
+| SUBS-04     | Phase 48 | Pending                     |
+| SUBS-05     | Phase 48 | Pending                     |
+| PAY-01      | Phase 49 | Pending                     |
+| PAY-02      | Phase 49 | Pending                     |
+| PAY-03      | Phase 49 | Pending                     |
+| PAY-04      | Phase 49 | Pending                     |
+| ATTN-01     | Phase 50 | Pending                     |
+| ATTN-02     | Phase 50 | Pending                     |
+| ATTN-03     | Phase 50 | Pending                     |
+| ATTN-04     | Phase 50 | Pending                     |
+| ATTN-05     | Phase 50 | Pending                     |
+| SCHD-01     | Phase 51 | Pending                     |
+| SCHD-02     | Phase 51 | Pending                     |
+| SCHD-03     | Phase 51 | Pending                     |
+| SCHD-04     | Phase 51 | Pending                     |
+| SCHD-05     | Phase 51 | Pending                     |
+| SCHD-06     | Phase 51 | Pending                     |
+| ANLT-01     | Phase 52 | Pending                     |
+| ANLT-02     | Phase 52 | Pending                     |
+| ANLT-03     | Phase 52 | Pending                     |
+| ANLT-04     | Phase 52 | Pending                     |
 
 **Coverage:**
 

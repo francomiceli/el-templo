@@ -772,7 +772,7 @@ _Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (A
 ## v4.0 Phases
 
 - [x] **Phase 45: Architecture Foundation** - Virtual branch, AURA ledger/balances, module boundaries (completed 2026-03-08)
-- [x] **Phase 46: Lifestyle Content Extraction** - Extract and adapt Arete content to El Templo brand (completed 2026-03-08)
+- [ ] **Phase 46: Lifestyle Content Extraction** - Extract and adapt Arete content to El Templo brand (completed 2026-03-08)
 - [ ] **Phase 47: Members Management** - Admin member CRUD with search, filters, profiles, notes
 - [ ] **Phase 48: Subscriptions** - Plan management, member assignments, AURA discounts, status tracking
 - [ ] **Phase 49: Payments** - Payment recording, history, overdue flags, financial summary
@@ -803,22 +803,24 @@ Plans:
 
 ---
 
-### Phase 46: Lifestyle Content Extraction
+### Phase 46: Lifestyle Content Extraction (REDO — arete-web source)
 
-**Goal**: All lifestyle content from the Arete codebase is extracted, cataloged, and adapted to El Templo's brand voice — ready for the v5.0 lifestyle module
+**Goal**: All lifestyle content from the Arete Web codebase (canonical, replaces deprecated arete-app) is extracted, cataloged, and adapted to El Templo's brand voice — ready for the v5.0 lifestyle module
 **Depends on**: Phase 45 (module boundaries must be in place)
 **Requirements**: RSTRC-05
+**Status**: RESET — original extraction used outdated arete-app. Redoing from arete-web which has significantly expanded content (20 levels, 60 challenges, 160 factos, Greek-only philosophy, 7 new systems).
 **Success Criteria** (what must be TRUE):
 
-1. Habits (across 6 areas: Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion), journal prompts, challenges, philosophical tools, factos, and revelations are extracted from Arete source code into structured data files
-2. All extracted content is adapted to El Templo brand voice (Spanish, temple/warrior/stoic tone) and ready for database seeding when the lifestyle module is built
+1. Starter content (L1-2 habits with full field set including verificationType/dataType/auraScaling, simple-tier journal questions, curated factos from Greek-only source, area definitions, philosophical tools) is extracted into typed seed files
+2. All extracted content is adapted to El Templo brand voice (rioplatense Spanish, Greek philosophical tone) and ready for database seeding
+3. Complete deferred content inventory documents all arete-web systems for v5.0 planning: 20-level progression, 60 challenges, 160 factos, 25 achievements, 149 wisdom quotes, 12 seasonal habits, axis XP, AURA economy (per-habit scaling, caps, ranks), redemption store, Tummo breathing, celebrations, 5 leagues, 12 badges
 
-**Plans:** 2/2 plans complete
+**Plans:** 1/2 plans executed
 
 Plans:
 
-- [ ] 46-01-PLAN.md — Habits seed (Level 1-2 with full details) + journal questions seed
-- [ ] 46-02-PLAN.md — Factos curation (~40) + philosophical tools + deferred content catalog + module barrel export
+- [ ] 46-01-PLAN.md — Habits (L1-2 with new fields from arete-web) + Areas (6 definitions with Greek names)
+- [ ] 46-02-PLAN.md — Factos (Greek-only curation) + Journal questions (expanded simple tier) + Tools (verify) + Barrel exports
 
 ---
 
@@ -922,7 +924,7 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | Phase                            | Plans Complete | Status      | Completed  |
 | -------------------------------- | -------------- | ----------- | ---------- |
 | 45. Architecture Foundation      | 3/3            | Complete    | 2026-03-08 |
-| 46. Lifestyle Content Extraction | 2/2            | Complete    | 2026-03-08 |
+| 46. Lifestyle Content Extraction | 1/2            | In Progress |            |
 | 47. Members Management           | 0/?            | Not started | -          |
 | 48. Subscriptions                | 0/?            | Not started | -          |
 | 49. Payments                     | 0/?            | Not started | -          |

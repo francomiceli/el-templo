@@ -2,108 +2,118 @@
 phase: 46-lifestyle-content-extraction
 plan: 02
 subsystem: api
-tags: [seed-data, stoic-content, philosophical-tools, content-curation]
+tags:
+  [
+    seed-data,
+    factos,
+    journal-questions,
+    philosophical-tools,
+    barrel-export,
+    typescript,
+  ]
 
 # Dependency graph
 requires:
-  - phase: 45-architecture-foundation
-    provides: module barrel export convention, lifestyle module directory
+  - phase: 46-lifestyle-content-extraction
+    provides: habits.seed.ts and areas.seed.ts from plan 01
 provides:
-  - 42 curated stoic/warrior factos as typed seed data
-  - 5 philosophical tool definitions with framework structures
-  - Complete deferred content inventory for v5.0 planning
-  - Lifestyle module barrel export re-exporting all seed types
-affects: [lifestyle-features, aura-economy, v5-content-expansion]
+  - 46 curated factos across all 7 categories from arete-web canonical source
+  - 35 simple-tier journal questions from eligible brands (both + arete)
+  - 5 philosophical tool frameworks verified and translated to Spanish
+  - Complete lifestyle barrel export re-exporting all 5 seed files
+affects: [lifestyle-module, v5-lifestyle-features]
 
 # Tech tracking
 tech-stack:
   added: []
-  patterns:
-    [
-      as-const-satisfies for readonly typed seed arrays,
-      framework-as-data pattern for tool definitions,
-    ]
+  patterns: [as-const-satisfies-readonly, brand-field-dropped-at-extraction]
 
 key-files:
-  created:
+  created: []
+  modified:
     - el-templo-api/src/modules/lifestyle/seed/factos.seed.ts
+    - el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts
     - el-templo-api/src/modules/lifestyle/seed/tools.seed.ts
-    - el-templo-api/src/modules/lifestyle/seed/DEFERRED-CONTENT.md
     - el-templo-api/src/modules/lifestyle/index.ts
 
 key-decisions:
-  - "Curated 42 factos (not all 55 from plan enumeration) to meet ~40 target -- trimmed larger groups while preserving brand-critical selections"
-  - "Framework-as-data pattern: tool definitions capture questions/dimensions/output as structured objects, not UI code"
+  - "Curated 46 factos from 172 eligible with diverse category spread: filosofia(14), ciencia(9), bienestar(7), guerra(6), politica(5), arte(4), deporte(1)"
+  - "Translated all tool framework inputs/outputs from English to Spanish for brand consistency"
+  - "Added AREAS_ORDERED and HabitArea/HabitMoment types to barrel export for downstream consumption"
 
 patterns-established:
-  - "Seed curation pattern: select from reference codebase by brand fit, document exclusions"
-  - "Deferred content catalog: structured inventory with counts, shapes, brand distribution, and adaptation notes"
+  - "Brand field dropped at extraction time: seed types don't carry brand, all content is El Templo"
+  - "Journal question category type uses union for forward compatibility: 'simple' | 'deep' | 'philosophical'"
 
 requirements-completed: [RSTRC-05]
 
 # Metrics
-duration: 8min
-completed: 2026-03-08
+duration: 5min
+completed: 2026-03-09
 ---
 
-# Phase 46 Plan 02: Factos, Tools, and Deferred Content Summary
+# Phase 46 Plan 02: Factos, Journal Questions, Tools, and Barrel Export Summary
 
-**42 curated stoic/warrior factos, 5 philosophical tool frameworks, and complete deferred content inventory for v5.0**
+**46 curated factos across 7 categories, 35 simple-tier journal questions, 5 philosophical tools translated to Spanish, and complete lifestyle barrel export**
 
 ## Performance
 
-- **Duration:** 8 min
-- **Started:** 2026-03-08T19:17:00Z
-- **Completed:** 2026-03-08T19:25:00Z
+- **Duration:** 5 min
+- **Started:** 2026-03-09T15:24:58Z
+- **Completed:** 2026-03-09T15:30:57Z
 - **Tasks:** 2
 - **Files modified:** 4
 
 ## Accomplishments
 
-- Curated 42 factos from Arete's 60 universal catalog, prioritizing stoic warriors and classical philosophy figures (Marco Aurelio, Seneca, Epicteto, Socrates, Leonidas/Esparta, Diogenes, Zenon)
-- Extracted 5 philosophical tool definitions (Las 4 Pruebas, Mapa de Friccion, Tabla de Poder, Tabla del Estratega, Test de Virtud) with framework structures capturing questions, dimensions, and output logic
-- Created comprehensive deferred content inventory cataloging all 6 categories of Arete content not in the starter set (habits L3+, journal L3+, challenges, revelations, gamification, skipped content)
-- Created lifestyle module barrel export following the aura module pattern from Phase 45
+- Curated 46 factos from arete-web's 160-facto catalog with diverse category coverage across all 7 categories
+- Extracted all 35 simple-tier journal questions from eligible brands (24 universal + 11 arete-adapted)
+- Verified and translated all 5 philosophical tool frameworks from English to Spanish
+- Updated lifestyle barrel export to re-export all 5 seed files with complete type coverage
 
 ## Task Commits
 
 Each task was committed atomically:
 
-1. **Task 1: Curate ~40 factos and extract 5 philosophical tool definitions** - `53bdb89` (feat)
-2. **Task 2: Create deferred content catalog and lifestyle module barrel export** - `c4b60d3` (feat)
+1. **Task 1: Replace factos.seed.ts + journal-questions.seed.ts** - `82d07ee` (feat)
+2. **Task 2: Verify tools.seed.ts + update barrel export** - `7fd9308` (feat)
 
 ## Files Created/Modified
 
-- `el-templo-api/src/modules/lifestyle/seed/factos.seed.ts` - 42 curated factos with FactoSeed type, as const satisfies pattern
-- `el-templo-api/src/modules/lifestyle/seed/tools.seed.ts` - 5 philosophical tool definitions with PhilosophicalToolSeed type and ToolFramework structure
-- `el-templo-api/src/modules/lifestyle/seed/DEFERRED-CONTENT.md` - Complete inventory of all deferred Arete content with counts, shapes, brand distribution, and adaptation notes
-- `el-templo-api/src/modules/lifestyle/index.ts` - Module barrel export re-exporting all seed types (full compilation requires Plan 01 files)
+- `el-templo-api/src/modules/lifestyle/seed/factos.seed.ts` - 46 curated factos with FactoSeed type, bienestar category added
+- `el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts` - 35 simple-tier questions with minLevel field preserved
+- `el-templo-api/src/modules/lifestyle/seed/tools.seed.ts` - Header updated, all framework strings translated to Spanish
+- `el-templo-api/src/modules/lifestyle/index.ts` - Barrel export re-exporting all 5 seed files (types + constants)
 
 ## Decisions Made
 
-- Curated 42 factos instead of including all 55 enumerated in the plan. The plan's per-figure "INCLUDE ALL" instructions would yield 55 factos, exceeding the "not more than 45" verification criteria. Trimmed redundant entries from larger groups (Marco Aurelio 10->6, Seneca 8->5, Epicteto 6->4, Socrates 5->4, Esparta 4->3, Diogenes 3->2, Zenon 3->2) while preserving all brand-critical selections.
-- Used framework-as-data pattern for tool definitions: each tool's questions, dimensions, and output logic are captured as typed structured objects rather than copying UI component code. This decouples the intellectual model from the React Native UI.
+- Curated 46 factos (within 40-50 target) prioritizing Greek/classical figures with modern science variety
+- Added `bienestar` to FactoSeed category union type (old file only had 6 categories, arete-web has 7)
+- Kept `minLevel` field in JournalQuestionSeed for forward compatibility even though all starter questions are level 1
+- Translated tool framework inputs/outputs to Spanish (plan noted "brand adaptation needed" -- English strings were inconsistent with rioplatense content)
+- Added AREAS_ORDERED constant to barrel export (useful downstream for ordered area rendering)
 
 ## Deviations from Plan
 
 ### Auto-fixed Issues
 
-**1. [Rule 1 - Bug] Plan enumeration count mismatch**
+**1. [Rule 2 - Missing Critical] Translated tool framework strings from English to Spanish**
 
-- **Found during:** Task 1
-- **Issue:** Plan's per-figure INCLUDE instructions enumerate 55 factos total but state "This gives ~40-42 factos" and verification requires "not more than 45, not fewer than 35"
-- **Fix:** Used Claude discretion clause ("aim for ~40") to curate 42 factos by trimming larger groups while keeping strongest selections
-- **Files modified:** el-templo-api/src/modules/lifestyle/seed/factos.seed.ts
-- **Verification:** Final count is 42, within 35-45 range
+- **Found during:** Task 2 (tools.seed.ts verification)
+- **Issue:** Framework input/output strings were in English while all prompts and user-facing content is in rioplatense Spanish
+- **Fix:** Translated all input, output, and Tabla del Estratega prompt strings to Spanish
+- **Files modified:** el-templo-api/src/modules/lifestyle/seed/tools.seed.ts
+- **Verification:** TypeScript compiles, content verified coherent
+- **Committed in:** 7fd9308 (Task 2 commit)
 
 ---
 
-**Total deviations:** 1 auto-fixed (1 bug -- plan count mismatch)
-**Impact on plan:** Corrected to meet the plan's own verification criteria. All brand-critical factos preserved.
+**Total deviations:** 1 auto-fixed (Rule 2 - consistency)
+**Impact on plan:** Essential for brand consistency. No scope creep.
 
 ## Issues Encountered
 
-- Barrel export (`index.ts`) will not fully compile until Plan 01 runs (habits.seed.ts and journal-questions.seed.ts do not exist yet). This is documented in the plan and expected for parallel execution.
+None
 
 ## User Setup Required
 
@@ -111,15 +121,12 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-- All lifestyle seed data complete (pending Plan 01 for habits and journal questions)
-- Deferred content catalog ready for v5.0 planning reference
-- Module barrel export wired up, will compile fully after Plan 01
-
-## Self-Check: PASSED
-
-All 4 created files verified on disk. Both task commits (53bdb89, c4b60d3) verified in git log.
+- All 5 seed files complete: habits, areas, factos, journal-questions, tools
+- Barrel export wires everything together
+- Ready for v5.0 lifestyle module implementation (DB tables, seeding, API routes)
+- Deferred content documented in DEFERRED-CONTENT.md for future phases
 
 ---
 
 _Phase: 46-lifestyle-content-extraction_
-_Completed: 2026-03-08_
+_Completed: 2026-03-09_
