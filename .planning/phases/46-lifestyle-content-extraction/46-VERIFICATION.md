@@ -1,15 +1,15 @@
 ---
 phase: 46-lifestyle-content-extraction
-verified: 2026-03-08T19:29:33Z
+verified: 2026-03-09T15:37:13Z
 status: passed
-score: 8/8 must-haves verified
+score: 10/10 must-haves verified
 re_verification: false
 ---
 
 # Phase 46: Lifestyle Content Extraction Verification Report
 
-**Phase Goal:** All lifestyle content from the Arete codebase is extracted, cataloged, and adapted to El Templo's brand voice -- ready for the v5.0 lifestyle module
-**Verified:** 2026-03-08T19:29:33Z
+**Phase Goal:** All lifestyle content from the Arete Web codebase (canonical, replaces deprecated arete-app) is extracted, cataloged, and adapted to El Templo's brand voice -- ready for the v5.0 lifestyle module
+**Verified:** 2026-03-09T15:37:13Z
 **Status:** passed
 **Re-verification:** No -- initial verification
 
@@ -17,87 +17,85 @@ re_verification: false
 
 ### Observable Truths
 
-| #   | Truth                                                                                                                      | Status   | Evidence                                                                                                                                                                                                                                                                                            |
-| --- | -------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | ~15 Level 1-2 habits are extracted from Arete with full details (howTo, whyItMatters, tips) and adapted to El Templo brand | VERIFIED | habits.seed.ts contains 17 Level 1-2 habits (5 L1 + 12 L2) across all 6 areas with complete howTo/whyItMatters/tips content                                                                                                                                                                         |
-| 2   | ~14 simple-tier journal questions are extracted and Arete-specific ones adapted to neutral voice                           | VERIFIED | journal-questions.seed.ts contains 19 simple-tier questions (14 universal + 5 adapted from Arete). a02 correctly neutralized ('vos misma' removed)                                                                                                                                                  |
-| 3   | All brand references (Arete, Aurea Virtus, AURUM, alchemical terms, gendered language) are removed or replaced             | VERIFIED | grep for 'Aurea Virtus', 'AURUM', 'alquimi' returns 0 matches in seed files. 'Arete' appears only in JSDoc provenance comments, not in user-facing content                                                                                                                                          |
-| 4   | Argentine Spanish (rioplatense) tone is preserved                                                                          | VERIFIED | Content uses 'vos' forms, rioplatense conjugations ('empeza', 'sentate', 'volve'), Argentine vocabulary ('celular', 'mate') throughout                                                                                                                                                              |
-| 5   | ~40 factos are curated from the 60 universal ones, prioritized by brand fit (stoic warriors, classical philosophy)         | VERIFIED | factos.seed.ts contains exactly 42 curated factos. Figures: Marco Aurelio (6), Seneca (5), Epicteto (4), Socrates (4), Platon (2), Aristoteles (3), Alejandro Magno (2), Leonidas/Esparta (3), Diogenes (2), Heraclito (1), Pitagoras (1), Hipatia (2), Zenon (2), Caton (3), Tales (1), Cineas (1) |
-| 6   | All 5 philosophical tool definitions are extracted with names, descriptions, and question frameworks                       | VERIFIED | tools.seed.ts contains 5 tools (Las 4 Pruebas, Mapa de Friccion, Tabla de Poder, Tabla del Estratega, Test de Virtud) with ToolFramework structures (input, steps with name/prompt, output)                                                                                                         |
-| 7   | Deferred content catalog documents all Level 3+ content with counts, types, and source file locations                      | VERIFIED | DEFERRED-CONTENT.md has 6 sections covering: Habits L3+, Journal L3+, Challenges (36), Revelations (23), Gamification Config, Skipped Content. Each section includes counts, content shapes, brand distribution, source file paths, and adaptation notes. Summary table at end                      |
-| 8   | Lifestyle module has a barrel export re-exporting all seed types                                                           | VERIFIED | index.ts re-exports 4 type exports (HabitSeed, JournalQuestionSeed, FactoSeed, PhilosophicalToolSeed) and 4 value exports (HABIT_SEEDS, JOURNAL_QUESTION_SEEDS, FACTO_SEEDS, TOOL_SEEDS). Follows aura module pattern. Compiles cleanly with tsc --noEmit                                           |
+| #   | Truth                                                                                                                          | Status   | Evidence                                                                                                                                                                                                                                                                                                                                   |
+| --- | ------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | All 17 L1-2 habits extracted with full field set (verificationType, dataType, auraScaling, linkedQuoteArea, facto, imageAsset) | VERIFIED | 17 entries in habits.seed.ts, each with all 15 fields. 6 at L1, 11 at L2. All fields confirmed present (19 occurrences each of verificationType, dataType, auraScaling, imageAsset, linkedQuoteArea; 18 tips entries for 17 habits + 1 type def).                                                                                          |
+| 2   | Habit details (howTo, whyItMatters, tips) included inline for each habit                                                       | VERIFIED | 19 occurrences each of howTo and whyItMatters in file (17 data + 2 type/comment). All 17 habits have substantive multi-sentence strings, not placeholders.                                                                                                                                                                                 |
+| 3   | 6 area definitions with Greek names, philosophyText, colorVar, icon, habitPrefix                                               | VERIFIED | areas.seed.ts has 6 entries: Nous, Soma, Sophrosyne, Praxis, Philia, Theoria. All fields populated with substantive philosophy text.                                                                                                                                                                                                       |
+| 4   | CUE-04 is "Respiracion Tummo" (L1) from arete-web, not "Respiracion controlada" from old arete-app                             | VERIFIED | Line 283: `name: "Respiracion Tummo"`, `minLevel: 1`, `dataType: "count"`. Matches arete-web canonical source.                                                                                                                                                                                                                             |
+| 5   | Brand references adapted: no 'Arete' brand mentions in content, rioplatense tone preserved, Greek philosophy kept              | VERIFIED | grep for "Arete" in content strings (excluding comments) returns 0 hits. All "arete" occurrences are in JSDoc header comments documenting the source. Rioplatense tone confirmed (vos, mate, celular).                                                                                                                                     |
+| 6   | ~40-50 curated factos from arete-web, diverse across all 7 categories, Greek/classical bias                                    | VERIFIED | 46 factos: filosofia(14), ciencia(9), bienestar(7), guerra(6), politica(5), arte(4), deporte(1). All 7 categories represented. Figures include Aristoteles, Socrates, Heraclito, Pitagoras, Hipatia, Leonidas, Safo, and modern scientists.                                                                                                |
+| 7   | All simple-tier journal questions from 'both' and 'arete' brands extracted                                                     | VERIFIED | 35 entries: 24 universal (s01-s24) + 5 body awareness (a01-a05) + 6 rituals/nature (a11-a16). All minLevel 1, all category "simple".                                                                                                                                                                                                       |
+| 8   | 5 philosophical tool definitions with framework structure                                                                      | VERIFIED | tools.seed.ts has 5 tools (las4pruebas, mapafriccion, tablapoder, tablaestrategista, testvirtud), each with framework.input, framework.steps[], and framework.output. All prompts in rioplatense Spanish.                                                                                                                                  |
+| 9   | Lifestyle barrel export re-exports all seed types and constants including AreaSeed                                             | VERIFIED | index.ts exports 6 types (HabitSeed, HabitArea, HabitMoment, VerificationType, DataType, AuraScalingThreshold, AreaSeed, JournalQuestionSeed, FactoSeed, PhilosophicalToolSeed) and 5 constants (HABIT_SEEDS, AREA_SEEDS, AREAS_ORDERED, JOURNAL_QUESTION_SEEDS, FACTO_SEEDS, TOOL_SEEDS). TypeScript compilation passes with zero errors. |
+| 10  | No 'aurea' branded content in any seed file                                                                                    | VERIFIED | grep -ic "aurea" on all seed .ts files returns 0 in content. Only occurrences are in JSDoc header comments (e.g., "0 'aurea'" documenting exclusion).                                                                                                                                                                                      |
 
-**Score:** 8/8 truths verified
+**Score:** 10/10 truths verified
 
 ### Required Artifacts
 
-| Artifact                                                             | Expected                                                              | Status   | Details                                                                                                                                       |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `el-templo-api/src/modules/lifestyle/seed/habits.seed.ts`            | HabitSeed type + HABIT_SEEDS array ~15 L1-2 habits                    | VERIFIED | 400 lines, 17 habits, HabitSeed/HabitArea/HabitMoment types, `as const satisfies`, compiles cleanly                                           |
-| `el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts` | JournalQuestionSeed type + JOURNAL_QUESTION_SEEDS array ~14 questions | VERIFIED | 130 lines, 19 questions, JournalQuestionSeed type, `as const satisfies`, compiles cleanly                                                     |
-| `el-templo-api/src/modules/lifestyle/seed/factos.seed.ts`            | FactoSeed type + FACTO_SEEDS array ~40 curated factos                 | VERIFIED | 437 lines, 42 factos, FactoSeed type with category union, `as const satisfies`, compiles cleanly                                              |
-| `el-templo-api/src/modules/lifestyle/seed/tools.seed.ts`             | PhilosophicalToolSeed type + TOOL_SEEDS array with 5 tools            | VERIFIED | 199 lines, 5 tools with framework structures, PhilosophicalToolSeed/ToolFramework/FrameworkStep types, `as const satisfies`, compiles cleanly |
-| `el-templo-api/src/modules/lifestyle/seed/DEFERRED-CONTENT.md`       | Inventory of all deferred Arete content                               | VERIFIED | 212 lines, 6 content categories + summary table, all source file paths documented                                                             |
-| `el-templo-api/src/modules/lifestyle/index.ts`                       | Module barrel export for lifestyle seed types                         | VERIFIED | 10 lines, re-exports all types and data arrays, follows aura module pattern                                                                   |
+| Artifact                                                             | Expected                                                     | Status   | Details                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `el-templo-api/src/modules/lifestyle/seed/habits.seed.ts`            | 17 L1-2 habits with full arete-web fields and inline details | VERIFIED | 563 lines, 17 habit entries, exports HabitSeed + 5 type aliases + HABIT_SEEDS constant. `as const satisfies readonly HabitSeed[]` pattern.                                                                                                                                                                                            |
+| `el-templo-api/src/modules/lifestyle/seed/areas.seed.ts`             | 6 area definitions with Greek philosophical names            | VERIFIED | 107 lines, 6 area entries as Record + AREAS_ORDERED array. Exports AreaSeed type, AREA_SEEDS, AREAS_ORDERED.                                                                                                                                                                                                                          |
+| `el-templo-api/src/modules/lifestyle/seed/factos.seed.ts`            | ~40-50 curated factos with full fields                       | VERIFIED | 441 lines, 46 facto entries across all 7 categories. Exports FactoSeed type and FACTO_SEEDS constant.                                                                                                                                                                                                                                 |
+| `el-templo-api/src/modules/lifestyle/seed/journal-questions.seed.ts` | ~25-35 simple-tier journal questions                         | VERIFIED | 269 lines, 35 journal question entries. All simple-tier, minLevel 1. Exports JournalQuestionSeed type and JOURNAL_QUESTION_SEEDS constant.                                                                                                                                                                                            |
+| `el-templo-api/src/modules/lifestyle/seed/tools.seed.ts`             | 5 philosophical tool frameworks                              | VERIFIED | 204 lines, 5 tool entries with framework structure. All prompts in rioplatense Spanish. Exports PhilosophicalToolSeed type and TOOL_SEEDS constant.                                                                                                                                                                                   |
+| `el-templo-api/src/modules/lifestyle/index.ts`                       | Barrel export for all lifestyle seed types                   | VERIFIED | 19 lines, re-exports all types and constants from all 5 seed files. TypeScript compiles cleanly.                                                                                                                                                                                                                                      |
+| `.planning/DEFERRED-CONTENT.md`                                      | Complete deferred content inventory                          | VERIFIED | 247 lines, documents all 15 arete-web systems: L3-5 habits, seasonal habits, challenges (60), journal questions (higher tiers), remaining factos (~110-120), wisdom quotes (149), achievements (25), levels (20), AURA economy, axis XP, redemption store (8 items), Tummo breathing, celebrations, leagues (5), monthly badges (12). |
 
 ### Key Link Verification
 
-| From                                       | To                                                 | Via                        | Status   | Details                                                                                                                |
-| ------------------------------------------ | -------------------------------------------------- | -------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `lifestyle/seed/habits.seed.ts`            | `arete-app/constants/habits.ts + habit-details.ts` | content extraction         | VERIFIED | 17 L1-2 habits match Arete's 17 minLevel<=2 habits (verified via grep count). Content adapted with brand terms removed |
-| `lifestyle/seed/journal-questions.seed.ts` | `arete-app/constants/journal-questions.ts`         | content extraction         | VERIFIED | 19 simple-tier questions (14 'both' + 5 'arete' adapted). IDs match source (s01-s14, a01-a05)                          |
-| `lifestyle/seed/factos.seed.ts`            | `arete-app/constants/factos.ts`                    | content curation           | VERIFIED | 42 curated from 60 universal factos. IDs match source (f01-f60 range). No Arete-specific (f61-f80) included            |
-| `lifestyle/seed/tools.seed.ts`             | `arete-app/features/tools/tools-index.tsx`         | tool definition extraction | VERIFIED | 5 tools matching Arete's TOOLS array. Frameworks extracted as data structures, no UI code                              |
-| `lifestyle/index.ts`                       | `lifestyle/seed/*.ts`                              | barrel re-export           | VERIFIED | All 4 seed files re-exported (type + value). tsc --noEmit passes cleanly                                               |
+| From             | To                                  | Via                                            | Status   | Details                                                                                                                                        |
+| ---------------- | ----------------------------------- | ---------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `habits.seed.ts` | `arete-web/src/constants/habits.ts` | Content extraction of 17 L1-2 habits           | VERIFIED | 17 habits match expected codes (MEN-01..04, CUE-01..04, COH-01..02, ACC-01..02, VIN-01..02, REF-01..03). All arete-web fields present.         |
+| `areas.seed.ts`  | `arete-web/src/constants/areas.ts`  | Content extraction of 6 AreaDefinition records | VERIFIED | All 6 areas present with Greek names matching expected (Nous, Soma, Sophrosyne, Praxis, Philia, Theoria).                                      |
+| `factos.seed.ts` | `arete-web/src/constants/factos.ts` | Curation of 46 from 172 eligible factos        | VERIFIED | 46 entries, brand field correctly dropped from type (not needed post-extraction). No aurea content.                                            |
+| `index.ts`       | `seed/*.seed.ts`                    | Barrel re-exports                              | VERIFIED | All 5 seed files re-exported. `export type { ... }` for types, `export { ... }` for constants. TypeScript compilation passes with zero errors. |
 
 ### Requirements Coverage
 
-| Requirement | Source Plan  | Description                                                                 | Status    | Evidence                                                                                                                                                                                                                           |
-| ----------- | ------------ | --------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| RSTRC-05    | 46-01, 46-02 | Lifestyle content extracted from Arete and adapted to El Templo brand voice | SATISFIED | Habits (17), journal questions (19), factos (42), philosophical tools (5) extracted and adapted. Challenges (36) and revelations (23) cataloged as deferred per CONTEXT.md decisions. All content types from requirement addressed |
+| Requirement | Source Plan  | Description                                                                                                                                                                                                   | Status    | Evidence                                                                                                                                                                                                                                                                                                                                           |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RSTRC-05    | 46-01, 46-02 | Lifestyle content (habits, journal questions, factos, wisdom quotes, achievements, areas, challenges, tools, and deferred systems inventory) is extracted from Arete Web and adapted to El Templo brand voice | SATISFIED | Starter set extracted: 17 habits, 35 journal questions, 46 factos, 6 areas, 5 tools in typed seed files. Deferred content (wisdom quotes, achievements, challenges, etc.) documented in DEFERRED-CONTENT.md covering all 15 arete-web systems. Brand adaptation verified: no Arete brand in content, rioplatense tone, Greek philosophy preserved. |
 
-No orphaned requirements found -- RSTRC-05 is the only requirement mapped to Phase 46 in REQUIREMENTS.md, and both plans claim it.
+No orphaned requirements found. Both plans claim RSTRC-05 and the REQUIREMENTS.md maps it to Phase 46.
 
 ### Anti-Patterns Found
 
-| File                | Line   | Pattern                                                                                                                                                                                                                      | Severity | Impact                                                                                            |
-| ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
-| DEFERRED-CONTENT.md | 12-43  | Incorrect counts: says "Total deferred: 24 habits" and "starter set includes 15 habits" but actual values are 22 deferred and 17 in starter. VIN-01 and VIN-02 (Level 2) are listed as deferred but exist in the starter set | Warning  | Reference document error. Does not affect seed data correctness or phase goal                     |
-| tools.seed.ts       | 93-175 | Mixed language: tool input/output descriptions in English for tools 2-5, while tool 1 input and all prompts are in Spanish                                                                                                   | Info     | Framework metadata, not user-facing at this stage. Prompts (user-facing) are correctly in Spanish |
+| File   | Line | Pattern | Severity | Impact |
+| ------ | ---- | ------- | -------- | ------ |
+| (none) | -    | -       | -        | -      |
+
+Zero anti-patterns detected. No TODO/FIXME/HACK/PLACEHOLDER comments, no empty implementations, no console.log, no placeholder text in any of the 6 modified files.
 
 ### Human Verification Required
 
-### 1. Content Quality Spot-Check
+### 1. Content Accuracy vs Arete-Web Source
 
-**Test:** Read 3-5 habit entries and verify the howTo/whyItMatters/tips content reads naturally in Argentine Spanish with the stoic/warrior tone preserved
-**Expected:** Content flows naturally, no awkward brand replacements, rioplatense voice feels authentic
-**Why human:** Tone and voice quality cannot be verified programmatically -- requires native speaker judgment
+**Test:** Open `arete-web/src/constants/habits.ts` side-by-side with `habits.seed.ts` and spot-check 3-5 habit records for field accuracy (auraScaling thresholds, linkedQuoteArea, facto ID, imageAsset).
+**Expected:** All fields match the arete-web source data exactly (except brand adaptations).
+**Why human:** Automated verification confirmed field presence but not value accuracy. Spot-checking content fidelity against the source requires semantic comparison.
 
-### 2. Facto Curation Quality
+### 2. Rioplatense Tone Quality
 
-**Test:** Review the 42 selected factos against the excluded 18 and verify the curation prioritizes stoic/warrior identity
-**Expected:** Strongest brand-aligned content retained, excluded items are clearly less relevant
-**Why human:** Brand fit is a subjective judgment that requires understanding El Templo's identity
+**Test:** Read 5-6 habit howTo/whyItMatters texts and 10 journal questions. Verify the tone is natural rioplatense Argentine Spanish (voseo, informal warmth, no formal usted).
+**Expected:** Consistent rioplatense voice throughout, no jarring formal/Spain-Spanish phrases.
+**Why human:** Tone and voice quality cannot be verified programmatically.
 
-### 3. Philosophical Tool Framework Accuracy
+### 3. Facto Curation Quality
 
-**Test:** Compare tool definitions in tools.seed.ts against Arete source component files to verify the framework captures each tool's conceptual model accurately
-**Expected:** Questions, dimensions, and output logic match the original tool design intent
-**Why human:** Conceptual fidelity to original tool design requires understanding the tools' purpose
+**Test:** Read through the 46 factos. Assess whether the selection feels diverse, compelling, and aligned with El Templo's temple/warrior/philosopher identity.
+**Expected:** Good mix of inspiring stories across categories. No repetitive figures. Greek/classical bias without being monotonous.
+**Why human:** Curation quality is subjective and requires domain judgment.
 
 ### Gaps Summary
 
-No gaps found. All 8 observable truths verified, all 6 artifacts pass three-level verification (exists, substantive, wired), all 5 key links verified, and the single requirement (RSTRC-05) is satisfied.
+No gaps found. All 10 observable truths verified. All 7 artifacts exist, are substantive (not stubs), and are properly wired through the barrel export. Requirement RSTRC-05 is satisfied. Zero anti-patterns detected. TypeScript compilation passes cleanly.
 
-Two minor issues flagged as warnings:
-
-1. DEFERRED-CONTENT.md has incorrect habit counts (says 24 deferred / 15 in starter, should be 22 deferred / 17 in starter) and incorrectly lists VIN-01/VIN-02 as deferred. This is a reference document error that does not affect the seed data or phase goal.
-2. tools.seed.ts has mixed English/Spanish in framework metadata fields (input/output). The user-facing prompts are correctly in Spanish.
-
-Neither issue blocks goal achievement. The seed data files are correct, compile cleanly, contain no brand references, and are properly wired through the barrel export.
+The phase goal -- extracting, cataloging, and adapting all lifestyle content from Arete Web to El Templo brand voice -- is achieved. The starter set (L1-2) is ready as typed seed data, and the deferred content inventory comprehensively documents all remaining arete-web systems for v5.0 planning.
 
 ---
 
-_Verified: 2026-03-08T19:29:33Z_
+_Verified: 2026-03-09T15:37:13Z_
 _Verifier: Claude (gsd-verifier)_
