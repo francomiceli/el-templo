@@ -836,7 +836,13 @@ Plans:
 3. Admin can create a new member with profile details, branch assignment, and level assignment
 4. Admin can edit any member's profile, reassign branch, change level, and deactivate or reactivate their account
 5. Admin can add timestamped internal notes to a member's profile visible only to coaches/admins
-   **Plans**: TBD
+   **Plans:** 3 plans
+
+Plans:
+
+- [ ] 47-01-PLAN.md — DB migration, members API module (CRUD + notes + DNI check), integration tests
+- [ ] 47-02-PLAN.md — Enhanced member list page with filters, create/edit member dialog
+- [ ] 47-03-PLAN.md — Profile hub refactor (tabbed layout), notes tab, deactivation UI
 
 ---
 
@@ -925,7 +931,7 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | -------------------------------- | -------------- | ----------- | ---------- |
 | 45. Architecture Foundation      | 3/3            | Complete    | 2026-03-08 |
 | 46. Lifestyle Content Extraction | 2/2            | Complete    | 2026-03-09 |
-| 47. Members Management           | 0/?            | Not started | -          |
+| 47. Members Management           | 0/3            | Planned     | -          |
 | 48. Subscriptions                | 0/?            | Not started | -          |
 | 49. Payments                     | 0/?            | Not started | -          |
 | 50. Attendance                   | 0/?            | Not started | -          |
