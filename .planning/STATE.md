@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 48 of 52 (Subscriptions)
-Plan: 1 of 2 in current phase
-Status: Phase 48 plan 01 complete — subscriptions API with plans CRUD, lifecycle, pricing engine
-Last activity: 2026-03-09 — Completed 48-01: Subscriptions module with 12 endpoints and 26 integration tests
+Plan: 2 of 2 in current phase
+Status: Phase 48 complete — subscriptions API + UI across admin and member apps
+Last activity: 2026-03-09 — Completed 48-02: Subscription UI with plans management, member tab, and profile card
 
 Progress: [██████████] 99%
 
@@ -58,6 +58,7 @@ _Updated after each plan completion_
 | Phase 47 P03 | 5min | 1 task | 4 files |
 | Phase 47 P02 | 6min | 2 tasks | 5 files |
 | Phase 48 P01 | 24min | 2 tasks | 13 files |
+| Phase 48 P02 | 8min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [Phase 48-01]: AURA discount tiers: 500=5%, 1000=10%, 2000=20%, 5000=30% — members spend AURA for price reduction
 - [Phase 48-01]: Boarding pass tracked on users.boarding_pass_used — one-time use, admin-applied
 - [Phase 48-01]: Expire-on-read pattern: auto-update expired subscriptions when queried (no cron)
+- [Phase 48-02]: boardingPassUsed defaults to false in admin UI — pricing preview API handles eligibility check
+- [Phase 48-02]: Member-facing subscription route as separate plugin at /api/members/subscription (auth-only, not admin)
+- [Phase 48-02]: QStepper for multi-step assign dialog: plan selection -> pricing preview -> confirmation
 
 ### v2.0 Deferrals
 
@@ -119,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T17:57:36Z
-Stopped at: Completed 48-01-PLAN.md — subscriptions API
-Resume file: .planning/phases/48-subscriptions/48-02-PLAN.md
+Last session: 2026-03-09T18:09:26Z
+Stopped at: Completed 48-02-PLAN.md — subscription UI
+Resume file: Phase 48 complete
