@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 47 of 52 (Members Management)
-Plan: 2 of 3 in current phase
-Status: Phase 47 plan 02 complete — admin members UI with filters and create dialog
-Last activity: 2026-03-09 — Completed 47-02: AlumnosPage rewrite with member management filters and MemberFormDialog
+Phase: 48 of 52 (Subscriptions)
+Plan: 1 of 2 in current phase
+Status: Phase 48 plan 01 complete — subscriptions API with plans CRUD, lifecycle, pricing engine
+Last activity: 2026-03-09 — Completed 48-01: Subscriptions module with 12 endpoints and 26 integration tests
 
 Progress: [██████████] 99%
 
@@ -57,6 +57,7 @@ _Updated after each plan completion_
 | Phase 47 P01 | 13min | 2 tasks | 12 files |
 | Phase 47 P03 | 5min | 1 task | 4 files |
 | Phase 47 P02 | 6min | 2 tasks | 5 files |
+| Phase 48 P01 | 24min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,11 @@ Recent decisions affecting current work:
 - [Phase 47-03]: MemberFormDialog created as Rule 3 deviation (Plan 02 Task 2 not yet executed)
 - [Phase 47]: Added GET /admin/members/branches endpoint — no dedicated branches API existed, placed in members plugin behind same auth guard
 - [Phase 47]: Default status filter to active-only for practical coach workflow in members list
+- [Phase 48-01]: Drizzle mysqlEnum name becomes the SQL column name — migration DDL must match enum name (subscription_status not status)
+- [Phase 48-01]: One active/paused subscription per member enforced at service layer (MySQL lacks partial unique indexes)
+- [Phase 48-01]: AURA discount tiers: 500=5%, 1000=10%, 2000=20%, 5000=30% — members spend AURA for price reduction
+- [Phase 48-01]: Boarding pass tracked on users.boarding_pass_used — one-time use, admin-applied
+- [Phase 48-01]: Expire-on-read pattern: auto-update expired subscriptions when queried (no cron)
 
 ### v2.0 Deferrals
 
@@ -113,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T17:20:28.074Z
-Stopped at: Phase 48 context gathered
-Resume file: .planning/phases/48-subscriptions/48-CONTEXT.md
+Last session: 2026-03-09T17:57:36Z
+Stopped at: Completed 48-01-PLAN.md — subscriptions API
+Resume file: .planning/phases/48-subscriptions/48-02-PLAN.md

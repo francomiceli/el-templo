@@ -26,10 +26,10 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Subscriptions
 
-- [ ] **SUBS-01**: Admin can create and manage subscription plans (name, price, frequency limits)
-- [ ] **SUBS-02**: Admin can assign a plan to a member with start date and billing cycle
-- [ ] **SUBS-03**: System auto-calculates adjusted price when member has active AURA discount milestones
-- [ ] **SUBS-04**: Admin can view subscription status (active, expired, cancelled) for any member
+- [x] **SUBS-01**: Admin can create and manage subscription plans (name, price, frequency limits)
+- [x] **SUBS-02**: Admin can assign a plan to a member with start date and billing cycle
+- [x] **SUBS-03**: System auto-calculates adjusted price when member has active AURA discount milestones
+- [x] **SUBS-04**: Admin can view subscription status (active, expired, cancelled) for any member
 - [ ] **SUBS-05**: Member can view their current plan and subscription status in the app
 
 ### Payments
@@ -139,10 +139,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MEMB-04     | Phase 47 | Complete                    |
 | MEMB-05     | Phase 47 | Complete                    |
 | MEMB-06     | Phase 47 | Complete                    |
-| SUBS-01     | Phase 48 | Pending                     |
-| SUBS-02     | Phase 48 | Pending                     |
-| SUBS-03     | Phase 48 | Pending                     |
-| SUBS-04     | Phase 48 | Pending                     |
+| SUBS-01     | Phase 48 | Complete                    |
+| SUBS-02     | Phase 48 | Complete                    |
+| SUBS-03     | Phase 48 | Complete                    |
+| SUBS-04     | Phase 48 | Complete                    |
 | SUBS-05     | Phase 48 | Pending                     |
 | PAY-01      | Phase 49 | Pending                     |
 | PAY-02      | Phase 49 | Pending                     |
