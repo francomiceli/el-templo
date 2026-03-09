@@ -22,6 +22,10 @@ import {
   memberSubscriptionRoutes,
 } from "./modules/subscriptions";
 import { paymentRoutes } from "./modules/payments";
+import {
+  attendanceAdminRoutes,
+  attendanceMemberRoutes,
+} from "./modules/attendance";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -100,6 +104,16 @@ export async function buildApp() {
 
   // Payment management routes (record, void, balance, overdue, summary)
   await app.register(paymentRoutes, { prefix: "/api/admin/payments" });
+
+  // Attendance management routes (QR generation, batch confirm, manual check-in)
+  await app.register(attendanceAdminRoutes, {
+    prefix: "/api/admin/attendance",
+  });
+
+  // Member-facing attendance routes (QR check-in, history)
+  await app.register(attendanceMemberRoutes, {
+    prefix: "/api/members/attendance",
+  });
 
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {

@@ -33,3 +33,4 @@ export * from "./member-notes";
 export * from "./subscription-plans";
 export * from "./subscriptions";
 export * from "./payments";
+export * from "./attendance";
