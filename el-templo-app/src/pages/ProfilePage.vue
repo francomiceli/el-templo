@@ -1,5 +1,6 @@
 <template>
   <q-page padding>
+    <!-- Profile Card -->
     <q-card class="q-mx-auto" style="max-width: 500px">
       <q-card-section>
         <div class="text-h5">Mi Perfil</div>
@@ -63,17 +64,81 @@
         </q-list>
       </q-card-section>
     </q-card>
+
+    <!-- Subscription Card -->
+    <q-card class="q-mx-auto q-mt-md" style="max-width: 500px">
+      <q-card-section>
+        <div class="text-h6">Mi Suscripcion</div>
+      </q-card-section>
+
+      <q-card-section>
+        <!-- Loading -->
+        <div v-if="userStore.subscriptionLoading" class="flex flex-center q-pa-md">
+          <q-spinner-dots size="30px" color="primary" />
+        </div>
+
+        <!-- Has subscription -->
+        <template v-else-if="userStore.subscription">
+          <div class="q-mb-sm">
+            <span class="text-subtitle1 text-weight-bold">
+              {{ userStore.subscription.planName }}
+            </span>
+            <q-badge
+              :color="userStore.subscriptionStatusColor"
+              :label="userStore.subscriptionStatusLabel"
+              class="q-ml-sm"
+            />
+          </div>
+
+          <q-list dense>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>Inicio</q-item-label>
+                <q-item-label>{{ formatDate(userStore.subscription.startDate) }}</q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>Vencimiento</q-item-label>
+                <q-item-label>
+                  {{
+                    userStore.subscription.endDate
+                      ? formatDate(userStore.subscription.endDate)
+                      : '—'
+                  }}
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>
+                <q-item-label caption>Dias restantes</q-item-label>
+                <q-item-label
+                  :class="{
+                    'text-negative text-weight-bold': userStore.subscription.daysRemaining < 7,
+                  }"
+                >
+                  {{ userStore.subscription.daysRemaining }}
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </template>
+
+        <!-- No subscription -->
+        <div v-else class="text-grey-5 text-italic">Sin suscripcion activa</div>
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useUserStore } from 'stores/useUserStore'
 import FlameIcon from 'src/components/FlameIcon.vue'
 
 const userStore = useUserStore()
 
-const levelColors = {
+const levelColors: Record<string, string> = {
   alfa: 'blue',
   delta: 'green',
   sigma: 'orange',
@@ -85,6 +150,22 @@ const levelColor = computed(() => {
   const level = userStore.profile?.level
   if (!level) return 'grey'
   return levelColors[level] || 'grey'
+})
+
+function formatDate(dateStr: string): string {
+  try {
+    return new Date(dateStr).toLocaleDateString('es-AR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })
+  } catch {
+    return dateStr
+  }
+}
+
+onMounted(() => {
+  userStore.loadSubscription()
 })
 </script>
 

@@ -17,7 +17,10 @@ import { blogRoutes } from "./modules/blog";
 import { academyRoutes } from "./modules/academy";
 import { appLandingRoutes } from "./modules/app-landing";
 import { memberRoutes } from "./modules/members";
-import { subscriptionRoutes } from "./modules/subscriptions";
+import {
+  subscriptionRoutes,
+  memberSubscriptionRoutes,
+} from "./modules/subscriptions";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -92,6 +95,11 @@ export async function buildApp() {
   // Subscription management routes (plans CRUD + subscription lifecycle)
   await app.register(subscriptionRoutes, {
     prefix: "/api/admin/subscriptions",
+  });
+
+  // Member-facing subscription route (read-only, no admin role required)
+  await app.register(memberSubscriptionRoutes, {
+    prefix: "/api/members/subscription",
   });
 
   // Health check endpoint

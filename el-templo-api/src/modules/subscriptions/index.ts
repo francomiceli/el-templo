@@ -1,5 +1,6 @@
 // Module: subscriptions
 export { subscriptionRoutes } from "./routes";
+export { memberSubscriptionRoutes } from "./member-routes";
 export {
   SubscriptionService,
   ConflictError,
