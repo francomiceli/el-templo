@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Phase 46 plan 01 re-executed — habits & areas seed data with full arete-web field set
-stopped_at: Phase 47 context gathered
+status: Phase 47 plan 01 complete — members API with CRUD, notes, DNI check, deactivation
+stopped_at: Completed 47-01-PLAN.md
 last_updated: "2026-03-09T15:56:12.993Z"
-last_activity: 2026-03-09 — Re-executed 46-01 with full arete-web fields (verificationType, dataType, auraScaling)
+last_activity: 2026-03-09 — Completed 47-01: members management API (10 endpoints, 18 tests)
 progress:
   total_phases: 38
   completed_phases: 25
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 46 of 52 (Lifestyle Content Extraction — REDO)
-Plan: 1 of 2 in current phase
-Status: Phase 46 plan 01 re-executed — habits & areas seed data with full arete-web field set
-Last activity: 2026-03-09 — Re-executed 46-01 with full arete-web fields (verificationType, dataType, auraScaling)
+Phase: 47 of 52 (Members Management)
+Plan: 1 of 3 in current phase
+Status: Phase 47 plan 01 complete — members API with CRUD, notes, DNI check, deactivation
+Last activity: 2026-03-09 — Completed 47-01: members management API (10 endpoints, 18 tests)
 
 Progress: [██████████] 98%
 
@@ -54,6 +54,7 @@ Progress: [██████████] 98%
 
 _Updated after each plan completion_
 | Phase 46 P01 | 8min | 2 tasks | 3 files |
+| Phase 47 P01 | 13min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 46-02]: Complete lifestyle barrel export wires all 5 seed files with full type coverage
 - [Phase 46]: Full replace of habits.seed.ts from arete-web with complete field set (verificationType, dataType, auraScaling, imageAsset, linkedQuoteArea, facto)
 - [Phase 46]: CUE-04 is Respiracion Tummo at L1 with dataType count (arete-web canonical, not old Respiracion controlada at L2)
+- [Phase 47-01]: Drizzle wraps MySQL errors in err.cause — isDuplicateKeyError helper checks ER_DUP_ENTRY on cause
+- [Phase 47-01]: Plugin-level onRequest hook for admin role guard on all member routes
+- [Phase 47-01]: check-dni route before :userId parametric routes to avoid Fastify route conflicts
 
 ### v2.0 Deferrals
 
@@ -102,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-09T15:56:12.990Z
-Stopped at: Phase 47 context gathered
-Resume file: .planning/phases/47-members-management/47-CONTEXT.md
+Last session: 2026-03-09T16:21:29Z
+Stopped at: Completed 47-01-PLAN.md
+Resume file: .planning/phases/47-members-management/47-02-PLAN.md

@@ -17,12 +17,12 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Members Management
 
-- [ ] **MEMB-01**: Admin can view list of all members with search, filters (branch, level, status), and pagination
-- [ ] **MEMB-02**: Admin can view extended member profile (personal info, subscription, payment history, attendance, notes)
-- [ ] **MEMB-03**: Admin can create a new member with profile details and branch/level assignment
-- [ ] **MEMB-04**: Admin can edit member profile, branch, and level
-- [ ] **MEMB-05**: Admin can deactivate/reactivate a member
-- [ ] **MEMB-06**: Admin can add internal notes to a member's profile
+- [x] **MEMB-01**: Admin can view list of all members with search, filters (branch, level, status), and pagination
+- [x] **MEMB-02**: Admin can view extended member profile (personal info, subscription, payment history, attendance, notes)
+- [x] **MEMB-03**: Admin can create a new member with profile details and branch/level assignment
+- [x] **MEMB-04**: Admin can edit member profile, branch, and level
+- [x] **MEMB-05**: Admin can deactivate/reactivate a member
+- [x] **MEMB-06**: Admin can add internal notes to a member's profile
 
 ### Subscriptions
 
@@ -133,12 +133,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RSTRC-03    | Phase 45 | Complete                    |
 | RSTRC-04    | Phase 45 | Complete                    |
 | RSTRC-05    | Phase 46 | Reset (redo from arete-web) |
-| MEMB-01     | Phase 47 | Pending                     |
-| MEMB-02     | Phase 47 | Pending                     |
-| MEMB-03     | Phase 47 | Pending                     |
-| MEMB-04     | Phase 47 | Pending                     |
-| MEMB-05     | Phase 47 | Pending                     |
-| MEMB-06     | Phase 47 | Pending                     |
+| MEMB-01     | Phase 47 | Complete                    |
+| MEMB-02     | Phase 47 | Complete                    |
+| MEMB-03     | Phase 47 | Complete                    |
+| MEMB-04     | Phase 47 | Complete                    |
+| MEMB-05     | Phase 47 | Complete                    |
+| MEMB-06     | Phase 47 | Complete                    |
 | SUBS-01     | Phase 48 | Pending                     |
 | SUBS-02     | Phase 48 | Pending                     |
 | SUBS-03     | Phase 48 | Pending                     |
