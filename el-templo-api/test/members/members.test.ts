@@ -4,6 +4,10 @@ import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { memberNotes } from "../../src/db/schema/member-notes";
+import { subscriptions } from "../../src/db/schema/subscriptions";
+import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
+import { auraTransactions } from "../../src/db/schema/aura-transactions";
+import { auraBalances } from "../../src/db/schema/aura-balances";
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -34,7 +38,11 @@ describe("Members Management Routes", () => {
    * Also cleans up member_notes.
    */
   async function cleanupTestMembers(): Promise<void> {
-    // Delete notes first (FK constraint)
+    // Delete in FK constraint order: subscriptions -> plans -> aura -> notes -> users
+    await app.db.delete(subscriptions);
+    await app.db.delete(subscriptionPlans);
+    await app.db.delete(auraTransactions);
+    await app.db.delete(auraBalances);
     await app.db.delete(memberNotes);
     // Delete all members except the admin seed user
     const testUsers = await app.db

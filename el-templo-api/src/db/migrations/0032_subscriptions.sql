@@ -29,7 +29,7 @@ CREATE TABLE `subscriptions` (
   `user_id` int NOT NULL,
   `plan_id` int NOT NULL,
   `branch_id` int NOT NULL,
-  `status` enum('active','paused','cancelled','expired') NOT NULL DEFAULT 'active',
+  `subscription_status` enum('active','paused','cancelled','expired') NOT NULL DEFAULT 'active',
   `start_date` date NOT NULL,
   `end_date` date,
   `price_paid` int NOT NULL,
