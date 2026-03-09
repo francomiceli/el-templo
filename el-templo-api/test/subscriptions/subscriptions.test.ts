@@ -9,6 +9,7 @@ import { users } from "../../src/db/schema/users";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { memberNotes } from "../../src/db/schema/member-notes";
+import { attendance } from "../../src/db/schema/attendance";
 
 const BASE_URL = "/api/admin/subscriptions";
 
@@ -51,7 +52,8 @@ describe("Subscriptions API", () => {
    * Helper: clean up all subscription-related test data.
    */
   async function cleanupSubscriptionData(): Promise<void> {
-    // Delete in FK order: payments first, then subscriptions, then plans, then extra users
+    // Delete in FK order: attendance first, then payments, subscriptions, plans, extra users
+    await app.db.delete(attendance);
     await app.db.delete(payments);
     await app.db.delete(subscriptions);
     await app.db.delete(subscriptionPlans);
