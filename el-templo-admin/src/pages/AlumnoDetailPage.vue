@@ -90,6 +90,7 @@
         <q-tab name="perfil" label="Perfil" />
         <q-tab name="entrenamiento" label="Entrenamiento" />
         <q-tab name="notas" label="Notas" />
+        <q-tab name="suscripcion" label="Suscripcion" />
       </q-tabs>
       <q-separator />
 
@@ -326,6 +327,16 @@
             :currentUserRole="currentUser.role"
           />
         </q-tab-panel>
+
+        <!-- Suscripcion Tab -->
+        <q-tab-panel name="suscripcion">
+          <MemberSubscriptionTab
+            :userId="userId"
+            :memberBranchId="memberProfile.branchId"
+            :memberBoardingPassUsed="memberBoardingPassUsed"
+            @subscription-changed="onSubscriptionChanged"
+          />
+        </q-tab-panel>
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -351,6 +362,7 @@ import { useJourneyAdminApi } from 'src/composables/useJourneyAdminApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
+import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import {
@@ -385,6 +397,9 @@ const showEditDialog = ref(false);
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
+
+// boardingPassUsed is not in the member profile API response; the pricing preview API handles eligibility
+const memberBoardingPassUsed = computed(() => false);
 
 const memberName = computed(() => {
   if (!memberProfile.value) return '';
@@ -572,6 +587,11 @@ function confirmToggleStatus() {
 
 async function onMemberSaved() {
   $q.notify({ type: 'positive', message: 'Alumno actualizado' });
+  await loadMemberProfile();
+}
+
+async function onSubscriptionChanged() {
+  // Refresh member profile in case boarding pass usage changed
   await loadMemberProfile();
 }
 
