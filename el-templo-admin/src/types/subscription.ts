@@ -1,0 +1,168 @@
+/**
+ * Subscription types for the admin app.
+ * Matches the API response shapes from the subscriptions module (Plan 48-01).
+ */
+
+// ─── Enum Union Types ────────────────────────────────────────────────────────
+
+export type PlanTier = 'flex' | 'foundation' | 'performance' | 'other';
+export type BookingMode = 'fixed' | 'flexible';
+export type SubscriptionStatus = 'active' | 'paused' | 'cancelled' | 'expired';
+export type PriceType = 'regular' | 'zero' | 'credit_card';
+
+// ─── Label & Color Maps ─────────────────────────────────────────────────────
+
+export const PLAN_TIER_LABELS: Record<PlanTier, string> = {
+  flex: 'Flex',
+  foundation: 'Foundation',
+  performance: 'Performance',
+  other: 'Otro',
+};
+
+export const BOOKING_MODE_LABELS: Record<BookingMode, string> = {
+  fixed: 'Fijo',
+  flexible: 'Flexible',
+};
+
+export const STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  active: 'Activo',
+  paused: 'Pausado',
+  cancelled: 'Cancelado',
+  expired: 'Expirado',
+};
+
+export const STATUS_COLORS: Record<SubscriptionStatus, string> = {
+  active: 'positive',
+  paused: 'warning',
+  cancelled: 'negative',
+  expired: 'grey',
+};
+
+export const PRICE_TYPE_LABELS: Record<PriceType, string> = {
+  regular: 'Regular',
+  zero: 'Zero',
+  credit_card: 'Tarjeta',
+};
+
+// ─── AURA Discount Tiers ────────────────────────────────────────────────────
+
+export interface AuraDiscountTier {
+  spend: number;
+  percent: number;
+}
+
+export const AURA_DISCOUNT_TIERS: readonly AuraDiscountTier[] = [
+  { spend: 500, percent: 5 },
+  { spend: 1000, percent: 10 },
+  { spend: 2000, percent: 20 },
+  { spend: 5000, percent: 30 },
+] as const;
+
+// ─── Plan Types ─────────────────────────────────────────────────────────────
+
+export interface PlanListItem {
+  id: number;
+  name: string;
+  description: string | null;
+  planTier: PlanTier;
+  bookingMode: BookingMode;
+  priceRegular: number;
+  priceZero: number;
+  priceCreditCard: number | null;
+  durationDays: number;
+  classesPerWeek: number | null;
+  multiBranch: boolean;
+  isTrial: boolean;
+  isGroup: boolean;
+  groupMaxMembers: number | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePlanInput {
+  name: string;
+  description?: string;
+  planTier: PlanTier;
+  bookingMode: BookingMode;
+  priceRegular: number;
+  priceZero: number;
+  priceCreditCard?: number;
+  durationDays: number;
+  classesPerWeek?: number;
+  multiBranch?: boolean;
+  isTrial?: boolean;
+  isGroup?: boolean;
+  groupMaxMembers?: number;
+}
+
+export interface UpdatePlanInput {
+  name?: string;
+  description?: string | null;
+  planTier?: PlanTier;
+  bookingMode?: BookingMode;
+  priceRegular?: number;
+  priceZero?: number;
+  priceCreditCard?: number | null;
+  durationDays?: number;
+  classesPerWeek?: number | null;
+  multiBranch?: boolean;
+  isTrial?: boolean;
+  isGroup?: boolean;
+  groupMaxMembers?: number | null;
+}
+
+// ─── Subscription Types ─────────────────────────────────────────────────────
+
+export interface SubscriptionDetail {
+  id: number;
+  userId: number;
+  planId: number;
+  planName: string;
+  planTier: PlanTier;
+  branchId: number;
+  branchName: string;
+  status: SubscriptionStatus;
+  startDate: string;
+  endDate: string | null;
+  pricePaid: number;
+  priceTypeApplied: PriceType;
+  auraDiscount: number | null;
+  auraDiscountPercent: number | null;
+  boardingPassUsed: boolean;
+  priceOverrideAmount: number | null;
+  priceOverrideReason: string | null;
+  pausedAt: string | null;
+  resumedAt: string | null;
+  cancelledAt: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubscriptionHistoryItem extends SubscriptionDetail {}
+
+export interface AssignPlanInput {
+  planId: number;
+  branchId: number;
+  startDate: string;
+  priceTypeApplied: PriceType;
+  auraSpend?: number;
+  priceOverrideAmount?: number;
+  priceOverrideReason?: string;
+  boardingPass?: boolean;
+  notes?: string;
+}
+
+// ─── Pricing Types ──────────────────────────────────────────────────────────
+
+export interface PricingPreview {
+  basePrice: number;
+  discountType: 'none' | 'boarding_pass' | 'aura' | 'override';
+  discountAmount: number;
+  finalPrice: number;
+  auraToSpend: number;
+  auraBalance: number;
+  boardingPassEligible: boolean;
+  availableTiers: AuraDiscountTier[];
+}

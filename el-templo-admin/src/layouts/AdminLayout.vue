@@ -40,6 +40,12 @@
           </q-item-section>
           <q-item-section>Alumnos</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/planes">
+          <q-item-section avatar>
+            <q-icon name="card_membership" />
+          </q-item-section>
+          <q-item-section>Planes</q-item-section>
+        </q-item>
 
         <template v-if="isAdminRole">
           <q-separator />
