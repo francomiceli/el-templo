@@ -1,13 +1,20 @@
 /**
  * Habit seed data for El Templo's lifestyle module.
  *
- * Extracted from the Arete codebase (habits.ts + habit-details.ts),
- * filtered to Level 1-2 starter set, brand-adapted to El Templo voice.
+ * Source: arete-web (canonical) -- habits.ts + habit-details.ts
+ * 17 Level 1-2 habits with FULL field set including verificationType,
+ * dataType, auraScaling, linkedQuoteArea, facto, and imageAsset.
+ * Detail fields (howTo, whyItMatters, tips) merged inline per habit.
  *
- * 6 life areas: Mente, Cuerpo, Coherencia, Accion, Vinculo, Reflexion
+ * 6 life areas: Mente (4), Cuerpo (4), Coherencia (2), Accion (2), Vinculo (2), Reflexion (3)
+ * Level breakdown: L1 = 6 habits, L2 = 11 habits
+ *
+ * SACRED: Philosophy references ONLY Greek philosophers.
+ * NEVER reference Roman stoics (Marco Aurelio, Seneca, Epicteto).
+ *
  * Tone: Argentine Spanish (rioplatense), warm, encouraging.
  *
- * @see Phase 46 — Lifestyle Content Extraction
+ * @see Phase 46 -- Lifestyle Content Extraction
  */
 
 export type HabitArea =
@@ -20,6 +27,15 @@ export type HabitArea =
 
 export type HabitMoment = "manana" | "dia" | "noche" | "semanal" | "libre";
 
+export type VerificationType = "timer" | "honor";
+
+export type DataType = "duration" | "boolean" | "count" | "pages";
+
+export interface AuraScalingThreshold {
+  readonly minutes: number;
+  readonly aura: number;
+}
+
 export interface HabitSeed {
   readonly id: string;
   readonly area: HabitArea;
@@ -29,22 +45,28 @@ export interface HabitSeed {
   readonly moment: HabitMoment;
   readonly minLevel: number;
   readonly durationMinutes: number | null;
+  readonly verificationType: VerificationType;
+  readonly dataType: DataType;
+  readonly auraScaling: readonly AuraScalingThreshold[] | number;
+  readonly imageAsset: string;
+  readonly linkedQuoteArea: HabitArea;
+  readonly facto: string;
   readonly howTo: string;
   readonly whyItMatters: string;
   readonly tips: readonly string[];
 }
 
 /**
- * Level 1-2 habits with full details (howTo, whyItMatters, tips).
+ * Level 1-2 habits with full arete-web fields and inline details.
  *
  * 17 habits total:
- * - Level 1 (5): MEN-01, CUE-01, COH-01, ACC-01, REF-01
- * - Level 2 (12): MEN-02, MEN-03, MEN-04, CUE-02, CUE-03, CUE-04,
- *                  COH-02, ACC-02, VIN-01, VIN-02, REF-02, REF-03
+ * - Level 1 (6): MEN-01, CUE-01, CUE-04, COH-01, ACC-01, REF-01
+ * - Level 2 (11): MEN-02, MEN-03, MEN-04, CUE-02, CUE-03, COH-02,
+ *                  ACC-02, VIN-01, VIN-02, REF-02, REF-03
  */
 export const HABIT_SEEDS = [
   // ---------------------------------------------------------------------------
-  // MENTE — Level 1-2 (4 habits)
+  // MENTE -- Level 1-2 (4 habits)
   // ---------------------------------------------------------------------------
   {
     id: "MEN-01",
@@ -55,10 +77,21 @@ export const HABIT_SEEDS = [
     moment: "manana",
     minLevel: 1,
     durationMinutes: 5,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 3, aura: 3 },
+      { minutes: 5, aura: 5 },
+      { minutes: 10, aura: 8 },
+      { minutes: 15, aura: 12 },
+    ],
+    imageAsset: "Brain",
+    linkedQuoteArea: "mente",
+    facto: "wq-001",
     howTo:
       'Apenas te despertes, antes de mirar el celular, sentate en un lugar tranquilo. Cerra los ojos y enfocate solo en tu respiracion durante 5 minutos. No intentes "no pensar" -- simplemente observa lo que aparece y dejalo pasar, como nubes en el cielo. Si te distraes, volve al aire entrando y saliendo. Eso es todo.',
     whyItMatters:
-      'La neurociencia mostro que solo 5 minutos diarios de meditacion reducen el cortisol y fortalecen la corteza prefrontal, la zona del cerebro que te ayuda a tomar mejores decisiones. Los estoicos la llamaban "la ciudadela interior": ese espacio de calma que nadie te puede sacar.',
+      'La neurociencia mostro que solo 5 minutos diarios de meditacion reducen el cortisol y fortalecen la corteza prefrontal, la zona del cerebro que te ayuda a tomar mejores decisiones. Los filosofos griegos la llamaban "la ciudadela interior": ese espacio de calma que nadie te puede sacar.',
     tips: [
       "Deja el celular en otra habitacion hasta que termines",
       "Si 5 minutos te parece mucho, empeza con 2 y subi de a poco",
@@ -75,6 +108,16 @@ export const HABIT_SEEDS = [
     moment: "manana",
     minLevel: 2,
     durationMinutes: 5,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 3, aura: 3 },
+      { minutes: 5, aura: 6 },
+      { minutes: 8, aura: 10 },
+    ],
+    imageAsset: "Eye",
+    linkedQuoteArea: "mente",
+    facto: "wq-006",
     howTo:
       "Despues de tu meditacion matutina (o al despertarte), cerra los ojos y visualiza tu dia ideal con la mayor cantidad de detalles posible. Imagina como te sentis al completar lo importante, como te moves, como hablas. No es fantasia: es un ensayo mental. Hacelo durante 5 minutos con intencion, sintiendo las emociones como si ya estuvieran pasando.",
     whyItMatters:
@@ -94,10 +137,20 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: 10,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 5, aura: 3 },
+      { minutes: 10, aura: 7 },
+      { minutes: 15, aura: 11 },
+    ],
+    imageAsset: "Focus",
+    linkedQuoteArea: "mente",
+    facto: "wq-002",
     howTo:
       "En algun momento del dia, pausa lo que estas haciendo. Puede ser caminando, comiendo, o en una pausa del trabajo. Durante 10 minutos, presta atencion plena a lo que sea que estes haciendo: los sonidos alrededor, las sensaciones en tu cuerpo, los colores que ves. Si un pensamiento te lleva, notalo y volve al presente. No hay que hacer nada especial, solo estar realmente aca.",
     whyItMatters:
-      'Jon Kabat-Zinn demostro que el mindfulness reduce la ansiedad y mejora la regulacion emocional. Pero mas alla de la ciencia, hay algo profundo en aprender a estar donde estas. Marco Aurelio escribio: "No te perturba lo que pasa, sino lo que pensas sobre lo que pasa." La atencion plena te da ese espacio entre el estimulo y tu respuesta.',
+      "Jon Kabat-Zinn demostro que el mindfulness reduce la ansiedad y mejora la regulacion emocional. Pero mas alla de la ciencia, hay algo profundo en aprender a estar donde estas. Heraclito nos enseno que todo fluye y que la perturbacion no viene de lo que pasa, sino de lo que pensas sobre lo que pasa. La atencion plena te da ese espacio entre el estimulo y tu respuesta.",
     tips: [
       "Elegi una actividad cotidiana (lavar los platos, caminar) como tu ancla de atencion plena",
       'Pone una alarma random en el celular como recordatorio de "volver al presente"',
@@ -114,10 +167,20 @@ export const HABIT_SEEDS = [
     moment: "noche",
     minLevel: 2,
     durationMinutes: 10,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 5, aura: 3 },
+      { minutes: 10, aura: 7 },
+      { minutes: 15, aura: 11 },
+    ],
+    imageAsset: "PenLine",
+    linkedQuoteArea: "mente",
+    facto: "wq-003",
     howTo:
       "Antes de dormir, agarra un cuaderno o abri una nota en el celular. Escribi los 2-3 pensamientos que mas te ocuparon la cabeza hoy. No los analices: solo registralos tal cual aparecen. Despues, al lado de cada uno, escribi si ese pensamiento te sumo o te resto energia. Con el tiempo, vas a empezar a ver patrones.",
     whyItMatters:
-      "La terapia cognitivo-conductual (TCC) demostro que registrar pensamientos es una de las herramientas mas efectivas para cambiar patrones mentales negativos. Epicteto decia que no son las cosas las que nos perturban, sino nuestros juicios sobre ellas. Este diario te ayuda a ver esos juicios con claridad.",
+      "La terapia cognitivo-conductual (TCC) demostro que registrar pensamientos es una de las herramientas mas efectivas para cambiar patrones mentales negativos. Socrates decia que la sabiduria empieza por conocerse a uno mismo, y que nuestros juicios sobre las cosas nos perturban mas que las cosas mismas. Este diario te ayuda a ver esos juicios con claridad.",
     tips: [
       "No busques escribir bonito, escribi honesto",
       "Si un pensamiento se repite muchos dias seguidos, prestale atencion especial",
@@ -126,7 +189,7 @@ export const HABIT_SEEDS = [
   },
 
   // ---------------------------------------------------------------------------
-  // CUERPO — Level 1-2 (4 habits)
+  // CUERPO -- Level 1-2 (4 habits)
   // ---------------------------------------------------------------------------
   {
     id: "CUE-01",
@@ -138,6 +201,12 @@ export const HABIT_SEEDS = [
     moment: "manana",
     minLevel: 1,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Droplets",
+    linkedQuoteArea: "cuerpo",
+    facto: "wq-008",
     howTo:
       "Ni bien te levantes, antes de mate, cafe o cualquier otra cosa, toma un vaso grande de agua (300-500ml). Podes dejar el vaso preparado la noche anterior al lado de tu cama para que sea automatico. No hace falta que sea tibia ni con limon: solo agua. Tomala despacio, consciente de que estas rehidratando tu cuerpo despues de 7-8 horas sin liquido.",
     whyItMatters:
@@ -157,10 +226,20 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: 20,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 10, aura: 3 },
+      { minutes: 20, aura: 9 },
+      { minutes: 30, aura: 14 },
+    ],
+    imageAsset: "Wind",
+    linkedQuoteArea: "cuerpo",
+    facto: "wq-009",
     howTo:
       "Sali a caminar al menos 20 minutos, idealmente sin auriculares ni celular (o con el celular en modo avion). Camina a un ritmo que te permita respirar con comodidad pero que no sea un paseo lento. Presta atencion a lo que te rodea: arboles, cielo, gente, sonidos. No es ejercicio cardiovascular intenso: es movimiento consciente en contacto con el exterior.",
     whyItMatters:
-      'Nietzsche decia que "las mejores ideas llegan caminando." La ciencia le dio la razon: caminar aumenta el flujo sanguineo cerebral un 15-20% y estimula la creatividad segun estudios de Stanford. Ademas, la exposicion a espacios abiertos reduce marcadores de estres. Peripateticos, estoicos, budistas: todas las grandes tradiciones caminaban para pensar.',
+      'Nietzsche decia que "las mejores ideas llegan caminando." La ciencia le dio la razon: caminar aumenta el flujo sanguineo cerebral un 15-20% y estimula la creatividad segun estudios de Stanford. Ademas, la exposicion a espacios abiertos reduce marcadores de estres. Peripateticos, pitagoricos, budistas: todas las grandes tradiciones caminaban para pensar.',
     tips: [
       "Si podes, camina por un parque o zona con arboles: el efecto se potencia con naturaleza",
       "Usalo como momento de reflexion o simplemente de presencia, no de productividad",
@@ -177,6 +256,16 @@ export const HABIT_SEEDS = [
     moment: "manana",
     minLevel: 2,
     durationMinutes: 10,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 5, aura: 3 },
+      { minutes: 10, aura: 7 },
+      { minutes: 15, aura: 11 },
+    ],
+    imageAsset: "Flame",
+    linkedQuoteArea: "cuerpo",
+    facto: "wq-010",
     howTo:
       "En los primeros 30-60 minutos despues de despertarte, sali al exterior y expone tu cara y ojos (sin mirar directo al sol) a la luz natural durante 10 minutos. No sirve a traves de una ventana porque el vidrio filtra los rayos UV que tu cuerpo necesita. Si hace frio, abrigate, pero sali. Podes combinarlo con tu cafe o mate afuera, o con la caminata matutina.",
     whyItMatters:
@@ -191,13 +280,24 @@ export const HABIT_SEEDS = [
     id: "CUE-04",
     area: "cuerpo",
     code: "CUE-04",
-    name: "Respiracion controlada",
-    description: "Practica respiracion profunda para dominar tu estado interno",
+    name: "Respiracion Tummo",
+    description:
+      "Practica el protocolo de respiracion Tummo: 3 rondas de power breathing para dominar tu estado interno",
     moment: "libre",
-    minLevel: 2,
+    minLevel: 1,
     durationMinutes: 5,
+    verificationType: "timer",
+    dataType: "count",
+    auraScaling: [
+      { minutes: 1, aura: 2 },
+      { minutes: 2, aura: 5 },
+      { minutes: 3, aura: 8 },
+    ],
+    imageAsset: "Timer",
+    linkedQuoteArea: "cuerpo",
+    facto: "wq-011",
     howTo:
-      "En cualquier momento del dia que necesites un reset, hace respiracion controlada durante 5 minutos. Tecnica basica: inhala por la nariz durante 4 segundos, retene 4 segundos, exhala por la boca durante 6-8 segundos. Repeti. Si queres algo mas activante, proba la respiracion tipo Wim Hof: 30 respiraciones profundas rapidas, retencion con pulmones vacios. Elegi segun lo que necesites: calma o energia.",
+      "En cualquier momento del dia que necesites un reset, hace respiracion controlada durante 5 minutos. Tecnica basica: inhala por la nariz durante 4 segundos, retene 4 segundos, exhala por la boca durante 6-8 segundos. Repeti. Si queres algo mas activante, proba la respiracion Tummo: 30 respiraciones profundas rapidas, retencion con pulmones vacios. Elegi segun lo que necesites: calma o energia.",
     whyItMatters:
       'La respiracion es el unico sistema autonomo del cuerpo que podes controlar voluntariamente. Al extender la exhalacion, activas el nervio vago y pasas del modo "pelear o huir" al modo "descansar y digerir." Los Navy SEALs usan la respiracion 4-4-6 bajo fuego real. Si les funciona a ellos, te va a funcionar a vos.',
     tips: [
@@ -209,7 +309,7 @@ export const HABIT_SEEDS = [
   },
 
   // ---------------------------------------------------------------------------
-  // COHERENCIA — Level 1-2 (2 habits)
+  // COHERENCIA -- Level 1-2 (2 habits)
   // ---------------------------------------------------------------------------
   {
     id: "COH-01",
@@ -220,10 +320,20 @@ export const HABIT_SEEDS = [
     moment: "noche",
     minLevel: 1,
     durationMinutes: 5,
+    verificationType: "timer",
+    dataType: "duration",
+    auraScaling: [
+      { minutes: 3, aura: 3 },
+      { minutes: 5, aura: 6 },
+      { minutes: 8, aura: 10 },
+    ],
+    imageAsset: "Scale",
+    linkedQuoteArea: "coherencia",
+    facto: "wq-015",
     howTo:
       'Antes de apagar la luz, sentate en la cama y repasa mentalmente tres acciones del dia. No busques solo los "logros": revisa una accion que hiciste bien, una que podrias haber hecho mejor, y una en la que fuiste fiel a tus valores. Son 5 minutos de revision honesta. Los pitagoricos hacian esto cada noche como practica sagrada.',
     whyItMatters:
-      "La revision nocturna era una practica central de los pitagoricos y los estoicos. Seneca la practicaba cada noche y la documento en sus cartas. La psicologia moderna confirma que la reflexion diaria mejora la autorregulacion y el aprendizaje experiencial. Sin revision, repetis los mismos errores; con revision, cada dia te ensena algo.",
+      'La revision nocturna era una practica central de los pitagoricos. Los "Versos de Oro" de Pitagoras la prescribian cada noche como ritual sagrado de autoconocimiento. La psicologia moderna confirma que la reflexion diaria mejora la autorregulacion y el aprendizaje experiencial. Sin revision, repetis los mismos errores; con revision, cada dia te ensena algo.',
     tips: [
       "Hacelo mentalmente o en un cuaderno, como prefieras",
       "Se brutal pero no cruel con vos mismo: honestidad sin autocastigo",
@@ -239,10 +349,16 @@ export const HABIT_SEEDS = [
     moment: "manana",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Shield",
+    linkedQuoteArea: "coherencia",
+    facto: "wq-016",
     howTo:
       'Cada manana, hacete una promesa concreta y alcanzable para ese dia. No tiene que ser epica: "Hoy no voy a quejarme", "Hoy voy a terminar ese informe", "Hoy voy a llamar a mi viejo." Decila en voz alta o escribila. Lo importante es que sea UNA sola cosa, clara, y que a la noche puedas verificar si la cumpliste. Si la cumplis, bien. Si no, anota por que y ajusta.',
     whyItMatters:
-      'La coherencia se construye promesa a promesa. Cada promesa cumplida refuerza la confianza en vos mismo, que es la base de la autoestima genuina. Los estoicos lo llamaban "prohairesis": la capacidad de elegir y sostener tu eleccion. No hay nada que destruya mas la confianza interna que acostumbrarte a no cumplirte a vos mismo.',
+      'La coherencia se construye promesa a promesa. Cada promesa cumplida refuerza la confianza en vos mismo, que es la base de la autoestima genuina. Aristoteles lo llamaba "prohairesis": la capacidad de elegir deliberadamente y sostener tu eleccion. No hay nada que destruya mas la confianza interna que acostumbrarte a no cumplirte a vos mismo.',
     tips: [
       "Empeza con promesas faciles para construir el musculo del cumplimiento",
       "Decila en voz alta: verbalizar crea compromiso neurologico",
@@ -251,7 +367,7 @@ export const HABIT_SEEDS = [
   },
 
   // ---------------------------------------------------------------------------
-  // ACCION — Level 1-2 (2 habits)
+  // ACCION -- Level 1-2 (2 habits)
   // ---------------------------------------------------------------------------
   {
     id: "ACC-01",
@@ -262,6 +378,12 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 1,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Zap",
+    linkedQuoteArea: "accion",
+    facto: "wq-022",
     howTo:
       'Identifica la tarea mas importante de tu dia -- esa que si la completas, el dia fue productivo aunque no hagas nada mas. Hacela PRIMERO, antes de chequear mails, redes o cualquier tarea menor. Bloquea las primeras horas de tu manana para esto. Si no sabes cual es la mas importante, preguntate: "Cual de todas me sentiria mal si no hago hoy?"',
     whyItMatters:
@@ -281,6 +403,12 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Target",
+    linkedQuoteArea: "accion",
+    facto: "wq-023",
     howTo:
       "Hoy, identifica UNA distraccion que regularmente te roba tiempo o atencion y eliminala o reducila drasticamente. Puede ser silenciar las notificaciones de un grupo de WhatsApp, desinstalar una app de redes por un dia, poner el celular en otra habitacion mientras trabajas, o cerrar las pestanas del navegador que no necesitas. Una sola distraccion menos puede liberar horas de atencion.",
     whyItMatters:
@@ -294,7 +422,7 @@ export const HABIT_SEEDS = [
   },
 
   // ---------------------------------------------------------------------------
-  // VINCULO — Level 2 (2 habits)
+  // VINCULO -- Level 2 (2 habits)
   // ---------------------------------------------------------------------------
   {
     id: "VIN-01",
@@ -306,6 +434,12 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "MessageCircle",
+    linkedQuoteArea: "vinculo",
+    facto: "wq-029",
     howTo:
       'Hoy, busca tener al menos una conversacion que vaya mas alla del "todo bien?" y el "si, ahi andamos." Preguntale a alguien que le esta costando ultimamente, que esta aprendiendo, o que piensa sobre algo que le importa. Mostra curiosidad genuina. No hace falta que sea de 2 horas: 10 minutos de conversacion profunda vale mas que 3 horas de charla superficial.',
     whyItMatters:
@@ -325,10 +459,16 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "HandHeart",
+    linkedQuoteArea: "vinculo",
+    facto: "wq-030",
     howTo:
       'Hoy, hace algo concreto por otra persona sin que te lo pidan y sin esperar nada a cambio. Puede ser prepararle el desayuno a alguien, ayudar a un companero con un proyecto, hacerle un mandado a un familiar, o simplemente preguntarle a alguien "en que te puedo dar una mano?" El acto tiene que tener costo para vos (tiempo, esfuerzo, incomodidad) -- si no cuesta, no es servicio.',
     whyItMatters:
-      'La investigacion en psicologia positiva muestra que los actos de servicio generan mas bienestar duradero en quien da que en quien recibe. Adam Grant, en "Give and Take", demostro que los "givers" (dadores) estrategicos son los que mas exito tienen a largo plazo. Los estoicos veian el servicio como una obligacion natural: somos partes de un todo, y servir al todo es servirse a uno mismo.',
+      'La investigacion en psicologia positiva muestra que los actos de servicio generan mas bienestar duradero en quien da que en quien recibe. Adam Grant, en "Give and Take", demostro que los "givers" (dadores) estrategicos son los que mas exito tienen a largo plazo. Aristoteles veia al ser humano como un ser social por naturaleza: somos partes de un todo, y servir al todo es servirse a uno mismo.',
     tips: [
       "Empeza con actos pequenos pero consistentes: lo importante es el habito, no la escala",
       "Presta atencion a lo que la gente necesita sin decirlo: ahi estan las mejores oportunidades",
@@ -337,7 +477,7 @@ export const HABIT_SEEDS = [
   },
 
   // ---------------------------------------------------------------------------
-  // REFLEXION — Level 1-2 (3 habits)
+  // REFLEXION -- Level 1-2 (3 habits)
   // ---------------------------------------------------------------------------
   {
     id: "REF-01",
@@ -348,6 +488,16 @@ export const HABIT_SEEDS = [
     moment: "libre",
     minLevel: 1,
     durationMinutes: 10,
+    verificationType: "timer",
+    dataType: "pages",
+    auraScaling: [
+      { minutes: 5, aura: 3 },
+      { minutes: 10, aura: 7 },
+      { minutes: 15, aura: 11 },
+    ],
+    imageAsset: "BookHeart",
+    linkedQuoteArea: "reflexion",
+    facto: "wq-036",
     howTo:
       "Lee al menos 10 minutos de un libro que te haga pensar. No vale scrollear articulos ni noticias: tiene que ser un libro (fisico o digital) que desafie tu mente. Mientras lees, si una idea te impacta, detenete. No sigas de largo. Releela, pensa que significa para tu vida, anotala si podes. La lectura reflexiva no es consumo: es dialogo con el autor.",
     whyItMatters:
@@ -367,6 +517,12 @@ export const HABIT_SEEDS = [
     moment: "noche",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Star",
+    linkedQuoteArea: "reflexion",
+    facto: "wq-037",
     howTo:
       'Antes de dormir, hacete una pregunta profunda y dejala resonar en vos sin buscar una respuesta inmediata. Puede ser: "Que haria si no tuviera miedo?", "A que le estoy diciendo que si cuando deberia decir que no?", "Que me diria mi yo de 80 anos sobre como estoy viviendo hoy?", "Que creo que es verdad pero nunca cuestione?" No la googles. Dormi con ella. Deja que tu mente inconsciente trabaje.',
     whyItMatters:
@@ -387,10 +543,16 @@ export const HABIT_SEEDS = [
     moment: "dia",
     minLevel: 2,
     durationMinutes: null,
+    verificationType: "honor",
+    dataType: "boolean",
+    auraScaling: 1,
+    imageAsset: "Sunset",
+    linkedQuoteArea: "reflexion",
+    facto: "wq-038",
     howTo:
       "En algun momento del dia, elegi una situacion, persona o evento y observalo sin emitir juicio alguno. No lo clasifiques como bueno o malo, correcto o incorrecto. Solo mira. Si te sorprendes juzgando (y te vas a sorprender), notalo sin juzgarte por juzgar. Puede ser observar a la gente en la calle, una discusion ajena, tu propia reaccion emocional, o simplemente el clima. El objetivo es entrenar la mirada limpia.",
     whyItMatters:
-      'Los estoicos distinguian entre el evento y tu juicio sobre el evento. Epicteto lo resumio: "No son las cosas las que te perturban, sino tus opiniones sobre las cosas." El mindfulness budista trabaja el mismo principio. La observacion sin juicio es la base de la claridad mental: cuando dejas de etiquetar todo, empezas a ver las cosas como realmente son.',
+      "Los filosofos griegos distinguian entre el evento y tu juicio sobre el evento. Democrito ensenaba que la serenidad viene de moderar nuestras opiniones sobre las cosas, no de cambiar las cosas mismas. El mindfulness budista trabaja el mismo principio. La observacion sin juicio es la base de la claridad mental: cuando dejas de etiquetar todo, empezas a ver las cosas como realmente son.",
     tips: [
       "Empeza con cosas neutras (el clima, los sonidos) y avanza hacia situaciones cargadas",
       'Cuando notes un juicio automatico, etiquetalo internamente: "juicio" y soltalo',

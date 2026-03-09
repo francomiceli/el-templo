@@ -1,5 +1,12 @@
 // Module: lifestyle
-export type { HabitSeed, HabitArea, HabitMoment } from "./seed/habits.seed";
+export type {
+  HabitSeed,
+  HabitArea,
+  HabitMoment,
+  VerificationType,
+  DataType,
+  AuraScalingThreshold,
+} from "./seed/habits.seed";
 export type { AreaSeed } from "./seed/areas.seed";
 export type { JournalQuestionSeed } from "./seed/journal-questions.seed";
 export type { FactoSeed } from "./seed/factos.seed";
