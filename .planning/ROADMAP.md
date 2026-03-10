@@ -957,6 +957,19 @@ Plans:
 - [ ] 52-01-PLAN.md -- Analytics API module (KPIs, member, attendance, financial endpoints + tests)
 - [ ] 52-02-PLAN.md -- Analytics dashboard UI (AnaliticasPage with charts, heatmap, filters, sidebar)
 
+### Phase 53: Codebase health: timezone fixes, god object decomposition, performance optimization, test coverage
+
+**Goal:** Fix critical timezone bugs in booking/cancel windows, eliminate N+1 query in scheduling, add missing database indexes, extract shared date utilities (DRY), and close test coverage gaps in progression and scheduling modules.
+**Requirements**: None (codebase health — no new features)
+**Depends on:** Phase 52
+**Plans:** 3 plans (2 waves)
+
+Plans:
+
+- [ ] 53-01-PLAN.md -- Shared date-utils module (TDD) + timezone fixes in scheduling/analytics
+- [ ] 53-02-PLAN.md -- N+1 query fix in getWeeklyGrid + missing database indexes
+- [ ] 53-03-PLAN.md -- Test coverage for progression module + scheduling window integration tests
+
 ---
 
 ### v4.0 Progress
