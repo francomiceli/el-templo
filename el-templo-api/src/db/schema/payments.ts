@@ -43,6 +43,11 @@ export const payments = mysqlTable(
   (table) => [
     index("idx_payments_member_id").on(table.memberId),
     index("idx_payments_subscription_id").on(table.subscriptionId),
+    index("idx_payments_payment_date").on(table.paymentDate),
+    index("idx_payments_date_method").on(
+      table.paymentDate,
+      table.paymentMethod,
+    ),
   ],
 );
 

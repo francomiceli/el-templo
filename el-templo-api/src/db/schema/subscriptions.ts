@@ -68,6 +68,8 @@ export const subscriptions = mysqlTable(
   (table) => [
     index("idx_subscriptions_user_id").on(table.userId),
     index("idx_subscriptions_plan_id").on(table.planId),
+    index("idx_subscriptions_status_end_date").on(table.status, table.endDate),
+    index("idx_subscriptions_branch_id").on(table.branchId),
   ],
 );
 
