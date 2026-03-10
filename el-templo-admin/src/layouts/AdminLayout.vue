@@ -55,6 +55,12 @@
           </q-item-section>
           <q-item-section>Pagos</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/asistencia">
+          <q-item-section avatar>
+            <q-icon name="how_to_reg" />
+          </q-item-section>
+          <q-item-section>Asistencia</q-item-section>
+        </q-item>
 
         <template v-if="isAdminRole">
           <q-separator />
