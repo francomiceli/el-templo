@@ -433,7 +433,12 @@ Plans:
 3. The identity section displays a split text/image layout on desktop and stacks mobile-first with a ghost CTA
 4. The method section shows 4 session structure cards (Initium, Nucleus, Deuteros, Athlos), 2 special session cards (ROM, SKILLS), and an author section
 5. All text scales correctly across the 3 breakpoints (H1 48px to 26px, subtitle 22px to 16px)
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 31-01-PLAN.md -- SectionHero (video + overlay + CTAs) + SectionIdentity (split layout)
+- [ ] 31-02-PLAN.md -- SectionMethod (session cards + special sessions + author)
 
 ---
 
@@ -449,7 +454,12 @@ Plans:
 3. Each level tab shows split content (text + visual) with a per-level ghost CTA to book a trial session
 4. 5 approach cards (Kallos, Sthenos, Motus, Pyros, Dynamis) display in a responsive grid (5-col to 3+2 to horizontal scroll) with hover elevation
 5. The conversion section presents two distinct cards (Presencial with Terracotta CTA, App with Azul Noche CTA) that link to the trial booking and app download respectively
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 32-01-PLAN.md -- SectionLevels (6 tabs) + SectionApproaches (5 cards)
+- [ ] 32-02-PLAN.md -- SectionConversion (2 CTA cards)
 
 ---
 
@@ -940,7 +950,12 @@ Plans:
 2. Admin can view attendance analytics: check-ins per day/week, peak hours, and occupancy by time slot
 3. Admin can view financial analytics: revenue trends, outstanding balances, and collection rate
 4. All analytics dashboards can be filtered by branch and date range
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 52-01-PLAN.md -- Analytics API module (KPIs, member, attendance, financial endpoints + tests)
+- [ ] 52-02-PLAN.md -- Analytics dashboard UI (AnaliticasPage with charts, heatmap, filters, sidebar)
 
 ---
 
@@ -958,6 +973,6 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | 49. Payments                     | 2/2            | Complete    | 2026-03-09 |
 | 50. Attendance                   | 3/3            | Complete    | 2026-03-10 |
 | 51. Scheduling                   | 3/3            | Complete    | 2026-03-10 |
-| 52. Analytics Dashboard          | 0/?            | Not started | -          |
+| 52. Analytics Dashboard          | 0/2            | Not started | -          |
 
 _v4.0 phases added: 2026-03-08 — 8 phases (45-52), 32 requirements mapped_
