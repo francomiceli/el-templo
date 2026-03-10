@@ -196,9 +196,9 @@ describe("date-utils", () => {
         "2026-03-01",
         "2026-03-31",
       );
-      // Period is 30 days (Mar 1-31). Prior ends Feb 28, starts Jan 30.
+      // Duration = 30 days (Mar 31 - Mar 1). Prior ends Feb 28, starts Jan 29.
       expect(priorTo).toBe("2026-02-28");
-      expect(priorFrom).toBe("2026-01-30");
+      expect(priorFrom).toBe("2026-01-29");
     });
 
     it("computes prior period for a single week", () => {
@@ -216,9 +216,9 @@ describe("date-utils", () => {
         "2026-01-01",
         "2026-01-31",
       );
-      // 30-day range. Prior ends Dec 31, starts Dec 2
+      // Duration = 30 days (Jan 31 - Jan 1). Prior ends Dec 31, starts Dec 1.
       expect(priorTo).toBe("2025-12-31");
-      expect(priorFrom).toBe("2025-12-02");
+      expect(priorFrom).toBe("2025-12-01");
     });
   });
 });
