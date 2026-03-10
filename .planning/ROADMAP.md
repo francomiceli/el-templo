@@ -919,7 +919,13 @@ Plans:
 2. Admin can create weekly recurring time slots for activities with day, time, branch, and capacity limit
 3. Member can view available class slots for their branch in the app, showing activity name, time, and remaining capacity
 4. Member can reserve a spot in an available slot and cancel a reservation, with the system enforcing capacity limits (full slots cannot be booked)
-   **Plans**: TBD
+   **Plans:** 3 plans
+
+Plans:
+
+- [ ] 51-01-PLAN.md — Scheduling API: DB schema (activities, schedules, bookings, holidays), migration, SchedulingService with booking lifecycle, admin + member routes, integration tests
+- [ ] 51-02-PLAN.md — Admin Scheduling UI: HorariosPage weekly grid, slot detail, activity management, holiday management, sidebar integration
+- [ ] 51-03-PLAN.md — Member App Reservas: ReservasPage weekly calendar, booking flow, cancel, upcoming reservations, 4th bottom tab
 
 ---
 
@@ -951,7 +957,7 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | 48. Subscriptions                | 2/2            | Complete    | 2026-03-09 |
 | 49. Payments                     | 2/2            | Complete    | 2026-03-09 |
 | 50. Attendance                   | 3/3            | Complete    | 2026-03-10 |
-| 51. Scheduling                   | 0/?            | Not started | -          |
+| 51. Scheduling                   | 0/3            | Planning    | -          |
 | 52. Analytics Dashboard          | 0/?            | Not started | -          |
 
 _v4.0 phases added: 2026-03-08 — 8 phases (45-52), 32 requirements mapped_
