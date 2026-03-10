@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 50-03-PLAN.md
-last_updated: "2026-03-10T00:05:54.258Z"
+stopped_at: Completed 50-02-PLAN.md
+last_updated: "2026-03-10T00:06:24.063Z"
 last_activity: "2026-03-10 — Completed 50-03: Member App QR Check-in"
 progress:
   total_phases: 38
   completed_phases: 29
   total_plans: 139
-  completed_plans: 139
+  completed_plans: 138
   percent: 97
 ---
 
@@ -119,6 +119,9 @@ Recent decisions affecting current work:
 - [Phase 50]: Two-step attendance model: QR scan creates registrado, coach batch-confirm promotes to confirmado + AURA award
 - [Phase 50]: Overdue check triggers on paused subs past end date; active subs auto-expire first (caught by no-active-sub check)
 - [Phase 50]: [Phase 50-03]: html5-qrcode over native Capacitor plugin -- pure JS, works in WebView and web, no native bridge needed
+- [Phase 50-02]: qrcode npm package for client-side QR image generation with toDataURL download
+- [Phase 50-02]: Auto-select all registrado records for batch confirm workflow efficiency
+- [Phase 50-02]: 30s polling for real-time QR scan visibility in AsistenciaHoyPage
 - [Phase 50]: [Phase 50-03]: branchIsVirtual added to auth API login+me responses for FAB visibility without extra API call
 
 ### v2.0 Deferrals
@@ -142,6 +145,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T00:05:54.255Z
-Stopped at: Completed 50-03-PLAN.md
+Last session: 2026-03-10T00:06:24.060Z
+Stopped at: Completed 50-02-PLAN.md
 Resume file: None
