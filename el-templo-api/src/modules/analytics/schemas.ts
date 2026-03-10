@@ -1,0 +1,211 @@
+/**
+ * Fastify JSON schemas for Analytics API request/response validation.
+ */
+
+// =============================================================================
+// Shared fragments
+// =============================================================================
+
+const errorSchema = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+  },
+} as const;
+
+const analyticsQuerystring = {
+  type: "object",
+  properties: {
+    branchId: { type: "integer" },
+    dateFrom: { type: "string", format: "date" },
+    dateTo: { type: "string", format: "date" },
+  },
+} as const;
+
+const trendSchema = {
+  type: "object",
+  properties: {
+    direction: { type: "string", enum: ["up", "down", "flat"] },
+    percentage: { type: "number" },
+  },
+} as const;
+
+const kpiValueSchema = {
+  type: "object",
+  properties: {
+    value: { type: "number" },
+    trend: trendSchema,
+  },
+} as const;
+
+// =============================================================================
+// KPI Schema
+// =============================================================================
+
+export const kpiSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        activeMembers: kpiValueSchema,
+        monthlyRevenue: kpiValueSchema,
+        dailyAttendanceAvg: kpiValueSchema,
+        morososCount: kpiValueSchema,
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
+// Member Analytics Schema
+// =============================================================================
+
+export const memberAnalyticsSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        newMembers: { type: "integer" },
+        churnedMembers: { type: "integer" },
+        retentionRate: { type: "number" },
+        planDistribution: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              planName: { type: "string" },
+              count: { type: "integer" },
+            },
+          },
+        },
+        attentionList: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              firstName: { type: ["string", "null"] },
+              lastName: { type: ["string", "null"] },
+              planName: { type: "string" },
+              phone: { type: ["string", "null"] },
+              type: { type: "string", enum: ["expiring", "overdue"] },
+              daysUntilExpiry: { type: ["integer", "null"] },
+              daysOverdue: { type: ["integer", "null"] },
+            },
+          },
+        },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
+// Attendance Analytics Schema
+// =============================================================================
+
+export const attendanceAnalyticsSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        dailyCheckins: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              date: { type: "string" },
+              count: { type: "integer" },
+            },
+          },
+        },
+        peakHoursHeatmap: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              dayOfWeek: { type: "integer" },
+              hour: { type: "integer" },
+              averageOccupancy: { type: "number" },
+            },
+          },
+        },
+        slotOccupancy: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              scheduleId: { type: "integer" },
+              activityName: { type: "string" },
+              dayOfWeek: { type: "integer" },
+              startTime: { type: "string" },
+              averageOccupancy: { type: "number" },
+            },
+          },
+        },
+        noShowRate: { type: "number" },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
+// =============================================================================
+// Financial Analytics Schema
+// =============================================================================
+
+export const financialAnalyticsSchema = {
+  querystring: analyticsQuerystring,
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        revenueTrend: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              month: { type: "string" },
+              revenue: { type: "number" },
+            },
+          },
+        },
+        revenueByMethod: {
+          type: "object",
+          properties: {
+            cash: { type: "number" },
+            transfer: { type: "number" },
+            card: { type: "number" },
+          },
+        },
+        revenueByBranch: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              revenue: { type: "number" },
+            },
+          },
+        },
+        totalOutstanding: { type: "number" },
+        collectionRate: { type: "number" },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;

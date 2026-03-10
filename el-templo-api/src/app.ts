@@ -30,6 +30,7 @@ import {
   schedulingAdminRoutes,
   schedulingMemberRoutes,
 } from "./modules/scheduling";
+import { analyticsRoutes } from "./modules/analytics";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -132,6 +133,11 @@ export async function buildApp() {
   // Member-facing scheduling routes (weekly grid, reserve, cancel, my bookings)
   await app.register(schedulingMemberRoutes, {
     prefix: "/api/members/scheduling",
+  });
+
+  // Analytics routes (admin-only KPI stats, member/attendance/financial analytics)
+  await app.register(analyticsRoutes, {
+    prefix: "/api/admin/analytics",
   });
 
   // Health check endpoint
