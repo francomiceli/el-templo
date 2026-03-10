@@ -351,7 +351,7 @@ export class AnalyticsService {
       sql`EXISTS (
         SELECT 1 FROM subscriptions s2
         WHERE s2.user_id = ${schema.subscriptions.userId}
-        AND s2.status IN ('active', 'paused')
+        AND s2.subscription_status IN ('active', 'paused')
         AND s2.id != ${schema.subscriptions.id}
       )`,
     ];

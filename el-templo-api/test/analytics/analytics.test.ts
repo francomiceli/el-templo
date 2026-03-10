@@ -1,0 +1,543 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import type { FastifyInstance } from "fastify";
+import { eq, sql } from "drizzle-orm";
+import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import { bookings } from "../../src/db/schema/bookings";
+import { schedules } from "../../src/db/schema/schedules";
+import { activities } from "../../src/db/schema/activities";
+import { holidays } from "../../src/db/schema/holidays";
+import { attendance } from "../../src/db/schema/attendance";
+import { payments } from "../../src/db/schema/payments";
+import { subscriptions } from "../../src/db/schema/subscriptions";
+import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
+import { users } from "../../src/db/schema/users";
+import { auraTransactions } from "../../src/db/schema/aura-transactions";
+import { auraBalances } from "../../src/db/schema/aura-balances";
+import { memberNotes } from "../../src/db/schema/member-notes";
+import { branches } from "../../src/db/schema/branches";
+
+const ANALYTICS_URL = "/api/admin/analytics";
+const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
+const MEMBERS_URL = "/api/admin/members";
+const PAYMENTS_URL = "/api/admin/payments";
+
+describe("Analytics API", () => {
+  let app: FastifyInstance;
+  let adminToken: string;
+  let testBranchId: number;
+
+  const basePlan = {
+    name: "Plan Analytics Test",
+    planTier: "flex",
+    bookingMode: "flexible",
+    priceRegular: 15000,
+    priceZero: 10000,
+    durationDays: 30,
+    classesPerWeek: 3,
+    multiBranch: false,
+  };
+
+  const baseMember = {
+    email: "analytics-test@test.com",
+    password: "pass123456",
+    firstName: "Analytics",
+    lastName: "Tester",
+    phone: "+5491100008888",
+    dni: "90000001",
+    branchId: 0,
+  };
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+
+    const [branch] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.isVirtual, false));
+    testBranchId = branch.id;
+    baseMember.branchId = testBranchId;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  /**
+   * Clean up all test data in FK order.
+   */
+  async function cleanupAll(): Promise<void> {
+    await app.db.delete(auraTransactions);
+    await app.db.delete(auraBalances);
+    await app.db.delete(bookings);
+    await app.db.delete(attendance);
+    await app.db.delete(schedules);
+    await app.db.delete(activities);
+    await app.db.delete(holidays);
+    await app.db.delete(payments);
+    await app.db.delete(subscriptions);
+    await app.db.delete(subscriptionPlans);
+    await app.db.delete(memberNotes);
+    await app.db.update(users).set({ boardingPassUsed: false });
+    const testUsers = await app.db
+      .select({ id: users.id, email: users.email })
+      .from(users);
+    for (const u of testUsers) {
+      if (u.email !== "admin@test.com") {
+        await app.db.delete(users).where(eq(users.id, u.id));
+      }
+    }
+  }
+
+  async function createPlan(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, ...overrides },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function createMember(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: MEMBERS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...baseMember, ...overrides },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function assignSubscription(
+    memberId: number,
+    planId: number,
+    overrides: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
+    const today = new Date().toISOString().split("T")[0];
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/assign`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId,
+        branchId: testBranchId,
+        startDate: today,
+        priceTypeApplied: "regular",
+        ...overrides,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function recordPayment(
+    memberId: number,
+    amount: number,
+    overrides: Record<string, unknown> = {},
+  ): Promise<Record<string, unknown>> {
+    const today = new Date().toISOString().split("T")[0];
+    const res = await app.inject({
+      method: "POST",
+      url: `${PAYMENTS_URL}/members/${memberId}/payments`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        amount,
+        paymentMethod: "cash",
+        paymentDate: today,
+        ...overrides,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // KPIs Endpoint
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("GET /api/admin/analytics (KPIs)", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should return 401 for unauthenticated request", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: ANALYTICS_URL,
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("should return KPI stats with correct activeMembers count", async () => {
+      // Create 2 active members
+      await createMember({ email: "m1@test.com", dni: "90000002" });
+      await createMember({ email: "m2@test.com", dni: "90000003" });
+
+      const res = await app.inject({
+        method: "GET",
+        url: ANALYTICS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.activeMembers).toBeDefined();
+      expect(body.activeMembers.value).toBe(2);
+      expect(body.activeMembers.trend).toBeDefined();
+      expect(body.activeMembers.trend.direction).toMatch(/^(up|down|flat)$/);
+      expect(typeof body.activeMembers.trend.percentage).toBe("number");
+    });
+
+    it("should accept branchId filter and return branch-scoped results", async () => {
+      await createMember({ email: "m1@test.com", dni: "90000002" });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}?branchId=${testBranchId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.activeMembers.value).toBe(1);
+    });
+
+    it("should return trend data for each KPI", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: ANALYTICS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      for (const key of [
+        "activeMembers",
+        "monthlyRevenue",
+        "dailyAttendanceAvg",
+        "morososCount",
+      ]) {
+        expect(body[key]).toBeDefined();
+        expect(body[key].trend).toBeDefined();
+        expect(body[key].trend.direction).toMatch(/^(up|down|flat)$/);
+        expect(typeof body[key].trend.percentage).toBe("number");
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Member Analytics
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("GET /api/admin/analytics/members", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should return newMembers count matching members created in date range", async () => {
+      // Create member today
+      await createMember({ email: "m1@test.com", dni: "90000002" });
+
+      const today = new Date().toISOString().split("T")[0];
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?dateFrom=${today}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.newMembers).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should return planDistribution array with plan names and counts", async () => {
+      const plan = await createPlan({ name: "Plan Distribution Test" });
+      const member = await createMember({
+        email: "m1@test.com",
+        dni: "90000002",
+      });
+      await assignSubscription(member.id, plan.id);
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.planDistribution).toBeInstanceOf(Array);
+      expect(body.planDistribution.length).toBeGreaterThanOrEqual(1);
+
+      const found = body.planDistribution.find(
+        (p: { planName: string }) => p.planName === "Plan Distribution Test",
+      );
+      expect(found).toBeDefined();
+      expect(found.count).toBe(1);
+    });
+
+    it("should return attentionList with expiring members", async () => {
+      const plan = await createPlan({
+        name: "Plan Expiring Test",
+        durationDays: 3,
+      });
+      const member = await createMember({
+        email: "m-expire@test.com",
+        dni: "90000010",
+      });
+
+      // Assign subscription starting 27 days ago (ends in 3 days)
+      const startDate = new Date();
+      startDate.setDate(
+        startDate.getDate() - (plan.durationDays as number) + 3,
+      );
+      await assignSubscription(member.id, plan.id, {
+        startDate: startDate.toISOString().split("T")[0],
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.attentionList).toBeInstanceOf(Array);
+
+      // The member should appear in attention list as expiring
+      const expiring = body.attentionList.find(
+        (m: { userId: number }) => m.userId === member.id,
+      );
+      expect(expiring).toBeDefined();
+      expect(expiring.type).toBe("expiring");
+      expect(expiring.daysUntilExpiry).toBeGreaterThanOrEqual(0);
+      expect(expiring.daysUntilExpiry).toBeLessThanOrEqual(7);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Attendance Analytics
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("GET /api/admin/analytics/attendance", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should return dailyCheckins array with dates and counts", async () => {
+      // Create member and manually insert attendance records
+      const member = await createMember({
+        email: "m1@test.com",
+        dni: "90000002",
+      });
+
+      await app.db.insert(attendance).values({
+        memberId: member.id,
+        branchId: testBranchId,
+        status: "confirmado",
+        source: "manual",
+        confirmedAt: new Date(),
+      });
+
+      const today = new Date().toISOString().split("T")[0];
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/attendance?dateFrom=${today}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.dailyCheckins).toBeInstanceOf(Array);
+      expect(body.dailyCheckins.length).toBeGreaterThanOrEqual(1);
+      expect(body.dailyCheckins[0].count).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should return noShowRate as percentage", async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/attendance?dateFrom=${today}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(typeof body.noShowRate).toBe("number");
+      expect(body.noShowRate).toBeGreaterThanOrEqual(0);
+      expect(body.noShowRate).toBeLessThanOrEqual(100);
+    });
+
+    it("should accept date range filters", async () => {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+      const today = new Date().toISOString().split("T")[0];
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/attendance?dateFrom=${yesterdayStr}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.dailyCheckins).toBeInstanceOf(Array);
+      expect(body.peakHoursHeatmap).toBeInstanceOf(Array);
+      expect(body.slotOccupancy).toBeInstanceOf(Array);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Financial Analytics
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("GET /api/admin/analytics/financial", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should return revenueTrend with monthly revenue entries", async () => {
+      const member = await createMember({
+        email: "fin-m1@test.com",
+        dni: "90000020",
+      });
+      await recordPayment(member.id, 15000);
+
+      const today = new Date().toISOString().split("T")[0];
+      const firstOfMonth = today.substring(0, 8) + "01";
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial?dateFrom=${firstOfMonth}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.revenueTrend).toBeInstanceOf(Array);
+      expect(body.revenueTrend.length).toBeGreaterThanOrEqual(1);
+      expect(body.revenueTrend[0].revenue).toBe(15000);
+    });
+
+    it("should return revenueByMethod breakdown", async () => {
+      const member = await createMember({
+        email: "fin-m2@test.com",
+        dni: "90000021",
+      });
+      await recordPayment(member.id, 5000, { paymentMethod: "cash" });
+      await recordPayment(member.id, 3000, { paymentMethod: "transfer" });
+
+      const today = new Date().toISOString().split("T")[0];
+      const firstOfMonth = today.substring(0, 8) + "01";
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial?dateFrom=${firstOfMonth}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.revenueByMethod).toBeDefined();
+      expect(body.revenueByMethod.cash).toBe(5000);
+      expect(body.revenueByMethod.transfer).toBe(3000);
+      expect(body.revenueByMethod.card).toBe(0);
+    });
+
+    it("should return totalOutstanding and collectionRate", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(typeof body.totalOutstanding).toBe("number");
+      expect(typeof body.collectionRate).toBe("number");
+      expect(body.collectionRate).toBeGreaterThanOrEqual(0);
+      expect(body.collectionRate).toBeLessThanOrEqual(100);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // General / Auth
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe("Authorization", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should return 403 for non-admin users on all endpoints", async () => {
+      // Register a regular member
+      const { token: memberToken } = await registerUser(app, {
+        email: "regular-member@test.com",
+        password: "pass123456",
+        firstName: "Regular",
+        lastName: "Member",
+        branchId: testBranchId,
+      });
+
+      const endpoints = [
+        ANALYTICS_URL,
+        `${ANALYTICS_URL}/members`,
+        `${ANALYTICS_URL}/attendance`,
+        `${ANALYTICS_URL}/financial`,
+      ];
+
+      for (const url of endpoints) {
+        const res = await app.inject({
+          method: "GET",
+          url,
+          headers: { authorization: `Bearer ${memberToken}` },
+        });
+        expect(res.statusCode).toBe(403);
+      }
+    });
+  });
+
+  describe("Date range filtering", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("should filter results by dateFrom and dateTo across all endpoints", async () => {
+      // Create member with some data
+      const member = await createMember({
+        email: "filter-m@test.com",
+        dni: "90000030",
+      });
+      await recordPayment(member.id, 10000);
+
+      // Use a narrow date range (today only)
+      const today = new Date().toISOString().split("T")[0];
+
+      const endpoints = [
+        ANALYTICS_URL,
+        `${ANALYTICS_URL}/members`,
+        `${ANALYTICS_URL}/attendance`,
+        `${ANALYTICS_URL}/financial`,
+      ];
+
+      for (const url of endpoints) {
+        const res = await app.inject({
+          method: "GET",
+          url: `${url}?dateFrom=${today}&dateTo=${today}`,
+          headers: { authorization: `Bearer ${adminToken}` },
+        });
+        expect(res.statusCode).toBe(200);
+      }
+    });
+  });
+});
