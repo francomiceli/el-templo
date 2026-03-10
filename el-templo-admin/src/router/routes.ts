@@ -26,6 +26,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'horarios', component: () => import('pages/HorariosPage.vue') },
       { path: 'asistencia', component: () => import('pages/AsistenciaHoyPage.vue') },
       {
+        path: 'analiticas',
+        component: () => import('pages/AnaliticasPage.vue'),
+      },
+      {
         path: 'blog',
         component: () => import('pages/BlogListPage.vue'),
         meta: { allowedRoles: ['admin', 'superadmin'] },
