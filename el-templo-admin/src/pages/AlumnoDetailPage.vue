@@ -92,6 +92,7 @@
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
         <q-tab name="pagos" label="Pagos" />
+        <q-tab name="asistencia" label="Asistencia" />
       </q-tabs>
       <q-separator />
 
@@ -347,6 +348,11 @@
             @payment-changed="onPaymentChanged"
           />
         </q-tab-panel>
+
+        <!-- Asistencia Tab -->
+        <q-tab-panel name="asistencia">
+          <MemberAttendanceTab :userId="userId" />
+        </q-tab-panel>
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -374,6 +380,7 @@ import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberPaymentTab from 'src/components/MemberPaymentTab.vue';
+import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import {
