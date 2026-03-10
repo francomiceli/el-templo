@@ -9,6 +9,7 @@ import {
 import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { branches } from "./branches";
+import { schedules } from "./schedules";
 
 export const attendanceStatusEnum = mysqlEnum("attendance_status", [
   "registrado",
@@ -30,6 +31,7 @@ export const attendance = mysqlTable(
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
+    scheduleId: int("schedule_id").references(() => schedules.id),
     checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
     confirmedAt: timestamp("confirmed_at"),
     status: attendanceStatusEnum.default("registrado").notNull(),
@@ -56,5 +58,9 @@ export const attendanceRelations = relations(attendance, ({ one }) => ({
   branch: one(branches, {
     fields: [attendance.branchId],
     references: [branches.id],
+  }),
+  schedule: one(schedules, {
+    fields: [attendance.scheduleId],
+    references: [schedules.id],
   }),
 }));

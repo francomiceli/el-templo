@@ -16,6 +16,9 @@ export const branches = mysqlTable("branches", {
   timezone: varchar("timezone", { length: 50 })
     .default("America/Argentina/Buenos_Aires")
     .notNull(),
+  country: varchar("country", { length: 2 }).default("AR").notNull(),
+  maxCapacity: int("max_capacity").default(22).notNull(),
+  romEnabled: boolean("rom_enabled").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isVirtual: boolean("is_virtual").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
