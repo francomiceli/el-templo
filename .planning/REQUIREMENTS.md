@@ -93,6 +93,7 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 - **AURA-08**: Quest system (daily/weekly/monthly) with AURA rewards
 - **AURA-09**: Variable rewards (~30% chance on day close, rate-limited)
 - **AURA-10**: Celebration system (toast thresholds, confetti, streak reminders at 18h/20h/22h)
+- **AURA-11**: No-show penalty — deduct AURA when member books a class but doesn't attend (surfaced during Phase 51 scheduling discussion)
 
 ### Social / Agora
 
