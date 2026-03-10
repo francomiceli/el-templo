@@ -56,6 +56,18 @@
           <q-item-section>Entrenamiento</q-item-section>
         </q-item>
 
+        <q-item
+          v-if="!userStore.profile?.branchIsVirtual"
+          clickable
+          to="/reservas"
+          @click="leftDrawerOpen = false"
+        >
+          <q-item-section avatar>
+            <q-icon name="event_available" />
+          </q-item-section>
+          <q-item-section>Reservas</q-item-section>
+        </q-item>
+
         <q-item clickable to="/training/conceptos" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="menu_book" />
@@ -139,11 +151,17 @@ interface MobileTab {
   badge?: boolean
 }
 
-const mobileTabs: MobileTab[] = [
-  { to: '/mi-camino', icon: 'trending_up', label: 'Mi Camino', badge: true },
-  { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
-  { to: '/training/conceptos', icon: 'menu_book', label: 'Conceptos' },
-]
+const mobileTabs = computed<MobileTab[]>(() => {
+  const tabs: MobileTab[] = [
+    { to: '/mi-camino', icon: 'trending_up', label: 'Mi Camino', badge: true },
+    { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
+  ]
+  if (!userStore.profile?.branchIsVirtual) {
+    tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
+  }
+  tabs.push({ to: '/training/conceptos', icon: 'menu_book', label: 'Conceptos' })
+  return tabs
+})
 
 function isTabActive(tabTo: string): boolean {
   return route.path.startsWith(tabTo)
