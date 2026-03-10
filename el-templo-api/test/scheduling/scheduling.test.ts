@@ -1305,4 +1305,134 @@ describe("Scheduling API", () => {
       expect(body).toHaveProperty("holidays");
     });
   });
+
+  // =========================================================================
+  // Booking/Cancel window timezone behavior
+  // =========================================================================
+  describe("Booking/Cancel window timezone behavior", () => {
+    /**
+     * These integration tests validate that booking/cancel window checks work
+     * correctly after the timezone fix in Plan 01 (buildClassDateTime with
+     * Argentina UTC-3). The pure date math is covered by unit tests in
+     * test/unit/date-utils.test.ts; these tests verify the wiring through
+     * the service layer.
+     */
+
+    /**
+     * Get a past time slot for today (a class that already happened).
+     * Uses 00:01 which is always in the past unless tests run at midnight.
+     */
+    function getPastSlot(): {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      date: string;
+    } {
+      const now = new Date();
+      const currentDay = now.getDay();
+      const isoDayOfWeek = currentDay === 0 ? 7 : currentDay;
+
+      return {
+        dayOfWeek: isoDayOfWeek,
+        startTime: "00:01",
+        endTime: "01:00",
+        date: getDateForDayOfWeek(isoDayOfWeek),
+      };
+    }
+
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("rejects booking for a past class time", async () => {
+      const { memberToken } = await setupMemberWithSubscription({
+        email: "bw-past@test.com",
+        dni: "80000080",
+      });
+      const activity = await createActivity();
+      const pastSlot = getPastSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        pastSlot.dayOfWeek,
+        pastSlot.startTime,
+        pastSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: pastSlot.date },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("ya paso");
+    });
+
+    it("booking for valid future slot succeeds", async () => {
+      const { memberToken } = await setupMemberWithSubscription({
+        email: "bw-future@test.com",
+        dni: "80000081",
+      });
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("confirmed");
+    });
+
+    it("cancel succeeds for a future booking (within cancel window)", async () => {
+      // This validates the happy path of the cancel window check —
+      // buildClassDateTime produces a correct future Date, so the cancel
+      // window check passes for well-ahead bookings.
+      // The 20-min cutoff edge case is hard to test without time mocking;
+      // the pure function coverage in date-utils.test.ts handles that.
+      const { memberToken } = await setupMemberWithSubscription({
+        email: "bw-cancel@test.com",
+        dni: "80000082",
+      });
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Book first
+      const bookRes = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(bookRes.statusCode).toBe(201);
+      const booking = JSON.parse(bookRes.body);
+
+      // Cancel — should succeed since the slot is well in the future
+      const cancelRes = await app.inject({
+        method: "DELETE",
+        url: `${MEMBER_URL}/bookings/${booking.id}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(cancelRes.statusCode).toBe(200);
+      expect(JSON.parse(cancelRes.body).status).toBe("cancelled");
+    });
+  });
 });
