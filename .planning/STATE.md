@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 51-01-PLAN.md
+stopped_at: Completed 51-03-PLAN.md
 last_updated: "2026-03-10T15:00:00Z"
-last_activity: "2026-03-10 — Completed 51-01: Scheduling API"
+last_activity: "2026-03-10 — Completed 51-03: Member Scheduling UI"
 progress:
   total_phases: 38
   completed_phases: 29
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 51 of 52 (Scheduling)
-Plan: 1 of 3 in current phase
-Status: Plan 51-01 complete — scheduling API with 4 tables, SchedulingService, admin+member routes, 25 tests
-Last activity: 2026-03-10 — Completed 51-01: Scheduling API
+Plan: 3 of 3 in current phase
+Status: Plan 51-03 complete — member scheduling UI with weekly calendar grid, booking/waitlist/cancel flows, 4th bottom tab
+Last activity: 2026-03-10 — Completed 51-03: Member Scheduling UI
 
 Progress: [██████████] 98%
 
@@ -65,6 +65,7 @@ _Updated after each plan completion_
 | Phase 50 P02 | 3min | 2 tasks | 9 files |
 | Phase 50 P03 | 3min | 1 tasks | 8 files |
 | Phase 51 P01 | 15min | 2 tasks | 19 files |
+| Phase 51 P03 | 3min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,9 @@ Recent decisions affecting current work:
 - [Phase 51-01]: Shared handleServiceError helper in routes.ts for DRY error handling across all scheduling endpoints
 - [Phase 51-01]: getFutureSlot test helper dynamically calculates bookable slots relative to current time for reliable tests
 - [Phase 51-01]: Delete old cancelled/no_show bookings on re-reserve to avoid unique constraint violation
+- [Phase 51-03]: mobileTabs converted to computed for conditional Reservas tab based on branchIsVirtual
+- [Phase 51-03]: AbortController pattern in useSchedulingApi for request cancellation on unmount
+- [Phase 51-03]: O(1) Map-based slot lookup for grid cell rendering performance
 
 ### v2.0 Deferrals
 
@@ -150,6 +154,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T15:00:00Z
-Stopped at: Completed 51-01-PLAN.md
-Resume file: .planning/phases/51-scheduling/51-01-SUMMARY.md
+Last session: 2026-03-10T14:56:50Z
+Stopped at: Completed 51-03-PLAN.md
+Resume file: .planning/phases/51-scheduling/51-03-SUMMARY.md
