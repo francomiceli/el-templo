@@ -15,6 +15,7 @@ export interface UserProfile {
   level: Level
   branchId: number
   branchName: string
+  branchIsVirtual: boolean
 }
 
 export interface MemberSubscription {

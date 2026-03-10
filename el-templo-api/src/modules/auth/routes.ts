@@ -155,14 +155,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Unauthorized", message: "Invalid credentials" });
       }
 
-      // Get branch name
+      // Get branch name and virtual status
       const branchResults = await fastify.db
-        .select({ name: branches.name })
+        .select({ name: branches.name, isVirtual: branches.isVirtual })
         .from(branches)
         .where(eq(branches.id, user.branchId))
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
+      const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
       // Sign JWT
       const token = fastify.jwt.sign({
@@ -182,6 +183,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: user.level,
           branchId: user.branchId,
           branchName,
+          branchIsVirtual,
           isActive: user.isActive,
         },
       };
@@ -219,14 +221,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = userResults[0];
 
-      // Get branch name
+      // Get branch name and virtual status
       const branchResults = await fastify.db
-        .select({ name: branches.name })
+        .select({ name: branches.name, isVirtual: branches.isVirtual })
         .from(branches)
         .where(eq(branches.id, user.branchId))
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
+      const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
       return {
         id: user.id,
@@ -237,6 +240,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         level: user.level,
         branchId: user.branchId,
         branchName,
+        branchIsVirtual,
         isActive: user.isActive,
       };
     },

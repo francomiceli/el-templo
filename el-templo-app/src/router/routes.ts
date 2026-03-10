@@ -1,4 +1,4 @@
-import { RouteRecordRaw } from 'vue-router';
+import { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   // Public routes (no layout)
@@ -29,6 +29,11 @@ const routes: RouteRecordRaw[] = [
         name: 'profile',
         component: () => import('pages/ProfilePage.vue'),
       },
+      {
+        path: 'check-in',
+        name: 'check-in',
+        component: () => import('pages/CheckInPage.vue'),
+      },
     ],
   },
 
@@ -37,6 +42,6 @@ const routes: RouteRecordRaw[] = [
     path: '/:catchAll(.*)*',
     component: () => import('pages/ErrorNotFound.vue'),
   },
-];
+]
 
-export default routes;
+export default routes

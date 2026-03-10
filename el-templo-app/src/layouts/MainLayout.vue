@@ -68,6 +68,20 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <!-- Check-in FAB (hidden for Templo Online / virtual branch members) -->
+    <q-btn
+      v-if="showCheckInFab"
+      fab
+      icon="qr_code_scanner"
+      color="primary"
+      class="check-in-fab"
+      :class="{ 'check-in-fab--with-footer': $q.screen.lt.md }"
+      @click="router.push('/check-in')"
+    >
+      <q-tooltip>Registrar asistencia</q-tooltip>
+    </q-btn>
+
     <div class="app-bg" />
 
     <!-- Mobile bottom tab bar -->
@@ -96,17 +110,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
+import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 
 const $q = useQuasar()
 const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
+const userStore = useUserStore()
 const progressionStore = useProgressionStore()
+
+const showCheckInFab = computed(() => {
+  if (!authStore.isAuthenticated) return false
+  if (!userStore.profile) return false
+  return !userStore.profile.branchIsVirtual
+})
 
 const leftDrawerOpen = ref(false)
 
@@ -230,6 +252,21 @@ async function onLogout() {
     position: absolute;
     top: 4px;
     right: calc(50% - 16px);
+  }
+}
+
+/* ------------------------------------------------------------------
+   Check-in FAB
+   ------------------------------------------------------------------ */
+.check-in-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+
+  &--with-footer {
+    // Above mobile footer tabs (56px height + safe area)
+    bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 16px);
   }
 }
 </style>
