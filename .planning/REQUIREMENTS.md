@@ -56,12 +56,12 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Scheduling
 
-- [ ] **SCHD-01**: Admin can create activities (e.g., "Sesion Grupal", "Open Gym") with descriptions
-- [ ] **SCHD-02**: Admin can create weekly recurring time slots for activities with capacity limits
-- [ ] **SCHD-03**: Member can view available class slots and capacity in the app
-- [ ] **SCHD-04**: Member can reserve a spot in a class slot
-- [ ] **SCHD-05**: Member can cancel a reservation
-- [ ] **SCHD-06**: System enforces capacity limits — full slots cannot be booked
+- [x] **SCHD-01**: Admin can create activities (e.g., "Sesion Grupal", "Open Gym") with descriptions
+- [x] **SCHD-02**: Admin can create weekly recurring time slots for activities with capacity limits
+- [x] **SCHD-03**: Member can view available class slots and capacity in the app
+- [x] **SCHD-04**: Member can reserve a spot in a class slot
+- [x] **SCHD-05**: Member can cancel a reservation
+- [x] **SCHD-06**: System enforces capacity limits — full slots cannot be booked
 
 ## Future Requirements (v5.0+)
 
@@ -154,12 +154,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ATTN-03     | Phase 50 | Complete                    |
 | ATTN-04     | Phase 50 | Complete                    |
 | ATTN-05     | Phase 50 | Complete                    |
-| SCHD-01     | Phase 51 | Pending                     |
-| SCHD-02     | Phase 51 | Pending                     |
-| SCHD-03     | Phase 51 | Pending                     |
-| SCHD-04     | Phase 51 | Pending                     |
-| SCHD-05     | Phase 51 | Pending                     |
-| SCHD-06     | Phase 51 | Pending                     |
+| SCHD-01     | Phase 51 | Complete                    |
+| SCHD-02     | Phase 51 | Complete                    |
+| SCHD-03     | Phase 51 | Complete                    |
+| SCHD-04     | Phase 51 | Complete                    |
+| SCHD-05     | Phase 51 | Complete                    |
+| SCHD-06     | Phase 51 | Complete                    |
 | ANLT-01     | Phase 52 | Pending                     |
 | ANLT-02     | Phase 52 | Pending                     |
 | ANLT-03     | Phase 52 | Pending                     |
