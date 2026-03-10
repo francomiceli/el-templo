@@ -962,7 +962,7 @@ Plans:
 **Goal:** Fix critical timezone bugs in booking/cancel windows, eliminate N+1 query in scheduling, add missing database indexes, extract shared date utilities (DRY), and close test coverage gaps in progression and scheduling modules.
 **Requirements**: None (codebase health — no new features)
 **Depends on:** Phase 52
-**Plans:** 3 plans (2 waves)
+**Plans:** 1/3 plans executed
 
 Plans:
 

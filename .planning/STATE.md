@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Completed 52-02-PLAN.md
-last_updated: "2026-03-10T17:29:39.567Z"
-last_activity: "2026-03-10 — Completed 52-02: Analytics Dashboard UI"
+status: in-progress
+stopped_at: Completed 53-01-PLAN.md
+last_updated: "2026-03-10T22:27:00Z"
+last_activity: "2026-03-10 — Completed 53-01: Timezone Fixes"
 progress:
   total_phases: 38
   completed_phases: 31
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 52 of 52 (Analytics Dashboard)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase 52 complete — analytics dashboard UI with KPI cards, charts, heatmap, filters, and attention list
-Last activity: 2026-03-10 — Completed 52-02: Analytics Dashboard UI
+Phase: 53 of 53 (Codebase Health)
+Plan: 1 of 3 in current phase
+Status: Plan 01 complete — shared date-utils module with timezone-fixed booking/cancel windows
+Last activity: 2026-03-10 — Completed 53-01: Timezone Fixes
 
 Progress: [██████████] 100%
 
@@ -69,6 +69,7 @@ _Updated after each plan completion_
 | Phase 51 P02 | 4min | 2 tasks | 5 files |
 | Phase 52 P01 | 16min | 2 tasks | 7 files |
 | Phase 52 P02 | 5min | 2 tasks | 7 files |
+| Phase 53 P01 | 5min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -144,6 +145,10 @@ Recent decisions affecting current work:
 - [Phase 52]: vue-chartjs with chart.js for dashboard charts; HTML table for heatmap instead of chart library
 - [Phase 52]: Morosos KPI trend inverted: up=red (bad), down=green (good)
 - [Phase 52]: Lazy tab loading: fetch data only for active tab, refetch on switch
+- [Phase 53-01]: Argentina fixed UTC-3 offset in buildClassDateTime — no DST since 2009, safe to hardcode
+- [Phase 53-01]: Noon-UTC pattern for all date string arithmetic to avoid day-boundary drift
+- [Phase 53-01]: Separate vitest.config.unit.ts for pure unit tests without DB global setup
+- [Phase 53-01]: Shared date-utils module: pure functions with explicit timezone parameter for testability
 
 ### v2.0 Deferrals
 
@@ -160,12 +165,16 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 53 added: Codebase health — timezone fixes, god object decomposition, performance optimization, test coverage
+
 ### Blockers/Concerns
 
 None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T17:24:29.877Z
-Stopped at: Completed 52-02-PLAN.md
+Last session: 2026-03-10T22:27:00Z
+Stopped at: Completed 53-01-PLAN.md
 Resume file: None
