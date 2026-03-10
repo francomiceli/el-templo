@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Phase 52 context gathered
-last_updated: "2026-03-10T16:43:03.999Z"
-last_activity: "2026-03-10 — Completed 51-03: Member Scheduling UI"
+stopped_at: Completed 52-01-PLAN.md
+last_updated: "2026-03-10T17:14:00.000Z"
+last_activity: "2026-03-10 — Completed 52-01: Analytics API"
 progress:
   total_phases: 38
   completed_phases: 30
   total_plans: 142
-  completed_plans: 141
-  percent: 98
+  completed_plans: 142
+  percent: 99
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 51 of 52 (Scheduling)
-Plan: 3 of 3 in current phase
-Status: Plan 51-03 complete — member scheduling UI with weekly calendar grid, booking/waitlist/cancel flows, 4th bottom tab
-Last activity: 2026-03-10 — Completed 51-03: Member Scheduling UI
+Phase: 52 of 52 (Analytics Dashboard)
+Plan: 1 of 2 in current phase
+Status: Plan 52-01 complete — analytics API module with 4 GET endpoints, KPI/member/attendance/financial analytics
+Last activity: 2026-03-10 — Completed 52-01: Analytics API
 
-Progress: [██████████] 98%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -67,6 +67,7 @@ _Updated after each plan completion_
 | Phase 51 P01 | 15min | 2 tasks | 19 files |
 | Phase 51 P03 | 3min | 2 tasks | 5 files |
 | Phase 51 P02 | 4min | 2 tasks | 5 files |
+| Phase 52 P01 | 16min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,11 @@ Recent decisions affecting current work:
 - [Phase 51-03]: AbortController pattern in useSchedulingApi for request cancellation on unmount
 - [Phase 51-03]: O(1) Map-based slot lookup for grid cell rendering performance
 - [Phase 51]: Custom CSS grid over QTable for weekly calendar -- tables don't render well for time/day matrix layouts
+- [Phase 52-01]: Analytics module: read-only service with parallel Promise.all aggregation queries, no new DB tables
+- [Phase 52-01]: Morosos KPI trend uses flat direction -- snapshot metric with no historical baseline for prior-period comparison
+- [Phase 52-01]: Retention rate: members with ending subscriptions who have another active/paused sub
+- [Phase 52-01]: Heatmap MySQL DAYOFWEEK converted to ISO (1=Mon..7=Sun) for frontend consistency
+- [Phase 52-01]: Default date range: current calendar month when no dateFrom/dateTo provided
 
 ### v2.0 Deferrals
 
@@ -156,6 +162,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-10T16:43:03.995Z
-Stopped at: Phase 52 context gathered
-Resume file: .planning/phases/52-analytics-dashboard/52-CONTEXT.md
+Last session: 2026-03-10T17:14:00.000Z
+Stopped at: Completed 52-01-PLAN.md
+Resume file: .planning/phases/52-analytics-dashboard/52-01-SUMMARY.md

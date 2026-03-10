@@ -41,10 +41,10 @@ Requirements for ecosystem foundation milestone. Each maps to roadmap phases.
 
 ### Analytics
 
-- [ ] **ANLT-01**: Admin can view member analytics (total active, new/churned per period, retention rate)
-- [ ] **ANLT-02**: Admin can view attendance analytics (check-ins per day/week, peak hours, occupancy by slot)
-- [ ] **ANLT-03**: Admin can view financial analytics (revenue trends, outstanding balances, collection rate)
-- [ ] **ANLT-04**: Analytics can be filtered by branch and date range
+- [x] **ANLT-01**: Admin can view member analytics (total active, new/churned per period, retention rate)
+- [x] **ANLT-02**: Admin can view attendance analytics (check-ins per day/week, peak hours, occupancy by slot)
+- [x] **ANLT-03**: Admin can view financial analytics (revenue trends, outstanding balances, collection rate)
+- [x] **ANLT-04**: Analytics can be filtered by branch and date range
 
 ### Attendance
 
@@ -160,10 +160,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCHD-04     | Phase 51 | Complete                    |
 | SCHD-05     | Phase 51 | Complete                    |
 | SCHD-06     | Phase 51 | Complete                    |
-| ANLT-01     | Phase 52 | Pending                     |
-| ANLT-02     | Phase 52 | Pending                     |
-| ANLT-03     | Phase 52 | Pending                     |
-| ANLT-04     | Phase 52 | Pending                     |
+| ANLT-01     | Phase 52 | Complete                    |
+| ANLT-02     | Phase 52 | Complete                    |
+| ANLT-03     | Phase 52 | Complete                    |
+| ANLT-04     | Phase 52 | Complete                    |
 
 **Coverage:**
 
