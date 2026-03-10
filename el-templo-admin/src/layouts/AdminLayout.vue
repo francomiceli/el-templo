@@ -55,6 +55,12 @@
           </q-item-section>
           <q-item-section>Pagos</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/horarios">
+          <q-item-section avatar>
+            <q-icon name="calendar_month" />
+          </q-item-section>
+          <q-item-section>Horarios</q-item-section>
+        </q-item>
         <q-item clickable v-ripple to="/asistencia">
           <q-item-section avatar>
             <q-icon name="how_to_reg" />

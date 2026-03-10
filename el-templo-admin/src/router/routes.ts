@@ -23,6 +23,7 @@ const routes: RouteRecordRaw[] = [
       },
       { path: 'planes', component: () => import('pages/PlanesPage.vue') },
       { path: 'pagos', component: () => import('pages/PagosPage.vue') },
+      { path: 'horarios', component: () => import('pages/HorariosPage.vue') },
       { path: 'asistencia', component: () => import('pages/AsistenciaHoyPage.vue') },
       {
         path: 'blog',
