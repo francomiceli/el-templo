@@ -10,6 +10,10 @@ import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { attendance } from "../../src/db/schema/attendance";
+import { bookings } from "../../src/db/schema/bookings";
+import { schedules } from "../../src/db/schema/schedules";
+import { activities } from "../../src/db/schema/activities";
+import { holidays } from "../../src/db/schema/holidays";
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -40,8 +44,12 @@ describe("Members Management Routes", () => {
    * Also cleans up member_notes.
    */
   async function cleanupTestMembers(): Promise<void> {
-    // Delete in FK constraint order: attendance -> payments -> subscriptions -> plans -> aura -> notes -> users
+    // Delete in FK order: bookings first (FK on users+schedules), then scheduling, then rest
+    await app.db.delete(bookings);
+    await app.db.delete(holidays);
     await app.db.delete(attendance);
+    await app.db.delete(schedules);
+    await app.db.delete(activities);
     await app.db.delete(payments);
     await app.db.delete(subscriptions);
     await app.db.delete(subscriptionPlans);

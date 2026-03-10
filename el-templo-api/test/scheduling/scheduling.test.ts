@@ -1,0 +1,1308 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import type { FastifyInstance } from "fastify";
+import { eq, sql } from "drizzle-orm";
+import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import { bookings } from "../../src/db/schema/bookings";
+import { schedules } from "../../src/db/schema/schedules";
+import { activities } from "../../src/db/schema/activities";
+import { holidays } from "../../src/db/schema/holidays";
+import { attendance } from "../../src/db/schema/attendance";
+import { payments } from "../../src/db/schema/payments";
+import { subscriptions } from "../../src/db/schema/subscriptions";
+import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
+import { users } from "../../src/db/schema/users";
+import { auraTransactions } from "../../src/db/schema/aura-transactions";
+import { auraBalances } from "../../src/db/schema/aura-balances";
+import { memberNotes } from "../../src/db/schema/member-notes";
+import { branches } from "../../src/db/schema/branches";
+
+const ADMIN_URL = "/api/admin/scheduling";
+const MEMBER_URL = "/api/members/scheduling";
+const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
+const MEMBERS_URL = "/api/admin/members";
+const PAYMENTS_URL = "/api/admin/payments";
+
+describe("Scheduling API", () => {
+  let app: FastifyInstance;
+  let adminToken: string;
+  let testBranchId: number;
+
+  const basePlan = {
+    name: "Plan Scheduling Test",
+    planTier: "flex",
+    bookingMode: "flexible",
+    priceRegular: 15000,
+    priceZero: 10000,
+    durationDays: 30,
+    classesPerWeek: 3,
+    multiBranch: false,
+  };
+
+  const baseMember = {
+    email: "sched-test@test.com",
+    password: "pass123456",
+    firstName: "Scheduling",
+    lastName: "Tester",
+    phone: "+5491100009999",
+    dni: "80000001",
+    branchId: 0,
+  };
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+
+    const [branch] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(eq(branches.isVirtual, false));
+    testBranchId = branch.id;
+    baseMember.branchId = testBranchId;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  /**
+   * Clean up all test data in FK order.
+   */
+  async function cleanupAll(): Promise<void> {
+    await app.db.delete(auraTransactions);
+    await app.db.delete(auraBalances);
+    await app.db.delete(bookings);
+    await app.db.delete(attendance);
+    await app.db.delete(schedules);
+    await app.db.delete(activities);
+    await app.db.delete(holidays);
+    await app.db.delete(payments);
+    await app.db.delete(subscriptions);
+    await app.db.delete(subscriptionPlans);
+    await app.db.delete(memberNotes);
+    await app.db.update(users).set({ boardingPassUsed: false });
+    const testUsers = await app.db
+      .select({ id: users.id, email: users.email })
+      .from(users);
+    for (const u of testUsers) {
+      if (u.email !== "admin@test.com") {
+        await app.db.delete(users).where(eq(users.id, u.id));
+      }
+    }
+  }
+
+  async function createPlan(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...basePlan, ...overrides },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function createMember(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: MEMBERS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { ...baseMember, ...overrides },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function assignPlan(
+    userId: number,
+    planId: number,
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${userId}/subscription/assign`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId,
+        branchId: testBranchId,
+        startDate: "2026-03-01",
+        priceTypeApplied: "regular",
+        ...overrides,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function recordPayment(
+    userId: number,
+    amount: number,
+    subscriptionId?: number,
+  ): Promise<void> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${PAYMENTS_URL}/members/${userId}/payments`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        amount,
+        paymentMethod: "cash",
+        paymentDate: "2026-03-10",
+        ...(subscriptionId ? { subscriptionId } : {}),
+      },
+    });
+    expect(res.statusCode).toBe(201);
+  }
+
+  async function setupMemberWithSubscription(
+    memberOverrides: Record<string, unknown> = {},
+    planOverrides: Record<string, unknown> = {},
+  ): Promise<{
+    member: { id: number; [key: string]: unknown };
+    plan: { id: number; [key: string]: unknown };
+    subscription: { id: number; [key: string]: unknown };
+    memberToken: string;
+  }> {
+    const plan = await createPlan(planOverrides);
+    const member = await createMember(memberOverrides);
+    const subscription = await assignPlan(member.id, plan.id);
+    await recordPayment(
+      member.id,
+      basePlan.priceRegular,
+      subscription.id as number,
+    );
+    const memberToken = await getAuthToken(
+      app,
+      (memberOverrides.email as string) || baseMember.email,
+      (memberOverrides.password as string) || baseMember.password,
+    );
+    return { member, plan, subscription, memberToken };
+  }
+
+  async function createActivity(
+    name = "Sesion Grupal",
+    description = "Clase grupal",
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/activities`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: { name, description },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  async function createScheduleSlot(
+    activityId: number,
+    dayOfWeek: number,
+    startTime: string,
+    endTime: string,
+    branchId?: number,
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: `${ADMIN_URL}/schedules`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        branchId: branchId ?? testBranchId,
+        activityId,
+        dayOfWeek,
+        startTime,
+        endTime,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  /**
+   * Get the date string for a specific day of week in the current week.
+   * dayOfWeek: 1=Mon, 2=Tue, ..., 6=Sat
+   */
+  function getDateForDayOfWeek(dayOfWeek: number): string {
+    const now = new Date();
+    const currentDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    const target = new Date(monday);
+    target.setDate(monday.getDate() + (dayOfWeek - 1));
+    return target.toISOString().split("T")[0];
+  }
+
+  function getCurrentMonday(): string {
+    return getDateForDayOfWeek(1);
+  }
+
+  /**
+   * Get a future time slot that hasn't passed yet (for booking tests).
+   * Returns a dayOfWeek and startTime that is in the future.
+   */
+  function getFutureSlot(): {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    date: string;
+  } {
+    const now = new Date();
+    const currentDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+    const isoDayOfWeek = currentDay === 0 ? 7 : currentDay;
+    const currentHour = now.getHours();
+
+    // Try to find a slot later today
+    if (isoDayOfWeek <= 6) {
+      if (currentHour < 19) {
+        // Use 20:00 today (or the next available hour)
+        const startHour = Math.max(currentHour + 2, 20);
+        if (startHour <= 23) {
+          return {
+            dayOfWeek: isoDayOfWeek,
+            startTime: `${String(startHour).padStart(2, "0")}:00`,
+            endTime: `${String(startHour + 1).padStart(2, "0")}:00`,
+            date: getDateForDayOfWeek(isoDayOfWeek),
+          };
+        }
+      }
+    }
+
+    // Use tomorrow or next available weekday
+    let targetDay = isoDayOfWeek + 1;
+    if (targetDay > 6) targetDay = 1; // wrap to Monday (shouldn't happen in practice)
+
+    return {
+      dayOfWeek: targetDay,
+      startTime: "20:00",
+      endTime: "21:00",
+      date: getDateForDayOfWeek(targetDay),
+    };
+  }
+
+  // =========================================================================
+  // Activity CRUD
+  // =========================================================================
+  describe("Activity CRUD", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("POST creates activity with name and description", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/activities`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { name: "Sesion Grupal", description: "Clase grupal" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.id).toBeTruthy();
+      expect(body.name).toBe("Sesion Grupal");
+      expect(body.description).toBe("Clase grupal");
+      expect(body.isActive).toBe(true);
+    });
+
+    it("GET lists active activities", async () => {
+      await createActivity("Activity A");
+      await createActivity("Activity B");
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/activities`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.activities.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("PUT updates activity name and description", async () => {
+      const activity = await createActivity();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/activities/${activity.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { name: "Updated Name", description: "Updated desc" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.name).toBe("Updated Name");
+      expect(body.description).toBe("Updated desc");
+    });
+
+    it("PUT deactivates activity", async () => {
+      const activity = await createActivity();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/activities/${activity.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.isActive).toBe(false);
+    });
+  });
+
+  // =========================================================================
+  // Schedule Management
+  // =========================================================================
+  describe("Schedule Management", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("POST creates schedule for valid branch and activity", async () => {
+      const activity = await createActivity();
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          branchId: testBranchId,
+          activityId: activity.id,
+          dayOfWeek: 1,
+          startTime: "07:00",
+          endTime: "08:00",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.id).toBeTruthy();
+      expect(body.branchId).toBe(testBranchId);
+      expect(body.dayOfWeek).toBe(1);
+      expect(body.startTime).toBe("07:00");
+    });
+
+    it("POST rejects schedule for virtual branch", async () => {
+      const [virtualBranch] = await app.db
+        .select({ id: branches.id })
+        .from(branches)
+        .where(eq(branches.isVirtual, true));
+
+      const activity = await createActivity();
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          branchId: virtualBranch.id,
+          activityId: activity.id,
+          dayOfWeek: 1,
+          startTime: "07:00",
+          endTime: "08:00",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("virtual");
+    });
+
+    it("POST seed creates default weekday slots", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/seed`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { branchId: testBranchId },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      // 8 slots x 5 weekdays = 40 (no ROM since romEnabled defaults to false)
+      expect(body.created).toBe(40);
+    });
+
+    it("POST seed with ROM creates weekday + Saturday ROM slots", async () => {
+      // Enable ROM for test branch
+      await app.db
+        .update(branches)
+        .set({ romEnabled: true })
+        .where(eq(branches.id, testBranchId));
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/schedules/seed`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { branchId: testBranchId },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      // 8 x 5 + 2 = 42
+      expect(body.created).toBe(42);
+
+      // Reset
+      await app.db
+        .update(branches)
+        .set({ romEnabled: false })
+        .where(eq(branches.id, testBranchId));
+    });
+
+    it("GET weekly grid returns slots with booked counts", async () => {
+      const activity = await createActivity();
+      await createScheduleSlot(activity.id, 1, "09:00", "10:00");
+
+      const weekStart = getCurrentMonday();
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.slots.length).toBeGreaterThanOrEqual(1);
+      expect(body.slots[0]).toHaveProperty("bookedCount");
+      expect(body.slots[0]).toHaveProperty("maxCapacity");
+      expect(body.slots[0]).toHaveProperty("isFull");
+      expect(body.slots[0]).toHaveProperty("isHoliday");
+    });
+
+    it("PUT toggle disables/enables schedule slot", async () => {
+      const activity = await createActivity();
+      const slot = await createScheduleSlot(activity.id, 1, "07:00", "08:00");
+
+      // Disable
+      const disableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false },
+      });
+      expect(disableRes.statusCode).toBe(200);
+      expect(JSON.parse(disableRes.body).isActive).toBe(false);
+
+      // Enable
+      const enableRes = await app.inject({
+        method: "PUT",
+        url: `${ADMIN_URL}/schedules/${slot.id}/toggle`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: true },
+      });
+      expect(enableRes.statusCode).toBe(200);
+      expect(JSON.parse(enableRes.body).isActive).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Booking Lifecycle
+  // =========================================================================
+  describe("Booking Lifecycle", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("POST reserve returns 201 with confirmed status", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("confirmed");
+      expect(body.scheduleId).toBe(slot.id);
+      expect(body.bookingDate).toBe(futureSlot.date);
+    });
+
+    it("POST reserve when full returns waitlist with position", async () => {
+      // Set branch capacity to 1
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 1 })
+        .where(eq(branches.id, testBranchId));
+
+      const { member, memberToken } = await setupMemberWithSubscription();
+      const member2Overrides = {
+        email: "sched-test2@test.com",
+        dni: "80000002",
+      };
+      const { memberToken: memberToken2 } = await setupMemberWithSubscription(
+        member2Overrides,
+        { name: "Plan Scheduling Test 2" },
+      );
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // First booking — confirmed
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(res1.statusCode).toBe(201);
+      expect(JSON.parse(res1.body).status).toBe("confirmed");
+
+      // Second booking — waitlist
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken2}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(res2.statusCode).toBe(201);
+      const body2 = JSON.parse(res2.body);
+      expect(body2.status).toBe("waitlist");
+      expect(body2.waitlistPosition).toBe(1);
+
+      // Reset capacity
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 22 })
+        .where(eq(branches.id, testBranchId));
+    });
+
+    it("POST reserve without subscription returns 400", async () => {
+      const member = await createMember({
+        email: "nosub-sched@test.com",
+        dni: "80000010",
+      });
+      const memberToken = await getAuthToken(
+        app,
+        "nosub-sched@test.com",
+        baseMember.password,
+      );
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("suscripcion activa");
+    });
+
+    it("POST reserve when overdue returns 400", async () => {
+      // Create member with paused subscription past end date (overdue)
+      const plan = await createPlan({
+        name: "Plan Overdue Test",
+        durationDays: 1,
+      });
+      const member = await createMember({
+        email: "overdue-sched@test.com",
+        dni: "80000020",
+      });
+      const sub = await assignPlan(member.id, plan.id, {
+        startDate: "2025-01-01",
+      });
+
+      // Pause so it's not auto-expired (paused subs stay, creating overdue)
+      await app.db
+        .update(subscriptions)
+        .set({
+          status: "paused",
+          pausedAt: new Date("2025-01-01"),
+        })
+        .where(eq(subscriptions.id, sub.id as number));
+
+      const memberToken = await getAuthToken(
+        app,
+        "overdue-sched@test.com",
+        baseMember.password,
+      );
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("pago pendiente");
+    });
+
+    it("POST reserve beyond weekly limit returns 400", async () => {
+      const { memberToken } = await setupMemberWithSubscription(
+        {},
+        { classesPerWeek: 1 },
+      );
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+
+      // Create two slots at different times
+      const slot1 = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Second slot at different time
+      const nextHour = String(
+        parseInt(futureSlot.startTime.split(":")[0], 10) - 1,
+      ).padStart(2, "0");
+      const slot2StartTime = `${nextHour}:00`;
+      const slot2EndTime = futureSlot.startTime;
+
+      const slot2 = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        slot2StartTime,
+        slot2EndTime,
+      );
+
+      // First booking — OK
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot1.id, date: futureSlot.date },
+      });
+      expect(res1.statusCode).toBe(201);
+
+      // Second booking — should exceed weekly limit of 1
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot2.id, date: futureSlot.date },
+      });
+
+      expect(res2.statusCode).toBe(400);
+      expect(JSON.parse(res2.body).message).toContain("limite semanal");
+    });
+
+    it("POST reserve duplicate slot returns 409", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // First booking
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(res1.statusCode).toBe(201);
+
+      // Duplicate booking
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res2.statusCode).toBe(409);
+      expect(JSON.parse(res2.body).message).toContain("Ya tenes una reserva");
+    });
+
+    it("DELETE cancel booking returns 200 and promotes waitlist", async () => {
+      // Set capacity to 1
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 1 })
+        .where(eq(branches.id, testBranchId));
+
+      const { memberToken } = await setupMemberWithSubscription();
+      const { memberToken: memberToken2 } = await setupMemberWithSubscription(
+        { email: "sched-waitlist@test.com", dni: "80000030" },
+        { name: "Plan Scheduling Waitlist" },
+      );
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // First member books (confirmed)
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      const booking1 = JSON.parse(res1.body);
+      expect(booking1.status).toBe("confirmed");
+
+      // Second member books (waitlist)
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken2}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      const booking2 = JSON.parse(res2.body);
+      expect(booking2.status).toBe("waitlist");
+
+      // First member cancels
+      const cancelRes = await app.inject({
+        method: "DELETE",
+        url: `${MEMBER_URL}/bookings/${booking1.id}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(cancelRes.statusCode).toBe(200);
+      const cancelBody = JSON.parse(cancelRes.body);
+      expect(cancelBody.status).toBe("cancelled");
+
+      // Verify second member was promoted
+      const [promotedBooking] = await app.db
+        .select({
+          status: bookings.status,
+          waitlistPosition: bookings.waitlistPosition,
+        })
+        .from(bookings)
+        .where(eq(bookings.id, booking2.id));
+
+      expect(promotedBooking.status).toBe("confirmed");
+      expect(promotedBooking.waitlistPosition).toBeNull();
+
+      // Reset capacity
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 22 })
+        .where(eq(branches.id, testBranchId));
+    });
+
+    it("Admin add booking bypasses subscription checks", async () => {
+      // Create member without subscription
+      const member = await createMember({
+        email: "admin-book@test.com",
+        dni: "80000040",
+      });
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member.id,
+          date: futureSlot.date,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("confirmed");
+    });
+
+    it("Admin remove booking cancels and promotes waitlist", async () => {
+      // Set capacity to 1
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 1 })
+        .where(eq(branches.id, testBranchId));
+
+      const member1 = await createMember({
+        email: "admin-remove1@test.com",
+        dni: "80000050",
+      });
+      const member2 = await createMember({
+        email: "admin-remove2@test.com",
+        dni: "80000051",
+      });
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Admin adds member 1 (confirmed)
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member1.id,
+          date: futureSlot.date,
+        },
+      });
+      const booking1 = JSON.parse(res1.body);
+      expect(booking1.status).toBe("confirmed");
+
+      // Admin adds member 2 (waitlist because full)
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member2.id,
+          date: futureSlot.date,
+        },
+      });
+      const booking2 = JSON.parse(res2.body);
+      expect(booking2.status).toBe("waitlist");
+
+      // Admin removes member 1
+      const removeRes = await app.inject({
+        method: "DELETE",
+        url: `${ADMIN_URL}/bookings/${booking1.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(removeRes.statusCode).toBe(200);
+
+      // Verify member 2 was promoted
+      const [promotedBooking] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, booking2.id));
+      expect(promotedBooking.status).toBe("confirmed");
+
+      // Reset capacity
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 22 })
+        .where(eq(branches.id, testBranchId));
+    });
+
+    it("GET my-bookings returns member's bookings for the week", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Reserve
+      await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      const weekStart = getCurrentMonday();
+      const res = await app.inject({
+        method: "GET",
+        url: `${MEMBER_URL}/my-bookings?weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.bookings.length).toBeGreaterThanOrEqual(1);
+      expect(body.bookings[0].status).toBe("confirmed");
+    });
+  });
+
+  // =========================================================================
+  // Holiday Management
+  // =========================================================================
+  describe("Holiday Management", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("POST add holiday auto-cancels bookings on that date", async () => {
+      const member = await createMember({
+        email: "holiday-test@test.com",
+        dni: "80000060",
+      });
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Admin adds a booking
+      const bookRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member.id,
+          date: futureSlot.date,
+        },
+      });
+      const booking = JSON.parse(bookRes.body);
+      expect(booking.status).toBe("confirmed");
+
+      // Add holiday for that date
+      const holidayRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          country: "AR",
+          date: futureSlot.date,
+          name: "Test Holiday",
+        },
+      });
+
+      expect(holidayRes.statusCode).toBe(201);
+
+      // Verify booking was auto-cancelled
+      const [cancelledBooking] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.id, booking.id));
+      expect(cancelledBooking.status).toBe("cancelled");
+    });
+
+    it("GET weekly grid marks holiday slots", async () => {
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Add holiday
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          country: "AR",
+          date: futureSlot.date,
+          name: "Test Holiday",
+        },
+      });
+
+      const weekStart = getCurrentMonday();
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/weekly?branchId=${testBranchId}&weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+
+      // Find the slot on the holiday date
+      const holidaySlot = body.slots.find(
+        (s: Record<string, unknown>) => s.dayOfWeek === futureSlot.dayOfWeek,
+      );
+      expect(holidaySlot).toBeTruthy();
+      expect(holidaySlot.isHoliday).toBe(true);
+      expect(body.holidays.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("POST reserve on holiday returns 400", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Add holiday
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          country: "AR",
+          date: futureSlot.date,
+          name: "Test Holiday",
+        },
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.body).message).toContain("feriado");
+    });
+
+    it("GET list holidays returns filtered results", async () => {
+      // Add two holidays
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          country: "AR",
+          date: "2026-05-01",
+          name: "Dia del Trabajador",
+        },
+      });
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { country: "ES", date: "2026-06-24", name: "San Juan" },
+      });
+
+      // Filter by country
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/holidays?country=AR`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.holidays.length).toBe(1);
+      expect(body.holidays[0].country).toBe("AR");
+    });
+
+    it("DELETE remove holiday", async () => {
+      const holidayRes = await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/holidays`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          country: "AR",
+          date: "2026-07-09",
+          name: "Dia de la Independencia",
+        },
+      });
+      const holiday = JSON.parse(holidayRes.body);
+
+      const removeRes = await app.inject({
+        method: "DELETE",
+        url: `${ADMIN_URL}/holidays/${holiday.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(removeRes.statusCode).toBe(200);
+      expect(JSON.parse(removeRes.body).deleted).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // Authorization
+  // =========================================================================
+  describe("Authorization", () => {
+    it("non-admin gets 403 on admin scheduling endpoints", async () => {
+      const { token: memberToken } = await registerUser(app, {
+        email: "sched-auth-test@test.com",
+        password: "pass123456",
+        branchId: testBranchId,
+        firstName: "Auth",
+        lastName: "Test",
+      });
+
+      const adminEndpoints = [
+        {
+          method: "POST" as const,
+          url: `${ADMIN_URL}/activities`,
+          payload: { name: "Test" },
+        },
+        {
+          method: "GET" as const,
+          url: `${ADMIN_URL}/activities`,
+        },
+        {
+          method: "POST" as const,
+          url: `${ADMIN_URL}/schedules`,
+          payload: {
+            branchId: 1,
+            activityId: 1,
+            dayOfWeek: 1,
+            startTime: "07:00",
+            endTime: "08:00",
+          },
+        },
+        {
+          method: "POST" as const,
+          url: `${ADMIN_URL}/schedules/seed`,
+          payload: { branchId: 1 },
+        },
+      ];
+
+      for (const ep of adminEndpoints) {
+        const res = await app.inject({
+          method: ep.method,
+          url: ep.url,
+          headers: { authorization: `Bearer ${memberToken}` },
+          payload: "payload" in ep ? ep.payload : undefined,
+        });
+
+        expect(
+          res.statusCode,
+          `Expected 403 for ${ep.method} ${ep.url}, got ${res.statusCode}`,
+        ).toBe(403);
+      }
+    });
+
+    it("unauthenticated request to member reserve returns 401", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        payload: { scheduleId: 1, date: "2026-03-10" },
+      });
+
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // =========================================================================
+  // Slot Detail
+  // =========================================================================
+  describe("Slot Detail", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("GET slot detail returns bookings list for that slot/date", async () => {
+      const member = await createMember({
+        email: "detail-test@test.com",
+        dni: "80000070",
+      });
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Admin adds a booking
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member.id,
+          date: futureSlot.date,
+        },
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_URL}/schedules/${slot.id}/detail?date=${futureSlot.date}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.schedule.id).toBe(slot.id);
+      expect(body.date).toBe(futureSlot.date);
+      expect(body.bookings.length).toBe(1);
+      expect(body.maxCapacity).toBeGreaterThan(0);
+    });
+  });
+
+  // =========================================================================
+  // Member Weekly Grid
+  // =========================================================================
+  describe("Member Weekly Grid", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("GET /weekly returns slots and own bookings overlay", async () => {
+      const { memberToken } = await setupMemberWithSubscription();
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Reserve
+      await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      const weekStart = getCurrentMonday();
+      const res = await app.inject({
+        method: "GET",
+        url: `${MEMBER_URL}/weekly?weekStart=${weekStart}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.slots.length).toBeGreaterThanOrEqual(1);
+      expect(body.myBookings.length).toBeGreaterThanOrEqual(1);
+      expect(body).toHaveProperty("holidays");
+    });
+  });
+});

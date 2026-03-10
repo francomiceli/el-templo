@@ -26,6 +26,10 @@ import {
   attendanceAdminRoutes,
   attendanceMemberRoutes,
 } from "./modules/attendance";
+import {
+  schedulingAdminRoutes,
+  schedulingMemberRoutes,
+} from "./modules/scheduling";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -118,6 +122,16 @@ export async function buildApp() {
   // Member-facing subscription route (read-only, no admin role required)
   await app.register(memberSubscriptionRoutes, {
     prefix: "/api/members/subscription",
+  });
+
+  // Scheduling management routes (activities, schedules, bookings, holidays)
+  await app.register(schedulingAdminRoutes, {
+    prefix: "/api/admin/scheduling",
+  });
+
+  // Member-facing scheduling routes (weekly grid, reserve, cancel, my bookings)
+  await app.register(schedulingMemberRoutes, {
+    prefix: "/api/members/scheduling",
   });
 
   // Health check endpoint

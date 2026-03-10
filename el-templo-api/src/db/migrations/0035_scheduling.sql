@@ -60,13 +60,14 @@ CREATE TABLE IF NOT EXISTS `holidays` (
   UNIQUE KEY `idx_holidays_country_date` (`country`, `date`)
 );
 
--- Add columns to branches
-ALTER TABLE `branches`
-  ADD COLUMN IF NOT EXISTS `country` varchar(2) NOT NULL DEFAULT 'AR',
-  ADD COLUMN IF NOT EXISTS `max_capacity` int NOT NULL DEFAULT 22,
-  ADD COLUMN IF NOT EXISTS `rom_enabled` boolean NOT NULL DEFAULT false;
+-- Add columns to branches (separate statements for MySQL 5.7 compat)
+ALTER TABLE `branches` ADD COLUMN `country` varchar(2) NOT NULL DEFAULT 'AR';
+
+ALTER TABLE `branches` ADD COLUMN `max_capacity` int NOT NULL DEFAULT 22;
+
+ALTER TABLE `branches` ADD COLUMN `rom_enabled` boolean NOT NULL DEFAULT false;
 
 -- Add schedule_id FK to attendance
-ALTER TABLE `attendance`
-  ADD COLUMN IF NOT EXISTS `schedule_id` int,
-  ADD CONSTRAINT `attendance_schedule_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`id`);
+ALTER TABLE `attendance` ADD COLUMN `schedule_id` int;
+
+ALTER TABLE `attendance` ADD CONSTRAINT `attendance_schedule_id_fk` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`id`);
