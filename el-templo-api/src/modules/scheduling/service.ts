@@ -12,6 +12,11 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
+import {
+  addDays,
+  getWeekRange,
+  buildClassDateTime,
+} from "../shared/date-utils";
 import type {
   ActivityRecord,
   ScheduleSlot,
@@ -20,6 +25,8 @@ import type {
   BookingStatus,
   HolidayRecord,
   SlotDetailView,
+  SlotMemberView,
+  SlotMemberStatus,
   DayOfWeek,
 } from "./types";
 
@@ -258,34 +265,70 @@ export class SchedulingService {
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
 
     // Get holidays for the week
-    const weekEnd = this.addDays(weekStartDate, 5); // Saturday
+    const weekEnd = addDays(weekStartDate, 5); // Saturday
     const holidaysInWeek = await this.getHolidaysForWeek(
       branch.country,
       weekStartDate,
     );
     const holidayDates = new Set(holidaysInWeek.map((h) => h.date));
 
-    // For each schedule, count confirmed bookings for its specific date
+    // Query unconfirmed attendance for the whole week (one query)
+    const unconfirmedRows = await this.db
+      .select({
+        attDate: sql<string>`DATE(${schema.attendance.checkedInAt})`,
+        cnt: sql<number>`COUNT(*)`,
+      })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.branchId, branchId),
+          sql`DATE(${schema.attendance.checkedInAt}) BETWEEN ${weekStartDate} AND ${weekEnd}`,
+          eq(schema.attendance.status, "registrado"),
+        ),
+      )
+      .groupBy(sql`DATE(${schema.attendance.checkedInAt})`);
+
+    const unconfirmedByDate = new Map<string, number>();
+    for (const row of unconfirmedRows) {
+      unconfirmedByDate.set(String(row.attDate), Number(row.cnt));
+    }
+
+    // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1)
+    const scheduleIds = scheduleRows.map((r) => r.id);
+    const bookingCountMap = new Map<string, number>();
+
+    if (scheduleIds.length > 0) {
+      const bookingCounts = await this.db
+        .select({
+          scheduleId: schema.bookings.scheduleId,
+          bookingDate: schema.bookings.bookingDate,
+          count: sql<number>`COUNT(*)`,
+        })
+        .from(schema.bookings)
+        .where(
+          and(
+            inArray(schema.bookings.scheduleId, scheduleIds),
+            eq(schema.bookings.status, "confirmed"),
+          ),
+        )
+        .groupBy(schema.bookings.scheduleId, schema.bookings.bookingDate);
+
+      for (const row of bookingCounts) {
+        bookingCountMap.set(
+          `${row.scheduleId}-${row.bookingDate}`,
+          Number(row.count),
+        );
+      }
+    }
+
+    // Build slot views using the pre-fetched counts
     const slots: WeeklySlotView[] = [];
 
     for (const row of scheduleRows) {
       // Calculate the actual date for this slot in the given week
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
-      const slotDate = this.addDays(weekStartDate, row.dayOfWeek - 1);
-
-      // Count confirmed bookings for this schedule + date
-      const [countResult] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(schema.bookings)
-        .where(
-          and(
-            eq(schema.bookings.scheduleId, row.id),
-            eq(schema.bookings.bookingDate, slotDate),
-            eq(schema.bookings.status, "confirmed"),
-          ),
-        );
-
-      const bookedCount = Number(countResult?.count ?? 0);
+      const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
+      const bookedCount = bookingCountMap.get(`${row.id}-${slotDate}`) ?? 0;
 
       slots.push({
         id: row.id,
@@ -301,6 +344,7 @@ export class SchedulingService {
         maxCapacity,
         isFull: bookedCount >= maxCapacity,
         isHoliday: holidayDates.has(slotDate),
+        unconfirmedAttendance: unconfirmedByDate.get(slotDate) ?? 0,
       });
     }
 
@@ -366,10 +410,88 @@ export class SchedulingService {
       cancelledAt: r.cancelledAt?.toISOString() ?? null,
     }));
 
+    // Query attendance records for this branch + date
+    const attendanceRows = await this.db
+      .select({
+        id: schema.attendance.id,
+        memberId: schema.attendance.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        status: schema.attendance.status,
+      })
+      .from(schema.attendance)
+      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .where(
+        and(
+          eq(schema.attendance.branchId, slot.branchId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
+        ),
+      );
+
+    // Build attendance lookup by memberId
+    const attendanceByMember = new Map<
+      number,
+      { id: number; status: string; memberName: string }
+    >();
+    for (const a of attendanceRows) {
+      attendanceByMember.set(a.memberId, {
+        id: a.id,
+        status: a.status,
+        memberName: [a.memberFirstName, a.memberLastName]
+          .filter(Boolean)
+          .join(" "),
+      });
+    }
+
+    // Build unified members list
+    const members: SlotMemberView[] = [];
+    const seenMemberIds = new Set<number>();
+
+    // Process bookings first (confirmed/waitlist only)
+    for (const b of bookings) {
+      if (b.status === "cancelled") continue;
+      seenMemberIds.add(b.memberId);
+      const att = attendanceByMember.get(b.memberId);
+
+      let memberStatus: SlotMemberStatus = "reservado";
+      let attendanceId: number | null = null;
+
+      if (att) {
+        attendanceId = att.id;
+        memberStatus =
+          att.status === "confirmado" ? "confirmado" : "qr_escaneado";
+      }
+
+      members.push({
+        memberId: b.memberId,
+        memberName: b.memberName,
+        bookingId: b.id,
+        attendanceId,
+        status: memberStatus,
+        bookingStatus: b.status,
+      });
+    }
+
+    // Add walk-in attendance records (not in bookings)
+    for (const a of attendanceRows) {
+      if (seenMemberIds.has(a.memberId)) continue;
+      members.push({
+        memberId: a.memberId,
+        memberName: [a.memberFirstName, a.memberLastName]
+          .filter(Boolean)
+          .join(" "),
+        bookingId: null,
+        attendanceId: a.id,
+        status: a.status === "confirmado" ? "confirmado" : "qr_escaneado",
+        bookingStatus: null,
+      });
+    }
+
     return {
       schedule: slot,
       date,
       bookings,
+      members,
       maxCapacity,
     };
   }
@@ -392,6 +514,39 @@ export class SchedulingService {
     const updated = await this.getScheduleSlot(scheduleId);
     if (!updated) throw new Error("Failed to retrieve updated schedule");
     return updated;
+  }
+
+  /**
+   * Delete a schedule slot. Fails if it has confirmed bookings.
+   */
+  async deleteSchedule(scheduleId: number): Promise<void> {
+    const slot = await this.getScheduleSlot(scheduleId);
+    if (!slot) throw new NotFoundError("Horario no encontrado");
+
+    // Check for active bookings
+    const [result] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.status, "confirmed"),
+        ),
+      );
+    if (Number(result?.count ?? 0) > 0) {
+      throw new BadRequestError(
+        "No se puede eliminar un horario con reservas confirmadas. Desactivalo primero.",
+      );
+    }
+
+    await this.db
+      .delete(schema.bookings)
+      .where(eq(schema.bookings.scheduleId, scheduleId));
+    await this.db
+      .delete(schema.schedules)
+      .where(eq(schema.schedules.id, scheduleId));
+
+    this.log.info({ scheduleId }, "Schedule deleted");
   }
 
   /**
@@ -553,7 +708,7 @@ export class SchedulingService {
     }
 
     // 2. Validate date is within current week (Mon-Sat) and not in the past
-    const { monday, saturday } = this.getWeekRange(new Date());
+    const { monday, saturday } = getWeekRange(new Date());
     if (date < monday || date > saturday) {
       throw new BadRequestError(
         "Solo podes reservar dentro de la semana actual",
@@ -565,7 +720,7 @@ export class SchedulingService {
     }
 
     // 3. Validate date matches schedule's dayOfWeek
-    const dateObj = new Date(date + "T12:00:00"); // Use noon to avoid timezone shifts
+    const dateObj = new Date(date + "T12:00:00Z"); // Noon UTC to avoid timezone shifts
     const dateDay = dateObj.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
     const isoDayOfWeek = dateDay === 0 ? 7 : dateDay; // Convert to ISO (1=Mon, 7=Sun)
     if (isoDayOfWeek !== scheduleRow.dayOfWeek) {
@@ -772,7 +927,7 @@ export class SchedulingService {
     memberId: number,
     weekStartDate: string,
   ): Promise<BookingRecord[]> {
-    const weekEnd = this.addDays(weekStartDate, 5); // Saturday
+    const weekEnd = addDays(weekStartDate, 5); // Saturday
 
     const rows = await this.db
       .select({
@@ -1056,7 +1211,7 @@ export class SchedulingService {
     country: string,
     weekStartDate: string,
   ): Promise<HolidayRecord[]> {
-    const weekEnd = this.addDays(weekStartDate, 5);
+    const weekEnd = addDays(weekStartDate, 5);
 
     const rows = await this.db
       .select({
@@ -1081,24 +1236,6 @@ export class SchedulingService {
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
   /**
-   * Get the Monday-Saturday range for the week containing the given date.
-   */
-  private getWeekRange(date: Date): { monday: string; saturday: string } {
-    const d = new Date(date);
-    const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + diffToMonday);
-    const saturday = new Date(monday);
-    saturday.setDate(monday.getDate() + 5);
-
-    return {
-      monday: monday.toISOString().split("T")[0],
-      saturday: saturday.toISOString().split("T")[0],
-    };
-  }
-
-  /**
    * Check if now is within booking window (up to 5 min before class).
    */
   private isWithinBookingWindow(
@@ -1106,9 +1243,7 @@ export class SchedulingService {
     bookingDate: string,
   ): boolean {
     const now = new Date();
-    const [hours, minutes] = scheduleStartTime.split(":").map(Number);
-    const classTime = new Date(bookingDate + "T00:00:00");
-    classTime.setHours(hours, minutes, 0, 0);
+    const classTime = buildClassDateTime(bookingDate, scheduleStartTime);
     // Allow booking up to 5 minutes before class
     const cutoff = new Date(classTime.getTime() - 5 * 60 * 1000);
     return now <= cutoff;
@@ -1122,9 +1257,7 @@ export class SchedulingService {
     bookingDate: string,
   ): boolean {
     const now = new Date();
-    const [hours, minutes] = scheduleStartTime.split(":").map(Number);
-    const classTime = new Date(bookingDate + "T00:00:00");
-    classTime.setHours(hours, minutes, 0, 0);
+    const classTime = buildClassDateTime(bookingDate, scheduleStartTime);
     // Allow cancellation up to 20 minutes before class
     const cutoff = new Date(classTime.getTime() - 20 * 60 * 1000);
     return now <= cutoff;
@@ -1426,14 +1559,5 @@ export class SchedulingService {
       bookedAt: row.bookedAt.toISOString(),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
     };
-  }
-
-  /**
-   * Add days to an ISO date string and return new ISO date string.
-   */
-  private addDays(dateStr: string, days: number): string {
-    const d = new Date(dateStr + "T12:00:00Z"); // Noon UTC to avoid DST issues
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().split("T")[0];
   }
 }

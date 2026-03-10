@@ -10,6 +10,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, isNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
 import type {
   KpiStats,
   MemberAnalytics,
@@ -959,37 +960,22 @@ export class AnalyticsService {
       return { dateFrom: filters.dateFrom, dateTo: filters.dateTo };
     }
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
-
+    const defaults = resolveMonthRange();
     return {
-      dateFrom: filters.dateFrom ?? `${year}-${month}-01`,
-      dateTo:
-        filters.dateTo ??
-        `${year}-${month}-${String(lastDay).padStart(2, "0")}`,
+      dateFrom: filters.dateFrom ?? defaults.dateFrom,
+      dateTo: filters.dateTo ?? defaults.dateTo,
     };
   }
 
   /**
    * Compute the prior period of equal length for trend comparison.
+   * Delegates to shared date-utils for timezone-safe date arithmetic.
    */
   private computePriorPeriod(
     dateFrom: string,
     dateTo: string,
   ): { priorFrom: string; priorTo: string } {
-    const from = new Date(dateFrom);
-    const to = new Date(dateTo);
-    const durationMs = to.getTime() - from.getTime();
-
-    const priorTo = new Date(from.getTime() - 1); // day before current period
-    const priorFrom = new Date(priorTo.getTime() - durationMs);
-
-    return {
-      priorFrom: priorFrom.toISOString().split("T")[0],
-      priorTo: priorTo.toISOString().split("T")[0],
-    };
+    return computePriorPeriod(dateFrom, dateTo);
   }
 
   /**
