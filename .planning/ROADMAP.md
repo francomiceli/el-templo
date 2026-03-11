@@ -789,6 +789,10 @@ _Phase 44 (App Landing Page) planned: 2026-03-03 — 4 plans, 28 requirements (A
 - [x] **Phase 50: Attendance** - QR check-in, AURA awards, admin fallback, attendance records (completed 2026-03-10)
 - [x] **Phase 51: Scheduling** - Activities, recurring slots, member reservations, capacity enforcement (completed 2026-03-10)
 - [x] **Phase 52: Analytics Dashboard** - Member, attendance, and financial analytics with branch/date filters (completed 2026-03-10)
+- [x] **Phase 53: Codebase Health** - Timezone fixes, N+1 query fix, database indexes, test coverage (completed 2026-03-10)
+- [ ] **Phase 54: Quick Fixes & DRY Utility Extraction** - Bug fixes, dead code removal, shared utilities extraction across all 3 repos
+- [ ] **Phase 55: Pattern Fixes** - Composable instantiation, type safety, convention compliance across admin/app/API
+- [ ] **Phase 56: God Object Decomposition** - Break up god components/services, fix architectural anti-patterns, add test coverage
 
 ## v4.0 Phase Details
 
@@ -970,6 +974,41 @@ Plans:
 - [ ] 53-02-PLAN.md -- N+1 query fix in getWeeklyGrid + missing database indexes
 - [ ] 53-03-PLAN.md -- Test coverage for progression module + scheduling window integration tests
 
+### Phase 54: Quick Fixes & DRY Utility Extraction
+
+**Goal:** Fix critical bugs (Axios boot Capacitor navigation), remove dead code, sanitize blog editor HTML, and extract shared utilities to eliminate DRY violations across all three repos — extractError (13 duplicates), formatDate (17+ duplicates), error classes (4 API modules), untyped catch blocks
+**Requirements**: None (codebase health — no new features)
+**Depends on:** Phase 53
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 54-01-PLAN.md -- API shared error classes + handleServiceError + untyped catch fixes
+- [ ] 54-02-PLAN.md -- Frontend extractError + formatDate DRY extraction (admin + app)
+- [ ] 54-03-PLAN.md -- Axios Capacitor nav fix, blog XSS sanitization, dead test removal
+
+### Phase 55: Pattern Fixes: Composable Instantiation, Type Safety, Convention Compliance
+
+**Goal:** Fix ~38 admin composable re-instantiations inside function bodies (move to setup-level), replace 12 unsafe Axios `as` casts with proper type narrowing in app, fix useWakeLock composable convention violation (onUnmounted inside composable), replace 5 `Record<string, unknown>` with Drizzle typed partials in API, fix loose `ctaType` string type in blog API, fix getMorososCount full-fetch-to-count pattern
+**Requirements**: None (codebase health — no new features)
+**Depends on:** Phase 54
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 55 to break down)
+
+### Phase 56: God Object Decomposition & Architectural Fixes
+
+**Goal:** Break up HorariosPage.vue (1385 LOC, 6 responsibilities) into focused components, break up AnaliticasPage.vue (1260 LOC) into tab components, decompose SchedulingService (1563 LOC) into domain services, fix composable-inside-computed anti-pattern in DayPlayer/JourneySession player pages, introduce service dependency injection in API (replace `new` inside constructors), add meaningful analytics test coverage (retention rate, financial assertions)
+**Requirements**: None (codebase health — no new features)
+**Depends on:** Phase 55
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 56 to break down)
+
 ---
 
 ### v4.0 Progress
@@ -987,5 +1026,9 @@ Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 
 | 50. Attendance                   | 3/3            | Complete | 2026-03-10 |
 | 51. Scheduling                   | 3/3            | Complete | 2026-03-10 |
 | 52. Analytics Dashboard          | 2/2            | Complete | 2026-03-10 |
+| 53. Codebase Health              | 3/3            | Complete | 2026-03-10 |
+| 54. Quick Fixes & DRY Extraction | 0/3            | Planned  |            |
+| 55. Pattern Fixes                | 0/0            | Planned  |            |
+| 56. God Object Decomposition     | 0/0            | Planned  |            |
 
 _v4.0 phases added: 2026-03-08 — 8 phases (45-52), 32 requirements mapped_
