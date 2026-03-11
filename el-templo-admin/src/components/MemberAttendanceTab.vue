@@ -78,6 +78,7 @@ import {
 } from 'src/types/attendance';
 
 const log = createLogger('MemberAttendanceTab');
+const attendanceApi = useAttendanceApi();
 
 // =========================================================================
 // Props
@@ -152,7 +153,6 @@ function formatDate(dateStr: string): string {
 async function loadAttendance() {
   loading.value = true;
   try {
-    const attendanceApi = useAttendanceApi();
     const result = await attendanceApi.getMemberAttendance(
       props.userId,
       tablePagination.value.page,

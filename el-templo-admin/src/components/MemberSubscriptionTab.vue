@@ -212,6 +212,7 @@ import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
+const subsApi = useSubscriptionsApi();
 
 // =========================================================================
 // Props & Emits
@@ -292,7 +293,6 @@ function priceTypeBadgeColor(priceType: PriceType): string {
 async function loadSubscription() {
   loadingSubscription.value = true;
   try {
-    const subsApi = useSubscriptionsApi();
     subscription.value = await subsApi.getMemberSubscription(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -306,7 +306,6 @@ async function loadSubscription() {
 async function loadHistory() {
   loadingHistory.value = true;
   try {
-    const subsApi = useSubscriptionsApi();
     history.value = await subsApi.getMemberSubscriptionHistory(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -334,7 +333,6 @@ function confirmPause() {
   }).onOk(async () => {
     actionLoading.value = true;
     try {
-      const subsApi = useSubscriptionsApi();
       subscription.value = await subsApi.pauseSubscription(props.userId);
       $q.notify({ type: 'positive', message: 'Suscripcion pausada' });
       emit('subscription-changed');
@@ -358,7 +356,6 @@ function confirmResume() {
   }).onOk(async () => {
     actionLoading.value = true;
     try {
-      const subsApi = useSubscriptionsApi();
       subscription.value = await subsApi.resumeSubscription(props.userId);
       $q.notify({ type: 'positive', message: 'Suscripcion reanudada' });
       emit('subscription-changed');
@@ -387,7 +384,6 @@ function confirmCancel() {
   }).onOk(async (notes: string) => {
     actionLoading.value = true;
     try {
-      const subsApi = useSubscriptionsApi();
       subscription.value = await subsApi.cancelSubscription(
         props.userId,
         notes.trim() || undefined

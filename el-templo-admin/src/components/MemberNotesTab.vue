@@ -107,6 +107,7 @@ import type { MemberNote } from 'src/types/member';
 
 const log = createLogger('MemberNotesTab');
 const $q = useQuasar();
+const membersApi = useMembersApi();
 
 // =========================================================================
 // Props
@@ -137,7 +138,6 @@ const savingNote = ref(false);
 async function loadNotes() {
   loadingNotes.value = true;
   try {
-    const membersApi = useMembersApi();
     notes.value = await membersApi.getNotes(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -158,7 +158,6 @@ async function onAddNote() {
 
   addingNote.value = true;
   try {
-    const membersApi = useMembersApi();
     const note = await membersApi.createNote(props.userId, { content });
     notes.value.unshift(note);
     newNoteContent.value = '';
@@ -192,7 +191,6 @@ async function onSaveEdit(note: MemberNote) {
 
   savingNote.value = true;
   try {
-    const membersApi = useMembersApi();
     const updated = await membersApi.updateNote(props.userId, note.id, { content });
     const idx = notes.value.findIndex((n) => n.id === note.id);
     if (idx !== -1) {
@@ -222,7 +220,6 @@ function onDeleteNote(note: MemberNote) {
     ok: { color: 'negative', label: 'Eliminar' },
   }).onOk(async () => {
     try {
-      const membersApi = useMembersApi();
       await membersApi.deleteNote(props.userId, note.id);
       notes.value = notes.value.filter((n) => n.id !== note.id);
       $q.notify({ type: 'positive', message: 'Nota eliminada' });

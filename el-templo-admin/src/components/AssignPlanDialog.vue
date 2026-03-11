@@ -297,6 +297,7 @@ import {
 
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
+const subsApi = useSubscriptionsApi();
 
 // =========================================================================
 // Props & Emits
@@ -450,7 +451,6 @@ function getBasePrice(): number {
 async function loadPlans() {
   loadingPlans.value = true;
   try {
-    const subsApi = useSubscriptionsApi();
     plans.value = await subsApi.getPlans(true);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -464,7 +464,6 @@ async function loadPlans() {
 async function loadPricingPreview() {
   if (!selectedPlan.value) return;
   try {
-    const subsApi = useSubscriptionsApi();
     pricingPreview.value = await subsApi.getPricingPreview(
       props.userId,
       selectedPlan.value.id,
@@ -515,7 +514,6 @@ async function onConfirm() {
 
   assigning.value = true;
   try {
-    const subsApi = useSubscriptionsApi();
     await subsApi.assignPlan(props.userId, {
       planId: selectedPlan.value.id,
       branchId: props.memberBranchId,

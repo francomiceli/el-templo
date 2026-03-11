@@ -217,6 +217,7 @@ import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
 
 const log = createLogger('MemberPaymentTab');
 const $q = useQuasar();
+const paymentsApi = usePaymentsApi();
 
 // =========================================================================
 // Props & Emits
@@ -297,7 +298,6 @@ function methodColor(method: PaymentMethod): string {
 async function loadBalance() {
   loadingBalance.value = true;
   try {
-    const paymentsApi = usePaymentsApi();
     balance.value = await paymentsApi.getMemberBalance(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -310,7 +310,6 @@ async function loadBalance() {
 async function loadPayments() {
   loadingPayments.value = true;
   try {
-    const paymentsApi = usePaymentsApi();
     payments.value = await paymentsApi.getMemberPayments(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -364,7 +363,6 @@ function confirmVoid(payment: PaymentListItem) {
     ok: { color: 'negative', label: 'Anular' },
   }).onOk(async (reason: string) => {
     try {
-      const paymentsApi = usePaymentsApi();
       await paymentsApi.voidPayment(payment.id, reason.trim());
       $q.notify({ type: 'positive', message: 'Pago anulado' });
       refreshAll();

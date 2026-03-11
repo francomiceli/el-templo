@@ -107,6 +107,8 @@ import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 
 const log = createLogger('RegisterPaymentDialog');
 const $q = useQuasar();
+const membersApi = useMembersApi();
+const paymentsApi = usePaymentsApi();
 
 // =========================================================================
 // Props & Emits
@@ -189,7 +191,6 @@ async function onMemberSearch(val: string, update: (fn: () => void) => void, abo
 
   searchingMembers.value = true;
   try {
-    const membersApi = useMembersApi();
     const result = await membersApi.getMembers({ search: val, isActive: true, page: 1, limit: 20 });
     update(() => {
       memberOptions.value = result.members.map((m) => {
@@ -219,7 +220,6 @@ async function onSave() {
   saveError.value = null;
 
   try {
-    const paymentsApi = usePaymentsApi();
     await paymentsApi.recordPayment(memberId, {
       amount: form.amount,
       paymentMethod: form.paymentMethod,
