@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 56-04-PLAN.md
-last_updated: "2026-03-11T22:54:00.000Z"
-last_activity: "2026-03-11 — Completed 56-04: Composable Instantiation Fix + Service Constructor DI"
+stopped_at: Completed 56-05-PLAN.md
+last_updated: "2026-03-11T23:22:00.000Z"
+last_activity: "2026-03-11 — Completed 56-05: Analytics Test Coverage + Correlated Subquery Fix"
 progress:
   total_phases: 43
   completed_phases: 34
   total_plans: 158
-  completed_plans: 155
-  percent: 98
+  completed_plans: 156
+  percent: 99
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 56 (God Object Decomposition / Architectural Fixes)
-Plan: 4 of 5 in current phase
-Status: Plan 56-04 complete — Composable Instantiation Fix + Service Constructor DI
-Last activity: 2026-03-11 — Completed 56-04: Composable Instantiation Fix + Service Constructor DI
+Plan: 5 of 5 in current phase (PHASE COMPLETE)
+Status: Plan 56-05 complete — Analytics Test Coverage + Correlated Subquery Fix
+Last activity: 2026-03-11 — Completed 56-05: Analytics Test Coverage + Correlated Subquery Fix
 
-Progress: [██████████] 98%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -80,6 +80,7 @@ _Updated after each plan completion_
 | Phase 56 P01 | 4min | 1 tasks | 4 files |
 | Phase 56 P02 | 4min | 1 tasks | 5 files |
 | Phase 56 P04 | 6min | 2 tasks | 8 files |
+| Phase 56 P05 | 26min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -179,6 +180,7 @@ Recent decisions affecting current work:
 - [Phase 56]: shallowRef + watch replaces computed for composable instantiation -- prevents reactive instance leaks
 - [Phase 56]: Constructor DI for AttendanceService/SubscriptionService -- dependencies injected via constructor, instantiated in route plugins
 - [Phase 56]: AuraService instantiated without log param to avoid FastifyBaseLogger vs pino.Logger type mismatch (log is optional)
+- [Phase 56]: Drizzle correlated subquery bug: ${schema.table.column} inside sql`` subqueries generates parameter placeholders instead of column refs -- use raw SQL column names
 
 ### v2.0 Deferrals
 
@@ -205,6 +207,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T22:54:00.000Z
-Stopped at: Completed 56-04-PLAN.md
+Last session: 2026-03-11T23:22:00.000Z
+Stopped at: Completed 56-05-PLAN.md (Phase 56 complete)
 Resume file: None
