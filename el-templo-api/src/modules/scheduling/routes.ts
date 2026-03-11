@@ -6,6 +6,12 @@
  *   bookings, and holiday management.
  * - schedulingMemberRoutes: Member-facing endpoints for viewing slots,
  *   reserving, cancelling, and viewing own bookings.
+ *
+ * Each domain is served by a focused service:
+ * - ActivityService: activity CRUD
+ * - SchedulingService: schedule CRUD + weekly grid
+ * - BookingService: reserve, cancel, waitlist, admin add/remove
+ * - HolidayService: holiday CRUD + date queries
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -13,7 +19,11 @@ import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
 import { ActivityService } from "./activity-service";
+import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
+import { PaymentService } from "../payments/service";
+import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createActivitySchema,
@@ -43,12 +53,27 @@ const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 // =============================================================================
 
 export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
+  // Service instantiation with dependency injection
   const activityService = new ActivityService(fastify.db, fastify.log);
   const holidayService = new HolidayService(fastify.db, fastify.log);
   const schedulingService = new SchedulingService(
     fastify.db,
     fastify.log,
     holidayService,
+  );
+
+  const paymentService = new PaymentService(fastify.db, fastify.log);
+  const auraService = new AuraService(fastify.db);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+  );
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    paymentService,
+    subscriptionService,
   );
 
   /**
@@ -217,7 +242,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; memberId: number; date: string };
   }>("/bookings", { schema: adminAddBookingSchema }, async (request, reply) => {
     try {
-      const booking = await schedulingService.adminAddBooking(
+      const booking = await bookingService.adminAddBooking(
         request.body.scheduleId,
         request.body.memberId,
         request.body.date,
@@ -234,7 +259,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: adminRemoveBookingSchema },
     async (request, reply) => {
       try {
-        await schedulingService.adminRemoveBooking(request.params.bookingId);
+        await bookingService.adminRemoveBooking(request.params.bookingId);
         return { cancelled: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "admin remove booking");
@@ -291,11 +316,26 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 // =============================================================================
 
 export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
+  // Service instantiation with dependency injection
   const holidayService = new HolidayService(fastify.db, fastify.log);
   const schedulingService = new SchedulingService(
     fastify.db,
     fastify.log,
     holidayService,
+  );
+
+  const paymentService = new PaymentService(fastify.db, fastify.log);
+  const auraService = new AuraService(fastify.db);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+  );
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    paymentService,
+    subscriptionService,
   );
 
   /**
@@ -333,12 +373,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         request.query.weekStart,
       );
 
-      const myBookings = await schedulingService.getMyBookings(
+      const myBookings = await bookingService.getMyBookings(
         request.user.userId,
         request.query.weekStart,
       );
 
-      const myAttendance = await schedulingService.getMyWeeklyAttendance(
+      const myAttendance = await bookingService.getMyWeeklyAttendance(
         request.user.userId,
         request.query.weekStart,
       );
@@ -359,7 +399,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; date: string };
   }>("/reserve", { schema: reserveSchema }, async (request, reply) => {
     try {
-      const booking = await schedulingService.reserve(
+      const booking = await bookingService.reserve(
         request.user.userId,
         request.body.scheduleId,
         request.body.date,
@@ -376,7 +416,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: cancelBookingSchema },
     async (request, reply) => {
       try {
-        const booking = await schedulingService.cancel(
+        const booking = await bookingService.cancel(
           request.user.userId,
           request.params.bookingId,
         );
@@ -391,7 +431,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { weekStart: string };
   }>("/my-bookings", { schema: myBookingsSchema }, async (request) => {
-    const bookings = await schedulingService.getMyBookings(
+    const bookings = await bookingService.getMyBookings(
       request.user.userId,
       request.query.weekStart,
     );
