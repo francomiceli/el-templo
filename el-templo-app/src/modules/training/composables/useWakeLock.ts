@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import { createLogger } from 'src/utils/logger'
 
@@ -32,7 +32,10 @@ export function useWakeLock() {
   let KeepAwakeModule: { keepAwake(): Promise<void>; allowSleep(): Promise<void> } | null = null
 
   /**
-   * Initialize wake lock support detection and load native module if needed
+   * Initialize wake lock support detection, load native module if needed,
+   * and register visibility change listener for auto-reacquire.
+   *
+   * Must be called by the consumer in onMounted.
    */
   async function initialize(): Promise<void> {
     if (Capacitor.isNativePlatform()) {
@@ -50,6 +53,8 @@ export function useWakeLock() {
       // Web platform - check for Screen Wake Lock API
       isSupported.value = 'wakeLock' in navigator
     }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
   }
 
   /**
@@ -85,7 +90,9 @@ export function useWakeLock() {
       }
     } catch (err) {
       // Wake lock request can fail (e.g., low battery, permission denied)
-      log.warn('Failed to acquire wake lock', { error: err instanceof Error ? err.message : String(err) })
+      log.warn('Failed to acquire wake lock', {
+        error: err instanceof Error ? err.message : String(err),
+      })
       isActive.value = false
     }
 
@@ -100,14 +107,18 @@ export function useWakeLock() {
       try {
         await KeepAwakeModule.allowSleep()
       } catch (err) {
-        log.warn('Failed to release native wake lock', { error: err instanceof Error ? err.message : String(err) })
+        log.warn('Failed to release native wake lock', {
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     } else if (wakeLockSentinel) {
       try {
         await wakeLockSentinel.release()
         wakeLockSentinel = null
       } catch (err) {
-        log.warn('Failed to release web wake lock', { error: err instanceof Error ? err.message : String(err) })
+        log.warn('Failed to release web wake lock', {
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
 
@@ -127,16 +138,16 @@ export function useWakeLock() {
     }
   }
 
-  // Lifecycle hooks
-  onMounted(async () => {
-    await initialize()
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-  })
-
-  onUnmounted(() => {
+  /**
+   * Clean up wake lock resources.
+   * Removes visibility change listener and releases any active wake lock.
+   *
+   * Must be called by the consumer in onUnmounted.
+   */
+  function cleanup(): void {
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     void releaseWakeLock()
-  })
+  }
 
   return {
     /** Whether wake lock is currently active */
@@ -147,5 +158,9 @@ export function useWakeLock() {
     requestWakeLock,
     /** Release wake lock to allow screen to sleep */
     releaseWakeLock,
+    /** Initialize wake lock (call in onMounted) */
+    initialize,
+    /** Clean up wake lock (call in onUnmounted) */
+    cleanup,
   }
 }

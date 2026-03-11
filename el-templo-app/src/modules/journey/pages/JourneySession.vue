@@ -496,6 +496,7 @@ watch(
 
 onMounted(() => {
   void loadSession()
+  wakeLock.initialize()
 
   // Ensure metadata is loaded for journey name display
   if (journeyStore.journeyMetadata.length === 0) {
@@ -505,6 +506,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (player.value) player.value.cleanup()
+  wakeLock.cleanup()
 })
 </script>
 

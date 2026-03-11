@@ -458,9 +458,13 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => loadWeekDataIfEmpty())
+onMounted(() => {
+  loadWeekDataIfEmpty()
+  wakeLock.initialize()
+})
 onUnmounted(() => {
   if (player.value) player.value.cleanup()
+  wakeLock.cleanup()
 })
 </script>
 
