@@ -87,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
@@ -163,11 +163,21 @@ const todaySpanishDay = computed(() => {
   return SPANISH_DAYS[new Date().getDay()] ?? 'lunes'
 })
 
-// Player composable (created once session is loaded)
-const player = computed(() => {
-  if (!session.value || !selectedDuration.value) return null
-  return useJourneySession(session.value, selectedDuration.value)
-})
+// Player composable (created when session/duration change, via shallowRef + watch
+// to avoid the composable-inside-computed anti-pattern which leaks reactive instances)
+const player = shallowRef<ReturnType<typeof useJourneySession> | null>(null)
+
+watch(
+  [() => session.value, () => selectedDuration.value] as const,
+  ([newSession, newDuration]) => {
+    if (newSession && newDuration) {
+      player.value = useJourneySession(newSession, newDuration)
+    } else {
+      player.value = null
+    }
+  },
+  { immediate: true },
+)
 
 // Day offset for quote variety across days
 const dayOffset = computed(() => new Date().getDay())

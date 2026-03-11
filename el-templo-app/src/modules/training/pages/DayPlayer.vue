@@ -77,7 +77,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
@@ -142,11 +142,21 @@ const showCelebration = ref(false)
 const showSummary = ref(false)
 const sessionStartedAt = ref<string | null>(null)
 
-// Session player composable (created when session is available)
-const player = computed(() => {
-  if (!session.value) return null
-  return useSessionPlayer(session.value)
-})
+// Session player composable (created when session changes, via shallowRef + watch
+// to avoid the composable-inside-computed anti-pattern which leaks reactive instances)
+const player = shallowRef<ReturnType<typeof useSessionPlayer> | null>(null)
+
+watch(
+  session,
+  (newSession) => {
+    if (newSession) {
+      player.value = useSessionPlayer(newSession)
+    } else {
+      player.value = null
+    }
+  },
+  { immediate: true },
+)
 
 // User level for splash screen
 const userLevel = computed(() => {
