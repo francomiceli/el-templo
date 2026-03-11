@@ -5,13 +5,15 @@ import * as schema from "../../db/schema";
 import { blogPosts } from "../../db/schema/blog-posts";
 import { blogTags, blogPostTags } from "../../db/schema/blog-tags";
 
+export type CtaType = "trial" | "franchise" | "app";
+
 interface PostData {
   title: string;
   slug?: string;
   excerpt: string;
   coverImage?: string | null;
   body: string;
-  ctaType?: string;
+  ctaType?: CtaType;
 }
 
 interface PostUpdateData {
@@ -21,7 +23,7 @@ interface PostUpdateData {
   coverImage?: string | null;
   body?: string;
   status?: string;
-  ctaType?: string;
+  ctaType?: CtaType;
 }
 
 interface TagData {

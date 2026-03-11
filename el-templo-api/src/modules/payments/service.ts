@@ -527,11 +527,28 @@ export class PaymentService {
   }
 
   /**
-   * Count of overdue members.
+   * Count of overdue members. Uses COUNT query instead of fetching all data.
    */
   async getMorososCount(branchId?: number): Promise<number> {
-    const members = await this.getOverdueMembers(branchId);
-    return members.length;
+    const conditions: ReturnType<typeof eq>[] = [
+      sql`${schema.subscriptions.endDate} < CURDATE()`,
+      sql`COALESCE((
+        SELECT SUM(p2.amount) FROM payments p2
+        WHERE p2.subscription_id = ${schema.subscriptions.id}
+        AND p2.voided_at IS NULL
+      ), 0) < ${schema.subscriptions.pricePaid}`,
+    ];
+
+    if (branchId !== undefined) {
+      conditions.push(eq(schema.subscriptions.branchId, branchId));
+    }
+
+    const [result] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.subscriptions)
+      .where(and(...conditions));
+
+    return Number(result?.count ?? 0);
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────

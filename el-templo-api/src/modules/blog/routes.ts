@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
-import { BlogService } from "./service";
+import { BlogService, type CtaType } from "./service";
 import { BlogImageService } from "./image-service";
 
 interface PostBody {
@@ -8,7 +8,7 @@ interface PostBody {
   excerpt: string;
   coverImage?: string | null;
   body: string;
-  ctaType?: string;
+  ctaType?: CtaType;
 }
 
 interface PostUpdateBody {
@@ -18,7 +18,7 @@ interface PostUpdateBody {
   coverImage?: string | null;
   body?: string;
   status?: string;
-  ctaType?: string;
+  ctaType?: CtaType;
 }
 
 interface PostIdParams {

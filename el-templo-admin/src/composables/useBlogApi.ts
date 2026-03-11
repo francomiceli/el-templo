@@ -41,7 +41,7 @@ export interface CreateBlogPostData {
   body?: string;
   coverImage?: string;
   slug?: string;
-  ctaType?: string;
+  ctaType?: 'trial' | 'franchise' | 'app';
 }
 
 export type UpdateBlogPostData = Partial<CreateBlogPostData> & {
