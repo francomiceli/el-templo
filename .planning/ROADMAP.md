@@ -406,7 +406,7 @@ Plans:
 
 1. All CSS custom properties from the canonical token registry are defined in :root and used consistently (no hardcoded colors, no pure black/white anywhere)
 2. Montserrat, Cormorant Garamond, and Geologica load correctly at specified weights across all pages
-3. The site renders correctly at desktop (1200px+), tablet (768-1199px), and mobile (<768px) breakpoints
+3. The site renders correctly at desktop (1200px+), tablet (757-1199px), and mobile (<768px) breakpoints
 4. A fixed nav bar stays visible on scroll with working section links, smooth scroll to anchors, and a functional mobile hamburger menu
 5. The footer displays navigation columns, contact info, social links, legal links, and a pre-footer CTA zone on every page
 6. Placeholder/skeleton components render gracefully where real images/videos are pending
@@ -941,6 +941,17 @@ Plans:
 - [ ] 51-02-PLAN.md — Admin Scheduling UI: HorariosPage weekly grid, slot detail, activity management, holiday management, sidebar integration
 - [ ] 51-03-PLAN.md — Member App Reservas: ReservasPage weekly calendar, booking flow, cancel, upcoming reservations, 4th bottom tab
 
+### Phase 57: Registration types and member creation flow fixes
+
+**Goal:** Fix inconsistent registration and member creation flows. App self-registration only for Online + Park members (other branches created by coaches via admin). Admin "Crear Alumno" needs plan-first flow (plan select drives conditional branch based on multiBranch). Add DNI collection at app registration to fix search-by-DNI. AlumnosPage filter by plan instead of sucursal. Reconcile both creation paths for consistent required data.
+**Requirements**: None (codebase health — no new features)
+**Depends on:** Phase 56
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 57 to break down)
+
 ---
 
 ### Phase 52: Analytics Dashboard
@@ -1008,27 +1019,3 @@ Plans:
 Plans:
 
 - [ ] TBD (run /gsd:plan-phase 56 to break down)
-
----
-
-### v4.0 Progress
-
-**Execution Order:**
-Phase 45 (Architecture) -> Phase 46 (Content) -> Phase 47 (Members) -> Phase 48 (Subscriptions) -> Phase 49 (Payments) -> Phase 50 (Attendance) -> Phase 51 (Scheduling) -> Phase 52 (Analytics)
-
-| Phase                            | Plans Complete | Status   | Completed  |
-| -------------------------------- | -------------- | -------- | ---------- |
-| 45. Architecture Foundation      | 3/3            | Complete | 2026-03-08 |
-| 46. Lifestyle Content Extraction | 2/2            | Complete | 2026-03-09 |
-| 47. Members Management           | 3/3            | Complete | 2026-03-09 |
-| 48. Subscriptions                | 2/2            | Complete | 2026-03-09 |
-| 49. Payments                     | 2/2            | Complete | 2026-03-09 |
-| 50. Attendance                   | 3/3            | Complete | 2026-03-10 |
-| 51. Scheduling                   | 3/3            | Complete | 2026-03-10 |
-| 52. Analytics Dashboard          | 2/2            | Complete | 2026-03-10 |
-| 53. Codebase Health              | 3/3            | Complete | 2026-03-10 |
-| 54. Quick Fixes & DRY Extraction | 3/3            | Complete | 2026-03-11 |
-| 55. Pattern Fixes                | 0/0            | Planned  |            |
-| 56. God Object Decomposition     | 0/0            | Planned  |            |
-
-_v4.0 phases added: 2026-03-08 — 8 phases (45-52), 32 requirements mapped_
