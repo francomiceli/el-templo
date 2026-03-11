@@ -1,21 +1,12 @@
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractError } from 'src/utils/extract-error';
 import type {
   JourneyType,
   JourneyGenerateResult,
   MemberJourneyInfo,
   MemberJourneyDetail,
 } from 'src/types/journey';
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 export function useJourneyAdminApi() {
   const loading = ref(false);

@@ -1,8 +1,8 @@
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError } from 'src/utils/extract-error';
 
 const log = createLogger('useGladiusApi');
 
@@ -29,15 +29,6 @@ export interface CreateGladiusProductData {
 export type UpdateGladiusProductData = Partial<CreateGladiusProductData> & {
   status?: 'published' | 'unpublished';
 };
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 export function useGladiusApi() {
   const loading = ref(false);

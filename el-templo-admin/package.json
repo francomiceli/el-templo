@@ -21,6 +21,7 @@
     "@sentry/vue": "^10.38.0",
     "axios": "^1.13.5",
     "chart.js": "^4.5.1",
+    "dompurify": "^3.3.3",
     "marked": "^17.0.3",
     "pdfmake": "^0.2.15",
     "pinia": "^3.0.4",

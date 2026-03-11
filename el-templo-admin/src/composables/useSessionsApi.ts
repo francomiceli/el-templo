@@ -1,21 +1,12 @@
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractError } from 'src/utils/extract-error';
 import type {
   SessionFilter,
   SessionsResponse,
   SessionDetail,
   PoolBlocksResponse,
 } from 'src/types/session';
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 export function useSessionsApi() {
   const loading = ref(false);

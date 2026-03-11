@@ -7,6 +7,7 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractError } from 'src/utils/extract-error';
 import type {
   PaymentListItem,
   RecordPaymentInput,
@@ -14,15 +15,6 @@ import type {
   PaymentListParams,
   FinancialSummary,
 } from 'src/types/payment';
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error ?? err.response?.data?.message;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 export function usePaymentsApi() {
   const loading = ref(false);

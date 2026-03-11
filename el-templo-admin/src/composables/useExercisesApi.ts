@@ -1,20 +1,11 @@
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { extractError } from 'src/utils/extract-error';
 import type { Exercise, ExerciseListResponse, ExerciseFilters } from 'src/types/exercise';
 
 const log = createLogger('useExercisesApi');
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 /** Cached full exercise list for bulk matching (shared across composable instances) */
 let allExercisesCache: Exercise[] | null = null;

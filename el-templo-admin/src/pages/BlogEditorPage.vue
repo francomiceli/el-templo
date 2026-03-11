@@ -203,6 +203,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Notify, useQuasar } from 'quasar';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { useBlogApi } from 'src/composables/useBlogApi';
 import { useBlogImageUpload } from 'src/composables/useBlogImageUpload';
 import { createLogger } from 'src/utils/logger';
@@ -260,7 +261,7 @@ const postId = computed(() => {
 
 const renderedPreview = computed(() => {
   if (!form.body) return '<p class="text-grey-6">Sin contenido para previsualizar</p>';
-  return marked(form.body) as string;
+  return DOMPurify.sanitize(marked(form.body) as string);
 });
 
 // =========================================================================

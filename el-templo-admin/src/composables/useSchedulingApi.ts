@@ -4,8 +4,8 @@
  */
 
 import { ref } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractError } from 'src/utils/extract-error';
 import type {
   ActivityRecord,
   WeeklySlotView,
@@ -14,15 +14,6 @@ import type {
   HolidayRecord,
   ScheduleSlot,
 } from 'src/types/scheduling';
-
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error ?? err.response?.data?.message;
-    if (typeof message === 'string') return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
 
 export function useSchedulingApi() {
   const loading = ref(false);

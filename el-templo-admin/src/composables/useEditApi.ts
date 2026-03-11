@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
-import axios from 'axios';
 import { api } from 'src/boot/axios';
+import { extractError } from 'src/utils/extract-error';
 import type {
   ExercisePoolResponse,
   CompatibleFormatsResponse,
@@ -13,15 +13,6 @@ export function useEditApi() {
   const activeRequests = ref(0);
   const loading = computed(() => activeRequests.value > 0);
   const error = ref<string | null>(null);
-
-  function extractError(err: unknown, fallback: string): string {
-    if (axios.isAxiosError(err)) {
-      const message = err.response?.data?.error;
-      if (typeof message === 'string') return message;
-    }
-    if (err instanceof Error) return err.message;
-    return fallback;
-  }
 
   async function apiCall<T>(
     fn: () => Promise<T>,
