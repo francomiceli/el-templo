@@ -129,6 +129,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
+import { extractError } from 'src/utils/extract-error'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -181,10 +182,9 @@ async function onSubmit() {
     })
     router.push('/')
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { error?: string } } }
     $q.notify({
       type: 'negative',
-      message: axiosError?.response?.data?.error || 'Error al crear cuenta',
+      message: extractError(err, 'Error al crear cuenta'),
     })
   } finally {
     loading.value = false

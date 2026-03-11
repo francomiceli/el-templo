@@ -63,6 +63,7 @@ import { useRouter } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useAttendanceApi } from 'src/composables/useAttendanceApi'
 import { createLogger } from 'src/utils/logger'
+import { extractError } from 'src/utils/extract-error'
 
 type PageState = 'scanning' | 'permission-denied' | 'success' | 'error' | 'loading'
 
@@ -128,8 +129,7 @@ async function onScanSuccess(decodedText: string) {
     state.value = 'success'
     log.info('Check-in successful', { branchName: record.branchName })
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { error?: string } } }
-    errorMessage.value = axiosError.response?.data?.error || 'Error al registrar asistencia'
+    errorMessage.value = extractError(err, 'Error al registrar asistencia')
     state.value = 'error'
     log.warn('Check-in failed', { error: errorMessage.value })
   }

@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { api } from 'boot/axios'
 import { useTokenStorage } from 'src/composables/useTokenStorage'
 import { useUserStore } from './useUserStore'
+import { extractError } from 'src/utils/extract-error'
 
 export interface AuthUser {
   id: number
@@ -52,8 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
       const userStore = useUserStore()
       userStore.setProfile(userData)
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } }
-      error.value = axiosError.response?.data?.error || 'Error de inicio de sesion'
+      error.value = extractError(err, 'Error de inicio de sesion')
       throw err
     } finally {
       loading.value = false
@@ -85,8 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
       const userStore = useUserStore()
       userStore.setProfile(userData)
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } }
-      error.value = axiosError.response?.data?.error || 'Error de registro'
+      error.value = extractError(err, 'Error de registro')
       throw err
     } finally {
       loading.value = false

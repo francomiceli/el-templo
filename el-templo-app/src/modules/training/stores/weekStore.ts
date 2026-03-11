@@ -1,9 +1,10 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { createLogger } from 'src/utils/logger';
-import type { WeekDay, Session } from '../types/session';
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+import { createLogger } from 'src/utils/logger'
+import { extractError } from 'src/utils/extract-error'
+import type { WeekDay, Session } from '../types/session'
 
-const log = createLogger('WeekStore');
+const log = createLogger('WeekStore')
 
 /**
  * Pinia store for Weekly View state management
@@ -14,16 +15,16 @@ const log = createLogger('WeekStore');
 export const useWeekStore = defineStore('week', () => {
   // State
   /** Array of 7 days representing the current week (Monday-Sunday) */
-  const weekDays = ref<WeekDay[]>([]);
+  const weekDays = ref<WeekDay[]>([])
 
   /** Currently selected/centered date in YYYY-MM-DD format */
-  const selectedDate = ref<string | null>(null);
+  const selectedDate = ref<string | null>(null)
 
   /** Loading state for async operations */
-  const loading = ref(false);
+  const loading = ref(false)
 
   /** Last error message from operations */
-  const error = ref<string | null>(null);
+  const error = ref<string | null>(null)
 
   // Getters
   /**
@@ -31,9 +32,9 @@ export const useWeekStore = defineStore('week', () => {
    * Returns undefined if no date is selected
    */
   const selectedDay = computed(() => {
-    if (!selectedDate.value) return undefined;
-    return weekDays.value.find(day => day.date === selectedDate.value);
-  });
+    if (!selectedDate.value) return undefined
+    return weekDays.value.find((day) => day.date === selectedDate.value)
+  })
 
   /**
    * Find the index of today in the weekDays array
@@ -41,20 +42,20 @@ export const useWeekStore = defineStore('week', () => {
    */
   const todayIndex = computed(() => {
     // Use local timezone to match week date generation
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const today = `${year}-${month}-${day}`;
-    return weekDays.value.findIndex(d => d.date === today);
-  });
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const today = `${year}-${month}-${day}`
+    return weekDays.value.findIndex((d) => d.date === today)
+  })
 
   /**
    * Check if any day in the current week has been marked as completed
    */
   const hasCompletedDays = computed(() => {
-    return weekDays.value.some(day => day.state === 'completed');
-  });
+    return weekDays.value.some((day) => day.state === 'completed')
+  })
 
   // Actions
   /**
@@ -66,20 +67,19 @@ export const useWeekStore = defineStore('week', () => {
    * @param dates - Array of date strings in YYYY-MM-DD format
    */
   async function fetchWeekSessions(_dates: string[]) {
-    loading.value = true;
-    error.value = null;
+    loading.value = true
+    error.value = null
 
     try {
       // This is a placeholder - actual API calls are handled by composables
       // The composable will call this store's methods to update state
       // For now, this prepares the weekDays structure
-      log.warn('fetchWeekSessions called - implement API integration in composable');
+      log.warn('fetchWeekSessions called - implement API integration in composable')
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      error.value = axiosError.response?.data?.error || 'Error fetching sessions';
-      throw err;
+      error.value = extractError(err, 'Error cargando sesiones')
+      throw err
     } finally {
-      loading.value = false;
+      loading.value = false
     }
   }
 
@@ -89,7 +89,7 @@ export const useWeekStore = defineStore('week', () => {
    * @param date - Date string in YYYY-MM-DD format
    */
   function selectDate(date: string) {
-    selectedDate.value = date;
+    selectedDate.value = date
   }
 
   /**
@@ -100,9 +100,9 @@ export const useWeekStore = defineStore('week', () => {
    * @param date - Date string in YYYY-MM-DD format
    */
   function markDayCompleted(date: string) {
-    const dayIndex = weekDays.value.findIndex(day => day.date === date);
+    const dayIndex = weekDays.value.findIndex((day) => day.date === date)
     if (dayIndex !== -1) {
-      weekDays.value[dayIndex].state = 'completed';
+      weekDays.value[dayIndex].state = 'completed'
     }
   }
 
@@ -114,7 +114,7 @@ export const useWeekStore = defineStore('week', () => {
    * @param days - Array of WeekDay objects
    */
   function setWeekDays(days: WeekDay[]) {
-    weekDays.value = days;
+    weekDays.value = days
   }
 
   /**
@@ -124,9 +124,9 @@ export const useWeekStore = defineStore('week', () => {
    * @param session - Session data from API
    */
   function setDaySession(date: string, session: Session) {
-    const dayIndex = weekDays.value.findIndex(day => day.date === date);
+    const dayIndex = weekDays.value.findIndex((day) => day.date === date)
     if (dayIndex !== -1) {
-      weekDays.value[dayIndex].session = session;
+      weekDays.value[dayIndex].session = session
     }
   }
 
@@ -134,10 +134,10 @@ export const useWeekStore = defineStore('week', () => {
    * Reset all state to initial values
    */
   function reset() {
-    weekDays.value = [];
-    selectedDate.value = null;
-    loading.value = false;
-    error.value = null;
+    weekDays.value = []
+    selectedDate.value = null
+    loading.value = false
+    error.value = null
   }
 
   return {
@@ -157,5 +157,5 @@ export const useWeekStore = defineStore('week', () => {
     setWeekDays,
     setDaySession,
     reset,
-  };
-});
+  }
+})

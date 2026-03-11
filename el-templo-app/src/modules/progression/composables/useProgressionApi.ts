@@ -1,8 +1,9 @@
-import { ref } from 'vue';
-import { api } from 'src/boot/axios';
-import { Notify } from 'quasar';
-import { useProgressionStore } from '../stores/progressionStore';
-import type { ProgressionResponse } from '../types';
+import { ref } from 'vue'
+import { api } from 'src/boot/axios'
+import { Notify } from 'quasar'
+import { useProgressionStore } from '../stores/progressionStore'
+import { extractError } from 'src/utils/extract-error'
+import type { ProgressionResponse } from '../types'
 
 /**
  * Composable for progression API calls
@@ -11,9 +12,9 @@ import type { ProgressionResponse } from '../types';
  * Updates the progression store with fetched data.
  */
 export function useProgressionApi() {
-  const progressionStore = useProgressionStore();
-  const loading = ref(false);
-  const error = ref<string | null>(null);
+  const progressionStore = useProgressionStore()
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
   /**
    * Fetch progression stats from API
@@ -22,27 +23,26 @@ export function useProgressionApi() {
    * Updates the progression store with the response data.
    */
   async function fetchStats(): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    progressionStore.setLoading(true);
+    loading.value = true
+    error.value = null
+    progressionStore.setLoading(true)
 
     try {
-      const response = await api.get<ProgressionResponse>('/progression/stats');
-      progressionStore.setProgressionData(response.data);
+      const response = await api.get<ProgressionResponse>('/progression/stats')
+      progressionStore.setProgressionData(response.data)
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      const errorMessage = axiosError.response?.data?.error || 'Error fetching progression stats';
-      error.value = errorMessage;
-      progressionStore.setError(errorMessage);
+      const errorMessage = extractError(err, 'Error cargando progresion')
+      error.value = errorMessage
+      progressionStore.setError(errorMessage)
 
       Notify.create({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-      });
+      })
     } finally {
-      loading.value = false;
-      progressionStore.setLoading(false);
+      loading.value = false
+      progressionStore.setLoading(false)
     }
   }
 
@@ -53,34 +53,33 @@ export function useProgressionApi() {
    * Optimistically updates the store to show pending status.
    */
   async function requestEvaluation(): Promise<boolean> {
-    loading.value = true;
-    error.value = null;
+    loading.value = true
+    error.value = null
 
     try {
-      await api.post('/progression/request-evaluation');
-      progressionStore.setEvaluationPending();
+      await api.post('/progression/request-evaluation')
+      progressionStore.setEvaluationPending()
 
       Notify.create({
         type: 'positive',
         message: 'Solicitud de evaluacion enviada',
         position: 'top',
-      });
+      })
 
-      return true;
+      return true
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      const errorMessage = axiosError.response?.data?.error || 'Error al enviar solicitud';
-      error.value = errorMessage;
+      const errorMessage = extractError(err, 'Error al enviar solicitud')
+      error.value = errorMessage
 
       Notify.create({
         type: 'negative',
         message: errorMessage,
         position: 'top',
-      });
+      })
 
-      return false;
+      return false
     } finally {
-      loading.value = false;
+      loading.value = false
     }
   }
 
@@ -89,5 +88,5 @@ export function useProgressionApi() {
     requestEvaluation,
     loading,
     error,
-  };
+  }
 }

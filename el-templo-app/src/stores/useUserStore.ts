@@ -93,12 +93,12 @@ export const useUserStore = defineStore('user', () => {
   async function loadSubscription() {
     subscriptionLoading.value = true
     try {
-      const response = await api.get('/members/subscription/me/subscription')
+      const response = await api.get<MemberSubscription>('/members/subscription/me/subscription')
       // 204 No Content means no subscription
       if (response.status === 204 || !response.data) {
         subscription.value = null
       } else {
-        subscription.value = response.data as MemberSubscription
+        subscription.value = response.data
       }
     } catch {
       // 204/404 or network error — no subscription

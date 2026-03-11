@@ -6,47 +6,47 @@
     </div>
 
     <template v-else>
-      <!-- Section 1: Upcoming Reservations -->
+      <!-- Branch label -->
+      <div class="branch-label text-caption text-grey-7 q-mb-sm">
+        <q-icon name="location_on" size="16px" class="q-mr-xs" />
+        {{ userStore.profile?.branchName ?? '' }}
+      </div>
+
+      <!-- Section 1: My Week (past attendance + future bookings) -->
       <q-card class="upcoming-card q-mb-md" flat bordered>
         <q-card-section class="upcoming-header">
-          <div class="text-subtitle1 text-weight-bold">Tus proximas reservas</div>
-          <div v-if="weeklyLimitText" class="weekly-limit text-caption">
-            {{ weeklyLimitText }}
-          </div>
+          <div class="text-subtitle1 text-weight-bold">Tus clases</div>
+          <div class="weekly-limit text-caption">Semana del {{ weekLabel }}</div>
         </q-card-section>
 
-        <q-card-section
-          v-if="upcomingBookings.length === 0"
-          class="text-center text-grey-6 q-py-lg"
-        >
-          No tenes reservas esta semana
+        <q-card-section v-if="weekEvents.length === 0" class="text-center text-grey-6 q-py-lg">
+          No tenes actividad esta semana
         </q-card-section>
 
         <q-list v-else separator>
-          <q-item v-for="booking in upcomingBookings" :key="booking.id" class="booking-item">
+          <!-- Past attendance records -->
+          <q-item v-for="event in weekEvents" :key="event.key" class="booking-item">
             <q-item-section>
               <q-item-label class="text-weight-medium">
-                {{ booking.activityName }}
+                {{ event.activityName }}
               </q-item-label>
               <q-item-label caption>
-                {{ formatBookingLabel(booking) }}
+                {{ event.label }}
               </q-item-label>
             </q-item-section>
 
             <q-item-section side>
               <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-badge
-                  :color="booking.status === 'confirmed' ? 'positive' : 'warning'"
-                  :label="bookingStatusLabel(booking)"
-                />
+                <q-badge :color="event.badgeColor" :label="event.badgeLabel" />
                 <q-btn
+                  v-if="event.booking"
                   flat
                   round
                   dense
                   icon="close"
                   color="negative"
                   size="sm"
-                  @click="promptCancelBooking(booking)"
+                  @click="promptCancelBooking(event.booking!)"
                 >
                   <q-tooltip>Cancelar reserva</q-tooltip>
                 </q-btn>
@@ -91,6 +91,9 @@
                     <template v-if="isCellHoliday(day, time)">
                       <span class="cell-status">FERIADO</span>
                     </template>
+                    <template v-else-if="isCellAttended(day, time)">
+                      <q-icon name="verified" size="18px" color="positive" />
+                    </template>
                     <template v-else-if="isCellBooked(day, time)">
                       <span class="cell-occupancy">
                         {{ getCellSlot(day, time)!.bookedCount }}/{{
@@ -100,7 +103,7 @@
                       <q-icon
                         name="check_circle"
                         size="14px"
-                        color="positive"
+                        color="primary"
                         class="cell-booked-icon"
                       />
                     </template>
@@ -181,12 +184,21 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
+import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
-import type { WeeklySlotView, BookingRecord, HolidayRecord, DayOfWeek } from 'src/types/scheduling'
+import { extractError } from 'src/utils/extract-error'
+import type {
+  WeeklySlotView,
+  BookingRecord,
+  HolidayRecord,
+  AttendanceWeekRecord,
+  DayOfWeek,
+} from 'src/types/scheduling'
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 
 const $q = useQuasar()
 const log = createLogger('Reservas')
+const userStore = useUserStore()
 const { getWeeklyGrid, reserve, cancelBooking, cleanup } = useSchedulingApi()
 
 // ─── State ───────────────────────────────────────────────────────────
@@ -194,6 +206,7 @@ const loading = ref(true)
 const slots = ref<WeeklySlotView[]>([])
 const holidays = ref<HolidayRecord[]>([])
 const myBookings = ref<BookingRecord[]>([])
+const myAttendance = ref<AttendanceWeekRecord[]>([])
 const weekStart = ref<Date>(getMonday(new Date()))
 
 // ─── Reserve dialog ──────────────────────────────────────────────────
@@ -206,6 +219,8 @@ const reserveDialog = ref({
   loading: false,
   scheduleId: 0,
   date: '',
+  /** Booking ID to cancel before reserving (swap flow) */
+  cancelFirst: null as number | null,
 })
 
 // ─── Cancel dialog ───────────────────────────────────────────────────
@@ -218,23 +233,94 @@ const cancelDialog = ref({
 
 // ─── Computed ────────────────────────────────────────────────────────
 
-/** Active (confirmed or waitlist) bookings for the current week, sorted by date */
-const upcomingBookings = computed(() =>
-  myBookings.value
-    .filter((b) => b.status === 'confirmed' || b.status === 'waitlist')
-    .sort((a, b) => {
-      const dayDiff = a.dayOfWeek - b.dayOfWeek
-      if (dayDiff !== 0) return dayDiff
-      return a.startTime.localeCompare(b.startTime)
-    }),
-)
+interface WeekEvent {
+  key: string
+  type: 'attendance' | 'booking'
+  activityName: string
+  dayOfWeek: number
+  startTime: string
+  date: string
+  label: string
+  badgeColor: string
+  badgeLabel: string
+  booking: BookingRecord | null
+}
 
-/** Weekly limit text: "Reservas: 2/3 esta semana" */
-const weeklyLimitText = computed(() => {
-  const count = upcomingBookings.value.filter((b) => b.status === 'confirmed').length
-  // We don't have classesPerWeek from the API response directly,
-  // so we show the confirmed count only
-  return `Reservas confirmadas: ${count} esta semana`
+/** Unified week events: past attendance + future bookings, sorted chronologically */
+const weekEvents = computed<WeekEvent[]>(() => {
+  const now = new Date()
+  const events: WeekEvent[] = []
+
+  // Past attendance records
+  for (const att of myAttendance.value) {
+    const checkedIn = new Date(att.checkedInAt)
+    const dateStr = checkedIn.toISOString().slice(0, 10)
+    const dayLabel = DAY_LABELS_FULL[att.dayOfWeek as DayOfWeek] ?? ''
+    const d = new Date(dateStr + 'T00:00:00')
+    const dateLabel = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+
+    events.push({
+      key: `att-${att.id}`,
+      type: 'attendance',
+      activityName: att.activityName,
+      dayOfWeek: att.dayOfWeek,
+      startTime: att.startTime,
+      date: dateStr,
+      label: `${dayLabel} ${dateLabel} - ${formatTime(att.startTime)}`,
+      badgeColor: att.status === 'confirmado' ? 'positive' : 'info',
+      badgeLabel: att.status === 'confirmado' ? 'Asististe' : 'Check-in',
+      booking: null,
+    })
+  }
+
+  // All bookings (future active + past confirmed/no_show)
+  for (const b of myBookings.value) {
+    if (b.status === 'cancelado') continue
+
+    // Skip if already have an attendance record for this schedule+date
+    const hasAttendance = myAttendance.value.some((att) => {
+      const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
+      return att.scheduleId === b.scheduleId && attDate === b.bookingDate
+    })
+    if (hasAttendance) continue
+
+    const isPast = new Date(`${b.bookingDate}T${b.startTime}`) <= now
+    // Skip past bookings that are still just "reservado" (not yet processed by cron)
+    if (isPast && b.status !== 'confirmado' && b.status !== 'no_show') continue
+
+    let badgeColor: string
+    let badgeLabel: string
+    if (b.status === 'no_show') {
+      badgeColor = 'negative'
+      badgeLabel = BOOKING_STATUS_LABELS.no_show
+    } else if (b.status === 'confirmado') {
+      badgeColor = 'positive'
+      badgeLabel = 'Asististe'
+    } else {
+      badgeColor = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'primary' : 'warning'
+      badgeLabel = bookingStatusLabel(b)
+    }
+
+    events.push({
+      key: `bk-${b.id}`,
+      type: 'booking',
+      activityName: b.activityName,
+      dayOfWeek: b.dayOfWeek,
+      startTime: b.startTime,
+      date: b.bookingDate,
+      label: formatBookingLabel(b),
+      badgeColor,
+      badgeLabel,
+      booking: isPast ? null : b,
+    })
+  }
+
+  // Sort by date then time
+  return events.sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date)
+    if (dateCmp !== 0) return dateCmp
+    return a.startTime.localeCompare(b.startTime)
+  })
 })
 
 /** Which days (1-6) have at least one slot */
@@ -309,7 +395,12 @@ const slotMap = computed(() => {
 const bookedScheduleIds = computed(() => {
   const ids = new Set<number>()
   for (const b of myBookings.value) {
-    if (b.status === 'confirmed' || b.status === 'waitlist') {
+    if (
+      b.status === 'reservado' ||
+      b.status === 'qr_escaneado' ||
+      b.status === 'confirmado' ||
+      b.status === 'lista_espera'
+    ) {
       ids.add(b.scheduleId)
     }
   }
@@ -327,6 +418,23 @@ const holidayDates = computed(() => {
 
 function getCellSlot(day: DayOfWeek, time: string): WeeklySlotView | undefined {
   return slotMap.value.get(`${day}-${time}`)
+}
+
+/** Set of "scheduleId-date" for attended slots */
+const attendedSlotKeys = computed(() => {
+  const keys = new Set<string>()
+  for (const att of myAttendance.value) {
+    const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
+    keys.add(`${att.scheduleId}-${attDate}`)
+  }
+  return keys
+})
+
+function isCellAttended(day: DayOfWeek, time: string): boolean {
+  const slot = getCellSlot(day, time)
+  if (!slot) return false
+  const date = dateForDay(day)
+  return attendedSlotKeys.value.has(`${slot.id}-${date}`)
 }
 
 function isCellBooked(day: DayOfWeek, time: string): boolean {
@@ -352,6 +460,7 @@ function isCellPast(day: DayOfWeek, time: string): boolean {
 function cellClass(day: DayOfWeek, time: string): Record<string, boolean> {
   const slot = getCellSlot(day, time)
   const isHoliday = isCellHoliday(day, time)
+  const isAttended = isCellAttended(day, time)
   const isBooked = isCellBooked(day, time)
   const isPast = isCellPast(day, time)
   const isFull = slot?.isFull ?? false
@@ -359,12 +468,13 @@ function cellClass(day: DayOfWeek, time: string): Record<string, boolean> {
 
   return {
     'cell--holiday': isHoliday,
-    'cell--booked': isBooked && !isHoliday,
-    'cell--full': isFull && !isBooked && !isHoliday,
-    'cell--past': isPast && !isBooked,
-    'cell--available': hasSlot && !isFull && !isBooked && !isHoliday && !isPast,
+    'cell--attended': isAttended && !isHoliday,
+    'cell--booked': isBooked && !isAttended && !isHoliday,
+    'cell--full': isFull && !isBooked && !isAttended && !isHoliday,
+    'cell--past': isPast && !isBooked && !isAttended,
+    'cell--available': hasSlot && !isFull && !isBooked && !isAttended && !isHoliday && !isPast,
     'cell--empty': !hasSlot,
-    'cell--tappable': hasSlot && !isBooked && !isHoliday && !isPast,
+    'cell--tappable': hasSlot && !isBooked && !isAttended && !isHoliday && !isPast,
   }
 }
 
@@ -425,8 +535,8 @@ function formatBookingLabel(booking: BookingRecord): string {
 }
 
 function bookingStatusLabel(booking: BookingRecord): string {
-  if (booking.status === 'waitlist' && booking.waitlistPosition !== null) {
-    return `${BOOKING_STATUS_LABELS.waitlist} (#${booking.waitlistPosition})`
+  if (booking.status === 'lista_espera' && booking.waitlistPosition !== null) {
+    return `${BOOKING_STATUS_LABELS.lista_espera} (#${booking.waitlistPosition})`
   }
   return BOOKING_STATUS_LABELS[booking.status] ?? booking.status
 }
@@ -446,7 +556,31 @@ function onCellTap(day: DayOfWeek, time: string) {
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
   const timeStr = formatTime(time)
 
-  if (slot.isFull) {
+  // Check if there's already a booking on this day
+  const existingBooking = myBookings.value.find(
+    (b) =>
+      b.bookingDate === date &&
+      (b.status === 'reservado' ||
+        b.status === 'qr_escaneado' ||
+        b.status === 'confirmado' ||
+        b.status === 'lista_espera'),
+  )
+
+  if (existingBooking) {
+    // Swap flow: offer to replace existing booking
+    const existingTime = formatTime(existingBooking.startTime)
+    reserveDialog.value = {
+      show: true,
+      title: 'Cambiar horario',
+      message: `Ya tenes una reserva el ${dayLabel} ${dateStr} a las ${existingTime}. Queres cambiarla por las ${timeStr}?`,
+      confirmLabel: 'Cambiar',
+      confirmColor: 'primary',
+      loading: false,
+      scheduleId: slot.id,
+      date,
+      cancelFirst: existingBooking.id,
+    }
+  } else if (slot.isFull) {
     // Waitlist flow
     reserveDialog.value = {
       show: true,
@@ -457,6 +591,7 @@ function onCellTap(day: DayOfWeek, time: string) {
       loading: false,
       scheduleId: slot.id,
       date,
+      cancelFirst: null,
     }
   } else {
     // Normal reserve flow
@@ -469,6 +604,7 @@ function onCellTap(day: DayOfWeek, time: string) {
       loading: false,
       scheduleId: slot.id,
       date,
+      cancelFirst: null,
     }
   }
 }
@@ -476,26 +612,34 @@ function onCellTap(day: DayOfWeek, time: string) {
 async function confirmReserve() {
   reserveDialog.value.loading = true
   try {
+    // Swap flow: cancel existing booking first
+    if (reserveDialog.value.cancelFirst) {
+      await cancelBooking(reserveDialog.value.cancelFirst)
+      log.info('Swapped: cancelled old booking', {
+        bookingId: reserveDialog.value.cancelFirst,
+      })
+    }
+
     const booking = await reserve(reserveDialog.value.scheduleId, reserveDialog.value.date)
     reserveDialog.value.show = false
 
-    if (booking.status === 'waitlist') {
+    if (booking.status === 'lista_espera') {
       $q.notify({
         type: 'warning',
         message: `Te anotaste en la lista de espera (posicion #${booking.waitlistPosition})`,
       })
     } else {
+      const wasSwap = reserveDialog.value.cancelFirst !== null
       $q.notify({
         type: 'positive',
-        message: 'Reserva confirmada',
+        message: wasSwap ? 'Horario cambiado' : 'Reserva confirmada',
       })
     }
 
     log.info('Booking created', { bookingId: booking.id, status: booking.status })
     await loadGrid()
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { message?: string } } }
-    const message = axiosError.response?.data?.message || 'Error al reservar'
+    const message = extractError(err, 'Error al reservar')
     $q.notify({ type: 'negative', message })
     log.warn('Reserve failed', { error: message })
   } finally {
@@ -531,8 +675,7 @@ async function confirmCancel() {
     log.info('Booking cancelled', { bookingId: cancelDialog.value.bookingId })
     await loadGrid()
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { message?: string } } }
-    const message = axiosError.response?.data?.message || 'Error al cancelar'
+    const message = extractError(err, 'Error al cancelar')
     $q.notify({ type: 'negative', message })
     log.warn('Cancel failed', { error: message })
   } finally {
@@ -548,10 +691,10 @@ async function loadGrid() {
     slots.value = data.slots
     holidays.value = data.holidays
     myBookings.value = data.myBookings
+    myAttendance.value = data.myAttendance
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'CanceledError') return
-    const axiosError = err as { response?: { data?: { message?: string } } }
-    const message = axiosError.response?.data?.message || 'Error al cargar horarios'
+    const message = extractError(err, 'Error al cargar horarios')
     $q.notify({ type: 'negative', message })
     log.error('Failed to load grid', { error: message })
   } finally {
@@ -583,6 +726,12 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   min-height: 60vh;
+}
+
+.branch-label {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
 }
 
 // ─── Upcoming Reservations ───────────────────────────────────────────
@@ -747,6 +896,12 @@ onBeforeUnmount(() => {
   &:active {
     background: rgba($negative, 0.15);
   }
+}
+
+.cell--attended {
+  background: rgba($positive, 0.12);
+  border: 2px solid $positive;
+  cursor: default;
 }
 
 .cell--booked {

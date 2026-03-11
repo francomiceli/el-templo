@@ -1,9 +1,10 @@
-import { ref, type Ref } from 'vue';
-import { api } from 'src/boot/axios';
-import { createLogger } from 'src/utils/logger';
-import type { Session } from '../types/session';
+import { ref, type Ref } from 'vue'
+import { api } from 'src/boot/axios'
+import { createLogger } from 'src/utils/logger'
+import { extractError } from 'src/utils/extract-error'
+import type { Session } from '../types/session'
 
-const log = createLogger('WeekData');
+const log = createLogger('WeekData')
 
 /**
  * Composable for fetching week session data from API
@@ -12,14 +13,14 @@ const log = createLogger('WeekData');
  */
 
 interface UseWeekDataReturn {
-  sessions: Ref<Map<string, Session | null>>;
-  loading: Ref<boolean>;
-  error: Ref<string | null>;
-  fetchWeekSessions: (dates: string[]) => Promise<void>;
+  sessions: Ref<Map<string, Session | null>>
+  loading: Ref<boolean>
+  error: Ref<string | null>
+  fetchWeekSessions: (dates: string[]) => Promise<void>
 }
 
 interface WeeklyResponse {
-  sessions: Record<string, Session | null>;
+  sessions: Record<string, Session | null>
 }
 
 /**
@@ -37,9 +38,9 @@ interface WeeklyResponse {
  * await fetchWeekSessions(['2026-01-20', '2026-01-21', ...]);
  */
 export function useWeekData(): UseWeekDataReturn {
-  const sessions = ref(new Map<string, Session | null>());
-  const loading = ref(false);
-  const error = ref<string | null>(null);
+  const sessions = ref(new Map<string, Session | null>())
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
   /**
    * Fetch sessions for a week starting from the first date
@@ -47,31 +48,32 @@ export function useWeekData(): UseWeekDataReturn {
    * @param dates - Array of date strings in YYYY-MM-DD format (first should be Monday)
    */
   async function fetchWeekSessions(dates: string[]): Promise<void> {
-    loading.value = true;
-    error.value = null;
-    sessions.value.clear();
+    loading.value = true
+    error.value = null
+    sessions.value.clear()
 
     try {
       // Use the first date (Monday) as week start
-      const weekStart = dates[0];
+      const weekStart = dates[0]
 
       const response = await api.get<WeeklyResponse>('/sessions/weekly', {
         params: { weekStart },
-      });
+      })
 
       // Build sessions map from response
-      const newSessions = new Map<string, Session | null>();
+      const newSessions = new Map<string, Session | null>()
       for (const [date, session] of Object.entries(response.data.sessions)) {
-        newSessions.set(date, session);
+        newSessions.set(date, session)
       }
 
-      sessions.value = newSessions;
+      sessions.value = newSessions
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { error?: string } } };
-      error.value = axiosError.response?.data?.error || 'Error fetching week sessions';
-      log.error('Failed to fetch week sessions', { error: err instanceof Error ? err.message : String(err) });
+      error.value = extractError(err, 'Error cargando semana')
+      log.error('Failed to fetch week sessions', {
+        error: err instanceof Error ? err.message : String(err),
+      })
     } finally {
-      loading.value = false;
+      loading.value = false
     }
   }
 
@@ -80,5 +82,5 @@ export function useWeekData(): UseWeekDataReturn {
     loading,
     error,
     fetchWeekSessions,
-  };
+  }
 }

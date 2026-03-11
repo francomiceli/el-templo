@@ -100,6 +100,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
+import { extractError } from 'src/utils/extract-error'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -177,8 +178,6 @@ async function onSubmit() {
     await new Promise((resolve) => setTimeout(resolve, 800))
     router.push('/')
   } catch (err: unknown) {
-    const axiosError = err as { response?: { data?: { error?: string } } }
-
     // Flames dim on error
     flameState.value = 'dim'
     loginFailed.value = true
@@ -188,7 +187,7 @@ async function onSubmit() {
 
     $q.notify({
       type: 'negative',
-      message: axiosError?.response?.data?.error || 'Error al iniciar sesión',
+      message: extractError(err, 'Error al iniciar sesion'),
     })
   } finally {
     loading.value = false
