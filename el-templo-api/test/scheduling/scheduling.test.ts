@@ -409,46 +409,6 @@ describe("Scheduling API", () => {
       expect(body.message).toContain("virtual");
     });
 
-    it("POST seed creates default weekday slots", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: `${ADMIN_URL}/schedules/seed`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { branchId: testBranchId },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const body = JSON.parse(res.body);
-      // 8 slots x 5 weekdays = 40 (no ROM since romEnabled defaults to false)
-      expect(body.created).toBe(40);
-    });
-
-    it("POST seed with ROM creates weekday + Saturday ROM slots", async () => {
-      // Enable ROM for test branch
-      await app.db
-        .update(branches)
-        .set({ romEnabled: true })
-        .where(eq(branches.id, testBranchId));
-
-      const res = await app.inject({
-        method: "POST",
-        url: `${ADMIN_URL}/schedules/seed`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { branchId: testBranchId },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const body = JSON.parse(res.body);
-      // 8 x 5 + 2 = 42
-      expect(body.created).toBe(42);
-
-      // Reset
-      await app.db
-        .update(branches)
-        .set({ romEnabled: false })
-        .where(eq(branches.id, testBranchId));
-    });
-
     it("GET weekly grid returns slots with booked counts", async () => {
       const activity = await createActivity();
       await createScheduleSlot(activity.id, 1, "09:00", "10:00");
@@ -503,7 +463,7 @@ describe("Scheduling API", () => {
       await cleanupAll();
     });
 
-    it("POST reserve returns 201 with confirmed status", async () => {
+    it("POST reserve returns 201 with reservado status", async () => {
       const { memberToken } = await setupMemberWithSubscription();
       const activity = await createActivity();
       const futureSlot = getFutureSlot();
@@ -523,12 +483,12 @@ describe("Scheduling API", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("confirmed");
+      expect(body.status).toBe("reservado");
       expect(body.scheduleId).toBe(slot.id);
       expect(body.bookingDate).toBe(futureSlot.date);
     });
 
-    it("POST reserve when full returns waitlist with position", async () => {
+    it("POST reserve when full returns lista_espera with position", async () => {
       // Set branch capacity to 1
       await app.db
         .update(branches)
@@ -554,7 +514,7 @@ describe("Scheduling API", () => {
         futureSlot.endTime,
       );
 
-      // First booking — confirmed
+      // First booking — reservado
       const res1 = await app.inject({
         method: "POST",
         url: `${MEMBER_URL}/reserve`,
@@ -562,9 +522,9 @@ describe("Scheduling API", () => {
         payload: { scheduleId: slot.id, date: futureSlot.date },
       });
       expect(res1.statusCode).toBe(201);
-      expect(JSON.parse(res1.body).status).toBe("confirmed");
+      expect(JSON.parse(res1.body).status).toBe("reservado");
 
-      // Second booking — waitlist
+      // Second booking — lista_espera
       const res2 = await app.inject({
         method: "POST",
         url: `${MEMBER_URL}/reserve`,
@@ -573,7 +533,7 @@ describe("Scheduling API", () => {
       });
       expect(res2.statusCode).toBe(201);
       const body2 = JSON.parse(res2.body);
-      expect(body2.status).toBe("waitlist");
+      expect(body2.status).toBe("lista_espera");
       expect(body2.waitlistPosition).toBe(1);
 
       // Reset capacity
@@ -747,7 +707,7 @@ describe("Scheduling API", () => {
       expect(JSON.parse(res2.body).message).toContain("Ya tenes una reserva");
     });
 
-    it("DELETE cancel booking returns 200 and promotes waitlist", async () => {
+    it("DELETE cancel booking returns 200 and promotes lista_espera", async () => {
       // Set capacity to 1
       await app.db
         .update(branches)
@@ -769,7 +729,7 @@ describe("Scheduling API", () => {
         futureSlot.endTime,
       );
 
-      // First member books (confirmed)
+      // First member books (reservado)
       const res1 = await app.inject({
         method: "POST",
         url: `${MEMBER_URL}/reserve`,
@@ -777,9 +737,9 @@ describe("Scheduling API", () => {
         payload: { scheduleId: slot.id, date: futureSlot.date },
       });
       const booking1 = JSON.parse(res1.body);
-      expect(booking1.status).toBe("confirmed");
+      expect(booking1.status).toBe("reservado");
 
-      // Second member books (waitlist)
+      // Second member books (lista_espera)
       const res2 = await app.inject({
         method: "POST",
         url: `${MEMBER_URL}/reserve`,
@@ -787,7 +747,7 @@ describe("Scheduling API", () => {
         payload: { scheduleId: slot.id, date: futureSlot.date },
       });
       const booking2 = JSON.parse(res2.body);
-      expect(booking2.status).toBe("waitlist");
+      expect(booking2.status).toBe("lista_espera");
 
       // First member cancels
       const cancelRes = await app.inject({
@@ -797,7 +757,7 @@ describe("Scheduling API", () => {
       });
       expect(cancelRes.statusCode).toBe(200);
       const cancelBody = JSON.parse(cancelRes.body);
-      expect(cancelBody.status).toBe("cancelled");
+      expect(cancelBody.status).toBe("cancelado");
 
       // Verify second member was promoted
       const [promotedBooking] = await app.db
@@ -808,7 +768,7 @@ describe("Scheduling API", () => {
         .from(bookings)
         .where(eq(bookings.id, booking2.id));
 
-      expect(promotedBooking.status).toBe("confirmed");
+      expect(promotedBooking.status).toBe("reservado");
       expect(promotedBooking.waitlistPosition).toBeNull();
 
       // Reset capacity
@@ -847,10 +807,10 @@ describe("Scheduling API", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("confirmed");
+      expect(body.status).toBe("reservado");
     });
 
-    it("Admin remove booking cancels and promotes waitlist", async () => {
+    it("Admin remove booking cancels and promotes lista_espera", async () => {
       // Set capacity to 1
       await app.db
         .update(branches)
@@ -875,7 +835,7 @@ describe("Scheduling API", () => {
         futureSlot.endTime,
       );
 
-      // Admin adds member 1 (confirmed)
+      // Admin adds member 1 (reservado)
       const res1 = await app.inject({
         method: "POST",
         url: `${ADMIN_URL}/bookings`,
@@ -887,9 +847,9 @@ describe("Scheduling API", () => {
         },
       });
       const booking1 = JSON.parse(res1.body);
-      expect(booking1.status).toBe("confirmed");
+      expect(booking1.status).toBe("reservado");
 
-      // Admin adds member 2 (waitlist because full)
+      // Admin adds member 2 (lista_espera because full)
       const res2 = await app.inject({
         method: "POST",
         url: `${ADMIN_URL}/bookings`,
@@ -901,7 +861,7 @@ describe("Scheduling API", () => {
         },
       });
       const booking2 = JSON.parse(res2.body);
-      expect(booking2.status).toBe("waitlist");
+      expect(booking2.status).toBe("lista_espera");
 
       // Admin removes member 1
       const removeRes = await app.inject({
@@ -916,7 +876,7 @@ describe("Scheduling API", () => {
         .select({ status: bookings.status })
         .from(bookings)
         .where(eq(bookings.id, booking2.id));
-      expect(promotedBooking.status).toBe("confirmed");
+      expect(promotedBooking.status).toBe("reservado");
 
       // Reset capacity
       await app.db
@@ -954,7 +914,7 @@ describe("Scheduling API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.bookings.length).toBeGreaterThanOrEqual(1);
-      expect(body.bookings[0].status).toBe("confirmed");
+      expect(body.bookings[0].status).toBe("reservado");
     });
   });
 
@@ -993,7 +953,7 @@ describe("Scheduling API", () => {
         },
       });
       const booking = JSON.parse(bookRes.body);
-      expect(booking.status).toBe("confirmed");
+      expect(booking.status).toBe("reservado");
 
       // Add holiday for that date
       const holidayRes = await app.inject({
@@ -1014,7 +974,7 @@ describe("Scheduling API", () => {
         .select({ status: bookings.status })
         .from(bookings)
         .where(eq(bookings.id, booking.id));
-      expect(cancelledBooking.status).toBe("cancelled");
+      expect(cancelledBooking.status).toBe("cancelado");
     });
 
     it("GET weekly grid marks holiday slots", async () => {
@@ -1181,11 +1141,6 @@ describe("Scheduling API", () => {
             startTime: "07:00",
             endTime: "08:00",
           },
-        },
-        {
-          method: "POST" as const,
-          url: `${ADMIN_URL}/schedules/seed`,
-          payload: { branchId: 1 },
         },
       ];
 
@@ -1392,7 +1347,7 @@ describe("Scheduling API", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("confirmed");
+      expect(body.status).toBe("reservado");
     });
 
     it("cancel succeeds for a future booking (within cancel window)", async () => {
@@ -1432,7 +1387,7 @@ describe("Scheduling API", () => {
       });
 
       expect(cancelRes.statusCode).toBe(200);
-      expect(JSON.parse(cancelRes.body).status).toBe("cancelled");
+      expect(JSON.parse(cancelRes.body).status).toBe("cancelado");
     });
   });
 });
