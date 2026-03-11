@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 55-02-PLAN.md
-last_updated: "2026-03-11T21:54:14.907Z"
-last_activity: "2026-03-11 — Completed 55-01: Composable Instantiation Refactor"
+stopped_at: Completed 55-03-PLAN.md
+last_updated: "2026-03-11T22:04:18.333Z"
+last_activity: "2026-03-11 — Completed 55-03: API Type Safety"
 progress:
   total_phases: 43
-  completed_phases: 33
+  completed_phases: 34
   total_plans: 153
-  completed_plans: 151
+  completed_plans: 152
   percent: 98
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 55 (Pattern Fixes / Composable Instantiation, Type Safety, Convention Compliance)
-Plan: 2 of 3 in current phase
-Status: Plan 55-02 complete — type safety and convention compliance across 13 app files
-Last activity: 2026-03-11 — Completed 55-02: Type Safety and Convention Compliance
+Plan: 3 of 3 in current phase (COMPLETE)
+Status: Phase 55 complete — all 3 plans executed
+Last activity: 2026-03-11 — Completed 55-03: API Type Safety
 
 Progress: [██████████] 98%
 
@@ -76,6 +76,7 @@ _Updated after each plan completion_
 | Phase 54 P02 | 8min | 2 tasks | 26 files |
 | Phase 55 P01 | 5min | 2 tasks | 9 files |
 | Phase 55 P02 | 3min | 2 tasks | 13 files |
+| Phase 55 P03 | 7min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -167,6 +168,8 @@ Recent decisions affecting current work:
 - [Phase 54]: formatDate shared utility uses es-AR locale with month:short -- non-standard variants (month:long, includes time, Date input) left untouched
 - [Phase 55]: extractError in app mirrors admin version exactly -- same API, same fallback chain (error then message field)
 - [Phase 55]: useWakeLock.initialize() registers visibilitychange listener -- moved from removed onMounted
+- [Phase 55]: Drizzle typed partials: Partial<typeof table.$inferInsert> for all .set() calls instead of Record<string, unknown>
+- [Phase 55]: getMorososCount uses WHERE with correlated subquery (not HAVING) for correct per-row COUNT filtering
 
 ### v2.0 Deferrals
 
@@ -193,6 +196,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:54:14.903Z
-Stopped at: Completed 55-02-PLAN.md
+Last session: 2026-03-11T22:04:18.328Z
+Stopped at: Completed 55-03-PLAN.md
 Resume file: None
