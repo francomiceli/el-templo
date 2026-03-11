@@ -1003,11 +1003,13 @@ Plans:
 **Goal:** Fix ~38 admin composable re-instantiations inside function bodies (move to setup-level), replace 12 unsafe Axios `as` casts with proper type narrowing in app, fix useWakeLock composable convention violation (onUnmounted inside composable), replace 5 `Record<string, unknown>` with Drizzle typed partials in API, fix loose `ctaType` string type in blog API, fix getMorososCount full-fetch-to-count pattern
 **Requirements**: None (codebase health — no new features)
 **Depends on:** Phase 54
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 55 to break down)
+- [ ] 55-01-PLAN.md -- Admin composable re-instantiation: move ~37 in-function calls to setup level across 9 files
+- [ ] 55-02-PLAN.md -- App unsafe Axios casts + useWakeLock convention: extractError utility + lifecycle fix
+- [ ] 55-03-PLAN.md -- API type safety: Drizzle typed partials, ctaType union, getMorososCount COUNT query
 
 ### Phase 56: God Object Decomposition & Architectural Fixes
 
