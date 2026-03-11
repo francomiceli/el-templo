@@ -12,6 +12,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
 import {
   addDays,
   getWeekRange,
@@ -45,7 +46,8 @@ export class SchedulingService {
     private log: FastifyBaseLogger,
   ) {
     this.paymentService = new PaymentService(db, log);
-    this.subscriptionService = new SubscriptionService(db, log);
+    const auraService = new AuraService(db);
+    this.subscriptionService = new SubscriptionService(db, log, auraService);
   }
 
   // ─── Activities ───────────────────────────────────────────────────────────

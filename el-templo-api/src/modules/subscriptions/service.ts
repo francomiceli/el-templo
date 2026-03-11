@@ -32,14 +32,11 @@ import type {
 import { AURA_DISCOUNT_TIERS } from "./types";
 
 export class SubscriptionService {
-  private auraService: AuraService;
-
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-  ) {
-    this.auraService = new AuraService(db);
-  }
+    private auraService: AuraService,
+  ) {}
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 

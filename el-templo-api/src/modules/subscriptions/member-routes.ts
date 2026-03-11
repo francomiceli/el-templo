@@ -7,9 +7,15 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
+import { AuraService } from "../aura/service";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
-  const subscriptionService = new SubscriptionService(fastify.db, fastify.log);
+  const auraService = new AuraService(fastify.db);
+  const subscriptionService = new SubscriptionService(
+    fastify.db,
+    fastify.log,
+    auraService,
+  );
 
   /**
    * Guard: require authentication on all routes in this plugin.

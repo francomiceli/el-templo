@@ -1,17 +1,16 @@
 /**
  * Attendance Service
  *
- * Business logic for QR token generation/validation, member check-in
- * (with subscription/overdue/branch enforcement), coach batch confirmation
- * with AURA awards, manual check-in, and attendance queries.
+ * Business logic for QR token validation, member check-in
+ * (with subscription/overdue/branch enforcement), and attendance queries.
  */
 
-import { createHmac } from "crypto";
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { BadRequestError, NotFoundError } from "../shared/errors";
+import { BadRequestError } from "../shared/errors";
+import { validateQrToken } from "../shared/qr-token";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -19,80 +18,16 @@ import type {
   AttendanceRecord,
   AttendanceListParams,
   AttendanceStatus,
-  QrPayload,
 } from "./types";
 
 export class AttendanceService {
-  private paymentService: PaymentService;
-  private subscriptionService: SubscriptionService;
-  private auraService: AuraService;
-
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-  ) {
-    this.paymentService = new PaymentService(db, log);
-    this.subscriptionService = new SubscriptionService(db, log);
-    this.auraService = new AuraService(db);
-  }
-
-  // ─── QR Token Methods ──────────────────────────────────────────────────────
-
-  /**
-   * Generate an HMAC-SHA256 signed QR token for a branch.
-   *
-   * Token format: base64url(payload).base64url(signature)
-   */
-  generateQrToken(branchId: number): string {
-    const payload: QrPayload = { branchId, type: "checkin" };
-    const payloadStr = JSON.stringify(payload);
-    const payloadB64 = Buffer.from(payloadStr).toString("base64url");
-
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error("JWT_SECRET is required for QR token generation");
-    }
-
-    const signature = createHmac("sha256", secret)
-      .update(payloadB64)
-      .digest("base64url");
-
-    return `${payloadB64}.${signature}`;
-  }
-
-  /**
-   * Validate an HMAC-SHA256 signed QR token.
-   *
-   * @returns The decoded payload, or null if invalid.
-   */
-  validateQrToken(token: string): QrPayload | null {
-    const parts = token.split(".");
-    if (parts.length !== 2) return null;
-
-    const [payloadB64, providedSignature] = parts;
-
-    const secret = process.env.JWT_SECRET;
-    if (!secret) return null;
-
-    const expectedSignature = createHmac("sha256", secret)
-      .update(payloadB64)
-      .digest("base64url");
-
-    if (providedSignature !== expectedSignature) return null;
-
-    try {
-      const payloadStr = Buffer.from(payloadB64, "base64url").toString("utf-8");
-      const payload = JSON.parse(payloadStr) as Record<string, unknown>;
-
-      if (typeof payload.branchId !== "number" || payload.type !== "checkin") {
-        return null;
-      }
-
-      return { branchId: payload.branchId, type: "checkin" };
-    } catch {
-      return null;
-    }
-  }
+    private paymentService: PaymentService,
+    private subscriptionService: SubscriptionService,
+    private auraService: AuraService,
+  ) {}
 
   // ─── Check-in Methods ──────────────────────────────────────────────────────
 
@@ -104,7 +39,7 @@ export class AttendanceService {
    */
   async checkIn(memberId: number, qrToken: string): Promise<AttendanceRecord> {
     // Validate QR token
-    const qrPayload = this.validateQrToken(qrToken);
+    const qrPayload = validateQrToken(qrToken);
     if (!qrPayload) {
       throw new BadRequestError("Codigo QR invalido");
     }
@@ -149,149 +84,52 @@ export class AttendanceService {
     // Check one-per-day
     await this.checkOncePerDay(memberId);
 
-    // Insert attendance record
+    // Find today's booking for this member to link
+    const [todayBooking] = await this.db
+      .select({
+        id: schema.bookings.id,
+        scheduleId: schema.bookings.scheduleId,
+      })
+      .from(schema.bookings)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          sql`${schema.bookings.bookingDate} = CURDATE()`,
+          eq(schema.bookings.status, "reservado"),
+          eq(schema.schedules.branchId, branchId),
+        ),
+      )
+      .limit(1);
+
+    // Insert attendance record (with scheduleId if booking found)
     const result = await this.db.insert(schema.attendance).values({
       memberId,
       branchId,
+      scheduleId: todayBooking?.scheduleId ?? null,
       status: "registrado",
       source: "qr",
     });
 
     const recordId = Number(result[0].insertId);
-    return this.getRecordById(recordId);
-  }
 
-  /**
-   * Manual check-in by coach.
-   *
-   * Same subscription/overdue/one-per-day checks as QR check-in,
-   * but NO branch enforcement (coach override). Auto-confirmed with
-   * immediate AURA award.
-   */
-  async manualCheckIn(
-    memberId: number,
-    branchId: number,
-    coachId: number,
-  ): Promise<AttendanceRecord> {
-    // Check active subscription
-    const subscription =
-      await this.subscriptionService.getMemberSubscription(memberId);
-    if (!subscription) {
-      throw new BadRequestError("No tenes una suscripcion activa");
-    }
+    // Update booking status to qr_escaneado
+    if (todayBooking) {
+      await this.db
+        .update(schema.bookings)
+        .set({ status: "qr_escaneado" })
+        .where(eq(schema.bookings.id, todayBooking.id));
 
-    // Check overdue
-    const balance = await this.paymentService.getMemberBalance(memberId);
-    if (balance?.isOverdue) {
-      throw new BadRequestError(
-        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion.",
+      this.log.info(
+        { memberId, bookingId: todayBooking.id },
+        "Booking linked on QR check-in",
       );
     }
-
-    // Check one-per-day
-    await this.checkOncePerDay(memberId);
-
-    // Insert auto-confirmed attendance record
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId,
-      status: "confirmado",
-      source: "manual",
-      confirmedAt: new Date(),
-    });
-
-    const recordId = Number(result[0].insertId);
-
-    // Award AURA immediately
-    try {
-      await this.auraService.award({
-        userId: memberId,
-        sourceType: "attendance",
-        referenceType: "attendance",
-        referenceId: recordId,
-      });
-    } catch (err: unknown) {
-      // Log but don't fail — duplicate award is a graceful skip
-      this.log.warn(
-        { err, memberId, recordId },
-        "AURA award failed during manual check-in",
-      );
-    }
-
-    this.log.info(
-      { memberId, branchId, coachId, recordId },
-      "Manual check-in recorded",
-    );
 
     return this.getRecordById(recordId);
-  }
-
-  // ─── Batch Confirm ─────────────────────────────────────────────────────────
-
-  /**
-   * Batch confirm attendance records. Changes status from "registrado" to
-   * "confirmado" and awards AURA per confirmed record.
-   *
-   * @returns The number of records confirmed.
-   */
-  async batchConfirm(attendanceIds: number[]): Promise<number> {
-    if (attendanceIds.length === 0) return 0;
-
-    // Update all matching records
-    const updateResult = await this.db
-      .update(schema.attendance)
-      .set({
-        status: "confirmado",
-        confirmedAt: new Date(),
-      })
-      .where(
-        and(
-          inArray(schema.attendance.id, attendanceIds),
-          eq(schema.attendance.status, "registrado"),
-        ),
-      );
-
-    const confirmedCount = updateResult[0].affectedRows;
-
-    // Get the confirmed records to award AURA
-    if (confirmedCount > 0) {
-      const confirmedRecords = await this.db
-        .select({
-          id: schema.attendance.id,
-          memberId: schema.attendance.memberId,
-        })
-        .from(schema.attendance)
-        .where(
-          and(
-            inArray(schema.attendance.id, attendanceIds),
-            eq(schema.attendance.status, "confirmado"),
-          ),
-        );
-
-      for (const record of confirmedRecords) {
-        try {
-          await this.auraService.award({
-            userId: record.memberId,
-            sourceType: "attendance",
-            referenceType: "attendance",
-            referenceId: record.id,
-          });
-        } catch (err: unknown) {
-          // Duplicate AURA award — skip gracefully
-          this.log.warn(
-            { err, memberId: record.memberId, attendanceId: record.id },
-            "AURA award skipped (likely duplicate)",
-          );
-        }
-      }
-    }
-
-    this.log.info(
-      { attendanceIds, confirmedCount },
-      "Batch attendance confirmed",
-    );
-
-    return confirmedCount;
   }
 
   // ─── Query Methods ─────────────────────────────────────────────────────────
@@ -384,41 +222,6 @@ export class AttendanceService {
     limit: number,
   ): Promise<{ records: AttendanceRecord[]; total: number }> {
     return this.listAttendance({ memberId, page, limit });
-  }
-
-  /**
-   * Get today's attendance records for a branch (for batch confirm page).
-   * No pagination — returns all.
-   */
-  async getTodayByBranch(branchId: number): Promise<AttendanceRecord[]> {
-    const rows = await this.db
-      .select({
-        id: schema.attendance.id,
-        memberId: schema.attendance.memberId,
-        memberFirstName: schema.users.firstName,
-        memberLastName: schema.users.lastName,
-        branchId: schema.attendance.branchId,
-        branchName: schema.branches.name,
-        checkedInAt: schema.attendance.checkedInAt,
-        confirmedAt: schema.attendance.confirmedAt,
-        status: schema.attendance.status,
-        source: schema.attendance.source,
-      })
-      .from(schema.attendance)
-      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
-      .innerJoin(
-        schema.branches,
-        eq(schema.branches.id, schema.attendance.branchId),
-      )
-      .where(
-        and(
-          eq(schema.attendance.branchId, branchId),
-          sql`DATE(${schema.attendance.checkedInAt}) = CURDATE()`,
-        ),
-      )
-      .orderBy(desc(schema.attendance.checkedInAt));
-
-    return rows.map((r) => this.mapAttendanceRow(r));
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────────
