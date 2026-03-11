@@ -12,6 +12,8 @@ import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
+import { ActivityService } from "./activity-service";
+import { HolidayService } from "./holiday-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createActivitySchema,
@@ -41,7 +43,13 @@ const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 // =============================================================================
 
 export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
-  const schedulingService = new SchedulingService(fastify.db, fastify.log);
+  const activityService = new ActivityService(fastify.db, fastify.log);
+  const holidayService = new HolidayService(fastify.db, fastify.log);
+  const schedulingService = new SchedulingService(
+    fastify.db,
+    fastify.log,
+    holidayService,
+  );
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -64,7 +72,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: createActivitySchema },
     async (request, reply) => {
       try {
-        const activity = await schedulingService.createActivity(
+        const activity = await activityService.createActivity(
           request.body.name,
           request.body.description,
         );
@@ -77,7 +85,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /activities — list activities
   fastify.get("/activities", { schema: listActivitiesSchema }, async () => {
-    const activities = await schedulingService.listActivities();
+    const activities = await activityService.listActivities();
     return { activities };
   });
 
@@ -90,7 +98,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: updateActivitySchema },
     async (request, reply) => {
       try {
-        const activity = await schedulingService.updateActivity(
+        const activity = await activityService.updateActivity(
           request.params.activityId,
           request.body,
         );
@@ -241,7 +249,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { country: string; date: string; name: string };
   }>("/holidays", { schema: addHolidaySchema }, async (request, reply) => {
     try {
-      const holiday = await schedulingService.addHoliday(
+      const holiday = await holidayService.addHoliday(
         request.body.country,
         request.body.date,
         request.body.name,
@@ -258,7 +266,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: removeHolidaySchema },
     async (request, reply) => {
       try {
-        await schedulingService.removeHoliday(request.params.holidayId);
+        await holidayService.removeHoliday(request.params.holidayId);
         return { deleted: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "remove holiday");
@@ -270,7 +278,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get<{
     Querystring: { country?: string; year?: number };
   }>("/holidays", { schema: listHolidaysSchema }, async (request) => {
-    const holidays = await schedulingService.listHolidays(
+    const holidays = await holidayService.listHolidays(
       request.query.country,
       request.query.year,
     );
@@ -283,7 +291,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 // =============================================================================
 
 export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
-  const schedulingService = new SchedulingService(fastify.db, fastify.log);
+  const holidayService = new HolidayService(fastify.db, fastify.log);
+  const schedulingService = new SchedulingService(
+    fastify.db,
+    fastify.log,
+    holidayService,
+  );
 
   /**
    * Guard: require authentication (any role) on all routes in this plugin.
@@ -325,10 +338,16 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         request.query.weekStart,
       );
 
+      const myAttendance = await schedulingService.getMyWeeklyAttendance(
+        request.user.userId,
+        request.query.weekStart,
+      );
+
       return {
         slots: result.slots,
         holidays: result.holidays,
         myBookings,
+        myAttendance,
       };
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "member weekly grid");

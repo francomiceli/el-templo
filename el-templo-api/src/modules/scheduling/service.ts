@@ -1,9 +1,11 @@
 /**
- * Scheduling Service
+ * Schedule Service
  *
- * Business logic for activities CRUD, schedule management, booking lifecycle
- * (reserve, cancel, waitlist auto-promote, capacity enforcement, weekly limit,
- * overdue block), and holiday management.
+ * Business logic for schedule management (CRUD, weekly grid, slot detail,
+ * seed defaults) and booking lifecycle (reserve, cancel, waitlist
+ * auto-promote, capacity enforcement, weekly limit, overdue block).
+ *
+ * Activity and holiday domains extracted to ActivityService and HolidayService.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -19,7 +21,6 @@ import {
   buildClassDateTime,
 } from "../shared/date-utils";
 import type {
-  ActivityRecord,
   ScheduleSlot,
   WeeklySlotView,
   BookingRecord,
@@ -36,6 +37,7 @@ import {
   NotFoundError,
   ConflictError,
 } from "../shared/errors";
+import { HolidayService } from "./holiday-service";
 
 export class SchedulingService {
   private paymentService: PaymentService;
@@ -44,84 +46,11 @@ export class SchedulingService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
+    private holidayService: HolidayService,
   ) {
     this.paymentService = new PaymentService(db, log);
     const auraService = new AuraService(db);
     this.subscriptionService = new SubscriptionService(db, log, auraService);
-  }
-
-  // ─── Activities ───────────────────────────────────────────────────────────
-
-  /**
-   * Create a new activity.
-   */
-  async createActivity(
-    name: string,
-    description?: string,
-  ): Promise<ActivityRecord> {
-    const result = await this.db.insert(schema.activities).values({
-      name,
-      description: description ?? null,
-    });
-
-    const id = Number(result[0].insertId);
-    const activity = await this.getActivity(id);
-    if (!activity) throw new Error("Failed to retrieve newly created activity");
-    return activity;
-  }
-
-  /**
-   * List all active activities.
-   */
-  async listActivities(): Promise<ActivityRecord[]> {
-    const rows = await this.db
-      .select()
-      .from(schema.activities)
-      .where(eq(schema.activities.isActive, true))
-      .orderBy(schema.activities.name);
-
-    return rows.map((r) => this.mapActivityRow(r));
-  }
-
-  /**
-   * Update an existing activity.
-   */
-  async updateActivity(
-    id: number,
-    data: { name?: string; description?: string; isActive?: boolean },
-  ): Promise<ActivityRecord> {
-    const existing = await this.getActivity(id);
-    if (!existing) throw new NotFoundError("Actividad no encontrada");
-
-    const updateData: Partial<typeof schema.activities.$inferInsert> = {};
-    if (data.name !== undefined) updateData.name = data.name;
-    if (data.description !== undefined)
-      updateData.description = data.description;
-    if (data.isActive !== undefined) updateData.isActive = data.isActive;
-
-    if (Object.keys(updateData).length > 0) {
-      await this.db
-        .update(schema.activities)
-        .set(updateData)
-        .where(eq(schema.activities.id, id));
-    }
-
-    const updated = await this.getActivity(id);
-    if (!updated) throw new Error("Failed to retrieve updated activity");
-    return updated;
-  }
-
-  /**
-   * Get a single activity by ID.
-   */
-  async getActivity(id: number): Promise<ActivityRecord | null> {
-    const [row] = await this.db
-      .select()
-      .from(schema.activities)
-      .where(eq(schema.activities.id, id));
-
-    if (!row) return null;
-    return this.mapActivityRow(row);
   }
 
   // ─── Schedules ────────────────────────────────────────────────────────────
@@ -155,7 +84,11 @@ export class SchedulingService {
     }
 
     // Validate activity
-    const activity = await this.getActivity(activityId);
+    const [activity] = await this.db
+      .select({ id: schema.activities.id })
+      .from(schema.activities)
+      .where(eq(schema.activities.id, activityId));
+
     if (!activity) throw new NotFoundError("Actividad no encontrada");
 
     // Check for duplicate (same branch + day + startTime)
@@ -244,7 +177,7 @@ export class SchedulingService {
 
     // Get holidays for the week
     const weekEnd = addDays(weekStartDate, 5); // Saturday
-    const holidaysInWeek = await this.getHolidaysForWeek(
+    const holidaysInWeek = await this.holidayService.getHolidaysForWeek(
       branch.country,
       weekStartDate,
     );
@@ -1162,149 +1095,6 @@ export class SchedulingService {
     this.log.info({ bookingId }, "Admin removed booking");
   }
 
-  // ─── Holidays ─────────────────────────────────────────────────────────────
-
-  /**
-   * Add a holiday. Auto-cancels all confirmed+waitlist bookings for
-   * branches in that country on that date.
-   */
-  async addHoliday(
-    country: string,
-    date: string,
-    name: string,
-  ): Promise<HolidayRecord> {
-    const result = await this.db.insert(schema.holidays).values({
-      country,
-      date,
-      name,
-    });
-
-    const holidayId = Number(result[0].insertId);
-
-    // Auto-cancel bookings at branches in this country on this date
-    // Find all branches in this country
-    const countryBranches = await this.db
-      .select({ id: schema.branches.id })
-      .from(schema.branches)
-      .where(eq(schema.branches.country, country));
-
-    if (countryBranches.length > 0) {
-      const branchIds = countryBranches.map((b) => b.id);
-
-      // Find schedules at these branches
-      const countrySchedules = await this.db
-        .select({ id: schema.schedules.id })
-        .from(schema.schedules)
-        .where(inArray(schema.schedules.branchId, branchIds));
-
-      if (countrySchedules.length > 0) {
-        const scheduleIds = countrySchedules.map((s) => s.id);
-
-        // Cancel all active bookings for these schedules on this date
-        await this.db
-          .update(schema.bookings)
-          .set({
-            status: "cancelado",
-            cancelledAt: new Date(),
-            waitlistPosition: null,
-          })
-          .where(
-            and(
-              inArray(schema.bookings.scheduleId, scheduleIds),
-              eq(schema.bookings.bookingDate, date),
-              sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
-            ),
-          );
-      }
-    }
-
-    this.log.info({ country, date, name, holidayId }, "Holiday added");
-
-    return {
-      id: holidayId,
-      country,
-      date,
-      name,
-    };
-  }
-
-  /**
-   * Remove a holiday (does NOT restore cancelled bookings).
-   */
-  async removeHoliday(id: number): Promise<void> {
-    const [existing] = await this.db
-      .select({ id: schema.holidays.id })
-      .from(schema.holidays)
-      .where(eq(schema.holidays.id, id));
-
-    if (!existing) throw new NotFoundError("Feriado no encontrado");
-
-    await this.db.delete(schema.holidays).where(eq(schema.holidays.id, id));
-
-    this.log.info({ holidayId: id }, "Holiday removed");
-  }
-
-  /**
-   * List holidays filtered by country and/or year.
-   */
-  async listHolidays(
-    country?: string,
-    year?: number,
-  ): Promise<HolidayRecord[]> {
-    const conditions: ReturnType<typeof eq>[] = [];
-
-    if (country) {
-      conditions.push(eq(schema.holidays.country, country));
-    }
-    if (year) {
-      conditions.push(sql`YEAR(${schema.holidays.date}) = ${year}`);
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const rows = await this.db
-      .select({
-        id: schema.holidays.id,
-        country: schema.holidays.country,
-        date: schema.holidays.date,
-        name: schema.holidays.name,
-      })
-      .from(schema.holidays)
-      .where(whereClause)
-      .orderBy(schema.holidays.date);
-
-    return rows;
-  }
-
-  /**
-   * Get holidays for a week (Mon-Sat) for a given country.
-   */
-  async getHolidaysForWeek(
-    country: string,
-    weekStartDate: string,
-  ): Promise<HolidayRecord[]> {
-    const weekEnd = addDays(weekStartDate, 5);
-
-    const rows = await this.db
-      .select({
-        id: schema.holidays.id,
-        country: schema.holidays.country,
-        date: schema.holidays.date,
-        name: schema.holidays.name,
-      })
-      .from(schema.holidays)
-      .where(
-        and(
-          eq(schema.holidays.country, country),
-          sql`${schema.holidays.date} >= ${weekStartDate}`,
-          sql`${schema.holidays.date} <= ${weekEnd}`,
-        ),
-      )
-      .orderBy(schema.holidays.date);
-
-    return rows;
-  }
-
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
   /**
@@ -1580,22 +1370,6 @@ export class SchedulingService {
 
     if (!row) return null;
     return this.mapBookingRow(row);
-  }
-
-  /**
-   * Map a raw activity row to ActivityRecord.
-   */
-  private mapActivityRow(
-    row: typeof schema.activities.$inferSelect,
-  ): ActivityRecord {
-    return {
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      isActive: row.isActive,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    };
   }
 
   /**
