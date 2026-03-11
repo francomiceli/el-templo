@@ -28,6 +28,7 @@ import type {
   SlotMemberView,
   SlotMemberStatus,
   DayOfWeek,
+  AttendanceWeekRecord,
 } from "./types";
 import {
   BadRequestError,
@@ -90,7 +91,7 @@ export class SchedulingService {
     const existing = await this.getActivity(id);
     if (!existing) throw new NotFoundError("Actividad no encontrada");
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: Partial<typeof schema.activities.$inferInsert> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined)
       updateData.description = data.description;
@@ -283,7 +284,7 @@ export class SchedulingService {
         .where(
           and(
             inArray(schema.bookings.scheduleId, scheduleIds),
-            eq(schema.bookings.status, "confirmed"),
+            sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
           ),
         )
         .groupBy(schema.bookings.scheduleId, schema.bookings.bookingDate);
@@ -424,7 +425,7 @@ export class SchedulingService {
 
     // Process bookings first (confirmed/waitlist only)
     for (const b of bookings) {
-      if (b.status === "cancelled") continue;
+      if (b.status === "cancelado") continue;
       seenMemberIds.add(b.memberId);
       const att = attendanceByMember.get(b.memberId);
 
@@ -505,12 +506,12 @@ export class SchedulingService {
       .where(
         and(
           eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.status, "confirmed"),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
         ),
       );
     if (Number(result?.count ?? 0) > 0) {
       throw new BadRequestError(
-        "No se puede eliminar un horario con reservas confirmadas. Desactivalo primero.",
+        "No se puede eliminar un horario con reservas activas. Desactivalo primero.",
       );
     }
 
@@ -767,7 +768,12 @@ export class SchedulingService {
       .limit(1);
 
     if (duplicate) {
-      if (duplicate.status === "confirmed" || duplicate.status === "waitlist") {
+      if (
+        duplicate.status === "reservado" ||
+        duplicate.status === "qr_escaneado" ||
+        duplicate.status === "confirmado" ||
+        duplicate.status === "lista_espera"
+      ) {
         throw new ConflictError("Ya tenes una reserva en este horario");
       }
     }
@@ -780,10 +786,7 @@ export class SchedulingService {
         and(
           eq(schema.bookings.memberId, memberId),
           eq(schema.bookings.bookingDate, date),
-          or(
-            eq(schema.bookings.status, "confirmed"),
-            eq(schema.bookings.status, "waitlist"),
-          ),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
         ),
       )
       .limit(1);
@@ -795,14 +798,14 @@ export class SchedulingService {
     }
 
     // 9. Check capacity
-    const confirmedCount = await this.countConfirmedBookings(scheduleId, date);
+    const activeCount = await this.countActiveBookings(scheduleId, date);
     const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
 
-    let status: "confirmed" | "waitlist" = "confirmed";
+    let status: "reservado" | "lista_espera" = "reservado";
     let waitlistPosition: number | null = null;
 
-    if (confirmedCount >= maxCapacity) {
-      status = "waitlist";
+    if (activeCount >= maxCapacity) {
+      status = "lista_espera";
       // Get max waitlist position
       const [maxPos] = await this.db
         .select({
@@ -813,7 +816,7 @@ export class SchedulingService {
           and(
             eq(schema.bookings.scheduleId, scheduleId),
             eq(schema.bookings.bookingDate, date),
-            eq(schema.bookings.status, "waitlist"),
+            eq(schema.bookings.status, "lista_espera"),
           ),
         );
       waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
@@ -823,7 +826,7 @@ export class SchedulingService {
     // If there's a cancelled duplicate, delete it first to avoid unique constraint
     if (
       duplicate &&
-      (duplicate.status === "cancelled" || duplicate.status === "no_show")
+      (duplicate.status === "cancelado" || duplicate.status === "no_show")
     ) {
       await this.db
         .delete(schema.bookings)
@@ -873,8 +876,14 @@ export class SchedulingService {
       throw new BadRequestError("Esta reserva no te pertenece");
     }
 
-    // 2. Validate booking is confirmed or waitlist
-    if (bookingRow.status !== "confirmed" && bookingRow.status !== "waitlist") {
+    // 2. Validate booking is in an active state
+    const activeStatuses = [
+      "reservado",
+      "qr_escaneado",
+      "confirmado",
+      "lista_espera",
+    ];
+    if (!activeStatuses.includes(bookingRow.status)) {
       throw new BadRequestError("Esta reserva ya fue cancelada");
     }
 
@@ -889,20 +898,21 @@ export class SchedulingService {
       );
     }
 
-    const wasCancelled = bookingRow.status;
+    const previousStatus = bookingRow.status;
 
-    // 4. Update status to cancelled
+    // 4. Update status to cancelado
     await this.db
       .update(schema.bookings)
       .set({
-        status: "cancelled",
+        status: "cancelado",
         cancelledAt: new Date(),
         waitlistPosition: null,
       })
       .where(eq(schema.bookings.id, bookingId));
 
-    // 5. If cancelled booking was confirmed, promote waitlist
-    if (wasCancelled === "confirmed") {
+    // 5. If cancelled booking occupied a slot, promote waitlist
+    const slotOccupyingStatuses = ["reservado", "qr_escaneado", "confirmado"];
+    if (slotOccupyingStatuses.includes(previousStatus)) {
       await this.promoteWaitlist(bookingRow.scheduleId, bookingRow.bookingDate);
     }
 
@@ -957,12 +967,63 @@ export class SchedulingService {
           eq(schema.bookings.memberId, memberId),
           sql`${schema.bookings.bookingDate} >= ${weekStartDate}`,
           sql`${schema.bookings.bookingDate} <= ${weekEnd}`,
-          sql`${schema.bookings.status} IN ('confirmed', 'waitlist')`,
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera', 'no_show')`,
         ),
       )
       .orderBy(schema.bookings.bookingDate, schema.schedules.startTime);
 
     return rows.map((r) => this.mapBookingRow(r));
+  }
+
+  /**
+   * Get a member's attendance records for a given week (schedule-linked only).
+   */
+  async getMyWeeklyAttendance(
+    memberId: number,
+    weekStartDate: string,
+  ): Promise<AttendanceWeekRecord[]> {
+    const weekEnd = addDays(weekStartDate, 6); // through Saturday end
+
+    const rows = await this.db
+      .select({
+        id: schema.attendance.id,
+        scheduleId: schema.attendance.scheduleId,
+        activityName: schema.activities.name,
+        dayOfWeek: schema.schedules.dayOfWeek,
+        startTime: schema.schedules.startTime,
+        checkedInAt: schema.attendance.checkedInAt,
+        status: schema.attendance.status,
+      })
+      .from(schema.attendance)
+      .innerJoin(
+        schema.schedules,
+        eq(schema.schedules.id, schema.attendance.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) >= ${weekStartDate}`,
+          sql`DATE(${schema.attendance.checkedInAt}) <= ${weekEnd}`,
+        ),
+      )
+      .orderBy(schema.attendance.checkedInAt);
+
+    return rows.map((r) => ({
+      id: r.id,
+      scheduleId: r.scheduleId as number,
+      activityName: r.activityName,
+      dayOfWeek: r.dayOfWeek,
+      startTime: r.startTime,
+      checkedInAt:
+        r.checkedInAt instanceof Date
+          ? r.checkedInAt.toISOString()
+          : String(r.checkedInAt),
+      status: r.status as "registrado" | "confirmado",
+    }));
   }
 
   /**
@@ -991,13 +1052,18 @@ export class SchedulingService {
       .limit(1);
 
     if (duplicate) {
-      if (duplicate.status === "confirmed" || duplicate.status === "waitlist") {
+      if (
+        duplicate.status === "reservado" ||
+        duplicate.status === "qr_escaneado" ||
+        duplicate.status === "confirmado" ||
+        duplicate.status === "lista_espera"
+      ) {
         throw new ConflictError(
           "El miembro ya tiene una reserva en este horario",
         );
       }
-      // Remove cancelled/no_show duplicate
-      if (duplicate.status === "cancelled" || duplicate.status === "no_show") {
+      // Remove cancelado/no_show duplicate
+      if (duplicate.status === "cancelado" || duplicate.status === "no_show") {
         await this.db
           .delete(schema.bookings)
           .where(eq(schema.bookings.id, duplicate.id));
@@ -1005,14 +1071,14 @@ export class SchedulingService {
     }
 
     // Check capacity
-    const confirmedCount = await this.countConfirmedBookings(scheduleId, date);
+    const activeCount = await this.countActiveBookings(scheduleId, date);
     const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
 
-    let status: "confirmed" | "waitlist" = "confirmed";
+    let status: "reservado" | "lista_espera" = "reservado";
     let waitlistPosition: number | null = null;
 
-    if (confirmedCount >= maxCapacity) {
-      status = "waitlist";
+    if (activeCount >= maxCapacity) {
+      status = "lista_espera";
       const [maxPos] = await this.db
         .select({
           maxPos: sql<number>`COALESCE(MAX(${schema.bookings.waitlistPosition}), 0)`,
@@ -1022,7 +1088,7 @@ export class SchedulingService {
           and(
             eq(schema.bookings.scheduleId, scheduleId),
             eq(schema.bookings.bookingDate, date),
-            eq(schema.bookings.status, "waitlist"),
+            eq(schema.bookings.status, "lista_espera"),
           ),
         );
       waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
@@ -1064,19 +1130,26 @@ export class SchedulingService {
 
     if (!bookingRow) throw new NotFoundError("Reserva no encontrada");
 
-    if (bookingRow.status === "confirmed" || bookingRow.status === "waitlist") {
-      const wasConfirmed = bookingRow.status === "confirmed";
+    const activeStatuses = [
+      "reservado",
+      "qr_escaneado",
+      "confirmado",
+      "lista_espera",
+    ];
+    if (activeStatuses.includes(bookingRow.status)) {
+      const slotOccupying = ["reservado", "qr_escaneado", "confirmado"];
+      const wasOccupying = slotOccupying.includes(bookingRow.status);
 
       await this.db
         .update(schema.bookings)
         .set({
-          status: "cancelled",
+          status: "cancelado",
           cancelledAt: new Date(),
           waitlistPosition: null,
         })
         .where(eq(schema.bookings.id, bookingId));
 
-      if (wasConfirmed) {
+      if (wasOccupying) {
         await this.promoteWaitlist(
           bookingRow.scheduleId,
           bookingRow.bookingDate,
@@ -1125,11 +1198,11 @@ export class SchedulingService {
       if (countrySchedules.length > 0) {
         const scheduleIds = countrySchedules.map((s) => s.id);
 
-        // Cancel all confirmed and waitlist bookings for these schedules on this date
+        // Cancel all active bookings for these schedules on this date
         await this.db
           .update(schema.bookings)
           .set({
-            status: "cancelled",
+            status: "cancelado",
             cancelledAt: new Date(),
             waitlistPosition: null,
           })
@@ -1137,7 +1210,7 @@ export class SchedulingService {
             and(
               inArray(schema.bookings.scheduleId, scheduleIds),
               eq(schema.bookings.bookingDate, date),
-              sql`${schema.bookings.status} IN ('confirmed', 'waitlist')`,
+              sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
             ),
           );
       }
@@ -1278,7 +1351,7 @@ export class SchedulingService {
         and(
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, bookingDate),
-          eq(schema.bookings.status, "waitlist"),
+          eq(schema.bookings.status, "lista_espera"),
         ),
       )
       .orderBy(asc(schema.bookings.waitlistPosition))
@@ -1286,10 +1359,10 @@ export class SchedulingService {
 
     if (!first) return;
 
-    // Promote to confirmed
+    // Promote to reservado
     await this.db
       .update(schema.bookings)
-      .set({ status: "confirmed", waitlistPosition: null })
+      .set({ status: "reservado", waitlistPosition: null })
       .where(eq(schema.bookings.id, first.id));
 
     // Reorder remaining waitlist positions
@@ -1303,7 +1376,7 @@ export class SchedulingService {
         and(
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, bookingDate),
-          eq(schema.bookings.status, "waitlist"),
+          eq(schema.bookings.status, "lista_espera"),
         ),
       )
       .orderBy(asc(schema.bookings.waitlistPosition));
@@ -1322,9 +1395,10 @@ export class SchedulingService {
   }
 
   /**
-   * Count confirmed bookings for a schedule+date.
+   * Count active (slot-occupying) bookings for a schedule+date.
+   * Includes reservado, qr_escaneado, and confirmado.
    */
-  private async countConfirmedBookings(
+  private async countActiveBookings(
     scheduleId: number,
     date: string,
   ): Promise<number> {
@@ -1335,7 +1409,7 @@ export class SchedulingService {
         and(
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
-          eq(schema.bookings.status, "confirmed"),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
         ),
       );
 
@@ -1343,7 +1417,7 @@ export class SchedulingService {
   }
 
   /**
-   * Count a member's confirmed bookings in a Mon-Sat range.
+   * Count a member's active bookings in a Mon-Sat range.
    */
   private async countWeeklyBookings(
     memberId: number,
@@ -1356,7 +1430,7 @@ export class SchedulingService {
       .where(
         and(
           eq(schema.bookings.memberId, memberId),
-          eq(schema.bookings.status, "confirmed"),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
           sql`${schema.bookings.bookingDate} >= ${monday}`,
           sql`${schema.bookings.bookingDate} <= ${saturday}`,
         ),

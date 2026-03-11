@@ -272,7 +272,7 @@ export class BlogService {
       }
     }
 
-    const updateValues: Record<string, unknown> = {};
+    const updateValues: Partial<typeof blogPosts.$inferInsert> = {};
     if (data.title !== undefined) updateValues.title = data.title;
     if (data.slug !== undefined) updateValues.slug = data.slug;
     if (data.excerpt !== undefined) updateValues.excerpt = data.excerpt;
@@ -395,7 +395,7 @@ export class BlogService {
     id: number,
     data: { name?: string; slug?: string },
   ): Promise<TagData | null> {
-    const updateValues: Record<string, unknown> = {};
+    const updateValues: Partial<typeof blogTags.$inferInsert> = {};
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.slug !== undefined) updateValues.slug = data.slug;
 

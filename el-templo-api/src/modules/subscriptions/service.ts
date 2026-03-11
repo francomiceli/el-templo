@@ -112,7 +112,8 @@ export class SubscriptionService {
     const existing = await this.getPlanById(planId);
     if (!existing) return null;
 
-    const updateData: Record<string, unknown> = {};
+    const updateData: Partial<typeof schema.subscriptionPlans.$inferInsert> =
+      {};
 
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined)
@@ -535,7 +536,7 @@ export class SubscriptionService {
       newEndDate = endDate.toISOString().split("T")[0];
     }
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Partial<typeof schema.subscriptions.$inferInsert> = {
       status: "active",
       resumedAt: new Date(),
       pausedAt: null,
@@ -576,7 +577,7 @@ export class SubscriptionService {
       );
     }
 
-    const updateData: Record<string, unknown> = {
+    const updateData: Partial<typeof schema.subscriptions.$inferInsert> = {
       status: "cancelled",
       cancelledAt: new Date(),
     };

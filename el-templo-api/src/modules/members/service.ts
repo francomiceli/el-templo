@@ -238,7 +238,7 @@ export class MemberService {
     if (!existing) return null;
 
     // Build update object, only including provided fields
-    const updateData: Record<string, unknown> = {};
+    const updateData: Partial<typeof schema.users.$inferInsert> = {};
 
     if (input.firstName !== undefined) updateData.firstName = input.firstName;
     if (input.lastName !== undefined) updateData.lastName = input.lastName;
@@ -246,7 +246,8 @@ export class MemberService {
     if (input.dni !== undefined) updateData.dni = input.dni;
     if (input.dateOfBirth !== undefined)
       updateData.dateOfBirth = input.dateOfBirth;
-    if (input.gender !== undefined) updateData.gender = input.gender;
+    if (input.gender !== undefined)
+      updateData.gender = input.gender as "male" | "female" | "other" | null;
     if (input.emergencyContactName !== undefined)
       updateData.emergencyContactName = input.emergencyContactName;
     if (input.emergencyContactPhone !== undefined)
@@ -255,7 +256,13 @@ export class MemberService {
       updateData.emergencyContactRelationship =
         input.emergencyContactRelationship;
     if (input.branchId !== undefined) updateData.branchId = input.branchId;
-    if (input.level !== undefined) updateData.level = input.level;
+    if (input.level !== undefined)
+      updateData.level = input.level as
+        | "alfa"
+        | "delta"
+        | "sigma"
+        | "omega"
+        | "spartan";
 
     if (Object.keys(updateData).length > 0) {
       await this.db

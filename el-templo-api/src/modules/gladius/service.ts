@@ -96,7 +96,7 @@ export class GladiusService {
     id: number,
     data: Partial<Omit<ProductData, "slug">> & { slug?: string },
   ) {
-    const updateValues: Record<string, unknown> = {};
+    const updateValues: Partial<typeof gladiusProducts.$inferInsert> = {};
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.slug !== undefined) updateValues.slug = data.slug;
     if (data.description !== undefined)
