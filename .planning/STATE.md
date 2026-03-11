@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 55-01-PLAN.md
-last_updated: "2026-03-11T21:47:33Z"
+stopped_at: Completed 55-02-PLAN.md
+last_updated: "2026-03-11T21:54:14.907Z"
 last_activity: "2026-03-11 — Completed 55-01: Composable Instantiation Refactor"
 progress:
-  total_phases: 42
+  total_phases: 43
   completed_phases: 33
-  total_plans: 150
-  completed_plans: 149
+  total_plans: 153
+  completed_plans: 151
   percent: 98
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 55 (Pattern Fixes / Composable Instantiation, Type Safety, Convention Compliance)
-Plan: 1 of 2 in current phase
-Status: Plan 55-01 complete — composable instantiation refactor across 9 admin files
-Last activity: 2026-03-11 — Completed 55-01: Composable Instantiation Refactor
+Plan: 2 of 3 in current phase
+Status: Plan 55-02 complete — type safety and convention compliance across 13 app files
+Last activity: 2026-03-11 — Completed 55-02: Type Safety and Convention Compliance
 
 Progress: [██████████] 98%
 
@@ -75,6 +75,7 @@ _Updated after each plan completion_
 | Phase 54 P03 | 4min | 2 tasks | 4 files |
 | Phase 54 P02 | 8min | 2 tasks | 26 files |
 | Phase 55 P01 | 5min | 2 tasks | 9 files |
+| Phase 55 P02 | 3min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -164,6 +165,8 @@ Recent decisions affecting current work:
 - [Phase 54]: DOMPurify v3.3.3 ships own types -- @types/dompurify deprecated stub not needed
 - [Phase 54]: extractError unified to check both .error and .message response fields across 13 composables
 - [Phase 54]: formatDate shared utility uses es-AR locale with month:short -- non-standard variants (month:long, includes time, Date input) left untouched
+- [Phase 55]: extractError in app mirrors admin version exactly -- same API, same fallback chain (error then message field)
+- [Phase 55]: useWakeLock.initialize() registers visibilitychange listener -- moved from removed onMounted
 
 ### v2.0 Deferrals
 
@@ -190,6 +193,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T21:47:33Z
-Stopped at: Completed 55-01-PLAN.md
+Last session: 2026-03-11T21:54:14.903Z
+Stopped at: Completed 55-02-PLAN.md
 Resume file: None
