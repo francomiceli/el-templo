@@ -248,12 +248,15 @@ export class AnalyticsService {
       conditions.push(eq(schema.subscriptions.branchId, branchId));
     }
 
+    // Note: correlated subquery uses raw SQL column names because Drizzle
+    // interpolation of column refs (${schema.subscriptions.id}) inside
+    // subqueries generates parameter placeholders instead of column references.
     const rows = await this.db
       .select({
         pricePaid: schema.subscriptions.pricePaid,
         paid: sql<number>`COALESCE((
           SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = ${schema.subscriptions.id}
+          WHERE p.subscription_id = subscriptions.id
           AND p.voided_at IS NULL
         ), 0)`,
       })
@@ -262,9 +265,9 @@ export class AnalyticsService {
       .having(
         sql`COALESCE((
           SELECT SUM(p2.amount) FROM payments p2
-          WHERE p2.subscription_id = ${schema.subscriptions.id}
+          WHERE p2.subscription_id = subscriptions.id
           AND p2.voided_at IS NULL
-        ), 0) < ${schema.subscriptions.pricePaid}`,
+        ), 0) < subscriptions.price_paid`,
       );
 
     return rows.length;
@@ -351,9 +354,9 @@ export class AnalyticsService {
       sql`${schema.subscriptions.endDate} <= ${dateTo}`,
       sql`EXISTS (
         SELECT 1 FROM subscriptions s2
-        WHERE s2.user_id = ${schema.subscriptions.userId}
+        WHERE s2.user_id = subscriptions.user_id
         AND s2.subscription_status IN ('active', 'paused')
-        AND s2.id != ${schema.subscriptions.id}
+        AND s2.id != subscriptions.id
       )`,
     ];
 
@@ -475,7 +478,7 @@ export class AnalyticsService {
         pricePaid: schema.subscriptions.pricePaid,
         paid: sql<number>`COALESCE((
           SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = ${schema.subscriptions.id}
+          WHERE p.subscription_id = subscriptions.id
           AND p.voided_at IS NULL
         ), 0)`,
       })
@@ -489,9 +492,9 @@ export class AnalyticsService {
       .having(
         sql`COALESCE((
           SELECT SUM(p2.amount) FROM payments p2
-          WHERE p2.subscription_id = ${schema.subscriptions.id}
+          WHERE p2.subscription_id = subscriptions.id
           AND p2.voided_at IS NULL
-        ), 0) < ${schema.subscriptions.pricePaid}`,
+        ), 0) < subscriptions.price_paid`,
       )
       .limit(10);
 
@@ -639,7 +642,7 @@ export class AnalyticsService {
       eq(schema.schedules.isActive, true),
       sql`${schema.bookings.bookingDate} >= ${dateFrom}`,
       sql`${schema.bookings.bookingDate} <= ${dateTo}`,
-      eq(schema.bookings.status, "confirmed"),
+      sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
     ];
 
     if (branchId !== undefined) {
@@ -861,7 +864,7 @@ export class AnalyticsService {
         pricePaid: schema.subscriptions.pricePaid,
         paid: sql<number>`COALESCE((
           SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = ${schema.subscriptions.id}
+          WHERE p.subscription_id = subscriptions.id
           AND p.voided_at IS NULL
         ), 0)`,
       })

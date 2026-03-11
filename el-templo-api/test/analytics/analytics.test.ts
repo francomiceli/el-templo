@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
@@ -231,6 +231,108 @@ describe("Analytics API", () => {
         expect(typeof body[key].trend.percentage).toBe("number");
       }
     });
+
+    it("should count morosos when member has expired sub with insufficient payment", async () => {
+      const plan = await createPlan({
+        name: "Plan Moroso Test",
+        durationDays: 30,
+        priceRegular: 15000,
+      });
+      const member = await createMember({
+        email: "moroso@test.com",
+        dni: "90000040",
+      });
+
+      // Assign sub starting 35 days ago (will auto-calculate endDate = 5 days ago)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 35);
+      const sub = await assignSubscription(member.id, plan.id, {
+        startDate: startDate.toISOString().split("T")[0],
+      });
+      const subId = sub.id as number;
+
+      // Force status to expired
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, subId));
+
+      // Insert partial payment (5000 of 15000) directly linked to subscription
+      const today = new Date().toISOString().split("T")[0];
+      const [admin] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "admin@test.com"));
+      await app.db.insert(payments).values({
+        memberId: member.id,
+        subscriptionId: subId,
+        amount: 5000,
+        paymentMethod: "cash",
+        paymentDate: today,
+        recordedBy: admin.id,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: ANALYTICS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.morososCount.value).toBeGreaterThanOrEqual(1);
+    });
+
+    it("should not count fully-paid expired sub as moroso", async () => {
+      const plan = await createPlan({
+        name: "Plan Paid Test",
+        durationDays: 30,
+        priceRegular: 15000,
+      });
+      const member = await createMember({
+        email: "paid@test.com",
+        dni: "90000041",
+      });
+
+      // Assign sub starting 35 days ago (endDate = 5 days ago)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 35);
+      const sub = await assignSubscription(member.id, plan.id, {
+        startDate: startDate.toISOString().split("T")[0],
+      });
+      const subId = sub.id as number;
+
+      // Force expired status
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, subId));
+
+      // Insert full payment (15000 of 15000) directly linked to subscription
+      const today = new Date().toISOString().split("T")[0];
+      const [admin] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "admin@test.com"));
+      await app.db.insert(payments).values({
+        memberId: member.id,
+        subscriptionId: subId,
+        amount: 15000,
+        paymentMethod: "cash",
+        paymentDate: today,
+        recordedBy: admin.id,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: ANALYTICS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.morososCount.value).toBe(0);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -282,6 +384,98 @@ describe("Analytics API", () => {
       );
       expect(found).toBeDefined();
       expect(found.count).toBe(1);
+    });
+
+    it("should compute retentionRate = 50% when 1 of 2 members renews", async () => {
+      const plan = await createPlan({
+        name: "Plan Retention Test",
+        durationDays: 30,
+      });
+
+      // Create 2 members
+      const member1 = await createMember({
+        email: "ret1@test.com",
+        dni: "90000050",
+      });
+      const member2 = await createMember({
+        email: "ret2@test.com",
+        dni: "90000051",
+      });
+
+      // Assign subs starting 35 days ago (endDate = 5 days ago — these are "ending" subs)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 35);
+      const startDateStr = startDate.toISOString().split("T")[0];
+
+      await assignSubscription(member1.id, plan.id, {
+        startDate: startDateStr,
+      });
+      await assignSubscription(member2.id, plan.id, {
+        startDate: startDateStr,
+      });
+
+      // Force both to expired status
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.userId, member1.id));
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.userId, member2.id));
+
+      // Member 1 renews — assign a new active sub starting today
+      const today = new Date().toISOString().split("T")[0];
+      await assignSubscription(member1.id, plan.id, {
+        startDate: today,
+      });
+
+      // Query with date range covering the ending period (10 days ago to today)
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - 10);
+      const dateFromStr = dateFrom.toISOString().split("T")[0];
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?dateFrom=${dateFromStr}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.retentionRate).toBe(50);
+    });
+
+    it("should compute retentionRate = 100% when no subs end in period", async () => {
+      const plan = await createPlan({
+        name: "Plan NoEnd Test",
+        durationDays: 30,
+      });
+      const member = await createMember({
+        email: "ret-noend@test.com",
+        dni: "90000052",
+      });
+
+      // Assign sub starting today (ends in 30 days — not ending in our query range)
+      const today = new Date().toISOString().split("T")[0];
+      await assignSubscription(member.id, plan.id, {
+        startDate: today,
+      });
+
+      // Query with date range covering past 10 days (no subs end in this range)
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - 10);
+      const dateFromStr = dateFrom.toISOString().split("T")[0];
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/members?dateFrom=${dateFromStr}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.retentionRate).toBe(100);
     });
 
     it("should return attentionList with expiring members", async () => {
@@ -467,6 +661,136 @@ describe("Analytics API", () => {
       expect(typeof body.collectionRate).toBe("number");
       expect(body.collectionRate).toBeGreaterThanOrEqual(0);
       expect(body.collectionRate).toBeLessThanOrEqual(100);
+    });
+
+    it("should compute totalOutstanding as sum of unpaid balances on expired subs", async () => {
+      const plan = await createPlan({
+        name: "Plan Outstanding Test",
+        durationDays: 30,
+        priceRegular: 15000,
+      });
+      const member = await createMember({
+        email: "out@test.com",
+        dni: "90000060",
+      });
+
+      // Assign sub starting 35 days ago (endDate = 5 days ago)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 35);
+      const sub = await assignSubscription(member.id, plan.id, {
+        startDate: startDate.toISOString().split("T")[0],
+      });
+      const subId = sub.id as number;
+
+      // Force expired status
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, subId));
+
+      // Insert partial payment (5000 of 15000) linked to subscription
+      const today = new Date().toISOString().split("T")[0];
+      const [admin] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "admin@test.com"));
+      await app.db.insert(payments).values({
+        memberId: member.id,
+        subscriptionId: subId,
+        amount: 5000,
+        paymentMethod: "cash",
+        paymentDate: today,
+        recordedBy: admin.id,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // 15000 owed - 5000 paid = 10000 outstanding
+      expect(body.totalOutstanding).toBe(10000);
+    });
+
+    it("should compute collectionRate from total owed vs total collected", async () => {
+      const plan = await createPlan({
+        name: "Plan Collection Test",
+        durationDays: 30,
+        priceRegular: 10000,
+      });
+
+      const member1 = await createMember({
+        email: "col1@test.com",
+        dni: "90000061",
+      });
+      const member2 = await createMember({
+        email: "col2@test.com",
+        dni: "90000062",
+      });
+
+      // Assign subs starting 35 days ago (endDate = 5 days ago)
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 35);
+      const startDateStr = startDate.toISOString().split("T")[0];
+
+      const sub1 = await assignSubscription(member1.id, plan.id, {
+        startDate: startDateStr,
+      });
+      const sub2 = await assignSubscription(member2.id, plan.id, {
+        startDate: startDateStr,
+      });
+      const sub1Id = sub1.id as number;
+      const sub2Id = sub2.id as number;
+
+      // Force expired status
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, sub1Id));
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, sub2Id));
+
+      // Insert payments directly to ensure subscription_id FK is set
+      const today = new Date().toISOString().split("T")[0];
+      const [admin] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "admin@test.com"));
+
+      // Member 1 pays full (10000), Member 2 pays partial (5000)
+      // Total owed = 20000, total collected = 15000, rate = 75%
+      await app.db.insert(payments).values({
+        memberId: member1.id,
+        subscriptionId: sub1Id,
+        amount: 10000,
+        paymentMethod: "cash",
+        paymentDate: today,
+        recordedBy: admin.id,
+      });
+      await app.db.insert(payments).values({
+        memberId: member2.id,
+        subscriptionId: sub2Id,
+        amount: 5000,
+        paymentMethod: "cash",
+        paymentDate: today,
+        recordedBy: admin.id,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // Total owed = 20000, total collected = 15000 (capped at pricePaid per sub)
+      expect(body.collectionRate).toBe(75);
     });
   });
 
