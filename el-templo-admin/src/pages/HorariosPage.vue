@@ -50,7 +50,7 @@
           icon="event_busy"
           label="Feriados"
           color="orange"
-          @click="openHolidaysDialog"
+          @click="showHolidaysDialog = true"
         />
       </div>
     </div>
@@ -117,270 +117,16 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Slot Detail Dialog -->
+    <!-- Extracted Dialog Components -->
     <!-- ================================================================== -->
-    <q-dialog v-model="showSlotDialog" persistent>
-      <q-card style="min-width: 500px; max-width: 600px">
-        <q-card-section>
-          <div class="text-h6">
-            {{ slotDetail?.schedule.activityName }} - {{ slotDetailDayLabel }}
-            {{ slotDetailDate }} - {{ slotDetail?.schedule.startTime }}
-          </div>
-          <div class="text-subtitle2 text-grey-7">
-            {{ slotDetailBookingCount }}/{{ slotDetail?.maxCapacity ?? 0 }} reservas
-          </div>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section class="q-pa-none" style="max-height: 400px; overflow-y: auto">
-          <q-list separator>
-            <q-item v-if="loadingSlotDetail" class="flex flex-center q-pa-lg">
-              <q-spinner-dots size="30px" color="primary" />
-            </q-item>
-
-            <q-item v-else-if="!slotDetail || activeBookings.length === 0">
-              <q-item-section class="text-grey-5 text-italic text-center">
-                Sin reservas para este horario
-              </q-item-section>
-            </q-item>
-
-            <q-item v-for="booking in activeBookings" :key="booking.id">
-              <q-item-section>
-                <q-item-label>{{ booking.memberName }}</q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <div class="row items-center q-gutter-xs">
-                  <q-badge
-                    :color="getBookingStatusColor(booking.status)"
-                    :label="getBookingStatusLabel(booking.status)"
-                  />
-                  <q-btn
-                    v-if="!isSlotPast"
-                    flat
-                    dense
-                    round
-                    icon="delete"
-                    color="negative"
-                    size="sm"
-                    @click="onRemoveBooking(booking.id)"
-                  >
-                    <q-tooltip>Eliminar reserva</q-tooltip>
-                  </q-btn>
-                </div>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">Agregar alumno</div>
-          <q-select
-            v-model="slotAddMember"
-            :options="memberSearchResults"
-            option-value="id"
-            option-label="displayLabel"
-            label="Buscar alumno (nombre o DNI)"
-            dense
-            outlined
-            use-input
-            clearable
-            input-debounce="300"
-            :loading="searchingMembers"
-            @filter="onMemberSearch"
-          >
-            <template #no-option>
-              <q-item>
-                <q-item-section class="text-grey-5 text-italic">
-                  {{ memberSearchQuery ? 'Sin resultados' : 'Escribe para buscar' }}
-                </q-item-section>
-              </q-item>
-            </template>
-            <template #after>
-              <q-btn
-                round
-                dense
-                flat
-                icon="add"
-                color="primary"
-                :disable="!slotAddMember"
-                @click="onAddBooking"
-              />
-            </template>
-          </q-select>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cerrar" color="grey-7" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- ================================================================== -->
-    <!-- Activities Management Dialog -->
-    <!-- ================================================================== -->
-    <q-dialog v-model="showActivitiesDialog">
-      <q-card style="min-width: 500px; max-width: 600px">
-        <q-card-section>
-          <div class="text-h6">Gestionar Actividades</div>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section class="q-pa-none" style="max-height: 400px; overflow-y: auto">
-          <q-list separator>
-            <q-item v-if="loadingActivities" class="flex flex-center q-pa-lg">
-              <q-spinner-dots size="30px" color="primary" />
-            </q-item>
-
-            <q-item v-for="act in activities" :key="act.id">
-              <q-item-section>
-                <q-item-label>{{ act.name }}</q-item-label>
-                <q-item-label caption>{{ act.description || 'Sin descripcion' }}</q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <div class="row items-center q-gutter-xs">
-                  <q-toggle
-                    :model-value="act.isActive"
-                    @update:model-value="
-                      (val: boolean) => onToggleActivity(act.id, act.name, act.description, val)
-                    "
-                    color="positive"
-                    size="sm"
-                  />
-                  <q-btn flat dense round icon="edit" size="sm" @click="startEditActivity(act)" />
-                </div>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">
-            {{ editingActivity ? 'Editar actividad' : 'Nueva actividad' }}
-          </div>
-          <div class="row q-gutter-sm">
-            <q-input v-model="activityForm.name" label="Nombre" dense outlined class="col" />
-            <q-input
-              v-model="activityForm.description"
-              label="Descripcion"
-              dense
-              outlined
-              class="col"
-            />
-            <q-btn
-              :icon="editingActivity ? 'save' : 'add'"
-              color="primary"
-              dense
-              :disable="!activityForm.name.trim()"
-              @click="onSaveActivity"
-            />
-            <q-btn v-if="editingActivity" icon="close" flat dense @click="cancelEditActivity" />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cerrar" color="grey-7" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
-
-    <!-- ================================================================== -->
-    <!-- Holidays Management Dialog -->
-    <!-- ================================================================== -->
-    <q-dialog v-model="showHolidaysDialog">
-      <q-card style="min-width: 500px; max-width: 600px">
-        <q-card-section>
-          <div class="text-h6">Gestionar Feriados</div>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section>
-          <q-select
-            v-model="holidayCountry"
-            :options="countryOptions"
-            label="Pais"
-            dense
-            outlined
-            emit-value
-            map-options
-            @update:model-value="loadHolidays"
-          />
-        </q-card-section>
-
-        <q-banner class="bg-amber-1 text-amber-9 q-mx-md q-mb-sm" dense rounded>
-          <template #avatar>
-            <q-icon name="warning" color="amber-9" />
-          </template>
-          Al agregar un feriado, las reservas existentes para ese dia se cancelan automaticamente
-        </q-banner>
-
-        <q-card-section class="q-pa-none" style="max-height: 300px; overflow-y: auto">
-          <q-list separator>
-            <q-item v-if="loadingHolidays" class="flex flex-center q-pa-lg">
-              <q-spinner-dots size="30px" color="primary" />
-            </q-item>
-
-            <q-item v-else-if="holidays.length === 0">
-              <q-item-section class="text-grey-5 text-italic text-center">
-                Sin feriados registrados
-              </q-item-section>
-            </q-item>
-
-            <q-item v-for="h in holidays" :key="h.id">
-              <q-item-section>
-                <q-item-label>{{ h.name }}</q-item-label>
-                <q-item-label caption>{{ formatHolidayDate(h.date) }}</q-item-label>
-              </q-item-section>
-              <q-item-section side>
-                <q-btn
-                  flat
-                  dense
-                  round
-                  icon="delete"
-                  color="negative"
-                  size="sm"
-                  @click="onRemoveHoliday(h)"
-                />
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-card-section>
-
-        <q-separator />
-
-        <q-card-section>
-          <div class="text-subtitle2 q-mb-sm">Nuevo feriado</div>
-          <div class="row q-gutter-sm">
-            <q-input
-              v-model="holidayForm.date"
-              label="Fecha"
-              dense
-              outlined
-              type="date"
-              class="col"
-            />
-            <q-input v-model="holidayForm.name" label="Nombre" dense outlined class="col" />
-            <q-btn
-              icon="add"
-              color="primary"
-              dense
-              :disable="!holidayForm.date || !holidayForm.name.trim()"
-              @click="onAddHoliday"
-            />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cerrar" color="grey-7" v-close-popup />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <SlotDetailDialog
+      v-model:show="showSlotDialog"
+      :schedule-id="selectedSlotScheduleId"
+      :date="selectedSlotDate"
+      @bookings-changed="loadWeeklyGrid"
+    />
+    <ActivitiesDialog v-model:show="showActivitiesDialog" />
+    <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
   </q-page>
 </template>
 
@@ -390,83 +136,34 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import type {
-  WeeklySlotView,
-  SlotDetailView,
-  ActivityRecord,
-  HolidayRecord,
-  BookingStatus,
-  DayOfWeek,
-} from 'src/types/scheduling';
-import {
-  DAY_LABELS,
-  DAY_SHORT_LABELS,
-  BOOKING_STATUS_LABELS,
-  BOOKING_STATUS_COLORS,
-} from 'src/types/scheduling';
+import type { WeeklySlotView, HolidayRecord, DayOfWeek } from 'src/types/scheduling';
+import { DAY_SHORT_LABELS } from 'src/types/scheduling';
 import type { BranchOption } from 'src/types/member';
+import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
+import ActivitiesDialog from 'src/components/scheduling/ActivitiesDialog.vue';
+import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 
 const log = createLogger('HorariosPage');
 const $q = useQuasar();
 const membersApi = useMembersApi();
 const schedulingApi = useSchedulingApi();
 
-// =========================================================================
-// State
-// =========================================================================
+// ─── State ──────────────────────────────────────────────────────────────────
 
-// Branch
 const selectedBranchId = ref<number | null>(null);
 const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 const loadingBranches = ref(false);
-
-// Week navigation
 const weekStartDate = ref(getMonday(new Date()));
-
-// Grid data
 const gridSlots = ref<WeeklySlotView[]>([]);
 const gridHolidays = ref<HolidayRecord[]>([]);
 const loadingGrid = ref(false);
-
-// Slot detail dialog
 const showSlotDialog = ref(false);
-const slotDetail = ref<SlotDetailView | null>(null);
-const loadingSlotDetail = ref(false);
 const selectedSlotScheduleId = ref<number | null>(null);
 const selectedSlotDate = ref('');
-
-// Member search for slot dialog
-const slotAddMember = ref<{ id: number; displayLabel: string } | null>(null);
-const memberSearchResults = ref<Array<{ id: number; displayLabel: string }>>([]);
-const searchingMembers = ref(false);
-const memberSearchQuery = ref('');
-
-// Activities dialog
 const showActivitiesDialog = ref(false);
-const activities = ref<ActivityRecord[]>([]);
-const loadingActivities = ref(false);
-const activityForm = ref({ name: '', description: '' });
-const editingActivity = ref<ActivityRecord | null>(null);
-
-// Holidays dialog
 const showHolidaysDialog = ref(false);
-const holidays = ref<HolidayRecord[]>([]);
-const loadingHolidays = ref(false);
-const holidayCountry = ref('AR');
-const holidayForm = ref({ date: '', name: '' });
 
-const countryOptions = [
-  { label: 'Argentina', value: 'AR' },
-  { label: 'Chile', value: 'CL' },
-  { label: 'Uruguay', value: 'UY' },
-  { label: 'Paraguay', value: 'PY' },
-  { label: 'Colombia', value: 'CO' },
-  { label: 'Mexico', value: 'MX' },
-];
-
-// =========================================================================
-// Computed
-// =========================================================================
+// ─── Computed ───────────────────────────────────────────────────────────────
 
 /** Days of the week for the current weekStart */
 const weekDays = computed(() => {
@@ -511,41 +208,7 @@ const gridTemplateStyle = computed(() => ({
   'grid-template-rows': `auto repeat(${timeSlots.value.length}, 1fr)`,
 }));
 
-/** Active bookings (not cancelled) for slot detail */
-const activeBookings = computed(() => {
-  if (!slotDetail.value) return [];
-  return slotDetail.value.bookings.filter(
-    (b) =>
-      b.status === 'reservado' ||
-      b.status === 'qr_escaneado' ||
-      b.status === 'confirmado' ||
-      b.status === 'lista_espera'
-  );
-});
-
-const slotDetailBookingCount = computed(() => activeBookings.value.length);
-
-const isSlotPast = computed(() => {
-  if (!slotDetail.value) return false;
-  const dt = new Date(`${slotDetail.value.date}T${slotDetail.value.schedule.startTime}:00`);
-  return dt < new Date();
-});
-
-const slotDetailDayLabel = computed(() => {
-  if (!slotDetail.value) return '';
-  const dow = slotDetail.value.schedule.dayOfWeek as DayOfWeek;
-  return DAY_LABELS[dow] ?? '';
-});
-
-const slotDetailDate = computed(() => {
-  if (!slotDetail.value) return '';
-  const d = new Date(slotDetail.value.date + 'T12:00:00');
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-});
-
-// =========================================================================
-// Helpers
-// =========================================================================
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
 function getMonday(d: Date): string {
   const date = new Date(d);
@@ -561,16 +224,6 @@ function formatDateISO(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-function formatHolidayDate(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00');
-  return d.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
 }
 
 /** Build a lookup key from startTime + dayOfWeek */
@@ -618,17 +271,7 @@ function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   return 'grid-cell--available';
 }
 
-function getBookingStatusLabel(status: BookingStatus): string {
-  return BOOKING_STATUS_LABELS[status];
-}
-
-function getBookingStatusColor(status: BookingStatus): string {
-  return BOOKING_STATUS_COLORS[status];
-}
-
-// =========================================================================
-// Data Loading
-// =========================================================================
+// ─── Data Loading ───────────────────────────────────────────────────────────
 
 async function loadBranches() {
   loadingBranches.value = true;
@@ -662,51 +305,7 @@ async function loadWeeklyGrid() {
   }
 }
 
-async function loadSlotDetail(scheduleId: number, date: string) {
-  loadingSlotDetail.value = true;
-  slotDetail.value = null;
-  try {
-    slotDetail.value = await schedulingApi.getSlotDetail(scheduleId, date);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading slot detail', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando detalle del horario' });
-  } finally {
-    loadingSlotDetail.value = false;
-  }
-}
-
-async function loadActivities() {
-  loadingActivities.value = true;
-  try {
-    activities.value = await schedulingApi.listActivities();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading activities', { error: message });
-  } finally {
-    loadingActivities.value = false;
-  }
-}
-
-async function loadHolidays() {
-  loadingHolidays.value = true;
-  try {
-    const year = new Date().getFullYear();
-    holidays.value = await schedulingApi.listHolidays({
-      country: holidayCountry.value,
-      year,
-    });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading holidays', { error: message });
-  } finally {
-    loadingHolidays.value = false;
-  }
-}
-
-// =========================================================================
-// Week Navigation
-// =========================================================================
+// ─── Week Navigation ────────────────────────────────────────────────────────
 
 function prevWeek() {
   const d = new Date(weekStartDate.value + 'T12:00:00');
@@ -724,19 +323,13 @@ function goToCurrentWeek() {
   weekStartDate.value = getMonday(new Date());
 }
 
-// =========================================================================
-// Branch Change
-// =========================================================================
-
 function onBranchChange() {
   gridSlots.value = [];
   gridHolidays.value = [];
   loadWeeklyGrid();
 }
 
-// =========================================================================
-// Cell Click -> Slot Detail
-// =========================================================================
+// ─── Cell Click -> Open Slot Detail Dialog ──────────────────────────────────
 
 function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   const slot = getCellSlot(time, dayOfWeek);
@@ -746,218 +339,15 @@ function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   selectedSlotScheduleId.value = slot.id;
   selectedSlotDate.value = date;
   showSlotDialog.value = true;
-  slotAddMember.value = null;
-  memberSearchResults.value = [];
-  loadSlotDetail(slot.id, date);
 }
 
-// =========================================================================
-// Booking Management
-// =========================================================================
-
-function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
-  memberSearchQuery.value = val;
-  if (!val || val.length < 2) {
-    update(() => {
-      memberSearchResults.value = [];
-    });
-    return;
-  }
-
-  searchingMembers.value = true;
-  membersApi
-    .getMembers({ search: val, limit: 10 })
-    .then((result) => {
-      update(() => {
-        memberSearchResults.value = result.members.map((m) => ({
-          id: m.id,
-          displayLabel: `${m.firstName} ${m.lastName}${m.dni ? ` (${m.dni})` : ''}`,
-        }));
-      });
-    })
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error searching members', { error: message });
-      update(() => {
-        memberSearchResults.value = [];
-      });
-    })
-    .finally(() => {
-      searchingMembers.value = false;
-    });
-}
-
-async function onAddBooking() {
-  if (!slotAddMember.value || !selectedSlotScheduleId.value) return;
-  try {
-    await schedulingApi.adminAddBooking({
-      scheduleId: selectedSlotScheduleId.value,
-      memberId: slotAddMember.value.id,
-      date: selectedSlotDate.value,
-    });
-    $q.notify({ type: 'positive', message: 'Reserva agregada' });
-    slotAddMember.value = null;
-    memberSearchResults.value = [];
-    await loadSlotDetail(selectedSlotScheduleId.value, selectedSlotDate.value);
-    await loadWeeklyGrid();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error adding booking', { error: message });
-    $q.notify({ type: 'negative', message: 'Error agregando reserva' });
-  }
-}
-
-async function onRemoveBooking(bookingId: number) {
-  $q.dialog({
-    title: 'Eliminar reserva',
-    message: 'Esta seguro que desea eliminar esta reserva?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Eliminar', color: 'negative' },
-  }).onOk(async () => {
-    try {
-      await schedulingApi.adminRemoveBooking(bookingId);
-      $q.notify({ type: 'positive', message: 'Reserva eliminada' });
-      if (selectedSlotScheduleId.value) {
-        await loadSlotDetail(selectedSlotScheduleId.value, selectedSlotDate.value);
-      }
-      await loadWeeklyGrid();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error removing booking', { error: message });
-      $q.notify({ type: 'negative', message: 'Error eliminando reserva' });
-    }
-  });
-}
-
-// =========================================================================
-// Activities Management
-// =========================================================================
-
-function startEditActivity(act: ActivityRecord) {
-  editingActivity.value = act;
-  activityForm.value = { name: act.name, description: act.description ?? '' };
-}
-
-function cancelEditActivity() {
-  editingActivity.value = null;
-  activityForm.value = { name: '', description: '' };
-}
-
-async function onSaveActivity() {
-  if (!activityForm.value.name.trim()) return;
-  try {
-    if (editingActivity.value) {
-      await schedulingApi.updateActivity(editingActivity.value.id, {
-        name: activityForm.value.name,
-        description: activityForm.value.description || undefined,
-      });
-      $q.notify({ type: 'positive', message: 'Actividad actualizada' });
-    } else {
-      await schedulingApi.createActivity({
-        name: activityForm.value.name,
-        description: activityForm.value.description || undefined,
-      });
-      $q.notify({ type: 'positive', message: 'Actividad creada' });
-    }
-    activityForm.value = { name: '', description: '' };
-    editingActivity.value = null;
-    await loadActivities();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error saving activity', { error: message });
-    $q.notify({ type: 'negative', message: 'Error guardando actividad' });
-  }
-}
-
-async function onToggleActivity(
-  id: number,
-  name: string,
-  description: string | null,
-  isActive: boolean
-) {
-  try {
-    await schedulingApi.updateActivity(id, {
-      name,
-      description: description ?? undefined,
-      isActive,
-    });
-    await loadActivities();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error toggling activity', { error: message });
-    $q.notify({ type: 'negative', message: 'Error actualizando actividad' });
-  }
-}
-
-// =========================================================================
-// Holidays Management
-// =========================================================================
-
-function openHolidaysDialog() {
-  showHolidaysDialog.value = true;
-  loadHolidays();
-}
-
-async function onAddHoliday() {
-  if (!holidayForm.value.date || !holidayForm.value.name.trim()) return;
-  try {
-    await schedulingApi.addHoliday({
-      country: holidayCountry.value,
-      date: holidayForm.value.date,
-      name: holidayForm.value.name,
-    });
-    $q.notify({ type: 'positive', message: 'Feriado agregado' });
-    holidayForm.value = { date: '', name: '' };
-    await loadHolidays();
-    await loadWeeklyGrid();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error adding holiday', { error: message });
-    $q.notify({ type: 'negative', message: 'Error agregando feriado' });
-  }
-}
-
-async function onRemoveHoliday(h: HolidayRecord) {
-  $q.dialog({
-    title: 'Eliminar feriado',
-    message: `Eliminar "${h.name}" del ${formatHolidayDate(h.date)}?`,
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Eliminar', color: 'negative' },
-  }).onOk(async () => {
-    try {
-      await schedulingApi.removeHoliday(h.id);
-      $q.notify({ type: 'positive', message: 'Feriado eliminado' });
-      await loadHolidays();
-      await loadWeeklyGrid();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error removing holiday', { error: message });
-      $q.notify({ type: 'negative', message: 'Error eliminando feriado' });
-    }
-  });
-}
-
-// =========================================================================
-// =========================================================================
-// Watchers
-// =========================================================================
+// ─── Watchers & Lifecycle ────────────────────────────────────────────────────
 
 watch(weekStartDate, () => {
   if (selectedBranchId.value) {
     loadWeeklyGrid();
   }
 });
-
-watch(showActivitiesDialog, (val) => {
-  if (val) {
-    loadActivities();
-    cancelEditActivity();
-  }
-});
-
-// =========================================================================
-// Lifecycle
-// =========================================================================
 
 onMounted(() => {
   loadBranches();
