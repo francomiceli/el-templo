@@ -1016,8 +1016,12 @@ Plans:
 **Goal:** Break up HorariosPage.vue (1385 LOC, 6 responsibilities) into focused components, break up AnaliticasPage.vue (1260 LOC) into tab components, decompose SchedulingService (1563 LOC) into domain services, fix composable-inside-computed anti-pattern in DayPlayer/JourneySession player pages, introduce service dependency injection in API (replace `new` inside constructors), add meaningful analytics test coverage (retention rate, financial assertions)
 **Requirements**: None (codebase health — no new features)
 **Depends on:** Phase 55
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 56 to break down)
+- [ ] 56-01-PLAN.md -- HorariosPage decomposition: extract 3 dialog components (slot detail, activities, holidays)
+- [ ] 56-02-PLAN.md -- AnaliticasPage decomposition: extract 3 tab components (miembros, asistencia, finanzas)
+- [ ] 56-03-PLAN.md -- SchedulingService decomposition: split into ActivityService, BookingService, HolidayService + slimmed ScheduleService
+- [ ] 56-04-PLAN.md -- Fix composable-inside-computed in player pages + constructor DI in AttendanceService/SubscriptionService
+- [ ] 56-05-PLAN.md -- Analytics test coverage: retention rate, morosos, financial deterministic assertions
