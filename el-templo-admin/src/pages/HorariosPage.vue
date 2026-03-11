@@ -52,14 +52,6 @@
           color="orange"
           @click="openHolidaysDialog"
         />
-        <q-btn
-          outline
-          icon="auto_fix_high"
-          label="Crear horarios por defecto"
-          color="primary"
-          :disable="!selectedBranchId"
-          @click="onSeedSchedules"
-        />
       </div>
     </div>
 
@@ -76,14 +68,6 @@
 
     <div v-else-if="timeSlots.length === 0" class="text-center q-pa-xl text-grey-5 text-italic">
       No hay horarios configurados para esta sede.
-      <br />
-      <q-btn
-        flat
-        color="primary"
-        label="Crear horarios por defecto"
-        class="q-mt-sm"
-        @click="onSeedSchedules"
-      />
     </div>
 
     <div v-else class="schedule-grid-container">
@@ -155,7 +139,7 @@
               <q-spinner-dots size="30px" color="primary" />
             </q-item>
 
-            <q-item v-else-if="!slotDetail || slotDetail.bookings.length === 0">
+            <q-item v-else-if="!slotDetail || activeBookings.length === 0">
               <q-item-section class="text-grey-5 text-italic text-center">
                 Sin reservas para este horario
               </q-item-section>
@@ -172,6 +156,7 @@
                     :label="getBookingStatusLabel(booking.status)"
                   />
                   <q-btn
+                    v-if="!isSlotPast"
                     flat
                     dense
                     round
@@ -423,6 +408,8 @@ import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('HorariosPage');
 const $q = useQuasar();
+const membersApi = useMembersApi();
+const schedulingApi = useSchedulingApi();
 
 // =========================================================================
 // State
@@ -485,7 +472,7 @@ const countryOptions = [
 const weekDays = computed(() => {
   const days: Array<{ dayOfWeek: DayOfWeek; shortLabel: string; dateLabel: string; date: string }> =
     [];
-  const start = new Date(weekStartDate.value);
+  const start = new Date(weekStartDate.value + 'T12:00:00');
   for (let i = 0; i < 6; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -511,7 +498,7 @@ const timeSlots = computed(() => {
 
 /** Week range label e.g. "10 Mar - 15 Mar 2026" */
 const weekRangeLabel = computed(() => {
-  const start = new Date(weekStartDate.value);
+  const start = new Date(weekStartDate.value + 'T12:00:00');
   const end = new Date(start);
   end.setDate(start.getDate() + 5);
   const fmt = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
@@ -528,11 +515,21 @@ const gridTemplateStyle = computed(() => ({
 const activeBookings = computed(() => {
   if (!slotDetail.value) return [];
   return slotDetail.value.bookings.filter(
-    (b) => b.status === 'confirmed' || b.status === 'waitlist'
+    (b) =>
+      b.status === 'reservado' ||
+      b.status === 'qr_escaneado' ||
+      b.status === 'confirmado' ||
+      b.status === 'lista_espera'
   );
 });
 
 const slotDetailBookingCount = computed(() => activeBookings.value.length);
+
+const isSlotPast = computed(() => {
+  if (!slotDetail.value) return false;
+  const dt = new Date(`${slotDetail.value.date}T${slotDetail.value.schedule.startTime}:00`);
+  return dt < new Date();
+});
 
 const slotDetailDayLabel = computed(() => {
   if (!slotDetail.value) return '';
@@ -636,10 +633,9 @@ function getBookingStatusColor(status: BookingStatus): string {
 async function loadBranches() {
   loadingBranches.value = true;
   try {
-    const membersApi = useMembersApi();
     const branches: BranchOption[] = await membersApi.getBranches();
     branchOptions.value = branches.map((b) => ({ label: b.name, value: b.id }));
-    if (branchOptions.value.length === 1) {
+    if (branchOptions.value.length > 0) {
       selectedBranchId.value = branchOptions.value[0].value;
     }
   } catch (err: unknown) {
@@ -654,7 +650,6 @@ async function loadWeeklyGrid() {
   if (!selectedBranchId.value) return;
   loadingGrid.value = true;
   try {
-    const schedulingApi = useSchedulingApi();
     const result = await schedulingApi.getWeeklyGrid(selectedBranchId.value, weekStartDate.value);
     gridSlots.value = result.slots;
     gridHolidays.value = result.holidays;
@@ -671,7 +666,6 @@ async function loadSlotDetail(scheduleId: number, date: string) {
   loadingSlotDetail.value = true;
   slotDetail.value = null;
   try {
-    const schedulingApi = useSchedulingApi();
     slotDetail.value = await schedulingApi.getSlotDetail(scheduleId, date);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -685,7 +679,6 @@ async function loadSlotDetail(scheduleId: number, date: string) {
 async function loadActivities() {
   loadingActivities.value = true;
   try {
-    const schedulingApi = useSchedulingApi();
     activities.value = await schedulingApi.listActivities();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -698,7 +691,6 @@ async function loadActivities() {
 async function loadHolidays() {
   loadingHolidays.value = true;
   try {
-    const schedulingApi = useSchedulingApi();
     const year = new Date().getFullYear();
     holidays.value = await schedulingApi.listHolidays({
       country: holidayCountry.value,
@@ -717,13 +709,13 @@ async function loadHolidays() {
 // =========================================================================
 
 function prevWeek() {
-  const d = new Date(weekStartDate.value);
+  const d = new Date(weekStartDate.value + 'T12:00:00');
   d.setDate(d.getDate() - 7);
   weekStartDate.value = formatDateISO(d);
 }
 
 function nextWeek() {
-  const d = new Date(weekStartDate.value);
+  const d = new Date(weekStartDate.value + 'T12:00:00');
   d.setDate(d.getDate() + 7);
   weekStartDate.value = formatDateISO(d);
 }
@@ -763,7 +755,7 @@ function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
 // Booking Management
 // =========================================================================
 
-function onMemberSearch(val: string, update: (fn: () => void) => void, abort: () => void) {
+function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: () => void) {
   memberSearchQuery.value = val;
   if (!val || val.length < 2) {
     update(() => {
@@ -773,7 +765,6 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, abort: ()
   }
 
   searchingMembers.value = true;
-  const membersApi = useMembersApi();
   membersApi
     .getMembers({ search: val, limit: 10 })
     .then((result) => {
@@ -799,7 +790,6 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, abort: ()
 async function onAddBooking() {
   if (!slotAddMember.value || !selectedSlotScheduleId.value) return;
   try {
-    const schedulingApi = useSchedulingApi();
     await schedulingApi.adminAddBooking({
       scheduleId: selectedSlotScheduleId.value,
       memberId: slotAddMember.value.id,
@@ -825,7 +815,6 @@ async function onRemoveBooking(bookingId: number) {
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(async () => {
     try {
-      const schedulingApi = useSchedulingApi();
       await schedulingApi.adminRemoveBooking(bookingId);
       $q.notify({ type: 'positive', message: 'Reserva eliminada' });
       if (selectedSlotScheduleId.value) {
@@ -857,7 +846,6 @@ function cancelEditActivity() {
 async function onSaveActivity() {
   if (!activityForm.value.name.trim()) return;
   try {
-    const schedulingApi = useSchedulingApi();
     if (editingActivity.value) {
       await schedulingApi.updateActivity(editingActivity.value.id, {
         name: activityForm.value.name,
@@ -888,7 +876,6 @@ async function onToggleActivity(
   isActive: boolean
 ) {
   try {
-    const schedulingApi = useSchedulingApi();
     await schedulingApi.updateActivity(id, {
       name,
       description: description ?? undefined,
@@ -914,7 +901,6 @@ function openHolidaysDialog() {
 async function onAddHoliday() {
   if (!holidayForm.value.date || !holidayForm.value.name.trim()) return;
   try {
-    const schedulingApi = useSchedulingApi();
     await schedulingApi.addHoliday({
       country: holidayCountry.value,
       date: holidayForm.value.date,
@@ -939,7 +925,6 @@ async function onRemoveHoliday(h: HolidayRecord) {
     ok: { label: 'Eliminar', color: 'negative' },
   }).onOk(async () => {
     try {
-      const schedulingApi = useSchedulingApi();
       await schedulingApi.removeHoliday(h.id);
       $q.notify({ type: 'positive', message: 'Feriado eliminado' });
       await loadHolidays();
@@ -953,33 +938,6 @@ async function onRemoveHoliday(h: HolidayRecord) {
 }
 
 // =========================================================================
-// Seed Default Schedules
-// =========================================================================
-
-function onSeedSchedules() {
-  if (!selectedBranchId.value) return;
-  $q.dialog({
-    title: 'Crear horarios por defecto',
-    message: 'Esto creara los horarios predeterminados para esta sede. Continuar?',
-    cancel: { label: 'Cancelar', flat: true },
-    ok: { label: 'Crear', color: 'primary' },
-  }).onOk(async () => {
-    try {
-      const schedulingApi = useSchedulingApi();
-      const result = await schedulingApi.seedSchedules(selectedBranchId.value!);
-      $q.notify({
-        type: 'positive',
-        message: `${result.created} horarios creados`,
-      });
-      await loadWeeklyGrid();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error seeding schedules', { error: message });
-      $q.notify({ type: 'negative', message: 'Error creando horarios' });
-    }
-  });
-}
-
 // =========================================================================
 // Watchers
 // =========================================================================

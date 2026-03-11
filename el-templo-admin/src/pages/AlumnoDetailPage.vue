@@ -399,6 +399,8 @@ const route = useRoute();
 const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
+const membersApi = useMembersApi();
+const journeyApi = useJourneyAdminApi();
 
 // =========================================================================
 // State
@@ -500,7 +502,6 @@ function tierLabel(journeyType: string): string {
 
 async function loadMemberProfile() {
   try {
-    const membersApi = useMembersApi();
     memberProfile.value = await membersApi.getMember(userId.value);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -512,7 +513,6 @@ async function loadMemberProfile() {
 async function loadJourneyDetail() {
   journeyLoading.value = true;
   try {
-    const journeyApi = useJourneyAdminApi();
     journeyDetail.value = await journeyApi.getMemberDetail(userId.value);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -526,7 +526,6 @@ async function loadJourneyDetail() {
 
 async function loadBranches() {
   try {
-    const membersApi = useMembersApi();
     branches.value = await membersApi.getBranches();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -574,7 +573,6 @@ function confirmToggleStatus() {
   }).onOk(async () => {
     if (!memberProfile.value) return;
     try {
-      const membersApi = useMembersApi();
       memberProfile.value = await membersApi.toggleMemberStatus(
         userId.value,
         !memberProfile.value.isActive

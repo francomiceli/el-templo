@@ -265,6 +265,8 @@ import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
 const log = createLogger('PagosPage');
 const $q = useQuasar();
 const router = useRouter();
+const membersApi = useMembersApi();
+const paymentsApi = usePaymentsApi();
 
 // =========================================================================
 // State
@@ -366,7 +368,6 @@ function methodColor(method: PaymentMethod): string {
 
 async function loadBranches() {
   try {
-    const membersApi = useMembersApi();
     const branches: BranchOption[] = await membersApi.getBranches();
     branchFilterOptions.value = [
       { label: 'Todas', value: null },
@@ -381,7 +382,6 @@ async function loadBranches() {
 async function loadSummary() {
   loadingSummary.value = true;
   try {
-    const paymentsApi = usePaymentsApi();
     const data = await paymentsApi.getFinancialSummary(
       filters.branchId ?? undefined,
       filters.dateFrom ?? undefined,
@@ -403,7 +403,6 @@ async function loadSummary() {
 async function loadPayments() {
   loadingTable.value = true;
   try {
-    const paymentsApi = usePaymentsApi();
     const result = await paymentsApi.listPayments({
       search: filters.search || undefined,
       branchId: filters.branchId ?? undefined,
@@ -463,7 +462,6 @@ function confirmVoid(payment: PaymentListItem) {
     ok: { color: 'negative', label: 'Anular' },
   }).onOk(async (reason: string) => {
     try {
-      const paymentsApi = usePaymentsApi();
       await paymentsApi.voidPayment(payment.id, reason.trim());
       $q.notify({ type: 'positive', message: 'Pago anulado' });
       loadPayments();
