@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, or, sql, desc, asc, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { PaymentService } from "../payments/service";
@@ -29,36 +29,11 @@ import type {
   SlotMemberStatus,
   DayOfWeek,
 } from "./types";
-
-/**
- * Error thrown for invalid operations.
- */
-export class BadRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BadRequestError";
-  }
-}
-
-/**
- * Error thrown when a requested resource is not found.
- */
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
-
-/**
- * Error thrown for conflict states (e.g., duplicate booking).
- */
-export class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConflictError";
-  }
-}
+import {
+  BadRequestError,
+  NotFoundError,
+  ConflictError,
+} from "../shared/errors";
 
 export class SchedulingService {
   private paymentService: PaymentService;
@@ -795,6 +770,28 @@ export class SchedulingService {
       if (duplicate.status === "confirmed" || duplicate.status === "waitlist") {
         throw new ConflictError("Ya tenes una reserva en este horario");
       }
+    }
+
+    // 8b. One booking per day (any schedule on same date)
+    const [sameDayBooking] = await this.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          eq(schema.bookings.bookingDate, date),
+          or(
+            eq(schema.bookings.status, "confirmed"),
+            eq(schema.bookings.status, "waitlist"),
+          ),
+        ),
+      )
+      .limit(1);
+
+    if (sameDayBooking) {
+      throw new ConflictError(
+        "Ya tenes una reserva para este dia. Cancela la existente primero.",
+      );
     }
 
     // 9. Check capacity

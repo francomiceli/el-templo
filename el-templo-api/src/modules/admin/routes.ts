@@ -42,26 +42,9 @@ import {
   bulkUploadUrlsBodySchema,
 } from "./video-schemas";
 
-import { AppError } from "../shared/errors";
+import { handleServiceError } from "../shared/error-handler";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
-
-/** Map service errors to HTTP responses with consistent status codes */
-function handleServiceError(
-  err: unknown,
-  reply: {
-    status: (code: number) => { send: (body: { error: string }) => void };
-  },
-  fallbackMessage: string,
-  fallbackStatus = 400,
-): void {
-  if (err instanceof AppError) {
-    reply.status(err.statusCode).send({ error: err.message });
-    return;
-  }
-  const message = err instanceof Error ? err.message : fallbackMessage;
-  reply.status(fallbackStatus).send({ error: message });
-}
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
@@ -281,7 +264,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return { exercises };
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Bloque no encontrado", 404);
+        return handleServiceError(err, reply, request.log, "get exercise pool");
       }
     },
   );
@@ -329,7 +312,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        return handleServiceError(err, reply, request.log, "swap exercise");
       }
     },
   );
@@ -367,7 +350,8 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return handleServiceError(
           err,
           reply,
-          "Error al actualizar prescripcion",
+          request.log,
+          "update prescription",
         );
       }
     },
@@ -393,7 +377,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "change block format",
+        );
       }
     },
   );
@@ -417,7 +406,12 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update format params",
+        );
       }
     },
   );
@@ -441,11 +435,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(
-          err,
-          reply,
-          "Error al cambiar rol del bloque",
-        );
+        return handleServiceError(err, reply, request.log, "update block role");
       }
     },
   );
@@ -469,7 +459,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        return handleServiceError(err, reply, request.log, "add exercise");
       }
     },
   );
@@ -492,7 +482,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return { success: true };
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        return handleServiceError(err, reply, request.log, "remove exercise");
       }
     },
   );
@@ -515,7 +505,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return { success: true };
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Error al reordenar");
+        return handleServiceError(err, reply, request.log, "reorder exercise");
       }
     },
   );
@@ -559,7 +549,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return result;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Recurso no encontrado", 404);
+        handleServiceError(err, reply, request.log, "swap mobility exercise");
       }
     },
   );
@@ -735,7 +725,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         });
         return savedBlock;
       } catch (err: unknown) {
-        return handleServiceError(err, reply, "Bloque no encontrado", 404);
+        handleServiceError(err, reply, request.log, "save block");
       }
     },
   );

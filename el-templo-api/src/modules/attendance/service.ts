@@ -11,6 +11,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { BadRequestError, NotFoundError } from "../shared/errors";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -20,26 +21,6 @@ import type {
   AttendanceStatus,
   QrPayload,
 } from "./types";
-
-/**
- * Error thrown for invalid operations (e.g., duplicate check-in, overdue member).
- */
-export class BadRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BadRequestError";
-  }
-}
-
-/**
- * Error thrown when a requested resource is not found.
- */
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
 
 export class AttendanceService {
   private paymentService: PaymentService;

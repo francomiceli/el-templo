@@ -1,6 +1,6 @@
 // Module: attendance
 export { attendanceAdminRoutes, attendanceMemberRoutes } from "./routes";
-export { AttendanceService, BadRequestError, NotFoundError } from "./service";
+export { AttendanceService } from "./service";
 export type {
   AttendanceRecord,
   CheckInInput,

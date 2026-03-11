@@ -1,12 +1,7 @@
 // Module: subscriptions
 export { subscriptionRoutes } from "./routes";
 export { memberSubscriptionRoutes } from "./member-routes";
-export {
-  SubscriptionService,
-  ConflictError,
-  NotFoundError,
-  BadRequestError,
-} from "./service";
+export { SubscriptionService } from "./service";
 export type {
   PlanListItem,
   PlanDetail,

@@ -11,7 +11,8 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { AttendanceService, BadRequestError, NotFoundError } from "./service";
+import { AttendanceService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
 import type { AttendanceStatus } from "./types";
 import {
   generateQrSchema,
@@ -125,16 +126,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(record);
       } catch (err: unknown) {
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error during manual check-in");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al registrar asistencia manual",
-        });
+        handleServiceError(err, reply, request.log, "manual check-in");
       }
     },
   );
@@ -219,16 +211,7 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(record);
       } catch (err: unknown) {
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error during member check-in");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al registrar asistencia",
-        });
+        handleServiceError(err, reply, request.log, "member check-in");
       }
     },
   );

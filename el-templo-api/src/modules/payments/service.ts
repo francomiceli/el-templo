@@ -10,6 +10,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, desc, isNull, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { NotFoundError, BadRequestError } from "../shared/errors";
 import type {
   PaymentDetail,
   RecordPaymentInput,
@@ -20,26 +21,6 @@ import type {
   OverdueMember,
   PaymentMethod,
 } from "./types";
-
-/**
- * Error thrown when a requested resource is not found.
- */
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
-
-/**
- * Error thrown for invalid operations.
- */
-export class BadRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BadRequestError";
-  }
-}
 
 export class PaymentService {
   constructor(

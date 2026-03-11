@@ -11,12 +11,8 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import {
-  SchedulingService,
-  BadRequestError,
-  NotFoundError,
-  ConflictError,
-} from "./service";
+import { SchedulingService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
 import {
   createActivitySchema,
   listActivitiesSchema,
@@ -39,35 +35,6 @@ import {
 import type { DayOfWeek } from "./types";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
-
-// =============================================================================
-// Shared error handler
-// =============================================================================
-
-function handleServiceError(
-  err: unknown,
-  reply: { code: (c: number) => { send: (b: unknown) => void } },
-  log: { error: (obj: unknown, msg: string) => void },
-  context: string,
-): void {
-  if (err instanceof BadRequestError) {
-    reply.code(400).send({ error: "Bad Request", message: err.message });
-    return;
-  }
-  if (err instanceof NotFoundError) {
-    reply.code(404).send({ error: "Not Found", message: err.message });
-    return;
-  }
-  if (err instanceof ConflictError) {
-    reply.code(409).send({ error: "Conflict", message: err.message });
-    return;
-  }
-  log.error({ err }, `Error in ${context}`);
-  reply.code(500).send({
-    error: "Server Error",
-    message: "Error interno del servidor",
-  });
-}
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)

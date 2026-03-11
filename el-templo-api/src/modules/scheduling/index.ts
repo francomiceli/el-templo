@@ -1,11 +1,6 @@
 // Module: scheduling
 export { schedulingAdminRoutes, schedulingMemberRoutes } from "./routes";
-export {
-  SchedulingService,
-  BadRequestError,
-  NotFoundError,
-  ConflictError,
-} from "./service";
+export { SchedulingService } from "./service";
 export type {
   ActivityRecord,
   ScheduleSlot,

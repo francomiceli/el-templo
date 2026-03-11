@@ -11,6 +11,11 @@ import { eq, and, or, desc, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { AuraService, InsufficientBalanceError } from "../aura";
+import {
+  ConflictError,
+  NotFoundError,
+  BadRequestError,
+} from "../shared/errors";
 import type {
   PlanListItem,
   PlanDetail,
@@ -25,37 +30,6 @@ import type {
   SubscriptionStatus,
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
-
-/**
- * Error thrown when attempting to assign a subscription while the member
- * already has an active or paused subscription.
- */
-export class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ConflictError";
-  }
-}
-
-/**
- * Error thrown when a requested resource is not found.
- */
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
-
-/**
- * Error thrown for invalid operations (e.g., wrong subscription status).
- */
-export class BadRequestError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "BadRequestError";
-  }
-}
 
 export class SubscriptionService {
   private auraService: AuraService;

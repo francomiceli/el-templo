@@ -9,7 +9,8 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { PaymentService, NotFoundError, BadRequestError } from "./service";
+import { PaymentService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
 import type {
   PaymentMethod,
   VoidPaymentInput,
@@ -77,21 +78,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(payment);
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error recording payment");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al registrar pago",
-        });
+        handleServiceError(err, reply, request.log, "record payment");
       }
     },
   );
@@ -146,21 +133,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return payment;
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error voiding payment");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al anular pago",
-        });
+        handleServiceError(err, reply, request.log, "void payment");
       }
     },
   );

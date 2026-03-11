@@ -1,6 +1,6 @@
 // Module: payments
 export { paymentRoutes } from "./routes";
-export { PaymentService, NotFoundError, BadRequestError } from "./service";
+export { PaymentService } from "./service";
 export type {
   PaymentMethod,
   PaymentListItem,

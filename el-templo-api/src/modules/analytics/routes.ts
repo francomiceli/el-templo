@@ -8,6 +8,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { AnalyticsService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
 import type { AnalyticsFilters } from "./types";
 import {
   kpiSchema,
@@ -110,20 +111,3 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 };
-
-// =============================================================================
-// Error handler
-// =============================================================================
-
-function handleServiceError(
-  err: unknown,
-  reply: { code: (c: number) => { send: (b: unknown) => void } },
-  log: { error: (obj: unknown, msg: string) => void },
-  context: string,
-): void {
-  log.error({ err }, `Error in ${context}`);
-  reply.code(500).send({
-    error: "Server Error",
-    message: "Error interno del servidor",
-  });
-}

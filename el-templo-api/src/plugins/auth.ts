@@ -1,17 +1,20 @@
-import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
-import fp from 'fastify-plugin';
-import jwt from '@fastify/jwt';
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
+import fp from "fastify-plugin";
+import jwt from "@fastify/jwt";
 
-declare module '@fastify/jwt' {
+declare module "@fastify/jwt" {
   interface FastifyJWT {
     payload: { userId: number; email: string; role: string };
     user: { userId: number; email: string; role: string };
   }
 }
 
-declare module 'fastify' {
+declare module "fastify" {
   interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    authenticate: (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) => Promise<void>;
   }
 }
 
@@ -19,10 +22,10 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
-    throw new Error('JWT_SECRET environment variable is required');
+    throw new Error("JWT_SECRET environment variable is required");
   }
 
-  const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  const expiresIn = process.env.JWT_EXPIRES_IN || "7d";
 
   await fastify.register(jwt, {
     secret,
@@ -31,15 +34,20 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     },
   });
 
-  fastify.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      reply.code(401).send({ error: 'Unauthorized', message: 'Invalid or missing token' });
-    }
-  });
+  fastify.decorate(
+    "authenticate",
+    async function (request: FastifyRequest, reply: FastifyReply) {
+      try {
+        await request.jwtVerify();
+      } catch (err: unknown) {
+        reply
+          .code(401)
+          .send({ error: "Unauthorized", message: "Invalid or missing token" });
+      }
+    },
+  );
 
-  fastify.log.info('Auth plugin registered');
+  fastify.log.info("Auth plugin registered");
 };
 
-export default fp(authPlugin, { name: 'auth' });
+export default fp(authPlugin, { name: "auth" });

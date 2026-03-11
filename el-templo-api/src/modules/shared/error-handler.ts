@@ -8,6 +8,13 @@
 import type { FastifyReply, FastifyBaseLogger } from "fastify";
 import { AppError } from "./errors";
 
+const STATUS_LABELS: Record<number, string> = {
+  400: "Bad Request",
+  404: "Not Found",
+  409: "Conflict",
+  422: "Unprocessable Entity",
+};
+
 /**
  * Map a service-layer error to an HTTP response.
  *
@@ -22,9 +29,12 @@ export function handleServiceError(
   context: string,
 ): void {
   if (err instanceof AppError) {
-    reply.code(err.statusCode).send({ error: err.message });
+    const label = STATUS_LABELS[err.statusCode] ?? "Error";
+    reply.code(err.statusCode).send({ error: label, message: err.message });
     return;
   }
   log.error({ err }, `Error in ${context}`);
-  reply.code(500).send({ error: "Error interno del servidor" });
+  reply
+    .code(500)
+    .send({ error: "Server Error", message: "Error interno del servidor" });
 }

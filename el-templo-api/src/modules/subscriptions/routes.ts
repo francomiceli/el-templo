@@ -8,12 +8,8 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import {
-  SubscriptionService,
-  ConflictError,
-  NotFoundError,
-  BadRequestError,
-} from "./service";
+import { SubscriptionService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
   AssignPlanInput,
@@ -174,31 +170,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return reply.code(201).send(subscription);
       } catch (err: unknown) {
-        if (err instanceof ConflictError) {
-          return reply
-            .code(409)
-            .send({ error: "Conflict", message: err.message });
-        }
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
         if (err instanceof InsufficientBalanceError) {
           return reply
             .code(400)
             .send({ error: "Bad Request", message: err.message });
         }
-        request.log.error({ err }, "Error assigning subscription");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al asignar suscripcion",
-        });
+        handleServiceError(err, reply, request.log, "assign subscription");
       }
     },
   );
@@ -214,21 +191,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return sub;
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error pausing subscription");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al pausar suscripcion",
-        });
+        handleServiceError(err, reply, request.log, "pause subscription");
       }
     },
   );
@@ -244,21 +207,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return sub;
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error resuming subscription");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al reanudar suscripcion",
-        });
+        handleServiceError(err, reply, request.log, "resume subscription");
       }
     },
   );
@@ -275,21 +224,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return sub;
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        if (err instanceof BadRequestError) {
-          return reply
-            .code(400)
-            .send({ error: "Bad Request", message: err.message });
-        }
-        request.log.error({ err }, "Error cancelling subscription");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al cancelar suscripcion",
-        });
+        handleServiceError(err, reply, request.log, "cancel subscription");
       }
     },
   );
@@ -311,16 +246,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return preview;
       } catch (err: unknown) {
-        if (err instanceof NotFoundError) {
-          return reply
-            .code(404)
-            .send({ error: "Not Found", message: err.message });
-        }
-        request.log.error({ err }, "Error getting pricing preview");
-        return reply.code(500).send({
-          error: "Server Error",
-          message: "Error al obtener preview de precio",
-        });
+        handleServiceError(err, reply, request.log, "pricing preview");
       }
     },
   );

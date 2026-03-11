@@ -30,7 +30,7 @@ async function start() {
 
     // Start cron jobs after server is ready
     startAutoApproveJob(app.db);
-  } catch (err) {
+  } catch (err: unknown) {
     app.log.error(err);
     process.exit(1);
   }
