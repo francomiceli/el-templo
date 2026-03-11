@@ -27,8 +27,8 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 Phase: 56 (God Object Decomposition / Architectural Fixes)
 Plan: 5 of 5 in current phase (PHASE COMPLETE)
-Status: Plan 56-05 complete — Analytics Test Coverage + Correlated Subquery Fix
-Last activity: 2026-03-11 — Completed 56-05: Analytics Test Coverage + Correlated Subquery Fix
+Status: Plan 56-03 complete — SchedulingService God Object Decomposition (wave 2)
+Last activity: 2026-03-11 — Completed 56-03: SchedulingService decomposed into 4 domain services
 
 Progress: [██████████] 99%
 
@@ -81,6 +81,7 @@ _Updated after each plan completion_
 | Phase 56 P02 | 4min | 1 tasks | 5 files |
 | Phase 56 P04 | 6min | 2 tasks | 8 files |
 | Phase 56 P05 | 26min | 1 tasks | 2 files |
+| Phase 56 P03 | 10min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -181,6 +182,8 @@ Recent decisions affecting current work:
 - [Phase 56]: Constructor DI for AttendanceService/SubscriptionService -- dependencies injected via constructor, instantiated in route plugins
 - [Phase 56]: AuraService instantiated without log param to avoid FastifyBaseLogger vs pino.Logger type mismatch (log is optional)
 - [Phase 56]: Drizzle correlated subquery bug: ${schema.table.column} inside sql`` subqueries generates parameter placeholders instead of column refs -- use raw SQL column names
+- [Phase 56]: SchedulingService decomposed into 4 domain services (ActivityService, BookingService, HolidayService, SchedulingService 630 LOC)
+- [Phase 56]: BookingService receives PaymentService+SubscriptionService via constructor DI -- route plugins handle service wiring
 
 ### v2.0 Deferrals
 
@@ -207,6 +210,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:22:00.000Z
-Stopped at: Completed 56-05-PLAN.md (Phase 56 complete)
+Last session: 2026-03-11T23:35:00.000Z
+Stopped at: Completed 56-03-PLAN.md (SchedulingService decomposition)
 Resume file: None
