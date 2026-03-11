@@ -195,6 +195,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatDate } from 'src/utils/format-date';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import {
   PLAN_TIER_LABELS,
@@ -282,18 +283,6 @@ function priceTypeBadgeColor(priceType: PriceType): string {
     credit_card: 'blue-grey',
   };
   return colors[priceType] ?? 'grey';
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 // =========================================================================

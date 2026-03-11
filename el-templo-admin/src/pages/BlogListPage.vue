@@ -174,6 +174,7 @@
 import { ref, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
+import { formatDate } from 'src/utils/format-date';
 import { useBlogApi } from 'src/composables/useBlogApi';
 import type { BlogPost, BlogTag } from 'src/composables/useBlogApi';
 
@@ -274,15 +275,6 @@ async function loadPosts() {
 // =========================================================================
 // Helpers
 // =========================================================================
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('es-AR', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 // =========================================================================
 // Event handlers

@@ -373,6 +373,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useJourneyAdminApi } from 'src/composables/useJourneyAdminApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
@@ -491,19 +492,6 @@ function journeyBadgeColor(journeyType: string): string {
 function tierLabel(journeyType: string): string {
   const tier: JourneyTier | undefined = JOURNEY_TIER_MAP[journeyType as JourneyType];
   return tier ? JOURNEY_TIER_LABELS[tier] : '';
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 // =========================================================================

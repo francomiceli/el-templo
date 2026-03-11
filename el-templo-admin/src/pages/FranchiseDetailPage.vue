@@ -182,6 +182,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Notify } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatDate } from 'src/utils/format-date';
 import {
   useFranchiseAdminApi,
   type FranchiseApplication,
@@ -323,19 +324,6 @@ function copyPhone() {
 // =========================================================================
 // Helpers
 // =========================================================================
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}
 
 // =========================================================================
 // Navigation

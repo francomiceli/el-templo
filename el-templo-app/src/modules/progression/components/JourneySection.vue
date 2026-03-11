@@ -153,6 +153,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import { formatDate } from 'src/utils/format-date'
 import type {
   JourneyProgress,
   ArchivedJourney,
@@ -210,19 +211,6 @@ function getJourneyTierLabel(journeyType: string): string {
   const meta = props.allMetadata.find((m) => m.type === journeyType)
   if (!meta) return ''
   return TIER_LABELS[meta.tier] ?? ''
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('es-ES', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    })
-  } catch {
-    return dateStr
-  }
 }
 
 function onConfirmChange(): void {

@@ -248,6 +248,7 @@ import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatDate } from 'src/utils/format-date';
 import { usePaymentsApi } from 'src/composables/usePaymentsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import {
@@ -357,18 +358,6 @@ function methodLabel(method: PaymentMethod): string {
 
 function methodColor(method: PaymentMethod): string {
   return PAYMENT_METHOD_COLORS[method] ?? 'grey';
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
 }
 
 // =========================================================================

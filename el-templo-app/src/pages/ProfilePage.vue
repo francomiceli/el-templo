@@ -134,6 +134,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useUserStore } from 'stores/useUserStore'
+import { formatDate } from 'src/utils/format-date'
 import FlameIcon from 'src/components/FlameIcon.vue'
 
 const userStore = useUserStore()
@@ -151,18 +152,6 @@ const levelColor = computed(() => {
   if (!level) return 'grey'
   return levelColors[level] || 'grey'
 })
-
-function formatDate(dateStr: string): string {
-  try {
-    return new Date(dateStr).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  } catch {
-    return dateStr
-  }
-}
 
 onMounted(() => {
   userStore.loadSubscription()

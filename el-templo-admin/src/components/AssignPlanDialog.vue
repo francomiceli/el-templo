@@ -283,6 +283,7 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
+import { formatDate } from 'src/utils/format-date';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import {
   PLAN_TIER_LABELS,
@@ -439,19 +440,6 @@ function getBasePrice(): number {
       return selectedPlan.value.priceZero;
     case 'credit_card':
       return selectedPlan.value.priceCreditCard ?? selectedPlan.value.priceRegular;
-  }
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
   }
 }
 

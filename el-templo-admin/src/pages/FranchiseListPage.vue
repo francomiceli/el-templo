@@ -130,6 +130,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { formatDate } from 'src/utils/format-date';
 import {
   useFranchiseAdminApi,
   type FranchiseApplication,
@@ -202,19 +203,6 @@ async function loadApplications() {
 // =========================================================================
 // Helpers
 // =========================================================================
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}
 
 // =========================================================================
 // Event handlers
