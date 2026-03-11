@@ -235,7 +235,7 @@ const form = reactive({
   excerpt: '',
   coverImage: '',
   body: '',
-  ctaType: 'trial' as string,
+  ctaType: 'trial' as 'trial' | 'franchise' | 'app',
 });
 
 // Tag state

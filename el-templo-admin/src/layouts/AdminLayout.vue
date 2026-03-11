@@ -61,12 +61,6 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/asistencia">
-          <q-item-section avatar>
-            <q-icon name="how_to_reg" />
-          </q-item-section>
-          <q-item-section>Asistencia</q-item-section>
-        </q-item>
         <q-item clickable v-ripple to="/analiticas">
           <q-item-section avatar>
             <q-icon name="analytics" />
@@ -153,6 +147,7 @@ const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
+const paymentsApi = usePaymentsApi();
 const morososCount = ref(0);
 let morososInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -166,7 +161,6 @@ async function handleLogout() {
 
 async function fetchMorososCount() {
   try {
-    const paymentsApi = usePaymentsApi();
     const result = await paymentsApi.getMorososCount();
     morososCount.value = result.count;
   } catch (err: unknown) {
