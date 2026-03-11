@@ -1,5 +1,12 @@
 // Module: shared
-export { AppError, NotFoundError, ValidationError } from "./errors";
+export {
+  AppError,
+  NotFoundError,
+  ValidationError,
+  BadRequestError,
+  ConflictError,
+} from "./errors";
+export { handleServiceError } from "./error-handler";
 export {
   addDays,
   getWeekRange,
