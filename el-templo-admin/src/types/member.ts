@@ -15,6 +15,7 @@ export interface MemberListItem {
   branchName: string;
   isActive: boolean;
   isOverdue: boolean;
+  planName: string | null;
   createdAt: string;
 }
 
@@ -30,12 +31,12 @@ export interface MemberProfile extends MemberListItem {
 
 export interface CreateMemberInput {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phone: string;
   dni: string;
   branchId: number;
+  planId: number;
   level?: string;
   dateOfBirth?: string | null;
   gender?: string | null;
@@ -61,6 +62,7 @@ export interface UpdateMemberInput {
 export interface MemberListParams {
   search?: string;
   branchId?: number;
+  planId?: number;
   level?: string;
   isActive?: boolean;
   overdue?: boolean;

@@ -184,6 +184,34 @@ export function useMembersApi() {
     }
   }
 
+  // ─── Plans (lightweight for member creation dialog) ──────────────────
+
+  interface PlanOption {
+    id: number;
+    name: string;
+    planTier: string;
+    multiBranch: boolean;
+    priceRegular: number;
+    durationDays: number;
+    classesPerWeek: number | null;
+  }
+
+  async function getPlans(): Promise<PlanOption[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ plans: PlanOption[] }>('/admin/subscriptions/plans', {
+        params: { isActive: true },
+      });
+      return data.plans;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando planes');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Branches ─────────────────────────────────────────────────────────
 
   async function getBranches(): Promise<BranchOption[]> {
@@ -216,6 +244,7 @@ export function useMembersApi() {
     updateMember,
     toggleMemberStatus,
     checkDni,
+    getPlans,
     getNotes,
     createNote,
     updateNote,
