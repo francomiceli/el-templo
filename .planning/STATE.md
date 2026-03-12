@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 57-03-PLAN.md
-last_updated: "2026-03-12T14:30:00.000Z"
+stopped_at: Completed 57-03-PLAN.md (Phase 57 complete)
+last_updated: "2026-03-12T14:36:05.899Z"
 last_activity: "2026-03-12 — Completed 57-03: Admin UI plan-first creation dialog, plan column/filter, Gestionar Plan rename"
 progress:
   total_phases: 42
   completed_phases: 35
-  total_plans: 160
-  completed_plans: 160
+  total_plans: 159
+  completed_plans: 158
   percent: 100
 ---
 
