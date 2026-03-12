@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Phase 57 context gathered
-last_updated: "2026-03-12T13:23:30.937Z"
-last_activity: "2026-03-11 — Completed 56-03: SchedulingService decomposed into 4 domain services"
+status: in-progress
+stopped_at: Completed 57-01-PLAN.md
+last_updated: "2026-03-12T14:00:00.000Z"
+last_activity: "2026-03-12 — Completed 57-01: Backend registration and member creation flow fixes"
 progress:
   total_phases: 43
   completed_phases: 35
-  total_plans: 158
-  completed_plans: 157
+  total_plans: 160
+  completed_plans: 158
   percent: 99
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ## Current Position
 
-Phase: 56 (God Object Decomposition / Architectural Fixes)
-Plan: 5 of 5 in current phase (PHASE COMPLETE)
-Status: Plan 56-03 complete — SchedulingService God Object Decomposition (wave 2)
-Last activity: 2026-03-11 — Completed 56-03: SchedulingService decomposed into 4 domain services
+Phase: 57 (Registration Types and Member Creation Flow Fixes)
+Plan: 1 of 3 in current phase
+Status: Plan 57-01 complete — Backend registration and member creation flow fixes
+Last activity: 2026-03-12 — Completed 57-01: Auth register with Online default, plan-first admin member creation
 
 Progress: [██████████] 99%
 
@@ -82,6 +82,7 @@ _Updated after each plan completion_
 | Phase 56 P04 | 6min | 2 tasks | 8 files |
 | Phase 56 P05 | 26min | 1 tasks | 2 files |
 | Phase 56 P03 | 10min | 2 tasks | 6 files |
+| Phase 57 P01 | 15min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -184,6 +185,10 @@ Recent decisions affecting current work:
 - [Phase 56]: Drizzle correlated subquery bug: ${schema.table.column} inside sql`` subqueries generates parameter placeholders instead of column refs -- use raw SQL column names
 - [Phase 56]: SchedulingService decomposed into 4 domain services (ActivityService, BookingService, HolidayService, SchedulingService 630 LOC)
 - [Phase 56]: BookingService receives PaymentService+SubscriptionService via constructor DI -- route plugins handle service wiring
+- [Phase 57]: Resend over nodemailer for EmailService -- project already uses Resend in 4 services, consistency over plan spec
+- [Phase 57]: Plan-first admin member creation: planId required, auto-password via crypto.randomBytes, auto-subscription via SubscriptionService
+- [Phase 57]: Auth register defaults to ONLINE branch (not PARK), requires DNI+phone+firstName+lastName, checks DNI uniqueness
+- [Phase 57]: Test createMember helpers use registerUser() auth endpoint instead of POST /admin/members to avoid auto-subscription side effects
 
 ### v2.0 Deferrals
 
@@ -210,6 +215,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T13:23:30.932Z
-Stopped at: Phase 57 context gathered
-Resume file: .planning/phases/57-registration-types-and-member-creation-flow-fixes/57-CONTEXT.md
+Last session: 2026-03-12T14:00:00Z
+Stopped at: Completed 57-01-PLAN.md
+Resume file: .planning/phases/57-registration-types-and-member-creation-flow-fixes/57-02-PLAN.md

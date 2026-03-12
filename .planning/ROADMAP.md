@@ -946,7 +946,7 @@ Plans:
 **Goal:** Fix inconsistent registration and member creation flows. App self-registration defaults to Online branch (Park via QR param). Admin "Crear Alumno" becomes plan-first with auto-subscription and auto-generated password. Add DNI + phone collection at app registration. AlumnosPage gains plan filter and plan column. Email service for transactional emails. Reconcile both creation paths for consistent required data.
 **Requirements**: None (codebase health — no new features)
 **Depends on:** Phase 56
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
