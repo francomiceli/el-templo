@@ -943,29 +943,20 @@ Plans:
 
 ### Phase 57: Registration types and member creation flow fixes
 
-**Goal:** Fix inconsistent registration and member creation flows. App self-registration only for Online + Park members (other branches created by coaches via admin). Admin "Crear Alumno" needs plan-first flow (plan select drives conditional branch based on multiBranch). Add DNI collection at app registration to fix search-by-DNI. AlumnosPage filter by plan instead of sucursal. Reconcile both creation paths for consistent required data.
+**Goal:** Fix inconsistent registration and member creation flows. App self-registration defaults to Online branch (Park via QR param). Admin "Crear Alumno" becomes plan-first with auto-subscription and auto-generated password. Add DNI + phone collection at app registration. AlumnosPage gains plan filter and plan column. Email service for transactional emails. Reconcile both creation paths for consistent required data.
 **Requirements**: None (codebase health — no new features)
 **Depends on:** Phase 56
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 57 to break down)
+- [ ] 57-01-PLAN.md — API: auth/register (Online default, DNI+phone required, branch param), admin member creation (planId, auto-password, auto-subscription), members list (plan filter + plan name), email service module, integration tests
+- [ ] 57-02-PLAN.md — App RegisterPage: DNI + phone fields, firstName/lastName required, branch param from URL for Park QR registration
+- [ ] 57-03-PLAN.md — Admin: MemberFormDialog plan-first QStepper rewrite, AlumnosPage plan column/filter, "Gestionar Plan" rename
 
 ---
 
-### Phase 52: Analytics Dashboard
-
-**Goal**: Coaches have a unified analytics view showing member, attendance, and financial metrics — all filterable by branch and date range
-**Depends on**: Phases 47-50 (all data sources must be in place)
-**Requirements**: ANLT-01, ANLT-02, ANLT-03, ANLT-04
-**Success Criteria** (what must be TRUE):
-
-1. Admin can view member analytics: total active members, new members per period, churned members per period, and retention rate
-2. Admin can view attendance analytics: check-ins per day/week, peak hours, and occupancy by time slot
-3. Admin can view financial analytics: revenue trends, outstanding balances, and collection rate
-4. All analytics dashboards can be filtered by branch and date range
-   **Plans:** 2/2 plans complete
+**Plans:** 2/2 plans complete
 
 Plans:
 
