@@ -2,7 +2,7 @@
   <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
     <q-card style="width: 650px; max-width: 95vw">
       <q-card-section>
-        <div class="text-h6">Asignar Plan</div>
+        <div class="text-h6">Gestionar Plan</div>
       </q-card-section>
 
       <q-separator />

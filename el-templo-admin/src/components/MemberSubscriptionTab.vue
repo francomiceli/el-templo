@@ -125,7 +125,7 @@
           <div class="text-grey-5 text-italic q-mb-md">Sin suscripcion activa</div>
           <q-btn
             icon="assignment"
-            label="Asignar Plan"
+            label="Gestionar Plan"
             color="primary"
             @click="showAssignDialog = true"
           />

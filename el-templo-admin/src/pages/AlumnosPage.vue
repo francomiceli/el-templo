@@ -5,7 +5,7 @@
 
     <!-- Filter bar -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-12 col-sm-3">
+      <div class="col-12 col-sm-2">
         <q-input
           v-model="filters.search"
           label="Buscar por nombre, email o DNI"
@@ -19,6 +19,18 @@
             <q-icon name="search" />
           </template>
         </q-input>
+      </div>
+      <div class="col-6 col-sm-2">
+        <q-select
+          v-model="filters.planId"
+          :options="planFilterOptions"
+          label="Plan"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
       </div>
       <div class="col-6 col-sm-2">
         <q-select
@@ -44,7 +56,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm-1">
         <q-select
           v-model="filters.isActive"
           :options="statusFilterOptions"
@@ -164,6 +176,7 @@ const showCreateDialog = ref(false);
 
 const filters = reactive({
   search: '',
+  planId: null as number | null,
   branchId: null as number | null,
   level: null as string | null,
   isActive: true as boolean | null,
@@ -181,6 +194,11 @@ const tablePagination = ref({
 // =========================================================================
 // Filter options
 // =========================================================================
+
+const planFilterOptions = ref<Array<{ label: string; value: number | null }>>([
+  { label: 'Todos', value: null },
+  { label: 'Sin plan', value: 0 },
+]);
 
 const branchFilterOptions = ref<Array<{ label: string; value: number | null }>>([
   { label: 'Todas', value: null },
@@ -219,6 +237,14 @@ const columns: QTableProps['columns'] = [
     field: 'email',
     align: 'left',
     sortable: false,
+  },
+  {
+    name: 'plan',
+    label: 'Plan',
+    field: 'planName',
+    align: 'left',
+    sortable: false,
+    format: (val: string | null) => val ?? 'Sin plan',
   },
   {
     name: 'sucursal',
@@ -332,11 +358,26 @@ async function loadBranches() {
   }
 }
 
+async function loadPlans() {
+  try {
+    const plans = await membersApi.getPlans();
+    planFilterOptions.value = [
+      { label: 'Todos', value: null },
+      { label: 'Sin plan', value: 0 },
+      ...plans.map((p) => ({ label: p.name, value: p.id })),
+    ];
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading plans', { error: message });
+  }
+}
+
 async function loadMembers() {
   loading.value = true;
   try {
     const result = await membersApi.getMembers({
       search: filters.search || undefined,
+      planId: filters.planId ?? undefined,
       branchId: filters.branchId ?? undefined,
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
@@ -385,6 +426,7 @@ function onMemberSaved() {
 
 onMounted(() => {
   loadBranches();
+  loadPlans();
   loadMembers();
 });
 </script>
