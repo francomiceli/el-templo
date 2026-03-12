@@ -9,8 +9,10 @@ interface RegisterBody {
   email: string;
   password: string;
   branchId?: number;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
+  dni: string;
+  phone: string;
 }
 
 interface LoginBody {
@@ -30,6 +32,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchId: requestedBranchId,
         firstName,
         lastName,
+        dni,
+        phone,
       } = request.body;
 
       // Check if email already exists
@@ -45,7 +49,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Conflict", message: "Email already registered" });
       }
 
-      // Resolve branch: use provided branchId or default to PARK
+      // Check if DNI already exists
+      const existingDni = await fastify.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.dni, dni))
+        .limit(1);
+
+      if (existingDni.length > 0) {
+        return reply
+          .code(409)
+          .send({ error: "Conflict", message: "DNI already registered" });
+      }
+
+      // Resolve branch: use provided branchId or default to ONLINE
       let branchId: number;
       if (requestedBranchId) {
         const branch = await fastify.db
@@ -64,7 +81,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         const defaultBranch = await fastify.db
           .select({ id: branches.id })
           .from(branches)
-          .where(eq(branches.code, "PARK"))
+          .where(eq(branches.code, "ONLINE"))
           .limit(1);
 
         if (defaultBranch.length === 0) {
@@ -83,8 +100,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         email,
         passwordHash,
         branchId,
-        firstName: firstName || null,
-        lastName: lastName || null,
+        firstName,
+        lastName,
+        dni,
+        phone,
         role: "member",
         level: "alfa",
       });
