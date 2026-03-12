@@ -25,7 +25,7 @@
 
           <!-- Welcome -->
           <div class="welcome-row">
-            <p class="brand-welcome">Unite al Templo</p>
+            <p class="brand-welcome">{{ headerText }}</p>
           </div>
           <p class="brand-subtitle text-elegance">Tu camino empieza hoy.</p>
 
@@ -35,6 +35,8 @@
               <q-input
                 v-model="firstName"
                 label="Nombre"
+                :rules="[requiredRule]"
+                lazy-rules
                 dark
                 outlined
                 label-color="cream"
@@ -45,6 +47,32 @@
               <q-input
                 v-model="lastName"
                 label="Apellido"
+                :rules="[requiredRule]"
+                lazy-rules
+                dark
+                outlined
+                label-color="cream"
+                input-class="text-cream"
+                color="primary"
+              />
+
+              <q-input
+                v-model="dni"
+                label="DNI"
+                :rules="dniRules"
+                lazy-rules
+                dark
+                outlined
+                label-color="cream"
+                input-class="text-cream"
+                color="primary"
+              />
+
+              <q-input
+                v-model="phone"
+                label="Telefono"
+                :rules="phoneRules"
+                lazy-rules
                 dark
                 outlined
                 label-color="cream"
@@ -125,24 +153,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { extractError } from 'src/utils/extract-error'
 
 const router = useRouter()
+const route = useRoute()
 const $q = useQuasar()
 const authStore = useAuthStore()
 
 const firstName = ref('')
 const lastName = ref('')
+const dni = ref('')
+const phone = ref('')
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const eyeBounce = ref(false)
+
+const headerText = computed(() => (route.query.branchId ? 'Registrarse en Park' : 'Registrarse'))
+
+const requiredRule = (val: string) => !!val || 'Este campo es requerido'
+
+const dniRules = [(val: string) => !!val || 'El DNI es requerido']
+
+const phoneRules = [(val: string) => !!val || 'El telefono es requerido']
 
 const emailRules = [
   (val: string) => !!val || 'El email es requerido',
@@ -170,11 +209,15 @@ function togglePassword() {
 async function onSubmit() {
   loading.value = true
   try {
+    const branchIdParam = route.query.branchId ? Number(route.query.branchId) : undefined
     await authStore.register({
       email: email.value,
       password: password.value,
-      firstName: firstName.value || undefined,
-      lastName: lastName.value || undefined,
+      firstName: firstName.value,
+      lastName: lastName.value,
+      dni: dni.value,
+      phone: phone.value,
+      branchId: branchIdParam,
     })
     $q.notify({
       type: 'positive',
