@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: in-progress
-stopped_at: Completed 57-01-PLAN.md
-last_updated: "2026-03-12T14:00:00.000Z"
-last_activity: "2026-03-12 — Completed 57-01: Backend registration and member creation flow fixes"
+status: completed
+stopped_at: Completed 57-02-PLAN.md
+last_updated: "2026-03-12T14:28:41.642Z"
+last_activity: "2026-03-12 — Completed 57-02: App registration form with required DNI/phone fields and Park branch param"
 progress:
-  total_phases: 43
-  completed_phases: 35
-  total_plans: 160
-  completed_plans: 158
-  percent: 99
+  total_phases: 42
+  completed_phases: 34
+  total_plans: 159
+  completed_plans: 157
+  percent: 98
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 57 (Registration Types and Member Creation Flow Fixes)
-Plan: 1 of 3 in current phase
-Status: Plan 57-01 complete — Backend registration and member creation flow fixes
-Last activity: 2026-03-12 — Completed 57-01: Auth register with Online default, plan-first admin member creation
+Plan: 2 of 3 in current phase
+Status: Plan 57-02 complete — App registration form with DNI+phone and branch param
+Last activity: 2026-03-12 — Completed 57-02: App registration form with required DNI/phone fields and Park branch param
 
-Progress: [██████████] 99%
+Progress: [██████████] 98%
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ _Updated after each plan completion_
 | Phase 56 P05 | 26min | 1 tasks | 2 files |
 | Phase 56 P03 | 10min | 2 tasks | 6 files |
 | Phase 57 P01 | 15min | 2 tasks | 15 files |
+| Phase 57 P02 | 1min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -189,6 +190,7 @@ Recent decisions affecting current work:
 - [Phase 57]: Plan-first admin member creation: planId required, auto-password via crypto.randomBytes, auto-subscription via SubscriptionService
 - [Phase 57]: Auth register defaults to ONLINE branch (not PARK), requires DNI+phone+firstName+lastName, checks DNI uniqueness
 - [Phase 57]: Test createMember helpers use registerUser() auth endpoint instead of POST /admin/members to avoid auto-subscription side effects
+- [Phase 57]: Header text 'Registrarse' by default, 'Registrarse en Park' when branchId present (per user decision)
 
 ### v2.0 Deferrals
 
@@ -215,6 +217,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T14:00:00Z
-Stopped at: Completed 57-01-PLAN.md
-Resume file: .planning/phases/57-registration-types-and-member-creation-flow-fixes/57-02-PLAN.md
+Last session: 2026-03-12T14:28:41.639Z
+Stopped at: Completed 57-02-PLAN.md
+Resume file: None
