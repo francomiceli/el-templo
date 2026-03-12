@@ -34,14 +34,12 @@ describe("Payments API", () => {
     classesPerWeek: 3,
   };
 
-  // Reusable member payload
-  const baseMember = {
+  // Reusable member defaults for createMember helper
+  const baseMemberDefaults = {
     email: "pay-test-member@test.com",
     password: "pass123456",
     firstName: "Pay",
     lastName: "Tester",
-    phone: "+5491100002222",
-    dni: "80000001",
     branchId: 1,
   };
 
@@ -100,19 +98,22 @@ describe("Payments API", () => {
   }
 
   /**
-   * Helper: create a member via the members API.
+   * Helper: create a member via auth registration (no auto-subscription).
    */
   async function createMember(
     overrides: Record<string, unknown> = {},
   ): Promise<{ id: number; [key: string]: unknown }> {
-    const res = await app.inject({
-      method: "POST",
-      url: MEMBERS_URL,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: { ...baseMember, ...overrides },
-    });
-    expect(res.statusCode).toBe(201);
-    return JSON.parse(res.body);
+    const data = { ...baseMemberDefaults, ...overrides } as {
+      email: string;
+      password: string;
+      firstName?: string;
+      lastName?: string;
+      branchId: number;
+      dni?: string;
+      phone?: string;
+    };
+    const result = await registerUser(app, data);
+    return { id: (result.user as { id: number }).id, ...result.user };
   }
 
   /**

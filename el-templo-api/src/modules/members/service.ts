@@ -5,8 +5,9 @@
  * DNI uniqueness checks, and internal notes.
  */
 
+import { randomBytes } from "node:crypto";
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, like, sql, desc, ne } from "drizzle-orm";
+import { eq, and, or, like, sql, desc, ne, isNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
@@ -37,7 +38,8 @@ export class MemberService {
   async listMembers(
     params: MemberListParams,
   ): Promise<{ members: MemberListItem[]; total: number }> {
-    const { search, branchId, level, isActive, overdue, page, limit } = params;
+    const { search, branchId, level, isActive, overdue, planId, page, limit } =
+      params;
     const offset = (page - 1) * limit;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -85,6 +87,28 @@ export class MemberService {
       conditions.push(sql`${overdueSubquery} > 0`);
     }
 
+    // Plan filter: planId=0 means "no active subscription" (Sin plan),
+    // planId>0 means filter by specific plan
+    if (planId !== undefined) {
+      if (planId === 0) {
+        // Members with NO active/paused subscription
+        conditions.push(
+          sql`NOT EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+          )`,
+        );
+      } else {
+        // Members with active/paused subscription on this specific plan
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+          )`,
+        );
+      }
+    }
+
     const whereClause = and(...conditions);
 
     // Get total count
@@ -95,7 +119,15 @@ export class MemberService {
 
     const total = countResult?.count ?? 0;
 
-    // Get paginated members with branch join and overdue flag
+    // Subquery: active subscription plan name (most recent if multiple)
+    const planNameSubquery = sql<string | null>`(
+      SELECT sp.name FROM subscriptions s
+      JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    // Get paginated members with branch join, overdue flag, and plan name
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -110,6 +142,7 @@ export class MemberService {
         isActive: schema.users.isActive,
         createdAt: schema.users.createdAt,
         overdueCount: overdueSubquery,
+        planName: planNameSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -130,6 +163,7 @@ export class MemberService {
       branchName: r.branchName,
       isActive: r.isActive,
       isOverdue: Number(r.overdueCount) > 0,
+      planName: r.planName ?? null,
       createdAt: r.createdAt.toISOString(),
     }));
 
@@ -190,11 +224,15 @@ export class MemberService {
   }
 
   /**
-   * Create a new member. Hashes password with argon2.
+   * Create a new member with auto-generated password.
+   * Returns the member profile and the temporary password (for email).
    * Throws on duplicate email or DNI.
    */
-  async createMember(input: CreateMemberInput): Promise<MemberProfile> {
-    const passwordHash = await argon2.hash(input.password);
+  async createMember(
+    input: CreateMemberInput,
+  ): Promise<{ member: MemberProfile; tempPassword: string }> {
+    const tempPassword = randomBytes(9).toString("base64url");
+    const passwordHash = await argon2.hash(tempPassword);
 
     type Level = "alfa" | "delta" | "sigma" | "omega" | "spartan";
     type Gender = "male" | "female" | "other";
@@ -224,7 +262,7 @@ export class MemberService {
       throw new Error("Failed to retrieve newly created member");
     }
 
-    return member;
+    return { member, tempPassword };
   }
 
   /**

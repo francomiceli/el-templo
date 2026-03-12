@@ -11,6 +11,9 @@ import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { MemberService } from "./service";
+import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
+import { EmailService } from "../email";
 import type {
   CreateMemberInput,
   UpdateMemberInput,
@@ -117,6 +120,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level?: string;
       isActive?: boolean;
       overdue?: boolean;
+      planId?: number;
       page?: number;
       limit?: number;
     };
@@ -127,6 +131,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level,
       isActive,
       overdue,
+      planId,
       page = 1,
       limit = 20,
     } = request.query;
@@ -137,6 +142,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level,
       isActive,
       overdue,
+      planId,
       page,
       limit,
     };
@@ -160,13 +166,60 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // POST /admin/members — Create member
+  // POST /admin/members — Create member (plan-first, auto-password, auto-subscription)
   fastify.post<{ Body: CreateMemberInput }>(
     "/",
     { schema: createMemberSchema },
     async (request, reply) => {
       try {
-        const member = await memberService.createMember(request.body);
+        const { member, tempPassword } = await memberService.createMember(
+          request.body,
+        );
+
+        // Auto-create subscription at base regular price
+        try {
+          const auraService = new AuraService(fastify.db);
+          const subscriptionService = new SubscriptionService(
+            fastify.db,
+            fastify.log,
+            auraService,
+          );
+
+          const today = new Date().toISOString().split("T")[0];
+          await subscriptionService.assignPlan(
+            member.id,
+            {
+              planId: request.body.planId,
+              branchId: request.body.branchId,
+              startDate: today,
+              priceTypeApplied: "regular",
+            },
+            request.user.userId,
+          );
+        } catch (subErr: unknown) {
+          request.log.error(
+            { err: subErr },
+            "Error creating subscription for new member",
+          );
+          // Don't fail member creation if subscription fails
+        }
+
+        // Send password-set email (best effort)
+        try {
+          const emailService = new EmailService(fastify.log);
+          await emailService.sendPasswordSetEmail(
+            member.email,
+            member.firstName ?? "",
+            tempPassword,
+          );
+        } catch (emailErr: unknown) {
+          request.log.error(
+            { err: emailErr },
+            "Error sending password-set email",
+          );
+          // Don't fail member creation if email fails
+        }
+
         return reply.code(201).send(member);
       } catch (err: unknown) {
         const { isDuplicate, detail } = isDuplicateKeyError(err);

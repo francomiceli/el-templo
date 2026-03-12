@@ -11,6 +11,7 @@ export interface MemberListParams {
   level?: string;
   isActive?: boolean;
   overdue?: boolean;
+  planId?: number;
   page: number;
   limit: number;
 }
@@ -27,6 +28,7 @@ export interface MemberListItem {
   branchName: string;
   isActive: boolean;
   isOverdue: boolean;
+  planName: string | null;
   createdAt: string;
 }
 
@@ -53,12 +55,12 @@ export interface MemberProfile {
 
 export interface CreateMemberInput {
   email: string;
-  password: string;
   firstName: string;
   lastName: string;
   phone: string;
   dni: string;
   branchId: number;
+  planId: number;
   level?: string;
   dateOfBirth?: string;
   gender?: string;

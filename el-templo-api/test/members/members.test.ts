@@ -18,17 +18,18 @@ import { holidays } from "../../src/db/schema/holidays";
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
   let adminToken: string;
+  let testPlanId: number;
 
-  // Reusable member payload
-  const baseMember = {
+  // Reusable member payload (planId set in beforeEach after plan creation)
+  const getBaseMember = () => ({
     email: "member@test-members.com",
-    password: "pass123456",
     firstName: "Juan",
     lastName: "Perez",
     phone: "+5491155551234",
     dni: "30123456",
     branchId: 1,
-  };
+    planId: testPlanId,
+  });
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -41,7 +42,7 @@ describe("Members Management Routes", () => {
 
   /**
    * Helper: clean up test members (not the admin seed user).
-   * Also cleans up member_notes.
+   * Also cleans up member_notes, subscriptions, plans.
    */
   async function cleanupTestMembers(): Promise<void> {
     // Delete in FK order: bookings first (FK on users+schedules), then scheduling, then rest
@@ -68,6 +69,27 @@ describe("Members Management Routes", () => {
   }
 
   /**
+   * Helper: create a test subscription plan and return its ID.
+   */
+  async function createTestPlan(): Promise<number> {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/subscriptions/plans",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Test Plan",
+        planTier: "foundation",
+        bookingMode: "flexible",
+        priceRegular: 10000,
+        priceZero: 0,
+        durationDays: 30,
+      },
+    });
+    const body = JSON.parse(res.body);
+    return body.id;
+  }
+
+  /**
    * Helper: create a member via the API and return the profile.
    */
   async function createMember(
@@ -77,18 +99,19 @@ describe("Members Management Routes", () => {
       method: "POST",
       url: "/api/admin/members",
       headers: { authorization: `Bearer ${adminToken}` },
-      payload: { ...baseMember, ...overrides },
+      payload: { ...getBaseMember(), ...overrides },
     });
     expect(res.statusCode).toBe(201);
     return JSON.parse(res.body);
   }
 
   // =========================================================================
-  // GET /api/admin/members — List Members
+  // GET /api/admin/members -- List Members
   // =========================================================================
   describe("GET /api/admin/members", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("returns paginated list of members with total count", async () => {
@@ -179,14 +202,89 @@ describe("Members Management Routes", () => {
       expect(body.members.length).toBe(1);
       expect(body.members[0].isActive).toBe(false);
     });
+
+    it("returns planName field for members with active subscription", async () => {
+      await createMember();
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      const body = JSON.parse(res.body);
+      expect(body.members.length).toBeGreaterThanOrEqual(1);
+      // Member was created with planId => auto-subscription => planName should be set
+      expect(body.members[0]).toHaveProperty("planName", "Test Plan");
+    });
+
+    it("filters by planId returns only members with that plan", async () => {
+      // Create a second plan
+      const secondPlanRes = await app.inject({
+        method: "POST",
+        url: "/api/admin/subscriptions/plans",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          name: "Second Plan",
+          planTier: "flex",
+          bookingMode: "flexible",
+          priceRegular: 5000,
+          priceZero: 0,
+          durationDays: 30,
+        },
+      });
+      const secondPlanId = JSON.parse(secondPlanRes.body).id;
+
+      await createMember();
+      await createMember({
+        email: "member2@test.com",
+        dni: "40555666",
+        planId: secondPlanId,
+      });
+
+      // Filter by first plan
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members?planId=${testPlanId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      const body = JSON.parse(res.body);
+      expect(body.members).toHaveLength(1);
+      expect(body.members[0].planName).toBe("Test Plan");
+    });
+
+    it("filters by planId=0 returns members without active subscription", async () => {
+      // Create member with subscription
+      await createMember();
+
+      // Create member without subscription by registering via auth (no plan)
+      await registerUser(app, {
+        email: "noplan@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?planId=0",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      const body = JSON.parse(res.body);
+      expect(body.members).toHaveLength(1);
+      expect(body.members[0].email).toBe("noplan@test.com");
+      expect(body.members[0].planName).toBeNull();
+    });
   });
 
   // =========================================================================
-  // POST /api/admin/members — Create Member
+  // POST /api/admin/members -- Create Member
   // =========================================================================
   describe("POST /api/admin/members", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("creates a member with all required fields and returns 201", async () => {
@@ -194,23 +292,43 @@ describe("Members Management Routes", () => {
         method: "POST",
         url: "/api/admin/members",
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: baseMember,
+        payload: getBaseMember(),
       });
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("id");
-      expect(body.email).toBe(baseMember.email);
-      expect(body.firstName).toBe(baseMember.firstName);
-      expect(body.lastName).toBe(baseMember.lastName);
-      expect(body.phone).toBe(baseMember.phone);
-      expect(body.dni).toBe(baseMember.dni);
-      expect(body.branchId).toBe(baseMember.branchId);
+      expect(body.email).toBe(getBaseMember().email);
+      expect(body.firstName).toBe(getBaseMember().firstName);
+      expect(body.lastName).toBe(getBaseMember().lastName);
+      expect(body.phone).toBe(getBaseMember().phone);
+      expect(body.dni).toBe(getBaseMember().dni);
+      expect(body.branchId).toBe(getBaseMember().branchId);
       expect(body.isActive).toBe(true);
       expect(body.level).toBe("alfa");
       expect(body.role).toBe("member");
       expect(body).toHaveProperty("branchName");
       expect(body).toHaveProperty("createdAt");
+      // tempPassword must NOT leak in response
+      expect(body).not.toHaveProperty("tempPassword");
+    });
+
+    it("auto-creates subscription when member is created with planId", async () => {
+      const member = await createMember();
+
+      // Verify subscription exists via subscriptions API
+      const subRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/subscriptions/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(subRes.statusCode).toBe(200);
+      const subBody = JSON.parse(subRes.body);
+      expect(subBody).toHaveProperty("id");
+      expect(subBody.planId).toBe(testPlanId);
+      expect(subBody.status).toBe("active");
+      expect(subBody.planName).toBe("Test Plan");
     });
 
     it("returns 409 for duplicate email", async () => {
@@ -220,7 +338,7 @@ describe("Members Management Routes", () => {
         method: "POST",
         url: "/api/admin/members",
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: { ...baseMember, dni: "99999999" }, // different DNI, same email
+        payload: { ...getBaseMember(), dni: "99999999" }, // different DNI, same email
       });
 
       expect(res.statusCode).toBe(409);
@@ -236,7 +354,7 @@ describe("Members Management Routes", () => {
         url: "/api/admin/members",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          ...baseMember,
+          ...getBaseMember(),
           email: "different@test.com", // different email, same DNI
         },
       });
@@ -248,11 +366,12 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
-  // GET /api/admin/members/:userId — Get Member Profile
+  // GET /api/admin/members/:userId -- Get Member Profile
   // =========================================================================
   describe("GET /api/admin/members/:userId", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("returns full member profile", async () => {
@@ -292,11 +411,12 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
-  // PUT /api/admin/members/:userId — Update Member
+  // PUT /api/admin/members/:userId -- Update Member
   // =========================================================================
   describe("PUT /api/admin/members/:userId", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("updates profile fields", async () => {
@@ -319,7 +439,7 @@ describe("Members Management Routes", () => {
       expect(body.phone).toBe("+5491199998888");
       expect(body.level).toBe("delta");
       // Unchanged fields preserved
-      expect(body.lastName).toBe(baseMember.lastName);
+      expect(body.lastName).toBe(getBaseMember().lastName);
     });
 
     it("returns 404 for non-existent member", async () => {
@@ -335,11 +455,12 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
-  // PATCH /api/admin/members/:userId/status — Toggle Active
+  // PATCH /api/admin/members/:userId/status -- Toggle Active
   // =========================================================================
   describe("PATCH /api/admin/members/:userId/status", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("toggles isActive to false", async () => {
@@ -383,11 +504,12 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
-  // GET /api/admin/members/check-dni — DNI Uniqueness Check
+  // GET /api/admin/members/check-dni -- DNI Uniqueness Check
   // =========================================================================
   describe("GET /api/admin/members/check-dni", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("returns available=true for unused DNI", async () => {
@@ -407,7 +529,7 @@ describe("Members Management Routes", () => {
 
       const res = await app.inject({
         method: "GET",
-        url: `/api/admin/members/check-dni?dni=${baseMember.dni}`,
+        url: `/api/admin/members/check-dni?dni=${getBaseMember().dni}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -422,7 +544,7 @@ describe("Members Management Routes", () => {
 
       const res = await app.inject({
         method: "GET",
-        url: `/api/admin/members/check-dni?dni=${baseMember.dni}&excludeUserId=${member.id}`,
+        url: `/api/admin/members/check-dni?dni=${getBaseMember().dni}&excludeUserId=${member.id}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -440,6 +562,7 @@ describe("Members Management Routes", () => {
 
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
       const member = await createMember();
       memberId = member.id;
     });
@@ -548,6 +671,11 @@ describe("Members Management Routes", () => {
   // Authorization
   // =========================================================================
   describe("Authorization", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
     it("non-admin user gets 403 on all /admin/members endpoints", async () => {
       // Register a regular member
       const { token: memberToken } = await registerUser(app, {
@@ -564,7 +692,7 @@ describe("Members Management Routes", () => {
         {
           method: "POST" as const,
           url: "/api/admin/members",
-          payload: baseMember,
+          payload: getBaseMember(),
         },
         {
           method: "PUT" as const,
@@ -610,6 +738,7 @@ describe("Members Management Routes", () => {
   describe("Deactivated user login block", () => {
     beforeEach(async () => {
       await cleanupTestMembers();
+      testPlanId = await createTestPlan();
     });
 
     it("deactivated user cannot login (returns 401)", async () => {
@@ -617,13 +746,26 @@ describe("Members Management Routes", () => {
       const member = await createMember({
         email: "deactivated@test.com",
         dni: "50111222",
-        password: "pass123456",
       });
+
+      // We need to know the temp password to login, but since it's auto-generated
+      // and not exposed, we'll register via auth endpoint instead for this test
+      await registerUser(app, {
+        email: "deactivated-login@test.com",
+        password: "pass123456",
+        branchId: 1,
+      });
+
+      // Find the user ID for the auth-registered user
+      const [registeredUser] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "deactivated-login@test.com"));
 
       // Deactivate
       await app.inject({
         method: "PATCH",
-        url: `/api/admin/members/${member.id}/status`,
+        url: `/api/admin/members/${registeredUser.id}/status`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: { isActive: false },
       });
@@ -632,7 +774,10 @@ describe("Members Management Routes", () => {
       const loginRes = await app.inject({
         method: "POST",
         url: "/api/auth/login",
-        payload: { email: "deactivated@test.com", password: "pass123456" },
+        payload: {
+          email: "deactivated-login@test.com",
+          password: "pass123456",
+        },
       });
 
       expect(loginRes.statusCode).toBe(401);

@@ -37,13 +37,11 @@ describe("Analytics API", () => {
     multiBranch: false,
   };
 
-  const baseMember = {
+  const baseMemberDefaults = {
     email: "analytics-test@test.com",
     password: "pass123456",
     firstName: "Analytics",
     lastName: "Tester",
-    phone: "+5491100008888",
-    dni: "90000001",
     branchId: 0,
   };
 
@@ -56,7 +54,7 @@ describe("Analytics API", () => {
       .from(branches)
       .where(eq(branches.isVirtual, false));
     testBranchId = branch.id;
-    baseMember.branchId = testBranchId;
+    baseMemberDefaults.branchId = testBranchId;
   });
 
   afterAll(async () => {
@@ -105,14 +103,17 @@ describe("Analytics API", () => {
   async function createMember(
     overrides: Record<string, unknown> = {},
   ): Promise<{ id: number; [key: string]: unknown }> {
-    const res = await app.inject({
-      method: "POST",
-      url: MEMBERS_URL,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: { ...baseMember, ...overrides },
-    });
-    expect(res.statusCode).toBe(201);
-    return JSON.parse(res.body);
+    const data = { ...baseMemberDefaults, ...overrides } as {
+      email: string;
+      password: string;
+      firstName?: string;
+      lastName?: string;
+      branchId: number;
+      dni?: string;
+      phone?: string;
+    };
+    const result = await registerUser(app, data);
+    return { id: (result.user as { id: number }).id, ...result.user };
   }
 
   async function assignSubscription(

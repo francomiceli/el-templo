@@ -32,14 +32,12 @@ describe("Subscriptions API", () => {
     classesPerWeek: 3,
   };
 
-  // Reusable member payload
-  const baseMember = {
+  // Reusable member defaults for createMember helper
+  const baseMemberDefaults = {
     email: "sub-test-member@test.com",
     password: "pass123456",
     firstName: "Sub",
     lastName: "Tester",
-    phone: "+5491100001111",
-    dni: "70000001",
     branchId: 1,
   };
 
@@ -98,19 +96,23 @@ describe("Subscriptions API", () => {
   }
 
   /**
-   * Helper: create a member via the members API.
+   * Helper: create a member via auth registration (no auto-subscription).
+   * Uses registerUser() so subscription tests can assign plans independently.
    */
   async function createMember(
     overrides: Record<string, unknown> = {},
   ): Promise<{ id: number; [key: string]: unknown }> {
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/admin/members",
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: { ...baseMember, ...overrides },
-    });
-    expect(res.statusCode).toBe(201);
-    return JSON.parse(res.body);
+    const data = { ...baseMemberDefaults, ...overrides } as {
+      email: string;
+      password: string;
+      firstName?: string;
+      lastName?: string;
+      branchId: number;
+      dni?: string;
+      phone?: string;
+    };
+    const result = await registerUser(app, data);
+    return { id: (result.user as { id: number }).id, ...result.user };
   }
 
   /**

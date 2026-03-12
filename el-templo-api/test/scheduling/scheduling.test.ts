@@ -38,13 +38,11 @@ describe("Scheduling API", () => {
     multiBranch: false,
   };
 
-  const baseMember = {
+  const baseMemberDefaults = {
     email: "sched-test@test.com",
     password: "pass123456",
     firstName: "Scheduling",
     lastName: "Tester",
-    phone: "+5491100009999",
-    dni: "80000001",
     branchId: 0,
   };
 
@@ -57,7 +55,7 @@ describe("Scheduling API", () => {
       .from(branches)
       .where(eq(branches.isVirtual, false));
     testBranchId = branch.id;
-    baseMember.branchId = testBranchId;
+    baseMemberDefaults.branchId = testBranchId;
   });
 
   afterAll(async () => {
@@ -106,14 +104,17 @@ describe("Scheduling API", () => {
   async function createMember(
     overrides: Record<string, unknown> = {},
   ): Promise<{ id: number; [key: string]: unknown }> {
-    const res = await app.inject({
-      method: "POST",
-      url: MEMBERS_URL,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: { ...baseMember, ...overrides },
-    });
-    expect(res.statusCode).toBe(201);
-    return JSON.parse(res.body);
+    const data = { ...baseMemberDefaults, ...overrides } as {
+      email: string;
+      password: string;
+      firstName?: string;
+      lastName?: string;
+      branchId: number;
+      dni?: string;
+      phone?: string;
+    };
+    const result = await registerUser(app, data);
+    return { id: (result.user as { id: number }).id, ...result.user };
   }
 
   async function assignPlan(
@@ -175,8 +176,8 @@ describe("Scheduling API", () => {
     );
     const memberToken = await getAuthToken(
       app,
-      (memberOverrides.email as string) || baseMember.email,
-      (memberOverrides.password as string) || baseMember.password,
+      (memberOverrides.email as string) || baseMemberDefaults.email,
+      (memberOverrides.password as string) || baseMemberDefaults.password,
     );
     return { member, plan, subscription, memberToken };
   }
@@ -551,7 +552,7 @@ describe("Scheduling API", () => {
       const memberToken = await getAuthToken(
         app,
         "nosub-sched@test.com",
-        baseMember.password,
+        baseMemberDefaults.password,
       );
 
       const activity = await createActivity();
@@ -600,7 +601,7 @@ describe("Scheduling API", () => {
       const memberToken = await getAuthToken(
         app,
         "overdue-sched@test.com",
-        baseMember.password,
+        baseMemberDefaults.password,
       );
 
       const activity = await createActivity();
