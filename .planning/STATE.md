@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 57-02-PLAN.md
-last_updated: "2026-03-12T14:28:41.642Z"
-last_activity: "2026-03-12 — Completed 57-02: App registration form with required DNI/phone fields and Park branch param"
+stopped_at: Completed 57-03-PLAN.md
+last_updated: "2026-03-12T14:30:00.000Z"
+last_activity: "2026-03-12 — Completed 57-03: Admin UI plan-first creation dialog, plan column/filter, Gestionar Plan rename"
 progress:
   total_phases: 42
-  completed_phases: 34
-  total_plans: 159
-  completed_plans: 157
-  percent: 98
+  completed_phases: 35
+  total_plans: 160
+  completed_plans: 160
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 ## Current Position
 
 Phase: 57 (Registration Types and Member Creation Flow Fixes)
-Plan: 2 of 3 in current phase
-Status: Plan 57-02 complete — App registration form with DNI+phone and branch param
-Last activity: 2026-03-12 — Completed 57-02: App registration form with required DNI/phone fields and Park branch param
+Plan: 3 of 3 in current phase
+Status: Phase 57 complete — All plans executed
+Last activity: 2026-03-12 — Completed 57-03: Admin UI plan-first creation dialog, plan column/filter, Gestionar Plan rename
 
-Progress: [██████████] 98%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -83,6 +83,7 @@ _Updated after each plan completion_
 | Phase 56 P05 | 26min | 1 tasks | 2 files |
 | Phase 56 P03 | 10min | 2 tasks | 6 files |
 | Phase 57 P01 | 15min | 2 tasks | 15 files |
+| Phase 57 P03 | 3min | 2 tasks | 6 files |
 | Phase 57 P02 | 1min | 1 tasks | 2 files |
 
 ## Accumulated Context
@@ -190,6 +191,9 @@ Recent decisions affecting current work:
 - [Phase 57]: Plan-first admin member creation: planId required, auto-password via crypto.randomBytes, auto-subscription via SubscriptionService
 - [Phase 57]: Auth register defaults to ONLINE branch (not PARK), requires DNI+phone+firstName+lastName, checks DNI uniqueness
 - [Phase 57]: Test createMember helpers use registerUser() auth endpoint instead of POST /admin/members to avoid auto-subscription side effects
+- [Phase 57]: MemberFormDialog: getPlans() in useMembersApi instead of importing useSubscriptionsApi -- keeps dialog import graph focused
+- [Phase 57]: Flat q-select plan dropdown in create dialog (not tier-grouped AssignPlanDialog style) for simpler creation flow
+- [Phase 57]: "Asignar Plan" renamed to "Gestionar Plan" -- members always start with plan, label reflects management not initial assignment
 - [Phase 57]: Header text 'Registrarse' by default, 'Registrarse en Park' when branchId present (per user decision)
 
 ### v2.0 Deferrals
@@ -217,6 +221,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T14:28:41.639Z
-Stopped at: Completed 57-02-PLAN.md
+Last session: 2026-03-12T14:30:00Z
+Stopped at: Completed 57-03-PLAN.md (Phase 57 complete)
 Resume file: None
