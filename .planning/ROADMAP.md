@@ -5,6 +5,7 @@
 - **v2.0 Admin App** - Phases 13-28 (in progress, phases 13-19 + 26-27 complete)
 - **v3.0 Landing Page** - Phases 29-36 (planned)
 - **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
+- **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 
 ---
 
@@ -1016,3 +1017,178 @@ Plans:
 - [ ] 56-03-PLAN.md -- SchedulingService decomposition: split into ActivityService, BookingService, HolidayService + slimmed ScheduleService
 - [ ] 56-04-PLAN.md -- Fix composable-inside-computed in player pages + constructor DI in AttendanceService/SubscriptionService
 - [ ] 56-05-PLAN.md -- Analytics test coverage: retention rate, morosos, financial deterministic assertions
+
+---
+
+### v4.1 Admin Consolidation & Data Migration (Phases 58-66)
+
+**Milestone Goal:** Make the admin + member app ecosystem operational for physical branches by importing real member data, enhancing the admin with features from the legacy system, and deploying everything to production.
+
+## v4.1 Phases
+
+- [ ] **Phase 58: Production Deployment** - Push all v4.0 staging work to production so all environments match
+- [ ] **Phase 59: Schema Extensions & Data Import** - Add documentType/address fields, import 5 branch CSV datasets, enable editing of new fields
+- [ ] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking
+- [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
+- [ ] **Phase 62: Payment Enhancements** - Discounts with reason, charge cancellation with slot release, cuenta corriente debt tracking
+- [ ] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view
+- [ ] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export
+- [ ] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export
+- [ ] **Phase 66: Roles & Permissions** - Predefined roles (admin, coach, recepcionista, owner) with permission-based UI visibility
+
+## v4.1 Phase Details
+
+### Phase 58: Production Deployment
+
+**Goal**: All environments (local, staging, production) are running identical code so feature work builds on a stable, verified foundation
+**Depends on**: Phase 57 (last v4.0 phase)
+**Requirements**: DEPLOY-01
+**Success Criteria** (what must be TRUE):
+
+1. Production API, admin app, and member app serve the same version as staging
+2. All database migrations (including v4.0 schema changes) have run successfully on production
+3. Smoke tests pass on production URLs (API health, admin login, app login)
+   **Plans**: TBD
+
+---
+
+### Phase 59: Schema Extensions & Data Import
+
+**Goal**: Real member data from 5 physical branches is in the system, with new fields (document type, address) available for viewing and editing
+**Depends on**: Phase 58 (production must be current before importing data)
+**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, DATA-05, DATA-06, MEMBER-04
+**Success Criteria** (what must be TRUE):
+
+1. Users table includes documentType (DNI, Pasaporte, etc.) and home address fields with a completed migration
+2. Import script successfully processes all 5 branch CSV files (alem, constitucion, jujuy, mogotes, moreno) with correct field mapping
+3. Duplicate members (by DNI or email) are detected and handled according to configurable strategy (skip, update, or error)
+4. Imported members with subscription data have corresponding subscription records created from plan name lookups
+5. Admin can view and edit a member's document type and home address from the member profile
+   **Plans**: TBD
+
+---
+
+### Phase 60: Plan Configuration
+
+**Goal**: Subscription plans support real-world variations (turnos limits, class-based spending, multi-branch access, trial plans, grace periods) and the system tracks class usage
+**Depends on**: Phase 59 (imported members need plans to configure)
+**Requirements**: PLANS-01, PLANS-02, PLANS-03, PLANS-04, PLANS-05, PLANS-06
+**Success Criteria** (what must be TRUE):
+
+1. Admin can create/edit plans with turnos-per-week limits and class-based plan (X classes to spend) configuration
+2. Admin can toggle multi-branch access and trial flags on any plan
+3. Admin can set a grace period per branch that extends membership validity for renewal windows
+4. Class-based plan members see their remaining classes, and each confirmed check-in decrements the count
+   **Plans**: TBD
+
+---
+
+### Phase 61: QR Access Control
+
+**Goal**: Branch entrances have a kiosk that greets members by name after QR scan, shows subscription status with soft warnings, and admin has full access visibility
+**Depends on**: Phase 60 (access verification needs plan configuration and class tracking)
+**Requirements**: ACCESS-01, ACCESS-02, ACCESS-03, ACCESS-04, ACCESS-05
+**Success Criteria** (what must be TRUE):
+
+1. Kiosk screen displays member name, photo, subscription status, and classes remaining after scanning their QR code
+2. Kiosk shows color-coded warnings for expired subscription, outstanding debt, or no remaining classes — without blocking entry
+3. Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
+4. Recepcionista can manually check in a member by searching their name from the admin panel
+5. Each access log entry records member details, subscription info, and any warnings at time of check-in
+   **Plans**: TBD
+
+---
+
+### Phase 62: Payment Enhancements
+
+**Goal**: Payments support discounts, cancellations that free booking slots, and a cuenta corriente system for tracking member debt
+**Depends on**: Phase 58 (production parity); can run after Phase 59
+**Requirements**: PAY-01, PAY-02, PAY-03, PAY-04
+**Success Criteria** (what must be TRUE):
+
+1. Admin can apply a discount (fixed amount or percentage) with mandatory reason when recording a payment
+2. Admin can cancel a charge, and all booking slots (turnos) associated with that charge are automatically freed
+3. System tracks outstanding balance per member when partial payment is recorded (cuenta corriente)
+4. Admin can collect outstanding debt from a member's cuenta corriente via a dedicated "Cobrar deuda" action
+   **Plans**: TBD
+
+---
+
+### Phase 63: Cash Box
+
+**Goal**: Recepcionistas can track daily cash movements and reconcile totals by payment method
+**Depends on**: Phase 62 (cash tracking depends on payment improvements)
+**Requirements**: CASH-02, CASH-03
+**Success Criteria** (what must be TRUE):
+
+1. All cash movements (income and expenses) are organized and visible by payment method (cash, transfer, card)
+2. Recepcionista can view a cash box summary showing collected vs spent amounts per payment method for the current day
+   **Plans**: TBD
+
+---
+
+### Phase 64: Member Management Enhancements
+
+**Goal**: Admin has complete member management tools — photo upload, plan changes with price calculations, and bulk export
+**Depends on**: Phase 59 (needs imported member data to manage)
+**Requirements**: MEMBER-01, MEMBER-02, MEMBER-03
+**Success Criteria** (what must be TRUE):
+
+1. Admin can upload a member photo via file upload or capture via webcam from the member profile
+2. Admin can change a member's active subscription to a different plan, seeing the price difference calculation before confirming
+3. Admin can export the current filtered member list as an Excel file
+   **Plans**: TBD
+
+---
+
+### Phase 65: Reports Dashboard
+
+**Goal**: Admin has a reports section with five key operational reports, all filterable and exportable to Excel
+**Depends on**: Phase 61 (access log data), Phase 62 (payment/debt data)
+**Requirements**: REPORT-01, REPORT-02, REPORT-03, REPORT-04, REPORT-05
+**Success Criteria** (what must be TRUE):
+
+1. Access log report shows check-in history with filters (period, member, access status) and exports to Excel
+2. Charge history report shows payment records with filters (period, payment method, member, concept) and exports to Excel
+3. Debt report lists all members with outstanding balances, showing contact info and a WhatsApp shortcut
+4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window
+5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold
+   **Plans**: TBD
+
+---
+
+### Phase 66: Roles & Permissions
+
+**Goal**: Branch staff see only the features their role allows — admin sees everything, recepcionista sees member/payment/cash tools, coach sees training/attendance
+**Depends on**: All feature phases (Phase 58-65) — permissions layer applies to existing features
+**Requirements**: ROLES-01, ROLES-02, ROLES-03, ROLES-04
+**Success Criteria** (what must be TRUE):
+
+1. System supports four predefined roles: admin, coach, recepcionista, owner
+2. Each role has a predefined permission set that controls which pages, features, and actions are accessible
+3. Admin can assign a role to any system user from the user management interface
+4. Admin UI dynamically shows/hides sidebar items, page sections, and action buttons based on the logged-in user's role
+   **Plans**: TBD
+
+---
+
+## v4.1 Progress
+
+**Execution Order:**
+Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (Access) → Phase 62 (Payments) → Phase 63 (Cash Box) → Phase 64 (Members) → Phase 65 (Reports) → Phase 66 (Roles)
+
+| Phase                               | Plans Complete | Status      | Completed |
+| ----------------------------------- | -------------- | ----------- | --------- |
+| 58. Production Deployment           | 0/?            | Not started | -         |
+| 59. Schema Extensions & Data Import | 0/?            | Not started | -         |
+| 60. Plan Configuration              | 0/?            | Not started | -         |
+| 61. QR Access Control               | 0/?            | Not started | -         |
+| 62. Payment Enhancements            | 0/?            | Not started | -         |
+| 63. Cash Box                        | 0/?            | Not started | -         |
+| 64. Member Management Enhancements  | 0/?            | Not started | -         |
+| 65. Reports Dashboard               | 0/?            | Not started | -         |
+| 66. Roles & Permissions             | 0/?            | Not started | -         |
+
+---
+
+_v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_

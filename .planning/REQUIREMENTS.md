@@ -106,17 +106,53 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 <!-- Updated during roadmap creation -->
 
-| Requirement | Phase | Status |
-| ----------- | ----- | ------ |
-| —           | —     | —      |
+| Requirement | Phase    | Status  |
+| ----------- | -------- | ------- |
+| DEPLOY-01   | Phase 58 | Pending |
+| DATA-01     | Phase 59 | Pending |
+| DATA-02     | Phase 59 | Pending |
+| DATA-03     | Phase 59 | Pending |
+| DATA-04     | Phase 59 | Pending |
+| DATA-05     | Phase 59 | Pending |
+| DATA-06     | Phase 59 | Pending |
+| MEMBER-04   | Phase 59 | Pending |
+| PLANS-01    | Phase 60 | Pending |
+| PLANS-02    | Phase 60 | Pending |
+| PLANS-03    | Phase 60 | Pending |
+| PLANS-04    | Phase 60 | Pending |
+| PLANS-05    | Phase 60 | Pending |
+| PLANS-06    | Phase 60 | Pending |
+| ACCESS-01   | Phase 61 | Pending |
+| ACCESS-02   | Phase 61 | Pending |
+| ACCESS-03   | Phase 61 | Pending |
+| ACCESS-04   | Phase 61 | Pending |
+| ACCESS-05   | Phase 61 | Pending |
+| PAY-01      | Phase 62 | Pending |
+| PAY-02      | Phase 62 | Pending |
+| PAY-03      | Phase 62 | Pending |
+| PAY-04      | Phase 62 | Pending |
+| CASH-02     | Phase 63 | Pending |
+| CASH-03     | Phase 63 | Pending |
+| MEMBER-01   | Phase 64 | Pending |
+| MEMBER-02   | Phase 64 | Pending |
+| MEMBER-03   | Phase 64 | Pending |
+| REPORT-01   | Phase 65 | Pending |
+| REPORT-02   | Phase 65 | Pending |
+| REPORT-03   | Phase 65 | Pending |
+| REPORT-04   | Phase 65 | Pending |
+| REPORT-05   | Phase 65 | Pending |
+| ROLES-01    | Phase 66 | Pending |
+| ROLES-02    | Phase 66 | Pending |
+| ROLES-03    | Phase 66 | Pending |
+| ROLES-04    | Phase 66 | Pending |
 
 **Coverage:**
 
-- v4.1 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33 ⚠️
+- v4.1 requirements: 37 total
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-03-14_
-_Last updated: 2026-03-14 after initial definition_
+_Last updated: 2026-03-14 after roadmap creation (all 37 requirements mapped to phases 58-66)_
