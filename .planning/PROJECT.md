@@ -4,23 +4,27 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v4.0 Ecosystem Foundation
+## Current Milestone: v4.1 Admin Consolidation & Data Migration
 
-**Goal:** Lay the architectural foundation for the unified ecosystem (virtual branch, AURA tracking, modular DB), consolidate admin operations (merge El-Templo-Net features into el-templo-admin), and build the attendance + class scheduling system.
+**Goal:** Make the admin + member app ecosystem operational for physical branches by importing real member data, enhancing the admin with features from the legacy system tutorials, and deploying everything to production.
 
 **Target features:**
 
-- Light restructure: virtual "Templo Online" branch, AURA foundation tables (tracking from day 1), formalized module boundaries, Arete content extraction
-- Admin consolidation: absorb Net's members/subscriptions/payments/scheduling/analytics/attendance into existing el-templo-admin Alumnos section
-- Attendance system: QR code member self-check-in, admin fallback check-in
-- Class scheduling: member spot reservation from app, admin slot/capacity management
-- Modular DB: users table stays lean (auth, profile, branchId, level), module-specific data in dedicated tables
+- Production deployment: push all v4.0 staging work to production so all environments match
+- Schema extensions & data import: add documentType, address fields; import 5 branch CSV datasets (alem, constitucion, jujuy, mogotes, moreno)
+- QR access system: kiosk welcome screen + enhanced admin panel with soft verification (subscription validity, warnings, no hard blocks)
+- Plan configuration: turnos-per-week limits, class-based plans (X classes to spend), multi-branch flag, trial flag, grace period
+- Cash box (Estado de Caja): daily cash reconciliation, float entry, collection tracking by payment method
+- Payment improvements: discounts with reason, charge cancellation (frees booking slots), cuenta corriente (account balance/debt tracking)
+- Enhanced reports: access log, charge history, debt list, expiring memberships, inactive members — all as dashboard tabs with filters + Excel export
+- Role-based permissions: admin, coach, recepcionista, owner roles with predefined permission sets
+- Member management: photo upload, subscription change workflow, Excel export
 
 ## Core Value
 
 Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels — transforming daily training into visible progression toward mastery.
 
-**v4.0 core value:** The operational backbone works — coaches manage members, subscriptions, and classes from one admin app; members check in at branches and reserve class spots from the app; and the architecture is ready for AURA, lifestyle, and social features.
+**v4.1 core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
 
 ## Requirements
 
@@ -35,10 +39,15 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ Landing page, franchise forms, blog, Gladius showcase (v3.0)
 - ✓ Brand alignment, Day Player redesign (v3.0)
 - ✓ Academy and App landing pages (v3.0)
+- ✓ Architecture foundation, virtual branch, AURA tables, module boundaries (v4.0)
+- ✓ Lifestyle content extraction from arete-web (v4.0)
+- ✓ Member management CRUD, subscriptions, payments, attendance, scheduling, analytics (v4.0)
+- ✓ QR check-in, class booking, dashboard analytics (v4.0)
+- ✓ Registration flow fixes, codebase health, god object decomposition (v4.0)
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v4.0 scope)
+See: .planning/REQUIREMENTS.md (v4.1 scope)
 
 ### Out of Scope
 
@@ -61,9 +70,9 @@ See: .planning/REQUIREMENTS.md (v4.0 scope)
 
 **Build sequence (7 phases across multiple milestones):**
 
-1. ✱ Light restructure (v4.0)
-2. ✱ Admin consolidation (v4.0)
-3. ✱ Attendance & scheduling (v4.0)
+1. ✓ Light restructure (v4.0)
+2. ✱ Admin consolidation (v4.0 started, v4.1 completes)
+3. ✓ Attendance & scheduling (v4.0)
 4. Lifestyle / Mi Camino (v5.0)
 5. AURA economy (v5.0)
 6. Social / Agora (v5.0+)
@@ -104,4 +113,4 @@ See: .planning/REQUIREMENTS.md (v4.0 scope)
 
 ---
 
-_Last updated: 2026-03-08 after v4.0 milestone initialization_
+_Last updated: 2026-03-14 after v4.1 milestone initialization_

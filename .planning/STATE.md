@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Landing Page
-status: completed
-stopped_at: Completed 57-03-PLAN.md (Phase 57 complete)
-last_updated: "2026-03-12T14:36:05.899Z"
-last_activity: "2026-03-12 — Completed 57-03: Admin UI plan-first creation dialog, plan column/filter, Gestionar Plan rename"
+milestone: v4.1
+milestone_name: Admin Consolidation & Data Migration
+status: in_progress
+stopped_at: Defining requirements
+last_updated: "2026-03-14T00:00:00.000Z"
+last_activity: "2026-03-14 — Milestone v4.1 started"
 progress:
-  total_phases: 42
-  completed_phases: 35
-  total_plans: 159
-  completed_plans: 158
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-08)
+See: .planning/PROJECT.md (updated 2026-03-14)
 
-**Core value:** The operational backbone works — coaches manage from one admin, members check in and reserve spots, architecture ready for AURA/lifestyle/social.
-**Current focus:** v4.0 Ecosystem Foundation — Phase 46 executing
+**Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
+**Current focus:** v4.1 Admin Consolidation & Data Migration — Defining requirements
 
 ## Current Position
 
-Phase: 57 (Registration Types and Member Creation Flow Fixes)
-Plan: 3 of 3 in current phase
-Status: Phase 57 complete — All plans executed
-Last activity: 2026-03-12 — Completed 57-03: Admin UI plan-first creation dialog, plan column/filter, Gestionar Plan rename
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-14 — Milestone v4.1 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
