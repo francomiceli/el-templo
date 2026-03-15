@@ -13,9 +13,11 @@ import { users } from "./users";
 import { schedules } from "./schedules";
 
 export const bookingStatusEnum = mysqlEnum("booking_status", [
-  "confirmed",
-  "cancelled",
-  "waitlist",
+  "reservado",
+  "qr_escaneado",
+  "confirmado",
+  "cancelado",
+  "lista_espera",
   "no_show",
 ]);
 
@@ -30,7 +32,7 @@ export const bookings = mysqlTable(
       .references(() => schedules.id)
       .notNull(),
     bookingDate: date("booking_date", { mode: "string" }).notNull(),
-    status: bookingStatusEnum.default("confirmed").notNull(),
+    status: bookingStatusEnum.default("reservado").notNull(),
     waitlistPosition: int("waitlist_position"),
     bookedAt: timestamp("booked_at").defaultNow().notNull(),
     cancelledAt: timestamp("cancelled_at"),

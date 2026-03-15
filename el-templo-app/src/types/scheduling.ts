@@ -3,7 +3,13 @@
  * Mirrors API types from el-templo-api/src/modules/scheduling/types.ts
  */
 
-export type BookingStatus = 'confirmed' | 'cancelled' | 'waitlist' | 'no_show'
+export type BookingStatus =
+  | 'reservado'
+  | 'qr_escaneado'
+  | 'confirmado'
+  | 'cancelado'
+  | 'lista_espera'
+  | 'no_show'
 export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6
 
 export interface WeeklySlotView {
@@ -37,6 +43,16 @@ export interface BookingRecord {
   cancelledAt: string | null
 }
 
+export interface AttendanceWeekRecord {
+  id: number
+  scheduleId: number
+  activityName: string
+  dayOfWeek: DayOfWeek
+  startTime: string
+  checkedInAt: string
+  status: 'registrado' | 'confirmado'
+}
+
 export interface HolidayRecord {
   id: number
   country: string
@@ -63,8 +79,10 @@ export const DAY_LABELS_FULL: Record<DayOfWeek, string> = {
 }
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
-  confirmed: 'Confirmada',
-  waitlist: 'En espera',
-  cancelled: 'Cancelada',
+  reservado: 'Reservada',
+  qr_escaneado: 'QR Escaneado',
+  confirmado: 'Confirmada',
+  lista_espera: 'En espera',
+  cancelado: 'Cancelada',
   no_show: 'No asistio',
 }

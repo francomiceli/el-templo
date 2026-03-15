@@ -4,12 +4,18 @@
  */
 
 import { api } from 'src/boot/axios'
-import type { WeeklySlotView, BookingRecord, HolidayRecord } from 'src/types/scheduling'
+import type {
+  WeeklySlotView,
+  BookingRecord,
+  HolidayRecord,
+  AttendanceWeekRecord,
+} from 'src/types/scheduling'
 
 interface WeeklyGridResponse {
   slots: WeeklySlotView[]
   holidays: HolidayRecord[]
   myBookings: BookingRecord[]
+  myAttendance: AttendanceWeekRecord[]
 }
 
 interface MyBookingsResponse {

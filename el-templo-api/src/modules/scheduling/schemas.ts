@@ -65,7 +65,14 @@ const bookingRecordSchema = {
     bookingDate: { type: "string" },
     status: {
       type: "string",
-      enum: ["confirmed", "cancelled", "waitlist", "no_show"],
+      enum: [
+        "reservado",
+        "qr_escaneado",
+        "confirmado",
+        "cancelado",
+        "lista_espera",
+        "no_show",
+      ],
     },
     waitlistPosition: { type: ["integer", "null"] },
     bookedAt: { type: "string" },
@@ -80,6 +87,19 @@ const holidayRecordSchema = {
     country: { type: "string" },
     date: { type: "string" },
     name: { type: "string" },
+  },
+} as const;
+
+const attendanceWeekRecordSchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    scheduleId: { type: "integer" },
+    activityName: { type: "string" },
+    dayOfWeek: { type: "integer" },
+    startTime: { type: "string" },
+    checkedInAt: { type: "string" },
+    status: { type: "string", enum: ["registrado", "confirmado"] },
   },
 } as const;
 
@@ -355,6 +375,7 @@ export const memberWeeklyGridSchema = {
         slots: { type: "array", items: weeklySlotViewSchema },
         holidays: { type: "array", items: holidayRecordSchema },
         myBookings: { type: "array", items: bookingRecordSchema },
+        myAttendance: { type: "array", items: attendanceWeekRecordSchema },
       },
     },
   },

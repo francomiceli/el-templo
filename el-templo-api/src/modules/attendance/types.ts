@@ -1,8 +1,7 @@
 /**
  * Attendance Module Types
  *
- * Interfaces for QR check-in, coach batch confirmation,
- * manual check-in, and attendance queries.
+ * Interfaces for QR check-in and attendance queries.
  */
 
 // ─── Enum Union Types ────────────────────────────────────────────────────────
@@ -22,17 +21,6 @@ export interface AttendanceRecord {
   confirmedAt: string | null;
   status: AttendanceStatus;
   source: AttendanceSource;
-}
-
-export interface CheckInInput {
-  memberId: number;
-  branchId: number;
-  source: AttendanceSource;
-}
-
-export interface QrPayload {
-  branchId: number;
-  type: "checkin";
 }
 
 export interface AttendanceListParams {

@@ -2,7 +2,13 @@
  * Scheduling module types.
  */
 
-export type BookingStatus = "confirmed" | "cancelled" | "waitlist" | "no_show";
+export type BookingStatus =
+  | "reservado"
+  | "qr_escaneado"
+  | "confirmado"
+  | "cancelado"
+  | "lista_espera"
+  | "no_show";
 export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6; // Mon-Sat (ISO)
 
 export interface ActivityRecord {
@@ -31,6 +37,7 @@ export interface WeeklySlotView extends ScheduleSlot {
   maxCapacity: number;
   isFull: boolean;
   isHoliday: boolean;
+  unconfirmedAttendance: number;
 }
 
 export interface BookingRecord {
@@ -55,9 +62,31 @@ export interface HolidayRecord {
   name: string;
 }
 
+export interface AttendanceWeekRecord {
+  id: number;
+  scheduleId: number;
+  activityName: string;
+  dayOfWeek: number;
+  startTime: string;
+  checkedInAt: string;
+  status: "registrado" | "confirmado";
+}
+
 export interface SlotDetailView {
   schedule: ScheduleSlot;
   date: string;
   bookings: BookingRecord[];
+  members: SlotMemberView[];
   maxCapacity: number;
+}
+
+export type SlotMemberStatus = "reservado" | "qr_escaneado" | "confirmado";
+
+export interface SlotMemberView {
+  memberId: number;
+  memberName: string;
+  bookingId: number | null;
+  attendanceId: number | null;
+  status: SlotMemberStatus;
+  bookingStatus: BookingStatus | null;
 }

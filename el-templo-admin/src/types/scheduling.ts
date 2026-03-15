@@ -3,7 +3,13 @@
  * Mirrors the API types from el-templo-api/src/modules/scheduling/types.ts.
  */
 
-export type BookingStatus = 'confirmed' | 'cancelled' | 'waitlist' | 'no_show';
+export type BookingStatus =
+  | 'reservado'
+  | 'qr_escaneado'
+  | 'confirmado'
+  | 'cancelado'
+  | 'lista_espera'
+  | 'no_show';
 export type DayOfWeek = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface ActivityRecord {
@@ -82,15 +88,19 @@ export const DAY_SHORT_LABELS: Record<DayOfWeek, string> = {
 };
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
-  confirmed: 'Confirmado',
-  waitlist: 'En espera',
-  cancelled: 'Cancelado',
+  reservado: 'Reservado',
+  qr_escaneado: 'QR Escaneado',
+  confirmado: 'Confirmado',
+  lista_espera: 'En espera',
+  cancelado: 'Cancelado',
   no_show: 'No asistio',
 };
 
 export const BOOKING_STATUS_COLORS: Record<BookingStatus, string> = {
-  confirmed: 'positive',
-  waitlist: 'warning',
-  cancelled: 'grey',
+  reservado: 'primary',
+  qr_escaneado: 'info',
+  confirmado: 'positive',
+  lista_espera: 'warning',
+  cancelado: 'grey',
   no_show: 'negative',
 };

@@ -79,6 +79,22 @@
 
               <!-- Time slot rows -->
               <template v-for="time in uniqueTimes" :key="time">
+                <!-- Mañana / Tarde section labels -->
+                <div
+                  v-if="time === morningStartTime && hasAfternoonTimes"
+                  class="grid-period-label"
+                  :style="{ gridColumn: '1 / -1' }"
+                >
+                  Mañana
+                </div>
+                <div
+                  v-if="time === afternoonStartTime && hasMorningTimes"
+                  class="grid-period-label"
+                  :style="{ gridColumn: '1 / -1' }"
+                >
+                  Tarde
+                </div>
+
                 <div
                   v-for="day in visibleDays"
                   :key="time + '-' + day"
@@ -350,6 +366,12 @@ const uniqueTimes = computed(() => {
   }
   return Array.from(times).sort()
 })
+
+/** Morning/afternoon split for visual separation */
+const morningStartTime = computed(() => uniqueTimes.value.find((t) => t < '12:00:00') ?? null)
+const afternoonStartTime = computed(() => uniqueTimes.value.find((t) => t >= '12:00:00') ?? null)
+const hasMorningTimes = computed(() => morningStartTime.value !== null)
+const hasAfternoonTimes = computed(() => afternoonStartTime.value !== null)
 
 /** CSS grid columns based on visible days */
 const gridStyle = computed(() => ({
@@ -820,6 +842,17 @@ onBeforeUnmount(() => {
   font-weight: 700;
   color: $accent;
   line-height: 1.2;
+}
+
+.grid-period-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba($accent, 0.45);
+  padding: 10px 4px 2px;
+  border-bottom: 1px solid rgba($accent, 0.1);
 }
 
 .grid-cell {

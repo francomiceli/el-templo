@@ -32,19 +32,3 @@ export const sourceLabels: Record<AttendanceSource, string> = {
   qr: 'QR',
   manual: 'Manual',
 };
-
-export interface QrTokenResponse {
-  token: string;
-  branchId: number;
-  branchName: string;
-}
-
-export interface AttendanceListParams {
-  branchId?: number;
-  date?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  status?: AttendanceStatus;
-  page?: number;
-  limit?: number;
-}
