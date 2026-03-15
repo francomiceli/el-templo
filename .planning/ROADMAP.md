@@ -1048,7 +1048,12 @@ Plans:
 1. Production API, admin app, and member app serve the same version as staging
 2. All database migrations (including v4.0 schema changes) have run successfully on production
 3. Smoke tests pass on production URLs (API health, admin login, app login)
-   **Plans**: TBD
+   **Plans**: 2 plans
+
+Plans:
+
+- [ ] 58-01-PLAN.md — Commit v4.0 WIP, create production seed script, push to staging
+- [ ] 58-02-PLAN.md — Merge to master, deploy production, seed production database
 
 ---
 
