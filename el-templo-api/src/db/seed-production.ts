@@ -1,4 +1,13 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
+
+const envFile =
+  process.env.NODE_ENV === "production"
+    ? ".env.production"
+    : ".env.development";
+dotenv.config({ path: path.resolve(process.cwd(), envFile) });
+dotenv.config({ path: path.resolve(process.cwd(), ".env") });
+
 import { eq, and, sql } from "drizzle-orm";
 import { createSingleConnection } from "./index";
 import { branches, activities, subscriptionPlans, schedules } from "./schema";

@@ -4,7 +4,7 @@
  * Generates El Templo-branded session PDFs using pdfmake.
  * Client-side generation - no server infrastructure needed.
  *
- * Design: 1920×1080 landscape, cream background, 2x2 level grids, Greek symbols.
+ * Design: 3840×2160 landscape (4K), cream background, 2x2 level grids, Greek symbols.
  */
 
 import pdfMake from 'pdfmake/build/pdfmake';
@@ -24,6 +24,7 @@ import {
   ROBOTO_REGULAR_BASE64,
   LOGO_BASE64,
   GREAT_VIBES_REGULAR_BASE64,
+  MARBLE_BG_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { formatWeekLabel } from '../weekDates';
@@ -187,8 +188,8 @@ function ensureFonts() {
  */
 function buildCoverPage(): Content[] {
   return [
-    { text: ' ', fontSize: 1, margin: [0, 250, 0, 0] },
-    { image: LOGO_BASE64, width: 750, alignment: 'center' },
+    { text: ' ', fontSize: 1, margin: [0, 500, 0, 0] },
+    { image: LOGO_BASE64, width: 1500, alignment: 'center' },
   ];
 }
 
@@ -200,27 +201,27 @@ function buildClosingPage(quoteIndex: number): Content[] {
 
   return [
     { text: '', pageBreak: 'before' as const },
-    { text: '', margin: [0, 50, 0, 0] },
-    // Logo image (small, centered at top)
-    { image: LOGO_BASE64, width: 280, alignment: 'center' as const },
     { text: '', margin: [0, 100, 0, 0] },
+    // Logo image (small, centered at top)
+    { image: LOGO_BASE64, width: 560, alignment: 'center' as const },
+    { text: '', margin: [0, 200, 0, 0] },
     // Quote with navy + gold accent split
     {
       text: [
         { text: quote.text, color: NAVY },
         { text: quote.goldText, color: GOLD },
       ],
-      fontSize: 65,
+      fontSize: 130,
       bold: true,
       alignment: 'center' as const,
       lineHeight: 1.3,
-      margin: [120, 0, 120, 0],
+      margin: [240, 0, 240, 0],
       font: 'Cinzel',
     },
-    { text: '', margin: [0, 40, 0, 0] },
+    { text: '', margin: [0, 80, 0, 0] },
     {
       text: `\u2013 ${quote.author}`,
-      fontSize: 64,
+      fontSize: 128,
       alignment: 'center' as const,
       color: NAVY,
       font: 'GreatVibes',
@@ -233,65 +234,72 @@ function buildClosingPage(quoteIndex: number): Content[] {
  * Vertically centered on the page for better visual balance.
  */
 function buildInitiumPage(block: PdfBlockPage): Content[] {
-  const exerciseGap = 16;
+  const exerciseGap = 32;
 
   return [
     { text: '', pageBreak: 'before' as const },
-    { text: '', margin: [0, 60, 0, 0] },
+    { text: '', margin: [0, 120, 0, 0] },
     // Block name — always PYROS, large Cinzel bold
     {
       text: 'PYROS',
-      fontSize: 130,
+      fontSize: 260,
       bold: true,
       color: NAVY,
-      margin: [125, 0, 0, 0],
-      characterSpacing: 10,
+      margin: [250, 0, 0, 0],
+      characterSpacing: 20,
       font: 'Cinzel',
     },
     // INITIUM · FORMAT — bolder
     {
       text: `${block.role}  ·  ${block.formatName}`,
-      fontSize: 65,
+      fontSize: 130,
       bold: true,
       color: GOLD,
-      margin: [130, 12, 0, 0],
-      characterSpacing: 3,
+      margin: [260, 24, 0, 0],
+      characterSpacing: 6,
       font: 'NunitoSans',
     },
-    { text: '', margin: [0, 56, 0, 0] },
+    { text: '', margin: [0, 112, 0, 0] },
     // NIVEL α Δ Σ Ω — bolder
     {
       text: [
-        { text: 'NIVEL  ', fontSize: 50, color: GOLD, bold: true, font: 'NunitoSans' },
-        { text: 'α ', fontSize: 55, color: GOLD, bold: true, font: 'Roboto', characterSpacing: 5 },
+        { text: 'NIVEL  ', fontSize: 100, color: GOLD, bold: true, font: 'NunitoSans' },
         {
-          text: ' Δ Σ Ω',
-          fontSize: 40,
+          text: 'α ',
+          fontSize: 110,
           color: GOLD,
           bold: true,
+          font: 'Roboto',
           characterSpacing: 10,
+        },
+        {
+          text: ' Δ Σ Ω',
+          fontSize: 80,
+          color: GOLD,
+          bold: true,
+          characterSpacing: 20,
           font: 'Roboto',
         },
       ],
-      margin: [130, 0, 0, 0],
+      margin: [260, 0, 0, 0],
     },
-    { text: '', margin: [0, 40, 0, 0] },
+    { text: '', margin: [0, 80, 0, 0] },
     // Exercise list — bigger font, tight spacing
     ...(block.simpleExercises || []).map((ex) => ({
       text: `•  ${ex}`,
-      fontSize: 45,
+      fontSize: 90,
       color: NAVY,
-      margin: [130, exerciseGap, 0, 0] as [number, number, number, number],
+      margin: [260, exerciseGap, 0, 0] as [number, number, number, number],
       font: 'NunitoSans',
     })),
     // Format params on the right
     block.formatParams
       ? {
           text: block.formatParams,
-          fontSize: 70,
+          fontSize: 140,
           color: GOLD,
           alignment: 'right' as const,
-          margin: [0, -160, 200, 0],
+          margin: [0, -320, 400, 0],
           opacity: 0.7,
           font: 'NunitoSans',
         }
@@ -299,8 +307,8 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
   ];
 }
 
-// Level box column width: (1920 - 30 page margins - 60 grid margins - 50 gap) / 2 = 890
-const LEVEL_BOX_WIDTH = 890;
+// Level box column width: (3840 - 60 page margins - 120 grid margins - 100 gap) / 2 = 1780
+const LEVEL_BOX_WIDTH = 1780;
 
 /**
  * Level box: Exercise list for one level within a block.
@@ -311,10 +319,10 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
 
   // Calculate box height: use target if provided, otherwise fit content
   const exerciseCount = lb.exercises.length;
-  const lineHeight = 42; // fontSize 32 + spacing
-  const minBoxHeight = 40 + exerciseCount * lineHeight;
+  const lineHeight = 84; // fontSize 64 + spacing
+  const minBoxHeight = 80 + exerciseCount * lineHeight;
   const boxHeight = targetBoxHeight ? Math.max(targetBoxHeight, minBoxHeight) : minBoxHeight;
-  const lineGap = 10;
+  const lineGap = 20;
   // Content height approximation (used to align flow cursor with canvas bottom)
   const contentHeight = exerciseCount * lineHeight;
 
@@ -332,26 +340,26 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
       columns: [
         {
           text: `•  ${ex.name} ${contraction}`,
-          fontSize: 32,
+          fontSize: 64,
           color: NAVY,
           width: '*',
           font: 'NunitoSans',
         },
         {
           text: volume,
-          fontSize: 32,
+          fontSize: 64,
           color: GOLD,
-          width: 138,
+          width: 276,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
         },
       ],
-      margin: [25, lineGap, 25, 0],
+      margin: [50, lineGap, 50, 0],
     };
   });
 
-  const symbolSize = 43;
+  const symbolSize = 86;
   const routeName = getRouteName(lb.route);
 
   return {
@@ -361,21 +369,21 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
         text: [
           {
             text: 'NIVEL ',
-            fontSize: 47,
+            fontSize: 94,
             bold: true,
             color: GOLD,
             font: 'NunitoSans',
-            characterSpacing: 2,
+            characterSpacing: 4,
           },
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
           {
             text: `  |  ${routeName} ${lb.intensity}%`,
-            fontSize: 42,
+            fontSize: 84,
             color: GOLD,
             font: 'NunitoSans',
           },
         ],
-        margin: [0, 0, 0, 8],
+        margin: [0, 0, 0, 16],
       },
       // Exercise box with rounded border via canvas
       {
@@ -386,8 +394,8 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
             y: 0,
             w: LEVEL_BOX_WIDTH,
             h: boxHeight,
-            r: 20,
-            lineWidth: 4,
+            r: 40,
+            lineWidth: 8,
             lineColor: GOLD,
           },
         ],
@@ -397,7 +405,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
       // so the gap between rows is consistent regardless of exercise count.
       {
         stack: exerciseLines,
-        margin: [10, -(boxHeight - 12), 10, Math.max(16, boxHeight - 12 - contentHeight)],
+        margin: [20, -(boxHeight - 24), 20, Math.max(32, boxHeight - 24 - contentHeight)],
       },
     ],
   };
@@ -407,7 +415,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
  * Block page with 2x2 level grid (NUCLEUS/DEUTEROS/EPIKOS/ATHLOS)
  *
  * For full-page blocks, calculates target box height to fill the page.
- * Usable height: ~1064pt (1080 - 8 top - 8 bottom margins).
+ * Usable height: ~2128pt (2160 - 16 top - 16 bottom margins).
  */
 function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] {
   const levelBlocks = block.levelBlocks || [];
@@ -420,20 +428,20 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   topRow.sort(sortByLevel);
   bottomRow.sort(sortByLevel);
 
-  const headerFontSize = isHalf ? 36 : 65;
-  const mobilityFontSize = isHalf ? 18 : 34;
+  const headerFontSize = isHalf ? 72 : 130;
+  const mobilityFontSize = isHalf ? 36 : 68;
 
   // For full-page blocks, set a target box height to fill more of the page.
   let targetBoxHeight: number | undefined;
   if (!isHalf) {
-    targetBoxHeight = 280;
+    targetBoxHeight = 560;
   }
 
   const content: Content[] = [];
 
   // Top margin (only for full-page blocks)
   if (!isHalf) {
-    content.push({ text: '', margin: [0, 16, 0, 0] });
+    content.push({ text: '', margin: [0, 32, 0, 0] });
   }
 
   // Block header with subtle text shadow
@@ -445,10 +453,10 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     bold: true,
     color: SAND,
     alignment: 'center' as const,
-    characterSpacing: 3,
+    characterSpacing: 6,
     font: 'Cinzel',
     opacity: 0.25,
-    margin: [3, 2, 0, 0],
+    margin: [6, 4, 0, 0],
   });
   // Main text overlapping shadow
   content.push({
@@ -457,9 +465,9 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     bold: true,
     color: NAVY,
     alignment: 'center' as const,
-    characterSpacing: 3,
+    characterSpacing: 6,
     font: 'Cinzel',
-    margin: [0, -(headerFontSize + 4), 0, 0],
+    margin: [0, -(headerFontSize + 8), 0, 0],
   });
 
   // Mobility note (hardcoded fallback until data pipeline provides it)
@@ -471,11 +479,11 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     italics: true,
     color: GOLD,
     alignment: 'center' as const,
-    margin: [0, 8, 0, 0],
+    margin: [0, 16, 0, 0],
     font: 'NunitoSans',
   });
 
-  content.push({ text: '', margin: [0, isHalf ? 12 : 28, 0, 0] });
+  content.push({ text: '', margin: [0, isHalf ? 24 : 56, 0, 0] });
 
   // Top row: α and Δ
   if (topRow.length > 0) {
@@ -484,12 +492,12 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
         ...buildLevelBox(lb, targetBoxHeight),
         width: '*',
       })),
-      columnGap: 50,
-      margin: [30, 0, 30, 0],
+      columnGap: 100,
+      margin: [60, 0, 60, 0],
     });
   }
 
-  content.push({ text: '', margin: [0, isHalf ? 12 : 24, 0, 0] });
+  content.push({ text: '', margin: [0, isHalf ? 24 : 48, 0, 0] });
 
   // Bottom row: Σ and Ω
   if (bottomRow.length > 0) {
@@ -498,8 +506,8 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
         ...buildLevelBox(lb, targetBoxHeight),
         width: '*',
       })),
-      columnGap: 50,
-      margin: [30, 0, 30, 0],
+      columnGap: 100,
+      margin: [60, 0, 60, 0],
     });
   }
 
@@ -519,7 +527,7 @@ function buildFullBlockPage(block: PdfBlockPage): Content[] {
  */
 function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
-  const symbolSize = 38;
+  const symbolSize = 76;
 
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
@@ -535,22 +543,22 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
       columns: [
         {
           text: `• ${ex.name} ${contraction}`,
-          fontSize: 26,
+          fontSize: 52,
           color: NAVY,
           width: '*',
           font: 'NunitoSans',
         },
         {
           text: volume,
-          fontSize: 26,
+          fontSize: 52,
           color: GOLD,
-          width: 100,
+          width: 200,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
         },
       ],
-      margin: [0, 6, 10, 0],
+      margin: [0, 12, 20, 0],
     };
   });
 
@@ -562,12 +570,12 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
           {
             text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`,
-            fontSize: 29,
+            fontSize: 58,
             color: GOLD,
             font: 'NunitoSans',
           },
         ],
-        margin: [0, 0, 0, 18],
+        margin: [0, 0, 0, 36],
       },
       ...exercises,
     ],
@@ -588,46 +596,46 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
   const headerText = `${block.role}  ·  ${block.formatName}`;
   content.push({
     text: headerText,
-    fontSize: 44,
+    fontSize: 88,
     bold: true,
     color: SAND,
     alignment: 'center' as const,
-    characterSpacing: 3,
+    characterSpacing: 6,
     font: 'Cinzel',
     opacity: 0.25,
-    margin: [3, 2, 0, 0],
+    margin: [6, 4, 0, 0],
   });
   content.push({
     text: headerText,
-    fontSize: 44,
+    fontSize: 88,
     bold: true,
     color: NAVY,
     alignment: 'center' as const,
-    characterSpacing: 3,
+    characterSpacing: 6,
     font: 'Cinzel',
-    margin: [0, -48, 0, 0],
+    margin: [0, -96, 0, 0],
   });
 
   // Mobility
   const mobilityText = block.mobility || 'ASSISTED SPAGAT DELTA 20"';
   content.push({
     text: `MOVILIDAD  ·  ${mobilityText}`,
-    fontSize: 26,
+    fontSize: 52,
     bold: true,
     italics: true,
     color: GOLD,
     alignment: 'center' as const,
-    margin: [0, 6, 0, 10],
+    margin: [0, 12, 0, 20],
     font: 'NunitoSans',
   });
 
-  content.push({ text: '', margin: [0, 16, 0, 0] });
+  content.push({ text: '', margin: [0, 32, 0, 0] });
 
   // 4 columns with vertical separator lines between levels
   if (levelBlocks.length > 0) {
     const cells = levelBlocks.map((lb) => ({
       ...buildDeuterosLevelCol(lb),
-      margin: [15, 0, 15, 0],
+      margin: [30, 0, 30, 0],
     }));
 
     content.push({
@@ -637,14 +645,14 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
       },
       layout: {
         hLineWidth: () => 0,
-        vLineWidth: (i: number) => (i === 0 || i === levelBlocks.length ? 0 : 1),
+        vLineWidth: (i: number) => (i === 0 || i === levelBlocks.length ? 0 : 2),
         vLineColor: () => BORDER_MUTED,
         paddingTop: () => 0,
         paddingBottom: () => 0,
-        paddingLeft: () => 10,
-        paddingRight: () => 10,
+        paddingLeft: () => 20,
+        paddingRight: () => 20,
       },
-      margin: [20, 0, 20, 0],
+      margin: [40, 0, 40, 0],
     } as unknown as Content);
   }
 
@@ -655,9 +663,9 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
  * DEUTEROS page: Two blocks stacked on one page, each with 4-column layout
  */
 function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
-  // Usable height: 1080 - 8 top - 8 bottom = 1064. Divider line = 1pt.
-  // Each half = (1064 - 1) / 2 ≈ 531.
-  const halfHeight = 531;
+  // Usable height: 2160 - 16 top - 16 bottom = 2128. Divider line = 2pt.
+  // Each half = (2128 - 2) / 2 ≈ 1063.
+  const halfHeight = 1063;
 
   return [
     { text: '', pageBreak: 'before' as const },
@@ -671,7 +679,7 @@ function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] 
         ],
       },
       layout: {
-        hLineWidth: (i: number) => (i === 1 ? 1 : 0),
+        hLineWidth: (i: number) => (i === 1 ? 2 : 0),
         vLineWidth: () => 0,
         hLineColor: () => BORDER_MUTED,
         paddingTop: () => 0,
@@ -692,9 +700,9 @@ function buildDayContent(day: PdfDaySession): Content[] {
   // 1. Cover page — use fit to constrain both width and height within the page
   content.push({
     image: LOGO_BASE64,
-    fit: [750, 600] as [number, number],
+    fit: [1500, 1200] as [number, number],
     alignment: 'center' as const,
-    margin: [0, 200, 0, 0] as [number, number, number, number],
+    margin: [0, 400, 0, 0] as [number, number, number, number],
   });
 
   // 2. Process blocks
@@ -725,23 +733,31 @@ function buildDayContent(day: PdfDaySession): Content[] {
 function buildDocDefinition(content: Content[]): TDocumentDefinitions {
   return {
     content,
-    pageSize: { width: 1920, height: 1080 },
-    pageMargins: [15, 8, 15, 8],
-    background: (_currentPage: number, pageSize: ContextPageSize) => ({
-      canvas: [
-        {
-          type: 'rect' as const,
-          x: 0,
-          y: 0,
-          w: pageSize.width,
-          h: pageSize.height,
-          color: BG_CREAM,
-        },
-      ],
-    }),
+    pageSize: { width: 3840, height: 2160 },
+    pageMargins: [30, 16, 30, 16],
+    background: (_currentPage: number, pageSize: ContextPageSize) => [
+      {
+        canvas: [
+          {
+            type: 'rect' as const,
+            x: 0,
+            y: 0,
+            w: pageSize.width,
+            h: pageSize.height,
+            color: BG_CREAM,
+          },
+        ],
+      },
+      {
+        image: MARBLE_BG_BASE64,
+        width: pageSize.width,
+        height: pageSize.height,
+        absolutePosition: { x: 0, y: 0 },
+      },
+    ],
     defaultStyle: {
       font: 'Cinzel',
-      fontSize: 20,
+      fontSize: 40,
       color: NAVY,
     },
   };
