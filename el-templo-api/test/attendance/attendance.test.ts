@@ -1,8 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { attendance } from "../../src/db/schema/attendance";
+import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -51,6 +60,11 @@ describe("Attendance API", () => {
   };
 
   beforeAll(async () => {
+    // Pin to Wednesday 10:00 UTC (07:00 ART) so booking-window and
+    // week-range helpers always have valid future slots within Mon-Sat.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-11T10:00:00Z")); // Wednesday
+
     app = await createTestApp();
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
@@ -65,6 +79,7 @@ describe("Attendance API", () => {
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await app.close();
   });
 
@@ -74,6 +89,7 @@ describe("Attendance API", () => {
   async function cleanupAll(): Promise<void> {
     await app.db.delete(auraTransactions);
     await app.db.delete(auraBalances);
+    await app.db.delete(completedSessions);
     await app.db.delete(bookings);
     await app.db.delete(holidays);
     await app.db.delete(attendance);

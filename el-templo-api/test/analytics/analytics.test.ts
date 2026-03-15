@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
+import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
@@ -67,6 +68,7 @@ describe("Analytics API", () => {
   async function cleanupAll(): Promise<void> {
     await app.db.delete(auraTransactions);
     await app.db.delete(auraBalances);
+    await app.db.delete(completedSessions);
     await app.db.delete(bookings);
     await app.db.delete(attendance);
     await app.db.delete(schedules);
@@ -349,10 +351,16 @@ describe("Analytics API", () => {
       // Create member today
       await createMember({ email: "m1@test.com", dni: "90000002" });
 
-      const today = new Date().toISOString().split("T")[0];
+      // Use ±1 day range to handle UTC/MySQL timezone boundary mismatches
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      const tomorrow = new Date(Date.now() + 86400000)
+        .toISOString()
+        .split("T")[0];
       const res = await app.inject({
         method: "GET",
-        url: `${ANALYTICS_URL}/members?dateFrom=${today}&dateTo=${today}`,
+        url: `${ANALYTICS_URL}/members?dateFrom=${yesterday}&dateTo=${tomorrow}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -543,10 +551,16 @@ describe("Analytics API", () => {
         confirmedAt: new Date(),
       });
 
-      const today = new Date().toISOString().split("T")[0];
+      // Use ±1 day range to handle UTC/MySQL timezone boundary mismatches
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      const tomorrow = new Date(Date.now() + 86400000)
+        .toISOString()
+        .split("T")[0];
       const res = await app.inject({
         method: "GET",
-        url: `${ANALYTICS_URL}/attendance?dateFrom=${today}&dateTo=${today}`,
+        url: `${ANALYTICS_URL}/attendance?dateFrom=${yesterday}&dateTo=${tomorrow}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
