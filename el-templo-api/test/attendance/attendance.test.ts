@@ -100,7 +100,8 @@ describe("Attendance API", () => {
     await app.db.delete(subscriptionPlans);
     await app.db.delete(memberNotes);
     await app.db.update(users).set({ boardingPassUsed: false });
-    // Delete non-admin test users
+    // Delete non-admin test users (disable FK checks to handle all child tables)
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
     const testUsers = await app.db
       .select({ id: users.id, email: users.email })
       .from(users);
@@ -109,6 +110,7 @@ describe("Attendance API", () => {
         await app.db.delete(users).where(eq(users.id, u.id));
       }
     }
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   }
 
   /**

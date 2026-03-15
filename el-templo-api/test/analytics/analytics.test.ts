@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
@@ -79,6 +79,7 @@ describe("Analytics API", () => {
     await app.db.delete(subscriptionPlans);
     await app.db.delete(memberNotes);
     await app.db.update(users).set({ boardingPassUsed: false });
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
     const testUsers = await app.db
       .select({ id: users.id, email: users.email })
       .from(users);
@@ -87,6 +88,7 @@ describe("Analytics API", () => {
         await app.db.delete(users).where(eq(users.id, u.id));
       }
     }
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
   }
 
   async function createPlan(
