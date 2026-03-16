@@ -25,6 +25,13 @@ export const levelEnum = mysqlEnum("level", [
   "spartan",
 ]);
 export const genderEnum = mysqlEnum("gender", ["male", "female", "other"]);
+export const documentTypeEnum = mysqlEnum("document_type", [
+  "DNI",
+  "Pasaporte",
+  "NIE",
+  "NIF",
+  "Otro",
+]);
 
 export const users = mysqlTable(
   "users",
@@ -41,6 +48,8 @@ export const users = mysqlTable(
     level: levelEnum.default("alfa").notNull(),
     phone: varchar("phone", { length: 30 }),
     dni: varchar("dni", { length: 20 }).unique(),
+    documentType: documentTypeEnum,
+    address: varchar("address", { length: 500 }),
     dateOfBirth: date("date_of_birth", { mode: "string" }),
     gender: genderEnum,
     emergencyContactName: varchar("emergency_contact_name", { length: 150 }),
