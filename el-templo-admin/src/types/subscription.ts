@@ -76,8 +76,15 @@ export interface PlanListItem {
   isGroup: boolean;
   groupMaxMembers: number | null;
   isActive: boolean;
+  isArchived: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BulkMigrateResult {
+  migrated: number;
+  skipped: number;
+  errors: Array<{ userId: number; error: string }>;
 }
 
 export interface CreatePlanInput {
