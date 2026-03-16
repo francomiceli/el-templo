@@ -5,7 +5,10 @@
  * Tests cover CSV parsing, duplicate resolution, and plan mapping logic.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 import {
   parseCsvRow,
   resolveDuplicates,
@@ -434,16 +437,48 @@ describe("mapPlanName", () => {
 // ─── parseAllCsvs ───────────────────────────────────────────────────────────
 
 describe("parseAllCsvs", () => {
-  const dataDir = "/home/franco/projects/el-templo/.docs/admin-docs";
+  let tmpDir: string;
+
+  const CSV_HEADER =
+    "Apellido,Nombre,Email,Número tarjeta,Teléfono,Celular,Activo,Tipo de documento,Número de documento,Fecha de nacimiento,Sexo,Domicilio,Observaciones,Último servicio/membresía vigente,Vencimiento,Fecha de ingreso,Creador del legajo";
+
+  beforeAll(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "import-test-"));
+    // Create 5 branch CSV files with test data
+    fs.writeFileSync(
+      path.join(tmpDir, "alumnos branch alem.csv"),
+      `${CSV_HEADER}\nGarcia,Juan,juan@test.com,,,,Si,DNI,12345678,01/01/1990,Masculino,Calle 1,,FLEX,01/04/2026,,Admin\nLopez,Maria,maria@test.com,,,,No,DNI,87654321,15/06/1985,Femenino,,,FLEX PLUS,01/03/2026,,Admin\n`,
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "alumnos branch constitucion.csv"),
+      `${CSV_HEADER}\nPerez,Carlos,carlos@test.com,,,,Si,,22334455,10/03/1992,Masculino,,,FOUNDATION,01/05/2026,,Admin\n`,
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "alumnos branch jujuy.csv"),
+      `${CSV_HEADER}\nSanchez,Ana,ana@test.com,,,,Si,DNI,55667788,20/12/1988,Femenino,Av. Test 123,,PERFORMANCE,01/06/2026,,Admin\n`,
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "alumnos branch mogotes.csv"),
+      `\n${CSV_HEADER}\nRuiz,Pedro,pedro@test.com,,,,Si,,99887766,05/07/1995,Masculino,,,PROGRAMA 3 MESES,01/02/2026,,Admin\n`,
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, "alumnos branch moreno.csv"),
+      `${CSV_HEADER}\nDiaz,Laura,laura@test.com,,,,Si,DNI,11223344,14/09/1991,Femenino,,,FLEX,01/04/2026,,Admin\n,,,,,,,,,,,,,,,,\n`,
+    );
+  });
+
+  afterAll(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   it("parses all 5 branch CSV files", () => {
-    const { members, branchMap } = parseAllCsvs(dataDir);
+    const { members, branchMap } = parseAllCsvs(tmpDir);
     expect(branchMap.size).toBe(5);
-    expect(members.length).toBeGreaterThan(0);
+    expect(members.length).toBe(6);
   });
 
   it("extracts correct branch names from filenames", () => {
-    const { branchMap } = parseAllCsvs(dataDir);
+    const { branchMap } = parseAllCsvs(tmpDir);
     expect(branchMap.has("alem")).toBe(true);
     expect(branchMap.has("constitucion")).toBe(true);
     expect(branchMap.has("jujuy")).toBe(true);
@@ -452,16 +487,14 @@ describe("parseAllCsvs", () => {
   });
 
   it("skips blank rows and rows with blank email", () => {
-    const { members } = parseAllCsvs(dataDir);
-    // Every returned member should have a non-blank email
+    const { members } = parseAllCsvs(tmpDir);
     for (const m of members) {
       expect(m.email.trim()).not.toBe("");
     }
   });
 
   it("handles CSVs with leading empty rows (mogotes has blank row before header)", () => {
-    const { members, branchMap } = parseAllCsvs(dataDir);
-    // Mogotes should have parsed members
+    const { members, branchMap } = parseAllCsvs(tmpDir);
     const mogotesMembers = members.filter(
       (m) => m.branchName === branchMap.get("mogotes"),
     );
