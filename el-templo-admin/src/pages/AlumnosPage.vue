@@ -122,7 +122,7 @@
       :columns="columns"
       row-key="id"
       :loading="loading"
-      :pagination="tablePagination"
+      v-model:pagination="tablePagination"
       :rows-per-page-options="[20, 50, 100]"
       :pagination-label="
         (firstRowIndex, endRowIndex, totalRowsNumber) =>
