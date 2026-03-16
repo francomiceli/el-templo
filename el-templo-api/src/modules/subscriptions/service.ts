@@ -24,6 +24,8 @@ import type {
   SubscriptionDetail,
   AssignPlanInput,
   PricingPreview,
+  BulkMigrateInput,
+  BulkMigrateResult,
   PlanTier,
   BookingMode,
   PriceType,
@@ -42,11 +44,18 @@ export class SubscriptionService {
 
   /**
    * List subscription plans, optionally filtered by isActive.
+   * By default excludes archived plans unless includeArchived is true.
    */
-  async listPlans(isActive?: boolean): Promise<PlanListItem[]> {
+  async listPlans(
+    isActive?: boolean,
+    includeArchived?: boolean,
+  ): Promise<PlanListItem[]> {
     const conditions = [];
     if (isActive !== undefined) {
       conditions.push(eq(schema.subscriptionPlans.isActive, isActive));
+    }
+    if (!includeArchived) {
+      conditions.push(eq(schema.subscriptionPlans.isArchived, false));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -354,6 +363,9 @@ export class SubscriptionService {
     if (!plan.isActive) {
       throw new BadRequestError("El plan seleccionado no esta activo");
     }
+    if (plan.isArchived) {
+      throw new BadRequestError("No se puede asignar un plan archivado");
+    }
 
     // Check no existing active/paused subscription
     const existingSub = await this.getMemberSubscription(userId);
@@ -594,6 +606,103 @@ export class SubscriptionService {
     return updated;
   }
 
+  // ─── Bulk Migration ──────────────────────────────────────────────────────
+
+  /**
+   * Bulk-migrate members from their current plan to a target plan.
+   * Cancels existing active subscriptions and creates new ones.
+   */
+  async bulkMigratePlan(
+    input: BulkMigrateInput,
+    adminId: number,
+  ): Promise<BulkMigrateResult> {
+    // Validate target plan exists and is not archived
+    const targetPlan = await this.getPlanById(input.targetPlanId);
+    if (!targetPlan) {
+      throw new NotFoundError("Plan destino no encontrado");
+    }
+    if (targetPlan.isArchived) {
+      throw new BadRequestError("No se puede migrar a un plan archivado");
+    }
+    if (!targetPlan.isActive) {
+      throw new BadRequestError("El plan destino no esta activo");
+    }
+
+    // Validate target branch exists
+    const [branch] = await this.db
+      .select({ id: schema.branches.id, name: schema.branches.name })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, input.targetBranchId));
+
+    if (!branch) {
+      throw new NotFoundError("Sucursal destino no encontrada");
+    }
+
+    let migrated = 0;
+    let skipped = 0;
+    const errors: Array<{ userId: number; error: string }> = [];
+
+    const today = new Date().toISOString().split("T")[0];
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + targetPlan.durationDays);
+    const endDateStr = endDate.toISOString().split("T")[0];
+
+    for (const userId of input.userIds) {
+      try {
+        // Find active subscription
+        const activeSub = await this.getMemberSubscription(userId);
+        if (!activeSub) {
+          skipped++;
+          continue;
+        }
+
+        // Cancel current subscription
+        await this.db
+          .update(schema.subscriptions)
+          .set({
+            status: "cancelled",
+            cancelledAt: new Date(),
+            notes: `Migrado a ${targetPlan.name}`,
+          })
+          .where(eq(schema.subscriptions.id, activeSub.id));
+
+        // Create new subscription
+        await this.db.insert(schema.subscriptions).values({
+          userId,
+          planId: input.targetPlanId,
+          branchId: input.targetBranchId,
+          status: "active",
+          startDate: today,
+          endDate: endDateStr,
+          pricePaid: 0,
+          priceTypeApplied: "regular",
+          notes: "Migrado desde plan legacy",
+        });
+
+        migrated++;
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Error desconocido";
+        errors.push({ userId, error: message });
+      }
+    }
+
+    this.log.info(
+      {
+        adminId,
+        targetPlanId: input.targetPlanId,
+        targetBranchId: input.targetBranchId,
+        migrated,
+        skipped,
+        errorCount: errors.length,
+        totalRequested: input.userIds.length,
+      },
+      "Bulk plan migration completed",
+    );
+
+    return { migrated, skipped, errors };
+  }
+
   // ─── Pricing Preview ─────────────────────────────────────────────────────
 
   /**
@@ -745,6 +854,7 @@ export class SubscriptionService {
       isGroup: row.isGroup,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
+      isArchived: row.isArchived,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

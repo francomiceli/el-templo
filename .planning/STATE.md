@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: planning
-stopped_at: Phase 59 context partially gathered (4/7 areas)
-last_updated: "2026-03-15T02:05:45.166Z"
-last_activity: 2026-03-14 -- Phase 58 complete (production deployed and seeded)
+status: executing
+stopped_at: Completed 59-04-PLAN.md (phase 59 complete)
+last_updated: "2026-03-16T18:03:23.000Z"
+last_activity: 2026-03-16 -- Plan 59-04 complete (legacy plan admin UI and bulk migration)
 progress:
   total_phases: 51
   completed_phases: 36
-  total_plans: 161
-  completed_plans: 160
-  percent: 11
+  total_plans: 226
+  completed_plans: 221
+  percent: 98
 ---
 
 # Project State
@@ -26,32 +26,36 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 59 of 66 (Schema Extensions & Data Import) -- 2nd of 9 phases in v4.1
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-14 -- Phase 58 complete (production deployed and seeded)
+Plan: 4 of 4 (phase complete)
+Status: Executing
+Last activity: 2026-03-16 -- Plan 59-04 complete (legacy plan admin UI and bulk migration)
 
-Progress: [█░░░░░░░░░] 11%
+Progress: [██████████] 97%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2 (v4.1)
-- Average duration: ~30min
-- Total execution time: ~30min
+- Total plans completed: 6 (v4.1)
+- Average duration: ~11min
+- Total execution time: ~64min
 
 **By Phase:**
 
 | Phase | Plans | Total  | Avg/Plan |
 | ----- | ----- | ------ | -------- |
 | 58    | 2/2   | ~30min | ~15min   |
+| 59    | 4/4   | ~34min | ~9min    |
 
 **Recent Trend (from v4.0):**
 
-- Last 5 plans: 58-02 (manual), 58-01 (30min), 57-01 (15min), 56-03 (10min), 56-05 (26min)
+- Last 5 plans: 59-04 (6min), 59-03 (15min), 59-02 (4min), 59-01 (9min), 58-02 (manual)
 - Trend: Stable
 
 _Updated after each plan completion_
+| Phase 59 P02 | 4min | 2 tasks | 3 files |
+| Phase 59 P03 | 15min | 2 tasks | 2 files |
+| Phase 59 P04 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -66,6 +70,11 @@ Recent decisions affecting current work:
 - Resend over nodemailer for EmailService (Phase 57)
 - Plan-first admin member creation with auto-subscription (Phase 57)
 - Production seed uses CONFIRM_PRODUCTION_SEED=yes safety gate (Phase 58)
+- Nullable column extension pattern for backward-compatible schema changes (Phase 59)
+- [Phase 59]: documentType required in create mode only, optional in edit mode for backward compatibility
+- [Phase 59]: CSV import script uses static imports for drizzle-orm to avoid dynamic import type mismatches
+- [Phase 59]: 84 unique legacy plan names found, all created as archived subscription_plans on import
+- [Phase 59]: Bulk migration sets pricePaid=0 for legacy-to-current plan migrations (admin adjusts later)
 
 ### Pending Todos
 
@@ -77,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T02:05:45.162Z
-Stopped at: Phase 59 context partially gathered (4/7 areas)
-Resume file: .planning/phases/59-schema-extensions-data-import/59-CONTEXT.md
+Last session: 2026-03-16T18:03:23Z
+Stopped at: Completed 59-04-PLAN.md (phase 59 complete)
+Resume file: .planning/phases/59-schema-extensions-data-import/59-04-SUMMARY.md

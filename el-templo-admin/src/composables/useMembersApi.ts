@@ -194,18 +194,49 @@ export function useMembersApi() {
     priceRegular: number;
     durationDays: number;
     classesPerWeek: number | null;
+    isArchived: boolean;
   }
 
-  async function getPlans(): Promise<PlanOption[]> {
+  async function getPlans(includeArchived = false): Promise<PlanOption[]> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.get<{ plans: PlanOption[] }>('/admin/subscriptions/plans', {
-        params: { isActive: true },
+        params: { isActive: true, ...(includeArchived ? { includeArchived: true } : {}) },
       });
       return data.plans;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando planes');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // ─── Bulk Migration ────────────────────────────────────────────────
+
+  interface BulkMigrateResponse {
+    migrated: number;
+    skipped: number;
+    errors: Array<{ userId: number; error: string }>;
+  }
+
+  async function bulkMigratePlan(
+    userIds: number[],
+    targetPlanId: number,
+    targetBranchId: number
+  ): Promise<BulkMigrateResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<BulkMigrateResponse>('/admin/subscriptions/bulk-migrate', {
+        userIds,
+        targetPlanId,
+        targetBranchId,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error migrando planes');
       throw err;
     } finally {
       loading.value = false;
@@ -245,6 +276,7 @@ export function useMembersApi() {
     toggleMemberStatus,
     checkDni,
     getPlans,
+    bulkMigratePlan,
     getNotes,
     createNote,
     updateNote,

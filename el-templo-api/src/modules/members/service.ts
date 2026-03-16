@@ -38,8 +38,17 @@ export class MemberService {
   async listMembers(
     params: MemberListParams,
   ): Promise<{ members: MemberListItem[]; total: number }> {
-    const { search, branchId, level, isActive, overdue, planId, page, limit } =
-      params;
+    const {
+      search,
+      branchId,
+      multiBranch,
+      level,
+      isActive,
+      overdue,
+      planId,
+      page,
+      limit,
+    } = params;
     const offset = (page - 1) * limit;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -54,7 +63,18 @@ export class MemberService {
       );
     }
 
-    if (branchId !== undefined) {
+    if (multiBranch === true) {
+      // Filter members whose active subscription is on a multi-branch plan
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM subscriptions sub
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          WHERE sub.user_id = ${schema.users.id}
+            AND sp.multi_branch = 1
+            AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
+        )`,
+      );
+    } else if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
 
@@ -136,6 +156,7 @@ export class MemberService {
         lastName: schema.users.lastName,
         phone: schema.users.phone,
         dni: schema.users.dni,
+        documentType: schema.users.documentType,
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
@@ -158,6 +179,7 @@ export class MemberService {
       lastName: r.lastName,
       phone: r.phone,
       dni: r.dni,
+      documentType: r.documentType,
       level: r.level,
       branchId: r.branchId,
       branchName: r.branchName,
@@ -182,6 +204,8 @@ export class MemberService {
         lastName: schema.users.lastName,
         phone: schema.users.phone,
         dni: schema.users.dni,
+        documentType: schema.users.documentType,
+        address: schema.users.address,
         dateOfBirth: schema.users.dateOfBirth,
         gender: schema.users.gender,
         emergencyContactName: schema.users.emergencyContactName,
@@ -208,6 +232,8 @@ export class MemberService {
       lastName: row.lastName,
       phone: row.phone,
       dni: row.dni,
+      documentType: row.documentType,
+      address: row.address,
       dateOfBirth: row.dateOfBirth,
       gender: row.gender,
       emergencyContactName: row.emergencyContactName,
@@ -236,6 +262,7 @@ export class MemberService {
 
     type Level = "alfa" | "delta" | "sigma" | "omega" | "spartan";
     type Gender = "male" | "female" | "other";
+    type DocType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
     const result = await this.db.insert(schema.users).values({
       email: input.email,
@@ -244,6 +271,8 @@ export class MemberService {
       lastName: input.lastName,
       phone: input.phone,
       dni: input.dni,
+      documentType: (input.documentType as DocType) || null,
+      address: input.address || null,
       branchId: input.branchId,
       level: (input.level as Level) || "alfa",
       dateOfBirth: input.dateOfBirth || null,
@@ -282,6 +311,15 @@ export class MemberService {
     if (input.lastName !== undefined) updateData.lastName = input.lastName;
     if (input.phone !== undefined) updateData.phone = input.phone;
     if (input.dni !== undefined) updateData.dni = input.dni;
+    if (input.documentType !== undefined)
+      updateData.documentType = input.documentType as
+        | "DNI"
+        | "Pasaporte"
+        | "NIE"
+        | "NIF"
+        | "Otro"
+        | null;
+    if (input.address !== undefined) updateData.address = input.address;
     if (input.dateOfBirth !== undefined)
       updateData.dateOfBirth = input.dateOfBirth;
     if (input.gender !== undefined)

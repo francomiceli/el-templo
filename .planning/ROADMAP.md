@@ -1026,8 +1026,8 @@ Plans:
 
 ## v4.1 Phases
 
-- [ ] **Phase 58: Production Deployment** - Push all v4.0 staging work to production so all environments match
-- [ ] **Phase 59: Schema Extensions & Data Import** - Add documentType/address fields, import 5 branch CSV datasets, enable editing of new fields
+- [x] **Phase 58: Production Deployment** - Push all v4.0 staging work to production so all environments match
+- [x] **Phase 59: Schema Extensions & Data Import** - Add documentType/address fields, import 5 branch CSV datasets, enable editing of new fields (completed 2026-03-16)
 - [ ] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking
 - [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
 - [ ] **Phase 62: Payment Enhancements** - Discounts with reason, charge cancellation with slot release, cuenta corriente debt tracking
@@ -1052,8 +1052,8 @@ Plans:
 
 Plans:
 
-- [ ] 58-01-PLAN.md — Commit v4.0 WIP, create production seed script, push to staging
-- [ ] 58-02-PLAN.md — Merge to master, deploy production, seed production database
+- [x] 58-01-PLAN.md — Commit v4.0 WIP, create production seed script, push to staging
+- [x] 58-02-PLAN.md — Merge to master, deploy production, seed production database
 
 ---
 
@@ -1069,7 +1069,14 @@ Plans:
 3. Duplicate members (by DNI or email) are detected and handled according to configurable strategy (skip, update, or error)
 4. Imported members with subscription data have corresponding subscription records created from plan name lookups
 5. Admin can view and edit a member's document type and home address from the member profile
-   **Plans**: TBD
+   **Plans**: 4 plans
+
+Plans:
+
+- [ ] 59-01-PLAN.md — Schema migration (documentType, address, isArchived) + API CRUD updates
+- [ ] 59-02-PLAN.md — Admin UI for documentType and address (form dialog + profile tab)
+- [ ] 59-03-PLAN.md — CSV member import script (5 branches, duplicate resolution, plan mapping)
+- [ ] 59-04-PLAN.md — Legacy plan admin UI (archived badges, bulk migration action)
 
 ---
 
@@ -1182,17 +1189,17 @@ Plans:
 **Execution Order:**
 Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (Access) → Phase 62 (Payments) → Phase 63 (Cash Box) → Phase 64 (Members) → Phase 65 (Reports) → Phase 66 (Roles)
 
-| Phase                               | Plans Complete | Status      | Completed |
-| ----------------------------------- | -------------- | ----------- | --------- |
-| 58. Production Deployment           | 0/?            | Not started | -         |
-| 59. Schema Extensions & Data Import | 0/?            | Not started | -         |
-| 60. Plan Configuration              | 0/?            | Not started | -         |
-| 61. QR Access Control               | 0/?            | Not started | -         |
-| 62. Payment Enhancements            | 0/?            | Not started | -         |
-| 63. Cash Box                        | 0/?            | Not started | -         |
-| 64. Member Management Enhancements  | 0/?            | Not started | -         |
-| 65. Reports Dashboard               | 0/?            | Not started | -         |
-| 66. Roles & Permissions             | 0/?            | Not started | -         |
+| Phase                               | Plans Complete | Status      | Completed  |
+| ----------------------------------- | -------------- | ----------- | ---------- |
+| 58. Production Deployment           | 2/2            | Complete    | 2026-03-14 |
+| 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
+| 60. Plan Configuration              | 0/?            | Not started | -          |
+| 61. QR Access Control               | 0/?            | Not started | -          |
+| 62. Payment Enhancements            | 0/?            | Not started | -          |
+| 63. Cash Box                        | 0/?            | Not started | -          |
+| 64. Member Management Enhancements  | 0/?            | Not started | -          |
+| 65. Reports Dashboard               | 0/?            | Not started | -          |
+| 66. Roles & Permissions             | 0/?            | Not started | -          |
 
 ---
 

@@ -14,6 +14,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
   AssignPlanInput,
+  BulkMigrateInput,
   CreatePlanInput,
   UpdatePlanInput,
   PriceType,
@@ -24,6 +25,7 @@ import {
   createPlanSchema,
   updatePlanSchema,
   deactivatePlanSchema,
+  bulkMigratePlanSchema,
   getMemberSubscriptionSchema,
   getMemberSubscriptionHistorySchema,
   assignPlanSchema,
@@ -62,9 +64,12 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /plans — List subscription plans
   fastify.get<{
-    Querystring: { isActive?: boolean };
+    Querystring: { isActive?: boolean; includeArchived?: boolean };
   }>("/plans", { schema: listPlansSchema }, async (request) => {
-    const plans = await subscriptionService.listPlans(request.query.isActive);
+    const plans = await subscriptionService.listPlans(
+      request.query.isActive,
+      request.query.includeArchived,
+    );
     return { plans };
   });
 
@@ -125,6 +130,23 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Not Found", message: "Plan no encontrado" });
       }
       return plan;
+    },
+  );
+
+  // POST /bulk-migrate — Bulk migrate members to a new plan
+  fastify.post<{ Body: BulkMigrateInput }>(
+    "/bulk-migrate",
+    { schema: bulkMigratePlanSchema },
+    async (request, reply) => {
+      try {
+        const result = await subscriptionService.bulkMigratePlan(
+          request.body,
+          request.user.userId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "bulk migrate plans");
+      }
     },
   );
 
