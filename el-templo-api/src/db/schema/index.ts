@@ -38,3 +38,4 @@ export * from "./activities";
 export * from "./schedules";
 export * from "./bookings";
 export * from "./holidays";
+export * from "./whatsapp";

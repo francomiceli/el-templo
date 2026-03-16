@@ -24,5 +24,23 @@ module.exports = {
       wait_ready: true,
       listen_timeout: 10000,
     },
+    {
+      name: 'eltemplo-bot',
+      script: 'dist/index.js',
+      cwd: '/var/www/el-templo/el-templo-bot',
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      env: {
+        NODE_ENV: 'production',
+      },
+      error_file: '/var/log/pm2/eltemplo-bot-error.log',
+      out_file: '/var/log/pm2/eltemplo-bot-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      kill_timeout: 5000,
+      wait_ready: true,
+      listen_timeout: 10000,
+    },
   ],
 };

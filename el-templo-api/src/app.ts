@@ -31,6 +31,7 @@ import {
   schedulingMemberRoutes,
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
+import { whatsappAdminRoutes } from "./modules/whatsapp";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -138,6 +139,11 @@ export async function buildApp() {
   // Analytics routes (admin-only KPI stats, member/attendance/financial analytics)
   await app.register(analyticsRoutes, {
     prefix: "/api/admin/analytics",
+  });
+
+  // WhatsApp admin routes (conversation management, human takeover)
+  await app.register(whatsappAdminRoutes, {
+    prefix: "/api/admin/whatsapp",
   });
 
   // Health check endpoint
