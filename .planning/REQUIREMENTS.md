@@ -13,12 +13,12 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Data Migration
 
-- [ ] **DATA-01**: Users table supports document type field (DNI, Pasaporte, etc.)
-- [ ] **DATA-02**: Users table supports home address field
-- [ ] **DATA-03**: Import script processes 5 branch CSV files with field mapping (DD/MM/YYYY dates, Masculino/Femenino→male/female, Si/No→boolean, Celular→phone)
-- [ ] **DATA-04**: Import handles duplicate detection by DNI and email with configurable strategy (skip, update, or error)
-- [ ] **DATA-05**: Import creates subscription records from plan name lookups when "Último servicio/membresía vigente" is present
-- [ ] **DATA-06**: Import runs against local, staging, and production databases with branch mapping from filename
+- [x] **DATA-01**: Users table supports document type field (DNI, Pasaporte, etc.)
+- [x] **DATA-02**: Users table supports home address field
+- [x] **DATA-03**: Import script processes 5 branch CSV files with field mapping (DD/MM/YYYY dates, Masculino/Femenino→male/female, Si/No→boolean, Celular→phone)
+- [x] **DATA-04**: Import handles duplicate detection by DNI and email with configurable strategy (skip, update, or error)
+- [x] **DATA-05**: Import creates subscription records from plan name lookups when "Último servicio/membresía vigente" is present
+- [x] **DATA-06**: Import runs against local, staging, and production databases with branch mapping from filename
 
 ### Access Control
 
@@ -69,7 +69,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 - [ ] **MEMBER-01**: Admin can upload or capture a member photo (webcam or file upload)
 - [ ] **MEMBER-02**: Admin can change a member's active subscription to a different plan with price difference calculation
 - [ ] **MEMBER-03**: Admin can export filtered member list as Excel file
-- [ ] **MEMBER-04**: Admin can view and edit member's document type and home address
+- [x] **MEMBER-04**: Admin can view and edit member's document type and home address
 
 ## Future Requirements (v4.2+)
 
@@ -106,45 +106,45 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 <!-- Updated during roadmap creation -->
 
-| Requirement | Phase    | Status  |
-| ----------- | -------- | ------- |
-| DEPLOY-01   | Phase 58 | Pending |
-| DATA-01     | Phase 59 | Pending |
-| DATA-02     | Phase 59 | Pending |
-| DATA-03     | Phase 59 | Pending |
-| DATA-04     | Phase 59 | Pending |
-| DATA-05     | Phase 59 | Pending |
-| DATA-06     | Phase 59 | Pending |
-| MEMBER-04   | Phase 59 | Pending |
-| PLANS-01    | Phase 60 | Pending |
-| PLANS-02    | Phase 60 | Pending |
-| PLANS-03    | Phase 60 | Pending |
-| PLANS-04    | Phase 60 | Pending |
-| PLANS-05    | Phase 60 | Pending |
-| PLANS-06    | Phase 60 | Pending |
-| ACCESS-01   | Phase 61 | Pending |
-| ACCESS-02   | Phase 61 | Pending |
-| ACCESS-03   | Phase 61 | Pending |
-| ACCESS-04   | Phase 61 | Pending |
-| ACCESS-05   | Phase 61 | Pending |
-| PAY-01      | Phase 62 | Pending |
-| PAY-02      | Phase 62 | Pending |
-| PAY-03      | Phase 62 | Pending |
-| PAY-04      | Phase 62 | Pending |
-| CASH-02     | Phase 63 | Pending |
-| CASH-03     | Phase 63 | Pending |
-| MEMBER-01   | Phase 64 | Pending |
-| MEMBER-02   | Phase 64 | Pending |
-| MEMBER-03   | Phase 64 | Pending |
-| REPORT-01   | Phase 65 | Pending |
-| REPORT-02   | Phase 65 | Pending |
-| REPORT-03   | Phase 65 | Pending |
-| REPORT-04   | Phase 65 | Pending |
-| REPORT-05   | Phase 65 | Pending |
-| ROLES-01    | Phase 66 | Pending |
-| ROLES-02    | Phase 66 | Pending |
-| ROLES-03    | Phase 66 | Pending |
-| ROLES-04    | Phase 66 | Pending |
+| Requirement | Phase    | Status   |
+| ----------- | -------- | -------- |
+| DEPLOY-01   | Phase 58 | Pending  |
+| DATA-01     | Phase 59 | Complete |
+| DATA-02     | Phase 59 | Complete |
+| DATA-03     | Phase 59 | Complete |
+| DATA-04     | Phase 59 | Complete |
+| DATA-05     | Phase 59 | Complete |
+| DATA-06     | Phase 59 | Complete |
+| MEMBER-04   | Phase 59 | Complete |
+| PLANS-01    | Phase 60 | Pending  |
+| PLANS-02    | Phase 60 | Pending  |
+| PLANS-03    | Phase 60 | Pending  |
+| PLANS-04    | Phase 60 | Pending  |
+| PLANS-05    | Phase 60 | Pending  |
+| PLANS-06    | Phase 60 | Pending  |
+| ACCESS-01   | Phase 61 | Pending  |
+| ACCESS-02   | Phase 61 | Pending  |
+| ACCESS-03   | Phase 61 | Pending  |
+| ACCESS-04   | Phase 61 | Pending  |
+| ACCESS-05   | Phase 61 | Pending  |
+| PAY-01      | Phase 62 | Pending  |
+| PAY-02      | Phase 62 | Pending  |
+| PAY-03      | Phase 62 | Pending  |
+| PAY-04      | Phase 62 | Pending  |
+| CASH-02     | Phase 63 | Pending  |
+| CASH-03     | Phase 63 | Pending  |
+| MEMBER-01   | Phase 64 | Pending  |
+| MEMBER-02   | Phase 64 | Pending  |
+| MEMBER-03   | Phase 64 | Pending  |
+| REPORT-01   | Phase 65 | Pending  |
+| REPORT-02   | Phase 65 | Pending  |
+| REPORT-03   | Phase 65 | Pending  |
+| REPORT-04   | Phase 65 | Pending  |
+| REPORT-05   | Phase 65 | Pending  |
+| ROLES-01    | Phase 66 | Pending  |
+| ROLES-02    | Phase 66 | Pending  |
+| ROLES-03    | Phase 66 | Pending  |
+| ROLES-04    | Phase 66 | Pending  |
 
 **Coverage:**
 

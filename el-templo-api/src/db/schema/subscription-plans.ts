@@ -34,6 +34,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   isGroup: boolean("is_group").default(false).notNull(),
   groupMaxMembers: int("group_max_members"),
   isActive: boolean("is_active").default(true).notNull(),
+  isArchived: boolean("is_archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

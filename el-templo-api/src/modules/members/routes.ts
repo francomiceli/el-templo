@@ -117,6 +117,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: {
       search?: string;
       branchId?: number;
+      multiBranch?: boolean;
       level?: string;
       isActive?: boolean;
       overdue?: boolean;
@@ -128,6 +129,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     const {
       search,
       branchId,
+      multiBranch,
       level,
       isActive,
       overdue,
@@ -139,6 +141,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     const params: MemberListParams = {
       search,
       branchId,
+      multiBranch,
       level,
       isActive,
       overdue,

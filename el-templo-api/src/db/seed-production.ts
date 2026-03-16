@@ -194,7 +194,7 @@ async function seedProduction() {
         isTrial: false,
       },
       {
-        name: "Sesion de Prueba",
+        name: "Sesión de Prueba",
         planTier: "other" as const,
         bookingMode: "flexible" as const,
         priceRegular: 0,

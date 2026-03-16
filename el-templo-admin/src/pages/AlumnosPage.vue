@@ -30,7 +30,17 @@
           emit-value
           map-options
           @update:model-value="onFilterChange"
-        />
+        >
+          <template #option="scope">
+            <q-item v-bind="scope.itemProps">
+              <q-item-section>
+                <q-item-label :class="{ 'text-grey-6 text-italic': scope.opt.archived }">
+                  {{ scope.opt.label }}
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </template>
+        </q-select>
       </div>
       <div class="col-6 col-sm-2">
         <q-select
@@ -86,16 +96,64 @@
       </div>
     </div>
 
+    <!-- Bulk actions bar -->
+    <div
+      v-if="selectedIds.size > 0"
+      class="row q-mb-md items-center q-pa-sm bg-blue-1 rounded-borders"
+    >
+      <div class="col-auto q-mr-md text-weight-medium">
+        {{ selectedIds.size }} alumno(s) seleccionado(s)
+      </div>
+      <div class="col-auto q-gutter-sm">
+        <q-btn
+          label="Migrar plan"
+          color="primary"
+          size="sm"
+          icon="swap_horiz"
+          @click="showMigrateDialog = true"
+        />
+        <q-btn label="Deseleccionar todos" color="grey" size="sm" flat @click="clearSelection" />
+      </div>
+    </div>
+
     <!-- QTable -->
     <q-table
       :rows="members"
       :columns="columns"
       row-key="id"
       :loading="loading"
-      :pagination="tablePagination"
+      v-model:pagination="tablePagination"
       :rows-per-page-options="[20, 50, 100]"
+      :pagination-label="
+        (firstRowIndex, endRowIndex, totalRowsNumber) =>
+          `${firstRowIndex}-${endRowIndex} de ${totalRowsNumber}`
+      "
+      rows-per-page-label="Registros por página"
+      no-data-label="No se encontraron alumnos"
+      loading-label="Cargando..."
       @request="onTableRequest"
     >
+      <!-- Selection header -->
+      <template #header-cell-seleccion="props">
+        <q-th :props="props" auto-width>
+          <q-checkbox
+            :model-value="isAllPageSelected"
+            :indeterminate-value="false"
+            @update:model-value="toggleSelectAll"
+          />
+        </q-th>
+      </template>
+
+      <!-- Selection column -->
+      <template #body-cell-seleccion="props">
+        <q-td :props="props" auto-width>
+          <q-checkbox
+            :model-value="selectedIds.has(props.row.id)"
+            @update:model-value="(val: boolean) => toggleSelection(props.row.id, val)"
+          />
+        </q-td>
+      </template>
+
       <!-- Nombre column (clickable) -->
       <template #body-cell-nombre="props">
         <q-td :props="props">
@@ -106,6 +164,20 @@
             {{ displayName(props.row) }}
           </span>
           <q-badge v-if="props.row.isOverdue" color="negative" label="Deuda" class="q-ml-sm" />
+        </q-td>
+      </template>
+
+      <!-- Plan column with legacy badge -->
+      <template #body-cell-plan="props">
+        <q-td :props="props">
+          {{ props.row.planName ?? 'Sin plan' }}
+          <q-badge
+            v-if="isLegacyPlan(props.row.planName)"
+            color="warning"
+            outline
+            label="Plan legacy"
+            class="q-ml-sm"
+          />
         </q-td>
       </template>
 
@@ -147,11 +219,58 @@
 
     <!-- Create Member Dialog -->
     <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
+
+    <!-- Bulk Migration Dialog -->
+    <q-dialog v-model="showMigrateDialog">
+      <q-card style="min-width: 400px">
+        <q-card-section>
+          <div class="text-h6">Migrar plan de suscripcion</div>
+        </q-card-section>
+
+        <q-card-section>
+          <p>
+            Se cancelara la suscripcion actual de {{ selectedIds.size }} alumno(s) y se creara una
+            nueva con el plan seleccionado.
+          </p>
+          <q-select
+            v-model="migrateTargetPlanId"
+            :options="currentPlanOptions"
+            label="Plan destino"
+            dense
+            outlined
+            emit-value
+            map-options
+            class="q-mt-md"
+          />
+          <q-select
+            v-model="migrateTargetBranchId"
+            :options="migrateBranchOptions"
+            label="Sucursal destino"
+            dense
+            outlined
+            emit-value
+            map-options
+            class="q-mt-md"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+          <q-btn
+            label="Migrar"
+            color="primary"
+            :loading="migrateLoading"
+            :disable="!migrateTargetPlanId || !migrateTargetBranchId"
+            @click="executeBulkMigration"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
@@ -174,10 +293,24 @@ const branches = ref<BranchOption[]>([]);
 const loading = ref(false);
 const showCreateDialog = ref(false);
 
+// Selection state
+const selectedIds = ref<Set<number>>(new Set());
+
+// Migration dialog state
+const showMigrateDialog = ref(false);
+const migrateTargetPlanId = ref<number | null>(null);
+const migrateTargetBranchId = ref<number | null>(null);
+const migrateLoading = ref(false);
+
+// Plans data (including archived for legacy detection)
+const allPlans = ref<Array<{ id: number; name: string; isArchived: boolean; planTier: string }>>(
+  []
+);
+
 const filters = reactive({
   search: '',
   planId: null as number | null,
-  branchId: null as number | null,
+  branchId: null as number | string | null,
   level: null as string | null,
   isActive: true as boolean | null,
   overdue: false,
@@ -195,12 +328,18 @@ const tablePagination = ref({
 // Filter options
 // =========================================================================
 
-const planFilterOptions = ref<Array<{ label: string; value: number | null }>>([
+interface PlanFilterOption {
+  label: string;
+  value: number | null;
+  archived?: boolean;
+}
+
+const planFilterOptions = ref<PlanFilterOption[]>([
   { label: 'Todos', value: null },
   { label: 'Sin plan', value: 0 },
 ]);
 
-const branchFilterOptions = ref<Array<{ label: string; value: number | null }>>([
+const branchFilterOptions = ref<Array<{ label: string; value: number | string | null }>>([
   { label: 'Todas', value: null },
 ]);
 
@@ -220,10 +359,46 @@ const statusFilterOptions = [
 ];
 
 // =========================================================================
+// Computed
+// =========================================================================
+
+/** Plan options for migration target (only current, non-archived plans) */
+const currentPlanOptions = computed(() =>
+  allPlans.value.filter((p) => !p.isArchived).map((p) => ({ label: p.name, value: p.id }))
+);
+
+/** Branch options for migration dialog */
+const migrateBranchOptions = computed(() =>
+  branches.value.map((b) => ({ label: b.name, value: b.id }))
+);
+
+/** Whether all members on the current page are selected */
+const isAllPageSelected = computed(
+  () => members.value.length > 0 && members.value.every((m) => selectedIds.value.has(m.id))
+);
+
+/** Set of archived plan names for quick lookup */
+const archivedPlanNames = computed(() => {
+  const names = new Set<string>();
+  for (const p of allPlans.value) {
+    if (p.isArchived) names.add(p.name);
+  }
+  return names;
+});
+
+// =========================================================================
 // Table columns
 // =========================================================================
 
 const columns: QTableProps['columns'] = [
+  {
+    name: 'seleccion',
+    label: '',
+    field: 'id',
+    align: 'center',
+    sortable: false,
+    style: 'width: 50px',
+  },
   {
     name: 'nombre',
     label: 'Nombre',
@@ -244,7 +419,6 @@ const columns: QTableProps['columns'] = [
     field: 'planName',
     align: 'left',
     sortable: false,
-    format: (val: string | null) => val ?? 'Sin plan',
   },
   {
     name: 'sucursal',
@@ -341,6 +515,46 @@ function formatDate(isoDate: string): string {
   }
 }
 
+/**
+ * Check if a member's plan name matches an archived plan.
+ */
+function isLegacyPlan(planName: string | null): boolean {
+  if (!planName) return false;
+  return archivedPlanNames.value.has(planName);
+}
+
+// =========================================================================
+// Selection
+// =========================================================================
+
+function toggleSelection(id: number, selected: boolean) {
+  const next = new Set(selectedIds.value);
+  if (selected) {
+    next.add(id);
+  } else {
+    next.delete(id);
+  }
+  selectedIds.value = next;
+}
+
+function toggleSelectAll(selectAll: boolean) {
+  const next = new Set(selectedIds.value);
+  if (selectAll) {
+    for (const m of members.value) {
+      next.add(m.id);
+    }
+  } else {
+    for (const m of members.value) {
+      next.delete(m.id);
+    }
+  }
+  selectedIds.value = next;
+}
+
+function clearSelection() {
+  selectedIds.value = new Set();
+}
+
 // =========================================================================
 // Data loading
 // =========================================================================
@@ -350,6 +564,7 @@ async function loadBranches() {
     branches.value = await membersApi.getBranches();
     branchFilterOptions.value = [
       { label: 'Todas', value: null },
+      { label: 'Multisucursal', value: 'multi' },
       ...branches.value.map((b) => ({ label: b.name, value: b.id })),
     ];
   } catch (err: unknown) {
@@ -360,12 +575,32 @@ async function loadBranches() {
 
 async function loadPlans() {
   try {
-    const plans = await membersApi.getPlans();
-    planFilterOptions.value = [
+    const plans = await membersApi.getPlans(true); // includeArchived
+    allPlans.value = plans.map((p) => ({
+      id: p.id,
+      name: p.name,
+      isArchived: p.isArchived,
+      planTier: p.planTier,
+    }));
+
+    // Build filter options: current plans first, then archived
+    const currentPlans = plans.filter((p) => !p.isArchived);
+    const archivedPlans = plans.filter((p) => p.isArchived);
+
+    const options: PlanFilterOption[] = [
       { label: 'Todos', value: null },
       { label: 'Sin plan', value: 0 },
-      ...plans.map((p) => ({ label: p.name, value: p.id })),
+      ...currentPlans.map((p) => ({ label: p.name, value: p.id })),
     ];
+
+    if (archivedPlans.length > 0) {
+      options.push({ label: '--- Archivados ---', value: -1, archived: true });
+      for (const p of archivedPlans) {
+        options.push({ label: `${p.name} (archivado)`, value: p.id, archived: true });
+      }
+    }
+
+    planFilterOptions.value = options;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading plans', { error: message });
@@ -375,10 +610,12 @@ async function loadPlans() {
 async function loadMembers() {
   loading.value = true;
   try {
+    const isMultiBranch = filters.branchId === 'multi';
     const result = await membersApi.getMembers({
       search: filters.search || undefined,
       planId: filters.planId ?? undefined,
-      branchId: filters.branchId ?? undefined,
+      branchId: isMultiBranch ? undefined : ((filters.branchId as number) ?? undefined),
+      multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
       overdue: filters.overdue || undefined,
@@ -393,6 +630,44 @@ async function loadMembers() {
     $q.notify({ type: 'negative', message: 'Error cargando alumnos' });
   } finally {
     loading.value = false;
+  }
+}
+
+// =========================================================================
+// Bulk migration
+// =========================================================================
+
+async function executeBulkMigration() {
+  if (!migrateTargetPlanId.value || !migrateTargetBranchId.value) return;
+
+  migrateLoading.value = true;
+  try {
+    const result = await membersApi.bulkMigratePlan(
+      Array.from(selectedIds.value),
+      migrateTargetPlanId.value,
+      migrateTargetBranchId.value
+    );
+
+    let msg = `${result.migrated} alumno(s) migrado(s)`;
+    if (result.skipped > 0) {
+      msg += `, ${result.skipped} omitido(s) (sin suscripcion activa)`;
+    }
+    if (result.errors.length > 0) {
+      msg += `, ${result.errors.length} error(es)`;
+    }
+
+    $q.notify({ type: 'positive', message: msg });
+    showMigrateDialog.value = false;
+    migrateTargetPlanId.value = null;
+    migrateTargetBranchId.value = null;
+    clearSelection();
+    loadMembers();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error in bulk migration', { error: message });
+    $q.notify({ type: 'negative', message: `Error migrando planes: ${message}` });
+  } finally {
+    migrateLoading.value = false;
   }
 }
 

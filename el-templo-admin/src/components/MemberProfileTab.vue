@@ -14,6 +14,14 @@
             <div class="text-body1">{{ member.phone ?? dashPlaceholder }}</div>
           </div>
           <div class="col-12 col-sm-6">
+            <div class="text-caption text-grey-7">Domicilio</div>
+            <div class="text-body1">{{ member.address ?? 'Sin domicilio' }}</div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <div class="text-caption text-grey-7">Tipo de documento</div>
+            <div class="text-body1">{{ member.documentType ?? 'Sin especificar' }}</div>
+          </div>
+          <div class="col-12 col-sm-6">
             <div class="text-caption text-grey-7">DNI</div>
             <div class="text-body1">{{ member.dni ?? dashPlaceholder }}</div>
           </div>
