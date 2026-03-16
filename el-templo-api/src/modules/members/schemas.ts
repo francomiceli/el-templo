@@ -15,6 +15,7 @@ const memberListItemSchema = {
     lastName: { type: ["string", "null"] },
     phone: { type: ["string", "null"] },
     dni: { type: ["string", "null"] },
+    documentType: { type: ["string", "null"] },
     level: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
@@ -34,6 +35,8 @@ const memberProfileSchema = {
     lastName: { type: ["string", "null"] },
     phone: { type: ["string", "null"] },
     dni: { type: ["string", "null"] },
+    documentType: { type: ["string", "null"] },
+    address: { type: ["string", "null"] },
     dateOfBirth: { type: ["string", "null"] },
     gender: { type: ["string", "null"] },
     emergencyContactName: { type: ["string", "null"] },
@@ -136,6 +139,11 @@ export const createMemberSchema = {
       lastName: { type: "string", minLength: 1 },
       phone: { type: "string", minLength: 1 },
       dni: { type: "string", minLength: 1 },
+      documentType: {
+        type: "string",
+        enum: ["DNI", "Pasaporte", "NIE", "NIF", "Otro"],
+      },
+      address: { type: "string", maxLength: 500 },
       branchId: { type: "integer" },
       planId: { type: "integer" },
       level: {
@@ -170,6 +178,11 @@ export const updateMemberSchema = {
       lastName: { type: "string" },
       phone: { type: "string" },
       dni: { type: "string" },
+      documentType: {
+        type: ["string", "null"],
+        enum: ["DNI", "Pasaporte", "NIE", "NIF", "Otro", null],
+      },
+      address: { type: ["string", "null"], maxLength: 500 },
       dateOfBirth: { type: ["string", "null"] },
       gender: {
         type: ["string", "null"],

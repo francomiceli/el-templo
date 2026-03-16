@@ -5,6 +5,8 @@
  * and internal notes system.
  */
 
+export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
+
 export interface MemberListParams {
   search?: string;
   branchId?: number;
@@ -23,6 +25,7 @@ export interface MemberListItem {
   lastName: string | null;
   phone: string | null;
   dni: string | null;
+  documentType: string | null;
   level: string;
   branchId: number;
   branchName: string;
@@ -39,6 +42,8 @@ export interface MemberProfile {
   lastName: string | null;
   phone: string | null;
   dni: string | null;
+  documentType: string | null;
+  address: string | null;
   dateOfBirth: string | null;
   gender: string | null;
   emergencyContactName: string | null;
@@ -62,6 +67,8 @@ export interface CreateMemberInput {
   branchId: number;
   planId: number;
   level?: string;
+  documentType?: string;
+  address?: string;
   dateOfBirth?: string;
   gender?: string;
   emergencyContactName?: string;
@@ -74,6 +81,8 @@ export interface UpdateMemberInput {
   lastName?: string;
   phone?: string;
   dni?: string;
+  documentType?: string | null;
+  address?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   emergencyContactName?: string | null;
