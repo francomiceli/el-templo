@@ -38,8 +38,17 @@ export class MemberService {
   async listMembers(
     params: MemberListParams,
   ): Promise<{ members: MemberListItem[]; total: number }> {
-    const { search, branchId, level, isActive, overdue, planId, page, limit } =
-      params;
+    const {
+      search,
+      branchId,
+      multiBranch,
+      level,
+      isActive,
+      overdue,
+      planId,
+      page,
+      limit,
+    } = params;
     const offset = (page - 1) * limit;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -54,7 +63,18 @@ export class MemberService {
       );
     }
 
-    if (branchId !== undefined) {
+    if (multiBranch === true) {
+      // Filter members whose active subscription is on a multi-branch plan
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM subscriptions sub
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          WHERE sub.user_id = ${schema.users.id}
+            AND sp.multi_branch = 1
+            AND (sub.status = 'active' OR sub.end_date >= CURDATE())
+        )`,
+      );
+    } else if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
 

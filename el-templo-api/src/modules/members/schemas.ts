@@ -83,6 +83,7 @@ export const listMembersSchema = {
     properties: {
       search: { type: "string" },
       branchId: { type: "integer" },
+      multiBranch: { type: "boolean" },
       level: {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],

@@ -303,7 +303,7 @@ const allPlans = ref<Array<{ id: number; name: string; isArchived: boolean; plan
 const filters = reactive({
   search: '',
   planId: null as number | null,
-  branchId: null as number | null,
+  branchId: null as number | string | null,
   level: null as string | null,
   isActive: true as boolean | null,
   overdue: false,
@@ -332,7 +332,7 @@ const planFilterOptions = ref<PlanFilterOption[]>([
   { label: 'Sin plan', value: 0 },
 ]);
 
-const branchFilterOptions = ref<Array<{ label: string; value: number | null }>>([
+const branchFilterOptions = ref<Array<{ label: string; value: number | string | null }>>([
   { label: 'Todas', value: null },
 ]);
 
@@ -557,6 +557,7 @@ async function loadBranches() {
     branches.value = await membersApi.getBranches();
     branchFilterOptions.value = [
       { label: 'Todas', value: null },
+      { label: 'Multisucursal', value: 'multi' },
       ...branches.value.map((b) => ({ label: b.name, value: b.id })),
     ];
   } catch (err: unknown) {
@@ -602,10 +603,12 @@ async function loadPlans() {
 async function loadMembers() {
   loading.value = true;
   try {
+    const isMultiBranch = filters.branchId === 'multi';
     const result = await membersApi.getMembers({
       search: filters.search || undefined,
       planId: filters.planId ?? undefined,
-      branchId: filters.branchId ?? undefined,
+      branchId: isMultiBranch ? undefined : ((filters.branchId as number) ?? undefined),
+      multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
       overdue: filters.overdue || undefined,

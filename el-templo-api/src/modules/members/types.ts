@@ -10,6 +10,7 @@ export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 export interface MemberListParams {
   search?: string;
   branchId?: number;
+  multiBranch?: boolean;
   level?: string;
   isActive?: boolean;
   overdue?: boolean;

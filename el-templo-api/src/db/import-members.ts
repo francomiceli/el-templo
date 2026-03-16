@@ -834,7 +834,12 @@ async function main(): Promise<void> {
                     lastName: m.lastName || undefined,
                     phone: m.phone || undefined,
                     dni: m.dni,
-                    documentType: m.documentType,
+                    documentType: m.documentType as
+                      | "DNI"
+                      | "Pasaporte"
+                      | "NIE"
+                      | "NIF"
+                      | "Otro",
                     address: m.address || undefined,
                     dateOfBirth: m.dateOfBirth || undefined,
                     gender: m.gender || undefined,

@@ -30,7 +30,7 @@ async function seed() {
   // Insert branches
   console.log("Creating branches...");
   const branchesData = [
-    { name: "El Templo Centro", code: "CENTRO" },
+    { name: "El Templo Moreno", code: "MORENO" },
     { name: "El Templo Alem", code: "ALEM" },
     { name: "El Templo Constitución", code: "CONST" },
     { name: "El Templo Jujuy", code: "JUJUY" },

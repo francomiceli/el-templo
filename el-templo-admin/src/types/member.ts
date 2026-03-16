@@ -70,6 +70,7 @@ export interface UpdateMemberInput {
 export interface MemberListParams {
   search?: string;
   branchId?: number;
+  multiBranch?: boolean;
   planId?: number;
   level?: string;
   isActive?: boolean;
