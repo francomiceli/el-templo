@@ -812,14 +812,22 @@ async function main(): Promise<void> {
             usersCreated++;
           } catch (insertErr: unknown) {
             // Handle email unique constraint conflict (different DNI, same email)
+            // Drizzle wraps MySQL errors — check message, cause, and full string
+            const errStr = String(insertErr);
             const errMsg =
-              insertErr instanceof Error
-                ? insertErr.message
-                : String(insertErr);
-            if (
+              insertErr instanceof Error ? insertErr.message : errStr;
+            const causeMsg =
+              insertErr instanceof Error && insertErr.cause instanceof Error
+                ? insertErr.cause.message
+                : "";
+            const isDuplicate =
               errMsg.includes("Duplicate entry") ||
-              errMsg.includes("ER_DUP_ENTRY")
-            ) {
+              errMsg.includes("ER_DUP_ENTRY") ||
+              causeMsg.includes("Duplicate entry") ||
+              causeMsg.includes("ER_DUP_ENTRY") ||
+              errStr.includes("Duplicate entry") ||
+              errStr.includes("ER_DUP_ENTRY");
+            if (isDuplicate) {
               const [existing] = await db
                 .select({ id: users.id })
                 .from(users)
