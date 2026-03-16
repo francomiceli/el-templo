@@ -32,6 +32,7 @@ const planSchema = {
     isGroup: { type: "boolean" },
     groupMaxMembers: { type: ["integer", "null"] },
     isActive: { type: "boolean" },
+    isArchived: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },
@@ -98,6 +99,7 @@ export const listPlansSchema = {
     type: "object",
     properties: {
       isActive: { type: "boolean" },
+      includeArchived: { type: "boolean" },
     },
   },
   response: {
@@ -324,6 +326,43 @@ export const cancelSubscriptionSchema = {
   },
   response: {
     200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const bulkMigratePlanSchema = {
+  body: {
+    type: "object",
+    required: ["userIds", "targetPlanId", "targetBranchId"],
+    properties: {
+      userIds: {
+        type: "array",
+        items: { type: "integer" },
+        minItems: 1,
+      },
+      targetPlanId: { type: "integer" },
+      targetBranchId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        migrated: { type: "integer" },
+        skipped: { type: "integer" },
+        errors: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              error: { type: "string" },
+            },
+          },
+        },
+      },
+    },
     400: errorSchema,
     404: errorSchema,
   },
