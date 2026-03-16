@@ -13,6 +13,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
+import { eq, and } from "drizzle-orm";
+import { users } from "./schema/users.js";
+import { branches } from "./schema/branches.js";
+import { subscriptionPlans } from "./schema/subscription-plans.js";
+import { subscriptions } from "./schema/subscriptions.js";
+import { memberNotes } from "./schema/member-notes.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -345,3 +351,633 @@ export function parseAllCsvs(dataDir: string): {
 
   return { members: allMembers, branchMap };
 }
+
+// ─── Database Import (main) ─────────────────────────────────────────────────
+
+interface ImportReport {
+  timestamp: string;
+  mode: "dry-run" | "execute";
+  summary: {
+    perBranch: Record<
+      string,
+      { totalRows: number; validRows: number; skippedRows: number }
+    >;
+    totalParsed: number;
+    duplicatesResolved: number;
+    uniqueMembers: number;
+    currentPlanMatches: number;
+    legacyPlanMatches: number;
+    noPlanMembers: number;
+    legacyPlanNames: string[];
+  };
+  members: Array<{
+    email: string;
+    dni: string;
+    branchName: string;
+    action: "create" | "update" | "unchanged";
+    planMatch: string | null;
+    isLegacy: boolean;
+    mergedFrom?: string[];
+  }>;
+  orphans: string[];
+  execution?: {
+    usersCreated: number;
+    usersUpdated: number;
+    usersUnchanged: number;
+    legacyPlansCreated: number;
+    notesCreated: number;
+    subscriptionsCreated: number;
+  };
+}
+
+/**
+ * Main import function. Reads CSVs, resolves duplicates, and either
+ * prints a dry-run summary or writes to the database.
+ */
+async function main(): Promise<void> {
+  // ── Parse CLI args ──────────────────────────────────────────────
+  const args = process.argv.slice(2);
+  const dataDirIdx = args.indexOf("--data-dir");
+  if (dataDirIdx === -1 || !args[dataDirIdx + 1]) {
+    console.error(
+      "Usage: pnpm tsx src/db/import-members.ts --data-dir /path/to/csvs [--execute]",
+    );
+    process.exit(1);
+  }
+  const dataDir = args[dataDirIdx + 1];
+  const executeMode = args.includes("--execute");
+
+  // ── Safety gate ─────────────────────────────────────────────────
+  if (executeMode && process.env.NODE_ENV === "production") {
+    if (process.env.CONFIRM_IMPORT !== "yes") {
+      throw new Error(
+        "SAFETY: Set CONFIRM_IMPORT=yes to run --execute in production.",
+      );
+    }
+  }
+
+  // ── Load .env ───────────────────────────────────────────────────
+  const dotenv = await import("dotenv");
+  const nodePath = await import("node:path");
+  const envFile =
+    process.env.NODE_ENV === "production"
+      ? ".env.production"
+      : ".env.development";
+  dotenv.config({ path: nodePath.resolve(process.cwd(), envFile) });
+  dotenv.config({ path: nodePath.resolve(process.cwd(), ".env") });
+
+  // ── Connect to database ─────────────────────────────────────────
+  const { createSingleConnection } = await import("./index.js");
+  const { db, connection } = await createSingleConnection();
+
+  try {
+    console.log(`\nCSV Member Import`);
+    console.log(`Mode: ${executeMode ? "EXECUTE" : "DRY-RUN"}`);
+    console.log(`Data dir: ${dataDir}\n`);
+
+    // ── Step 1: Load branch mapping from DB ─────────────────────
+    const dbBranches = await db
+      .select({ id: branches.id, name: branches.name, code: branches.code })
+      .from(branches);
+
+    // Build branch name -> branchId lookup
+    // CSV branch names map to DB: "Alem" -> "El Templo Alem", etc.
+    // Use accent-insensitive matching (DB may have "Constitucion" with accent)
+    const branchIdLookup = new Map<string, number>();
+    for (const b of dbBranches) {
+      // Match by suffix: "El Templo Alem" contains "Alem"
+      const parts = b.name.split(" ");
+      const suffix = parts[parts.length - 1];
+      branchIdLookup.set(stripAccents(suffix).toLowerCase(), b.id);
+      // Also match by code
+      branchIdLookup.set(b.code.toLowerCase(), b.id);
+    }
+
+    // ── Step 2: Parse all CSVs ──────────────────────────────────
+    const { members: allMembers, branchMap } = parseAllCsvs(dataDir);
+
+    // Validate all CSV branch names map to DB branches
+    const perBranch: Record<
+      string,
+      { totalRows: number; validRows: number; skippedRows: number }
+    > = {};
+
+    // Count per-branch stats from raw CSVs (re-parse for stats)
+    for (const [branchKey, branchName] of branchMap.entries()) {
+      const branchMembers = allMembers.filter(
+        (m) => m.branchName === branchName,
+      );
+      const branchId = branchIdLookup.get(branchKey);
+      if (!branchId) {
+        console.error(
+          `WARNING: Branch "${branchName}" (key: ${branchKey}) not found in database!`,
+        );
+      }
+
+      // Count raw rows from file for reporting
+      const filePath = path.join(dataDir, `alumnos branch ${branchKey}.csv`);
+      let rawRowCount = 0;
+      if (fs.existsSync(filePath)) {
+        const rawContent = fs.readFileSync(filePath, "utf-8");
+        const lines = rawContent.split("\n");
+        const headerIdx = lines.findIndex((l) => l.includes("Apellido"));
+        if (headerIdx >= 0) {
+          // Count non-empty lines after header
+          rawRowCount = lines
+            .slice(headerIdx + 1)
+            .filter(
+              (l) =>
+                l.trim() !== "" && !l.split(",").every((c) => c.trim() === ""),
+            ).length;
+        }
+      }
+
+      perBranch[branchName] = {
+        totalRows: rawRowCount,
+        validRows: branchMembers.length,
+        skippedRows: rawRowCount - branchMembers.length,
+      };
+    }
+
+    console.log("--- Per Branch ---");
+    for (const [name, stats] of Object.entries(perBranch)) {
+      console.log(
+        `  ${name}: ${stats.totalRows} total, ${stats.validRows} valid, ${stats.skippedRows} skipped`,
+      );
+    }
+
+    // ── Step 3: Resolve duplicates ──────────────────────────────
+    const resolved = resolveDuplicates(allMembers);
+    const duplicateCount = allMembers.length - resolved.length;
+
+    console.log(
+      `\n--- Duplicates: ${duplicateCount} cross-branch duplicates resolved ---`,
+    );
+    console.log(
+      `  ${allMembers.length} parsed -> ${resolved.length} unique members`,
+    );
+
+    // ── Step 4: Load existing plans and map ─────────────────────
+    const dbPlans: Array<{ id: number; name: string; isArchived: boolean }> =
+      await db
+        .select({
+          id: subscriptionPlans.id,
+          name: subscriptionPlans.name,
+          isArchived: subscriptionPlans.isArchived,
+        })
+        .from(subscriptionPlans);
+
+    const planMappings = new Map<
+      string,
+      { planId: number | null; isLegacy: boolean; normalizedName: string }
+    >();
+    let currentPlanMatches = 0;
+    let legacyPlanMatches = 0;
+    let noPlanMembers = 0;
+
+    for (const m of resolved) {
+      if (!m.planName) {
+        noPlanMembers++;
+        continue;
+      }
+
+      if (!planMappings.has(m.planName)) {
+        const mapping = mapPlanName(m.planName, dbPlans);
+        planMappings.set(m.planName, mapping);
+      }
+
+      const mapping = planMappings.get(m.planName)!;
+      if (mapping.isLegacy) {
+        legacyPlanMatches++;
+      } else {
+        currentPlanMatches++;
+      }
+    }
+
+    // Collect unique legacy plan names
+    const legacyPlanNames = [...planMappings.entries()]
+      .filter(([, mapping]) => mapping.isLegacy)
+      .map(([, mapping]) => mapping.normalizedName)
+      .filter((name, idx, arr) => arr.indexOf(name) === idx);
+
+    console.log("\n--- Plan Mapping ---");
+    console.log(`  Current plan matches: ${currentPlanMatches}`);
+    console.log(`  Legacy plan matches: ${legacyPlanMatches}`);
+    console.log(`  No plan: ${noPlanMembers}`);
+    console.log(`  Unique legacy plan names (${legacyPlanNames.length}):`);
+    for (const name of legacyPlanNames) {
+      console.log(`    - ${name}`);
+    }
+
+    // ── Step 5: Check existing users (for orphan detection and create/update) ──
+    const existingUsers: Array<{
+      id: number;
+      email: string;
+      dni: string | null;
+      role: string;
+    }> = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        dni: users.dni,
+        role: users.role,
+      })
+      .from(users);
+
+    const existingByDni = new Map<string, { id: number; email: string }>();
+    const existingByEmail = new Map<
+      string,
+      { id: number; dni: string | null }
+    >();
+    for (const u of existingUsers) {
+      if (u.dni)
+        existingByDni.set(u.dni.trim().toLowerCase(), {
+          id: u.id,
+          email: u.email,
+        });
+      existingByEmail.set(u.email.trim().toLowerCase(), {
+        id: u.id,
+        dni: u.dni,
+      });
+    }
+
+    // Determine create vs update for each resolved member
+    const memberActions: Array<{
+      member: ResolvedMember;
+      action: "create" | "update" | "unchanged";
+      existingUserId?: number;
+    }> = [];
+
+    for (const m of resolved) {
+      const dniKey = m.dni.trim().toLowerCase();
+      const emailKey = m.email.trim().toLowerCase();
+
+      const byDni = existingByDni.get(dniKey);
+      const byEmail = existingByEmail.get(emailKey);
+
+      if (byDni) {
+        memberActions.push({
+          member: m,
+          action: "update",
+          existingUserId: byDni.id,
+        });
+      } else if (byEmail) {
+        memberActions.push({
+          member: m,
+          action: "update",
+          existingUserId: byEmail.id,
+        });
+      } else {
+        memberActions.push({ member: m, action: "create" });
+      }
+    }
+
+    // Detect orphan members (existing DB users not in any CSV)
+    const resolvedDnis = new Set(
+      resolved.map((m) => m.dni.trim().toLowerCase()),
+    );
+    const orphanUsers = existingUsers.filter(
+      (u) =>
+        u.role === "member" &&
+        u.dni &&
+        !resolvedDnis.has(u.dni.trim().toLowerCase()),
+    );
+
+    const createCount = memberActions.filter(
+      (a) => a.action === "create",
+    ).length;
+    const updateCount = memberActions.filter(
+      (a) => a.action === "update",
+    ).length;
+
+    console.log("\n--- Import Actions ---");
+    console.log(`  Members to create: ${createCount}`);
+    console.log(`  Members to update: ${updateCount}`);
+    console.log(`  Orphan members (in DB, not in CSV): ${orphanUsers.length}`);
+    console.log(
+      `  Subscriptions to create: ${resolved.filter((m) => m.planName).length}`,
+    );
+    console.log(
+      `  Notes to create: ${resolved.filter((m) => m.observaciones || m.creadorLegajo).length}`,
+    );
+
+    // Build the report
+    const report: ImportReport = {
+      timestamp: new Date().toISOString(),
+      mode: executeMode ? "execute" : "dry-run",
+      summary: {
+        perBranch,
+        totalParsed: allMembers.length,
+        duplicatesResolved: duplicateCount,
+        uniqueMembers: resolved.length,
+        currentPlanMatches,
+        legacyPlanMatches,
+        noPlanMembers,
+        legacyPlanNames,
+      },
+      members: memberActions.map((a) => ({
+        email: a.member.email,
+        dni: a.member.dni,
+        branchName: a.member.branchName,
+        action: a.action,
+        planMatch: a.member.planName,
+        isLegacy: a.member.planName
+          ? (planMappings.get(a.member.planName)?.isLegacy ?? false)
+          : false,
+        mergedFrom: a.member.mergedFrom,
+      })),
+      orphans: orphanUsers.map((u) => u.email),
+    };
+
+    // ── Execute mode: write to DB ───────────────────────────────
+    if (executeMode) {
+      console.log("\n=== EXECUTING DATABASE IMPORT ===\n");
+
+      const argon2 = await import("argon2");
+
+      // Hash temp password once
+      const tempPasswordHash = await argon2.hash("eltemplo2026");
+      console.log("Temp password hashed.");
+
+      // 1. Create archived legacy plans
+      let legacyPlansCreated = 0;
+      const legacyPlanIdMap = new Map<string, number>(); // normalizedName -> planId
+
+      for (const legacyName of legacyPlanNames) {
+        // Check if it already exists (case-insensitive)
+        const existing = dbPlans.find(
+          (p) => p.name.toUpperCase() === legacyName,
+        );
+        if (existing) {
+          legacyPlanIdMap.set(legacyName, existing.id);
+          continue;
+        }
+
+        const [result] = await db
+          .insert(subscriptionPlans)
+          .values({
+            name: legacyName,
+            planTier: "other",
+            bookingMode: "flexible",
+            priceRegular: 0,
+            priceZero: 0,
+            durationDays: 30,
+            isActive: false,
+            isArchived: true,
+          })
+          .$returningId();
+
+        legacyPlanIdMap.set(legacyName, result.id);
+        legacyPlansCreated++;
+      }
+      console.log(`Legacy plans created: ${legacyPlansCreated}`);
+
+      // Rebuild full plan lookup (including newly created legacy plans)
+      const allPlans: Array<{ id: number; name: string }> = await db
+        .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
+        .from(subscriptionPlans);
+
+      // 2. Find superadmin for note authorId
+      const [superadmin] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, "superadmin"))
+        .limit(1);
+      const noteAuthorId = superadmin?.id ?? 1;
+
+      // 3. UPSERT members
+      let usersCreated = 0;
+      let usersUpdated = 0;
+      let usersUnchanged = 0;
+      let notesCreated = 0;
+      let subscriptionsCreated = 0;
+
+      for (const action of memberActions) {
+        const m = action.member;
+        const branchKey = m.branchName.toLowerCase();
+        const branchId = branchIdLookup.get(branchKey);
+
+        if (!branchId) {
+          console.error(
+            `  Skipping ${m.email}: no branch mapping for "${m.branchName}"`,
+          );
+          continue;
+        }
+
+        let userId: number;
+
+        if (action.action === "create") {
+          // INSERT new user
+          const insertValues: Record<string, unknown> = {
+            email: m.email,
+            passwordHash: tempPasswordHash,
+            firstName: m.firstName || null,
+            lastName: m.lastName || null,
+            role: "member",
+            branchId,
+            level: "alfa",
+            phone: m.phone,
+            dni: m.dni,
+            documentType: m.documentType,
+            address: m.address,
+            dateOfBirth: m.dateOfBirth,
+            gender: m.gender,
+            isActive: m.isActive,
+          };
+
+          // Use fechaIngreso as createdAt if available
+          if (m.fechaIngreso) {
+            insertValues.createdAt = new Date(m.fechaIngreso + "T00:00:00");
+          }
+
+          const [result] = await db
+            .insert(users)
+            .values(insertValues as typeof users.$inferInsert)
+            .$returningId();
+
+          userId = result.id;
+          usersCreated++;
+        } else if (action.existingUserId) {
+          // UPDATE existing user (merge: don't overwrite existing non-null with null)
+          userId = action.existingUserId;
+
+          const updateFields: Record<string, unknown> = {};
+          if (m.firstName) updateFields.firstName = m.firstName;
+          if (m.lastName) updateFields.lastName = m.lastName;
+          if (m.phone) updateFields.phone = m.phone;
+          if (m.documentType) updateFields.documentType = m.documentType;
+          if (m.address) updateFields.address = m.address;
+          if (m.dateOfBirth) updateFields.dateOfBirth = m.dateOfBirth;
+          if (m.gender) updateFields.gender = m.gender;
+          // Always update branchId and isActive from CSV
+          updateFields.branchId = branchId;
+          updateFields.isActive = m.isActive;
+
+          if (Object.keys(updateFields).length > 0) {
+            await db
+              .update(users)
+              .set(updateFields)
+              .where(eq(users.id, userId));
+            usersUpdated++;
+          } else {
+            usersUnchanged++;
+          }
+        } else {
+          continue;
+        }
+
+        // 4. Create member_notes for Observaciones
+        if (m.observaciones) {
+          // Check if note already exists (idempotent)
+          const existingNote = await db
+            .select({ id: memberNotes.id })
+            .from(memberNotes)
+            .where(
+              and(
+                eq(memberNotes.userId, userId),
+                eq(memberNotes.content, m.observaciones),
+              ),
+            )
+            .limit(1);
+
+          if (existingNote.length === 0) {
+            await db.insert(memberNotes).values({
+              userId,
+              authorId: noteAuthorId,
+              content: m.observaciones,
+            });
+            notesCreated++;
+          }
+        }
+
+        // Create note for Creador del legajo
+        if (m.creadorLegajo) {
+          const creadorContent = `Creador del legajo: ${m.creadorLegajo}`;
+          const existingCreadorNote = await db
+            .select({ id: memberNotes.id })
+            .from(memberNotes)
+            .where(
+              and(
+                eq(memberNotes.userId, userId),
+                eq(memberNotes.content, creadorContent),
+              ),
+            )
+            .limit(1);
+
+          if (existingCreadorNote.length === 0) {
+            await db.insert(memberNotes).values({
+              userId,
+              authorId: noteAuthorId,
+              content: creadorContent,
+            });
+            notesCreated++;
+          }
+        }
+
+        // 5. Create subscriptions for members with plan names
+        if (m.planName) {
+          const mapping = planMappings.get(m.planName);
+          let planId: number | null = null;
+
+          if (mapping && !mapping.isLegacy) {
+            planId = mapping.planId;
+          } else if (mapping?.isLegacy) {
+            // Look up from legacy plan map or all plans
+            planId = legacyPlanIdMap.get(mapping.normalizedName) ?? null;
+            if (!planId) {
+              // Try matching from allPlans
+              const match = allPlans.find(
+                (p) => p.name.toUpperCase() === mapping.normalizedName,
+              );
+              if (match) planId = match.id;
+            }
+          }
+
+          if (planId) {
+            // Determine subscription status
+            let status: "active" | "expired" | "cancelled" = "cancelled";
+            if (m.isActive && m.vencimiento) {
+              const today = new Date().toISOString().split("T")[0];
+              status = m.vencimiento >= today ? "active" : "expired";
+            } else if (m.isActive) {
+              status = "active";
+            }
+
+            // Check if subscription already exists (idempotent)
+            const existingSub = await db
+              .select({ id: subscriptions.id })
+              .from(subscriptions)
+              .where(
+                and(
+                  eq(subscriptions.userId, userId),
+                  eq(subscriptions.planId, planId),
+                ),
+              )
+              .limit(1);
+
+            if (existingSub.length === 0) {
+              const startDate =
+                m.fechaIngreso ?? new Date().toISOString().split("T")[0];
+
+              await db.insert(subscriptions).values({
+                userId,
+                planId,
+                branchId,
+                status,
+                startDate,
+                endDate: m.vencimiento,
+                pricePaid: 0,
+                priceTypeApplied: "regular",
+                notes: "Importado desde CSV",
+              });
+              subscriptionsCreated++;
+            }
+          }
+        }
+      }
+
+      report.execution = {
+        usersCreated,
+        usersUpdated,
+        usersUnchanged,
+        legacyPlansCreated,
+        notesCreated,
+        subscriptionsCreated,
+      };
+
+      console.log("\n=== EXECUTION SUMMARY ===");
+      console.log(`  Users created: ${usersCreated}`);
+      console.log(`  Users updated: ${usersUpdated}`);
+      console.log(`  Users unchanged: ${usersUnchanged}`);
+      console.log(`  Legacy plans created: ${legacyPlansCreated}`);
+      console.log(`  Notes created: ${notesCreated}`);
+      console.log(`  Subscriptions created: ${subscriptionsCreated}`);
+    }
+
+    // ── Write JSON report ─────────────────────────────────────────
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const reportPath = path.join(dataDir, `import-report-${timestamp}.json`);
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    console.log(`\nReport written to: ${reportPath}`);
+
+    console.log("\n" + "=".repeat(50));
+    console.log(executeMode ? "IMPORT COMPLETE" : "DRY-RUN COMPLETE");
+    console.log("=".repeat(50));
+  } finally {
+    await connection.end();
+  }
+}
+
+// ─── Entry point ────────────────────────────────────────────────────────────
+
+if (typeof require !== "undefined" && require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Import failed:", message);
+      process.exit(1);
+    });
+}
+
+export { main };
