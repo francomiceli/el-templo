@@ -124,6 +124,13 @@
       :loading="loading"
       :pagination="tablePagination"
       :rows-per-page-options="[20, 50, 100]"
+      :pagination-label="
+        (firstRowIndex, endRowIndex, totalRowsNumber) =>
+          `${firstRowIndex}-${endRowIndex} de ${totalRowsNumber}`
+      "
+      rows-per-page-label="Registros por página"
+      no-data-label="No se encontraron alumnos"
+      loading-label="Cargando..."
       @request="onTableRequest"
     >
       <!-- Selection header -->
