@@ -802,13 +802,57 @@ async function main(): Promise<void> {
             insertValues.createdAt = new Date(m.fechaIngreso + "T00:00:00");
           }
 
-          const [result] = await db
-            .insert(users)
-            .values(insertValues as typeof users.$inferInsert)
-            .$returningId();
+          try {
+            const [result] = await db
+              .insert(users)
+              .values(insertValues as typeof users.$inferInsert)
+              .$returningId();
 
-          userId = result.id;
-          usersCreated++;
+            userId = result.id;
+            usersCreated++;
+          } catch (insertErr: unknown) {
+            // Handle email unique constraint conflict (different DNI, same email)
+            const errMsg =
+              insertErr instanceof Error
+                ? insertErr.message
+                : String(insertErr);
+            if (
+              errMsg.includes("Duplicate entry") ||
+              errMsg.includes("ER_DUP_ENTRY")
+            ) {
+              const [existing] = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.email, m.email));
+              if (existing) {
+                userId = existing.id;
+                // Update with new data (this person's real info)
+                await db
+                  .update(users)
+                  .set({
+                    firstName: m.firstName || undefined,
+                    lastName: m.lastName || undefined,
+                    phone: m.phone || undefined,
+                    dni: m.dni,
+                    documentType: m.documentType,
+                    address: m.address || undefined,
+                    dateOfBirth: m.dateOfBirth || undefined,
+                    gender: m.gender || undefined,
+                    isActive: m.isActive,
+                    branchId,
+                  })
+                  .where(eq(users.id, userId));
+                usersUpdated++;
+                console.log(
+                  `  Email conflict: ${m.email} (DNI ${m.dni}) — updated existing user ${userId}`,
+                );
+              } else {
+                throw insertErr;
+              }
+            } else {
+              throw insertErr;
+            }
+          }
         } else if (action.existingUserId) {
           // UPDATE existing user (merge: don't overwrite existing non-null with null)
           userId = action.existingUserId;
