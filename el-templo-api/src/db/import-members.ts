@@ -131,7 +131,19 @@ export function parseCsvRow(
 
   const celular = trimOrNull(row[COL_CELULAR] ?? row["Celular"]);
 
-  const tipoDoc = trimOrNull(row[COL_TIPO_DOC] ?? row["Tipo de documento"]);
+  const tipoDocRaw = trimOrNull(row[COL_TIPO_DOC] ?? row["Tipo de documento"]);
+  const VALID_DOC_TYPES = ["DNI", "Pasaporte", "NIE", "NIF", "Otro"];
+  const DOC_TYPE_MAP: Record<string, string> = {
+    CDI: "Otro",
+    "CI Extranjera": "Otro",
+    CUIL: "Otro",
+  };
+  const tipoDoc =
+    tipoDocRaw && VALID_DOC_TYPES.includes(tipoDocRaw)
+      ? tipoDocRaw
+      : tipoDocRaw && DOC_TYPE_MAP[tipoDocRaw]
+        ? DOC_TYPE_MAP[tipoDocRaw]
+        : "DNI";
 
   return {
     email,
@@ -139,7 +151,7 @@ export function parseCsvRow(
     lastName: (row[COL_APELLIDO] ?? row["Apellido"] ?? "").trim(),
     phone: celular,
     dni: (row[COL_NUM_DOC] ?? row["N\u00famero de documento"] ?? "").trim(),
-    documentType: tipoDoc || "DNI",
+    documentType: tipoDoc,
     address: trimOrNull(row[COL_DOMICILIO] ?? row["Domicilio"]),
     dateOfBirth: parseDateDMY(row[COL_FECHA_NAC] ?? row["Fecha de nacimiento"]),
     gender,
