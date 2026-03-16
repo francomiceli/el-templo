@@ -112,6 +112,22 @@
 
                 <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
+                    <q-select
+                      v-model="form.documentType"
+                      :options="documentTypeOptions"
+                      label="Tipo de documento *"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      clearable
+                      :rules="[
+                        (v: string | null) =>
+                          (v !== null && v.length > 0) || 'Tipo de documento es requerido',
+                      ]"
+                    />
+                  </div>
+                  <div class="col-12 col-sm-6">
                     <q-input
                       v-model="form.dni"
                       label="DNI *"
@@ -134,6 +150,9 @@
                       <q-icon name="check_circle" size="xs" /> DNI disponible
                     </div>
                   </div>
+                </div>
+
+                <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
                     <q-select
                       v-model="form.level"
@@ -143,6 +162,16 @@
                       outlined
                       emit-value
                       map-options
+                    />
+                  </div>
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model="form.address"
+                      label="Domicilio"
+                      dense
+                      outlined
+                      clearable
+                      maxlength="500"
                     />
                   </div>
                 </div>
@@ -291,6 +320,18 @@
 
             <div class="row q-col-gutter-sm">
               <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.documentType"
+                  :options="documentTypeOptions"
+                  label="Tipo de documento"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  clearable
+                />
+              </div>
+              <div class="col-12 col-sm-6">
                 <q-input
                   v-model="form.dni"
                   label="DNI *"
@@ -314,6 +355,15 @@
                 </div>
               </div>
             </div>
+
+            <q-input
+              v-model="form.address"
+              label="Domicilio"
+              dense
+              outlined
+              clearable
+              maxlength="500"
+            />
 
             <!-- Sede y Nivel -->
             <div class="text-subtitle2 text-weight-bold q-mt-md">Sede y Nivel</div>
@@ -505,6 +555,8 @@ const form = ref({
   branchId: null as number | null,
   planId: null as number | null,
   level: 'alfa',
+  documentType: null as string | null,
+  address: '',
   dateOfBirth: '',
   gender: null as string | null,
   emergencyContactName: '',
@@ -530,6 +582,14 @@ const genderOptions = [
   { label: 'Masculino', value: 'male' },
   { label: 'Femenino', value: 'female' },
   { label: 'Otro', value: 'other' },
+];
+
+const documentTypeOptions = [
+  { label: 'DNI', value: 'DNI' },
+  { label: 'Pasaporte', value: 'Pasaporte' },
+  { label: 'NIE', value: 'NIE' },
+  { label: 'NIF', value: 'NIF' },
+  { label: 'Otro', value: 'Otro' },
 ];
 
 // =========================================================================
@@ -616,6 +676,8 @@ watch(
         branchId: props.member.branchId,
         planId: null,
         level: props.member.level,
+        documentType: props.member.documentType,
+        address: props.member.address ?? '',
         dateOfBirth: props.member.dateOfBirth ?? '',
         gender: props.member.gender,
         emergencyContactName: props.member.emergencyContactName ?? '',
@@ -634,6 +696,8 @@ watch(
         branchId: null,
         planId: null,
         level: 'alfa',
+        documentType: null,
+        address: '',
         dateOfBirth: '',
         gender: null,
         emergencyContactName: '',
@@ -663,6 +727,8 @@ async function onSubmit() {
         dni: form.value.dni || null,
         branchId: form.value.branchId ?? undefined,
         level: form.value.level,
+        documentType: form.value.documentType || null,
+        address: form.value.address || null,
         dateOfBirth: form.value.dateOfBirth || null,
         gender: form.value.gender,
         emergencyContactName: form.value.emergencyContactName || null,
@@ -679,6 +745,8 @@ async function onSubmit() {
         branchId: form.value.branchId!,
         planId: form.value.planId!,
         level: form.value.level,
+        documentType: form.value.documentType,
+        address: form.value.address || null,
         dateOfBirth: form.value.dateOfBirth || null,
         gender: form.value.gender,
         emergencyContactName: form.value.emergencyContactName || null,

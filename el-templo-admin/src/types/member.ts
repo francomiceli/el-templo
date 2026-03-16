@@ -3,6 +3,8 @@
  * Matches the API response shapes from the members module (Plan 47-01).
  */
 
+export type DocumentType = 'DNI' | 'Pasaporte' | 'NIE' | 'NIF' | 'Otro';
+
 export interface MemberListItem {
   id: number;
   email: string;
@@ -15,11 +17,13 @@ export interface MemberListItem {
   branchName: string;
   isActive: boolean;
   isOverdue: boolean;
+  documentType: string | null;
   planName: string | null;
   createdAt: string;
 }
 
 export interface MemberProfile extends MemberListItem {
+  address: string | null;
   dateOfBirth: string | null;
   gender: string | null;
   emergencyContactName: string | null;
@@ -38,6 +42,8 @@ export interface CreateMemberInput {
   branchId: number;
   planId: number;
   level?: string;
+  documentType?: string | null;
+  address?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   emergencyContactName?: string | null;
@@ -52,6 +58,8 @@ export interface UpdateMemberInput {
   dni?: string | null;
   branchId?: number;
   level?: string;
+  documentType?: string | null;
+  address?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   emergencyContactName?: string | null;
