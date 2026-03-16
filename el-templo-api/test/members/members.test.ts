@@ -733,6 +733,123 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
+  // documentType and address fields
+  // =========================================================================
+  describe("documentType and address fields", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("POST creates member with documentType and address", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...getBaseMember(),
+          documentType: "DNI",
+          address: "Calle Falsa 123",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.documentType).toBe("DNI");
+      expect(body.address).toBe("Calle Falsa 123");
+    });
+
+    it("POST creates member without documentType/address (backward compatible)", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: getBaseMember(),
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.documentType).toBeNull();
+      expect(body.address).toBeNull();
+    });
+
+    it("PUT updates documentType and address", async () => {
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          documentType: "Pasaporte",
+          address: "Av. Siempre Viva 742",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.documentType).toBe("Pasaporte");
+      expect(body.address).toBe("Av. Siempre Viva 742");
+    });
+
+    it("PUT with documentType=null clears the field", async () => {
+      const member = await createMember({
+        documentType: "DNI",
+        address: "Calle Test 456",
+      });
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          documentType: null,
+          address: null,
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.documentType).toBeNull();
+      expect(body.address).toBeNull();
+    });
+
+    it("GET member profile returns documentType and address", async () => {
+      const member = await createMember({
+        documentType: "NIE",
+        address: "Gran Via 100, Madrid",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.documentType).toBe("NIE");
+      expect(body.address).toBe("Gran Via 100, Madrid");
+    });
+
+    it("GET member list includes documentType", async () => {
+      await createMember({ documentType: "NIF" });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.members.length).toBeGreaterThanOrEqual(1);
+      expect(body.members[0]).toHaveProperty("documentType");
+      expect(body.members[0].documentType).toBe("NIF");
+    });
+  });
+
+  // =========================================================================
   // Deactivated login block
   // =========================================================================
   describe("Deactivated user login block", () => {
