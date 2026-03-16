@@ -71,7 +71,7 @@ export class MemberService {
           INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
           WHERE sub.user_id = ${schema.users.id}
             AND sp.multi_branch = 1
-            AND (sub.status = 'active' OR sub.end_date >= CURDATE())
+            AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
         )`,
       );
     } else if (branchId !== undefined) {
