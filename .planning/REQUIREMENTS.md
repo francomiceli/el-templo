@@ -15,10 +15,10 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 - [x] **DATA-01**: Users table supports document type field (DNI, Pasaporte, etc.)
 - [x] **DATA-02**: Users table supports home address field
-- [ ] **DATA-03**: Import script processes 5 branch CSV files with field mapping (DD/MM/YYYY dates, Masculino/Femenino→male/female, Si/No→boolean, Celular→phone)
-- [ ] **DATA-04**: Import handles duplicate detection by DNI and email with configurable strategy (skip, update, or error)
-- [ ] **DATA-05**: Import creates subscription records from plan name lookups when "Último servicio/membresía vigente" is present
-- [ ] **DATA-06**: Import runs against local, staging, and production databases with branch mapping from filename
+- [x] **DATA-03**: Import script processes 5 branch CSV files with field mapping (DD/MM/YYYY dates, Masculino/Femenino→male/female, Si/No→boolean, Celular→phone)
+- [x] **DATA-04**: Import handles duplicate detection by DNI and email with configurable strategy (skip, update, or error)
+- [x] **DATA-05**: Import creates subscription records from plan name lookups when "Último servicio/membresía vigente" is present
+- [x] **DATA-06**: Import runs against local, staging, and production databases with branch mapping from filename
 
 ### Access Control
 
@@ -111,10 +111,10 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | DEPLOY-01   | Phase 58 | Pending  |
 | DATA-01     | Phase 59 | Complete |
 | DATA-02     | Phase 59 | Complete |
-| DATA-03     | Phase 59 | Pending  |
-| DATA-04     | Phase 59 | Pending  |
-| DATA-05     | Phase 59 | Pending  |
-| DATA-06     | Phase 59 | Pending  |
+| DATA-03     | Phase 59 | Complete |
+| DATA-04     | Phase 59 | Complete |
+| DATA-05     | Phase 59 | Complete |
+| DATA-06     | Phase 59 | Complete |
 | MEMBER-04   | Phase 59 | Complete |
 | PLANS-01    | Phase 60 | Pending  |
 | PLANS-02    | Phase 60 | Pending  |
