@@ -25,7 +25,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 - [ ] **ACCESS-01**: Branch entrance has a kiosk welcome screen showing member name, photo, subscription status, and classes remaining after QR scan
 - [ ] **ACCESS-02**: Kiosk performs soft verification: checks subscription validity and shows warnings (expired, has debt, no classes remaining) without hard-blocking access
 - [ ] **ACCESS-03**: Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
-- [ ] **ACCESS-04**: Recepcionista can manually check in a member by search from the admin panel
+- [x] **ACCESS-04**: Recepcionista can manually check in a member by search from the admin panel
 - [x] **ACCESS-05**: Access log records member details, subscription info, and any warnings at time of check-in
 
 ### Plan Configuration
@@ -125,7 +125,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | ACCESS-01   | Phase 61 | Pending  |
 | ACCESS-02   | Phase 61 | Pending  |
 | ACCESS-03   | Phase 61 | Pending  |
-| ACCESS-04   | Phase 61 | Pending  |
+| ACCESS-04   | Phase 61 | Complete |
 | ACCESS-05   | Phase 61 | Complete |
 | PAY-01      | Phase 62 | Pending  |
 | PAY-02      | Phase 62 | Pending  |

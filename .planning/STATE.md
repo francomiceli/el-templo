@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: in-progress
-stopped_at: Plan 61-01 complete
-last_updated: "2026-03-17T16:28:00Z"
-last_activity: 2026-03-17 -- Plan 61-01 complete (schema migration and service cleanup)
+stopped_at: Plan 61-02 complete
+last_updated: "2026-03-17T16:57:00Z"
+last_activity: 2026-03-17 -- Plan 61-02 complete (fixed schedule subscriptions and slot attendance API)
 progress:
   total_phases: 51
   completed_phases: 38
   total_plans: 170
-  completed_plans: 168
+  completed_plans: 169
   percent: 99
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 61 of 66 (QR Access Control) -- 4th of 9 phases in v4.1
-Plan: 1 of 3
+Plan: 2 of 3
 Status: In Progress
-Last activity: 2026-03-17 -- Plan 61-01 complete (schema migration and service cleanup)
+Last activity: 2026-03-17 -- Plan 61-02 complete (fixed schedule subscriptions and slot attendance API)
 
 Progress: [██████████] 99%
 
@@ -50,7 +50,7 @@ Progress: [██████████] 99%
 
 **Recent Trend (from v4.0):**
 
-- Last 5 plans: 61-01 (23min), 60-02 (22min), 60-03 (5min), 60-01 (25min), 59-04 (6min)
+- Last 5 plans: 61-02 (25min), 61-01 (23min), 60-02 (22min), 60-03 (5min), 60-01 (25min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -61,6 +61,7 @@ _Updated after each plan completion_
 | Phase 60 P02 | 22min | 2 tasks | 11 files |
 | Phase 60 P03 | 5min | 2 tasks | 7 files |
 | Phase 61 P01 | 23min | 2 tasks | 20 files |
+| Phase 61 P02 | 25min | 2 tasks | 17 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 61]: QR scan immediately creates "confirmado" status and awards 10 AURA (no two-step model)
 - [Phase 61]: subscription_schedules junction table for fixed-plan schedule slot references (replaces fixedDays JSON)
 - [Phase 61]: SettingsService kept as empty shell for future settings extensibility
+- [Phase 61]: Setter DI pattern (setBookingService) for SubscriptionService<->BookingService circular dependency
+- [Phase 61]: Coach check-in from slot always allows action but returns subscription warnings
+- [Phase 61]: Attendance undo uses AURA spend for reversal (graceful if insufficient balance)
 
 ### Pending Todos
 
@@ -103,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:28:00Z
-Stopped at: Completed 61-01-PLAN.md
-Resume file: .planning/phases/61-qr-access-control/61-01-SUMMARY.md
+Last session: 2026-03-17T16:57:00Z
+Stopped at: Completed 61-02-PLAN.md
+Resume file: .planning/phases/61-qr-access-control/61-02-SUMMARY.md
