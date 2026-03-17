@@ -31,6 +31,7 @@ import {
   schedulingMemberRoutes,
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
+import { settingsRoutes } from "./modules/settings";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -138,6 +139,11 @@ export async function buildApp() {
   // Analytics routes (admin-only KPI stats, member/attendance/financial analytics)
   await app.register(analyticsRoutes, {
     prefix: "/api/admin/analytics",
+  });
+
+  // Settings routes (system-wide settings: grace period, etc.)
+  await app.register(settingsRoutes, {
+    prefix: "/api/admin/settings",
   });
 
   // Health check endpoint

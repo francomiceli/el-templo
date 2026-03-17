@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   date,
+  json,
   mysqlEnum,
   index,
 } from "drizzle-orm/mysql-core";
@@ -62,6 +63,11 @@ export const subscriptions = mysqlTable(
     resumedAt: timestamp("resumed_at"),
     cancelledAt: timestamp("cancelled_at"),
     notes: text("notes"),
+    classesRemaining: int("classes_remaining"),
+    fixedDays: json("fixed_days"),
+    graceCheckInsAfterExpiry: int("grace_check_ins_after_expiry")
+      .default(0)
+      .notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
