@@ -573,7 +573,23 @@ function onOverrideToggle() {
   }
 }
 
-async function onConfirm() {
+function onConfirm() {
+  if (!selectedPlan.value) return;
+
+  if (props.mode === 'change') {
+    $q.dialog({
+      title: 'Cambiar plan',
+      message:
+        'Esta accion no se puede deshacer. La suscripcion actual sera cancelada y se creara una nueva. Si queres volver al plan anterior, tendras que cambiarlo de nuevo.',
+      cancel: { flat: true, label: 'Volver' },
+      ok: { color: 'primary', label: 'Confirmar cambio' },
+    }).onOk(() => executeConfirm());
+  } else {
+    executeConfirm();
+  }
+}
+
+async function executeConfirm() {
   if (!selectedPlan.value) return;
 
   assigning.value = true;
