@@ -12,7 +12,6 @@ import { branches } from "./branches";
 import { schedules } from "./schedules";
 
 export const attendanceStatusEnum = mysqlEnum("attendance_status", [
-  "registrado",
   "confirmado",
 ]);
 
@@ -33,8 +32,7 @@ export const attendance = mysqlTable(
       .notNull(),
     scheduleId: int("schedule_id").references(() => schedules.id),
     checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
-    confirmedAt: timestamp("confirmed_at"),
-    status: attendanceStatusEnum.default("registrado").notNull(),
+    status: attendanceStatusEnum.default("confirmado").notNull(),
     source: attendanceSourceEnum.default("qr").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

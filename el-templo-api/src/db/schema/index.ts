@@ -32,6 +32,7 @@ export * from "./aura-config";
 export * from "./member-notes";
 export * from "./subscription-plans";
 export * from "./subscriptions";
+export * from "./subscription-schedules";
 export * from "./payments";
 export * from "./attendance";
 export * from "./activities";
