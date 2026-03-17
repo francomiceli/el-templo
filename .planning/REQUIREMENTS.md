@@ -44,10 +44,10 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Payments
 
-- [ ] **PAY-01**: Admin can apply discounts (fixed amount or percentage) with mandatory reason when recording a payment
-- [ ] **PAY-02**: Admin can cancel a charge, which automatically frees associated booking slots (turnos)
-- [ ] **PAY-03**: System tracks member account balance (cuenta corriente) when partial payment leaves outstanding debt
-- [ ] **PAY-04**: Admin can collect outstanding balance from member's cuenta corriente via dedicated action
+- [x] **PAY-01**: ~~Admin can apply discounts when recording payment~~ — N/A: discounts handled at subscription assignment (Zero pricing engine)
+- [x] **PAY-02**: ~~Cancel charge frees booking slots~~ — N/A: Phase 61 handles booking cleanup on subscription cancellation
+- [x] **PAY-03**: ~~Cuenta corriente debt tracking~~ — N/A: El Templo has no partial payment model
+- [x] **PAY-04**: ~~Cobrar deuda action~~ — N/A: no debt tracking needed
 
 ### Reports
 

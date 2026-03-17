@@ -1030,7 +1030,7 @@ Plans:
 - [x] **Phase 59: Schema Extensions & Data Import** - Add documentType/address fields, import 5 branch CSV datasets, enable editing of new fields (completed 2026-03-16)
 - [x] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking (completed 2026-03-17)
 - [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
-- [ ] **Phase 62: Payment Enhancements** - Discounts with reason, charge cancellation with slot release, cuenta corriente debt tracking
+- [x] **Phase 62: Payment Enhancements** - SKIPPED: Deportnet patterns, not applicable to El Templo's model
 - [ ] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view
 - [ ] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export
 - [ ] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export
@@ -1123,25 +1123,22 @@ Plans:
 
 ---
 
-### Phase 62: Payment Enhancements
+### Phase 62: Payment Enhancements — SKIPPED
 
-**Goal**: Payments support discounts, cancellations that free booking slots, and a cuenta corriente system for tracking member debt
-**Depends on**: Phase 58 (production parity); can run after Phase 59
-**Requirements**: PAY-01, PAY-02, PAY-03, PAY-04
-**Success Criteria** (what must be TRUE):
+**Status**: Skipped — requirements were Deportnet patterns that don't match El Templo's business model.
 
-1. Admin can apply a discount (fixed amount or percentage) with mandatory reason when recording a payment
-2. Admin can cancel a charge, and all booking slots (turnos) associated with that charge are automatically freed
-3. System tracks outstanding balance per member when partial payment is recorded (cuenta corriente)
-4. Admin can collect outstanding debt from a member's cuenta corriente via a dedicated "Cobrar deuda" action
-   **Plans**: TBD
+- PAY-01 (payment-time discounts): Discounts already handled at subscription assignment (Zero pricing engine + future AURA). No payment-time discounts needed.
+- PAY-02 (cancel charge → free bookings): Phase 61 already cancels future bookings on subscription cancellation. Void payment exists independently for recording mistakes.
+- PAY-03/PAY-04 (cuenta corriente / debt tracking): El Templo has no partial payment model — members pay full amount at plan assignment, expired = inactive.
+
+**Original Requirements**: PAY-01, PAY-02, PAY-03, PAY-04 — marked as not applicable
 
 ---
 
 ### Phase 63: Cash Box
 
 **Goal**: Recepcionistas can track daily cash movements and reconcile totals by payment method
-**Depends on**: Phase 62 (cash tracking depends on payment improvements)
+**Depends on**: Phase 61 (needs subscription/payment infrastructure in place)
 **Requirements**: CASH-02, CASH-03
 **Success Criteria** (what must be TRUE):
 
@@ -1168,7 +1165,7 @@ Plans:
 ### Phase 65: Reports Dashboard
 
 **Goal**: Admin has a reports section with five key operational reports, all filterable and exportable to Excel
-**Depends on**: Phase 61 (access log data), Phase 62 (payment/debt data)
+**Depends on**: Phase 61 (access log data)
 **Requirements**: REPORT-01, REPORT-02, REPORT-03, REPORT-04, REPORT-05
 **Success Criteria** (what must be TRUE):
 
@@ -1207,7 +1204,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
 | 60. Plan Configuration              | 3/3            | Complete    | 2026-03-17 |
 | 61. QR Access Control               | 2/3            | In Progress |            |
-| 62. Payment Enhancements            | 0/?            | Not started | -          |
+| 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 0/?            | Not started | -          |
 | 64. Member Management Enhancements  | 0/?            | Not started | -          |
 | 65. Reports Dashboard               | 0/?            | Not started | -          |
