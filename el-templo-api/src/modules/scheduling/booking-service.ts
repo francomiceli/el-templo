@@ -543,6 +543,33 @@ export class BookingService {
     this.log.info({ bookingId }, "Admin removed booking");
   }
 
+  // ─── Fixed-Plan Booking Generation ─────────────────────────────────────
+
+  /**
+   * Generate bookings for a fixed-plan subscription across its entire period.
+   * Creates one booking per matching dayOfWeek date from startDate to endDate,
+   * skipping holidays. Stub for Task 1; full implementation in Task 2.
+   */
+  async generateFixedBookings(
+    subscriptionId: number,
+    memberId: number,
+    scheduleIds: number[],
+    startDate: string,
+    endDate: string,
+    branchId: number,
+  ): Promise<{ totalGenerated: number; holidaysSkipped: number }> {
+    // Full implementation in Task 2
+    return { totalGenerated: 0, holidaysSkipped: 0 };
+  }
+
+  /**
+   * Cancel all future bookings for a subscription's schedule slot IDs.
+   * Stub for Task 1; full implementation in Task 2.
+   */
+  async cancelFutureBookings(subscriptionId: number): Promise<void> {
+    // Full implementation in Task 2
+  }
+
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
   /**

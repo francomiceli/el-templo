@@ -75,6 +75,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     paymentService,
     subscriptionService,
   );
+  // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
+  subscriptionService.setBookingService(bookingService);
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -337,6 +339,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     paymentService,
     subscriptionService,
   );
+  subscriptionService.setBookingService(bookingService);
 
   /**
    * Guard: require authentication (any role) on all routes in this plugin.

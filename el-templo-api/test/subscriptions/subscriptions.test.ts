@@ -14,6 +14,7 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
+import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 
 const BASE_URL = "/api/admin/subscriptions";
 
@@ -58,6 +59,7 @@ describe("Subscriptions API", () => {
     await app.db.delete(bookings);
     await app.db.delete(holidays);
     await app.db.delete(attendance);
+    await app.db.delete(subscriptionSchedules);
     await app.db.delete(schedules);
     await app.db.delete(activities);
     await app.db.delete(payments);
@@ -876,6 +878,171 @@ describe("Subscriptions API", () => {
       expect(body.classesUsedThisWeek).toBe(0);
       expect(body.weeklyLimit).toBe(3);
       expect(body.bookingMode).toBe("flexible");
+    });
+  });
+
+  // =========================================================================
+  // Fixed Schedule Slot Subscriptions (Phase 61 Plan 02)
+  // =========================================================================
+  describe("Fixed Schedule Slot Subscriptions", () => {
+    beforeEach(async () => {
+      await cleanupSubscriptionData();
+    });
+
+    /**
+     * Helper: create an activity and schedule slots for testing fixed plans.
+     */
+    async function createScheduleSlots(
+      branchId: number,
+      count: number,
+    ): Promise<number[]> {
+      // Create activity first
+      await app.db.insert(activities).values({
+        name: "Calistenia Test",
+        isActive: true,
+      });
+      const [activityRow] = await app.db
+        .select({ id: activities.id })
+        .from(activities)
+        .limit(1);
+
+      const ids: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const dayOfWeek = (i % 5) + 1; // 1=Mon through 5=Fri
+        const startTime = `${String(8 + i).padStart(2, "0")}:00`;
+        const endTime = `${String(9 + i).padStart(2, "0")}:00`;
+        const result = await app.db.insert(schedules).values({
+          branchId,
+          activityId: activityRow.id,
+          dayOfWeek,
+          startTime,
+          endTime,
+          isActive: true,
+        });
+        ids.push(Number(result[0].insertId));
+      }
+      return ids;
+    }
+
+    it("POST assign with fixed plan + scheduleIds inserts rows into subscription_schedules", async () => {
+      const plan = await createPlan({
+        name: "Fixed 3x",
+        bookingMode: "fixed",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      const slotIds = await createScheduleSlots(1, 3);
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+        scheduleIds: slotIds,
+      });
+
+      expect(statusCode).toBe(201);
+      // Verify subscription_schedules rows were created
+      const rows = await app.db
+        .select()
+        .from(subscriptionSchedules)
+        .where(eq(subscriptionSchedules.subscriptionId, body.id as number));
+      expect(rows).toHaveLength(3);
+      const storedScheduleIds = rows.map((r) => r.scheduleId).sort();
+      expect(storedScheduleIds).toEqual([...slotIds].sort());
+    });
+
+    it("POST assign rejects if scheduleIds count does not match classesPerWeek", async () => {
+      const plan = await createPlan({
+        name: "Fixed 3x Mismatch",
+        bookingMode: "fixed",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      const slotIds = await createScheduleSlots(1, 2); // Only 2, but plan needs 3
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+        scheduleIds: slotIds,
+      });
+
+      expect(statusCode).toBe(400);
+      expect(body.message).toContain("classesPerWeek");
+    });
+
+    it("POST assign rejects if any scheduleId is inactive or wrong branch", async () => {
+      const plan = await createPlan({
+        name: "Fixed Invalid Schedule",
+        bookingMode: "fixed",
+        classesPerWeek: 2,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      const slotIds = await createScheduleSlots(1, 2);
+
+      // Deactivate one schedule
+      await app.db
+        .update(schedules)
+        .set({ isActive: false })
+        .where(eq(schedules.id, slotIds[0]));
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+        scheduleIds: slotIds,
+      });
+
+      expect(statusCode).toBe(400);
+      expect(body.message).toContain("inactiv");
+    });
+
+    it("POST assign rejects fixed plan without scheduleIds", async () => {
+      const plan = await createPlan({
+        name: "Fixed No Ids",
+        bookingMode: "fixed",
+        classesPerWeek: 2,
+        durationDays: 30,
+      });
+      const member = await createMember();
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+        // No scheduleIds
+      });
+
+      expect(statusCode).toBe(400);
+      expect(body.message).toContain("scheduleIds");
+    });
+
+    it("GET subscription returns scheduleIds for fixed-plan subscription", async () => {
+      const plan = await createPlan({
+        name: "Fixed Detail",
+        bookingMode: "fixed",
+        classesPerWeek: 2,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      const slotIds = await createScheduleSlots(1, 2);
+
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+        scheduleIds: slotIds,
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.scheduleIds).toBeDefined();
+      expect(body.scheduleIds).toHaveLength(2);
+      expect(body.scheduleIds.sort()).toEqual([...slotIds].sort());
     });
   });
 });

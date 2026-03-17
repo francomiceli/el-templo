@@ -24,6 +24,7 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
+import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 import { generateQrToken as generateQr } from "../../src/modules/shared/qr-token";
 
 const ADMIN_ATTENDANCE_URL = "/api/admin/attendance";
@@ -93,6 +94,7 @@ describe("Attendance API", () => {
     await app.db.delete(bookings);
     await app.db.delete(holidays);
     await app.db.delete(attendance);
+    await app.db.delete(subscriptionSchedules);
     await app.db.delete(schedules);
     await app.db.delete(activities);
     await app.db.delete(payments);

@@ -16,6 +16,7 @@ import { auraTransactions } from "../../src/db/schema/aura-transactions";
 import { auraBalances } from "../../src/db/schema/aura-balances";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { branches } from "../../src/db/schema/branches";
+import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
 
 const ANALYTICS_URL = "/api/admin/analytics";
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -71,6 +72,7 @@ describe("Analytics API", () => {
     await app.db.delete(completedSessions);
     await app.db.delete(bookings);
     await app.db.delete(attendance);
+    await app.db.delete(subscriptionSchedules);
     await app.db.delete(schedules);
     await app.db.delete(activities);
     await app.db.delete(holidays);

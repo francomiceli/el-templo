@@ -121,6 +121,8 @@ export interface SubscriptionDetail {
   resumedAt: string | null;
   cancelledAt: string | null;
   classesRemaining: number | null;
+  replacementCredits: number;
+  scheduleIds: number[];
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -135,6 +137,7 @@ export interface ClassUsageInfo {
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   bookingMode: BookingMode;
+  scheduleIds: number[];
 }
 
 export interface AssignPlanInput {
@@ -142,6 +145,7 @@ export interface AssignPlanInput {
   branchId: number;
   startDate: string;
   priceTypeApplied: PriceType;
+  scheduleIds?: number[];
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;

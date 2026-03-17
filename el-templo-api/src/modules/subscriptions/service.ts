@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { AuraService, InsufficientBalanceError } from "../aura";
@@ -34,12 +34,25 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 
+// Lazy import type to avoid circular dependency at module load time
+type BookingServiceType =
+  import("../scheduling/booking-service").BookingService;
+
 export class SubscriptionService {
+  private bookingService?: BookingServiceType;
+
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
   ) {}
+
+  /**
+   * Set the BookingService reference (avoids circular constructor dependency).
+   */
+  setBookingService(bookingService: BookingServiceType): void {
+    this.bookingService = bookingService;
+  }
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 
@@ -205,6 +218,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -231,7 +245,7 @@ export class SubscriptionService {
 
     if (rows.length === 0) return null;
 
-    return this.mapSubscriptionRow(rows[0]);
+    return this.enrichWithScheduleIds(this.mapSubscriptionRow(rows[0]));
   }
 
   /**
@@ -266,6 +280,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -282,7 +297,8 @@ export class SubscriptionService {
       .where(eq(schema.subscriptions.userId, userId))
       .orderBy(desc(schema.subscriptions.createdAt));
 
-    return rows.map((r) => this.mapSubscriptionRow(r));
+    const mapped = rows.map((r) => this.mapSubscriptionRow(r));
+    return Promise.all(mapped.map((m) => this.enrichWithScheduleIds(m)));
   }
 
   /**
@@ -314,6 +330,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -330,7 +347,7 @@ export class SubscriptionService {
       .where(eq(schema.subscriptions.id, subscriptionId));
 
     if (rows.length === 0) return null;
-    return this.mapSubscriptionRow(rows[0]);
+    return this.enrichWithScheduleIds(this.mapSubscriptionRow(rows[0]));
   }
 
   // ─── Subscription Lifecycle ──────────────────────────────────────────────
@@ -454,6 +471,53 @@ export class SubscriptionService {
       }
     }
 
+    // ── Fixed-plan schedule slot validation ──
+    if (plan.bookingMode === "fixed") {
+      if (!input.scheduleIds || input.scheduleIds.length === 0) {
+        throw new BadRequestError(
+          "Para planes fijos se requiere scheduleIds con los horarios seleccionados",
+        );
+      }
+      if (
+        plan.classesPerWeek !== null &&
+        input.scheduleIds.length !== plan.classesPerWeek
+      ) {
+        throw new BadRequestError(
+          `Debes seleccionar exactamente ${plan.classesPerWeek} horarios (classesPerWeek). Seleccionaste ${input.scheduleIds.length}.`,
+        );
+      }
+      // Validate each scheduleId exists, is active, and belongs to branchId
+      const scheduleRows = await this.db
+        .select({
+          id: schema.schedules.id,
+          branchId: schema.schedules.branchId,
+          isActive: schema.schedules.isActive,
+        })
+        .from(schema.schedules)
+        .where(inArray(schema.schedules.id, input.scheduleIds));
+
+      if (scheduleRows.length !== input.scheduleIds.length) {
+        const foundIds = new Set(scheduleRows.map((s) => s.id));
+        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
+        throw new BadRequestError(
+          `Horarios no encontrados: ${missing.join(", ")}`,
+        );
+      }
+
+      for (const row of scheduleRows) {
+        if (!row.isActive) {
+          throw new BadRequestError(
+            `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
+          );
+        }
+        if (row.branchId !== input.branchId) {
+          throw new BadRequestError(
+            `El horario ${row.id} no pertenece a la sucursal seleccionada`,
+          );
+        }
+      }
+    }
+
     // Calculate monthly class budget from plan configuration
     const classesRemaining =
       plan.classesPerWeek !== null
@@ -480,6 +544,44 @@ export class SubscriptionService {
     });
 
     const subscriptionId = Number(result[0].insertId);
+
+    // ── Fixed-plan: store schedule slot references and generate bookings ──
+    let replacementCredits = 0;
+    if (
+      plan.bookingMode === "fixed" &&
+      input.scheduleIds &&
+      input.scheduleIds.length > 0
+    ) {
+      // Insert subscription_schedules junction rows
+      await this.db.insert(schema.subscriptionSchedules).values(
+        input.scheduleIds.map((scheduleId) => ({
+          subscriptionId,
+          scheduleId,
+        })),
+      );
+
+      // Generate bulk bookings for the subscription period
+      if (this.bookingService) {
+        const bookingResult = await this.bookingService.generateFixedBookings(
+          subscriptionId,
+          userId,
+          input.scheduleIds,
+          input.startDate,
+          endDateStr,
+          input.branchId,
+        );
+        replacementCredits = bookingResult.holidaysSkipped;
+      }
+
+      // Store replacement credits on the subscription
+      if (replacementCredits > 0) {
+        await this.db
+          .update(schema.subscriptions)
+          .set({ replacementCredits })
+          .where(eq(schema.subscriptions.id, subscriptionId));
+      }
+    }
+
     const subscription = await this.getSubscriptionById(subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
@@ -491,6 +593,7 @@ export class SubscriptionService {
         planId: input.planId,
         subscriptionId,
         pricePaid,
+        replacementCredits,
         adminId,
       },
       "Subscription assigned to member",
@@ -964,12 +1067,39 @@ export class SubscriptionService {
 
     const classesUsedThisWeek = Number(result?.count ?? 0);
 
+    // Get scheduleIds from subscription_schedules
+    const scheduleIds = await this.getSubscriptionScheduleIds(sub.id);
+
     return {
       classesRemaining: sub.classesRemaining,
       classesUsedThisWeek,
       weeklyLimit: plan.classesPerWeek,
       bookingMode: plan.bookingMode,
+      scheduleIds,
     };
+  }
+
+  /**
+   * Fetch scheduleIds from subscription_schedules for a given subscription.
+   */
+  private async getSubscriptionScheduleIds(
+    subscriptionId: number,
+  ): Promise<number[]> {
+    const rows = await this.db
+      .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+      .from(schema.subscriptionSchedules)
+      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+    return rows.map((r) => r.scheduleId);
+  }
+
+  /**
+   * Enrich a mapped SubscriptionDetail with scheduleIds from subscription_schedules.
+   */
+  private async enrichWithScheduleIds(
+    detail: SubscriptionDetail,
+  ): Promise<SubscriptionDetail> {
+    const scheduleIds = await this.getSubscriptionScheduleIds(detail.id);
+    return { ...detail, scheduleIds };
   }
 
   /**
@@ -997,6 +1127,7 @@ export class SubscriptionService {
     resumedAt: Date | null;
     cancelledAt: Date | null;
     classesRemaining: number | null;
+    replacementCredits: number | null;
     notes: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -1023,6 +1154,8 @@ export class SubscriptionService {
       resumedAt: row.resumedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       classesRemaining: row.classesRemaining,
+      replacementCredits: row.replacementCredits ?? 0,
+      scheduleIds: [], // populated by enrichWithScheduleIds
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
