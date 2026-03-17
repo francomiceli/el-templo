@@ -65,7 +65,7 @@ export type FormatParams =
       step: number;
       rounds: number;
     }
-  | { type: "pyramid"; step: number; peak: number }
+  | { type: "pyramid"; step?: number; peak?: number }
   | { type: "accumulate"; target: number; unit: "reps" | "seconds" }
   | { type: "for_max_reps"; timeCapMinutes?: number }
   | { type: "for_max_carga" }
@@ -597,7 +597,9 @@ export function formatParamsLabel(params: FormatParams): string {
     case "ladder_corta":
       return `Ladder Corta ${params.direction === "ascending" ? "↑" : "↓"} — ${generateLadderPattern(params.start, params.step, params.rounds, params.direction)}`;
     case "pyramid":
-      return `Pyramid — ${generatePyramidPattern(params.step, params.peak)}`;
+      return params.step && params.peak
+        ? `Pyramid — ${generatePyramidPattern(params.step, params.peak)}`
+        : "Pyramid";
     case "accumulate":
       return `Acumular ${params.target} ${params.unit}`;
     case "for_max_reps":

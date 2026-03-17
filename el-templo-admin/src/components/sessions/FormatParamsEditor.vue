@@ -293,39 +293,6 @@
       />
     </div>
 
-    <!-- Pyramid (step + peak + preview) -->
-    <div v-else-if="localParams?.type === 'pyramid'" class="column q-gutter-sm">
-      <div class="row items-center q-gutter-sm">
-        <q-input
-          v-model.number="localParams.step"
-          type="number"
-          dense
-          outlined
-          :dark="dark"
-          :min="1"
-          :max="20"
-          label="Paso"
-          style="min-width: 80px"
-          @blur="onBlur"
-          @keyup.enter="onBlur"
-        />
-        <q-input
-          v-model.number="localParams.peak"
-          type="number"
-          dense
-          outlined
-          :dark="dark"
-          :min="2"
-          :max="100"
-          label="Pico"
-          style="min-width: 80px"
-          @blur="onBlur"
-          @keyup.enter="onBlur"
-        />
-      </div>
-      <div class="text-caption text-grey-6">{{ pyramidPreview }}</div>
-    </div>
-
     <!-- Ladder / Ladder Corta (direction + start + step + rounds) -->
     <div
       v-else-if="localParams && ['ladder', 'ladder_corta'].includes(String(localParams.type))"
@@ -696,16 +663,6 @@ const ladderOptions = [
 ];
 
 // Pattern preview computeds for structure-dictated formats
-const pyramidPreview = computed(() => {
-  if (localParams.value?.type !== 'pyramid') return '';
-  const step = Number(localParams.value.step) || 2;
-  const peak = Number(localParams.value.peak) || 10;
-  const up: number[] = [];
-  for (let i = step; i <= peak; i += step) up.push(i);
-  const down = up.slice(0, -1).reverse();
-  return [...up, ...down].join('-');
-});
-
 const ladderPreview = computed(() => {
   if (!localParams.value || !['ladder', 'ladder_corta'].includes(String(localParams.value.type)))
     return '';

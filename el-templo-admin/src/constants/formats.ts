@@ -23,6 +23,7 @@ export const NO_PARAMS_FORMATS: string[] = [
   'unbroken_reps',
   'unbroken_chipper',
   'ub_test',
+  'pyramid',
   'accumulate',
   'buy_in_cash_out',
   'task_priority',
@@ -50,6 +51,7 @@ export const NO_PARAMS_FORMAT_NAMES: string[] = [
   'unbroken_chipper',
   'ub_test',
   'task_priority',
+  'pyramid',
   'accumulate_x',
   'buy-in_/_cash-out',
   'task_priority_vs_time_priority',
@@ -70,7 +72,6 @@ export const FORMAT_DICTATED_TYPES = new Set([
   // Structure-dictated
   'death_by',
   'death_by_unbroken',
-  'pyramid',
   'ladder',
   'ladder_block',
   'ladder_corta',
@@ -91,7 +92,6 @@ export function isFormatDictatedByName(formatName: string): boolean {
     f.startsWith('death by') ||
     f === 'death_by' ||
     f === 'death_by_unbroken' ||
-    f === 'pyramid' ||
     f.includes('ladder')
   );
 }

@@ -160,6 +160,33 @@
           </template>
         </template>
 
+        <!-- Pyramid: per-exercise step (increment) + peak (reps) + preview -->
+        <template v-else-if="isPyramid">
+          <q-input
+            v-model.number="localIncrement"
+            type="number"
+            dense
+            outlined
+            label="Paso"
+            class="editable-field"
+            input-class="text-center"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+          <q-input
+            v-model.number="localReps"
+            type="number"
+            dense
+            outlined
+            label="Pico"
+            class="editable-field"
+            input-class="text-center"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
+          <span class="text-caption text-grey-6">{{ pyramidExercisePreview }}</span>
+        </template>
+
         <!-- Param-driven formats (Tabata, HIIT): no per-exercise prescription -->
         <template v-else-if="isParamDrivenFormat">
           <q-badge outline color="grey" class="text-caption"
@@ -473,6 +500,23 @@ const isAmrap = computed(() => {
   }
   const f = normalizeFormatName(props.blockFormatName);
   return f === 'amrap' || f === 'amrap_series';
+});
+
+const isPyramid = computed(() => {
+  if (props.formatType && props.formatType !== 'standard') {
+    return props.formatType === 'pyramid';
+  }
+  return normalizeFormatName(props.blockFormatName) === 'pyramid';
+});
+
+const pyramidExercisePreview = computed(() => {
+  const step = Number(localIncrement.value) || 2;
+  const peak = Number(localReps.value) || 10;
+  if (step <= 0 || peak <= 0) return '';
+  const up: number[] = [];
+  for (let i = step; i <= peak; i += step) up.push(i);
+  const down = up.slice(0, -1).reverse();
+  return [...up, ...down].join('-');
 });
 
 const isIGoYouGo = computed(() => {
