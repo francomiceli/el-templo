@@ -7,7 +7,7 @@
 
       <q-separator />
 
-      <q-stepper v-model="step" animated flat>
+      <q-stepper v-model="step" animated flat alternative-labels>
         <!-- ============================================================ -->
         <!-- Step 1: Select Plan -->
         <!-- ============================================================ -->
