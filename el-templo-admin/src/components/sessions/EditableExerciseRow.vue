@@ -344,7 +344,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import type { SessionExercise, PrescriptionUpdate } from 'src/types/session';
 import {
   normalizeContraction,
@@ -602,6 +602,28 @@ const isPausaSelected = computed(() => {
 // Contraction display helpers
 const contractionLabel = computed(() => normalizeContraction(props.exercise.contraction) || '-');
 const contractionColor = computed(() => getContractionColor(props.exercise.contraction));
+
+// Initialize pyramid defaults when exercise has no step/start set
+onMounted(() => {
+  if (!isPyramid.value) return;
+  let changed = false;
+  if (!localIncrement.value) {
+    localIncrement.value = 2;
+    changed = true;
+  }
+  if (isIso.value) {
+    if (!localSecondsMax.value) {
+      localSecondsMax.value = 2;
+      changed = true;
+    }
+  } else {
+    if (!localRepsMax.value) {
+      localRepsMax.value = 2;
+      changed = true;
+    }
+  }
+  if (changed) emitUpdate();
+});
 </script>
 
 <style scoped>
