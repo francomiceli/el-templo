@@ -1,271 +1,329 @@
 # Coding Conventions
 
-**Analysis Date:** 2025-03-10
+**Analysis Date:** 2026-03-17
+
+**Scope:** Covers `el-templo-api/` (primary), `el-templo-bot/` (new bot under development), and `contexto/whatsapp-agent-renovafacil/` (Python reference bot -- patterns only).
+
+---
 
 ## Naming Patterns
 
-**Files:**
+**Files (TypeScript -- API and Bot):**
+- kebab-case for all source files: `attendance-service.ts`, `edit-service.ts`, `class-reminder.ts`
+- Suffix by role: `service.ts`, `routes.ts`, `types.ts`, `schemas.ts`, `index.ts`
+- Schema files match table names: `aura-balances.ts`, `completed-sessions.ts`
 
-- Services: `service.ts` (e.g., `el-templo-api/src/modules/members/service.ts`)
-- Routes: `routes.ts` (e.g., `el-templo-api/src/modules/members/routes.ts`)
-- Types: `types.ts` (e.g., `el-templo-api/src/modules/members/types.ts`)
-- Schemas: `schemas.ts` (Fastify/Zod validation schemas)
-- Stores (Pinia): `use{StoreName}Store.ts` (e.g., `useAuthStore.ts`, `useSessionPlayerStore.ts`)
-- Composables: `use{FunctionName}.ts` (e.g., `useMembersApi.ts`, `useSessionPlayer.ts`)
-- Utils: Lowercase with hyphens (e.g., `logger.ts`, `format-time.ts`, `week-dates.ts`)
-- Tests: `{feature}.test.ts` (e.g., `members.test.ts`, `aura-service.test.ts`)
+**Files (Python -- reference bot):**
+- snake_case module names: `client_state.py`, `redis_client.py`, `human_handoff.py`
+- Test files prefixed `test_`: `test_client_state.py`, `test_channel_flow.py`
+
+**Classes:**
+- PascalCase: `AttendanceService`, `AuraService`, `AdminEditService`, `InsufficientBalanceError`
+- Service classes follow `<Domain>Service` pattern
 
 **Functions:**
-
-- camelCase for all function names (both sync and async)
-- Service methods: `async methodName(params): Promise<Type>`
-- Composable functions: `export function useFeatureName()` (always prefix with `use`)
-- Helper functions: `private helperName()` or `function extractError()`
+- camelCase for TypeScript: `createTestApp`, `getAuthToken`, `registerUser`, `handleServiceError`
+- snake_case for Python: `get_client_state`, `set_client_state`, `transition_state`
 
 **Variables:**
+- camelCase in TypeScript: `adminToken`, `testBranchId`, `baseMemberDefaults`
+- Uppercase constants: `ADMIN_ROLES`, `ADMIN_ATTENDANCE_URL`, `STATUS_LABELS`
 
-- camelCase for all variables, refs, and computed properties
-- Ref naming: No special prefix (just `const members = ref(...)`, not `$members`)
-- Constants: UPPER_SNAKE_CASE (e.g., `ADMIN_ROLES = ["coach", "admin", "superadmin"]`)
+**Types and Interfaces:**
+- PascalCase: `AttendanceRecord`, `SessionFilter`, `ChatMessage`, `AiProvider`
+- Union string types for status enums: `type AttendanceStatus = "registrado" | "confirmado"`
+- No actual `enum` keyword -- use union types (TypeScript) or `str, Enum` class (Python reference)
 
-**Types:**
+---
 
-- Interfaces: PascalCase, plural when representing collections (e.g., `MemberListItem`, `MemberProfile`)
-- Type aliases: PascalCase (e.g., `type DbInstance = MySql2Database<typeof schema>`)
-- Props interfaces: `{ComponentName}Props`
-- Enum-like types: PascalCase with specific values (e.g., `type BlockRole = 'INITIUM' | 'NUCLEUS' | 'DEUTEROS_1'`)
+## TypeScript Rules (Non-Negotiable)
+
+**No `any` types.** Use `unknown` + type narrowing or explicit interfaces:
+```typescript
+// Correct
+catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+}
+
+// Correct -- AppError narrowing
+if (err instanceof AppError) {
+  reply.code(err.statusCode).send({ ... });
+}
+```
+
+**Strict mode enabled** in `el-templo-bot/tsconfig.json`:
+```json
+{ "strict": true, "target": "ES2022", "module": "NodeNext" }
+```
+
+---
 
 ## Code Style
 
 **Formatting:**
-
-- Tool: Prettier
-- Single quotes: true (all apps use single quotes)
-- Semicolons:
-  - `el-templo-api`: true (semicolons required)
-  - `el-templo-admin`: true
-  - `el-templo-app`: false (semicolons omitted)
-  - `el-templo-web`: Nuxt defaults (no explicit config)
-- Print width: 100 characters
-- Trailing commas: es5 style (API and admin apps)
-- Arrow function parens: Prettier defaults (always include parens)
+- Prettier (configured in monorepo root, `prettier` ^3.8.1 in API devDependencies)
+- Pre-commit hook via Husky + lint-staged runs Prettier automatically
+- If a commit fails due to lint-staged, fix and create a NEW commit (never amend)
 
 **Linting:**
-
-- Tool: ESLint with flat config (eslint.config.js)
-- Vue files: `eslint-plugin-vue` with 'flat/essential' preset
-- TypeScript files: `@typescript-eslint` with `recommended` preset
-- Unused variables: warn with `argsIgnorePattern: '^_'` (leading underscore suppresses)
-- No-debugger: error in production, off in development
-- No-unused-vars: turned off in favor of TypeScript version
-
-**TypeScript:**
-
-- Target: ES2022 (modern JavaScript features)
-- Module: NodeNext (for API), ESM elsewhere
-- Strict mode: enabled across all apps
-- No `any` types: use `unknown` with type narrowing via `instanceof Error` or type guards
-
-## Import Organization
-
-**Order:**
-
-1. External packages (e.g., `import { ref } from 'vue'`)
-2. Absolute imports and aliases (e.g., `import { api } from 'src/boot/axios'`)
-3. Relative imports (e.g., `import { MemberService } from './service'`)
-4. Type imports with `type` keyword kept separate or inline where convenient
-
-**Path Aliases:**
-
-- `el-templo-api`: No path aliases (uses relative imports, `../../db/schema`)
-- `el-templo-admin`: `src` alias in `tsconfig.json` (e.g., `import { api } from 'src/boot/axios'`)
-- `el-templo-app`: `src` alias (e.g., `import { useAuthStore } from 'src/stores/useAuthStore'`)
-- `el-templo-web`: Nuxt auto-aliases (e.g., `~/assets/css`, `~/components`)
-
-## Error Handling
-
-**Pattern:**
-
-```typescript
-catch (err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  // Handle error
-}
-```
-
-**Custom Error Classes (API):**
-
-- `BadRequestError` — invalid input or operation (status 400)
-- `NotFoundError` — resource not found (status 404)
-- `ConflictError` — state conflict, e.g., duplicate booking (status 409)
-- `InsufficientBalanceError` — AURA spend exceeds balance
-- All extend `Error` with `this.name = "ClassName"`
-
-**Frontend Error Extraction:**
-
-```typescript
-function extractError(err: unknown, fallback: string): string {
-  if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error ?? err.response?.data?.message;
-    if (typeof message === "string") return message;
-  }
-  if (err instanceof Error) return err.message;
-  return fallback;
-}
-```
-
-**Route Error Handling (Fastify):**
-
-- Catch errors in route handlers and return appropriate HTTP status
-- Schemas validate request payloads before handler execution
-- Use Sentry for error monitoring (configured in `instrument.ts` for API, `boot/sentry.ts` for frontend)
-
-## Logging
-
-**API (Fastify + Pino):**
-
-- Never use `console.log`, `console.warn`, `console.error`
-- Use `request.log` (inherited from app logger) or `app.log`
-- Log levels: `info`, `warn`, `error`, `debug`
-- Example: `app.log.info('Server listening', { port: 3000 })`
-
-**Frontend (Vue apps):**
-
-- Import logger: `import { createLogger } from 'src/utils/logger'`
-- Create context-scoped logger: `const log = createLogger('ComponentName')`
-- Log levels: `debug()`, `info()`, `warn()`, `error()`
-- `error()` automatically sends to Sentry when initialized
-- Example: `log.info('Members loaded', { count: 42 })`
-
-**Logging Guidelines:**
-
-- Log at INFO level for major operations (auth, data changes, API calls)
-- Log at WARN for recoverable issues or degradation
-- Log at ERROR for failures and exceptions (with stack context if available)
-- Include structured data: `log.info('message', { key: value })`
-
-## Comments
-
-**When to Comment:**
-
-- Complex algorithms or non-obvious logic
-- Business rule explanations (e.g., "overdue subquery: member has subscription where endDate < CURDATE()")
-- Public API documentation (JSDoc on service methods, composables)
-- Decision rationale in complex conditional branches
-
-**JSDoc/TypeDoc:**
-
-- Use `/** ... */` comment blocks above functions in service/composable modules
-- Include `@param` and `@returns` tags for public methods
-- `@throws` for error cases
-- Example from `AuraService.award()`:
-  ```typescript
-  /**
-   * Award AURA to a user. Creates a ledger entry and atomically updates the cached balance.
-   *
-   * @param input - Award details (userId, sourceType, referenceType, referenceId, optional amount/description)
-   * @returns The user's new total balance
-   * @throws On duplicate award (unique constraint violation)
-   */
-  ```
-
-**File-Level Comments:**
-
-- Include at top of service/route files explaining the module's purpose
-- Example: `/** Member Service: Business logic for member CRUD, profile management, etc. */`
-
-## Function Design
-
-**Size:**
-
-- Methods: 20-50 lines typical (shorter for composables, longer for database queries)
-- Complex logic: extract into private helpers or separate functions
-- Service methods are allowed to be longer (database-heavy operations)
-
-**Parameters:**
-
-- Named object parameters preferred for functions with 3+ parameters
-- Type each parameter explicitly
-- Use destructuring in function signatures when possible
-
-**Return Values:**
-
-- Always type the return value explicitly: `async method(): Promise<Type>`
-- Void functions: use `void` or omit return
-- Error-throwing functions should be documented with `@throws`
-
-**Async Pattern:**
-
-- All async operations return `Promise<Type>`
-- Use `await` for async calls in functions marked `async`
-- Composables return objects with properties and methods (not Promises)
-
-## Module Design
-
-**Exports:**
-
-- Service classes: `export class ServiceName { ... }`
-- Service functions (factories): `export function createServiceName(): ServiceName { ... }`
-- Composables: `export function useFeatureName() { ... }`
-- Types/Interfaces: `export interface/type NameType`
-- Constants: `export const CONSTANT_NAME = ...`
-
-**Barrel Files:**
-
-- `el-templo-app/src/modules/training/index.ts` exports route plugin only
-- `el-templo-app/src/stores/index.ts` exports all stores
-- Not widely used for other modules; most imports are direct
-
-**Directory Organization:**
-
-- Services live in `{module}/service.ts` (singleton instance pattern)
-- Routes live in `{module}/routes.ts` (Fastify plugins)
-- Composables in `{app}/src/composables/` or `{module}/composables/`
-- Stores in `{module}/stores/` (Pinia)
-- Types in `{module}/types.ts`
-- Schemas in `{module}/schemas.ts` (Fastify validation)
-
-## Special Patterns
-
-**API Routes (Fastify):**
-
-```typescript
-export const memberRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.post<{ Body: CreateMemberInput }>(
-    "/members",
-    { schema: createMemberSchema },
-    async (req, reply) => {
-      // Handler with req.log for logging
-    },
-  );
-};
-```
-
-**Vue Composables with Cleanup:**
-
-- Composables must expose a `cleanup()` method if they hold resources
-- Example: `useSessionPlayer()` manages timer intervals
-- No `onUnmounted` calls inside composable itself (caller manages lifecycle)
-
-**Pinia Stores (Composition API):**
-
-```typescript
-export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(null);
-  const user = ref<User | null>(null);
-
-  async function login(email: string, password: string) { ... }
-
-  return { token, user, login }; // Explicitly return public API
-});
-```
-
-**API Axios Instance:**
-
-- Centralized in `boot/axios.ts` (both admin and app)
-- Configured with base URL from environment
-- Auth token automatically injected on each request
+- ESLint (^9.39.2) configured in `el-templo-api/`
+- Standard rules; no custom ESLint config discovered
 
 ---
 
-_Convention analysis: 2025-03-10_
+## Import Organization
+
+**TypeScript -- API modules follow this order:**
+```typescript
+// 1. Framework/third-party
+import { FastifyPluginAsync } from "fastify";
+import { eq, and, desc } from "drizzle-orm";
+
+// 2. Internal modules (relative)
+import { AttendanceService } from "./service";
+import { handleServiceError } from "../shared/error-handler";
+import { memberCheckInSchema } from "./schemas";
+
+// 3. Types (type-only imports)
+import type { AttendanceRecord } from "./types";
+import type { FastifyBaseLogger } from "fastify";
+```
+
+**Module barrel pattern:** `index.ts` re-exports named exports for each module:
+```typescript
+// el-templo-api/src/modules/admin/index.ts
+export { adminRoutes } from "./routes";
+export { AdminSessionService } from "./service";
+export type { SessionStatus, EditAction } from "./types";
+```
+
+---
+
+## Error Handling
+
+**Service layer:** Throw typed error subclasses from `el-templo-api/src/modules/shared/errors.ts`:
+```typescript
+export class AppError extends Error {
+  readonly statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+export class BadRequestError extends AppError {
+  constructor(message = "Solicitud invalida") { super(message, 400); }
+}
+// Also: NotFoundError (404), ConflictError (409), ValidationError (400)
+```
+
+**Route handlers:** Use `handleServiceError` from `el-templo-api/src/modules/shared/error-handler.ts`:
+```typescript
+async (request, reply) => {
+  try {
+    const record = await attendanceService.checkIn(...);
+    return reply.code(201).send(record);
+  } catch (err: unknown) {
+    handleServiceError(err, reply, request.log, "member check-in");
+  }
+}
+```
+
+**`handleServiceError` logic:**
+- `AppError` subclasses -> use their `statusCode` and `message`
+- Unknown errors -> log with `log.error({ err }, ...)` then return 500 with generic message
+- Never expose internal error details to clients
+
+**Error messages:** Spanish for user-facing messages (`"No tenes una suscripcion activa"`), English for internal/dev messages.
+
+---
+
+## Logging
+
+**API:** Fastify's built-in Pino logger. Never `console.log`. Access via:
+- `request.log.info(...)` in route handlers
+- `this.log.info(...)` in services (logger injected via constructor)
+- `app.log.info(...)` in startup code
+
+**Bot:** Use Pino logger (`pino` already in `el-templo-bot/package.json`). Never `console.log`.
+
+**Log context pattern (structured logging):**
+```typescript
+this.log.info(
+  { memberId, bookingId: todayBooking.id },
+  "Booking linked on QR check-in",
+);
+// Object with context keys FIRST, message string SECOND
+```
+
+---
+
+## Module Structure (API)
+
+Each module in `el-templo-api/src/modules/<domain>/` contains:
+
+| File | Purpose |
+|------|---------|
+| `index.ts` | Barrel re-exports |
+| `routes.ts` | Fastify route plugins |
+| `service.ts` | Business logic class |
+| `schemas.ts` | JSON Schema for request validation |
+| `types.ts` | TypeScript interfaces and union types |
+
+Complex modules split service further (facade pattern):
+- `el-templo-api/src/modules/admin/edit-service.ts` -- facade delegating to:
+  - `exercise-service.ts`, `exercise-swap-service.ts`, `session-mutation-service.ts`, `prescribe-service.ts`
+
+**Bot module structure** (emerging, follow same organizational pattern):
+- `el-templo-bot/src/ai/` -- AI provider abstraction
+- `el-templo-bot/src/memory/` -- Session and profile memory
+- `el-templo-bot/src/state/` -- Client state machine
+- `el-templo-bot/src/whatsapp/` -- WhatsApp Cloud API client
+- `el-templo-bot/src/schedulers/` -- Cron-based scheduled tasks
+
+---
+
+## Service Class Pattern
+
+Services receive dependencies via constructor injection:
+```typescript
+export class AttendanceService {
+  constructor(
+    private db: MySql2Database<typeof schema>,
+    private log: FastifyBaseLogger,
+    private paymentService: PaymentService,
+    private subscriptionService: SubscriptionService,
+    private auraService: AuraService,
+  ) {}
+}
+```
+
+Services are instantiated inside route plugins (not singletons):
+```typescript
+export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
+  const paymentService = new PaymentService(fastify.db, fastify.log);
+  const auraService = new AuraService(fastify.db);
+  const attendanceService = new AttendanceService(fastify.db, fastify.log, ...);
+  // ... routes use attendanceService
+};
+```
+
+---
+
+## Route Pattern (Fastify)
+
+**Auth guard via `addHook("onRequest")`:**
+```typescript
+fastify.addHook("onRequest", async (request, reply) => {
+  await fastify.authenticate(request, reply);
+  if (!ADMIN_ROLES.includes(request.user.role)) {
+    return reply.code(403).send({ error: "Forbidden", message: "..." });
+  }
+});
+```
+
+**Route with schema validation and typed generic:**
+```typescript
+fastify.post<{ Body: { qrToken: string } }>(
+  "/check-in",
+  { schema: memberCheckInSchema },
+  async (request, reply) => { ... },
+);
+```
+
+**HTTP status codes:** 201 for creates, 200 for reads, 400/403/404/409 for client errors, 500 for server errors.
+
+---
+
+## Schema Pattern (Fastify validation)
+
+Schemas are plain JSON Schema objects exported from `schemas.ts`:
+```typescript
+export const memberCheckInSchema = {
+  body: {
+    type: "object",
+    required: ["qrToken"],
+    properties: {
+      qrToken: { type: "string" },
+    },
+  },
+};
+```
+
+Use `querystring` for GET params, `params` for URL params, `body` for POST/PUT payloads. Include `minimum`, `maximum`, `default`, `enum` constraints where applicable (see `el-templo-api/src/modules/admin/schemas.ts` for detailed examples).
+
+---
+
+## Comment Style
+
+**File-level JSDoc** on every file describing purpose:
+```typescript
+/**
+ * Attendance Service
+ *
+ * Business logic for QR token validation, member check-in
+ * (with subscription/overdue/branch enforcement), and attendance queries.
+ */
+```
+
+**Method-level JSDoc** on public service methods:
+```typescript
+/**
+ * Member QR check-in.
+ *
+ * Validates QR token, checks subscription, overdue status, branch enforcement,
+ * and one-per-day constraint. Creates attendance record with status "registrado".
+ */
+async checkIn(memberId: number, qrToken: string): Promise<AttendanceRecord>
+```
+
+**Section dividers** for long files (using em-dash lines):
+```typescript
+// --- Check-in Methods -------------------------------------------------------
+// --- Query Methods -----------------------------------------------------------
+// --- Private Helpers ---------------------------------------------------------
+```
+
+---
+
+## Bot-Specific Conventions (el-templo-bot)
+
+**Shared MySQL:** Import schema via relative path from `../../el-templo-api/src/db/schema` (monorepo, same pnpm workspace).
+
+**Business logic boundary:** For mutations (book class, create user), call `el-templo-api` via localhost HTTP -- do NOT duplicate business logic in the bot.
+
+**AI provider abstraction:** Model-agnostic via `AiProvider` interface (`el-templo-bot/src/ai/provider.ts`). Select implementation via `AI_PROVIDER` env var (`openai` | `anthropic`).
+
+**Scheduler pattern:** Acquire Redis distributed lock -> query DB -> process -> release lock. Use `node-cron` for scheduling. See `el-templo-bot/src/schedulers/class-reminder.ts` for the template.
+
+---
+
+## Reference Bot Patterns (contexto/whatsapp-agent-renovafacil)
+
+These Python patterns should be adapted to TypeScript for `el-templo-bot`:
+
+**State machine (Redis Hash, no TTL):**
+```python
+# Python original
+r.hset(f"client_state:{phone}", mapping={
+    "state": state.value,
+    "updated_at": datetime.utcnow().isoformat(),
+    "previous_state": current,
+    "trigger": trigger,
+})
+```
+TypeScript: use `ioredis` `hset` with the same key naming scheme.
+
+**Atomic state transitions via Lua script** -- in TypeScript use `ioredis` `eval()`. See `contexto/whatsapp-agent-renovafacil/client_state.py` lines 80-91 for the Lua script.
+
+**Redis key naming convention (adopt for el-templo-bot):**
+- `conversation:{phone}` -- message history (TTL: 24h)
+- `client_state:{phone}` -- lifecycle state hash (no TTL, persists indefinitely)
+- `ratelimit_count:{phone}` -- rate limiter
+- `blocked:{phone}` -- blocked users
+
+**Mock pattern for Redis in tests:** `MockRedisClient` in-memory class mirroring the real client interface. See `contexto/whatsapp-agent-renovafacil/conftest.py` lines 42-328 for the full implementation -- replicate this concept in TypeScript.
+
+---
+
+*Convention analysis: 2026-03-17*

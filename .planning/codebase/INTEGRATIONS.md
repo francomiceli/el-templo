@@ -1,271 +1,146 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-10
+**Analysis Date:** 2026-03-17
 
 ## APIs & External Services
 
-**Email Notifications (Resend):**
+**Messaging:**
+- WhatsApp Cloud API (Meta Graph API)
+  - Used by: `el-templo-bot/` (incoming webhook receiver, send messages) and `el-templo-api/` (admin conversation management at `src/modules/whatsapp/`)
+  - Webhook receiver: `GET /webhook` (verification) + `POST /webhook` (inbound messages) — planned in bot, not yet implemented
+  - Admin send endpoint: `POST /api/admin/whatsapp/conversations/:id/send` — implemented in API
+  - Auth env vars: `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN`
+  - Client stub: `el-templo-bot/src/whatsapp/client.ts` (sendTextMessage, sendTemplate, verifyWebhook, parseWebhookPayload — all TODO)
+  - Schema tables: `whatsapp_conversations`, `whatsapp_messages` in `el-templo-api/src/db/schema/whatsapp.ts`
 
-- Service: Resend (transactional email)
-- SDK: `resend` v6.9.3
-- Auth: `RESEND_API_KEY` env var
-- Used by:
-  - `el-templo-api/src/modules/franchise/service.ts` - Franchise inquiry notifications
-  - `el-templo-api/src/modules/academy/service.ts` - Academy enrollment inquiries
-  - `el-templo-api/src/modules/gladius/service.ts` - Product inquiries
-  - `el-templo-api/src/modules/app-landing/service.ts` - Waitlist and labs inquiries
-- Notification emails (env vars): FRANCHISE_NOTIFICATION_EMAIL, ACADEMY_NOTIFICATION_EMAIL, GLADIUS_NOTIFICATION_EMAIL, APP_NOTIFICATION_EMAIL
-- Default sender: noreply@eltemplo.org
+**AI Providers:**
+- Anthropic Claude
+  - Active usage: franchise AI agent in `el-templo-api/src/modules/franchise/ai-agent-service.ts`
+  - Model: `claude-sonnet-4-20250514`
+  - SDK: `@anthropic-ai/sdk` (reads `ANTHROPIC_API_KEY` from env automatically)
+  - Use case: generates franchise applicant strategy, outreach messages, followup messages, and negotiation material
+  - Planned usage: WhatsApp bot (`el-templo-bot/src/ai/anthropic.ts` stub — `AnthropicProvider implements AiProvider`)
 
-**AI Agent (Anthropic Claude):**
-
-- Service: Anthropic Claude API
-- SDK: `@anthropic-ai/sdk` v0.78.0
-- Auth: `ANTHROPIC_API_KEY` env var (read automatically by SDK)
-- Location: `el-templo-api/src/modules/franchise/ai-agent-service.ts`
-- Purpose: Franchise application analysis and conversion strategies
-- Agent types: strategy, outreach, followup, negotiation (4 specialized prompts)
-- Language: Spanish (system prompts in Spanish)
-
-**File Storage (Cloudflare R2):**
-
-- Service: Cloudflare R2 (S3-compatible object storage)
-- SDKs: `@aws-sdk/client-s3` v3.994.0, `@aws-sdk/s3-request-presigner` v3.994.0
-- Auth: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY (env vars)
-- Location: `el-templo-api/src/plugins/r2.ts`
-- Configuration:
-  - Endpoint: `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
-  - Bucket: R2_BUCKET_NAME (env var)
-  - Public URL: R2_PUBLIC_URL (env var)
-  - Checksum validation: enabled (WHEN_REQUIRED)
-- Used by:
-  - `el-templo-api/src/modules/blog/image-service.ts` - Blog image uploads (presigned URLs, 15min expiry)
-  - `el-templo-api/src/modules/admin/video-service.ts` - Video uploads (presigned URLs)
-- File structure: blog/images/, videos/, media/ prefixes
-
-**Google Analytics 4:**
-
-- Service: Google Analytics 4
-- Location: `el-templo-web/` (landing page)
-- Configuration: NUXT_PUBLIC_GA4_ID env var
-- Purpose: Traffic and conversion tracking (landing page only)
-
-**Meta Pixel (Facebook Pixel):**
-
-- Service: Meta Pixel for conversion tracking
-- Location: `el-templo-web/` (landing page)
-- Configuration: NUXT_PUBLIC_META_PIXEL_ID env var
-- Purpose: Conversion and audience tracking
+- OpenAI GPT
+  - Not active yet — planned for WhatsApp bot
+  - SDK: `openai` 4.85 in `el-templo-bot/`
+  - Planned model: `gpt-4o-mini` (configurable via `AI_MODEL` env var)
+  - Auth env var: `OPENAI_API_KEY`
+  - Provider stub: `el-templo-bot/src/ai/openai.ts` (OpenAiProvider — TODO)
+  - Note: `AI_PROVIDER` env var selects between `openai` and `anthropic`; factory in `el-templo-bot/src/ai/provider.ts`
 
 ## Data Storage
 
-**Primary Database:**
-
-- Type: MySQL 8.0+
-- Client: mysql2 (promise pool, 10 concurrent connections)
-- ORM: Drizzle ORM 0.45.1
-- Location: `el-templo-api/src/db/schema/` (42 tables across modules)
-- Connection config: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (env vars)
-- Pool settings: 60s idle timeout, keep-alive enabled
-- Test database: `eltemplo_test` (separate instance for integration tests)
-
-**Schema Modules:**
-
-- Users and authentication: `users.ts`
-- Training: `sessions.ts`, `session-blocks.ts`, `session-prescriptions.ts`, `session-traces.ts`, `completed-sessions.ts`, `saved-blocks.ts`, `evaluation-requests.ts`
-- Members: `member-journeys.ts`, `member-notes.ts`
-- Attendance: `attendance.ts`, `schedules.ts`, `bookings.ts`
-- Subscriptions: `subscription-plans.ts`, `subscriptions.ts`, `payments.ts`
-- AURA Economy: `aura-transactions.ts`, `aura-balances.ts`, `aura-config.ts`
-- Content: `blog-posts.ts`, `blog-tags.ts`
-- External forms: `franchise-applications.ts`, `academy-inquiries.ts`, `gladius-inquiries.ts`, `app-waitlist.ts`, `labs-inquiries.ts`
-- Branch/location: `branches.ts`, `holidays.ts`
-- Training rules: `routes.ts`, `spom-rules.ts`, `intensity-rules.ts`, `contraction-rules.ts`, `weekly-rotator.ts`, `formats.ts`, `format-compatibility.ts`, `exercises.ts`, `spom-config.ts`
-- Activities: `activities.ts`
+**Databases:**
+- MySQL 8
+  - Primary data store for all business data
+  - Connection: env vars `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+  - Client: Drizzle ORM (`drizzle-orm/mysql2`) with `mysql2/promise` pool (connection limit: 10)
+  - API plugin: `el-templo-api/src/plugins/database.ts` — decorates `fastify.db`
+  - Bot: `el-templo-bot/src/db.ts` stub — imports shared schema from API via relative path
+  - Schema location: `el-templo-api/src/db/schema/` (42 schema files, includes whatsapp tables)
+  - Migrations: `el-templo-api/src/db/migrations/` — Drizzle Kit generates and runs
+  - Test DB: `eltemplo_test` — used by Vitest integration tests in `el-templo-api/test/`
 
 **File Storage:**
+- Cloudflare R2 (S3-compatible object storage)
+  - Auth env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
+  - Public URL: `R2_PUBLIC_URL` (e.g., `https://pub-xxxxx.r2.dev`)
+  - Default bucket: `el-templo-videos`
+  - Client: `@aws-sdk/client-s3` with endpoint `https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+  - API plugin: `el-templo-api/src/plugins/r2.ts` — decorates `fastify.r2` (S3Client) and `fastify.r2Bucket`
+  - Key patterns: `exercises/{id}.mp4` (videos), `thumbnails/{id}.jpg` (thumbnails)
+  - Post-processing pipeline: `el-templo-api/src/modules/admin/video-service.ts` — downloads, probes with ffprobe, conditionally compresses with ffmpeg (H.264, CRF 28, max 720p), extracts thumbnail, re-uploads
+  - Note: AWS SDK v3.729+ checksum fix applied (`requestChecksumCalculation: "WHEN_REQUIRED"`)
 
-- Cloudflare R2 (S3-compatible) - See File Storage section above
-- Types: Blog images, videos, PDFs, media assets
-- No local filesystem storage for user content (R2 is required)
-
-**Caching:**
-
-- No Redis, Memcached, or in-memory caching layer configured
-- All data loaded from MySQL on request
+**Caching / Ephemeral State:**
+- Redis
+  - Used by: `el-templo-bot/` for conversation context, customer profiles, distributed locks, bot state
+  - Status: planned, not yet active — requires install on EC2
+  - Client: ioredis 5.6 (`el-templo-bot/src/redis.ts` — stub, all TODO)
+  - Connection: `REDIS_URL` env var (e.g., `redis://localhost:6379`)
+  - Key patterns (designed, not yet implemented):
+    - `wa:context:{phone}` — last N messages for AI context (TTL: 6h)
+    - `wa:profile:{phone}` — persistent customer profile (TTL: 90d)
+    - `wa:lock:{scheduler}` — distributed lock for cron schedulers
+    - `wa:bot_state:{phone}` — `active` | `human_takeover`
 
 ## Authentication & Identity
 
 **Auth Provider:**
-
-- Custom JWT-based authentication
-- Location: `el-templo-api/src/plugins/auth.ts`
-- Library: @fastify/jwt v10.0.0
-- Secret: JWT_SECRET env var (required)
-- Token expiry: JWT_EXPIRES_IN (default: 7d)
-- Signature algorithm: HS256
-- Payload: { userId, email, role }
-
-**Password Management:**
-
-- Algorithm: Argon2 (OWASP recommended)
-- Library: `argon2` v0.44.0
-- Locations: auth module, member service password updates
-
-**Role-Based Access Control:**
-
-- Roles: member, coach, admin, superadmin
-- Schema: `el-templo-api/src/db/schema/users.ts`
-- Enforcement: Route-level guards checking request.user.role
-
-**Frontend Auth Storage:**
-
-- JWT token stored in client-side Pinia store (both apps)
-- Admin/member app: Pinia store with axios interceptor
-- Landing page: No auth (public access only)
-- Capacitor local storage (member app): Preferences plugin for persistence
+- Custom JWT (no external identity provider)
+  - Implementation: `el-templo-api/src/plugins/auth.ts` using `@fastify/jwt`
+  - JWT payload: `{ userId: number, email: string, role: string }`
+  - Roles: `member`, `coach`, `admin`, `superadmin`
+  - Password hashing: argon2 (`argon2` package)
+  - Token storage on native: `@capacitor/preferences` (secure key-value)
+  - Token storage on web: `localStorage`
+  - Required env vars: `JWT_SECRET`, `JWT_EXPIRES_IN` (default: `7d`)
 
 ## Monitoring & Observability
 
-**Error Tracking (Sentry):**
+**Error Tracking:**
+- Sentry
+  - API: `@sentry/node` initialized in `el-templo-api/src/instrument.ts` (imported first in `src/index.ts`). Fastify error handler wired in `src/app.ts` via `Sentry.setupFastifyErrorHandler(app)`. User context set per authenticated request. Password fields scrubbed via `beforeSend`.
+  - Member app: `@sentry/vue` in `el-templo-app/src/boot/sentry.ts` (first boot file). Browser tracing with router integration. Noisy errors (network, extension, ResizeObserver) filtered.
+  - Admin app: `@sentry/vue` in `el-templo-admin/src/boot/sentry.ts` — same pattern.
+  - Landing site: `@sentry/vue` in `el-templo-web/` — same pattern.
+  - All guarded by DSN env var: `SENTRY_DSN` (API) / `VITE_SENTRY_DSN` (frontends)
+  - Traces sample rate: `0.2` in production, `1.0` in development
 
-- Libraries:
-  - API: `@sentry/node` v10.38.0
-  - Admin: `@sentry/vue` v10.38.0
-  - Member app: `@sentry/vue` v10.38.0
-  - Landing: `@sentry/vue` v10.40.0
-- Configuration:
-  - API: `el-templo-api/src/instrument.ts` (loaded first in index.ts)
-  - Admin: `el-templo-admin/src/boot/sentry.ts`
-  - Member app: `el-templo-app/src/boot/sentry.ts`
-  - Landing: `el-templo-web/plugins/sentry.ts` (if exists)
-- Activation: Guarded by SENTRY_DSN env var (optional)
-- Environment: APP_ENVIRONMENT or NODE_ENV
-- Sample rate: 20% (production), 100% (development)
-- Sensitive scrubbing:
-  - API: password, currentPassword, newPassword fields redacted
-  - Frontend: Ignores certain browser extension errors and network errors
-
-**Application Logging:**
-
-- Structured logging: Pino v10.3.0 (API only)
-- Logger instances:
-  - Fastify built-in: request.log, app.log (via Pino)
-  - Manual: src/modules/sessions/trace/logger.ts, src/jobs/auto-approve.ts
-- Development: pino-pretty v13.1.3 (colorized console output)
-- Frontend: createLogger() utility (see CONVENTIONS.md for implementation)
-- Production: JSON-structured logs to PM2 files (/var/log/pm2/)
+**Logging:**
+- Pino (via Fastify's built-in logger) — structured JSON logs in API and bot
+- API logger: accessed via `request.log` or `app.log`
+- Standalone cron jobs use `pino({ name: '...' })` directly (e.g., `el-templo-api/src/jobs/auto-approve.ts`)
+- Frontend: `createLogger()` from `src/utils/logger.ts` (per CLAUDE.md — auto-sends errors to Sentry)
 
 ## CI/CD & Deployment
 
 **Hosting:**
+- AWS EC2 — API process, bot process, MySQL, Nginx reverse proxy
+- Deployment scripts: `deploy/update-server.sh`, `deploy/backup.sh`, `deploy/restore.sh`
+- Nginx config: `deploy/nginx.conf`
 
-- EC2 instance (AWS, inferred from deployment config)
-- All 4 apps deployed to same server via rsync
-
-**Process Management (API):**
-
-- PM2 (production process manager)
-- Config: `el-templo-api/ecosystem.config.cjs`
-- App name: eltemplo-api
-- Script: dist/index.js
-- Working dir: /var/www/el-templo/el-templo-api
-- Instances: 1 (single process)
-- Memory limit: 500MB (auto-restart on exceed)
-- Graceful shutdown: 5s kill timeout, 10s listen timeout
-- Log files: /var/log/pm2/eltemplo-api-error.log, eltemplo-api-out.log
-
-**CI/CD Pipeline:**
-
-- GitHub Actions (triggered on every push)
-- Stages: Type check, lint, security audit, tests, build all 4 apps
-- Pre-commit: Husky + lint-staged (Prettier formatting auto-fix)
-- Test: Vitest integration tests (API database + member app)
-- Build: TypeScript compilation, Vite bundling (Quasar), Nuxt generate
-- Deployment: rsync to EC2, database migrations, service restart, smoke tests, auto-rollback on failure
-
-## Environment Configuration
-
-**Required Environment Variables (All apps):**
-
-API:
-
-- Database: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME, NODE_ENV (defaults: localhost:3306, eltemplo, development)
-- Auth: JWT_SECRET (required), JWT_EXPIRES_IN (default: 7d)
-- Server: PORT (default: 3000)
-- CORS: FRONTEND_URL, ADMIN_URL
-- R2: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL
-- Email: RESEND_API_KEY, FRANCHISE_NOTIFICATION_EMAIL, GLADIUS_NOTIFICATION_EMAIL, ACADEMY_NOTIFICATION_EMAIL, APP_NOTIFICATION_EMAIL
-- AI: ANTHROPIC_API_KEY
-- Optional: SENTRY_DSN, APP_ENVIRONMENT
-
-Admin Panel:
-
-- VITE_API_URL (default: http://localhost:3000/api)
-- Optional: VITE_SENTRY_DSN, VITE_APP_ENVIRONMENT
-
-Member App:
-
-- VITE_API_URL (default: http://localhost:3000/api)
-- VITE_APP_NAME (default: El Templo)
-- Optional: VITE_SENTRY_DSN
-
-Landing Page:
-
-- NUXT_PUBLIC_API_URL (default: http://localhost:3000/api)
-- Optional: NUXT_PUBLIC_SENTRY_DSN, NUXT_PUBLIC_APP_ENVIRONMENT, NUXT_PUBLIC_GA4_ID, NUXT_PUBLIC_META_PIXEL_ID
-
-Seed Variables (dev/test only):
-
-- SEED_ADMIN_PASSWORD
-- SEED_DEFAULT_PASSWORD
-
-**Secrets Location:**
-
-- `.env.development` - Local development (gitignored)
-- `.env.production` - Production settings (gitignored)
-- `.env` - Local overrides (gitignored)
-- `.env.example` - Templates (committed, public reference)
+**CI Pipeline:**
+- GitHub Actions (`.github/workflows/ci.yml`) — runs on every push
+  - Steps: type check, lint, security audit, integration tests, build
+- Deployment workflow: `deploy.yml` — build all 3 apps → backup current → rsync to EC2 → migrate → restart → smoke test → auto-rollback on failure
+- Staging deploy: `deploy-staging.yml`
+- Android APK build: `.github/workflows/build-android-staging.yml` — manual trigger, Java 21, Gradle `assembleStagingDebug`
+- iOS TestFlight build: `.github/workflows/build-ios-staging.yml` — manual trigger (expensive macOS runner)
 
 ## Webhooks & Callbacks
 
-**Incoming Webhooks:**
+**Incoming:**
+- `POST /webhook` — WhatsApp Cloud API sends message events to bot (`el-templo-bot/`, port 3001). Not yet implemented.
+- `GET /webhook` — WhatsApp webhook verification (Meta sends `hub.verify_token` challenge). Not yet implemented.
 
-- Not configured (no webhook endpoints detected)
-
-**Outgoing Webhooks:**
-
-- Email callbacks: Resend API (fire-and-forget, no webhook handling)
-- No payment gateway webhooks (manual payment records via admin API)
-
-## Session Management & Security
-
-**JWT Token Lifecycle:**
-
-- Issued: login endpoint (`el-templo-api/src/modules/auth/routes.ts`)
-- Verified: Protected routes via fastify.authenticate middleware
-- Stored: Client-side in Pinia store (both frontend apps)
-- Expiry: JWT_EXPIRES_IN env var (default 7d)
-- Refresh: No refresh token mechanism detected (full re-login required)
-
-**CORS Policy:**
-
-- Development origins (localhost): 9000 (member app), 9100 (admin), 9101 (?), 9200 (landing), capacitor://localhost, http://localhost
-- Production origins: FRONTEND_URL, ADMIN_URL, https://eltemplo.org, capacitor://localhost
-- Methods: GET, HEAD, PUT, POST, PATCH, DELETE, OPTIONS
-- Config: `el-templo-api/src/app.ts`
+**Outgoing:**
+- WhatsApp Cloud API — bot sends text messages and templates via Meta Graph API. Not yet implemented (`el-templo-bot/src/whatsapp/client.ts` stub).
+- Resend — API sends transactional emails outbound via `el-templo-api/src/modules/email/service.ts`. Currently: password-set email for new members.
 
 ## Scheduled Jobs
 
-**Cron Jobs (API only):**
+**API (`el-templo-api/src/jobs/`):**
+- `auto-approve.ts` — runs at 23:59 daily (Argentina/Buenos_Aires timezone) to auto-approve pending sessions for the next day. Uses `node-cron`.
+- `mark-no-shows.ts` — marks unattended bookings as no-shows. Uses `node-cron`.
 
-- Auto-approve pending sessions
-  - Implementation: `el-templo-api/src/jobs/auto-approve.ts`
-  - Library: node-cron v4.2.1
-  - Schedule: Daily at 23:59 (America/Argentina/Buenos_Aires timezone)
-  - Purpose: Auto-approves sessions pending admin review (next day availability)
-  - Started: On app boot via startAutoApproveJob()
+**Bot (`el-templo-bot/src/schedulers/`) — planned, not implemented:**
+- `class-reminder.ts` — send class reminders before scheduled slots
+- `trial-followup.ts` — follow up with trial attendees
+- Both will use Redis distributed locks (`wa:lock:{scheduler}`) to prevent duplicate runs
+
+## Internal Service Communication
+
+**Bot → API:**
+- For data-modifying actions (book class, register trial user), the bot calls `el-templo-api` via localhost HTTP
+- Base URL env var: `API_BASE_URL` (default: `http://localhost:3000`)
+- This avoids duplicating business logic in the bot
+
+**Bot → MySQL:**
+- Direct Drizzle ORM access for read queries (check schedule, check membership, look up conversation)
+- Shared schema imported from `el-templo-api/src/db/schema/` via relative path
 
 ---
 
-_Integration audit: 2026-03-10_
+*Integration audit: 2026-03-17*

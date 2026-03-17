@@ -1,370 +1,531 @@
 # Testing Patterns
 
-**Analysis Date:** 2025-03-10
+**Analysis Date:** 2026-03-17
 
-## Test Framework
+**Scope:** Covers `el-templo-api/` (comprehensive test suite), `el-templo-bot/` (no tests yet), and `contexto/whatsapp-agent-renovafacil/` (Python reference bot test patterns).
 
-**API (`el-templo-api/`):**
+---
 
-- Runner: Vitest 4.0.18
-- Config: `vitest.config.ts`
-- Environment: Node.js (tests run against real MySQL database)
-- Global setup: `test/setup.ts` (creates and seeds test database)
-- Assertion library: Vitest built-in `expect`
+## Test Framework (API)
 
-**Frontend Apps (`el-templo-admin/`, `el-templo-app/`):**
+**Runner:**
+- Vitest ^4.0.18
+- Config: `el-templo-api/vitest.config.ts` (integration), `el-templo-api/vitest.config.unit.ts` (unit)
 
-- Runner: Vitest 4.0.18
-- Config: `vitest.config.ts` (minimal, node environment)
-- No tests currently present in el-templo-admin
-- No tests currently present in el-templo-app
-- No E2E tests (Cypress, Playwright not installed)
+**Assertion Library:**
+- Vitest built-in (`expect`, `toBe`, `toContain`, `rejects.toThrow`, etc.)
 
-**Web App (`el-templo-web/`):**
-
-- No test framework configured
-- No tests present
-
-## Run Commands
-
-**API Tests:**
-
+**Run Commands:**
 ```bash
-cd el-templo-api
-pnpm test              # Run all tests once
-pnpm test:watch        # Watch mode for development
+cd el-templo-api && pnpm test           # Run all tests (integration + unit)
+cd el-templo-api && pnpm test:watch     # Watch mode
+cd el-templo-api && vitest run --config vitest.config.unit.ts  # Unit tests only (no DB)
 ```
 
-**Frontend Tests (when present):**
+## Test Framework (Reference Bot -- Python)
 
-```bash
-cd el-templo-app
-pnpm test              # Run all tests once
-pnpm test:watch        # Watch mode
-pnpm test:ui           # Vitest UI dashboard
-```
+**Runner:** pytest
+- Config: `contexto/whatsapp-agent-renovafacil/conftest.py` (fixtures)
+- Fixtures: `mock_redis`, `app_client`, `auth_token`, `auth_headers`, `mock_openai_classify`
+
+---
 
 ## Test File Organization
 
-**Location:**
-
-- API: `el-templo-api/test/{feature}/{feature}.test.ts`
-  - Examples: `test/members/members.test.ts`, `test/attendance/attendance.test.ts`, `test/unit/aura-service.test.ts`
-  - Integration tests run against `eltemplo_test` database (not unit tests)
-- Frontend: `src/**/*.test.ts` (co-located with source, not yet used)
-
-**Naming:**
-
-- Pattern: `{feature}.test.ts` or `{feature-area}.test.ts`
-- Describe blocks: `describe("Feature Name Routes", () => { ... })`
-- Test cases: `it("specific behavior", async () => { ... })`
-
-**Structure:**
-
+**API -- Integration tests (separate directory, by domain):**
 ```
-test/
-├── helpers.ts                    # Shared test utilities
-├── setup.ts                      # Global setup/teardown (vitest globalSetup)
-├── unit/
-│   ├── aura-service.test.ts      # Unit tests for services
-│   └── format-params.test.ts
-└── {feature}/
-    ├── {feature}.test.ts         # Integration tests (call HTTP endpoints)
-    ├── auth.test.ts
-    ├── members.test.ts
-    ├── scheduling.test.ts
-    └── ...
+el-templo-api/test/
+  helpers.ts              # createTestApp, getAuthToken, registerUser
+  setup.ts                # Global setup: create DB, run migrations, seed
+  attendance/
+    attendance.test.ts
+  auth/
+    auth.test.ts
+  subscriptions/
+    subscriptions.test.ts
+  payments/
+    payments.test.ts
+  scheduling/
+    scheduling.test.ts
+  sessions/
+    sessions.test.ts
+  members/
+    members.test.ts
+  admin/
+    admin.test.ts
+  analytics/
+    analytics.test.ts
+  blog/
+    blog.test.ts
+    blog-tags.test.ts
+  franchise/
+    franchise-admin.test.ts
+    franchise-application.test.ts
+  gladius/
+    gladius.test.ts
+  journeys/
+    journeys.test.ts
+  academy/
+    academy.test.ts
+  app-landing/
+    app-landing.test.ts
+  unit/                   # Pure unit tests (no DB)
+    date-utils.test.ts
+    format-params.test.ts
+    progression.test.ts
+    aura-service.test.ts  # Exception: needs DB despite being in unit/
+    import-members.test.ts
 ```
 
-## Test Configuration
+**Naming convention:** `<domain>.test.ts` inside a matching `<domain>/` directory.
 
-**Vitest Config (`el-templo-api/vitest.config.ts`):**
+**Reference bot -- Python:**
+```
+contexto/whatsapp-agent-renovafacil/
+  conftest.py             # Shared fixtures (autouse mock_redis, fake env)
+  tests/
+    __init__.py
+    test_client_state.py
+    test_state_triggers.py
+    test_channel_flow.py
+    test_security.py
+    test_endpoints.py
+    test_auth.py
+    test_redis_client.py
+    test_lead_scorer.py
+    test_campaigns.py
+    test_pipeline_api.py
+    test_customer_memory.py
+    test_customer_context.py
+    test_execute_tool.py
+    test_product_catalog.py
+    test_urgency_classification.py
+    test_scheduler_locks.py
+    test_scheduler_guards.py
+    test_post_purchase.py
+    test_40_scenarios.py   # E2E scenario runner (40 real conversation scenarios)
+    test_state_migration.py
+```
 
+---
+
+## Vitest Configuration Details
+
+**Integration tests** (`el-templo-api/vitest.config.ts`):
 ```typescript
 export default defineConfig({
   test: {
-    globals: true, // Use global describe/it/expect (no imports needed)
+    globals: true,
     root: ".",
     include: ["test/**/*.test.ts"],
-    globalSetup: ["test/setup.ts"], // Run setup/teardown once per test session
-    fileParallelism: false, // DB tests run sequentially (not in parallel)
-    testTimeout: 30000, // 30s timeout for slow DB operations
+    globalSetup: ["test/setup.ts"],
+    fileParallelism: false,   // DB tests must run sequentially
+    testTimeout: 30000,       // DB operations can be slow
     env: {
       NODE_ENV: "test",
-      DB_NAME: "eltemplo_test", // Dedicated test database
-      DB_HOST: "localhost",
-      DB_PORT: "3306",
-      DB_USER: "root",
-      DB_PASSWORD: "",
+      DB_NAME: "eltemplo_test",
       JWT_SECRET: "test-secret-for-testing",
     },
   },
 });
 ```
 
-**Database Setup (`test/setup.ts`):**
+**Unit tests** (`el-templo-api/vitest.config.unit.ts`):
+```typescript
+export default defineConfig({
+  test: {
+    globals: true,
+    root: ".",
+    include: ["test/unit/**/*.test.ts"],
+    exclude: ["test/unit/aura-service.test.ts"],  // Needs DB
+    fileParallelism: true,   // Pure functions, safe to parallelize
+    testTimeout: 5000,
+  },
+});
+```
 
-- Creates and seeds `eltemplo_test` database
-- Runs all migration SQL files in `src/db/migrations/`
-- Seeds minimal reference data: 1 branch, 1 SPOM config, 1 admin user
-- Teardown: drops test database after all tests complete
+---
 
-## Test Structure
+## Global Test Setup
 
-**Suite Organization:**
+**`el-templo-api/test/setup.ts`** -- Vitest `globalSetup`:
+1. Drops and recreates `eltemplo_test` database (clean slate every run)
+2. Runs all `.sql` migration files from `el-templo-api/src/db/migrations/`
+3. Skips `@data-only` migrations (production data seeding)
+4. Tolerates duplicate column/key errors (idempotent migrations)
+5. Seeds minimal reference data: 1 branch, 1 spom_config, 1 admin user
+6. Teardown: drops `eltemplo_test` database
+
+**Seeded admin credentials:** `admin@test.com` / `adminpass123` (role: `superadmin`, branch: 1)
+
+---
+
+## Test Helpers
+
+**`el-templo-api/test/helpers.ts`** provides three core functions:
 
 ```typescript
-describe("Members Management Routes", () => {
+// Create a Fastify app connected to eltemplo_test
+export async function createTestApp(): Promise<FastifyInstance>
+
+// Login and return JWT token
+export async function getAuthToken(
+  app: FastifyInstance, email: string, password: string
+): Promise<string>
+
+// Register a new user, returns { token, user }
+export async function registerUser(
+  app: FastifyInstance,
+  data: { email: string; password: string; branchId: number; ... }
+): Promise<{ token: string; user: Record<string, unknown> }>
+```
+
+---
+
+## Integration Test Structure
+
+**Suite organization pattern (from `el-templo-api/test/attendance/attendance.test.ts`):**
+
+```typescript
+describe("Attendance API", () => {
   let app: FastifyInstance;
   let adminToken: string;
 
-  const baseMember = {
-    email: "member@test.com",
-    password: "pass123456",
-    firstName: "Juan",
-    lastName: "Perez",
-    phone: "+5491155551234",
-    dni: "30123456",
-    branchId: 1,
-  };
+  // Reusable payloads as constants
+  const basePlan = { name: "Plan Test", planTier: "flex", ... };
+  const baseMemberDefaults = { email: "test@test.com", password: "pass123456", ... };
 
   beforeAll(async () => {
+    // Optional: pin time with vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-11T10:00:00Z"));
+
     app = await createTestApp();
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await app.close();
   });
 
-  beforeEach(async () => {
-    // Clean up test data before each test
-    await cleanupTestMembers();
-  });
+  // Per-test cleanup helper
+  async function cleanupAll(): Promise<void> {
+    // Delete in FK order
+    await app.db.delete(auraTransactions);
+    await app.db.delete(bookings);
+    // ... more tables ...
+    // Delete non-admin users with FK checks disabled
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
+    // ... delete users ...
+    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
+  }
 
-  it("creates a member with valid input", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/admin/members",
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: baseMember,
+  // Domain-specific setup helpers
+  async function createPlan(overrides = {}): Promise<{ id: number }> { ... }
+  async function createMember(overrides = {}): Promise<{ id: number }> { ... }
+  async function setupMemberWithSubscription(): Promise<{ member, plan, subscription, memberToken }> { ... }
+
+  describe("Member Check-in", () => {
+    beforeEach(async () => { await cleanupAll(); });
+
+    it("POST valid QR check-in returns 201 with registrado record", async () => {
+      const { member, memberToken } = await setupMemberWithSubscription();
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/members/attendance/check-in",
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("registrado");
     });
-    expect(res.statusCode).toBe(200);
-    const body = JSON.parse(res.body);
-    expect(body.id).toBeGreaterThan(0);
   });
 });
 ```
 
-**Patterns:**
-
-1. **Setup and Teardown:**
-   - `beforeAll(async () => { ... })` — create test app, get auth tokens
-   - `afterAll(async () => { ... })` — close database connections
-   - `beforeEach(async () => { ... })` — clean up test data from previous tests
-
-2. **Helper Functions:**
-   - `createTestApp()` — returns Fastify instance connected to test database
-   - `getAuthToken(app, email, password)` — login and return JWT token
-   - `registerUser(app, data)` — register a new user and return token + user object
-   - `cleanupTestMembers()` — delete all test data in FK order to avoid constraint violations
-
-3. **Making HTTP Requests:**
-   - Use `app.inject()` for in-process HTTP testing (no network overhead)
-   - Format: `app.inject({ method: "POST", url: "/api/...", headers: {...}, payload: {...} })`
-   - Returns response object with `statusCode`, `body` (string), `headers`
-
-4. **Assertions:**
-   - HTTP status: `expect(res.statusCode).toBe(200)`
-   - Response body: `const body = JSON.parse(res.body); expect(body.id).toBeDefined()`
-   - Count: `expect(newBalance).toBe(10)`
-   - Error throwing: `await expect(async () => { ... }).rejects.toThrow("message")`
-
-## Mocking
-
-**Database Operations:**
-
-- No mocking of database calls
-- Tests run against real MySQL `eltemplo_test` database
-- Setup/teardown ensures clean state before each test
-
-**HTTP Requests:**
-
-- No mocking of Axios calls in backend tests (not applicable)
-- Frontend tests would use `vi.mock()` from vitest, but no frontend tests present yet
-
-**Authentication:**
-
-- Real JWT tokens are generated via `getAuthToken()` helper
-- Token includes user ID and role (coach/admin/superadmin)
-- Tokens are validated by Fastify's JWT plugin in each test request
-
-## Fixtures and Factories
-
-**Test Data:**
-
-```typescript
-const baseMember = {
-  email: "member@test-members.com",
-  password: "pass123456",
-  firstName: "Juan",
-  lastName: "Perez",
-  phone: "+5491155551234",
-  dni: "30123456",
-  branchId: 1,
-};
-
-async function createMember(
-  overrides: Record<string, unknown> = {},
-): Promise<{ id: number; [key: string]: unknown }> {
-  const res = await app.inject({
-    method: "POST",
-    url: "/api/admin/members",
-    headers: { authorization: `Bearer ${adminToken}` },
-    payload: { ...baseMember, ...overrides },
-  });
-  return JSON.parse(res.body);
-}
-```
-
-**Location:**
-
-- Inline in test files (at top of describe block)
-- Helper functions defined in same test file or shared in `test/helpers.ts`
-- AURA test data seeded in `beforeEach()` via SQL: `INSERT INTO aura_config (...)`
-
-## Coverage
-
-**Requirements:** No enforced coverage targets in vitest config
-
-**Current Coverage:**
-
-- API: Comprehensive integration tests for:
-  - `el-templo-api/test/members/members.test.ts` — Member CRUD, notes, DNI checks
-  - `el-templo-api/test/attendance/attendance.test.ts` — Check-in, attendance tracking
-  - `el-templo-api/test/scheduling/scheduling.test.ts` — Activities, schedules, bookings
-  - `el-templo-api/test/payments/payments.test.ts` — Payment recording, refunds
-  - `el-templo-api/test/subscriptions/subscriptions.test.ts` — Subscription lifecycle
-  - `el-templo-api/test/analytics/analytics.test.ts` — Analytics endpoints
-  - `el-templo-api/test/unit/aura-service.test.ts` — AURA economy (unit tests)
-  - Many more: auth, blog, academy, gladius, franchise, sessions, journeys, progression
-- Frontend: No tests present (coverage gaps)
-- Web: No tests present
-
-## Test Types
-
-**Unit Tests:**
-
-- Scope: Single service class methods without HTTP layer
-- Example: `test/unit/aura-service.test.ts` tests `AuraService.award()`, `.spend()`, `.getBalance()`
-- Pattern: Create service instance with test database, call methods directly, assert results
-- Database: Real (uses `eltemplo_test`)
-- Location: `test/unit/*.test.ts`
-
-**Integration Tests:**
-
-- Scope: Full HTTP request → route handler → service → database → response
-- Example: `test/members/members.test.ts` calls `/api/admin/members` endpoints
-- Pattern: Use `app.inject()` to simulate HTTP requests, validate response status and body
-- Database: Real (uses `eltemplo_test`)
-- Location: `test/{feature}/{feature}.test.ts`
-- Covers:
-  - Request validation (schemas enforce types)
-  - Authentication/authorization (token-based access control)
-  - Business logic (service methods called by routes)
-  - Database state changes (queries return updated data)
-  - Error handling (invalid inputs, missing resources, conflicts)
-
-**E2E Tests:**
-
-- Not implemented (Cypress/Playwright not installed)
-- Would test: User workflows across multiple pages/screens in mobile/web apps
-
-## Common Patterns
-
-**Async Testing:**
-
-```typescript
-it("lists members with pagination", async () => {
-  const { data } = await app.inject({
-    method: "GET",
-    url: "/api/admin/members?page=1&limit=10",
-    headers: { authorization: `Bearer ${adminToken}` },
-  });
-  const body = JSON.parse(data.body);
-  expect(body.members).toBeDefined();
-  expect(body.total).toBeGreaterThanOrEqual(0);
-});
-```
-
-**Error Testing:**
-
-```typescript
-it("rejects with 400 if email is invalid", async () => {
-  const res = await app.inject({
-    method: "POST",
-    url: "/api/admin/members",
-    headers: { authorization: `Bearer ${adminToken}` },
-    payload: { ...baseMember, email: "not-an-email" },
-  });
-  expect(res.statusCode).toBe(400);
-  const body = JSON.parse(res.body);
-  expect(body.error).toContain("email");
-});
-```
-
-**Transaction Testing (AURA Service):**
-
-```typescript
-it("accumulates balance across multiple awards", async () => {
-  await auraService.award({
-    userId: testUserId,
-    sourceType: "training_completion",
-    referenceType: "session",
-    referenceId: 1,
-  });
-
-  const newBalance = await auraService.award({
-    userId: testUserId,
-    sourceType: "attendance",
-    referenceType: "class",
-    referenceId: 1,
-  });
-
-  expect(newBalance).toBe(15); // 10 + 5 from config defaults
-});
-```
-
-## Testing Checklist for New Features
-
-When adding a new API endpoint:
-
-1. Create `test/{feature}/{feature}.test.ts`
-2. Import `createTestApp`, `getAuthToken`, `registerUser` from `test/helpers.ts`
-3. Set up test data in `beforeAll()` (auth tokens)
-4. Add cleanup helper in `beforeEach()` to delete test records
-5. Test happy path: valid input → 200 response with expected data
-6. Test auth: missing/invalid token → 401
-7. Test validation: invalid input (type, constraint) → 400 with error message
-8. Test conflicts: duplicate creation, overdue blocks, insufficient balance → appropriate status code
-9. Test not found: request non-existent resource → 404
-10. Run tests: `pnpm test` should pass sequentially against test database
-
-## Known Gaps
-
-**Frontend Testing:**
-
-- No tests for `el-templo-admin/` components or stores
-- No tests for `el-templo-app/` composables, stores, or pages
-- Vitest configured but no test files written
-- Missing: unit tests for composables (useSessionPlayer, useMembersApi, etc.)
-- Missing: store tests (Pinia store state and actions)
-
-**Web App Testing:**
-
-- No test framework configured
-- No tests for Nuxt pages or components
+**Key patterns:**
+- `app.inject()` for HTTP requests (Fastify's built-in test helper, no HTTP server needed)
+- `JSON.parse(res.body)` for response parsing
+- `expect(res.statusCode).toBe(...)` as first assertion
+- Custom error messages: `expect(res.statusCode, \`Expected 403 for ...\`).toBe(403)`
+- Setup composable helpers that build on each other (createPlan -> createMember -> assignPlan -> recordPayment)
 
 ---
 
-_Testing analysis: 2025-03-10_
+## Unit Test Structure
+
+**Pure function tests (from `el-templo-api/test/unit/date-utils.test.ts`):**
+
+```typescript
+describe("date-utils", () => {
+  describe("addDays", () => {
+    it("adds 1 day to a regular date", () => {
+      expect(addDays("2026-03-10", 1)).toBe("2026-03-11");
+    });
+
+    it("handles month boundary", () => {
+      expect(addDays("2026-03-31", 1)).toBe("2026-04-01");
+    });
+
+    it("handles February leap year", () => {
+      expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+    });
+  });
+});
+```
+
+**Key patterns:**
+- Nested `describe` blocks per function
+- Edge cases: boundaries (month, year, leap year), zero values, negative inputs
+- No setup/teardown needed for pure functions
+
+---
+
+## Service-Level Tests (DB-backed)
+
+**From `el-templo-api/test/unit/aura-service.test.ts`:**
+
+```typescript
+let app: FastifyInstance;
+let auraService: AuraService;
+let testUserId: number;
+
+beforeAll(async () => {
+  app = await createTestApp();
+  auraService = new AuraService(app.db, app.log);
+  const result = await registerUser(app, { ... });
+  testUserId = result.user.id;
+});
+
+afterAll(async () => { await app.close(); });
+
+beforeEach(async () => {
+  // Clean tables directly via Drizzle
+  await app.db.execute(sql`DELETE FROM aura_transactions`);
+  await app.db.execute(sql`DELETE FROM aura_balances`);
+  await app.db.execute(sql`DELETE FROM aura_config`);
+  // Re-seed config
+  await app.db.execute(sql`INSERT INTO aura_config ...`);
+});
+
+describe("AuraService.award()", () => {
+  it("creates a ledger entry and updates balance atomically", async () => {
+    const newBalance = await auraService.award({ ... });
+    expect(newBalance).toBe(10);
+  });
+
+  it("rejects duplicate awards", async () => {
+    await auraService.award({ ... });
+    await expect(auraService.award({ ... })).rejects.toThrow();
+  });
+});
+```
+
+**Key pattern:** Instantiate service directly with `app.db` and `app.log`, test methods without going through HTTP routes.
+
+---
+
+## Cleanup Strategy
+
+**Integration tests use per-test cleanup via `beforeEach`:**
+1. Delete child tables first (FK order): `aura_transactions` -> `bookings` -> `attendance` -> etc.
+2. Delete parent tables: `subscriptions` -> `subscription_plans`
+3. For user cleanup: `SET FOREIGN_KEY_CHECKS = 0`, delete non-admin users, `SET FOREIGN_KEY_CHECKS = 1`
+4. Always preserve the seeded admin user (`admin@test.com`)
+
+**Each test file manages its own cleanup** -- no shared cleanup across test files.
+
+---
+
+## Mocking
+
+**Time mocking (Vitest):**
+```typescript
+vi.useFakeTimers({ shouldAdvanceTime: true });
+vi.setSystemTime(new Date("2026-03-11T10:00:00Z")); // Pin to specific day
+// ... tests run at this frozen time ...
+vi.useRealTimers(); // Restore in afterAll
+```
+
+**What to mock in API tests:**
+- Time (when tests are date-sensitive -- booking windows, subscription expiry)
+- Nothing else -- tests run against real MySQL `eltemplo_test` database
+
+**What NOT to mock in API tests:**
+- Database queries (real DB)
+- Service dependencies (real service instances)
+- HTTP routes (real Fastify injection)
+
+---
+
+## Reference Bot Test Patterns (Python -- conftest.py)
+
+**Mock Redis (in-memory, no real Redis needed):**
+```python
+class MockRedisClient:
+    """In-memory mock mirroring the RedisClient interface."""
+    def __init__(self):
+        self._store = {}
+        self._expiry = {}
+        self._lock = threading.RLock()
+
+    def get(self, key): ...
+    def set(self, key, value, ex=None): ...
+    def hget(self, key, field): ...
+    def hset(self, key, mapping=None): ...
+    def eval(self, script, num_keys, *args): ...  # Simplified Lua execution
+```
+Apply this pattern in TypeScript: create a `MockRedis` class that implements the `ioredis` methods used by the bot.
+
+**Auto-patched fixtures (autouse=True):**
+```python
+@pytest.fixture(autouse=True)
+def mock_redis(monkeypatch):
+    mock = MockRedisClient()
+    monkeypatch.setattr(rc_module, "_instance", mock)
+    return mock
+
+@pytest.fixture(autouse=True)
+def _patch_external_calls(monkeypatch):
+    # Prevent real HTTP calls during tests
+    monkeypatch.setattr(requests, "post", lambda *a, **kw: FakeResponse())
+```
+
+**AI mock fixture (opt-in):**
+```python
+@pytest.fixture
+def mock_openai_classify(monkeypatch):
+    def _configure_mock(requiere_escalacion=False, razon="Default reason"):
+        mock_response = MagicMock()
+        # ... configure mock to return specific JSON ...
+        monkeypatch.setattr(human_handoff, "openai_client", mock_client)
+    return _configure_mock
+```
+
+**WhatsApp mock fixture:**
+```python
+@pytest.fixture
+def mock_whatsapp(monkeypatch):
+    mock_client = MagicMock()
+    mock_client.send_whatsapp_message.return_value = {"success": True}
+    monkeypatch.setattr(whatsapp_client, "send_whatsapp_message", ...)
+    return mock_client
+```
+
+---
+
+## Reference Bot Test Types
+
+**State machine tests (`tests/test_client_state.py`):**
+- Test enum values match expected strings
+- Test default state for new phone numbers
+- Test state storage and retrieval from Redis
+- Test atomic transitions (Lua script)
+- Test transition rejection when current state mismatches
+- Test TTL behavior (state keys should NOT expire)
+- Many marked `@pytest.mark.skip(reason="not implemented yet")` -- tests written before implementation
+
+**Security tests (`tests/test_security.py`):**
+- AST/source inspection: verify `markupsafe.escape` is imported
+- Verify no `str(e)` in error responses (no exception leak)
+- Verify tokens are not logged in full
+- Verify CORS is not wildcard
+
+**Scenario tests (`tests/test_40_scenarios.py`):**
+- 40 end-to-end conversation scenarios against the live bot
+- Each scenario: send messages, check response with lambda assertion
+- Categories: ventas, soporte, tracking, edge cases
+- Runnable against local or production URL
+- Pattern: `{"messages": [...], "expected": "...", "check": lambda r: ...}`
+
+---
+
+## Bot Testing Strategy (el-templo-bot -- to be built)
+
+Based on analysis of both codebases, follow this testing strategy:
+
+**Unit tests** (`el-templo-bot/test/unit/`):
+- State machine transitions (`state/machine.ts`)
+- AI provider interface (mock AI responses)
+- WhatsApp payload parsing (`whatsapp/types.ts`)
+- Session context extraction
+- No DB, no Redis needed -- use mocks
+
+**Integration tests** (`el-templo-bot/test/` or `el-templo-api/test/whatsapp/`):
+- Webhook endpoint (POST /webhook) -- Fastify injection
+- State determination from DB (phone -> user lookup -> subscription check)
+- Scheduler logic (class reminders, trial follow-ups)
+- Uses real MySQL `eltemplo_test` database
+
+**Required test fixtures for bot:**
+- `MockRedis` class (TypeScript port of Python `MockRedisClient`)
+- `MockAiProvider` implementing `AiProvider` interface with canned responses
+- `MockWhatsAppClient` that captures sent messages without calling Meta API
+- Reuse `createTestApp`/`registerUser` from `el-templo-api/test/helpers.ts` for DB setup
+
+**Test framework:** Vitest (same as API, consistent tooling). Add to `el-templo-bot/package.json`:
+```json
+{
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  }
+}
+```
+
+---
+
+## Coverage
+
+**Requirements:** None enforced currently. No coverage thresholds configured.
+
+**CI runs:** Type check, lint, security audit, integration tests, build -- on every push.
+
+---
+
+## Common Assertion Patterns
+
+**Status code + body parsing:**
+```typescript
+expect(res.statusCode).toBe(201);
+const body = JSON.parse(res.body);
+expect(body.id).toBeTruthy();
+expect(body.status).toBe("registrado");
+```
+
+**Error message assertion (Spanish):**
+```typescript
+expect(res.statusCode).toBe(400);
+const body = JSON.parse(res.body);
+expect(body.message).toContain("suscripcion activa");
+```
+
+**Async error assertion:**
+```typescript
+await expect(
+  auraService.spend({ userId: testUserId, amount: 50, description: "Too expensive" }),
+).rejects.toThrow("Insufficient");
+```
+
+**Auth/authorization assertions:**
+```typescript
+// 401 for unauthenticated
+const res = await app.inject({ method: "POST", url: "/api/...", payload: { ... } });
+expect(res.statusCode).toBe(401);
+
+// 403 for wrong role
+const res = await app.inject({
+  method: "GET", url: "/api/admin/...",
+  headers: { authorization: `Bearer ${memberToken}` },
+});
+expect(res.statusCode, `Expected 403 for GET /api/admin/...`).toBe(403);
+```
+
+---
+
+*Testing analysis: 2026-03-17*
