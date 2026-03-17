@@ -35,13 +35,14 @@
                 {{ authStore.error }}
               </q-banner>
 
-              <q-btn
-                type="submit"
-                label="Ingresar"
-                color="primary"
-                class="full-width"
-                :loading="authStore.loading"
-              />
+              <div class="flex flex-center">
+                <q-btn
+                  type="submit"
+                  label="Ingresar"
+                  color="primary"
+                  :loading="authStore.loading"
+                />
+              </div>
             </q-form>
           </q-card-section>
         </q-card>
