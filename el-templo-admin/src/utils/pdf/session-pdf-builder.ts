@@ -365,6 +365,7 @@ const LEVEL_BOX_WIDTH = 1780;
  */
 function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
+  const isPyramidBlock = lb.exercises.some((ex) => ex.formatType === 'pyramid');
 
   // Calculate box height: use target if provided, otherwise fit content
   const exerciseCount = lb.exercises.length;
@@ -392,7 +393,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
           text: volume,
           fontSize: 64,
           color: GOLD,
-          width: 480,
+          width: isPyramidBlock ? 480 : 276,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
@@ -571,6 +572,7 @@ function buildFullBlockPage(block: PdfBlockPage): Content[] {
 function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
   const symbolSize = 76;
+  const isPyramidBlock = lb.exercises.some((ex) => ex.formatType === 'pyramid');
 
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
@@ -589,7 +591,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
           text: volume,
           fontSize: 52,
           color: GOLD,
-          width: 360,
+          width: isPyramidBlock ? 360 : 200,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
