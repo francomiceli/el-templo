@@ -96,16 +96,22 @@ function buildPyramidVolume(ex: PdfExercise): string {
   const start = Number(isIso ? ex.secondsMax : ex.repsMax) || 2;
   const step = Number(ex.increment) || 2;
   const peak = Number(isIso ? ex.seconds : ex.reps) || 10;
-  const suffix = isIso ? '"' : '';
+  const q = isIso ? '"' : ''; // quote suffix per number for ISO
   if (step <= 0 || peak <= 0 || start <= 0 || start > peak) return '';
   const up: number[] = [];
   for (let i = start; i <= peak; i += step) up.push(i);
   const down = up.slice(0, -1).reverse();
   const all = [...up, ...down];
-  if (all.length <= 5) return all.join('-') + suffix;
-  const first = all.slice(0, 2).join('-');
-  const last = all.slice(-2).join('-');
-  return `${first}...${peak}...${last}${suffix}`;
+  if (all.length <= 5) return all.map((n) => `${n}${q}`).join('-');
+  const first = all
+    .slice(0, 2)
+    .map((n) => `${n}${q}`)
+    .join('-');
+  const last = all
+    .slice(-2)
+    .map((n) => `${n}${q}`)
+    .join('-');
+  return `${first}...${peak}${q}...${last}`;
 }
 
 /** Build volume display string for an exercise */
@@ -386,7 +392,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
           text: volume,
           fontSize: 64,
           color: GOLD,
-          width: 276,
+          width: 480,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
@@ -583,7 +589,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
           text: volume,
           fontSize: 52,
           color: GOLD,
-          width: 200,
+          width: 360,
           alignment: 'right' as const,
           bold: true,
           font: 'NunitoSans',
