@@ -2,29 +2,27 @@
 
 ## What This Is
 
-A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
+A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), a public-facing marketing site (el-templo-web), and a WhatsApp AI chatbot (el-templo-bot). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 began ecosystem integration (admin consolidation, attendance/scheduling, data migration), and v5 adds the WhatsApp AI chatbot for automated customer service and class booking.
 
-## Current Milestone: v4.1 Admin Consolidation & Data Migration
+## Current Milestone: v5.0 WhatsApp AI Chatbot
 
-**Goal:** Make the admin + member app ecosystem operational for physical branches by importing real member data, enhancing the admin with features from the legacy system tutorials, and deploying everything to production.
+**Goal:** Build a WhatsApp AI chatbot that auto-answers questions about classes, schedules, pricing, and memberships — with tools for booking classes, registering trials, and escalating to human agents. Includes admin panel for conversation management and human takeover.
 
 **Target features:**
 
-- Production deployment: push all v4.0 staging work to production so all environments match
-- Schema extensions & data import: add documentType, address fields; import 5 branch CSV datasets (alem, constitucion, jujuy, mogotes, moreno)
-- QR access system: kiosk welcome screen + enhanced admin panel with soft verification (subscription validity, warnings, no hard blocks)
-- Plan configuration: turnos-per-week limits, class-based plans (X classes to spend), multi-branch flag, trial flag, grace period
-- Cash box (Estado de Caja): daily cash reconciliation, float entry, collection tracking by payment method
-- Payment improvements: discounts with reason, charge cancellation (frees booking slots), cuenta corriente (account balance/debt tracking)
-- Enhanced reports: access log, charge history, debt list, expiring memberships, inactive members — all as dashboard tabs with filters + Excel export
-- Role-based permissions: admin, coach, recepcionista, owner roles with predefined permission sets
-- Member management: photo upload, subscription change workflow, Excel export
+- WhatsApp Cloud API integration (official Meta, webhook-based)
+- AI-primary message processing with function calling tools (check_schedule, book_class, check_membership, register_trial, get_location, request_human)
+- Two-layer customer memory: session context (Redis 6h TTL) + profile (Redis 90d TTL)
+- Client state machine: LEAD → TRIAL → ACTIVE_MEMBER → LAPSED → RETURNING
+- Proactive schedulers: class reminders, trial follow-ups (node-cron + Redis distributed locks)
+- Admin panel: conversation list + chat UI in el-templo-admin
+- Human takeover: admin takes over conversation, sends messages, resumes bot
 
 ## Core Value
 
 Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels — transforming daily training into visible progression toward mastery.
 
-**v4.1 core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
+**v5.0 core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
 
 ## Requirements
 
@@ -44,21 +42,26 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ Member management CRUD, subscriptions, payments, attendance, scheduling, analytics (v4.0)
 - ✓ QR check-in, class booking, dashboard analytics (v4.0)
 - ✓ Registration flow fixes, codebase health, god object decomposition (v4.0)
+- ✓ Production deployment of v4.0 staging work (v4.1)
+- ✓ Schema extensions (documentType, address), CSV data import for 5 branches (v4.1)
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v4.1 scope)
+See: .planning/REQUIREMENTS.md (v5.0 scope)
 
 ### Out of Scope
 
-- **APK Signing / Play Store** — Deferred from v2.0 (Phase 21), pick up post-v4.0
-- **Lifestyle / Mi Camino** — v5.0 (habits, journal, challenges, philosophical tools)
-- **AURA Economy (milestones, store)** — v5.0 (foundation tables in v4.0, but economy features later)
-- **Social / Agora** — v5.0+ (feed, missions, reactions, career path)
-- **Online model + Payment gateway** — v6.0+ (freemium, premium gate, Mercado Pago/Stripe)
+- **APK Signing / Play Store** — Deferred from v2.0 (Phase 21), pick up post-v5.0
+- **v4.1 remaining phases (60-66)** — Deferred: plan config, access control, payments, cash box, member mgmt, reports, roles. Pick up in a future milestone.
+- **Lifestyle / Mi Camino** — v6.0+ (habits, journal, challenges, philosophical tools)
+- **AURA Economy (milestones, store)** — v6.0+ (foundation tables in v4.0, but economy features later)
+- **Social / Agora** — v6.0+ (feed, missions, reactions, career path)
+- **Online model + Payment gateway** — v7.0+ (freemium, premium gate, Mercado Pago/Stripe)
 - **Multi-tenancy / SaaS** — Not a goal. El Templo only.
 - **DeportNet import** — One-time migration, already done
 - **Zero Pricing Engine (full)** — Over-engineered. Simpler AURA-discount pricing when needed.
+- **Baileys/BuilderBot** — Rejected in favor of official WhatsApp Cloud API (stability, no QR/session headaches)
+- **Message queue (BullMQ/RabbitMQ)** — Over-engineered at ~100 convs/day. Node.js async sufficient.
 
 ## Context
 
@@ -68,15 +71,18 @@ See: .planning/REQUIREMENTS.md (v4.1 scope)
 
 **Arete App (reference codebase):** React Native/Expo lifestyle app with 39 habits, journal, challenges, philosophical tools, AURUM economy. Code used as reference only — features rebuilt in Vue/Capacitor when lifestyle module is built.
 
-**Build sequence (7 phases across multiple milestones):**
+**RenovaFacil (reference implementation):** Python/Flask WhatsApp bot for e-commerce (digital-initiatives/whatsapp-agent-renovafacil). Production bot using Cloud API, two-layer memory, client state machine, distributed lock schedulers. Used as architecture pattern reference — code translated to TypeScript, not copied.
+
+**Build sequence (milestones):**
 
 1. ✓ Light restructure (v4.0)
-2. ✱ Admin consolidation (v4.0 started, v4.1 completes)
+2. ✱ Admin consolidation (v4.0 started, v4.1 partial — phases 60-66 deferred)
 3. ✓ Attendance & scheduling (v4.0)
-4. Lifestyle / Mi Camino (v5.0)
-5. AURA economy (v5.0)
-6. Social / Agora (v5.0+)
-7. Online model + Payment gateway (v6.0+)
+4. ◆ WhatsApp AI Chatbot (v5.0)
+5. Lifestyle / Mi Camino (v6.0+)
+6. AURA economy (v6.0+)
+7. Social / Agora (v6.0+)
+8. Online model + Payment gateway (v7.0+)
 
 **Key execution principle:** Ship each phase to production before starting the next. Don't let "building the ecosystem" become a never-ending staging branch.
 
@@ -89,6 +95,10 @@ See: .planning/REQUIREMENTS.md (v4.1 scope)
 - **Frontend**: One member app (el-templo-app) with lazy-loaded modules.
 - **Reference code**: Net and Arete codebases are reference only — not imported directly.
 - **Infrastructure**: Same EC2/Nginx/PM2 deployment as existing apps.
+- **Bot process**: el-templo-bot is a separate Node.js/TypeScript process alongside el-templo-api. Crash isolation — bot doesn't take down the API. Calls API via localhost HTTP for actions.
+- **WhatsApp**: Official Cloud API (Meta) only. No Baileys/reverse-engineered libraries.
+- **AI**: Model-agnostic (OpenAI GPT-4o mini or Anthropic Haiku). Abstracted behind AiProvider interface.
+- **State**: Redis for ephemeral state (context windows, locks, caching). MySQL for permanent records (conversations, messages).
 
 ## Key Decisions
 
@@ -110,7 +120,12 @@ See: .planning/REQUIREMENTS.md (v4.1 scope)
 | Auto-generated missions first      | Social works without coach effort. Coach-created missions as enhancement          | — Pending |
 | AURA tracking from day 1           | Foundation tables track activity early so early adopters aren't penalized         | — Pending |
 | Payment gateway with online model  | Don't delay revenue — online premium conversion requires payment processing       | — Pending |
+| Separate bot process               | Crash isolation — bot shouldn't take down production API                          | — Pending |
+| WhatsApp Cloud API (not Baileys)   | Stable, officially supported, no QR/session issues. RenovaFacil validates approach | — Pending |
+| AI-primary (no keyword flows)      | Every message to AI with tools. Natural language > rigid menus. RenovaFacil proves this works | — Pending |
+| Redis for ephemeral state          | Context windows, locks, caching in Redis. Permanent records in MySQL              | — Pending |
+| Model-agnostic AI abstraction      | Easy swap between OpenAI/Anthropic via config. Test both, pick best for gym context | — Pending |
 
 ---
 
-_Last updated: 2026-03-14 after v4.1 milestone initialization_
+_Last updated: 2026-03-17 after v5.0 milestone initialization_
