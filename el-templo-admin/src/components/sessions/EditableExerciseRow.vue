@@ -160,41 +160,80 @@
           </template>
         </template>
 
-        <!-- Pyramid: per-exercise start (repsMax) + step (increment) + peak (reps) + preview -->
+        <!-- Pyramid: per-exercise start + step + peak + preview -->
         <template v-else-if="isPyramid">
-          <q-input
-            v-model.number="localRepsMax"
-            type="number"
-            dense
-            outlined
-            label="Inicio"
-            class="editable-field"
-            input-class="text-center"
-            @blur="emitUpdate"
-            @keyup.enter="emitUpdate"
-          />
-          <q-input
-            v-model.number="localIncrement"
-            type="number"
-            dense
-            outlined
-            label="Paso"
-            class="editable-field"
-            input-class="text-center"
-            @blur="emitUpdate"
-            @keyup.enter="emitUpdate"
-          />
-          <q-input
-            v-model.number="localReps"
-            type="number"
-            dense
-            outlined
-            label="Pico"
-            class="editable-field"
-            input-class="text-center"
-            @blur="emitUpdate"
-            @keyup.enter="emitUpdate"
-          />
+          <!-- ISO: use seconds fields -->
+          <template v-if="isIso">
+            <q-input
+              v-model.number="localSecondsMax"
+              type="number"
+              dense
+              outlined
+              label="Inicio (seg)"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Paso (seg)"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localSeconds"
+              type="number"
+              dense
+              outlined
+              label="Pico (seg)"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+          <!-- CON/EXC: use reps fields -->
+          <template v-else>
+            <q-input
+              v-model.number="localRepsMax"
+              type="number"
+              dense
+              outlined
+              label="Inicio"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Paso"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localReps"
+              type="number"
+              dense
+              outlined
+              label="Pico"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
           <span class="text-caption text-grey-6">{{ pyramidExercisePreview }}</span>
         </template>
 
@@ -521,18 +560,19 @@ const isPyramid = computed(() => {
 });
 
 const pyramidExercisePreview = computed(() => {
-  const start = Number(localRepsMax.value) || 2;
+  const start = Number(isIso.value ? localSecondsMax.value : localRepsMax.value) || 2;
   const step = Number(localIncrement.value) || 2;
-  const peak = Number(localReps.value) || 10;
+  const peak = Number(isIso.value ? localSeconds.value : localReps.value) || 10;
   if (step <= 0 || peak <= 0 || start <= 0 || start > peak) return '';
   const up: number[] = [];
   for (let i = start; i <= peak; i += step) up.push(i);
   const down = up.slice(0, -1).reverse();
   const all = [...up, ...down];
-  if (all.length <= 7) return all.join('-');
+  const suffix = isIso.value ? 's' : '';
+  if (all.length <= 7) return all.join('-') + suffix;
   const first = all.slice(0, 3).join('-');
   const last = all.slice(-3).join('-');
-  return `${first}...${peak}...${last}`;
+  return `${first}...${peak}...${last}${suffix}`;
 });
 
 const isIGoYouGo = computed(() => {
