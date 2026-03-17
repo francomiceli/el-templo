@@ -760,4 +760,142 @@ describe("Subscriptions API", () => {
       expect(activeSub.status).toBe("active");
     });
   });
+
+  // =========================================================================
+  // Class Tracking & Budget Calculation (Phase 60)
+  // =========================================================================
+  describe("Class Tracking & Budget Calculation", () => {
+    beforeEach(async () => {
+      await cleanupSubscriptionData();
+    });
+
+    it("POST assign — calculates classesRemaining from plan classesPerWeek and durationDays", async () => {
+      // Plan with classesPerWeek=2 and durationDays=30
+      // Budget = ceil(30/7) * 2 = ceil(4.28) * 2 = 5 * 2 = 10
+      const plan = await createPlan({
+        name: "Flex 2x",
+        classesPerWeek: 2,
+        durationDays: 30,
+      });
+      const member = await createMember();
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+      });
+
+      expect(statusCode).toBe(201);
+      expect(body.classesRemaining).toBe(10);
+    });
+
+    it("POST assign — sets classesRemaining to null when plan has no classesPerWeek", async () => {
+      const plan = await createPlan({
+        name: "Open Plan",
+        classesPerWeek: undefined,
+        durationDays: 30,
+      });
+      const member = await createMember();
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+      });
+
+      expect(statusCode).toBe(201);
+      expect(body.classesRemaining).toBeNull();
+    });
+
+    it("POST assign — stores fixedDays when plan is fixed mode", async () => {
+      const plan = await createPlan({
+        name: "Fixed MWF",
+        bookingMode: "fixed",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+        fixedDays: [1, 3, 5],
+      });
+
+      expect(statusCode).toBe(201);
+      expect(body.fixedDays).toEqual([1, 3, 5]);
+    });
+
+    it("POST assign — fixedDays is null for flexible plans", async () => {
+      const plan = await createPlan({
+        name: "Flex Plan",
+        bookingMode: "flexible",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+
+      const { statusCode, body } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+      });
+
+      expect(statusCode).toBe(201);
+      expect(body.fixedDays).toBeNull();
+    });
+
+    it("GET subscription detail includes classesRemaining, fixedDays, and graceCheckInsAfterExpiry", async () => {
+      const plan = await createPlan({
+        name: "Flex Detail Test",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // ceil(30/7) * 3 = 5 * 3 = 15
+      expect(body.classesRemaining).toBe(15);
+      expect(body.fixedDays).toBeNull();
+      expect(body.graceCheckInsAfterExpiry).toBe(0);
+    });
+
+    it("GET class-usage returns usage info for a member", async () => {
+      const plan = await createPlan({
+        name: "Flex Usage Test",
+        classesPerWeek: 3,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-03-01",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/class-usage`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body).toHaveProperty("classesRemaining");
+      expect(body).toHaveProperty("classesUsedThisWeek");
+      expect(body).toHaveProperty("weeklyLimit");
+      expect(body).toHaveProperty("fixedDays");
+      expect(body).toHaveProperty("bookingMode");
+      expect(body.classesUsedThisWeek).toBe(0);
+      expect(body.weeklyLimit).toBe(3);
+      expect(body.bookingMode).toBe("flexible");
+    });
+  });
 });
