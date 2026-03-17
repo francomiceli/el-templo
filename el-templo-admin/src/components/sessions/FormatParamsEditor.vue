@@ -263,36 +263,6 @@
       />
     </div>
 
-    <!-- Cluster (clusterSize + restBetweenClusters) -->
-    <div v-else-if="localParams?.type === 'cluster'" class="row items-center q-gutter-sm">
-      <q-input
-        v-model.number="localParams.clusterSize"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="1"
-        :max="10"
-        label="Reps por cluster"
-        style="min-width: 120px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
-      <q-input
-        v-model.number="localParams.restBetweenClusters"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="5"
-        :max="300"
-        label="Descanso (seg)"
-        style="min-width: 120px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
-    </div>
-
     <!-- Ladder / Ladder Corta (direction + start + step + rounds) -->
     <div
       v-else-if="localParams && ['ladder', 'ladder_corta'].includes(String(localParams.type))"
