@@ -125,6 +125,15 @@
       :date="selectedSlotDate"
       @bookings-changed="loadWeeklyGrid"
     />
+    <SlotAttendancePanel
+      v-if="selectedAttendanceSlot"
+      v-model="showAttendancePanel"
+      :schedule-id="selectedAttendanceSlot.scheduleId"
+      :date="selectedAttendanceSlot.date"
+      :activity-name="selectedAttendanceSlot.activityName"
+      :start-time="selectedAttendanceSlot.startTime"
+      @attendance-changed="loadWeeklyGrid"
+    />
     <ActivitiesDialog v-model:show="showActivitiesDialog" />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
   </q-page>
@@ -140,6 +149,7 @@ import type { WeeklySlotView, HolidayRecord, DayOfWeek } from 'src/types/schedul
 import { DAY_SHORT_LABELS } from 'src/types/scheduling';
 import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
+import SlotAttendancePanel from 'src/components/SlotAttendancePanel.vue';
 import ActivitiesDialog from 'src/components/scheduling/ActivitiesDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
 
@@ -162,6 +172,15 @@ const selectedSlotScheduleId = ref<number | null>(null);
 const selectedSlotDate = ref('');
 const showActivitiesDialog = ref(false);
 const showHolidaysDialog = ref(false);
+
+// Attendance panel
+const showAttendancePanel = ref(false);
+const selectedAttendanceSlot = ref<{
+  scheduleId: number;
+  date: string;
+  activityName: string;
+  startTime: string;
+} | null>(null);
 
 // ─── Computed ───────────────────────────────────────────────────────────────
 
@@ -329,16 +348,30 @@ function onBranchChange() {
   loadWeeklyGrid();
 }
 
-// ─── Cell Click -> Open Slot Detail Dialog ──────────────────────────────────
+// ─── Cell Click -> Open Slot Detail or Attendance Panel ──────────────────────
 
 function onCellClick(time: string, dayOfWeek: DayOfWeek, date: string) {
   const slot = getCellSlot(time, dayOfWeek);
   if (!slot) return;
   if (isCellHoliday(date)) return;
 
-  selectedSlotScheduleId.value = slot.id;
-  selectedSlotDate.value = date;
-  showSlotDialog.value = true;
+  const today = formatDateISO(new Date());
+
+  if (date <= today) {
+    // Today or past: open attendance panel
+    selectedAttendanceSlot.value = {
+      scheduleId: slot.id,
+      date,
+      activityName: slot.activityName,
+      startTime: slot.startTime,
+    };
+    showAttendancePanel.value = true;
+  } else {
+    // Future: open slot detail dialog (booking management)
+    selectedSlotScheduleId.value = slot.id;
+    selectedSlotDate.value = date;
+    showSlotDialog.value = true;
+  }
 }
 
 // ─── Watchers & Lifecycle ────────────────────────────────────────────────────
