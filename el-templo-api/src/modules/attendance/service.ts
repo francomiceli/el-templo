@@ -14,7 +14,6 @@ import { BadRequestError } from "../shared/errors";
 import { validateQrToken } from "../shared/qr-token";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { SettingsService } from "../settings/service";
 import { AuraService } from "../aura/service";
 import type {
   AttendanceRecord,
@@ -30,7 +29,6 @@ export class AttendanceService {
     private paymentService: PaymentService,
     private subscriptionService: SubscriptionService,
     private auraService: AuraService,
-    private settingsService: SettingsService,
   ) {}
 
   // ─── Check-in Methods ──────────────────────────────────────────────────────
@@ -38,9 +36,10 @@ export class AttendanceService {
   /**
    * Member QR check-in.
    *
-   * Validates QR token, checks subscription (with grace period), overdue status,
-   * branch enforcement, fixed-day enforcement, weekly limit, monthly budget,
-   * and one-per-day constraint. Creates attendance record and decrements budget.
+   * Validates QR token, checks subscription (expired = hard block),
+   * overdue status, branch enforcement, weekly limit, monthly budget,
+   * and one-per-day constraint. Creates attendance with status "confirmado"
+   * and awards AURA immediately.
    */
   async checkIn(memberId: number, qrToken: string): Promise<AttendanceRecord> {
     // Validate QR token
@@ -51,8 +50,9 @@ export class AttendanceService {
 
     const branchId = qrPayload.branchId;
 
-    // Check subscription with grace period support
-    const subscription = await this.getSubscriptionWithGracePeriod(memberId);
+    // Check subscription (auto-expire catches expired subs, returns null = hard block)
+    const subscription =
+      await this.subscriptionService.getMemberSubscription(memberId);
     if (!subscription) {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
@@ -84,17 +84,6 @@ export class AttendanceService {
         throw new BadRequestError(
           "Tu plan solo permite asistir a tu sede asignada",
         );
-      }
-    }
-
-    // Fixed-day check: if subscription has fixedDays, check today's ISO day
-    const fixedDays = this.parseFixedDays(subscription.fixedDays);
-    if (fixedDays !== null && fixedDays.length > 0) {
-      const now = new Date();
-      const jsDay = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-      const isoDay = jsDay === 0 ? 7 : jsDay; // 1=Mon, ..., 7=Sun
-      if (!fixedDays.includes(isoDay)) {
-        throw new BadRequestError("Hoy no es un dia asignado de tu plan");
       }
     }
 
@@ -143,16 +132,26 @@ export class AttendanceService {
       )
       .limit(1);
 
-    // Insert attendance record (with scheduleId if booking found)
+    // Insert attendance record with status "confirmado" (auto-confirmed on QR scan)
     const result = await this.db.insert(schema.attendance).values({
       memberId,
       branchId,
       scheduleId: todayBooking?.scheduleId ?? null,
-      status: "registrado",
+      status: "confirmado",
       source: "qr",
     });
 
     const recordId = Number(result[0].insertId);
+
+    // Award AURA immediately on QR check-in
+    await this.auraService.award({
+      userId: memberId,
+      sourceType: "attendance",
+      referenceType: "attendance",
+      referenceId: recordId,
+      amount: 10,
+      description: "Asistencia confirmada",
+    });
 
     // Decrement classesRemaining if tracked
     if (
@@ -191,9 +190,9 @@ export class AttendanceService {
   /**
    * Force check-in by admin/coach.
    *
-   * Bypasses all enforcement (subscription, overdue, weekly, monthly,
-   * fixed day, grace period). Creates attendance with source="manual".
-   * Still decrements classesRemaining to keep budget accurate.
+   * Bypasses all enforcement (subscription, overdue, weekly, monthly).
+   * Creates attendance with source="manual" and status="confirmado".
+   * Awards 10 AURA immediately. Still decrements classesRemaining to keep budget accurate.
    */
   async forceCheckIn(
     input: ForceCheckInInput,
@@ -206,11 +205,21 @@ export class AttendanceService {
       memberId,
       branchId,
       scheduleId: null,
-      status: "registrado",
+      status: "confirmado",
       source: "manual",
     });
 
     const recordId = Number(result[0].insertId);
+
+    // Award AURA immediately on force check-in
+    await this.auraService.award({
+      userId: memberId,
+      sourceType: "attendance",
+      referenceType: "attendance",
+      referenceId: recordId,
+      amount: 10,
+      description: "Asistencia confirmada (manual)",
+    });
 
     // Still decrement classesRemaining if applicable
     const subscription =
@@ -301,7 +310,6 @@ export class AttendanceService {
         branchId: schema.attendance.branchId,
         branchName: schema.branches.name,
         checkedInAt: schema.attendance.checkedInAt,
-        confirmedAt: schema.attendance.confirmedAt,
         status: schema.attendance.status,
         source: schema.attendance.source,
       })
@@ -368,7 +376,6 @@ export class AttendanceService {
         branchId: schema.attendance.branchId,
         branchName: schema.branches.name,
         checkedInAt: schema.attendance.checkedInAt,
-        confirmedAt: schema.attendance.confirmedAt,
         status: schema.attendance.status,
         source: schema.attendance.source,
       })
@@ -398,7 +405,6 @@ export class AttendanceService {
     branchId: number;
     branchName: string;
     checkedInAt: Date;
-    confirmedAt: Date | null;
     status: string;
     source: string;
   }): AttendanceRecord {
@@ -411,96 +417,9 @@ export class AttendanceService {
       branchId: row.branchId,
       branchName: row.branchName,
       checkedInAt: row.checkedInAt.toISOString(),
-      confirmedAt: row.confirmedAt?.toISOString() ?? null,
       status: row.status as AttendanceStatus,
       source: row.source as "qr" | "manual",
     };
-  }
-
-  // ─── Grace Period & Enforcement Helpers ───────────────────────────────────
-
-  /**
-   * Get the member's subscription, with grace period awareness.
-   *
-   * The standard getMemberSubscription auto-expires subscriptions past their endDate.
-   * This method intercepts before that happens:
-   * - If subscription is active and not expired: returns it normally.
-   * - If subscription endDate < today but within grace period: returns it (transparent access).
-   * - If past grace period and graceCheckInsAfterExpiry === 0: returns it but increments counter (first warning).
-   * - If past grace period and graceCheckInsAfterExpiry >= 1: hard block.
-   *
-   * Returns null when no subscription found (same as getMemberSubscription).
-   */
-  private async getSubscriptionWithGracePeriod(memberId: number): Promise<{
-    id: number;
-    planId: number;
-    classesRemaining: number | null;
-    fixedDays: unknown;
-    graceCheckInsAfterExpiry: number;
-    endDate: string | null;
-  } | null> {
-    // Get raw active/paused subscription WITHOUT auto-expire
-    const [row] = await this.db
-      .select({
-        id: schema.subscriptions.id,
-        planId: schema.subscriptions.planId,
-        status: schema.subscriptions.status,
-        endDate: schema.subscriptions.endDate,
-        classesRemaining: schema.subscriptions.classesRemaining,
-        fixedDays: schema.subscriptions.fixedDays,
-        graceCheckInsAfterExpiry: schema.subscriptions.graceCheckInsAfterExpiry,
-      })
-      .from(schema.subscriptions)
-      .where(
-        and(
-          eq(schema.subscriptions.userId, memberId),
-          sql`${schema.subscriptions.status} IN ('active', 'paused')`,
-        ),
-      )
-      .limit(1);
-
-    if (!row) return null;
-
-    // If no end date or subscription not expired, return as-is
-    const today = new Date().toISOString().split("T")[0];
-    if (!row.endDate || row.endDate >= today) {
-      return row;
-    }
-
-    // Subscription is expired (endDate < today). Check grace period.
-    const gracePeriodDays = await this.settingsService.getGracePeriodDays();
-
-    const endDateObj = new Date(row.endDate + "T12:00:00Z");
-    const todayObj = new Date(today + "T12:00:00Z");
-    const daysSinceExpiry = Math.floor(
-      (todayObj.getTime() - endDateObj.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (daysSinceExpiry <= gracePeriodDays) {
-      // Within grace period: allow silently (transparent)
-      return row;
-    }
-
-    // Past grace period
-    if (row.graceCheckInsAfterExpiry >= 1) {
-      // Second+ check-in after grace: hard block
-      throw new BadRequestError(
-        "Suscripcion vencida — renovar. Consulta con tu coach.",
-      );
-    }
-
-    // First check-in after grace period: allow but increment counter (warning)
-    await this.db
-      .update(schema.subscriptions)
-      .set({ graceCheckInsAfterExpiry: 1 })
-      .where(eq(schema.subscriptions.id, row.id));
-
-    this.log.info(
-      { memberId, subscriptionId: row.id, daysSinceExpiry },
-      "First post-grace check-in — warning issued to admin",
-    );
-
-    return { ...row, graceCheckInsAfterExpiry: 1 };
   }
 
   /**
@@ -535,23 +454,5 @@ export class AttendanceService {
       );
 
     return Number(result?.count ?? 0);
-  }
-
-  /**
-   * Parse fixedDays from JSON storage.
-   * Returns typed number array or null.
-   */
-  private parseFixedDays(raw: unknown): number[] | null {
-    if (raw === null || raw === undefined) return null;
-    if (typeof raw === "string") {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed as number[];
-      } catch {
-        return null;
-      }
-    }
-    if (Array.isArray(raw)) return raw as number[];
-    return null;
   }
 }

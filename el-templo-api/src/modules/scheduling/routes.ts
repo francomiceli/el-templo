@@ -23,7 +23,6 @@ import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { SettingsService } from "../settings/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -65,19 +64,16 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
-  const settingsService = new SettingsService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
-    settingsService,
   );
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
-    settingsService,
   );
 
   /**
@@ -330,19 +326,16 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
   const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
-  const settingsServiceMember = new SettingsService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
-    settingsServiceMember,
   );
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
-    settingsServiceMember,
   );
 
   /**

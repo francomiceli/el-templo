@@ -169,27 +169,6 @@ export class SchedulingService {
     );
     const holidayDates = new Set(holidaysInWeek.map((h) => h.date));
 
-    // Query unconfirmed attendance for the whole week (one query)
-    const unconfirmedRows = await this.db
-      .select({
-        attDate: sql<string>`DATE(${schema.attendance.checkedInAt})`,
-        cnt: sql<number>`COUNT(*)`,
-      })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.branchId, branchId),
-          sql`DATE(${schema.attendance.checkedInAt}) BETWEEN ${weekStartDate} AND ${weekEnd}`,
-          eq(schema.attendance.status, "registrado"),
-        ),
-      )
-      .groupBy(sql`DATE(${schema.attendance.checkedInAt})`);
-
-    const unconfirmedByDate = new Map<string, number>();
-    for (const row of unconfirmedRows) {
-      unconfirmedByDate.set(String(row.attDate), Number(row.cnt));
-    }
-
     // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1)
     const scheduleIds = scheduleRows.map((r) => r.id);
     const bookingCountMap = new Map<string, number>();
@@ -241,7 +220,7 @@ export class SchedulingService {
         maxCapacity,
         isFull: bookedCount >= maxCapacity,
         isHoliday: holidayDates.has(slotDate),
-        unconfirmedAttendance: unconfirmedByDate.get(slotDate) ?? 0,
+        unconfirmedAttendance: 0,
       });
     }
 

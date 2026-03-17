@@ -69,7 +69,7 @@ export interface AttendanceWeekRecord {
   dayOfWeek: number;
   startTime: string;
   checkedInAt: string;
-  status: "registrado" | "confirmado";
+  status: "confirmado";
 }
 
 export interface SlotDetailView {

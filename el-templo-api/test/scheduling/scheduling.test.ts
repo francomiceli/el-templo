@@ -1420,45 +1420,8 @@ describe("Scheduling API", () => {
       await cleanupAll();
     });
 
-    it("blocks booking on non-assigned day for fixed-mode plan", async () => {
-      // Fixed plan with days [1, 5] (Mon, Fri) — booking on Thursday (day 4) should fail
-      const { member, subscription, memberToken } =
-        await setupMemberWithSubscription(
-          { email: "fixed-book@test.com", dni: "60020010" },
-          {
-            classesPerWeek: 2,
-            bookingMode: "fixed",
-            name: "Plan Fixed Booking Test",
-          },
-        );
-
-      // Set fixedDays on subscription
-      await app.db
-        .update(subscriptions)
-        .set({ fixedDays: JSON.stringify([1, 5]) })
-        .where(eq(subscriptions.id, subscription.id as number));
-
-      // Create a schedule for Thursday (day 4)
-      const activity = await createActivity("Fixed Test Activity");
-      const thursdaySlot = await createScheduleSlot(
-        activity.id,
-        4,
-        "20:00",
-        "21:00",
-      );
-      const thursdayDate = getDateForDayOfWeek(4);
-
-      const res = await app.inject({
-        method: "POST",
-        url: `${MEMBER_URL}/reserve`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { scheduleId: thursdaySlot.id, date: thursdayDate },
-      });
-
-      expect(res.statusCode).toBe(400);
-      const body = JSON.parse(res.body);
-      expect(body.message).toContain("dias asignados");
-    });
+    // Fixed-day booking enforcement removed in Phase 61 (will be reimplemented
+    // with subscription_schedules junction table in Plan 02)
 
     it("blocks booking when monthly budget is exhausted", async () => {
       const { member, subscription, memberToken } =

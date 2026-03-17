@@ -6,7 +6,7 @@
 
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
-export type AttendanceStatus = "registrado" | "confirmado";
+export type AttendanceStatus = "confirmado";
 export type AttendanceSource = "qr" | "manual";
 
 // ─── Record Types ────────────────────────────────────────────────────────────
@@ -18,7 +18,6 @@ export interface AttendanceRecord {
   branchId: number;
   branchName: string;
   checkedInAt: string;
-  confirmedAt: string | null;
   status: AttendanceStatus;
   source: AttendanceSource;
 }

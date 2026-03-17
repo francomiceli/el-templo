@@ -805,26 +805,9 @@ describe("Subscriptions API", () => {
       expect(body.classesRemaining).toBeNull();
     });
 
-    it("POST assign — stores fixedDays when plan is fixed mode", async () => {
-      const plan = await createPlan({
-        name: "Fixed MWF",
-        bookingMode: "fixed",
-        classesPerWeek: 3,
-        durationDays: 30,
-      });
-      const member = await createMember();
+    // fixedDays tests removed in Phase 61 (replaced by subscription_schedules junction table)
 
-      const { statusCode, body } = await assignPlan(member.id, {
-        planId: plan.id,
-        startDate: "2026-03-01",
-        fixedDays: [1, 3, 5],
-      });
-
-      expect(statusCode).toBe(201);
-      expect(body.fixedDays).toEqual([1, 3, 5]);
-    });
-
-    it("POST assign — fixedDays is null for flexible plans", async () => {
+    it("POST assign — flexible plans create subscription without fixedDays", async () => {
       const plan = await createPlan({
         name: "Flex Plan",
         bookingMode: "flexible",
@@ -839,10 +822,10 @@ describe("Subscriptions API", () => {
       });
 
       expect(statusCode).toBe(201);
-      expect(body.fixedDays).toBeNull();
+      // fixedDays removed in Phase 61
     });
 
-    it("GET subscription detail includes classesRemaining, fixedDays, and graceCheckInsAfterExpiry", async () => {
+    it("GET subscription detail includes classesRemaining", async () => {
       const plan = await createPlan({
         name: "Flex Detail Test",
         classesPerWeek: 3,
@@ -864,8 +847,6 @@ describe("Subscriptions API", () => {
       const body = JSON.parse(res.body);
       // ceil(30/7) * 3 = 5 * 3 = 15
       expect(body.classesRemaining).toBe(15);
-      expect(body.fixedDays).toBeNull();
-      expect(body.graceCheckInsAfterExpiry).toBe(0);
     });
 
     it("GET class-usage returns usage info for a member", async () => {
@@ -891,7 +872,6 @@ describe("Subscriptions API", () => {
       expect(body).toHaveProperty("classesRemaining");
       expect(body).toHaveProperty("classesUsedThisWeek");
       expect(body).toHaveProperty("weeklyLimit");
-      expect(body).toHaveProperty("fixedDays");
       expect(body).toHaveProperty("bookingMode");
       expect(body.classesUsedThisWeek).toBe(0);
       expect(body.weeklyLimit).toBe(3);

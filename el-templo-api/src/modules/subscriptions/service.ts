@@ -16,7 +16,6 @@ import {
   NotFoundError,
   BadRequestError,
 } from "../shared/errors";
-import { SettingsService } from "../settings/service";
 import type {
   PlanListItem,
   PlanDetail,
@@ -36,16 +35,11 @@ import type {
 import { AURA_DISCOUNT_TIERS } from "./types";
 
 export class SubscriptionService {
-  private settingsService: SettingsService | null;
-
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
-    settingsService?: SettingsService,
-  ) {
-    this.settingsService = settingsService ?? null;
-  }
+  ) {}
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 
@@ -211,8 +205,6 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
-        fixedDays: schema.subscriptions.fixedDays,
-        graceCheckInsAfterExpiry: schema.subscriptions.graceCheckInsAfterExpiry,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -274,8 +266,6 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
-        fixedDays: schema.subscriptions.fixedDays,
-        graceCheckInsAfterExpiry: schema.subscriptions.graceCheckInsAfterExpiry,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -324,8 +314,6 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
-        fixedDays: schema.subscriptions.fixedDays,
-        graceCheckInsAfterExpiry: schema.subscriptions.graceCheckInsAfterExpiry,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
@@ -472,20 +460,6 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Store fixed days when plan is fixed mode and days are provided
-    let fixedDaysJson: string | null = null;
-    if (plan.bookingMode === "fixed" && input.fixedDays) {
-      // Validate fixedDays: values must be 1-6 (Mon-Sat), no duplicates
-      const uniqueDays = [...new Set(input.fixedDays)];
-      const allValid = uniqueDays.every((d) => d >= 1 && d <= 6);
-      if (!allValid) {
-        throw new BadRequestError(
-          "Los dias fijos deben ser entre 1 (Lunes) y 6 (Sabado)",
-        );
-      }
-      fixedDaysJson = JSON.stringify(uniqueDays.sort((a, b) => a - b));
-    }
-
     // Insert subscription
     const result = await this.db.insert(schema.subscriptions).values({
       userId,
@@ -502,7 +476,6 @@ export class SubscriptionService {
       priceOverrideAmount,
       priceOverrideReason,
       classesRemaining,
-      fixedDays: fixedDaysJson,
       notes: input.notes ?? null,
     });
 
@@ -856,16 +829,9 @@ export class SubscriptionService {
   /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
-   *
-   * Grace period aware: adds grace period days to the end date comparison
-   * so subscriptions within the grace window are NOT auto-expired.
+   * Expired subscription = immediate hard block (no grace period).
    */
   private async autoExpireSubscriptions(userId: number): Promise<void> {
-    let graceDays = 0;
-    if (this.settingsService) {
-      graceDays = await this.settingsService.getGracePeriodDays();
-    }
-
     const today = new Date().toISOString().split("T")[0];
 
     await this.db
@@ -875,7 +841,7 @@ export class SubscriptionService {
         and(
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "active"),
-          sql`DATE_ADD(${schema.subscriptions.endDate}, INTERVAL ${graceDays} DAY) < ${today}`,
+          sql`${schema.subscriptions.endDate} < ${today}`,
         ),
       );
   }
@@ -998,34 +964,12 @@ export class SubscriptionService {
 
     const classesUsedThisWeek = Number(result?.count ?? 0);
 
-    // Parse fixedDays from subscription
-    const fixedDays = this.parseFixedDays(sub.fixedDays);
-
     return {
       classesRemaining: sub.classesRemaining,
       classesUsedThisWeek,
       weeklyLimit: plan.classesPerWeek,
-      fixedDays,
       bookingMode: plan.bookingMode,
     };
-  }
-
-  /**
-   * Parse fixedDays from JSON storage.
-   * Returns typed number array or null.
-   */
-  private parseFixedDays(raw: unknown): number[] | null {
-    if (raw === null || raw === undefined) return null;
-    if (typeof raw === "string") {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed as number[];
-      } catch {
-        return null;
-      }
-    }
-    if (Array.isArray(raw)) return raw as number[];
-    return null;
   }
 
   /**
@@ -1053,8 +997,6 @@ export class SubscriptionService {
     resumedAt: Date | null;
     cancelledAt: Date | null;
     classesRemaining: number | null;
-    fixedDays: unknown;
-    graceCheckInsAfterExpiry: number;
     notes: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -1081,8 +1023,6 @@ export class SubscriptionService {
       resumedAt: row.resumedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       classesRemaining: row.classesRemaining,
-      fixedDays: this.parseFixedDays(row.fixedDays),
-      graceCheckInsAfterExpiry: row.graceCheckInsAfterExpiry,
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

@@ -11,7 +11,6 @@ import { FastifyPluginAsync } from "fastify";
 import { AttendanceService } from "./service";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
-import { SettingsService } from "../settings/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -35,14 +34,12 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
-  const settingsService = new SettingsService(fastify.db, fastify.log);
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
     auraService,
-    settingsService,
   );
 
   /**
@@ -104,14 +101,12 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
-  const settingsService = new SettingsService(fastify.db, fastify.log);
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
     auraService,
-    settingsService,
   );
 
   /**

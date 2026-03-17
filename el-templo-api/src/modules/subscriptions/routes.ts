@@ -10,7 +10,6 @@
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
-import { SettingsService } from "../settings/service";
 import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
@@ -42,12 +41,10 @@ const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
-  const settingsService = new SettingsService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
-    settingsService,
   );
 
   /**

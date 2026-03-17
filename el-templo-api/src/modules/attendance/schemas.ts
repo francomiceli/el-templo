@@ -23,8 +23,7 @@ const attendanceRecordSchema = {
     branchId: { type: "integer" },
     branchName: { type: "string" },
     checkedInAt: { type: "string" },
-    confirmedAt: { type: ["string", "null"] },
-    status: { type: "string", enum: ["registrado", "confirmado"] },
+    status: { type: "string", enum: ["confirmado"] },
     source: { type: "string", enum: ["qr", "manual"] },
   },
 } as const;

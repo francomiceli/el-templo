@@ -99,7 +99,7 @@ const attendanceWeekRecordSchema = {
     dayOfWeek: { type: "integer" },
     startTime: { type: "string" },
     checkedInAt: { type: "string" },
-    status: { type: "string", enum: ["registrado", "confirmado"] },
+    status: { type: "string", enum: ["confirmado"] },
   },
 } as const;
 

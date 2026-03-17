@@ -24,7 +24,6 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
-import { systemSettings } from "../../src/db/schema/system-settings";
 import { generateQrToken as generateQr } from "../../src/modules/shared/qr-token";
 
 const ADMIN_ATTENDANCE_URL = "/api/admin/attendance";
@@ -240,7 +239,7 @@ describe("Attendance API", () => {
       await cleanupAll();
     });
 
-    it("POST valid QR check-in returns 201 with registrado record", async () => {
+    it("POST valid QR check-in returns 201 with confirmado record and awards AURA", async () => {
       const { member, memberToken } = await setupMemberWithSubscription();
 
       const qrToken = generateQrToken(testBranchId);
@@ -258,11 +257,20 @@ describe("Attendance API", () => {
       expect(body.id).toBeTruthy();
       expect(body.memberId).toBe(member.id);
       expect(body.branchId).toBe(testBranchId);
-      expect(body.status).toBe("registrado");
+      expect(body.status).toBe("confirmado");
       expect(body.source).toBe("qr");
-      expect(body.confirmedAt).toBeNull();
       expect(body.memberName).toBeTruthy();
       expect(body.branchName).toBe(testBranchName);
+
+      // Verify AURA was awarded immediately
+      const auraRows = await app.db
+        .select({ amount: auraTransactions.amount })
+        .from(auraTransactions)
+        .where(eq(auraTransactions.userId, member.id));
+
+      expect(auraRows.length).toBeGreaterThanOrEqual(1);
+      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      expect(attendanceAward).toBeTruthy();
     });
 
     it("POST rejects invalid/forged QR token", async () => {
@@ -351,25 +359,15 @@ describe("Attendance API", () => {
       expect(body.message).toContain("pago pendiente");
     });
 
-    it("POST rejects check-in with expired subscription past grace period", async () => {
-      // Create member with expired subscription (long past grace period)
+    it("POST rejects check-in with expired subscription (hard block, no grace period)", async () => {
+      // Create member with expired subscription — should be auto-expired and return no active sub
       const plan = await createPlan({ durationDays: 1 });
       const member = await createMember({
         email: "expired-checkin@test.com",
         dni: "90000025",
       });
       await assignPlan(member.id, plan.id, { startDate: "2025-01-01" });
-      // Subscription endDate 2025-01-02, 14+ months ago — way past grace period
-
-      // Set graceCheckInsAfterExpiry to 1 to simulate first warning already used
-      const [sub] = await app.db
-        .select({ id: subscriptions.id })
-        .from(subscriptions)
-        .where(eq(subscriptions.userId, member.id));
-      await app.db
-        .update(subscriptions)
-        .set({ graceCheckInsAfterExpiry: 1 })
-        .where(eq(subscriptions.id, sub.id));
+      // Subscription endDate 2025-01-02, 14+ months ago — auto-expire catches it
 
       const memberToken = await getAuthToken(
         app,
@@ -388,7 +386,7 @@ describe("Attendance API", () => {
 
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("vencida");
+      expect(body.message).toContain("suscripcion activa");
     });
 
     it("POST rejects duplicate check-in same day", async () => {
@@ -596,7 +594,7 @@ describe("Attendance API", () => {
         memberId: member.id,
         branchId: testBranchId,
         scheduleId: null,
-        status: "registrado",
+        status: "confirmado",
         source: "qr",
         checkedInAt: pastDay,
       });
@@ -678,53 +676,7 @@ describe("Attendance API", () => {
       );
     });
 
-    it("blocks check-in on non-assigned day for fixed-mode plan", async () => {
-      // Wednesday = ISO day 3. Fixed days = [1,5] (Mon,Fri) -> should block
-      const { memberToken } = await setupMemberWithSubscription(
-        { email: "fixed-day@test.com", dni: "60020004" },
-        {
-          classesPerWeek: 2,
-          bookingMode: "fixed",
-          name: "Plan Fixed Day Test",
-        },
-      );
-
-      // Assign fixedDays [1, 5] directly on subscription (Mon, Fri)
-      const [sub] = await app.db
-        .select({ id: subscriptions.id })
-        .from(subscriptions)
-        .where(
-          eq(
-            subscriptions.userId,
-            (
-              await app.db
-                .select({ id: users.id })
-                .from(users)
-                .where(eq(users.email, "fixed-day@test.com"))
-            )[0].id,
-          ),
-        );
-      await app.db
-        .update(subscriptions)
-        .set({ fixedDays: JSON.stringify([1, 5]) })
-        .where(eq(subscriptions.id, sub.id));
-
-      const qrToken = generateQrToken(testBranchId);
-
-      // Wednesday (day 3) is not in [1, 5]
-      const res = await app.inject({
-        method: "POST",
-        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { qrToken },
-      });
-
-      expect(res.statusCode).toBe(400);
-      const body = JSON.parse(res.body);
-      expect(body.message).toContain("dia asignado");
-    });
-
-    it("force check-in bypasses all limits", async () => {
+    it("force check-in bypasses all limits and awards AURA", async () => {
       const { member, subscription } = await setupMemberWithSubscription(
         { email: "force-checkin@test.com", dni: "60020005" },
         { classesPerWeek: 1, name: "Plan Force Test" },
@@ -752,61 +704,16 @@ describe("Attendance API", () => {
       const body = JSON.parse(res.body);
       expect(body.memberId).toBe(member.id);
       expect(body.source).toBe("manual");
-    });
+      expect(body.status).toBe("confirmado");
 
-    it("grace period: allows check-in during grace days after expiry", async () => {
-      // Set grace period to 5 days
-      await app.db.delete(systemSettings);
-      await app.db.insert(systemSettings).values({
-        settingKey: "grace_period_days",
-        settingValue: "5",
-      });
+      // Verify AURA was awarded on force check-in
+      const auraRows = await app.db
+        .select({ amount: auraTransactions.amount })
+        .from(auraTransactions)
+        .where(eq(auraTransactions.userId, member.id));
 
-      // Create member with subscription that expired 2 days ago (within grace)
-      const plan = await createPlan({
-        durationDays: 30,
-        classesPerWeek: 3,
-        name: "Plan Grace Test",
-      });
-      const member = await createMember({
-        email: "grace-test@test.com",
-        dni: "60020006",
-      });
-
-      // Assign with start date 32 days ago, so end date is 2 days ago
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2026-02-07",
-      });
-
-      // Pay to avoid overdue
-      await recordPayment(member.id, basePlan.priceRegular, sub.id as number);
-
-      // The subscription endDate will be 2026-03-09 (32 days after 2026-02-07 = 2026-03-09 since durationDays=30)
-      // Current date is 2026-03-11 (Wednesday), so 2 days past expiry
-      // With grace period of 5 days, this should be allowed
-
-      // Manually set subscription back to active (since autoExpire would have expired it)
-      await app.db
-        .update(subscriptions)
-        .set({ status: "active" })
-        .where(eq(subscriptions.id, sub.id as number));
-
-      const memberToken = await getAuthToken(
-        app,
-        "grace-test@test.com",
-        baseMemberDefaults.password,
-      );
-
-      const qrToken = generateQrToken(testBranchId);
-
-      const res = await app.inject({
-        method: "POST",
-        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { qrToken },
-      });
-
-      expect(res.statusCode).toBe(201);
+      const attendanceAward = auraRows.find((r) => r.amount === 10);
+      expect(attendanceAward).toBeTruthy();
     });
   });
 });
