@@ -1199,7 +1199,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | ----------------------------------- | -------------- | ----------- | ---------- |
 | 58. Production Deployment           | 2/2            | Complete    | 2026-03-14 |
 | 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
-| 60. Plan Configuration              | 1/3            | In Progress |            |
+| 60. Plan Configuration              | 2/3            | In Progress |            |
 | 61. QR Access Control               | 0/?            | Not started | -          |
 | 62. Payment Enhancements            | 0/?            | Not started | -          |
 | 63. Cash Box                        | 0/?            | Not started | -          |
