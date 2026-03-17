@@ -4,47 +4,13 @@
 # try_files serves the pre-rendered HTML, falling back to index.html for any dynamic routes.
 # SSL will be added by certbot --nginx
 
+# HTTP → HTTPS redirect (do NOT serve content on HTTP)
 server {
     listen 80;
     listen [::]:80;
     server_name eltemplo.org;
 
-    root /var/www/el-templo-web;
-    index index.html;
-
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_proxied any;
-    gzip_min_length 256;
-    gzip_comp_level 6;
-    gzip_types
-      text/plain
-      text/css
-      text/javascript
-      application/javascript
-      application/x-javascript
-      application/json
-      application/xml
-      image/svg+xml
-      font/woff2;
-
-    # SSG: serve pre-rendered HTML files, fallback to index.html
-    location / {
-        try_files $uri $uri/index.html $uri.html /index.html =404;
-    }
-
-    # Cache static assets aggressively (Nuxt/Vite adds content hashes)
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # Security headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    return 301 https://eltemplo.org$request_uri;
 }
 
 # SSL + HTTP/2 (certbot will add certificate paths)
