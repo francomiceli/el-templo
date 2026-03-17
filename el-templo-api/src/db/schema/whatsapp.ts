@@ -81,8 +81,9 @@ export const whatsappMessages = mysqlTable(
     direction: messageDirectionEnum.notNull(),
     content: text("content").notNull(),
     messageType: messageTypeEnum.default("text").notNull(),
-    whatsappMessageId: varchar("whatsapp_message_id", { length: 100 }),
+    whatsappMessageId: varchar("whatsapp_message_id", { length: 100 }).unique(),
     metadata: json("metadata"),
+    rawPayload: json("raw_payload"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => [
