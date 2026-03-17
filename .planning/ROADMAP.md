@@ -1028,7 +1028,7 @@ Plans:
 
 - [x] **Phase 58: Production Deployment** - Push all v4.0 staging work to production so all environments match
 - [x] **Phase 59: Schema Extensions & Data Import** - Add documentType/address fields, import 5 branch CSV datasets, enable editing of new fields (completed 2026-03-16)
-- [ ] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking
+- [x] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking (completed 2026-03-17)
 - [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
 - [ ] **Phase 62: Payment Enhancements** - Discounts with reason, charge cancellation with slot release, cuenta corriente debt tracking
 - [ ] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view
@@ -1199,7 +1199,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | ----------------------------------- | -------------- | ----------- | ---------- |
 | 58. Production Deployment           | 2/2            | Complete    | 2026-03-14 |
 | 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
-| 60. Plan Configuration              | 2/3            | In Progress |            |
+| 60. Plan Configuration              | 3/3            | Complete    | 2026-03-17 |
 | 61. QR Access Control               | 0/?            | Not started | -          |
 | 62. Payment Enhancements            | 0/?            | Not started | -          |
 | 63. Cash Box                        | 0/?            | Not started | -          |

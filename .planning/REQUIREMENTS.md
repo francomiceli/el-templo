@@ -35,7 +35,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 - [x] **PLANS-03**: Admin can mark a plan as multi-branch (grants access to all branches)
 - [x] **PLANS-04**: Admin can mark a plan as trial (excluded from statistics)
 - [x] **PLANS-05**: Admin can configure grace period per branch for membership renewals
-- [ ] **PLANS-06**: System tracks remaining classes for class-based plans and decrements on confirmed check-in
+- [x] **PLANS-06**: System tracks remaining classes for class-based plans and decrements on confirmed check-in
 
 ### Cash Box
 
@@ -121,7 +121,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | PLANS-03    | Phase 60 | Complete |
 | PLANS-04    | Phase 60 | Complete |
 | PLANS-05    | Phase 60 | Complete |
-| PLANS-06    | Phase 60 | Pending  |
+| PLANS-06    | Phase 60 | Complete |
 | ACCESS-01   | Phase 61 | Pending  |
 | ACCESS-02   | Phase 61 | Pending  |
 | ACCESS-03   | Phase 61 | Pending  |

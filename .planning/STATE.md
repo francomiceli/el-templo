@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 60-01-PLAN.md
-last_updated: "2026-03-17T00:52:00Z"
-last_activity: 2026-03-17 -- Plan 60-01 complete (schema + settings + budget calculation)
+stopped_at: Completed 60-02-PLAN.md
+last_updated: "2026-03-17T01:17:50Z"
+last_activity: 2026-03-17 -- Plan 60-02 complete (attendance + booking enforcement)
 progress:
   total_phases: 51
   completed_phases: 37
@@ -36,9 +36,9 @@ Progress: [██████████] 99%
 
 **Velocity:**
 
-- Total plans completed: 9 (v4.1)
-- Average duration: ~11min
-- Total execution time: ~94min
+- Total plans completed: 10 (v4.1)
+- Average duration: ~12min
+- Total execution time: ~116min
 
 **By Phase:**
 
@@ -46,11 +46,11 @@ Progress: [██████████] 99%
 | ----- | ----- | ------ | -------- |
 | 58    | 2/2   | ~30min | ~15min   |
 | 59    | 4/4   | ~34min | ~9min    |
-| 60    | 3/3   | ~30min | ~10min   |
+| 60    | 3/3   | ~52min | ~17min   |
 
 **Recent Trend (from v4.0):**
 
-- Last 5 plans: 60-03 (5min), 60-01 (25min), 59-04 (6min), 59-03 (15min), 59-02 (4min)
+- Last 5 plans: 60-02 (22min), 60-03 (5min), 60-01 (25min), 59-04 (6min), 59-03 (15min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -58,6 +58,7 @@ _Updated after each plan completion_
 | Phase 59 P03 | 15min | 2 tasks | 2 files |
 | Phase 59 P04 | 6min | 2 tasks | 7 files |
 | Phase 60 P01 | 25min | 2 tasks | 17 files |
+| Phase 60 P02 | 22min | 2 tasks | 11 files |
 | Phase 60 P03 | 5min | 2 tasks | 7 files |
 
 ## Accumulated Context
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 60]: fixedDays stored as JSON array on subscription record for per-subscription flexibility
 - [Phase 60]: DAY_LABELS shared constant in subscription types for UI day display
 - [Phase 60]: Conditional stepper step pattern using computed confirmStep for dynamic step count
+- [Phase 60]: Grace period intercept bypasses auto-expire; getSubscriptionWithGracePeriod queries raw status
+- [Phase 60]: SettingsService optional on SubscriptionService for backward-compatible grace-period-aware auto-expire
+- [Phase 60]: Force check-in decrements budget to maintain accuracy despite bypassing all other checks
 
 ### Pending Todos
 
@@ -94,6 +98,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T01:01:00Z
-Stopped at: Completed 60-03-PLAN.md (Phase 60 complete)
-Resume file: .planning/phases/60-plan-configuration/60-03-SUMMARY.md
+Last session: 2026-03-17T01:17:50Z
+Stopped at: Completed 60-02-PLAN.md
+Resume file: .planning/phases/60-plan-configuration/60-02-SUMMARY.md
