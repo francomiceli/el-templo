@@ -194,16 +194,52 @@
                 color="primary"
                 label="Continuar"
                 :disable="assignForm.useOverride && !assignForm.priceOverrideReason?.trim()"
-                @click="step = 3"
+                @click="step = isFixedMode ? 3 : confirmStep"
               />
             </q-stepper-navigation>
           </template>
         </q-step>
 
         <!-- ============================================================ -->
-        <!-- Step 3: Confirm -->
+        <!-- Step 3 (conditional): Fixed Days -->
         <!-- ============================================================ -->
-        <q-step :name="3" title="Confirmar" icon="check_circle">
+        <q-step
+          v-if="isFixedMode"
+          :name="3"
+          title="Dias Asignados"
+          icon="calendar_today"
+          :done="step > 3"
+        >
+          <div class="q-mb-md">
+            <div class="text-subtitle2 q-mb-sm">
+              Selecciona los dias de asistencia para este plan
+            </div>
+            <div class="row q-gutter-sm">
+              <q-checkbox
+                v-for="day in dayOptions"
+                :key="day"
+                v-model="assignForm.fixedDays"
+                :val="day"
+                :label="DAY_LABELS[day]"
+              />
+            </div>
+          </div>
+
+          <q-stepper-navigation>
+            <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
+            <q-btn
+              color="primary"
+              label="Continuar"
+              :disable="assignForm.fixedDays.length === 0"
+              @click="step = confirmStep"
+            />
+          </q-stepper-navigation>
+        </q-step>
+
+        <!-- ============================================================ -->
+        <!-- Step 3/4: Confirm -->
+        <!-- ============================================================ -->
+        <q-step :name="confirmStep" title="Confirmar" icon="check_circle">
           <template v-if="selectedPlan">
             <q-card flat bordered class="q-mb-md">
               <q-card-section>
@@ -235,6 +271,12 @@
                       -${{ pricingDisplay.discountAmount.toLocaleString() }}
                     </q-item-section>
                   </q-item>
+                  <q-item v-if="isFixedMode && assignForm.fixedDays.length > 0">
+                    <q-item-section>Dias asignados</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ formatFixedDays(assignForm.fixedDays) }}
+                    </q-item-section>
+                  </q-item>
                   <q-item v-if="assignForm.boardingPass">
                     <q-item-section>Boarding Pass</q-item-section>
                     <q-item-section side>
@@ -257,7 +299,7 @@
             />
 
             <q-stepper-navigation>
-              <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
+              <q-btn flat label="Volver" @click="step = isFixedMode ? 3 : 2" class="q-mr-sm" />
               <q-btn
                 color="primary"
                 label="Confirmar"
@@ -289,6 +331,7 @@ import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
   PRICE_TYPE_LABELS,
+  DAY_LABELS,
   type PlanListItem,
   type PlanTier,
   type PriceType,
@@ -334,6 +377,7 @@ const assignForm = ref({
   useOverride: false,
   priceOverrideAmount: null as number | null,
   priceOverrideReason: '',
+  fixedDays: [] as number[],
   notes: '',
 });
 
@@ -344,6 +388,20 @@ const assignForm = ref({
 interface TierGroup {
   tier: PlanTier;
   plans: PlanListItem[];
+}
+
+const isFixedMode = computed(() => selectedPlan.value?.bookingMode === 'fixed');
+
+const confirmStep = computed(() => (isFixedMode.value ? 4 : 3));
+
+const dayOptions = [1, 2, 3, 4, 5, 6];
+
+function formatFixedDays(days: number[]): string {
+  return days
+    .slice()
+    .sort((a, b) => a - b)
+    .map((d) => DAY_LABELS[d] ?? String(d))
+    .join(', ');
 }
 
 const plansByTier = computed((): TierGroup[] => {
@@ -488,6 +546,7 @@ function selectPlan(plan: PlanListItem) {
   assignForm.value.useOverride = false;
   assignForm.value.priceOverrideAmount = null;
   assignForm.value.priceOverrideReason = '';
+  assignForm.value.fixedDays = [];
   step.value = 2;
   loadPricingPreview();
 }
@@ -519,6 +578,10 @@ async function onConfirm() {
       branchId: props.memberBranchId,
       startDate: assignForm.value.startDate,
       priceTypeApplied: assignForm.value.boardingPass ? 'zero' : assignForm.value.priceTypeApplied,
+      fixedDays:
+        isFixedMode.value && assignForm.value.fixedDays.length > 0
+          ? assignForm.value.fixedDays
+          : undefined,
       boardingPass: assignForm.value.boardingPass || undefined,
       auraSpend:
         !assignForm.value.boardingPass && !assignForm.value.useOverride
@@ -564,6 +627,7 @@ watch(
         useOverride: false,
         priceOverrideAmount: null,
         priceOverrideReason: '',
+        fixedDays: [],
         notes: '',
       };
       loadPlans();
