@@ -516,7 +516,12 @@ const pyramidExercisePreview = computed(() => {
   const up: number[] = [];
   for (let i = step; i <= peak; i += step) up.push(i);
   const down = up.slice(0, -1).reverse();
-  return [...up, ...down].join('-');
+  const all = [...up, ...down];
+  // Compact display: show first 3, ellipsis, peak, ellipsis, last 3
+  if (all.length <= 7) return all.join('-');
+  const first = all.slice(0, 3).join('-');
+  const last = all.slice(-3).join('-');
+  return `${first}...${peak}...${last}`;
 });
 
 const isIGoYouGo = computed(() => {
