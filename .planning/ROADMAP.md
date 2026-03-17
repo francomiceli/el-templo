@@ -1212,7 +1212,7 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 
 ### v5.0 Phases
 
-- [ ] **Phase 67: WhatsApp Cloud API Webhook + Echo Bot** - Bot process receives and replies to WhatsApp messages, persists to DB
+- [x] **Phase 67: WhatsApp Cloud API Webhook + Echo Bot** - Bot process receives and replies to WhatsApp messages, persists to DB (completed 2026-03-17)
 - [ ] **Phase 68: AI Integration + Info Tools** - AI-primary message processing with schedule, membership, location, and escalation tools
 - [ ] **Phase 69: Redis Memory Layer + Client State Machine** - Session context, customer profiles, and automatic client state detection
 - [ ] **Phase 70: Action Tools** - Book class and register trial via WhatsApp with confirmation steps
@@ -1233,7 +1233,7 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 2. The bot echoes the message back as a WhatsApp reply visible on the sender's phone
 3. A new conversation record is created in whatsapp_conversations when a first-time sender messages
 4. The bot process runs under PM2 and auto-restarts after a crash without affecting el-templo-api
-   **Plans:** 1/2 plans executed
+   **Plans:** 2/2 plans complete
    Plans:
 
 - [ ] 67-01-PLAN.md — Bot infrastructure: DB schema migration, Fastify server, DB connection, WhatsApp Cloud API client + types
@@ -1321,15 +1321,15 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 **Execution Order:**
 Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -> Phase 71 (Schedulers) -> Phase 72 (Admin UI) -> Phase 73 (Takeover)
 
-| Phase                                         | Plans Complete | Status      | Completed |
-| --------------------------------------------- | -------------- | ----------- | --------- |
-| 67. WhatsApp Cloud API Webhook + Echo Bot     | 1/2            | In Progress |           |
-| 68. AI Integration + Info Tools               | 0/?            | Not started | -         |
-| 69. Redis Memory Layer + Client State Machine | 0/?            | Not started | -         |
-| 70. Action Tools                              | 0/?            | Not started | -         |
-| 71. Proactive Schedulers                      | 0/?            | Not started | -         |
-| 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -         |
-| 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -         |
+| Phase                                         | Plans Complete | Status      | Completed  |
+| --------------------------------------------- | -------------- | ----------- | ---------- |
+| 67. WhatsApp Cloud API Webhook + Echo Bot     | 2/2            | Complete    | 2026-03-17 |
+| 68. AI Integration + Info Tools               | 0/?            | Not started | -          |
+| 69. Redis Memory Layer + Client State Machine | 0/?            | Not started | -          |
+| 70. Action Tools                              | 0/?            | Not started | -          |
+| 71. Proactive Schedulers                      | 0/?            | Not started | -          |
+| 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
+| 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |
 
 ---
 

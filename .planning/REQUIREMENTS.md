@@ -9,7 +9,7 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 ### Webhook & Infrastructure
 
-- [ ] **HOOK-01**: Bot receives incoming WhatsApp messages via Cloud API webhook (GET verify + POST handler)
+- [x] **HOOK-01**: Bot receives incoming WhatsApp messages via Cloud API webhook (GET verify + POST handler)
 - [x] **HOOK-02**: Bot sends text replies and template messages via Cloud API
 - [x] **HOOK-03**: DB schema: whatsapp_conversations and whatsapp_messages tables with indexes (Drizzle migration)
 - [x] **HOOK-04**: Bot process runs under PM2 alongside el-templo-api with auto-restart
@@ -76,7 +76,7 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 | Requirement | Phase    | Status   |
 | ----------- | -------- | -------- |
-| HOOK-01     | Phase 67 | Pending  |
+| HOOK-01     | Phase 67 | Complete |
 | HOOK-02     | Phase 67 | Complete |
 | HOOK-03     | Phase 67 | Complete |
 | HOOK-04     | Phase 67 | Complete |
