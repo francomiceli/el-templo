@@ -87,6 +87,49 @@ function getRouteName(code: string): string {
   return ROUTE_NAMES[code] || code;
 }
 
+/**
+ * Build compact pyramid pattern string for PDF display.
+ * Uses repsMax/secondsMax as start, increment as step, reps/seconds as peak.
+ */
+function buildPyramidVolume(ex: PdfExercise): string {
+  const isIso = ex.contraction?.toUpperCase() === 'ISO';
+  const start = Number(isIso ? ex.secondsMax : ex.repsMax) || 2;
+  const step = Number(ex.increment) || 2;
+  const peak = Number(isIso ? ex.seconds : ex.reps) || 10;
+  const suffix = isIso ? '"' : '';
+  if (step <= 0 || peak <= 0 || start <= 0 || start > peak) return '';
+  const up: number[] = [];
+  for (let i = start; i <= peak; i += step) up.push(i);
+  const down = up.slice(0, -1).reverse();
+  const all = [...up, ...down];
+  if (all.length <= 5) return all.join('-') + suffix;
+  const first = all.slice(0, 2).join('-');
+  const last = all.slice(-2).join('-');
+  return `${first}...${peak}...${last}${suffix}`;
+}
+
+/** Build volume display string for an exercise */
+function buildExerciseVolume(ex: PdfExercise): string {
+  // Pyramid: per-exercise pattern
+  if (ex.formatType === 'pyramid') {
+    return buildPyramidVolume(ex);
+  }
+  // Death By: increment pattern
+  if (ex.increment) {
+    const start = ex.reps || ex.seconds || 0;
+    return `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
+  }
+  // Seconds (ISO)
+  if (ex.seconds) {
+    return ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
+  }
+  // Reps
+  if (ex.reps) {
+    return ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+  }
+  return '';
+}
+
 // Motivational quotes for closing page
 // Each quote is split: main text (navy) + goldText (gold accent on the punchline)
 const QUOTES = [
@@ -328,13 +371,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
 
   const exerciseLines: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
-    let volume = '';
-    if (ex.increment) {
-      const start = ex.reps || ex.seconds || 0;
-      volume = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
-    } else if (ex.seconds)
-      volume = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
-    else if (ex.reps) volume = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+    const volume = buildExerciseVolume(ex);
 
     return {
       columns: [
@@ -531,13 +568,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
 
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
-    let volume = '';
-    if (ex.increment) {
-      const start = ex.reps || ex.seconds || 0;
-      volume = `${start}-${start + ex.increment}-${start + ex.increment * 2}-...`;
-    } else if (ex.seconds)
-      volume = ex.secondsMax ? `${ex.seconds}-${ex.secondsMax}"` : `${ex.seconds}"`;
-    else if (ex.reps) volume = ex.repsMax ? `${ex.reps}-${ex.repsMax}` : `${ex.reps}`;
+    const volume = buildExerciseVolume(ex);
 
     return {
       columns: [

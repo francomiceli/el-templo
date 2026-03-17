@@ -97,16 +97,9 @@ function formatNameWithParams(
       return parts.join(' ');
     }
 
-    // Pyramid
-    case 'pyramid': {
-      if (p.step && p.peak) {
-        const up: number[] = [];
-        for (let i = Number(p.step); i <= Number(p.peak); i += Number(p.step)) up.push(i);
-        const down = up.slice(0, -1).reverse();
-        return `${name} ${[...up, ...down].join('-')}`;
-      }
+    // Pyramid — per-exercise params now, no block-level pattern
+    case 'pyramid':
       return name;
-    }
 
     // Direction formats with pattern
     case 'ladder':
@@ -243,7 +236,11 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
   return prescription ? `${name}  ·  ${prescription}` : name;
 }
 
-function exerciseToPdf(ex: SessionExercise, formatDictated: boolean): PdfExercise {
+function exerciseToPdf(
+  ex: SessionExercise,
+  formatDictated: boolean,
+  formatType?: string
+): PdfExercise {
   return {
     name: ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName,
     contraction: ex.contraction,
@@ -254,16 +251,23 @@ function exerciseToPdf(ex: SessionExercise, formatDictated: boolean): PdfExercis
     increment: formatDictated ? undefined : ex.increment,
     rest: ex.rest,
     notes: ex.notes,
+    formatType: formatType || null,
   };
+}
+
+function getFormatType(block: SessionBlock): string | undefined {
+  const params = block.formatParams as Record<string, unknown> | null;
+  return (params?.type as string) || undefined;
 }
 
 function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
   const dictated = isFormatDictatedByName(block.formatName);
+  const formatType = getFormatType(block);
   return {
     level,
     route: block.route,
     intensity: block.intensity,
-    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated)),
+    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType)),
   };
 }
 

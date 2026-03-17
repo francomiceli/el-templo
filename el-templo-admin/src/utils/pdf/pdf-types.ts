@@ -15,6 +15,7 @@ export interface PdfExercise {
   increment?: number | null;
   rest?: number | null;
   notes?: string | null;
+  formatType?: string | null; // e.g. 'pyramid' — used for format-specific volume display
 }
 
 export interface PdfLevelBlock {
