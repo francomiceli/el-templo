@@ -1103,17 +1103,23 @@ Plans:
 
 ### Phase 61: QR Access Control
 
-**Goal**: Branch entrances have a kiosk that greets members by name after QR scan, shows subscription status with soft warnings, and admin has full access visibility
+**Goal**: QR check-in auto-confirms with AURA award, fixed plans use specific schedule slot reservations with bulk booking generation, and coaches manage attendance per schedule slot from Horarios
 **Depends on**: Phase 60 (access verification needs plan configuration and class tracking)
 **Requirements**: ACCESS-01, ACCESS-02, ACCESS-03, ACCESS-04, ACCESS-05
 **Success Criteria** (what must be TRUE):
 
-1. Kiosk screen displays member name, photo, subscription status, and classes remaining after scanning their QR code
-2. Kiosk shows color-coded warnings for expired subscription, outstanding debt, or no remaining classes — without blocking entry
-3. Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
-4. Recepcionista can manually check in a member by searching their name from the admin panel
-5. Each access log entry records member details, subscription info, and any warnings at time of check-in
-   **Plans**: TBD
+1. QR scan immediately creates confirmed attendance and awards AURA (no two-step model)
+2. Fixed-plan subscriptions store specific schedule slot references with auto-generated bookings for the subscription period
+3. Coaches can view attendance per schedule slot and manually check in or remove check-ins from Horarios
+4. Expired subscription = immediate hard block (grace period removed)
+5. Each attendance record stores member details, subscription info, and schedule reference
+   **Plans**: 3 plans
+
+Plans:
+
+- [ ] 61-01-PLAN.md — Schema migration + service cleanup (grace period removal, auto-confirm, attendance enum)
+- [ ] 61-02-PLAN.md — Fixed schedule slots + bulk booking generation + slot attendance API
+- [ ] 61-03-PLAN.md — Admin UI rework (slot picker, attendance in Horarios, grace period removal)
 
 ---
 
@@ -1200,7 +1206,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 58. Production Deployment           | 2/2            | Complete    | 2026-03-14 |
 | 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
 | 60. Plan Configuration              | 3/3            | Complete    | 2026-03-17 |
-| 61. QR Access Control               | 0/?            | Not started | -          |
+| 61. QR Access Control               | 0/3            | Not started | -          |
 | 62. Payment Enhancements            | 0/?            | Not started | -          |
 | 63. Cash Box                        | 0/?            | Not started | -          |
 | 64. Member Management Enhancements  | 0/?            | Not started | -          |
