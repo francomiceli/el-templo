@@ -246,23 +246,6 @@
       />
     </div>
 
-    <!-- Buy-in/Cash-out / I Go You Go (optional rounds) -->
-    <div v-else-if="localParams?.type === 'buy_in_cash_out'" class="row items-center q-gutter-sm">
-      <q-input
-        v-model.number="localParams.rounds"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="1"
-        :max="10"
-        label="Rondas"
-        style="min-width: 100px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
-    </div>
-
     <!-- I Go, You Go (totalRounds) -->
     <div v-else-if="localParams?.type === 'i_go_you_go'" class="row items-center q-gutter-sm">
       <q-input
@@ -569,36 +552,6 @@
       />
     </div>
 
-    <!-- Accumulate (target + unit) -->
-    <div v-else-if="localParams?.type === 'accumulate'" class="row items-center q-gutter-sm">
-      <q-input
-        v-model.number="localParams.target"
-        type="number"
-        dense
-        outlined
-        :dark="dark"
-        :min="1"
-        :max="1000"
-        label="Objetivo"
-        style="min-width: 100px"
-        @blur="onBlur"
-        @keyup.enter="onBlur"
-      />
-      <q-select
-        v-model="localParams.unit"
-        :options="accumulateUnitOptions"
-        option-label="label"
-        option-value="value"
-        emit-value
-        map-options
-        dense
-        outlined
-        :dark="dark"
-        style="min-width: 130px"
-        @update:model-value="onBlur"
-      />
-    </div>
-
     <!-- Wave Loading (waves) -->
     <div v-else-if="localParams?.type === 'wave_loading'" class="row items-center q-gutter-sm">
       <q-input
@@ -740,11 +693,6 @@ watch(
 const ladderOptions = [
   { label: 'Ascendente', value: 'ascending' },
   { label: 'Descendente', value: 'descending' },
-];
-
-const accumulateUnitOptions = [
-  { label: 'Repeticiones', value: 'reps' },
-  { label: 'Segundos', value: 'seconds' },
 ];
 
 // Pattern preview computeds for structure-dictated formats

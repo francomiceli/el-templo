@@ -16,9 +16,7 @@
       >
         <q-tooltip v-if="!uploadsEnabled">Solo disponible en produccion</q-tooltip>
       </q-btn>
-      <q-btn label="Crear Ejercicio" icon="add" color="primary" disable>
-        <q-tooltip>Proximamente</q-tooltip>
-      </q-btn>
+      <q-btn label="Crear Ejercicio" icon="add" color="primary" @click="showCreateDialog = true" />
     </div>
 
     <!-- Filter bar -->
@@ -208,11 +206,103 @@
       :exercises="allExercises"
       @upload-complete="loadExercises"
     />
+
+    <!-- Create Exercise Dialog -->
+    <q-dialog v-model="showCreateDialog">
+      <q-card style="min-width: 500px">
+        <q-card-section>
+          <div class="text-h6">Crear Ejercicio</div>
+        </q-card-section>
+
+        <q-card-section class="column q-gutter-sm">
+          <q-input v-model="createForm.exercise" label="Nombre del ejercicio *" dense outlined />
+          <div class="row q-gutter-sm">
+            <q-select
+              v-model="createForm.category"
+              :options="createCategoryOptions"
+              label="Categoria *"
+              dense
+              outlined
+              emit-value
+              map-options
+              class="col"
+            />
+            <q-select
+              v-model="createForm.pattern"
+              :options="createPatternOptions"
+              label="Pattern *"
+              dense
+              outlined
+              emit-value
+              map-options
+              class="col"
+            />
+          </div>
+          <div class="row q-gutter-sm">
+            <q-select
+              v-model="createForm.route"
+              :options="createRouteOptions"
+              label="Ruta *"
+              dense
+              outlined
+              emit-value
+              map-options
+              class="col"
+            />
+            <q-select
+              v-model="createForm.effort"
+              :options="createEffortOptions"
+              label="Contraccion *"
+              dense
+              outlined
+              emit-value
+              map-options
+              class="col"
+            />
+          </div>
+          <div class="row q-gutter-sm">
+            <q-select
+              v-model="createForm.level"
+              :options="createLevelOptions"
+              label="Nivel"
+              dense
+              outlined
+              emit-value
+              map-options
+              clearable
+              class="col"
+            />
+            <q-input
+              v-model.number="createForm.dificultadLineal"
+              type="number"
+              label="Dificultad (1-12)"
+              dense
+              outlined
+              :min="1"
+              :max="12"
+              class="col"
+            />
+          </div>
+          <q-input v-model="createForm.position" label="Posicion (opcional)" dense outlined />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="grey" v-close-popup />
+          <q-btn
+            label="Crear"
+            color="primary"
+            :loading="creating"
+            :disable="!createFormValid"
+            @click="onCreateExercise"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { useExercisesApi } from 'src/composables/useExercisesApi';
@@ -233,7 +323,113 @@ const fileInputRef = ref<HTMLInputElement | null>(null);
 const uploadTargetId = ref<number | null>(null);
 const videoFilter = ref<string>('all');
 const showBulkUpload = ref(false);
+const showCreateDialog = ref(false);
+const creating = ref(false);
 const allExercises = ref<Exercise[]>([]);
+
+const createForm = reactive({
+  exercise: '',
+  category: '',
+  pattern: '',
+  route: '',
+  effort: 'CON',
+  level: null as string | null,
+  dificultadLineal: 1,
+  position: '',
+});
+
+const createFormValid = computed(
+  () =>
+    createForm.exercise.trim() !== '' &&
+    createForm.category !== '' &&
+    createForm.pattern !== '' &&
+    createForm.route !== '' &&
+    createForm.effort !== ''
+);
+
+const createCategoryOptions = [
+  'PUSH HORIZONTAL',
+  'PUSH VERTICAL',
+  'PULL HORIZONTAL',
+  'PULL VERTICAL',
+  'KNEE DOMINANT',
+  'HIP DOMINANT',
+  'LUNGE',
+  'CORE',
+  'CORE ANTERIOR',
+  'CORE POSTERIOR',
+  'CORE LATERAL',
+  'OBLICUOS',
+  'BRIDGE',
+  'PLYO',
+  'POTENCIA',
+  'CARDIO',
+  'COORDINATIVO',
+  'ESTABILIDAD',
+  'MOVILIDAD',
+  'DESPLAZAMIENTO',
+  'SPAGAT',
+  'UPPER',
+].map((v) => ({ label: v, value: v }));
+
+const createPatternOptions = [
+  'PUSH',
+  'PULL',
+  'LOWER',
+  'KL',
+  'CORE',
+  'PLYO',
+  'CARDIO',
+  'MOVILIDAD',
+  'FLOW',
+].map((v) => ({ label: v, value: v }));
+
+const createRouteOptions = [
+  'PL',
+  'FL',
+  'HT',
+  'HS',
+  'HSPU',
+  'MU',
+  'TTB',
+  'OAP',
+  'OAPU',
+  'OAR',
+  'PLPU',
+  'PIKE',
+  'SS',
+  'SU',
+  'PS',
+  'DS',
+  'QC',
+  'BL',
+  'AF',
+  'NC',
+  'FLR',
+  'PHS',
+  'L',
+  'HR',
+  'HD/ID',
+  'MN/RP',
+  'BRIDGE',
+  'SPAGAT',
+  'REVERSE HYPER',
+  'SIDE PCK',
+].map((v) => ({ label: v, value: v }));
+
+const createEffortOptions = [
+  { label: 'CON (Concentrico)', value: 'CON' },
+  { label: 'EXC (Excentrico)', value: 'EXC' },
+  { label: 'ISO (Isometrico)', value: 'ISO' },
+];
+
+const createLevelOptions = [
+  { label: 'Alfa', value: 'alfa' },
+  { label: 'Delta', value: 'delta' },
+  { label: 'Sigma', value: 'sigma' },
+  { label: 'Omega', value: 'omega' },
+  { label: 'Spartan', value: 'spartan' },
+];
 
 const filters = reactive({
   search: '',
@@ -414,6 +610,34 @@ function confirmDeleteVideo(exerciseId: number, exerciseName: string) {
       // Error already handled by composable
     }
   });
+}
+
+async function onCreateExercise() {
+  creating.value = true;
+  try {
+    await exercisesApi.createExercise({
+      exercise: createForm.exercise.trim(),
+      category: createForm.category,
+      pattern: createForm.pattern,
+      route: createForm.route,
+      effort: createForm.effort,
+      level: createForm.level ?? undefined,
+      dificultadLineal: createForm.dificultadLineal,
+      difficulty: createForm.dificultadLineal,
+      position: createForm.position.trim() || undefined,
+    });
+    $q.notify({ type: 'positive', message: 'Ejercicio creado' });
+    showCreateDialog.value = false;
+    createForm.exercise = '';
+    createForm.position = '';
+    createForm.dificultadLineal = 1;
+    createForm.level = null;
+    loadExercises();
+  } catch {
+    // Error already handled by composable
+  } finally {
+    creating.value = false;
+  }
 }
 
 async function openBulkUpload() {

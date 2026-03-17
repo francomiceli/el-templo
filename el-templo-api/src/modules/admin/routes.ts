@@ -788,6 +788,106 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
+  // POST /admin/exercises - Create exercise
+  fastify.post<{
+    Body: {
+      exercise: string;
+      category: string;
+      pattern: string;
+      route: string;
+      effort: string;
+      level?: string;
+      difficulty?: number;
+      dificultadLineal?: number;
+      position?: string;
+      categorySecondary?: string;
+    };
+  }>(
+    "/exercises",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["exercise", "category", "pattern", "route", "effort"],
+          properties: {
+            exercise: { type: "string", minLength: 1 },
+            category: { type: "string" },
+            pattern: { type: "string" },
+            route: { type: "string" },
+            effort: { type: "string", enum: ["CON", "EXC", "ISO", ""] },
+            level: {
+              type: "string",
+              enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+            },
+            difficulty: { type: "integer", minimum: 1, maximum: 12 },
+            dificultadLineal: { type: "integer", minimum: 1, maximum: 12 },
+            position: { type: "string" },
+            categorySecondary: { type: "string" },
+          },
+        },
+        response: {
+          201: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              exercise: { type: "string" },
+              category: { type: "string" },
+              level: { type: "string", nullable: true },
+              route: { type: "string" },
+              effort: { type: "string" },
+              difficulty: { type: "integer" },
+              dificultadLineal: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const {
+        exercise,
+        category,
+        pattern,
+        route,
+        effort,
+        level,
+        difficulty,
+        dificultadLineal,
+        position,
+        categorySecondary,
+      } = request.body;
+
+      const result = await fastify.db.insert(schema.exercises).values({
+        exercise,
+        category,
+        pattern,
+        route,
+        effort,
+        level:
+          (level as
+            | "alfa"
+            | "delta"
+            | "sigma"
+            | "omega"
+            | "spartan"
+            | undefined) ?? null,
+        difficulty: difficulty ?? 1,
+        dificultadLineal: dificultadLineal ?? 1,
+        position: position ?? null,
+        categorySecondary: categorySecondary ?? null,
+      });
+
+      const insertId = Number(result[0].insertId);
+      const [created] = await fastify.db
+        .select()
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, insertId));
+
+      request.log.info({ exerciseId: insertId, exercise }, "Exercise created");
+
+      return reply.code(201).send(created);
+    },
+  );
+
   // POST /admin/exercises/:exerciseId/upload-url - Generate presigned upload URL
   fastify.post<{ Params: { exerciseId: number } }>(
     "/exercises/:exerciseId/upload-url",

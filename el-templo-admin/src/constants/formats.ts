@@ -23,6 +23,8 @@ export const NO_PARAMS_FORMATS: string[] = [
   'unbroken_reps',
   'unbroken_chipper',
   'ub_test',
+  'accumulate',
+  'buy_in_cash_out',
   'task_priority',
   'circuito_cooperativo',
 ];
@@ -48,6 +50,8 @@ export const NO_PARAMS_FORMAT_NAMES: string[] = [
   'unbroken_chipper',
   'ub_test',
   'task_priority',
+  'accumulate_x',
+  'buy-in_/_cash-out',
   'task_priority_vs_time_priority',
   'circuito_cooperativo',
 ];
@@ -62,8 +66,6 @@ export const FORMAT_DICTATED_TYPES = new Set([
   'tabata',
   'interval',
   'hiit',
-  'emom',
-  'every_x_seconds',
   'on_the_x',
   // Structure-dictated
   'death_by',
@@ -85,8 +87,6 @@ export function isFormatDictatedByName(formatName: string): boolean {
     f === 'tabata' ||
     f === 'interval training' ||
     f === 'hiit' ||
-    f === 'emom' ||
-    f === 'every x seconds' ||
     f.startsWith('on the') ||
     f.startsWith('death by') ||
     f === 'death_by' ||

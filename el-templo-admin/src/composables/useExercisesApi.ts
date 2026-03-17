@@ -3,7 +3,12 @@ import { api } from 'src/boot/axios';
 import { Notify } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { extractError } from 'src/utils/extract-error';
-import type { Exercise, ExerciseListResponse, ExerciseFilters } from 'src/types/exercise';
+import type {
+  Exercise,
+  ExerciseListResponse,
+  ExerciseFilters,
+  CreateExerciseInput,
+} from 'src/types/exercise';
 
 const log = createLogger('useExercisesApi');
 
@@ -72,6 +77,24 @@ export function useExercisesApi() {
     }
   }
 
+  async function createExercise(input: CreateExerciseInput): Promise<Exercise> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<Exercise>('/admin/exercises', input);
+      allExercisesCache = null; // invalidate cache
+      return data;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error creando ejercicio');
+      error.value = message;
+      log.error('Failed to create exercise', { error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function deleteVideo(exerciseId: number): Promise<void> {
     try {
       await api.delete(`/admin/exercises/${exerciseId}/video`);
@@ -88,6 +111,7 @@ export function useExercisesApi() {
     error,
     fetchExercises,
     fetchAllExercises,
+    createExercise,
     deleteVideo,
   };
 }

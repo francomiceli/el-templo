@@ -17,6 +17,19 @@ export interface ExerciseListResponse {
   totalPages: number;
 }
 
+export interface CreateExerciseInput {
+  exercise: string;
+  category: string;
+  pattern: string;
+  route: string;
+  effort: string;
+  level?: string;
+  difficulty?: number;
+  dificultadLineal?: number;
+  position?: string;
+  categorySecondary?: string;
+}
+
 export interface ExerciseFilters {
   page: number;
   limit: number;
