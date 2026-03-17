@@ -1091,7 +1091,13 @@ Plans:
 2. Admin can toggle multi-branch access and trial flags on any plan
 3. Admin can set a grace period per branch that extends membership validity for renewal windows
 4. Class-based plan members see their remaining classes, and each confirmed check-in decrements the count
-   **Plans**: TBD
+   **Plans**: 3 plans
+
+Plans:
+
+- [ ] 60-01-PLAN.md — Schema migration + class tracking + grace period settings API
+- [ ] 60-02-PLAN.md — Attendance and booking enforcement (weekly limit, budget, grace period, force check-in)
+- [ ] 60-03-PLAN.md — Admin UI (grace period card, fixed-day selector, class usage display)
 
 ---
 
@@ -1193,7 +1199,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | ----------------------------------- | -------------- | ----------- | ---------- |
 | 58. Production Deployment           | 2/2            | Complete    | 2026-03-14 |
 | 59. Schema Extensions & Data Import | 4/4            | Complete    | 2026-03-16 |
-| 60. Plan Configuration              | 0/?            | Not started | -          |
+| 60. Plan Configuration              | 0/3            | Planning    | -          |
 | 61. QR Access Control               | 0/?            | Not started | -          |
 | 62. Payment Enhancements            | 0/?            | Not started | -          |
 | 63. Cash Box                        | 0/?            | Not started | -          |
