@@ -180,10 +180,19 @@ export interface PricingPreview {
 
 // ─── Class Usage Types ─────────────────────────────────────────────────────
 
+export interface ScheduleSlotInfo {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  activityName: string;
+}
+
 export interface ClassUsageInfo {
   classesRemaining: number | null;
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   scheduleIds: number[];
+  scheduleSlots: ScheduleSlotInfo[];
   bookingMode: BookingMode;
 }

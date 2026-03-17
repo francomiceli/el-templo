@@ -59,9 +59,11 @@
                 }}
               </div>
             </div>
-            <div v-if="classUsage.scheduleIds && classUsage.scheduleIds.length > 0">
+            <div v-if="classUsage.scheduleSlots && classUsage.scheduleSlots.length > 0">
               <div class="text-caption text-grey-7">Horarios fijos</div>
-              <div>{{ classUsage.scheduleIds.length }} clases asignadas</div>
+              <div v-for="slot in classUsage.scheduleSlots" :key="slot.id" class="text-body2">
+                {{ dayLabel(slot.dayOfWeek) }} {{ slot.startTime }} — {{ slot.activityName }}
+              </div>
             </div>
             <div v-if="subscription && subscription.replacementCredits > 0">
               <div class="text-caption text-grey-7">Clases de reemplazo</div>
@@ -338,6 +340,19 @@ function statusColor(status: SubscriptionStatus): string {
 
 function priceTypeLabel(priceType: PriceType): string {
   return PRICE_TYPE_LABELS[priceType] ?? priceType;
+}
+
+const DAY_LABELS: Record<number, string> = {
+  1: 'Lunes',
+  2: 'Martes',
+  3: 'Miércoles',
+  4: 'Jueves',
+  5: 'Viernes',
+  6: 'Sábado',
+};
+
+function dayLabel(dayOfWeek: number): string {
+  return DAY_LABELS[dayOfWeek] ?? `Día ${dayOfWeek}`;
 }
 
 function priceTypeBadgeColor(priceType: PriceType): string {

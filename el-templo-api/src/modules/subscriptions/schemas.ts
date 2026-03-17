@@ -424,6 +424,19 @@ export const classUsageSchema = {
         weeklyLimit: { type: ["integer", "null"] },
         bookingMode: { type: "string" },
         scheduleIds: { type: "array", items: { type: "integer" } },
+        scheduleSlots: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              dayOfWeek: { type: "integer" },
+              startTime: { type: "string" },
+              endTime: { type: "string" },
+              activityName: { type: "string" },
+            },
+          },
+        },
       },
     },
     404: errorSchema,

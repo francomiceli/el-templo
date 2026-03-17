@@ -132,12 +132,21 @@ export interface SubscriptionHistoryItem extends SubscriptionDetail {}
 
 // ─── Class Usage Types ─────────────────────────────────────────────────────
 
+export interface ScheduleSlotInfo {
+  id: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  activityName: string;
+}
+
 export interface ClassUsageInfo {
   classesRemaining: number | null;
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   bookingMode: BookingMode;
   scheduleIds: number[];
+  scheduleSlots: ScheduleSlotInfo[];
 }
 
 export interface AssignPlanInput {

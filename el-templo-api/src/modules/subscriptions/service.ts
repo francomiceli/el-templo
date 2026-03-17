@@ -1077,8 +1077,12 @@ export class SubscriptionService {
 
     const classesUsedThisWeek = Number(result?.count ?? 0);
 
-    // Get scheduleIds from subscription_schedules
+    // Get scheduleIds and slot details from subscription_schedules
     const scheduleIds = await this.getSubscriptionScheduleIds(sub.id);
+    const scheduleSlots =
+      scheduleIds.length > 0
+        ? await this.getScheduleSlotDetails(scheduleIds)
+        : [];
 
     return {
       classesRemaining: sub.classesRemaining,
@@ -1086,6 +1090,7 @@ export class SubscriptionService {
       weeklyLimit: plan.classesPerWeek,
       bookingMode: plan.bookingMode,
       scheduleIds,
+      scheduleSlots,
     };
   }
 
@@ -1100,6 +1105,37 @@ export class SubscriptionService {
       .from(schema.subscriptionSchedules)
       .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
     return rows.map((r) => r.scheduleId);
+  }
+
+  /**
+   * Fetch schedule slot details (day, time, activity) for given schedule IDs.
+   */
+  private async getScheduleSlotDetails(scheduleIds: number[]): Promise<
+    Array<{
+      id: number;
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      activityName: string;
+    }>
+  > {
+    if (scheduleIds.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: schema.schedules.id,
+        dayOfWeek: schema.schedules.dayOfWeek,
+        startTime: schema.schedules.startTime,
+        endTime: schema.schedules.endTime,
+        activityName: schema.activities.name,
+      })
+      .from(schema.schedules)
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
+      )
+      .where(inArray(schema.schedules.id, scheduleIds))
+      .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
+    return rows;
   }
 
   /**
