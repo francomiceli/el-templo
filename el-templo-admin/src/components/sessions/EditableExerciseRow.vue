@@ -160,8 +160,19 @@
           </template>
         </template>
 
-        <!-- Pyramid: per-exercise step (increment) + peak (reps) + preview -->
+        <!-- Pyramid: per-exercise start (repsMax) + step (increment) + peak (reps) + preview -->
         <template v-else-if="isPyramid">
+          <q-input
+            v-model.number="localRepsMax"
+            type="number"
+            dense
+            outlined
+            label="Inicio"
+            class="editable-field"
+            input-class="text-center"
+            @blur="emitUpdate"
+            @keyup.enter="emitUpdate"
+          />
           <q-input
             v-model.number="localIncrement"
             type="number"
@@ -510,14 +521,14 @@ const isPyramid = computed(() => {
 });
 
 const pyramidExercisePreview = computed(() => {
+  const start = Number(localRepsMax.value) || 2;
   const step = Number(localIncrement.value) || 2;
   const peak = Number(localReps.value) || 10;
-  if (step <= 0 || peak <= 0) return '';
+  if (step <= 0 || peak <= 0 || start <= 0 || start > peak) return '';
   const up: number[] = [];
-  for (let i = step; i <= peak; i += step) up.push(i);
+  for (let i = start; i <= peak; i += step) up.push(i);
   const down = up.slice(0, -1).reverse();
   const all = [...up, ...down];
-  // Compact display: show first 3, ellipsis, peak, ellipsis, last 3
   if (all.length <= 7) return all.join('-');
   const first = all.slice(0, 3).join('-');
   const last = all.slice(-3).join('-');
