@@ -24,10 +24,10 @@ export function useAttendanceApi() {
       if (page !== undefined) params.page = page;
       if (limit !== undefined) params.limit = limit;
       const { data } = await api.get<{
-        data: AttendanceRecord[];
+        records: AttendanceRecord[];
         total: number;
       }>(`/admin/attendance/member/${userId}`, { params });
-      return data;
+      return { data: data.records, total: data.total };
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando historial de asistencia');
       throw err;
