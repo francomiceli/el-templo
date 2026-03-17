@@ -79,6 +79,30 @@ export const memberCheckInSchema = {
   },
 };
 
+// =============================================================================
+// Force Check-in (Admin)
+// =============================================================================
+
+export const forceCheckInSchema = {
+  body: {
+    type: "object",
+    required: ["memberId", "branchId", "reason"],
+    properties: {
+      memberId: { type: "integer" },
+      branchId: { type: "integer" },
+      reason: { type: "string", minLength: 1 },
+    },
+  },
+  response: {
+    201: attendanceRecordSchema,
+    400: errorSchema,
+  },
+};
+
+// =============================================================================
+// Member Endpoints
+// =============================================================================
+
 export const memberHistorySchema = {
   querystring: {
     type: "object",

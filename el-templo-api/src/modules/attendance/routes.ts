@@ -11,12 +11,14 @@ import { FastifyPluginAsync } from "fastify";
 import { AttendanceService } from "./service";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
+import { SettingsService } from "../settings/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   memberAttendanceHistorySchema,
   memberCheckInSchema,
   memberHistorySchema,
+  forceCheckInSchema,
 } from "./schemas";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
@@ -33,12 +35,14 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
+  const settingsService = new SettingsService(fastify.db, fastify.log);
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
     auraService,
+    settingsService,
   );
 
   /**
@@ -71,6 +75,21 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
       return { ...result, page, limit };
     },
   );
+
+  // POST /force — Force check-in (admin/coach override)
+  fastify.post<{
+    Body: { memberId: number; branchId: number; reason: string };
+  }>("/force", { schema: forceCheckInSchema }, async (request, reply) => {
+    try {
+      const record = await attendanceService.forceCheckIn(
+        request.body,
+        request.user.userId,
+      );
+      return reply.code(201).send(record);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "force check-in");
+    }
+  });
 };
 
 // =============================================================================
@@ -85,12 +104,14 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
+  const settingsService = new SettingsService(fastify.db, fastify.log);
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
     paymentService,
     subscriptionService,
     auraService,
+    settingsService,
   );
 
   /**

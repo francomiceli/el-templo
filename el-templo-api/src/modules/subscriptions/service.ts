@@ -16,6 +16,7 @@ import {
   NotFoundError,
   BadRequestError,
 } from "../shared/errors";
+import { SettingsService } from "../settings/service";
 import type {
   PlanListItem,
   PlanDetail,
@@ -35,11 +36,16 @@ import type {
 import { AURA_DISCOUNT_TIERS } from "./types";
 
 export class SubscriptionService {
+  private settingsService: SettingsService | null;
+
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
-  ) {}
+    settingsService?: SettingsService,
+  ) {
+    this.settingsService = settingsService ?? null;
+  }
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 
@@ -803,8 +809,16 @@ export class SubscriptionService {
   /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
+   *
+   * Grace period aware: adds grace period days to the end date comparison
+   * so subscriptions within the grace window are NOT auto-expired.
    */
   private async autoExpireSubscriptions(userId: number): Promise<void> {
+    let graceDays = 0;
+    if (this.settingsService) {
+      graceDays = await this.settingsService.getGracePeriodDays();
+    }
+
     const today = new Date().toISOString().split("T")[0];
 
     await this.db
@@ -814,7 +828,7 @@ export class SubscriptionService {
         and(
           eq(schema.subscriptions.userId, userId),
           eq(schema.subscriptions.status, "active"),
-          sql`${schema.subscriptions.endDate} < ${today}`,
+          sql`DATE_ADD(${schema.subscriptions.endDate}, INTERVAL ${graceDays} DAY) < ${today}`,
         ),
       );
   }

@@ -351,15 +351,25 @@ describe("Attendance API", () => {
       expect(body.message).toContain("pago pendiente");
     });
 
-    it("POST rejects check-in with expired subscription (no active sub)", async () => {
-      // Create member with expired subscription (auto-expired on read)
+    it("POST rejects check-in with expired subscription past grace period", async () => {
+      // Create member with expired subscription (long past grace period)
       const plan = await createPlan({ durationDays: 1 });
       const member = await createMember({
         email: "expired-checkin@test.com",
         dni: "90000025",
       });
       await assignPlan(member.id, plan.id, { startDate: "2025-01-01" });
-      // Subscription endDate 2025-01-02, auto-expires on read
+      // Subscription endDate 2025-01-02, 14+ months ago — way past grace period
+
+      // Set graceCheckInsAfterExpiry to 1 to simulate first warning already used
+      const [sub] = await app.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id));
+      await app.db
+        .update(subscriptions)
+        .set({ graceCheckInsAfterExpiry: 1 })
+        .where(eq(subscriptions.id, sub.id));
 
       const memberToken = await getAuthToken(
         app,
@@ -378,7 +388,7 @@ describe("Attendance API", () => {
 
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("suscripcion activa");
+      expect(body.message).toContain("vencida");
     });
 
     it("POST rejects duplicate check-in same day", async () => {

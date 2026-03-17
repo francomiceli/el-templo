@@ -33,3 +33,11 @@ export interface AttendanceListParams {
   page: number;
   limit: number;
 }
+
+// ─── Force Check-in Types ──────────────────────────────────────────────────
+
+export interface ForceCheckInInput {
+  memberId: number;
+  branchId: number;
+  reason: string;
+}
