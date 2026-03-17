@@ -149,31 +149,19 @@ function formatNameWithParams(
       return `${name} ${dir}`;
     }
 
-    // Cluster
-    case 'cluster': {
-      const parts = [name];
-      if (p.clusterSize) parts.push(`${p.clusterSize}reps`);
-      if (p.restBetweenClusters) parts.push(`${p.restBetweenClusters}"rest`);
-      return parts.join(' ');
-    }
+    // No-params formats — name only
+    case 'cluster':
+    case 'accumulate':
+    case 'buy_in_cash_out':
+      return name;
 
     // Tempo
     case 'tempo_sets':
       return p.tempo ? `${name} ${p.tempo}` : name;
 
-    // Accumulate
-    case 'accumulate': {
-      const unit = p.unit === 'seconds' ? '"' : 'reps';
-      return p.target ? `${name} ${p.target}${unit}` : name;
-    }
-
     // I Go, You Go
     case 'i_go_you_go':
       return p.totalRounds ? `${name} ${p.totalRounds}R` : name;
-
-    // Buy-in/Cash-out
-    case 'buy_in_cash_out':
-      return p.rounds ? `${name} X${p.rounds}` : name;
 
     // Wave Loading
     case 'wave_loading':
