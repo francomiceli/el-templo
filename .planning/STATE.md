@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: in-progress
-stopped_at: Plan 61-02 complete
-last_updated: "2026-03-17T16:57:00Z"
+status: executing
+stopped_at: Phase 63 context gathered
+last_updated: "2026-03-17T21:29:50.545Z"
 last_activity: 2026-03-17 -- Plan 61-02 complete (fixed schedule subscriptions and slot attendance API)
 progress:
-  total_phases: 51
-  completed_phases: 38
-  total_plans: 170
-  completed_plans: 169
+  total_phases: 37
+  completed_phases: 30
+  total_plans: 105
+  completed_plans: 104
   percent: 99
 ---
 
@@ -107,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T16:57:00Z
-Stopped at: Completed 61-02-PLAN.md
-Resume file: .planning/phases/61-qr-access-control/61-02-SUMMARY.md
+Last session: 2026-03-17T21:29:50.541Z
+Stopped at: Phase 63 context gathered
+Resume file: .planning/phases/63-cash-box/63-CONTEXT.md
