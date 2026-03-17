@@ -1,158 +1,112 @@
-# Requirements: El Templo v4.1 — Admin Consolidation & Data Migration
+# Requirements: El Templo v5.0 — WhatsApp AI Chatbot
 
-**Defined:** 2026-03-14
-**Core Value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
+**Defined:** 2026-03-17
+**Core Value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
 
-## v4.1 Requirements
+## v5.0 Requirements
 
-Requirements for admin consolidation milestone. Each maps to roadmap phases.
+Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
-### Deploy
+### Webhook & Infrastructure
 
-- [ ] **DEPLOY-01**: All three apps (API, admin, member app) and database migrations are deployed to production matching current staging state
+- [ ] **HOOK-01**: Bot receives incoming WhatsApp messages via Cloud API webhook (GET verify + POST handler)
+- [ ] **HOOK-02**: Bot sends text replies and template messages via Cloud API
+- [ ] **HOOK-03**: DB schema: whatsapp_conversations and whatsapp_messages tables with indexes (Drizzle migration)
+- [ ] **HOOK-04**: Bot process runs under PM2 alongside el-templo-api with auto-restart
 
-### Data Migration
+### AI Processing
 
-- [x] **DATA-01**: Users table supports document type field (DNI, Pasaporte, etc.)
-- [x] **DATA-02**: Users table supports home address field
-- [x] **DATA-03**: Import script processes 5 branch CSV files with field mapping (DD/MM/YYYY dates, Masculino/Femenino→male/female, Si/No→boolean, Celular→phone)
-- [x] **DATA-04**: Import handles duplicate detection by DNI and email with configurable strategy (skip, update, or error)
-- [x] **DATA-05**: Import creates subscription records from plan name lookups when "Último servicio/membresía vigente" is present
-- [x] **DATA-06**: Import runs against local, staging, and production databases with branch mapping from filename
+- [ ] **AI-01**: Model-agnostic AiProvider interface with OpenAI and Anthropic implementations, selectable via env var
+- [ ] **AI-02**: System prompt with El Templo business context (schedules, pricing, locations, FAQ)
+- [ ] **AI-03**: check_schedule tool returns available classes for a given day/branch
+- [ ] **AI-04**: check_membership tool returns member subscription status and pricing info
+- [ ] **AI-05**: get_location tool returns branch address and Google Maps link
+- [ ] **AI-06**: request_human tool escalates conversation to human agent (sets status to human_takeover)
+- [ ] **AI-07**: book_class tool reserves a class spot via el-templo-api localhost call with confirmation step
+- [ ] **AI-08**: register_trial tool creates trial user via el-templo-api localhost call with confirmation step
 
-### Access Control
+### Memory & State
 
-- [ ] **ACCESS-01**: Branch entrance has a kiosk welcome screen showing member name, photo, subscription status, and classes remaining after QR scan
-- [ ] **ACCESS-02**: Kiosk performs soft verification: checks subscription validity and shows warnings (expired, has debt, no classes remaining) without hard-blocking access
-- [ ] **ACCESS-03**: Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
-- [ ] **ACCESS-04**: Recepcionista can manually check in a member by search from the admin panel
-- [ ] **ACCESS-05**: Access log records member details, subscription info, and any warnings at time of check-in
+- [ ] **MEM-01**: Redis connection (ioredis) with fallback handling
+- [ ] **MEM-02**: Session context stores last N messages + conversation facts in Redis (6h TTL), injected into AI context
+- [ ] **MEM-03**: Customer profile persists data across conversations in Redis (90d TTL) — member status, preferences, injury notes
+- [ ] **MEM-04**: Client state machine (LEAD → TRIAL → ACTIVE_MEMBER → LAPSED → RETURNING) auto-detected from DB
 
-### Plan Configuration
+### Proactive Schedulers
 
-- [ ] **PLANS-01**: Admin can configure turnos-per-week limits on subscription plans
-- [ ] **PLANS-02**: Admin can configure class-based plans where membership includes X classes to spend
-- [ ] **PLANS-03**: Admin can mark a plan as multi-branch (grants access to all branches)
-- [ ] **PLANS-04**: Admin can mark a plan as trial (excluded from statistics)
-- [ ] **PLANS-05**: Admin can configure grace period per branch for membership renewals
-- [ ] **PLANS-06**: System tracks remaining classes for class-based plans and decrements on confirmed check-in
+- [ ] **SCHED-01**: Class reminder sends WhatsApp template message N hours before booked class (node-cron + Redis distributed lock)
+- [ ] **SCHED-02**: Trial follow-up sends message 24-48h after trial attendance asking how it went + offering membership
 
-### Cash Box
+### Admin Panel
 
-- [ ] **CASH-02**: System tracks all cash movements organized by payment method (cash, transfer, card)
-- [ ] **CASH-03**: Recepcionista can view cash box summary showing collected vs spent amounts by payment method
+- [ ] **ADMIN-01**: ConversacionesPage lists all conversations with search, status/state filters, and pagination
+- [ ] **ADMIN-02**: ConversacionDetailPage shows chat bubble UI with full message history and member link
+- [ ] **ADMIN-03**: Admin can take over a conversation (bot pauses) and send messages manually via Cloud API
+- [ ] **ADMIN-04**: Admin can resume bot processing for a conversation after takeover
+- [ ] **ADMIN-05**: WhatsApp sidebar menu item in AdminLayout with unread conversation badge
 
-### Payments
+## Future Requirements (v5.1+)
 
-- [ ] **PAY-01**: Admin can apply discounts (fixed amount or percentage) with mandatory reason when recording a payment
-- [ ] **PAY-02**: Admin can cancel a charge, which automatically frees associated booking slots (turnos)
-- [ ] **PAY-03**: System tracks member account balance (cuenta corriente) when partial payment leaves outstanding debt
-- [ ] **PAY-04**: Admin can collect outstanding balance from member's cuenta corriente via dedicated action
+### Proactive Schedulers Expansion
 
-### Reports
+- **SCHED-03**: Membership renewal nudge X days before expiration
+- **SCHED-04**: Re-engagement message to lapsed members
+- **SCHED-05**: Google review request after N classes attended
+- **SCHED-06**: Birthday/milestone personalized messages
 
-- [ ] **REPORT-01**: Dashboard shows access log report with filters (period, member, access status) and Excel export
-- [ ] **REPORT-02**: Dashboard shows charge history report with filters (period, payment method, member, concept) and Excel export
-- [ ] **REPORT-03**: Dashboard shows member debt report listing all members with outstanding balances, contact info, and WhatsApp shortcut
-- [ ] **REPORT-04**: Dashboard shows expiring memberships report (members with expired or soon-to-expire subscriptions within configurable window)
-- [ ] **REPORT-05**: Dashboard shows inactive member report (active subscription but no check-ins within configurable days threshold)
+### Advanced Features
 
-### Roles & Permissions
-
-- [ ] **ROLES-01**: System supports predefined roles: admin, coach, recepcionista, owner
-- [ ] **ROLES-02**: Each role has predefined permission set controlling feature/page access
-- [ ] **ROLES-03**: Admin can assign roles to system users
-- [ ] **ROLES-04**: Admin UI shows/hides features and actions based on user's assigned role
-
-### Member Management
-
-- [ ] **MEMBER-01**: Admin can upload or capture a member photo (webcam or file upload)
-- [ ] **MEMBER-02**: Admin can change a member's active subscription to a different plan with price difference calculation
-- [ ] **MEMBER-03**: Admin can export filtered member list as Excel file
-- [x] **MEMBER-04**: Admin can view and edit member's document type and home address
-
-## Future Requirements (v4.2+)
-
-### Cash Box Expansion
-
-- **CASH-01**: Recepcionista can set daily cash float (fondo de caja) at start of shift
-- **CASH-04**: Cash box displays difference tracking between system records and actual cash on hand
-
-### Payment Expansion
-
-- **PAY-05**: System supports receipt types (non-fiscal receipt, manual invoice)
-- **PAY-06**: System supports automatic monthly renewal (non-Mercado Pago)
-- **PAY-07**: Admin can modify imputation date (accounting date) on charges
-
-### Advanced Membership
-
-- **PLANS-07**: Admin can configure multi-disciplina services spanning multiple activities
-- **PLANS-08**: System verifies medical/health pass requirements before granting access
+- **ADV-01**: Media message support (images, documents, audio)
+- **ADV-02**: WebSocket real-time updates for admin panel (replace polling)
+- **ADV-03**: Scheduler monitoring/config UI in admin panel
+- **ADV-04**: Auto-generate system prompt from DB data (schedules, pricing)
 
 ## Out of Scope
 
-| Feature                             | Reason                                                                                   |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- |
-| Electronic invoices (AFIP)          | Argentina-only regulatory integration, complex, defer to v6.0+                           |
-| Mercado Pago auto-renewal           | Payment gateway is v6.0+ scope                                                           |
-| Turnstile/door lock integration     | Hardware integration, defer indefinitely                                                 |
-| IP-based access restrictions        | Low priority, branches don't need this now                                               |
-| Per-user configurable permissions   | Predefined roles sufficient; configurable permissions adds complexity without clear need |
-| Member geographic map               | Novel feature, not operationally critical                                                |
-| Group plan charges                  | Complex multi-member billing, defer to payment expansion                                 |
-| Welcome screen webcam photo capture | Kiosk doesn't need webcam — admin uploads photo separately                               |
+| Feature | Reason |
+|---------|--------|
+| Baileys/BuilderBot | Reverse-engineered, unstable. Cloud API is official and production-proven |
+| Message queue (BullMQ/RabbitMQ) | Over-engineered at ~100 convs/day. Node.js async sufficient |
+| RAG/vector search for business info | System prompt sufficient — all business context fits in prompt |
+| Multi-language support | Spanish only for now, all branches are Spanish-speaking |
+| Voice message transcription | Adds complexity, defer to v5.1+ |
+| Payment processing via WhatsApp | Payment gateway is v7.0+ scope |
 
 ## Traceability
 
 <!-- Updated during roadmap creation -->
 
-| Requirement | Phase    | Status   |
-| ----------- | -------- | -------- |
-| DEPLOY-01   | Phase 58 | Pending  |
-| DATA-01     | Phase 59 | Complete |
-| DATA-02     | Phase 59 | Complete |
-| DATA-03     | Phase 59 | Complete |
-| DATA-04     | Phase 59 | Complete |
-| DATA-05     | Phase 59 | Complete |
-| DATA-06     | Phase 59 | Complete |
-| MEMBER-04   | Phase 59 | Complete |
-| PLANS-01    | Phase 60 | Pending  |
-| PLANS-02    | Phase 60 | Pending  |
-| PLANS-03    | Phase 60 | Pending  |
-| PLANS-04    | Phase 60 | Pending  |
-| PLANS-05    | Phase 60 | Pending  |
-| PLANS-06    | Phase 60 | Pending  |
-| ACCESS-01   | Phase 61 | Pending  |
-| ACCESS-02   | Phase 61 | Pending  |
-| ACCESS-03   | Phase 61 | Pending  |
-| ACCESS-04   | Phase 61 | Pending  |
-| ACCESS-05   | Phase 61 | Pending  |
-| PAY-01      | Phase 62 | Pending  |
-| PAY-02      | Phase 62 | Pending  |
-| PAY-03      | Phase 62 | Pending  |
-| PAY-04      | Phase 62 | Pending  |
-| CASH-02     | Phase 63 | Pending  |
-| CASH-03     | Phase 63 | Pending  |
-| MEMBER-01   | Phase 64 | Pending  |
-| MEMBER-02   | Phase 64 | Pending  |
-| MEMBER-03   | Phase 64 | Pending  |
-| REPORT-01   | Phase 65 | Pending  |
-| REPORT-02   | Phase 65 | Pending  |
-| REPORT-03   | Phase 65 | Pending  |
-| REPORT-04   | Phase 65 | Pending  |
-| REPORT-05   | Phase 65 | Pending  |
-| ROLES-01    | Phase 66 | Pending  |
-| ROLES-02    | Phase 66 | Pending  |
-| ROLES-03    | Phase 66 | Pending  |
-| ROLES-04    | Phase 66 | Pending  |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| HOOK-01 | — | Pending |
+| HOOK-02 | — | Pending |
+| HOOK-03 | — | Pending |
+| HOOK-04 | — | Pending |
+| AI-01 | — | Pending |
+| AI-02 | — | Pending |
+| AI-03 | — | Pending |
+| AI-04 | — | Pending |
+| AI-05 | — | Pending |
+| AI-06 | — | Pending |
+| AI-07 | — | Pending |
+| AI-08 | — | Pending |
+| MEM-01 | — | Pending |
+| MEM-02 | — | Pending |
+| MEM-03 | — | Pending |
+| MEM-04 | — | Pending |
+| SCHED-01 | — | Pending |
+| SCHED-02 | — | Pending |
+| ADMIN-01 | — | Pending |
+| ADMIN-02 | — | Pending |
+| ADMIN-03 | — | Pending |
+| ADMIN-04 | — | Pending |
+| ADMIN-05 | — | Pending |
 
 **Coverage:**
-
-- v4.1 requirements: 37 total
-- Mapped to phases: 37
-- Unmapped: 0
+- v5.0 requirements: 23 total
+- Mapped to phases: 0
+- Unmapped: 23 ⚠️
 
 ---
-
-_Requirements defined: 2026-03-14_
-_Last updated: 2026-03-14 after roadmap creation (all 37 requirements mapped to phases 58-66)_
+*Requirements defined: 2026-03-17*
+*Last updated: 2026-03-17 after initial definition*
