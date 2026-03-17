@@ -574,35 +574,45 @@ describe("Attendance API", () => {
         { classesPerWeek: 1, name: "Plan Weekly Limit Test" },
       );
 
-      const qrToken = generateQrToken(testBranchId);
+      // Insert a past attendance record earlier this week (not today) so
+      // the weekly count is already at 1. We can't use vi.setSystemTime
+      // because MySQL CURDATE() ignores JS time mocks, causing the
+      // once-per-day check to fire before the weekly limit check.
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + mondayOffset);
+      monday.setHours(10, 0, 0, 0);
 
-      // First check-in succeeds (Wednesday)
-      const res1 = await app.inject({
+      // Pick a day this week that isn't today for the existing record
+      // If today is Monday, use Tuesday; otherwise use Monday
+      const pastDay = new Date(monday);
+      if (monday.toDateString() === now.toDateString()) {
+        pastDay.setDate(monday.getDate() + 1); // Tuesday
+      }
+
+      await app.db.insert(attendance).values({
+        memberId: member.id,
+        branchId: testBranchId,
+        scheduleId: null,
+        status: "registrado",
+        source: "qr",
+        checkedInAt: pastDay,
+      });
+
+      // Now try to check in — should be blocked (weekly limit = 1, already used 1)
+      const qrToken = generateQrToken(testBranchId);
+      const res = await app.inject({
         method: "POST",
         url: `${MEMBER_ATTENDANCE_URL}/check-in`,
         headers: { authorization: `Bearer ${memberToken}` },
         payload: { qrToken },
       });
-      expect(res1.statusCode).toBe(201);
 
-      // Move to Thursday (next day, same week)
-      vi.setSystemTime(new Date("2026-03-12T10:00:00Z"));
-
-      // Second check-in should be blocked (weekly limit = 1)
-      const qrToken2 = generateQrToken(testBranchId);
-      const res2 = await app.inject({
-        method: "POST",
-        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { qrToken: qrToken2 },
-      });
-
-      expect(res2.statusCode).toBe(400);
-      const body = JSON.parse(res2.body);
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
       expect(body.message).toContain("limite semanal");
-
-      // Reset time
-      vi.setSystemTime(new Date("2026-03-11T10:00:00Z"));
     });
 
     it("blocks check-in when monthly budget is exhausted", async () => {
