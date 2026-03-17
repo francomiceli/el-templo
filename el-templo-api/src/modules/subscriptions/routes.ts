@@ -10,6 +10,8 @@
 import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
+import { BookingService } from "../scheduling/booking-service";
+import { PaymentService } from "../payments/service";
 import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
@@ -41,11 +43,19 @@ const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
+  const paymentService = new PaymentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
   );
+  const bookingService = new BookingService(
+    fastify.db,
+    fastify.log,
+    paymentService,
+    subscriptionService,
+  );
+  subscriptionService.setBookingService(bookingService);
 
   /**
    * Guard: require admin role on all routes in this plugin.

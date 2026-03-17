@@ -99,6 +99,90 @@ export const forceCheckInSchema = {
 };
 
 // =============================================================================
+// Slot Attendance Endpoints (Admin)
+// =============================================================================
+
+const slotAttendanceItemSchema = {
+  type: "object",
+  properties: {
+    memberId: { type: "integer" },
+    memberName: { type: "string" },
+    bookingId: { type: ["integer", "null"] },
+    bookingStatus: { type: ["string", "null"] },
+    attendanceId: { type: ["integer", "null"] },
+    checkedInAt: { type: ["string", "null"] },
+    source: { type: ["string", "null"] },
+  },
+} as const;
+
+export const slotAttendanceSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer" },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        members: { type: "array", items: slotAttendanceItemSchema },
+      },
+    },
+  },
+};
+
+export const slotCheckInSchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId", "date"],
+    properties: {
+      scheduleId: { type: "integer" },
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["memberId"],
+    properties: {
+      memberId: { type: "integer" },
+      reason: { type: "string" },
+    },
+  },
+  response: {
+    201: {
+      type: "object",
+      properties: {
+        attendance: attendanceRecordSchema,
+        warnings: { type: "array", items: { type: "string" } },
+      },
+    },
+    400: errorSchema,
+  },
+};
+
+export const removeCheckInSchema = {
+  params: {
+    type: "object",
+    required: ["attendanceId"],
+    properties: {
+      attendanceId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        removed: { type: "boolean" },
+      },
+    },
+    400: errorSchema,
+  },
+};
+
+// =============================================================================
 // Member Endpoints
 // =============================================================================
 

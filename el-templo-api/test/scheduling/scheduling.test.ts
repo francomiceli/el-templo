@@ -1460,4 +1460,349 @@ describe("Scheduling API", () => {
       expect(body.message).toContain("clases del periodo");
     });
   });
+
+  // =========================================================================
+  // Bulk Booking Generation & Slot Attendance (Phase 61 Plan 02)
+  // =========================================================================
+  describe("Bulk Booking Generation", () => {
+    const ATTENDANCE_URL = "/api/admin/attendance";
+
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("generateFixedBookings creates bookings for each matching day in subscription period", async () => {
+      // Create a fixed plan with 2 classes/week, 14 days duration
+      const plan = await createPlan({
+        name: "Fixed 2x Bulk",
+        bookingMode: "fixed",
+        classesPerWeek: 2,
+        durationDays: 14,
+      });
+      const member = await createMember({
+        email: "bulk-gen@test.com",
+        dni: "70010001",
+      });
+
+      // Create schedule slots: Monday 08:00 and Wednesday 10:00
+      const act = await createActivity("BulkTest");
+      const [monResult] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 1,
+          startTime: "08:00",
+          endTime: "09:00",
+          isActive: true,
+        })
+        .$returningId();
+      const [wedResult] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 3,
+          startTime: "10:00",
+          endTime: "11:00",
+          isActive: true,
+        })
+        .$returningId();
+
+      const slotIds = [monResult.id, wedResult.id];
+
+      // Assign fixed plan with scheduleIds
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: plan.id,
+          branchId: testBranchId,
+          startDate: "2026-06-01",
+          priceTypeApplied: "regular",
+          scheduleIds: slotIds,
+        },
+      });
+
+      expect(assignRes.statusCode).toBe(201);
+
+      // Count bookings created
+      const bookingRows = await app.db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+
+      // 14 days from June 1 -> end June 15 inclusive
+      // Mon: June 1, 8, 15; Wed: June 3, 10 = 5 bookings
+      expect(bookingRows.length).toBe(5);
+      // All should be reservado
+      for (const b of bookingRows) {
+        expect(b.status).toBe("reservado");
+      }
+    });
+
+    it("generateFixedBookings skips holiday dates", async () => {
+      // Add a holiday on a Monday
+      await app.db.insert(holidays).values({
+        country: "AR",
+        date: "2026-06-01",
+        name: "Test Holiday",
+      });
+
+      const plan = await createPlan({
+        name: "Fixed Holiday Skip",
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+        durationDays: 14,
+      });
+      const member = await createMember({
+        email: "holiday-skip@test.com",
+        dni: "70010002",
+      });
+
+      const act = await createActivity("HolidayTest");
+      const [monResult] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 1,
+          startTime: "08:00",
+          endTime: "09:00",
+          isActive: true,
+        })
+        .$returningId();
+
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: plan.id,
+          branchId: testBranchId,
+          startDate: "2026-06-01",
+          priceTypeApplied: "regular",
+          scheduleIds: [monResult.id],
+        },
+      });
+
+      expect(assignRes.statusCode).toBe(201);
+      const sub = JSON.parse(assignRes.body);
+
+      // June 1 is a holiday, June 8 and June 15 are valid = 2 bookings
+      const bookingRows = await app.db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+
+      expect(bookingRows.length).toBe(2);
+      const dates = bookingRows.map((b) => b.bookingDate).sort();
+      expect(dates).toContain("2026-06-08");
+      expect(dates).toContain("2026-06-15");
+
+      // replacementCredits should be 1
+      expect(sub.replacementCredits).toBe(1);
+    });
+
+    it("cancelFutureBookings cancels future bookings but preserves past ones", async () => {
+      const plan = await createPlan({
+        name: "Fixed Cancel Test",
+        bookingMode: "fixed",
+        classesPerWeek: 1,
+        durationDays: 30,
+      });
+      const member = await createMember({
+        email: "cancel-future@test.com",
+        dni: "70010003",
+      });
+
+      const act = await createActivity("CancelTest");
+      const [monResult] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: testBranchId,
+          activityId: act.id,
+          dayOfWeek: 1,
+          startTime: "08:00",
+          endTime: "09:00",
+          isActive: true,
+        })
+        .$returningId();
+
+      // Assign subscription starting in the past so some bookings are past
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: plan.id,
+          branchId: testBranchId,
+          startDate: "2026-03-02", // starts in past (we're pinned to Wed Mar 11)
+          priceTypeApplied: "regular",
+          scheduleIds: [monResult.id],
+        },
+      });
+      expect(assignRes.statusCode).toBe(201);
+
+      // Count bookings before cancel
+      const beforeBookings = await app.db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      const totalBefore = beforeBookings.length;
+      expect(totalBefore).toBeGreaterThan(0);
+
+      // Cancel the subscription
+      const cancelRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {},
+      });
+      expect(cancelRes.statusCode).toBe(200);
+
+      // Check: past bookings should be preserved, future ones cancelled
+      const afterBookings = await app.db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+
+      const today = new Date().toISOString().split("T")[0];
+      const pastBookings = afterBookings.filter(
+        (b) => b.bookingDate <= today && b.status !== "cancelado",
+      );
+      const futureActive = afterBookings.filter(
+        (b) => b.bookingDate > today && b.status !== "cancelado",
+      );
+
+      // Past bookings preserved
+      expect(pastBookings.length).toBeGreaterThan(0);
+      // All future bookings cancelled
+      expect(futureActive.length).toBe(0);
+    });
+
+    it("GET /slot/:scheduleId/:date returns attendance for that slot", async () => {
+      const { member } = await setupMemberWithSubscription(
+        { email: "slot-att@test.com", dni: "70010004" },
+        { classesPerWeek: 3, name: "Plan Slot Attendance" },
+      );
+
+      const act = await createActivity("SlotAttendance");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Admin add booking for this slot/date
+      await app.inject({
+        method: "POST",
+        url: `${ADMIN_URL}/bookings`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          scheduleId: slot.id,
+          memberId: member.id,
+          date: futureSlot.date,
+        },
+      });
+
+      // Get slot attendance
+      const res = await app.inject({
+        method: "GET",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.members).toHaveLength(1);
+      expect(body.members[0].memberId).toBe(member.id);
+      expect(body.members[0].bookingId).toBeTruthy();
+      expect(body.members[0].attendanceId).toBeNull(); // not checked in yet
+    });
+
+    it("POST /slot/:scheduleId/:date/check-in creates attendance and awards AURA", async () => {
+      const { member } = await setupMemberWithSubscription(
+        { email: "slot-checkin@test.com", dni: "70010005" },
+        { classesPerWeek: 3, name: "Plan Slot Checkin" },
+      );
+
+      const act = await createActivity("SlotCheckin");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id, reason: "Manual check-in test" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.attendance).toBeTruthy();
+      expect(body.attendance.status).toBe("confirmado");
+      expect(body.attendance.source).toBe("manual");
+
+      // Verify AURA was awarded
+      const [auraRow] = await app.db
+        .select({ balance: auraBalances.balance })
+        .from(auraBalances)
+        .where(eq(auraBalances.userId, member.id));
+      expect(auraRow.balance).toBeGreaterThanOrEqual(10);
+    });
+
+    it("DELETE /attendance/:attendanceId removes check-in and reverses AURA", async () => {
+      const { member, subscription } = await setupMemberWithSubscription(
+        { email: "slot-undo@test.com", dni: "70010006" },
+        { classesPerWeek: 3, name: "Plan Slot Undo" },
+      );
+
+      const act = await createActivity("SlotUndo");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        act.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      // Check in first
+      const checkInRes = await app.inject({
+        method: "POST",
+        url: `${ATTENDANCE_URL}/slot/${slot.id}/${futureSlot.date}/check-in`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { memberId: member.id },
+      });
+      expect(checkInRes.statusCode).toBe(201);
+      const checkInBody = JSON.parse(checkInRes.body);
+      const attendanceId = checkInBody.attendance.id;
+
+      // Now undo the check-in
+      const undoRes = await app.inject({
+        method: "DELETE",
+        url: `${ATTENDANCE_URL}/${attendanceId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(undoRes.statusCode).toBe(200);
+      const undoBody = JSON.parse(undoRes.body);
+      expect(undoBody.removed).toBe(true);
+
+      // Verify attendance record is deleted
+      const [attRow] = await app.db
+        .select({ id: attendance.id })
+        .from(attendance)
+        .where(eq(attendance.id, attendanceId));
+      expect(attRow).toBeUndefined();
+    });
+  });
 });

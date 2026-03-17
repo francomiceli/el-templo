@@ -713,6 +713,11 @@ export class SubscriptionService {
       .set(updateData)
       .where(eq(schema.subscriptions.id, sub.id));
 
+    // Cancel all future bookings for fixed-plan subscriptions
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(sub.id);
+    }
+
     const updated = await this.getSubscriptionById(sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
@@ -746,12 +751,17 @@ export class SubscriptionService {
       })
       .where(eq(schema.subscriptions.id, existingSub.id));
 
+    // Cancel future bookings for the old subscription
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(existingSub.id);
+    }
+
     this.log.info(
       { userId, oldSubscriptionId: existingSub.id, adminId },
       "Subscription cancelled for plan change",
     );
 
-    // Assign new plan (reuses all pricing/budget/fixedDays logic)
+    // Assign new plan (reuses all pricing/budget/scheduleIds logic)
     const newSub = await this.assignPlan(userId, input, adminId);
 
     this.log.info(

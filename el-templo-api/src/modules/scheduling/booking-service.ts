@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, asc } from "drizzle-orm";
+import { eq, and, sql, asc, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { PaymentService } from "../payments/service";
@@ -18,6 +18,7 @@ import {
   getWeekRange,
   buildClassDateTime,
 } from "../shared/date-utils";
+import { toDateString } from "../shared/date-utils";
 import type {
   BookingRecord,
   BookingStatus,
@@ -548,7 +549,7 @@ export class BookingService {
   /**
    * Generate bookings for a fixed-plan subscription across its entire period.
    * Creates one booking per matching dayOfWeek date from startDate to endDate,
-   * skipping holidays. Stub for Task 1; full implementation in Task 2.
+   * skipping holidays.
    */
   async generateFixedBookings(
     subscriptionId: number,
@@ -558,16 +559,171 @@ export class BookingService {
     endDate: string,
     branchId: number,
   ): Promise<{ totalGenerated: number; holidaysSkipped: number }> {
-    // Full implementation in Task 2
-    return { totalGenerated: 0, holidaysSkipped: 0 };
+    // Get the dayOfWeek for each schedule
+    const scheduleRows = await this.db
+      .select({
+        id: schema.schedules.id,
+        dayOfWeek: schema.schedules.dayOfWeek,
+      })
+      .from(schema.schedules)
+      .where(inArray(schema.schedules.id, scheduleIds));
+
+    // Get branch country for holiday lookup
+    const [branch] = await this.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, branchId));
+
+    const country = branch?.country ?? "AR";
+
+    // Fetch all holidays in the date range for this country
+    const holidayRows = await this.db
+      .select({ date: schema.holidays.date })
+      .from(schema.holidays)
+      .where(
+        and(
+          eq(schema.holidays.country, country),
+          sql`${schema.holidays.date} >= ${startDate}`,
+          sql`${schema.holidays.date} <= ${endDate}`,
+        ),
+      );
+    const holidayDates = new Set(holidayRows.map((h) => h.date));
+
+    let totalGenerated = 0;
+    let holidaysSkipped = 0;
+
+    // For each schedule, generate all matching dates
+    for (const sched of scheduleRows) {
+      // Find the first date >= startDate that matches this dayOfWeek
+      const start = new Date(startDate + "T12:00:00Z");
+      const end = new Date(endDate + "T12:00:00Z");
+
+      const current = new Date(start);
+      // Adjust to the first matching day
+      const currentDay = current.getUTCDay(); // 0=Sun
+      const targetIso = sched.dayOfWeek; // 1=Mon..6=Sat
+      const targetJs = targetIso === 7 ? 0 : targetIso; // Convert ISO to JS day
+      let diff = targetJs - currentDay;
+      if (diff < 0) diff += 7;
+      current.setUTCDate(current.getUTCDate() + diff);
+
+      while (current <= end) {
+        const dateStr = toDateString(current);
+
+        if (holidayDates.has(dateStr)) {
+          holidaysSkipped++;
+        } else {
+          // Check if booking already exists (avoid duplicates)
+          const [existing] = await this.db
+            .select({ id: schema.bookings.id })
+            .from(schema.bookings)
+            .where(
+              and(
+                eq(schema.bookings.memberId, memberId),
+                eq(schema.bookings.scheduleId, sched.id),
+                eq(schema.bookings.bookingDate, dateStr),
+              ),
+            )
+            .limit(1);
+
+          if (!existing) {
+            // Check capacity for waitlist
+            const activeCount = await this.countActiveBookings(
+              sched.id,
+              dateStr,
+            );
+            const maxCapacity = await this.getBranchCapacity(branchId);
+
+            let status: "reservado" | "lista_espera" = "reservado";
+            let waitlistPosition: number | null = null;
+
+            if (activeCount >= maxCapacity) {
+              status = "lista_espera";
+              const [maxPos] = await this.db
+                .select({
+                  maxPos: sql<number>`COALESCE(MAX(${schema.bookings.waitlistPosition}), 0)`,
+                })
+                .from(schema.bookings)
+                .where(
+                  and(
+                    eq(schema.bookings.scheduleId, sched.id),
+                    eq(schema.bookings.bookingDate, dateStr),
+                    eq(schema.bookings.status, "lista_espera"),
+                  ),
+                );
+              waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
+            }
+
+            await this.db.insert(schema.bookings).values({
+              memberId,
+              scheduleId: sched.id,
+              bookingDate: dateStr,
+              status,
+              waitlistPosition,
+            });
+            totalGenerated++;
+          }
+        }
+
+        // Move to next week
+        current.setUTCDate(current.getUTCDate() + 7);
+      }
+    }
+
+    this.log.info(
+      { subscriptionId, memberId, totalGenerated, holidaysSkipped },
+      "Fixed bookings generated",
+    );
+
+    return { totalGenerated, holidaysSkipped };
   }
 
   /**
    * Cancel all future bookings for a subscription's schedule slot IDs.
-   * Stub for Task 1; full implementation in Task 2.
+   * Preserves past bookings (historical records).
    */
   async cancelFutureBookings(subscriptionId: number): Promise<void> {
-    // Full implementation in Task 2
+    // Get schedule IDs from subscription_schedules
+    const subSchedules = await this.db
+      .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+      .from(schema.subscriptionSchedules)
+      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+
+    if (subSchedules.length === 0) return;
+
+    const scheduleIds = subSchedules.map((s) => s.scheduleId);
+
+    // Get the memberId from the subscription
+    const [sub] = await this.db
+      .select({ userId: schema.subscriptions.userId })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, subscriptionId));
+
+    if (!sub) return;
+
+    const today = new Date().toISOString().split("T")[0];
+
+    // Cancel future bookings
+    await this.db
+      .update(schema.bookings)
+      .set({
+        status: "cancelado",
+        cancelledAt: new Date(),
+        waitlistPosition: null,
+      })
+      .where(
+        and(
+          eq(schema.bookings.memberId, sub.userId),
+          inArray(schema.bookings.scheduleId, scheduleIds),
+          sql`${schema.bookings.bookingDate} > ${today}`,
+          sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
+        ),
+      );
+
+    this.log.info(
+      { subscriptionId, scheduleIds, memberId: sub.userId },
+      "Future bookings cancelled",
+    );
   }
 
   // ─── Private Helpers ──────────────────────────────────────────────────────

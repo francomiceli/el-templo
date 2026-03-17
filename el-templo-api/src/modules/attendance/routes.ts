@@ -18,6 +18,9 @@ import {
   memberCheckInSchema,
   memberHistorySchema,
   forceCheckInSchema,
+  slotAttendanceSchema,
+  slotCheckInSchema,
+  removeCheckInSchema,
 } from "./schemas";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
@@ -73,7 +76,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // POST /force — Force check-in (admin/coach override)
+  // POST /force — Force check-in (admin/coach override, legacy endpoint)
   fastify.post<{
     Body: { memberId: number; branchId: number; reason: string };
   }>("/force", { schema: forceCheckInSchema }, async (request, reply) => {
@@ -87,6 +90,65 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "force check-in");
     }
   });
+
+  // GET /slot/:scheduleId/:date — Slot attendance view
+  fastify.get<{
+    Params: { scheduleId: number; date: string };
+  }>(
+    "/slot/:scheduleId/:date",
+    { schema: slotAttendanceSchema },
+    async (request, reply) => {
+      try {
+        const result = await attendanceService.getSlotAttendance(
+          request.params.scheduleId,
+          request.params.date,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "slot attendance");
+      }
+    },
+  );
+
+  // POST /slot/:scheduleId/:date/check-in — Coach manual check-in from slot
+  fastify.post<{
+    Params: { scheduleId: number; date: string };
+    Body: { memberId: number; reason?: string };
+  }>(
+    "/slot/:scheduleId/:date/check-in",
+    { schema: slotCheckInSchema },
+    async (request, reply) => {
+      try {
+        const result = await attendanceService.coachCheckIn(
+          request.params.scheduleId,
+          request.params.date,
+          request.body.memberId,
+          request.body.reason,
+        );
+        return reply.code(201).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "slot check-in");
+      }
+    },
+  );
+
+  // DELETE /:attendanceId — Remove check-in (coach undo)
+  fastify.delete<{
+    Params: { attendanceId: number };
+  }>(
+    "/:attendanceId",
+    { schema: removeCheckInSchema },
+    async (request, reply) => {
+      try {
+        const result = await attendanceService.removeCheckIn(
+          request.params.attendanceId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "remove check-in");
+      }
+    },
+  );
 };
 
 // =============================================================================

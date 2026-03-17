@@ -250,6 +250,323 @@ export class AttendanceService {
     return this.getRecordById(recordId);
   }
 
+  // ─── Slot Attendance Methods ──────────────────────────────────────────────
+
+  /**
+   * Get attendance for a specific schedule slot on a given date.
+   * Returns members with booking + attendance status, including walk-in QR scans.
+   */
+  async getSlotAttendance(
+    scheduleId: number,
+    date: string,
+  ): Promise<{
+    members: Array<{
+      memberId: number;
+      memberName: string;
+      bookingId: number | null;
+      bookingStatus: string | null;
+      attendanceId: number | null;
+      checkedInAt: string | null;
+      source: "qr" | "manual" | null;
+    }>;
+  }> {
+    // Get all bookings for this slot+date
+    const bookingRows = await this.db
+      .select({
+        bookingId: schema.bookings.id,
+        memberId: schema.bookings.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        bookingStatus: schema.bookings.status,
+      })
+      .from(schema.bookings)
+      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
+      .where(
+        and(
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.bookingDate, date),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
+        ),
+      );
+
+    // Get all attendance records for this slot+date
+    const attendanceRows = await this.db
+      .select({
+        id: schema.attendance.id,
+        memberId: schema.attendance.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        checkedInAt: schema.attendance.checkedInAt,
+        source: schema.attendance.source,
+      })
+      .from(schema.attendance)
+      .innerJoin(schema.users, eq(schema.users.id, schema.attendance.memberId))
+      .where(
+        and(
+          eq(schema.attendance.scheduleId, scheduleId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
+        ),
+      );
+
+    // Merge: start with all booked members, overlay attendance
+    const memberMap = new Map<
+      number,
+      {
+        memberId: number;
+        memberName: string;
+        bookingId: number | null;
+        bookingStatus: string | null;
+        attendanceId: number | null;
+        checkedInAt: string | null;
+        source: "qr" | "manual" | null;
+      }
+    >();
+
+    for (const b of bookingRows) {
+      memberMap.set(b.memberId, {
+        memberId: b.memberId,
+        memberName: [b.memberFirstName, b.memberLastName]
+          .filter(Boolean)
+          .join(" "),
+        bookingId: b.bookingId,
+        bookingStatus: b.bookingStatus,
+        attendanceId: null,
+        checkedInAt: null,
+        source: null,
+      });
+    }
+
+    for (const a of attendanceRows) {
+      const existing = memberMap.get(a.memberId);
+      if (existing) {
+        existing.attendanceId = a.id;
+        existing.checkedInAt =
+          a.checkedInAt instanceof Date
+            ? a.checkedInAt.toISOString()
+            : String(a.checkedInAt);
+        existing.source = a.source as "qr" | "manual";
+      } else {
+        // Walk-in: attendance without booking
+        memberMap.set(a.memberId, {
+          memberId: a.memberId,
+          memberName: [a.memberFirstName, a.memberLastName]
+            .filter(Boolean)
+            .join(" "),
+          bookingId: null,
+          bookingStatus: null,
+          attendanceId: a.id,
+          checkedInAt:
+            a.checkedInAt instanceof Date
+              ? a.checkedInAt.toISOString()
+              : String(a.checkedInAt),
+          source: a.source as "qr" | "manual",
+        });
+      }
+    }
+
+    return { members: Array.from(memberMap.values()) };
+  }
+
+  /**
+   * Coach manual check-in from a schedule slot.
+   * Validates membership and returns subscription status warnings alongside
+   * the created attendance record. Always allows check-in (coach override).
+   */
+  async coachCheckIn(
+    scheduleId: number,
+    date: string,
+    memberId: number,
+    reason?: string,
+  ): Promise<{
+    attendance: AttendanceRecord;
+    warnings: string[];
+  }> {
+    const warnings: string[] = [];
+
+    // Get schedule to find branchId
+    const [schedule] = await this.db
+      .select({ branchId: schema.schedules.branchId })
+      .from(schema.schedules)
+      .where(eq(schema.schedules.id, scheduleId));
+
+    if (!schedule) {
+      throw new BadRequestError("Horario no encontrado");
+    }
+
+    // Check subscription status for warnings (don't block)
+    const subscription =
+      await this.subscriptionService.getMemberSubscription(memberId);
+    if (!subscription) {
+      warnings.push("Sin suscripcion activa");
+    } else {
+      if (
+        subscription.classesRemaining !== null &&
+        subscription.classesRemaining <= 0
+      ) {
+        warnings.push("Clases del periodo agotadas");
+      }
+    }
+
+    // Check overdue for warning
+    const balance = await this.paymentService.getMemberBalance(memberId);
+    if (balance?.isOverdue) {
+      warnings.push("Pago pendiente");
+    }
+
+    // Insert attendance record
+    const result = await this.db.insert(schema.attendance).values({
+      memberId,
+      branchId: schedule.branchId,
+      scheduleId,
+      status: "confirmado",
+      source: "manual",
+    });
+
+    const recordId = Number(result[0].insertId);
+
+    // Award AURA immediately
+    await this.auraService.award({
+      userId: memberId,
+      sourceType: "attendance",
+      referenceType: "attendance",
+      referenceId: recordId,
+      amount: 10,
+      description: reason
+        ? `Asistencia manual: ${reason}`
+        : "Asistencia confirmada (manual)",
+    });
+
+    // Decrement classesRemaining if tracked
+    if (
+      subscription &&
+      subscription.classesRemaining !== null &&
+      subscription.classesRemaining > 0
+    ) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({
+          classesRemaining: sql`${schema.subscriptions.classesRemaining} - 1`,
+        })
+        .where(
+          and(
+            eq(schema.subscriptions.id, subscription.id),
+            sql`${schema.subscriptions.classesRemaining} > 0`,
+          ),
+        );
+    }
+
+    // If member has a booking for this slot+date, update it to confirmado
+    const [booking] = await this.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          eq(schema.bookings.scheduleId, scheduleId),
+          eq(schema.bookings.bookingDate, date),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado')`,
+        ),
+      )
+      .limit(1);
+
+    if (booking) {
+      await this.db
+        .update(schema.bookings)
+        .set({ status: "confirmado" })
+        .where(eq(schema.bookings.id, booking.id));
+    }
+
+    this.log.info(
+      { memberId, scheduleId, date, recordId, warnings },
+      "Coach check-in recorded",
+    );
+
+    const record = await this.getRecordById(recordId);
+    return { attendance: record, warnings };
+  }
+
+  /**
+   * Remove a check-in (coach undo). Deletes the attendance record,
+   * restores classesRemaining, reverses AURA, and reverts booking status.
+   */
+  async removeCheckIn(attendanceId: number): Promise<{ removed: boolean }> {
+    // Get the attendance record
+    const [attRecord] = await this.db
+      .select({
+        id: schema.attendance.id,
+        memberId: schema.attendance.memberId,
+        scheduleId: schema.attendance.scheduleId,
+        checkedInAt: schema.attendance.checkedInAt,
+      })
+      .from(schema.attendance)
+      .where(eq(schema.attendance.id, attendanceId));
+
+    if (!attRecord) {
+      throw new BadRequestError("Registro de asistencia no encontrado");
+    }
+
+    // Delete the attendance record
+    await this.db
+      .delete(schema.attendance)
+      .where(eq(schema.attendance.id, attendanceId));
+
+    // Restore classesRemaining +1
+    const subscription = await this.subscriptionService.getMemberSubscription(
+      attRecord.memberId,
+    );
+    if (subscription && subscription.classesRemaining !== null) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({
+          classesRemaining: sql`${schema.subscriptions.classesRemaining} + 1`,
+        })
+        .where(eq(schema.subscriptions.id, subscription.id));
+    }
+
+    // Reverse AURA: spend 10 AURA as a reversal
+    try {
+      await this.auraService.spend({
+        userId: attRecord.memberId,
+        amount: 10,
+        description: `Reversa asistencia #${attendanceId}`,
+        referenceType: "attendance_reversal",
+      });
+    } catch {
+      // If insufficient balance, just log it -- don't block the undo
+      this.log.warn(
+        { attendanceId, memberId: attRecord.memberId },
+        "Could not reverse AURA (insufficient balance)",
+      );
+    }
+
+    // Revert booking status if applicable
+    if (attRecord.scheduleId) {
+      const dateStr =
+        attRecord.checkedInAt instanceof Date
+          ? attRecord.checkedInAt.toISOString().split("T")[0]
+          : String(attRecord.checkedInAt).split("T")[0];
+
+      await this.db
+        .update(schema.bookings)
+        .set({ status: "reservado" })
+        .where(
+          and(
+            eq(schema.bookings.memberId, attRecord.memberId),
+            eq(schema.bookings.scheduleId, attRecord.scheduleId),
+            eq(schema.bookings.bookingDate, dateStr),
+            sql`${schema.bookings.status} IN ('qr_escaneado', 'confirmado')`,
+          ),
+        );
+    }
+
+    this.log.info(
+      { attendanceId, memberId: attRecord.memberId },
+      "Check-in removed (coach undo)",
+    );
+
+    return { removed: true };
+  }
+
   // ─── Query Methods ─────────────────────────────────────────────────────────
 
   /**
