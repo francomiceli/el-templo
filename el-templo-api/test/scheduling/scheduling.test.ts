@@ -1411,4 +1411,88 @@ describe("Scheduling API", () => {
       expect(JSON.parse(cancelRes.body).status).toBe("cancelado");
     });
   });
+
+  // =========================================================================
+  // Booking Enforcement (Phase 60 Plan 02)
+  // =========================================================================
+  describe("Booking Enforcement", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("blocks booking on non-assigned day for fixed-mode plan", async () => {
+      // Fixed plan with days [1, 5] (Mon, Fri) — booking on Thursday (day 4) should fail
+      const { member, subscription, memberToken } =
+        await setupMemberWithSubscription(
+          { email: "fixed-book@test.com", dni: "60020010" },
+          {
+            classesPerWeek: 2,
+            bookingMode: "fixed",
+            name: "Plan Fixed Booking Test",
+          },
+        );
+
+      // Set fixedDays on subscription
+      await app.db
+        .update(subscriptions)
+        .set({ fixedDays: JSON.stringify([1, 5]) })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      // Create a schedule for Thursday (day 4)
+      const activity = await createActivity("Fixed Test Activity");
+      const thursdaySlot = await createScheduleSlot(
+        activity.id,
+        4,
+        "20:00",
+        "21:00",
+      );
+      const thursdayDate = getDateForDayOfWeek(4);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: thursdaySlot.id, date: thursdayDate },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("dias asignados");
+    });
+
+    it("blocks booking when monthly budget is exhausted", async () => {
+      const { member, subscription, memberToken } =
+        await setupMemberWithSubscription(
+          { email: "budget-book@test.com", dni: "60020011" },
+          { classesPerWeek: 3, name: "Plan Budget Booking Test" },
+        );
+
+      // Set classesRemaining to 0
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 0 })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      // Create a future schedule slot
+      const activity = await createActivity("Budget Test Activity");
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("clases del periodo");
+    });
+  });
 });
