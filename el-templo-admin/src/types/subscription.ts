@@ -44,6 +44,17 @@ export const PRICE_TYPE_LABELS: Record<PriceType, string> = {
   credit_card: 'Tarjeta',
 };
 
+// ─── Day Labels (ISO weekdays: 1=Mon ... 6=Sat) ───────────────────────────
+
+export const DAY_LABELS: Record<number, string> = {
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mie',
+  4: 'Jue',
+  5: 'Vie',
+  6: 'Sab',
+};
+
 // ─── AURA Discount Tiers ────────────────────────────────────────────────────
 
 export interface AuraDiscountTier {
@@ -139,6 +150,9 @@ export interface SubscriptionDetail {
   boardingPassUsed: boolean;
   priceOverrideAmount: number | null;
   priceOverrideReason: string | null;
+  classesRemaining: number | null;
+  fixedDays: number[] | null;
+  graceCheckInsAfterExpiry: number;
   pausedAt: string | null;
   resumedAt: string | null;
   cancelledAt: string | null;
@@ -154,6 +168,7 @@ export interface AssignPlanInput {
   branchId: number;
   startDate: string;
   priceTypeApplied: PriceType;
+  fixedDays?: number[];
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
@@ -172,4 +187,14 @@ export interface PricingPreview {
   auraBalance: number;
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
+}
+
+// ─── Class Usage Types ─────────────────────────────────────────────────────
+
+export interface ClassUsageInfo {
+  classesRemaining: number | null;
+  classesUsedThisWeek: number;
+  weeklyLimit: number | null;
+  fixedDays: number[] | null;
+  bookingMode: BookingMode;
 }

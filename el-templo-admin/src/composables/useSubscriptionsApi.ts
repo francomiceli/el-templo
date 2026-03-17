@@ -16,6 +16,7 @@ import type {
   AssignPlanInput,
   PricingPreview,
   PriceType,
+  ClassUsageInfo,
 } from 'src/types/subscription';
 
 export function useSubscriptionsApi() {
@@ -230,6 +231,24 @@ export function useSubscriptionsApi() {
     }
   }
 
+  // ─── Class Usage ─────────────────────────────────────────────────────
+
+  async function getClassUsage(userId: number): Promise<ClassUsageInfo> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ClassUsageInfo>(
+        `/admin/subscriptions/members/${userId}/class-usage`
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando uso de clases');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -252,6 +271,7 @@ export function useSubscriptionsApi() {
     resumeSubscription,
     cancelSubscription,
     getPricingPreview,
+    getClassUsage,
     cleanup,
   };
 }
