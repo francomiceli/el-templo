@@ -1,6 +1,6 @@
 <template>
   <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
-    <q-card style="width: 650px; max-width: 95vw">
+    <q-card style="width: 700px; max-width: 95vw">
       <q-card-section>
         <div class="text-h6">{{ mode === 'change' ? 'Cambiar Plan' : 'Gestionar Plan' }}</div>
       </q-card-section>
@@ -201,27 +201,72 @@
         </q-step>
 
         <!-- ============================================================ -->
-        <!-- Step 3 (conditional): Fixed Days -->
+        <!-- Step 3 (conditional): Schedule Slot Picker -->
         <!-- ============================================================ -->
         <q-step
           v-if="isFixedMode"
           :name="3"
-          title="Dias Asignados"
+          title="Horarios Fijos"
           icon="calendar_today"
           :done="step > 3"
         >
           <div class="q-mb-md">
-            <div class="text-subtitle2 q-mb-sm">
-              Selecciona los dias de asistencia para este plan
+            <div class="row items-center justify-between q-mb-sm">
+              <div class="text-subtitle2">Selecciona los horarios fijos para este plan</div>
+              <q-badge
+                :color="selectedScheduleIds.length === requiredSlotCount ? 'positive' : 'grey'"
+                class="text-body2 q-pa-sm"
+              >
+                Clases seleccionadas: {{ selectedScheduleIds.length }}/{{ requiredSlotCount }}
+              </q-badge>
             </div>
-            <div class="row q-gutter-sm">
-              <q-checkbox
-                v-for="day in dayOptions"
-                :key="day"
-                v-model="assignForm.fixedDays"
-                :val="day"
-                :label="DAY_LABELS[day]"
-              />
+
+            <!-- Loading schedules -->
+            <div v-if="loadingSchedules" class="flex flex-center q-pa-lg">
+              <q-spinner-dots size="40px" color="primary" />
+            </div>
+
+            <!-- Schedule grid -->
+            <div v-else-if="branchSchedules.length > 0" class="slot-picker-grid">
+              <div class="slot-grid" :style="slotGridStyle">
+                <!-- Header: empty corner -->
+                <div class="slot-header slot-corner" />
+                <!-- Header: day columns -->
+                <div
+                  v-for="day in slotDays"
+                  :key="day.dayOfWeek"
+                  class="slot-header slot-day-header text-center"
+                >
+                  {{ day.label }}
+                </div>
+
+                <!-- Rows: time slots -->
+                <template v-for="time in slotTimeSlots" :key="time">
+                  <div class="slot-time-label text-caption text-grey-7">{{ time }}</div>
+                  <div
+                    v-for="day in slotDays"
+                    :key="`${time}-${day.dayOfWeek}`"
+                    class="slot-cell"
+                    :class="slotCellClass(time, day.dayOfWeek)"
+                    @click="toggleSlot(time, day.dayOfWeek)"
+                  >
+                    <template v-if="getSlotForCell(time, day.dayOfWeek)">
+                      <div class="slot-cell-activity text-caption ellipsis">
+                        {{ getSlotForCell(time, day.dayOfWeek)!.activityName }}
+                      </div>
+                      <div class="slot-cell-capacity text-caption">
+                        {{ getSlotForCell(time, day.dayOfWeek)!.bookedCount }}/{{
+                          getSlotForCell(time, day.dayOfWeek)!.maxCapacity
+                        }}
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div v-else class="text-center text-grey-5 text-italic q-pa-lg">
+              No hay horarios configurados para esta sede
             </div>
           </div>
 
@@ -230,7 +275,7 @@
             <q-btn
               color="primary"
               label="Continuar"
-              :disable="assignForm.fixedDays.length === 0"
+              :disable="selectedScheduleIds.length !== requiredSlotCount"
               @click="step = confirmStep"
             />
           </q-stepper-navigation>
@@ -271,10 +316,10 @@
                       -${{ pricingDisplay.discountAmount.toLocaleString() }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="isFixedMode && assignForm.fixedDays.length > 0">
-                    <q-item-section>Dias asignados</q-item-section>
+                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                    <q-item-section>Horarios fijos</q-item-section>
                     <q-item-section side class="text-weight-medium">
-                      {{ formatFixedDays(assignForm.fixedDays) }}
+                      {{ formatSelectedSchedules() }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="assignForm.boardingPass">
@@ -327,21 +372,23 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
+import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
   PRICE_TYPE_LABELS,
-  DAY_LABELS,
   type PlanListItem,
   type PlanTier,
   type PriceType,
   type PricingPreview,
   type AssignPlanInput,
 } from 'src/types/subscription';
+import { DAY_SHORT_LABELS, type WeeklySlotView, type DayOfWeek } from 'src/types/scheduling';
 
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
+const schedulingApi = useSchedulingApi();
 
 // =========================================================================
 // Props & Emits
@@ -374,6 +421,11 @@ const selectedPlan = ref<PlanListItem | null>(null);
 const pricingPreview = ref<PricingPreview | null>(null);
 const assigning = ref(false);
 
+// Schedule slot picker state
+const branchSchedules = ref<WeeklySlotView[]>([]);
+const loadingSchedules = ref(false);
+const selectedScheduleIds = ref<number[]>([]);
+
 const assignForm = ref({
   priceTypeApplied: 'regular' as PriceType,
   startDate: new Date().toISOString().split('T')[0],
@@ -382,7 +434,6 @@ const assignForm = ref({
   useOverride: false,
   priceOverrideAmount: null as number | null,
   priceOverrideReason: '',
-  fixedDays: [] as number[],
   notes: '',
 });
 
@@ -399,15 +450,7 @@ const isFixedMode = computed(() => selectedPlan.value?.bookingMode === 'fixed');
 
 const confirmStep = computed(() => (isFixedMode.value ? 4 : 3));
 
-const dayOptions = [1, 2, 3, 4, 5, 6];
-
-function formatFixedDays(days: number[]): string {
-  return days
-    .slice()
-    .sort((a, b) => a - b)
-    .map((d) => DAY_LABELS[d] ?? String(d))
-    .join(', ');
-}
+const requiredSlotCount = computed(() => selectedPlan.value?.classesPerWeek ?? 0);
 
 const plansByTier = computed((): TierGroup[] => {
   const tierOrder: PlanTier[] = ['flex', 'foundation', 'performance', 'other'];
@@ -477,6 +520,78 @@ const calculatedEndDate = computed(() => {
   return end.toISOString().split('T')[0];
 });
 
+// ─── Schedule Slot Grid Computed ──────────────────────────────────────────
+
+const slotDays = computed(() => {
+  const days: Array<{ dayOfWeek: DayOfWeek; label: string }> = [];
+  for (let i = 1; i <= 6; i++) {
+    const dow = i as DayOfWeek;
+    days.push({ dayOfWeek: dow, label: DAY_SHORT_LABELS[dow] });
+  }
+  return days;
+});
+
+const slotTimeSlots = computed(() => {
+  const times = new Set<string>();
+  for (const slot of branchSchedules.value) {
+    times.add(slot.startTime);
+  }
+  return Array.from(times).sort();
+});
+
+const slotGridStyle = computed(() => ({
+  'grid-template-columns': '55px repeat(6, 1fr)',
+  'grid-template-rows': `auto repeat(${slotTimeSlots.value.length}, 1fr)`,
+}));
+
+const slotMap = computed(() => {
+  const map = new Map<string, WeeklySlotView>();
+  for (const s of branchSchedules.value) {
+    map.set(`${s.startTime}-${s.dayOfWeek}`, s);
+  }
+  return map;
+});
+
+function getSlotForCell(time: string, dayOfWeek: DayOfWeek): WeeklySlotView | undefined {
+  return slotMap.value.get(`${time}-${dayOfWeek}`);
+}
+
+function slotCellClass(time: string, dayOfWeek: DayOfWeek): string {
+  const slot = getSlotForCell(time, dayOfWeek);
+  if (!slot) return 'slot-cell--empty';
+  if (slot.isFull) return 'slot-cell--full';
+  if (selectedScheduleIds.value.includes(slot.id)) return 'slot-cell--selected';
+  return 'slot-cell--available';
+}
+
+function toggleSlot(time: string, dayOfWeek: DayOfWeek): void {
+  const slot = getSlotForCell(time, dayOfWeek);
+  if (!slot || slot.isFull) return;
+
+  const idx = selectedScheduleIds.value.indexOf(slot.id);
+  if (idx >= 0) {
+    selectedScheduleIds.value.splice(idx, 1);
+  } else {
+    // Only allow selection if under the required count
+    if (selectedScheduleIds.value.length < requiredSlotCount.value) {
+      selectedScheduleIds.value.push(slot.id);
+    }
+  }
+}
+
+function formatSelectedSchedules(): string {
+  const names: string[] = [];
+  for (const id of selectedScheduleIds.value) {
+    const slot = branchSchedules.value.find((s) => s.id === id);
+    if (slot) {
+      names.push(
+        `${slot.activityName} ${DAY_SHORT_LABELS[slot.dayOfWeek as DayOfWeek]} ${slot.startTime.slice(0, 5)}`
+      );
+    }
+  }
+  return names.join(', ');
+}
+
 // =========================================================================
 // Helpers
 // =========================================================================
@@ -539,6 +654,33 @@ async function loadPricingPreview() {
   }
 }
 
+async function loadBranchSchedules() {
+  loadingSchedules.value = true;
+  try {
+    // Use the weekly grid endpoint with the current Monday to get active schedules
+    const monday = getMonday(new Date());
+    const result = await schedulingApi.getWeeklyGrid(props.memberBranchId, monday);
+    branchSchedules.value = result.slots;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading branch schedules', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando horarios' });
+  } finally {
+    loadingSchedules.value = false;
+  }
+}
+
+function getMonday(d: Date): string {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setDate(diff);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
 // =========================================================================
 // Actions
 // =========================================================================
@@ -551,9 +693,14 @@ function selectPlan(plan: PlanListItem) {
   assignForm.value.useOverride = false;
   assignForm.value.priceOverrideAmount = null;
   assignForm.value.priceOverrideReason = '';
-  assignForm.value.fixedDays = [];
+  selectedScheduleIds.value = [];
   step.value = 2;
   loadPricingPreview();
+
+  // Pre-load branch schedules for fixed plans
+  if (plan.bookingMode === 'fixed') {
+    loadBranchSchedules();
+  }
 }
 
 function onPricingOptionChange() {
@@ -599,9 +746,9 @@ async function executeConfirm() {
       branchId: props.memberBranchId,
       startDate: assignForm.value.startDate,
       priceTypeApplied: assignForm.value.boardingPass ? 'zero' : assignForm.value.priceTypeApplied,
-      fixedDays:
-        isFixedMode.value && assignForm.value.fixedDays.length > 0
-          ? assignForm.value.fixedDays
+      scheduleIds:
+        isFixedMode.value && selectedScheduleIds.value.length > 0
+          ? selectedScheduleIds.value
           : undefined,
       boardingPass: assignForm.value.boardingPass || undefined,
       auraSpend:
@@ -650,6 +797,8 @@ watch(
       step.value = 1;
       selectedPlan.value = null;
       pricingPreview.value = null;
+      branchSchedules.value = [];
+      selectedScheduleIds.value = [];
       assignForm.value = {
         priceTypeApplied: 'regular',
         startDate: new Date().toISOString().split('T')[0],
@@ -658,7 +807,6 @@ watch(
         useOverride: false,
         priceOverrideAmount: null,
         priceOverrideReason: '',
-        fixedDays: [],
         notes: '',
       };
       loadPlans();
@@ -666,3 +814,103 @@ watch(
   }
 );
 </script>
+
+<style scoped>
+.slot-picker-grid {
+  overflow-x: auto;
+}
+
+.slot-grid {
+  display: grid;
+  gap: 2px;
+  min-width: 420px;
+}
+
+.slot-header {
+  padding: 6px 4px;
+  background: var(--q-primary);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.slot-corner {
+  border-radius: 4px 0 0 0;
+}
+
+.slot-day-header {
+  border-radius: 0;
+}
+
+.slot-day-header:last-child {
+  border-radius: 0 4px 0 0;
+}
+
+.slot-time-label {
+  padding: 6px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  font-weight: 500;
+}
+
+.slot-cell {
+  padding: 4px;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #e0e0e0;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-radius: 4px;
+}
+
+.slot-cell:hover:not(.slot-cell--empty):not(.slot-cell--full) {
+  filter: brightness(0.92);
+}
+
+.slot-cell--empty {
+  background: #fafafa;
+  cursor: default;
+  border-color: transparent;
+}
+
+.slot-cell--available {
+  background: #e8f5e9;
+  border-color: #c8e6c9;
+}
+
+.slot-cell--selected {
+  background: #bbdefb;
+  border-color: var(--q-primary);
+  border-width: 3px;
+}
+
+.slot-cell--full {
+  background: #f5f5f5;
+  color: #bdbdbd;
+  cursor: not-allowed;
+  border-color: #eeeeee;
+}
+
+.slot-cell-activity {
+  font-size: 0.65rem;
+  max-width: 100%;
+  text-align: center;
+}
+
+.slot-cell-capacity {
+  font-size: 0.7rem;
+  margin-top: 1px;
+  font-weight: 600;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>

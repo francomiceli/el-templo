@@ -1,8 +1,4 @@
 /**
  * Settings types for the admin app.
- * Matches the API response shapes from the settings module (Phase 60).
+ * Placeholder for future system settings.
  */
-
-export interface GracePeriodSetting {
-  gracePeriodDays: number;
-}

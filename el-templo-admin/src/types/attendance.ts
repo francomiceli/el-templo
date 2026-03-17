@@ -3,7 +3,7 @@
  * Matches the AttendanceRecord shape from the attendance API.
  */
 
-export type AttendanceStatus = 'registrado' | 'confirmado';
+export type AttendanceStatus = 'confirmado';
 export type AttendanceSource = 'qr' | 'manual';
 
 export interface AttendanceRecord {
@@ -13,18 +13,15 @@ export interface AttendanceRecord {
   branchId: number;
   branchName: string;
   checkedInAt: string;
-  confirmedAt: string | null;
   status: AttendanceStatus;
   source: AttendanceSource;
 }
 
 export const statusLabels: Record<AttendanceStatus, string> = {
-  registrado: 'Registrado',
   confirmado: 'Confirmado',
 };
 
 export const statusColors: Record<AttendanceStatus, string> = {
-  registrado: 'orange',
   confirmado: 'positive',
 };
 
@@ -32,3 +29,16 @@ export const sourceLabels: Record<AttendanceSource, string> = {
   qr: 'QR',
   manual: 'Manual',
 };
+
+/**
+ * Slot attendance item from GET /admin/attendance/slot/:scheduleId/:date
+ */
+export interface SlotAttendanceItem {
+  memberId: number;
+  memberName: string;
+  bookingId: number | null;
+  bookingStatus: string | null;
+  attendanceId: number | null;
+  checkedInAt: string | null;
+  source: 'qr' | 'manual' | null;
+}

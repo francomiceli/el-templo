@@ -59,9 +59,15 @@
                 }}
               </div>
             </div>
-            <div v-if="classUsage.fixedDays && classUsage.fixedDays.length > 0">
-              <div class="text-caption text-grey-7">Dias asignados</div>
-              <div>{{ formatFixedDays(classUsage.fixedDays) }}</div>
+            <div v-if="classUsage.scheduleIds && classUsage.scheduleIds.length > 0">
+              <div class="text-caption text-grey-7">Horarios fijos</div>
+              <div>{{ classUsage.scheduleIds.length }} clases asignadas</div>
+            </div>
+            <div v-if="subscription && subscription.replacementCredits > 0">
+              <div class="text-caption text-grey-7">Clases de reemplazo</div>
+              <div class="text-positive text-weight-medium">
+                {{ subscription.replacementCredits }}
+              </div>
             </div>
           </div>
 
@@ -251,7 +257,6 @@ import {
   STATUS_LABELS,
   STATUS_COLORS,
   PRICE_TYPE_LABELS,
-  DAY_LABELS,
   type SubscriptionDetail,
   type SubscriptionHistoryItem,
   type ClassUsageInfo,
@@ -302,16 +307,8 @@ const daysRemaining = computed(() => {
 
 const showClassUsage = computed(() => {
   if (!classUsage.value) return false;
-  return classUsage.value.weeklyLimit !== null || classUsage.value.fixedDays !== null;
+  return classUsage.value.weeklyLimit !== null || classUsage.value.scheduleIds.length > 0;
 });
-
-function formatFixedDays(days: number[]): string {
-  return days
-    .slice()
-    .sort((a, b) => a - b)
-    .map((d) => DAY_LABELS[d] ?? String(d))
-    .join(', ');
-}
 
 // =========================================================================
 // Display helpers

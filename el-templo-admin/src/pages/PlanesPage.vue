@@ -6,37 +6,6 @@
       <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreateDialog" />
     </div>
 
-    <!-- Grace Period Settings Card -->
-    <q-card flat bordered class="q-mb-lg" style="max-width: 400px">
-      <q-card-section>
-        <div class="text-subtitle1 text-weight-bold q-mb-xs">Periodo de Gracia</div>
-        <div class="text-caption text-grey-7 q-mb-md">
-          Dias de gracia despues del vencimiento de la suscripcion
-        </div>
-        <div class="row items-center q-gutter-sm">
-          <q-input
-            v-model.number="gracePeriodDays"
-            type="number"
-            dense
-            outlined
-            :min="0"
-            :max="30"
-            suffix="dias"
-            class="col"
-            style="max-width: 160px"
-          />
-          <q-btn
-            label="Guardar"
-            color="primary"
-            dense
-            no-caps
-            :loading="savingGracePeriod"
-            @click="saveGracePeriod"
-          />
-        </div>
-      </q-card-section>
-    </q-card>
-
     <!-- QTable -->
     <q-table
       :rows="plans"
@@ -114,14 +83,12 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
-import { useSettingsApi } from 'src/composables/useSettingsApi';
 import { PLAN_TIER_LABELS, type PlanListItem, type PlanTier } from 'src/types/subscription';
 import PlanFormDialog from 'src/components/PlanFormDialog.vue';
 
 const log = createLogger('PlanesPage');
 const $q = useQuasar();
 const subscriptionsApi = useSubscriptionsApi();
-const settingsApi = useSettingsApi();
 
 // =========================================================================
 // State
@@ -131,8 +98,6 @@ const plans = ref<PlanListItem[]>([]);
 const loading = ref(false);
 const showFormDialog = ref(false);
 const editingPlan = ref<PlanListItem | null>(null);
-const gracePeriodDays = ref<number>(5);
-const savingGracePeriod = ref(false);
 
 // =========================================================================
 // Table columns
@@ -232,31 +197,6 @@ async function loadPlans() {
   }
 }
 
-async function loadGracePeriod() {
-  try {
-    const result = await settingsApi.getGracePeriod();
-    gracePeriodDays.value = result.gracePeriodDays;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading grace period', { error: message });
-  }
-}
-
-async function saveGracePeriod() {
-  savingGracePeriod.value = true;
-  try {
-    const result = await settingsApi.setGracePeriod(gracePeriodDays.value);
-    gracePeriodDays.value = result.gracePeriodDays;
-    $q.notify({ type: 'positive', message: 'Periodo de gracia guardado' });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error saving grace period', { error: message });
-    $q.notify({ type: 'negative', message: 'Error guardando periodo de gracia' });
-  } finally {
-    savingGracePeriod.value = false;
-  }
-}
-
 // =========================================================================
 // Dialog actions
 // =========================================================================
@@ -301,6 +241,5 @@ function onPlanSaved() {
 
 onMounted(() => {
   loadPlans();
-  loadGracePeriod();
 });
 </script>

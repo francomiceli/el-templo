@@ -42,10 +42,7 @@
             <!-- Estado column -->
             <template #body-cell-estado="slotProps">
               <q-td :props="slotProps">
-                <q-badge
-                  :color="statusColors[slotProps.row.status]"
-                  :label="statusLabels[slotProps.row.status]"
-                />
+                <q-icon name="check_circle" color="positive" size="sm" />
               </q-td>
             </template>
 
@@ -54,7 +51,7 @@
               <q-td :props="slotProps">
                 <q-badge
                   :color="slotProps.row.source === 'qr' ? 'info' : 'grey-7'"
-                  :label="sourceLabels[slotProps.row.source]"
+                  :label="sourceLabels[slotProps.row.source as AttendanceSource]"
                 />
               </q-td>
             </template>
@@ -70,12 +67,7 @@ import { ref, onMounted } from 'vue';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
-import {
-  statusLabels,
-  statusColors,
-  sourceLabels,
-  type AttendanceRecord,
-} from 'src/types/attendance';
+import { sourceLabels, type AttendanceRecord, type AttendanceSource } from 'src/types/attendance';
 
 const log = createLogger('MemberAttendanceTab');
 const attendanceApi = useAttendanceApi();
@@ -116,7 +108,7 @@ const attendanceColumns: QTableProps['columns'] = [
     field: 'status',
     align: 'center',
     sortable: false,
-    style: 'width: 120px',
+    style: 'width: 80px',
   },
   {
     name: 'fuente',
