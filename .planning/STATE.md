@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
-status: ready_to_plan
-stopped_at: Roadmap created -- 7 phases (67-73), ready to plan Phase 67
-last_updated: "2026-03-17T00:00:00.000Z"
-last_activity: 2026-03-17 -- Roadmap created for v5.0
+status: executing
+stopped_at: Completed 67-01-PLAN.md
+last_updated: "2026-03-17T17:05:09.000Z"
+last_activity: 2026-03-17 -- Completed Plan 01 of Phase 67
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
+  percent: 7
 ---
 
 # Project State
@@ -26,22 +26,23 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 67 of 73 (WhatsApp Cloud API Webhook + Echo Bot)
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-17 -- Roadmap created for v5.0
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-03-17 -- Completed Plan 01 of Phase 67
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [▓░░░░░░░░░] 7%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0 (v5.0)
+
+- Total plans completed: 1 (v5.0)
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 | ----- | ----- | ----- | -------- |
-| --    | --    | --    | --       |
+| 67    | 1/2   | 4 min | 4 min    |
 
 ## Accumulated Context
 
@@ -56,6 +57,9 @@ Recent decisions affecting current work:
 - Model-agnostic AI abstraction (OpenAI GPT-4o mini or Anthropic Haiku)
 - Redis for ephemeral state, MySQL for permanent records
 - RenovaFacil (Python) as architecture pattern reference
+- [67-01] Adjusted tsconfig rootDir to '..' for cross-project schema imports
+- [67-01] Native fetch for WhatsApp API calls (Node 22 built-in)
+- [67-01] MySQL pool exported from db.ts for graceful shutdown
 
 ### Pending Todos
 
@@ -68,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-17
-Stopped at: Roadmap created -- 7 phases (67-73), ready to plan Phase 67
-Resume file: --
+Stopped at: Completed 67-01-PLAN.md
+Resume file: .planning/phases/67-whatsapp-cloud-api-webhook-echo-bot/67-01-SUMMARY.md

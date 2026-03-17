@@ -10,9 +10,9 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 ### Webhook & Infrastructure
 
 - [ ] **HOOK-01**: Bot receives incoming WhatsApp messages via Cloud API webhook (GET verify + POST handler)
-- [ ] **HOOK-02**: Bot sends text replies and template messages via Cloud API
-- [ ] **HOOK-03**: DB schema: whatsapp_conversations and whatsapp_messages tables with indexes (Drizzle migration)
-- [ ] **HOOK-04**: Bot process runs under PM2 alongside el-templo-api with auto-restart
+- [x] **HOOK-02**: Bot sends text replies and template messages via Cloud API
+- [x] **HOOK-03**: DB schema: whatsapp_conversations and whatsapp_messages tables with indexes (Drizzle migration)
+- [x] **HOOK-04**: Bot process runs under PM2 alongside el-templo-api with auto-restart
 
 ### AI Processing
 
@@ -63,48 +63,50 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 ## Out of Scope
 
-| Feature | Reason |
-|---------|--------|
-| Baileys/BuilderBot | Reverse-engineered, unstable. Cloud API is official and production-proven |
-| Message queue (BullMQ/RabbitMQ) | Over-engineered at ~100 convs/day. Node.js async sufficient |
-| RAG/vector search for business info | System prompt sufficient — all business context fits in prompt |
-| Multi-language support | Spanish only for now, all branches are Spanish-speaking |
-| Voice message transcription | Adds complexity, defer to v5.1+ |
-| Payment processing via WhatsApp | Payment gateway is v7.0+ scope |
+| Feature                             | Reason                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------- |
+| Baileys/BuilderBot                  | Reverse-engineered, unstable. Cloud API is official and production-proven |
+| Message queue (BullMQ/RabbitMQ)     | Over-engineered at ~100 convs/day. Node.js async sufficient               |
+| RAG/vector search for business info | System prompt sufficient — all business context fits in prompt            |
+| Multi-language support              | Spanish only for now, all branches are Spanish-speaking                   |
+| Voice message transcription         | Adds complexity, defer to v5.1+                                           |
+| Payment processing via WhatsApp     | Payment gateway is v7.0+ scope                                            |
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| HOOK-01 | Phase 67 | Pending |
-| HOOK-02 | Phase 67 | Pending |
-| HOOK-03 | Phase 67 | Pending |
-| HOOK-04 | Phase 67 | Pending |
-| AI-01 | Phase 68 | Pending |
-| AI-02 | Phase 68 | Pending |
-| AI-03 | Phase 68 | Pending |
-| AI-04 | Phase 68 | Pending |
-| AI-05 | Phase 68 | Pending |
-| AI-06 | Phase 68 | Pending |
-| AI-07 | Phase 70 | Pending |
-| AI-08 | Phase 70 | Pending |
-| MEM-01 | Phase 69 | Pending |
-| MEM-02 | Phase 69 | Pending |
-| MEM-03 | Phase 69 | Pending |
-| MEM-04 | Phase 69 | Pending |
-| SCHED-01 | Phase 71 | Pending |
-| SCHED-02 | Phase 71 | Pending |
-| ADMIN-01 | Phase 72 | Pending |
-| ADMIN-02 | Phase 72 | Pending |
-| ADMIN-03 | Phase 73 | Pending |
-| ADMIN-04 | Phase 73 | Pending |
-| ADMIN-05 | Phase 72 | Pending |
+| Requirement | Phase    | Status   |
+| ----------- | -------- | -------- |
+| HOOK-01     | Phase 67 | Pending  |
+| HOOK-02     | Phase 67 | Complete |
+| HOOK-03     | Phase 67 | Complete |
+| HOOK-04     | Phase 67 | Complete |
+| AI-01       | Phase 68 | Pending  |
+| AI-02       | Phase 68 | Pending  |
+| AI-03       | Phase 68 | Pending  |
+| AI-04       | Phase 68 | Pending  |
+| AI-05       | Phase 68 | Pending  |
+| AI-06       | Phase 68 | Pending  |
+| AI-07       | Phase 70 | Pending  |
+| AI-08       | Phase 70 | Pending  |
+| MEM-01      | Phase 69 | Pending  |
+| MEM-02      | Phase 69 | Pending  |
+| MEM-03      | Phase 69 | Pending  |
+| MEM-04      | Phase 69 | Pending  |
+| SCHED-01    | Phase 71 | Pending  |
+| SCHED-02    | Phase 71 | Pending  |
+| ADMIN-01    | Phase 72 | Pending  |
+| ADMIN-02    | Phase 72 | Pending  |
+| ADMIN-03    | Phase 73 | Pending  |
+| ADMIN-04    | Phase 73 | Pending  |
+| ADMIN-05    | Phase 72 | Pending  |
 
 **Coverage:**
+
 - v5.0 requirements: 23 total
 - Mapped to phases: 23
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after roadmap creation*
+
+_Requirements defined: 2026-03-17_
+_Last updated: 2026-03-17 after roadmap creation_
