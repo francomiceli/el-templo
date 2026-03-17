@@ -5,7 +5,7 @@
         <q-card style="min-width: 350px">
           <q-card-section class="bg-primary text-white">
             <div class="text-h6">El Templo Admin</div>
-            <div class="text-caption">Acceso para coaches y administradores</div>
+            <div class="text-caption">Acceso para entrenadores y administradores</div>
           </q-card-section>
 
           <q-card-section>
