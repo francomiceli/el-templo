@@ -24,6 +24,7 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
+import { systemSettings } from "../../src/db/schema/system-settings";
 import { generateQrToken as generateQr } from "../../src/modules/shared/qr-token";
 
 const ADMIN_ATTENDANCE_URL = "/api/admin/attendance";
@@ -545,6 +546,247 @@ describe("Attendance API", () => {
       });
 
       expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // =========================================================================
+  // Class Tracking Enforcement (Phase 60 Plan 02)
+  // =========================================================================
+  describe("Class Tracking Enforcement", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("blocks check-in when weekly limit is reached", async () => {
+      // Plan allows 1 class per week
+      const { member, memberToken } = await setupMemberWithSubscription(
+        { email: "weekly-limit@test.com", dni: "60020001" },
+        { classesPerWeek: 1, name: "Plan Weekly Limit Test" },
+      );
+
+      const qrToken = generateQrToken(testBranchId);
+
+      // First check-in succeeds (Wednesday)
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+      expect(res1.statusCode).toBe(201);
+
+      // Move to Thursday (next day, same week)
+      vi.setSystemTime(new Date("2026-03-12T10:00:00Z"));
+
+      // Second check-in should be blocked (weekly limit = 1)
+      const qrToken2 = generateQrToken(testBranchId);
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken: qrToken2 },
+      });
+
+      expect(res2.statusCode).toBe(400);
+      const body = JSON.parse(res2.body);
+      expect(body.message).toContain("limite semanal");
+
+      // Reset time
+      vi.setSystemTime(new Date("2026-03-11T10:00:00Z"));
+    });
+
+    it("blocks check-in when monthly budget is exhausted", async () => {
+      const { member, subscription, memberToken } =
+        await setupMemberWithSubscription(
+          { email: "budget-limit@test.com", dni: "60020002" },
+          { classesPerWeek: 3, name: "Plan Budget Test" },
+        );
+
+      // Set classesRemaining to 0 directly in DB
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 0 })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      const qrToken = generateQrToken(testBranchId);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("clases del periodo");
+    });
+
+    it("decrements classesRemaining after successful check-in", async () => {
+      const { member, subscription, memberToken } =
+        await setupMemberWithSubscription(
+          { email: "decrement@test.com", dni: "60020003" },
+          { classesPerWeek: 3, name: "Plan Decrement Test" },
+        );
+
+      // Get initial classesRemaining
+      const [before] = await app.db
+        .select({ classesRemaining: subscriptions.classesRemaining })
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      expect(before.classesRemaining).toBeGreaterThan(0);
+
+      const qrToken = generateQrToken(testBranchId);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+      expect(res.statusCode).toBe(201);
+
+      // Verify decrement
+      const [after] = await app.db
+        .select({ classesRemaining: subscriptions.classesRemaining })
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      expect(after.classesRemaining).toBe(
+        (before.classesRemaining as number) - 1,
+      );
+    });
+
+    it("blocks check-in on non-assigned day for fixed-mode plan", async () => {
+      // Wednesday = ISO day 3. Fixed days = [1,5] (Mon,Fri) -> should block
+      const { memberToken } = await setupMemberWithSubscription(
+        { email: "fixed-day@test.com", dni: "60020004" },
+        {
+          classesPerWeek: 2,
+          bookingMode: "fixed",
+          name: "Plan Fixed Day Test",
+        },
+      );
+
+      // Assign fixedDays [1, 5] directly on subscription (Mon, Fri)
+      const [sub] = await app.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .where(
+          eq(
+            subscriptions.userId,
+            (
+              await app.db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.email, "fixed-day@test.com"))
+            )[0].id,
+          ),
+        );
+      await app.db
+        .update(subscriptions)
+        .set({ fixedDays: JSON.stringify([1, 5]) })
+        .where(eq(subscriptions.id, sub.id));
+
+      const qrToken = generateQrToken(testBranchId);
+
+      // Wednesday (day 3) is not in [1, 5]
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("dia asignado");
+    });
+
+    it("force check-in bypasses all limits", async () => {
+      const { member, subscription } = await setupMemberWithSubscription(
+        { email: "force-checkin@test.com", dni: "60020005" },
+        { classesPerWeek: 1, name: "Plan Force Test" },
+      );
+
+      // Exhaust budget
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 0 })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      // Force check-in as admin
+      const res = await app.inject({
+        method: "POST",
+        url: `${ADMIN_ATTENDANCE_URL}/force`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          memberId: member.id,
+          branchId: testBranchId,
+          reason: "One-time exception",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.memberId).toBe(member.id);
+      expect(body.source).toBe("manual");
+    });
+
+    it("grace period: allows check-in during grace days after expiry", async () => {
+      // Set grace period to 5 days
+      await app.db.delete(systemSettings);
+      await app.db.insert(systemSettings).values({
+        settingKey: "grace_period_days",
+        settingValue: "5",
+      });
+
+      // Create member with subscription that expired 2 days ago (within grace)
+      const plan = await createPlan({
+        durationDays: 30,
+        classesPerWeek: 3,
+        name: "Plan Grace Test",
+      });
+      const member = await createMember({
+        email: "grace-test@test.com",
+        dni: "60020006",
+      });
+
+      // Assign with start date 32 days ago, so end date is 2 days ago
+      const sub = await assignPlan(member.id, plan.id, {
+        startDate: "2026-02-07",
+      });
+
+      // Pay to avoid overdue
+      await recordPayment(member.id, basePlan.priceRegular, sub.id as number);
+
+      // The subscription endDate will be 2026-03-09 (32 days after 2026-02-07 = 2026-03-09 since durationDays=30)
+      // Current date is 2026-03-11 (Wednesday), so 2 days past expiry
+      // With grace period of 5 days, this should be allowed
+
+      // Manually set subscription back to active (since autoExpire would have expired it)
+      await app.db
+        .update(subscriptions)
+        .set({ status: "active" })
+        .where(eq(subscriptions.id, sub.id as number));
+
+      const memberToken = await getAuthToken(
+        app,
+        "grace-test@test.com",
+        baseMemberDefaults.password,
+      );
+
+      const qrToken = generateQrToken(testBranchId);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { qrToken },
+      });
+
+      expect(res.statusCode).toBe(201);
     });
   });
 });
