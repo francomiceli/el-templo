@@ -104,6 +104,14 @@
           <template v-if="subscription.status === 'active'">
             <q-btn
               flat
+              icon="swap_horiz"
+              label="Cambiar Plan"
+              color="primary"
+              :loading="actionLoading"
+              @click="showChangeDialog = true"
+            />
+            <q-btn
+              flat
               icon="pause"
               label="Pausar"
               color="warning"
@@ -120,6 +128,14 @@
             />
           </template>
           <template v-else-if="subscription.status === 'paused'">
+            <q-btn
+              flat
+              icon="swap_horiz"
+              label="Cambiar Plan"
+              color="primary"
+              :loading="actionLoading"
+              @click="showChangeDialog = true"
+            />
             <q-btn
               flat
               icon="play_arrow"
@@ -211,6 +227,16 @@
       :boardingPassUsed="memberBoardingPassUsed"
       @assigned="onAssigned"
     />
+
+    <!-- Change Plan Dialog (reuses AssignPlanDialog in change mode) -->
+    <AssignPlanDialog
+      v-model="showChangeDialog"
+      :userId="userId"
+      :memberBranchId="memberBranchId"
+      :boardingPassUsed="memberBoardingPassUsed"
+      mode="change"
+      @assigned="onAssigned"
+    />
   </div>
 </template>
 
@@ -264,6 +290,7 @@ const loadingSubscription = ref(false);
 const loadingHistory = ref(false);
 const actionLoading = ref(false);
 const showAssignDialog = ref(false);
+const showChangeDialog = ref(false);
 
 const daysRemaining = computed(() => {
   if (!subscription.value?.endDate) return 0;

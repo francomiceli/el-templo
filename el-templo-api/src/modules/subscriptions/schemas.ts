@@ -290,6 +290,44 @@ export const assignPlanSchema = {
   },
 };
 
+export const changePlanSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["planId", "branchId", "startDate", "priceTypeApplied"],
+    properties: {
+      planId: { type: "integer" },
+      branchId: { type: "integer" },
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      priceTypeApplied: {
+        type: "string",
+        enum: ["regular", "zero", "credit_card"],
+      },
+      auraSpend: { type: "integer", minimum: 0 },
+      priceOverrideAmount: { type: "integer", minimum: 0 },
+      priceOverrideReason: { type: "string" },
+      boardingPass: { type: "boolean" },
+      notes: { type: "string" },
+      fixedDays: {
+        type: "array",
+        items: { type: "integer", minimum: 1, maximum: 6 },
+      },
+    },
+  },
+  response: {
+    201: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
 export const pauseSubscriptionSchema = {
   params: {
     type: "object",

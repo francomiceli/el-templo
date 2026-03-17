@@ -2,7 +2,7 @@
   <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
     <q-card style="width: 650px; max-width: 95vw">
       <q-card-section>
-        <div class="text-h6">Gestionar Plan</div>
+        <div class="text-h6">{{ mode === 'change' ? 'Cambiar Plan' : 'Gestionar Plan' }}</div>
       </q-card-section>
 
       <q-separator />
@@ -336,6 +336,7 @@ import {
   type PlanTier,
   type PriceType,
   type PricingPreview,
+  type AssignPlanInput,
 } from 'src/types/subscription';
 
 const log = createLogger('AssignPlanDialog');
@@ -346,12 +347,16 @@ const subsApi = useSubscriptionsApi();
 // Props & Emits
 // =========================================================================
 
-const props = defineProps<{
-  modelValue: boolean;
-  userId: number;
-  memberBranchId: number;
-  boardingPassUsed: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    userId: number;
+    memberBranchId: number;
+    boardingPassUsed: boolean;
+    mode?: 'assign' | 'change';
+  }>(),
+  { mode: 'assign' }
+);
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
@@ -573,7 +578,7 @@ async function onConfirm() {
 
   assigning.value = true;
   try {
-    await subsApi.assignPlan(props.userId, {
+    const payload: AssignPlanInput = {
       planId: selectedPlan.value.id,
       branchId: props.memberBranchId,
       startDate: assignForm.value.startDate,
@@ -594,9 +599,19 @@ async function onConfirm() {
         ? assignForm.value.priceOverrideReason || undefined
         : undefined,
       notes: assignForm.value.notes.trim() || undefined,
-    });
+    };
 
-    $q.notify({ type: 'positive', message: 'Plan asignado correctamente' });
+    if (props.mode === 'change') {
+      await subsApi.changePlan(props.userId, payload);
+    } else {
+      await subsApi.assignPlan(props.userId, payload);
+    }
+
+    $q.notify({
+      type: 'positive',
+      message:
+        props.mode === 'change' ? 'Plan cambiado correctamente' : 'Plan asignado correctamente',
+    });
     emit('assigned');
     emit('update:modelValue', false);
   } catch (err: unknown) {

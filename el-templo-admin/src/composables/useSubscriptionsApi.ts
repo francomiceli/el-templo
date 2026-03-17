@@ -156,6 +156,23 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function changePlan(userId: number, input: AssignPlanInput): Promise<SubscriptionDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<SubscriptionDetail>(
+        `/admin/subscriptions/members/${userId}/subscription/change-plan`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cambiando plan');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function pauseSubscription(userId: number): Promise<SubscriptionDetail> {
     loading.value = true;
     error.value = null;
@@ -267,6 +284,7 @@ export function useSubscriptionsApi() {
     getMemberSubscription,
     getMemberSubscriptionHistory,
     assignPlan,
+    changePlan,
     pauseSubscription,
     resumeSubscription,
     cancelSubscription,

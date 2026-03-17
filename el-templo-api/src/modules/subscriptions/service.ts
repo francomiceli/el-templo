@@ -644,6 +644,53 @@ export class SubscriptionService {
     return updated;
   }
 
+  /**
+   * Change a member's current plan to a new one.
+   * Cancels the existing subscription and creates a new one atomically.
+   */
+  async changePlan(
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    const existingSub = await this.getMemberSubscription(userId);
+    if (!existingSub) {
+      throw new NotFoundError("No se encontro suscripcion activa o pausada");
+    }
+
+    // Cancel existing subscription
+    await this.db
+      .update(schema.subscriptions)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        notes: existingSub.notes
+          ? `${existingSub.notes} | Cambiado a otro plan`
+          : "Cambiado a otro plan",
+      })
+      .where(eq(schema.subscriptions.id, existingSub.id));
+
+    this.log.info(
+      { userId, oldSubscriptionId: existingSub.id, adminId },
+      "Subscription cancelled for plan change",
+    );
+
+    // Assign new plan (reuses all pricing/budget/fixedDays logic)
+    const newSub = await this.assignPlan(userId, input, adminId);
+
+    this.log.info(
+      {
+        userId,
+        oldPlan: existingSub.planName,
+        newPlan: newSub.planName,
+        adminId,
+      },
+      "Plan changed successfully",
+    );
+
+    return newSub;
+  }
+
   // ─── Bulk Migration ──────────────────────────────────────────────────────
 
   /**

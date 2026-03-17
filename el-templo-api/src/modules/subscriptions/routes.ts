@@ -30,6 +30,7 @@ import {
   getMemberSubscriptionSchema,
   getMemberSubscriptionHistorySchema,
   assignPlanSchema,
+  changePlanSchema,
   pauseSubscriptionSchema,
   resumeSubscriptionSchema,
   cancelSubscriptionSchema,
@@ -208,6 +209,29 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
             .send({ error: "Bad Request", message: err.message });
         }
         handleServiceError(err, reply, request.log, "assign subscription");
+      }
+    },
+  );
+
+  // POST /members/:userId/subscription/change-plan — Change to a different plan
+  fastify.post<{ Params: { userId: number }; Body: AssignPlanInput }>(
+    "/members/:userId/subscription/change-plan",
+    { schema: changePlanSchema },
+    async (request, reply) => {
+      try {
+        const subscription = await subscriptionService.changePlan(
+          request.params.userId,
+          request.body,
+          request.user.userId,
+        );
+        return reply.code(201).send(subscription);
+      } catch (err: unknown) {
+        if (err instanceof InsufficientBalanceError) {
+          return reply
+            .code(400)
+            .send({ error: "Bad Request", message: err.message });
+        }
+        handleServiceError(err, reply, request.log, "change plan");
       }
     },
   );

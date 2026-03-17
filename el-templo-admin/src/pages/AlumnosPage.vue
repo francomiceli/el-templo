@@ -105,13 +105,6 @@
         {{ selectedIds.size }} alumno(s) seleccionado(s)
       </div>
       <div class="col-auto q-gutter-sm">
-        <q-btn
-          label="Migrar plan"
-          color="primary"
-          size="sm"
-          icon="swap_horiz"
-          @click="showMigrateDialog = true"
-        />
         <q-btn label="Deseleccionar todos" color="grey" size="sm" flat @click="clearSelection" />
       </div>
     </div>
@@ -219,53 +212,6 @@
 
     <!-- Create Member Dialog -->
     <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
-
-    <!-- Bulk Migration Dialog -->
-    <q-dialog v-model="showMigrateDialog">
-      <q-card style="min-width: 400px">
-        <q-card-section>
-          <div class="text-h6">Migrar plan de suscripcion</div>
-        </q-card-section>
-
-        <q-card-section>
-          <p>
-            Se cancelara la suscripcion actual de {{ selectedIds.size }} alumno(s) y se creara una
-            nueva con el plan seleccionado.
-          </p>
-          <q-select
-            v-model="migrateTargetPlanId"
-            :options="currentPlanOptions"
-            label="Plan destino"
-            dense
-            outlined
-            emit-value
-            map-options
-            class="q-mt-md"
-          />
-          <q-select
-            v-model="migrateTargetBranchId"
-            :options="migrateBranchOptions"
-            label="Sucursal destino"
-            dense
-            outlined
-            emit-value
-            map-options
-            class="q-mt-md"
-          />
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cancelar" color="grey" v-close-popup />
-          <q-btn
-            label="Migrar"
-            color="primary"
-            :loading="migrateLoading"
-            :disable="!migrateTargetPlanId || !migrateTargetBranchId"
-            @click="executeBulkMigration"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -295,12 +241,6 @@ const showCreateDialog = ref(false);
 
 // Selection state
 const selectedIds = ref<Set<number>>(new Set());
-
-// Migration dialog state
-const showMigrateDialog = ref(false);
-const migrateTargetPlanId = ref<number | null>(null);
-const migrateTargetBranchId = ref<number | null>(null);
-const migrateLoading = ref(false);
 
 // Plans data (including archived for legacy detection)
 const allPlans = ref<Array<{ id: number; name: string; isArchived: boolean; planTier: string }>>(
@@ -361,16 +301,6 @@ const statusFilterOptions = [
 // =========================================================================
 // Computed
 // =========================================================================
-
-/** Plan options for migration target (only current, non-archived plans) */
-const currentPlanOptions = computed(() =>
-  allPlans.value.filter((p) => !p.isArchived).map((p) => ({ label: p.name, value: p.id }))
-);
-
-/** Branch options for migration dialog */
-const migrateBranchOptions = computed(() =>
-  branches.value.map((b) => ({ label: b.name, value: b.id }))
-);
 
 /** Whether all members on the current page are selected */
 const isAllPageSelected = computed(
@@ -630,44 +560,6 @@ async function loadMembers() {
     $q.notify({ type: 'negative', message: 'Error cargando alumnos' });
   } finally {
     loading.value = false;
-  }
-}
-
-// =========================================================================
-// Bulk migration
-// =========================================================================
-
-async function executeBulkMigration() {
-  if (!migrateTargetPlanId.value || !migrateTargetBranchId.value) return;
-
-  migrateLoading.value = true;
-  try {
-    const result = await membersApi.bulkMigratePlan(
-      Array.from(selectedIds.value),
-      migrateTargetPlanId.value,
-      migrateTargetBranchId.value
-    );
-
-    let msg = `${result.migrated} alumno(s) migrado(s)`;
-    if (result.skipped > 0) {
-      msg += `, ${result.skipped} omitido(s) (sin suscripcion activa)`;
-    }
-    if (result.errors.length > 0) {
-      msg += `, ${result.errors.length} error(es)`;
-    }
-
-    $q.notify({ type: 'positive', message: msg });
-    showMigrateDialog.value = false;
-    migrateTargetPlanId.value = null;
-    migrateTargetBranchId.value = null;
-    clearSelection();
-    loadMembers();
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error in bulk migration', { error: message });
-    $q.notify({ type: 'negative', message: `Error migrando planes: ${message}` });
-  } finally {
-    migrateLoading.value = false;
   }
 }
 
