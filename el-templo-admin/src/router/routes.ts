@@ -21,12 +21,21 @@ const routes: RouteRecordRaw[] = [
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
       },
-      { path: 'planes', component: () => import('pages/PlanesPage.vue') },
-      { path: 'pagos', component: () => import('pages/PagosPage.vue') },
+      {
+        path: 'planes',
+        component: () => import('pages/PlanesPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
+      {
+        path: 'pagos',
+        component: () => import('pages/PagosPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
+      },
       { path: 'horarios', component: () => import('pages/HorariosPage.vue') },
       {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
+        meta: { allowedRoles: ['admin', 'superadmin'] },
       },
       {
         path: 'blog',

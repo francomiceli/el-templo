@@ -43,13 +43,13 @@
             <q-badge color="negative" :label="morososCount" />
           </q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/planes">
+        <q-item v-if="isAdminRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
             <q-icon name="card_membership" />
           </q-item-section>
           <q-item-section>Planes</q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/pagos">
+        <q-item v-if="isAdminRole" clickable v-ripple to="/pagos">
           <q-item-section avatar>
             <q-icon name="payments" />
           </q-item-section>
@@ -61,7 +61,7 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/analiticas">
+        <q-item v-if="isAdminRole" clickable v-ripple to="/analiticas">
           <q-item-section avatar>
             <q-icon name="analytics" />
           </q-item-section>
