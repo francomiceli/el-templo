@@ -6,6 +6,7 @@
 - **v3.0 Landing Page** - Phases 29-36 (planned)
 - **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
+- **v5.0 WhatsApp AI Chatbot** - Phases 67-73 (planned)
 
 ---
 
@@ -1204,3 +1205,114 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 ---
 
 _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
+
+## v5.0 WhatsApp AI Chatbot (Phases 67-73)
+
+**Milestone Goal:** Build a WhatsApp AI chatbot that auto-answers questions about El Templo, books classes, registers trials, and supports human takeover from the admin panel.
+
+### v5.0 Phases
+
+- [ ] **Phase 67: WhatsApp Cloud API Webhook + Echo Bot** - Bot process receives and replies to WhatsApp messages, persists to DB
+- [ ] **Phase 68: AI Integration + Info Tools** - AI-primary message processing with schedule, membership, location, and escalation tools
+- [ ] **Phase 69: Redis Memory Layer + Client State Machine** - Session context, customer profiles, and automatic client state detection
+- [ ] **Phase 70: Action Tools** - Book class and register trial via WhatsApp with confirmation steps
+- [ ] **Phase 71: Proactive Schedulers** - Class reminders and trial follow-ups via template messages with distributed locks
+- [ ] **Phase 72: Admin Panel -- Conversations UI** - Conversation list, chat detail, and sidebar integration in el-templo-admin
+- [ ] **Phase 73: Admin Panel -- Human Takeover** - Admin takes over conversation, sends messages, resumes bot
+
+### v5.0 Phase Details
+
+### Phase 67: WhatsApp Cloud API Webhook + Echo Bot
+**Goal**: Bot process runs independently, receives WhatsApp messages via Cloud API, persists conversations/messages to MySQL, and replies
+**Depends on**: Nothing (first phase of v5.0)
+**Requirements**: HOOK-01, HOOK-02, HOOK-03, HOOK-04
+**Success Criteria** (what must be TRUE):
+  1. Sending a WhatsApp message to the bot number triggers the webhook and the message appears in the whatsapp_messages table
+  2. The bot echoes the message back as a WhatsApp reply visible on the sender's phone
+  3. A new conversation record is created in whatsapp_conversations when a first-time sender messages
+  4. The bot process runs under PM2 and auto-restarts after a crash without affecting el-templo-api
+**Plans**: TBD
+
+### Phase 68: AI Integration + Info Tools
+**Goal**: Every incoming message is processed by AI with business context, and the bot can answer questions about schedules, memberships, locations, and escalate to humans
+**Depends on**: Phase 67
+**Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05, AI-06
+**Success Criteria** (what must be TRUE):
+  1. User asks about class schedules and receives an accurate AI-generated answer with real data from the schedules table
+  2. User asks about membership pricing and receives correct information via the check_membership tool
+  3. User asks for a branch address and receives the address with a Google Maps link
+  4. User asks to speak with a human and the conversation status changes to human_takeover, bot stops responding
+  5. Switching AI_PROVIDER env var between openai and anthropic changes the underlying model without code changes
+**Plans**: TBD
+
+### Phase 69: Redis Memory Layer + Client State Machine
+**Goal**: Bot maintains conversation context across messages and detects customer state from database records
+**Depends on**: Phase 68
+**Requirements**: MEM-01, MEM-02, MEM-03, MEM-04
+**Success Criteria** (what must be TRUE):
+  1. Bot references earlier messages in the same conversation without the user repeating themselves (session context working)
+  2. Customer profile data (e.g., injury notes mentioned in a prior conversation) persists and is available in a new conversation days later
+  3. A phone number matching an active member is automatically detected as ACTIVE_MEMBER state; an unknown number starts as LEAD
+  4. Redis connection failure does not crash the bot -- it degrades gracefully (no memory, still responds)
+**Plans**: TBD
+
+### Phase 70: Action Tools
+**Goal**: Users can book classes and register for trial sessions entirely through WhatsApp conversation
+**Depends on**: Phase 69
+**Requirements**: AI-07, AI-08
+**Success Criteria** (what must be TRUE):
+  1. User requests to book a class and the bot asks for confirmation before executing -- booking appears in the admin scheduling system
+  2. New user registers for a trial class through WhatsApp and a trial user record is created in the system
+  3. Both actions call el-templo-api via localhost HTTP (no duplicated business logic in the bot)
+**Plans**: TBD
+
+### Phase 71: Proactive Schedulers
+**Goal**: Bot proactively sends reminders and follow-ups to members at scheduled times
+**Depends on**: Phase 70
+**Requirements**: SCHED-01, SCHED-02
+**Success Criteria** (what must be TRUE):
+  1. Member with a booked class receives a WhatsApp template reminder N hours before class time
+  2. Trial attendee receives a follow-up message 24-48h after their trial asking how it went and offering membership info
+  3. Schedulers use Redis distributed locks so duplicate messages are never sent even if the process restarts
+**Plans**: TBD
+
+### Phase 72: Admin Panel -- Conversations UI
+**Goal**: Admins can browse and read all WhatsApp conversations from the admin panel
+**Depends on**: Phase 67 (needs conversation data in DB)
+**Requirements**: ADMIN-01, ADMIN-02, ADMIN-05
+**Success Criteria** (what must be TRUE):
+  1. Admin sees a paginated list of all conversations with search by name/phone and filters by status and client state
+  2. Clicking a conversation shows the full message history in a chat bubble UI with timestamps and direction indicators
+  3. WhatsApp menu item appears in the admin sidebar with a badge showing the count of unread/active conversations
+**Plans**: TBD
+
+### Phase 73: Admin Panel -- Human Takeover
+**Goal**: Admins can take over a bot conversation, send messages manually, and resume bot processing
+**Depends on**: Phase 72
+**Requirements**: ADMIN-03, ADMIN-04
+**Success Criteria** (what must be TRUE):
+  1. Admin clicks "Tomar control" and the bot immediately stops responding to that conversation
+  2. Admin types and sends messages from the conversation detail page -- messages arrive on the user's WhatsApp
+  3. Admin clicks "Devolver al bot" and the bot resumes AI processing for that conversation on the next incoming message
+**Plans**: TBD
+
+---
+
+## v5.0 Progress
+
+**Execution Order:**
+Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -> Phase 71 (Schedulers) -> Phase 72 (Admin UI) -> Phase 73 (Takeover)
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 67. WhatsApp Cloud API Webhook + Echo Bot | 0/? | Not started | - |
+| 68. AI Integration + Info Tools | 0/? | Not started | - |
+| 69. Redis Memory Layer + Client State Machine | 0/? | Not started | - |
+| 70. Action Tools | 0/? | Not started | - |
+| 71. Proactive Schedulers | 0/? | Not started | - |
+| 72. Admin Panel -- Conversations UI | 0/? | Not started | - |
+| 73. Admin Panel -- Human Takeover | 0/? | Not started | - |
+
+---
+
+_v5.0 phases added: 2026-03-17 -- 7 phases (67-73), 23 requirements mapped_

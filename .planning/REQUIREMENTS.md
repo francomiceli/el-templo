@@ -74,39 +74,37 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 ## Traceability
 
-<!-- Updated during roadmap creation -->
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-01 | — | Pending |
-| HOOK-02 | — | Pending |
-| HOOK-03 | — | Pending |
-| HOOK-04 | — | Pending |
-| AI-01 | — | Pending |
-| AI-02 | — | Pending |
-| AI-03 | — | Pending |
-| AI-04 | — | Pending |
-| AI-05 | — | Pending |
-| AI-06 | — | Pending |
-| AI-07 | — | Pending |
-| AI-08 | — | Pending |
-| MEM-01 | — | Pending |
-| MEM-02 | — | Pending |
-| MEM-03 | — | Pending |
-| MEM-04 | — | Pending |
-| SCHED-01 | — | Pending |
-| SCHED-02 | — | Pending |
-| ADMIN-01 | — | Pending |
-| ADMIN-02 | — | Pending |
-| ADMIN-03 | — | Pending |
-| ADMIN-04 | — | Pending |
-| ADMIN-05 | — | Pending |
+| HOOK-01 | Phase 67 | Pending |
+| HOOK-02 | Phase 67 | Pending |
+| HOOK-03 | Phase 67 | Pending |
+| HOOK-04 | Phase 67 | Pending |
+| AI-01 | Phase 68 | Pending |
+| AI-02 | Phase 68 | Pending |
+| AI-03 | Phase 68 | Pending |
+| AI-04 | Phase 68 | Pending |
+| AI-05 | Phase 68 | Pending |
+| AI-06 | Phase 68 | Pending |
+| AI-07 | Phase 70 | Pending |
+| AI-08 | Phase 70 | Pending |
+| MEM-01 | Phase 69 | Pending |
+| MEM-02 | Phase 69 | Pending |
+| MEM-03 | Phase 69 | Pending |
+| MEM-04 | Phase 69 | Pending |
+| SCHED-01 | Phase 71 | Pending |
+| SCHED-02 | Phase 71 | Pending |
+| ADMIN-01 | Phase 72 | Pending |
+| ADMIN-02 | Phase 72 | Pending |
+| ADMIN-03 | Phase 73 | Pending |
+| ADMIN-04 | Phase 73 | Pending |
+| ADMIN-05 | Phase 72 | Pending |
 
 **Coverage:**
 - v5.0 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 ⚠️
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after initial definition*
+*Last updated: 2026-03-17 after roadmap creation*
