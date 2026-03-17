@@ -120,12 +120,25 @@ export interface SubscriptionDetail {
   pausedAt: string | null;
   resumedAt: string | null;
   cancelledAt: string | null;
+  classesRemaining: number | null;
+  fixedDays: number[] | null;
+  graceCheckInsAfterExpiry: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface SubscriptionHistoryItem extends SubscriptionDetail {}
+
+// ─── Class Usage Types ─────────────────────────────────────────────────────
+
+export interface ClassUsageInfo {
+  classesRemaining: number | null;
+  classesUsedThisWeek: number;
+  weeklyLimit: number | null;
+  fixedDays: number[] | null;
+  bookingMode: BookingMode;
+}
 
 export interface AssignPlanInput {
   planId: number;
@@ -137,6 +150,7 @@ export interface AssignPlanInput {
   priceOverrideReason?: string;
   boardingPass?: boolean;
   notes?: string;
+  fixedDays?: number[];
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────

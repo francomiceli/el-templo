@@ -32,6 +32,7 @@ import {
   pauseSubscriptionSchema,
   resumeSubscriptionSchema,
   cancelSubscriptionSchema,
+  classUsageSchema,
   pricingPreviewSchema,
 } from "./schemas";
 
@@ -253,6 +254,22 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return sub;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "cancel subscription");
+      }
+    },
+  );
+
+  // GET /members/:userId/class-usage — Get class usage info for a member
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId/class-usage",
+    { schema: classUsageSchema },
+    async (request, reply) => {
+      try {
+        const usage = await subscriptionService.getClassUsageThisWeek(
+          request.params.userId,
+        );
+        return usage;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "class usage");
       }
     },
   );

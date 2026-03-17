@@ -61,6 +61,12 @@ const subscriptionDetailSchema = {
     pausedAt: { type: ["string", "null"] },
     resumedAt: { type: ["string", "null"] },
     cancelledAt: { type: ["string", "null"] },
+    classesRemaining: { type: ["integer", "null"] },
+    fixedDays: {
+      type: ["array", "null"],
+      items: { type: "integer" },
+    },
+    graceCheckInsAfterExpiry: { type: "integer" },
     notes: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
@@ -270,6 +276,10 @@ export const assignPlanSchema = {
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },
+      fixedDays: {
+        type: "array",
+        items: { type: "integer", minimum: 1, maximum: 6 },
+      },
     },
   },
   response: {
@@ -364,6 +374,32 @@ export const bulkMigratePlanSchema = {
       },
     },
     400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const classUsageSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        classesRemaining: { type: ["integer", "null"] },
+        classesUsedThisWeek: { type: "integer" },
+        weeklyLimit: { type: ["integer", "null"] },
+        fixedDays: {
+          type: ["array", "null"],
+          items: { type: "integer" },
+        },
+        bookingMode: { type: "string" },
+      },
+    },
     404: errorSchema,
   },
 };

@@ -11,6 +11,7 @@ export type {
   SubscriptionHistoryItem,
   AssignPlanInput,
   PricingPreview,
+  ClassUsageInfo,
   SubscriptionStatus,
   PlanTier,
   BookingMode,
