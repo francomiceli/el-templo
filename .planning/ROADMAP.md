@@ -1231,7 +1231,10 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
   2. The bot echoes the message back as a WhatsApp reply visible on the sender's phone
   3. A new conversation record is created in whatsapp_conversations when a first-time sender messages
   4. The bot process runs under PM2 and auto-restarts after a crash without affecting el-templo-api
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 67-01-PLAN.md — Bot infrastructure: DB schema migration, Fastify server, DB connection, WhatsApp Cloud API client + types
+- [ ] 67-02-PLAN.md — Webhook routes, echo bot handler, and integration tests
 
 ### Phase 68: AI Integration + Info Tools
 **Goal**: Every incoming message is processed by AI with business context, and the bot can answer questions about schedules, memberships, locations, and escalate to humans
