@@ -2,7 +2,8 @@
  * Booking Service
  *
  * Booking lifecycle: reserve, cancel, waitlist auto-promote,
- * capacity enforcement, weekly limit, overdue block, admin add/remove.
+ * capacity enforcement, weekly limit, overdue block, fixed-day/budget enforcement,
+ * grace period check, admin add/remove.
  * Extracted from SchedulingService for single-responsibility.
  */
 
@@ -12,6 +13,7 @@ import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
+import { SettingsService } from "../settings/service";
 import {
   addDays,
   getWeekRange,
@@ -34,6 +36,7 @@ export class BookingService {
     private log: FastifyBaseLogger,
     private paymentService: PaymentService,
     private subscriptionService: SubscriptionService,
+    private settingsService?: SettingsService,
   ) {}
 
   /**
@@ -109,6 +112,56 @@ export class BookingService {
     const balance = await this.paymentService.getMemberBalance(memberId);
     if (balance?.isOverdue) {
       throw new BadRequestError("Tu suscripcion tiene un pago pendiente");
+    }
+
+    // 6b. Fixed-day check: if subscription has fixedDays, validate booking date's day
+    const fixedDays = this.parseFixedDays(subscription.fixedDays);
+    if (fixedDays !== null && fixedDays.length > 0) {
+      const bookingDateObj = new Date(date + "T12:00:00Z");
+      const bookingJsDay = bookingDateObj.getUTCDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+      const bookingIsoDay = bookingJsDay === 0 ? 7 : bookingJsDay;
+      if (!fixedDays.includes(bookingIsoDay)) {
+        throw new BadRequestError("Solo podes reservar en tus dias asignados");
+      }
+    }
+
+    // 6c. Monthly budget check: if classesRemaining is tracked and exhausted
+    if (
+      subscription.classesRemaining !== null &&
+      subscription.classesRemaining <= 0
+    ) {
+      throw new BadRequestError(
+        "Agotaste tus clases del periodo. No podes reservar mas clases.",
+      );
+    }
+
+    // 6d. Grace period check for booking
+    if (subscription.endDate) {
+      const today = new Date().toISOString().split("T")[0];
+      if (subscription.endDate < today) {
+        const gracePeriodDays = this.settingsService
+          ? await this.settingsService.getGracePeriodDays()
+          : 5;
+
+        const endDateObj = new Date(subscription.endDate + "T12:00:00Z");
+        const todayObj = new Date(today + "T12:00:00Z");
+        const daysSinceExpiry = Math.floor(
+          (todayObj.getTime() - endDateObj.getTime()) / (1000 * 60 * 60 * 24),
+        );
+
+        if (daysSinceExpiry > gracePeriodDays) {
+          if (subscription.graceCheckInsAfterExpiry >= 1) {
+            throw new BadRequestError(
+              "Suscripcion vencida — renovar. Consulta con tu coach.",
+            );
+          }
+          // First post-grace booking: allow but log warning
+          this.log.info(
+            { memberId, subscriptionId: subscription.id, daysSinceExpiry },
+            "First post-grace booking — warning issued",
+          );
+        }
+      }
     }
 
     // 7. Check weekly booking count
@@ -800,5 +853,23 @@ export class BookingService {
       bookedAt: row.bookedAt.toISOString(),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
     };
+  }
+
+  /**
+   * Parse fixedDays from JSON storage.
+   * Returns typed number array or null.
+   */
+  private parseFixedDays(raw: unknown): number[] | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === "string") {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed as number[];
+      } catch {
+        return null;
+      }
+    }
+    if (Array.isArray(raw)) return raw as number[];
+    return null;
   }
 }
