@@ -30,11 +30,11 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Plan Configuration
 
-- [ ] **PLANS-01**: Admin can configure turnos-per-week limits on subscription plans
-- [ ] **PLANS-02**: Admin can configure class-based plans where membership includes X classes to spend
-- [ ] **PLANS-03**: Admin can mark a plan as multi-branch (grants access to all branches)
-- [ ] **PLANS-04**: Admin can mark a plan as trial (excluded from statistics)
-- [ ] **PLANS-05**: Admin can configure grace period per branch for membership renewals
+- [x] **PLANS-01**: Admin can configure turnos-per-week limits on subscription plans
+- [x] **PLANS-02**: Admin can configure class-based plans where membership includes X classes to spend
+- [x] **PLANS-03**: Admin can mark a plan as multi-branch (grants access to all branches)
+- [x] **PLANS-04**: Admin can mark a plan as trial (excluded from statistics)
+- [x] **PLANS-05**: Admin can configure grace period per branch for membership renewals
 - [ ] **PLANS-06**: System tracks remaining classes for class-based plans and decrements on confirmed check-in
 
 ### Cash Box
@@ -116,11 +116,11 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | DATA-05     | Phase 59 | Complete |
 | DATA-06     | Phase 59 | Complete |
 | MEMBER-04   | Phase 59 | Complete |
-| PLANS-01    | Phase 60 | Pending  |
-| PLANS-02    | Phase 60 | Pending  |
-| PLANS-03    | Phase 60 | Pending  |
-| PLANS-04    | Phase 60 | Pending  |
-| PLANS-05    | Phase 60 | Pending  |
+| PLANS-01    | Phase 60 | Complete |
+| PLANS-02    | Phase 60 | Complete |
+| PLANS-03    | Phase 60 | Complete |
+| PLANS-04    | Phase 60 | Complete |
+| PLANS-05    | Phase 60 | Complete |
 | PLANS-06    | Phase 60 | Pending  |
 | ACCESS-01   | Phase 61 | Pending  |
 | ACCESS-02   | Phase 61 | Pending  |
