@@ -3,20 +3,20 @@
  *
  * Drizzle ORM connection to the shared MySQL database.
  * Uses the same schema as el-templo-api.
- *
- * TODO: Implement with drizzle-orm + mysql2.
- *
- * Import schema from el-templo-api:
- *   import * as schema from "../../el-templo-api/src/db/schema";
- *
- * Or if using pnpm workspace package, reference as:
- *   import * as schema from "el-templo-api/db/schema";
- *
- * For now, the simplest approach is a relative import since both
- * projects are in the same monorepo.
  */
 
-export {};
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import * as schema from "../../el-templo-api/src/db/schema/index.js";
 
-// TODO: Export drizzle db instance
-// TODO: Export schema reference
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "3306", 10),
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "eltemplo",
+});
+
+export const db = drizzle(pool, { schema, mode: "default" });
+export { schema };
+export { pool };

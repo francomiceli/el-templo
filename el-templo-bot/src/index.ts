@@ -1,35 +1,57 @@
 /**
  * El Templo WhatsApp Bot — Entry Point
  *
- * Starts the webhook server, connects to Redis and MySQL,
- * and initializes schedulers.
- *
- * TODO: Implement startup sequence:
- * 1. Load environment variables
- * 2. Connect to MySQL (shared with el-templo-api)
- * 3. Connect to Redis
- * 4. Start Fastify server for WhatsApp webhook
- * 5. Start schedulers (class reminders, trial follow-ups)
- * 6. Log startup complete
+ * Starts the Fastify webhook server, connects to MySQL,
+ * and sets up graceful shutdown.
  */
 
 import "dotenv/config";
+import Fastify from "fastify";
+import pino from "pino";
+import { db, pool } from "./db.js";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
 async function main(): Promise<void> {
-  // TODO: Initialize database connection (Drizzle + mysql2)
-  // TODO: Initialize Redis connection (ioredis)
-  // TODO: Initialize AI provider (OpenAI or Anthropic based on AI_PROVIDER env)
-  // TODO: Start Fastify webhook server
-  // TODO: Register webhook routes (GET /webhook for verification, POST /webhook for messages)
-  // TODO: Start schedulers
+  const app = Fastify({ logger: true });
 
-  console.log(`El Templo Bot starting on port ${PORT}...`);
-  console.log("TODO: Implement bot startup");
+  // Decorate Fastify instance with the Drizzle DB for route access
+  app.decorate("db", db);
+
+  // Health check endpoint
+  app.get("/health", async () => {
+    return { status: "ok" };
+  });
+
+  // TODO: Register webhook routes (Plan 02)
+
+  // Start listening
+  await app.listen({ port: PORT, host: "0.0.0.0" });
+  app.log.info(`El Templo Bot listening on port ${PORT}`);
+
+  // Graceful shutdown
+  const shutdown = async (signal: string): Promise<void> => {
+    app.log.info({ signal }, "Received shutdown signal, closing...");
+    try {
+      await app.close();
+      await pool.end();
+      app.log.info("Graceful shutdown complete");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      app.log.error({ error: message }, "Error during shutdown");
+      process.exit(1);
+    }
+    process.exit(0);
+  };
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
 }
 
-main().catch((err) => {
-  console.error("Fatal error starting bot:", err);
+const fatalLog = pino({ name: "el-templo-bot" });
+
+main().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  fatalLog.fatal({ error: message }, "Fatal error starting bot");
   process.exit(1);
 });
