@@ -100,19 +100,26 @@ export class AttendanceService {
       throw new BadRequestError("Agotaste tus clases del periodo");
     }
 
-    // Check one-per-day
-    await this.checkOncePerDay(memberId);
+    // Find today's booking within the check-in time window (±20 min of class start)
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const windowMinutes = 20;
 
-    // Find today's booking for this member to link
-    const [todayBooking] = await this.db
+    const bookingsInRange = await this.db
       .select({
         id: schema.bookings.id,
         scheduleId: schema.bookings.scheduleId,
+        startTime: schema.schedules.startTime,
+        activityName: schema.activities.name,
       })
       .from(schema.bookings)
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),
+      )
+      .innerJoin(
+        schema.activities,
+        eq(schema.activities.id, schema.schedules.activityId),
       )
       .where(
         and(
@@ -121,14 +128,55 @@ export class AttendanceService {
           eq(schema.bookings.status, "reservado"),
           eq(schema.schedules.branchId, branchId),
         ),
+      );
+
+    // Find the booking whose class startTime falls within ±20 min of now
+    const matchingBooking = bookingsInRange.find((b) => {
+      const [h, m] = b.startTime.split(":").map(Number);
+      const classMinutes = h * 60 + m;
+      return Math.abs(nowMinutes - classMinutes) <= windowMinutes;
+    });
+
+    if (!matchingBooking) {
+      if (bookingsInRange.length > 0) {
+        // Has bookings today but none in the current time window
+        const times = bookingsInRange
+          .map((b) => b.startTime)
+          .sort()
+          .join(", ");
+        throw new BadRequestError(
+          `Tus clases de hoy son a las ${times}. Solo podes registrar asistencia entre 20 minutos antes y despues del inicio.`,
+        );
+      }
+      throw new BadRequestError(
+        "No tenes una clase reservada para hoy en esta sede",
+      );
+    }
+
+    // Check this specific booking hasn't already been checked in
+    const [existingAttendance] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          eq(schema.attendance.scheduleId, matchingBooking.scheduleId),
+          sql`DATE(${schema.attendance.checkedInAt}) = CURDATE()`,
+        ),
       )
       .limit(1);
 
-    // Insert attendance record with status "confirmado" (auto-confirmed on QR scan)
+    if (existingAttendance) {
+      throw new BadRequestError(
+        `Ya registraste asistencia para ${matchingBooking.activityName} ${matchingBooking.startTime}`,
+      );
+    }
+
+    // Insert attendance record linked to the specific class
     const result = await this.db.insert(schema.attendance).values({
       memberId,
       branchId,
-      scheduleId: todayBooking?.scheduleId ?? null,
+      scheduleId: matchingBooking.scheduleId,
       status: "confirmado",
       source: "qr",
     });
@@ -164,17 +212,19 @@ export class AttendanceService {
     }
 
     // Update booking status to qr_escaneado
-    if (todayBooking) {
-      await this.db
-        .update(schema.bookings)
-        .set({ status: "qr_escaneado" })
-        .where(eq(schema.bookings.id, todayBooking.id));
+    await this.db
+      .update(schema.bookings)
+      .set({ status: "qr_escaneado" })
+      .where(eq(schema.bookings.id, matchingBooking.id));
 
-      this.log.info(
-        { memberId, bookingId: todayBooking.id },
-        "Booking linked on QR check-in",
-      );
-    }
+    this.log.info(
+      {
+        memberId,
+        bookingId: matchingBooking.id,
+        scheduleId: matchingBooking.scheduleId,
+      },
+      "Booking confirmed on QR check-in",
+    );
 
     return this.getRecordById(recordId);
   }
@@ -645,26 +695,6 @@ export class AttendanceService {
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────────
-
-  /**
-   * Check one-per-day constraint. Throws if member already checked in today.
-   */
-  private async checkOncePerDay(memberId: number): Promise<void> {
-    const [existing] = await this.db
-      .select({ id: schema.attendance.id })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = CURDATE()`,
-        ),
-      )
-      .limit(1);
-
-    if (existing) {
-      throw new BadRequestError("Ya registraste asistencia hoy");
-    }
-  }
 
   /**
    * Get a single attendance record by ID with joins.
