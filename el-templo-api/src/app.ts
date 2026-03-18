@@ -31,6 +31,7 @@ import {
   schedulingMemberRoutes,
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
+import { reportsRoutes } from "./modules/reports";
 import { settingsRoutes } from "./modules/settings";
 
 export async function buildApp() {
@@ -139,6 +140,11 @@ export async function buildApp() {
   // Analytics routes (admin-only KPI stats, member/attendance/financial analytics)
   await app.register(analyticsRoutes, {
     prefix: "/api/admin/analytics",
+  });
+
+  // Reports routes (access log, charges, expiring, inactive + Excel exports)
+  await app.register(reportsRoutes, {
+    prefix: "/api/admin/reports",
   });
 
   // Settings routes (system-wide settings: grace period, etc.)
