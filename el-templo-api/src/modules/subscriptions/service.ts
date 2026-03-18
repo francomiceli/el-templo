@@ -1013,7 +1013,15 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Update subscription: extend endDate, accumulate budget, update pricePaid
+    // Derive renewal price from the plan using the same price type as original assignment
+    const renewalPrice =
+      currentSub.priceTypeApplied === "zero"
+        ? plan.priceZero
+        : currentSub.priceTypeApplied === "credit_card" && plan.priceCreditCard
+          ? plan.priceCreditCard
+          : plan.priceRegular;
+
+    // Update subscription: extend endDate, accumulate budget and pricePaid
     await this.db
       .update(schema.subscriptions)
       .set({
@@ -1025,7 +1033,7 @@ export class SubscriptionService {
               classesBudget: sql`${schema.subscriptions.classesBudget} + ${periodBudget}`,
             }
           : {}),
-        pricePaid: sql`${schema.subscriptions.pricePaid} + ${currentSub.pricePaid}`,
+        pricePaid: sql`${schema.subscriptions.pricePaid} + ${renewalPrice}`,
         pausedAt: null,
         resumedAt: null,
         cancelledAt: null,
@@ -1062,13 +1070,13 @@ export class SubscriptionService {
       }
     }
 
-    // Record payment for the renewal
-    if (this.paymentService && currentSub.pricePaid > 0) {
+    // Record payment for the renewal period
+    if (this.paymentService && renewalPrice > 0) {
       await this.paymentService.recordPayment(
         {
           memberId: userId,
           subscriptionId: currentSub.id,
-          amount: currentSub.pricePaid,
+          amount: renewalPrice,
           paymentMethod: input.paymentMethod,
           paymentDate: today,
         },
