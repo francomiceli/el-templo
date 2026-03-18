@@ -1,4 +1,4 @@
-export type JourneyType =
+export type PersonalizadaType =
   | "tren_superior"
   | "tren_inferior"
   | "empuje"
@@ -6,12 +6,12 @@ export type JourneyType =
   | "planche"
   | "front_lever";
 
-export type JourneyTier = "principiante" | "intermedio" | "avanzado";
+export type PersonalizadaTier = "principiante" | "intermedio" | "avanzado";
 
-export type JourneyDuration = 20 | 40 | 60;
+export type PersonalizadaDuration = 20 | 40 | 60;
 
-export interface JourneyProgress {
-  journeyType: JourneyType;
+export interface PersonalizadaProgress {
+  personalizadaType: PersonalizadaType;
   semana20: number;
   semana40: number;
   semana60: number;
@@ -19,8 +19,8 @@ export interface JourneyProgress {
   startedAt: string;
 }
 
-export interface ArchivedJourney {
-  journeyType: JourneyType;
+export interface ArchivedPersonalizada {
+  personalizadaType: PersonalizadaType;
   semana20: number;
   semana40: number;
   semana60: number;
@@ -28,10 +28,10 @@ export interface ArchivedJourney {
   archivedAt: string;
 }
 
-export interface JourneyMetadata {
-  type: JourneyType;
+export interface PersonalizadaMetadata {
+  type: PersonalizadaType;
   name: string; // Spanish display name
-  tier: JourneyTier;
+  tier: PersonalizadaTier;
   description: string; // Spanish description for overview screen
   zones: string[]; // Body zones targeted
   idealFor: string; // Spanish "ideal for" text

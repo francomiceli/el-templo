@@ -1,15 +1,19 @@
-import type { JourneyType, JourneyMetadata, JourneyTier } from "./types";
+import type {
+  PersonalizadaType,
+  PersonalizadaMetadata,
+  PersonalizadaTier,
+} from "./types";
 
 /**
- * Maps journey type to allowed exercise route codes.
+ * Maps personalizada type to allowed exercise route codes.
  *
  * Source: route codes from el-templo-api/src/db/seed-spom.ts
  * and zone groupings from el-templo-api/src/modules/sessions/pipeline/utils/mobility-routes.ts
  *
- * 100% zone bias: journey sessions only use exercises from these routes.
- * Cross-route selection is disabled for journey sessions.
+ * 100% zone bias: personalizada sessions only use exercises from these routes.
+ * Cross-route selection is disabled for personalizada sessions.
  */
-export const JOURNEY_ROUTE_MAP: Record<JourneyType, string[]> = {
+export const PERSONALIZADA_ROUTE_MAP: Record<PersonalizadaType, string[]> = {
   // Principiante tier
   tren_superior: [
     "HS",
@@ -53,9 +57,9 @@ export const JOURNEY_ROUTE_MAP: Record<JourneyType, string[]> = {
   front_lever: ["FL", "FLR"], // Front lever-specific
 };
 
-export const JOURNEY_DURATIONS = [20, 40, 60] as const;
+export const PERSONALIZADA_DURATIONS = [20, 40, 60] as const;
 
-export const ALL_JOURNEY_TYPES: JourneyType[] = [
+export const ALL_PERSONALIZADA_TYPES: PersonalizadaType[] = [
   "tren_superior",
   "tren_inferior",
   "empuje",
@@ -64,7 +68,10 @@ export const ALL_JOURNEY_TYPES: JourneyType[] = [
   "front_lever",
 ];
 
-export const JOURNEY_TIER_MAP: Record<JourneyType, JourneyTier> = {
+export const PERSONALIZADA_TIER_MAP: Record<
+  PersonalizadaType,
+  PersonalizadaTier
+> = {
   tren_superior: "principiante",
   tren_inferior: "principiante",
   empuje: "intermedio",
@@ -74,11 +81,11 @@ export const JOURNEY_TIER_MAP: Record<JourneyType, JourneyTier> = {
 };
 
 /**
- * Static metadata for journey display.
+ * Static metadata for personalizada display.
  * Hardcoded per user decision (not coach-managed).
  * Spanish text for UI display.
  */
-export const JOURNEY_METADATA: JourneyMetadata[] = [
+export const PERSONALIZADA_METADATA: PersonalizadaMetadata[] = [
   {
     type: "tren_superior",
     name: "Tren Superior",

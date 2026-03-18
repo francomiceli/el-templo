@@ -1,8 +1,8 @@
 /**
- * Journey Service
+ * Personalizadas Service
  *
- * Manages member journey lifecycle (select, archive, switch, advance)
- * and generates journey sessions using the journey pipeline.
+ * Manages member personalizada lifecycle (select, archive, switch, advance)
+ * and generates personalizada sessions using the personalizada pipeline.
  *
  * Follows the established service pattern (see AdminSessionService).
  */
@@ -12,7 +12,7 @@ import { eq, and, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SpomService } from "../spom/service";
 import { SessionGeneratorService } from "../sessions/service";
-import { runJourneyBlockPipeline } from "../sessions/pipeline/journey-pipeline";
+import { runPersonalizadaBlockPipeline } from "../sessions/pipeline/personalizada-pipeline";
 import { createInitialContext } from "../sessions/pipeline/context";
 import type {
   LevelGroup,
@@ -37,12 +37,12 @@ import {
   MOBILITY_SORT_ORDER,
 } from "../shared/training-constants";
 import type {
-  JourneyType,
-  JourneyDuration,
-  JourneyProgress,
-  ArchivedJourney,
+  PersonalizadaType,
+  PersonalizadaDuration,
+  PersonalizadaProgress,
+  ArchivedPersonalizada,
 } from "./types";
-import { JOURNEY_ROUTE_MAP } from "./constants";
+import { PERSONALIZADA_ROUTE_MAP } from "./constants";
 import type { BlockPipelineOptions } from "../sessions/pipeline/index";
 
 /**
@@ -74,10 +74,10 @@ function levelGroupToMemberLevels(levelGroup: LevelGroup): ExerciseLevel[] {
 }
 
 /**
- * Map a semana column name from a JourneyDuration
+ * Map a semana column name from a PersonalizadaDuration
  */
 function semanaColumn(
-  duration: JourneyDuration,
+  duration: PersonalizadaDuration,
 ): "semana20" | "semana40" | "semana60" {
   switch (duration) {
     case 20:
@@ -89,7 +89,7 @@ function semanaColumn(
   }
 }
 
-export class JourneyService {
+export class PersonalizadasService {
   private spomService: SpomService;
   private sessionService: SessionGeneratorService;
 
@@ -98,88 +98,92 @@ export class JourneyService {
     this.sessionService = new SessionGeneratorService(db);
   }
 
-  // ─── Journey Lifecycle Methods ────────────────────────────────────────
+  // ─── Personalizada Lifecycle Methods ────────────────────────────────────────
 
   /**
-   * Get the active journey for a user, or null if no journey is active.
+   * Get the active personalizada for a user, or null if none is active.
    */
-  async getActiveJourney(userId: number): Promise<JourneyProgress | null> {
-    const [journey] = await this.db
+  async getActivePersonalizada(
+    userId: number,
+  ): Promise<PersonalizadaProgress | null> {
+    const [personalizada] = await this.db
       .select()
-      .from(schema.memberJourneys)
+      .from(schema.memberPersonalizadas)
       .where(
         and(
-          eq(schema.memberJourneys.userId, userId),
-          eq(schema.memberJourneys.isActive, true),
+          eq(schema.memberPersonalizadas.userId, userId),
+          eq(schema.memberPersonalizadas.isActive, true),
         ),
       );
 
-    if (!journey) return null;
+    if (!personalizada) return null;
 
     return {
-      journeyType: journey.journeyType as JourneyType,
-      semana20: journey.semana20,
-      semana40: journey.semana40,
-      semana60: journey.semana60,
-      isActive: journey.isActive,
-      startedAt: journey.startedAt.toISOString(),
+      personalizadaType: personalizada.personalizadaType as PersonalizadaType,
+      semana20: personalizada.semana20,
+      semana40: personalizada.semana40,
+      semana60: personalizada.semana60,
+      isActive: personalizada.isActive,
+      startedAt: personalizada.startedAt.toISOString(),
     };
   }
 
   /**
-   * Get all archived journeys for a user.
+   * Get all archived personalizadas for a user.
    */
-  async getArchivedJourneys(userId: number): Promise<ArchivedJourney[]> {
-    const journeys = await this.db
+  async getArchivedPersonalizadas(
+    userId: number,
+  ): Promise<ArchivedPersonalizada[]> {
+    const personalizadas = await this.db
       .select()
-      .from(schema.memberJourneys)
+      .from(schema.memberPersonalizadas)
       .where(
         and(
-          eq(schema.memberJourneys.userId, userId),
-          eq(schema.memberJourneys.isActive, false),
+          eq(schema.memberPersonalizadas.userId, userId),
+          eq(schema.memberPersonalizadas.isActive, false),
         ),
       )
-      .orderBy(desc(schema.memberJourneys.archivedAt));
+      .orderBy(desc(schema.memberPersonalizadas.archivedAt));
 
-    return journeys.map((j) => ({
-      journeyType: j.journeyType as JourneyType,
-      semana20: j.semana20,
-      semana40: j.semana40,
-      semana60: j.semana60,
-      startedAt: j.startedAt.toISOString(),
-      archivedAt: j.archivedAt?.toISOString() ?? new Date().toISOString(),
+    return personalizadas.map((p) => ({
+      personalizadaType: p.personalizadaType as PersonalizadaType,
+      semana20: p.semana20,
+      semana40: p.semana40,
+      semana60: p.semana60,
+      startedAt: p.startedAt.toISOString(),
+      archivedAt: p.archivedAt?.toISOString() ?? new Date().toISOString(),
     }));
   }
 
   /**
-   * Select a new journey for a user.
-   * If the user has an existing active journey, archive it first.
+   * Select a new personalizada for a user.
+   * If the user has an existing active personalizada, archive it first.
    */
-  async selectJourney(
+  async selectPersonalizada(
     userId: number,
-    journeyType: JourneyType,
-  ): Promise<JourneyProgress> {
-    // Archive any existing active journey
-    const existingActive = await this.getActiveJourney(userId);
+    personalizadaType: PersonalizadaType,
+  ): Promise<PersonalizadaProgress> {
+    // Archive any existing active personalizada
+    const existingActive = await this.getActivePersonalizada(userId);
     if (existingActive) {
       await this.db
-        .update(schema.memberJourneys)
+        .update(schema.memberPersonalizadas)
         .set({
           isActive: false,
           archivedAt: new Date(),
         })
         .where(
           and(
-            eq(schema.memberJourneys.userId, userId),
-            eq(schema.memberJourneys.isActive, true),
+            eq(schema.memberPersonalizadas.userId, userId),
+            eq(schema.memberPersonalizadas.isActive, true),
           ),
         );
     }
 
-    // Create new active journey
-    await this.db.insert(schema.memberJourneys).values({
+    // Create new active personalizada
+    await this.db.insert(schema.memberPersonalizadas).values({
       userId,
-      journeyType,
+      personalizadaType,
       isActive: true,
       semana20: 1,
       semana40: 1,
@@ -187,7 +191,7 @@ export class JourneyService {
     });
 
     return {
-      journeyType,
+      personalizadaType,
       semana20: 1,
       semana40: 1,
       semana60: 1,
@@ -197,51 +201,51 @@ export class JourneyService {
   }
 
   /**
-   * Advance the semana counter for a specific duration of the user's active journey.
+   * Advance the semana counter for a specific duration of the user's active personalizada.
    */
   async advanceSemana(
     userId: number,
-    duration: JourneyDuration,
+    duration: PersonalizadaDuration,
   ): Promise<void> {
     const column = semanaColumn(duration);
 
-    const [journey] = await this.db
+    const [personalizada] = await this.db
       .select()
-      .from(schema.memberJourneys)
+      .from(schema.memberPersonalizadas)
       .where(
         and(
-          eq(schema.memberJourneys.userId, userId),
-          eq(schema.memberJourneys.isActive, true),
+          eq(schema.memberPersonalizadas.userId, userId),
+          eq(schema.memberPersonalizadas.isActive, true),
         ),
       );
 
-    if (!journey) {
-      throw new Error("No active journey found for user");
+    if (!personalizada) {
+      throw new Error("No active personalizada found for user");
     }
 
-    const newValue = journey[column] + 1;
+    const newValue = personalizada[column] + 1;
 
     await this.db
-      .update(schema.memberJourneys)
+      .update(schema.memberPersonalizadas)
       .set({ [column]: newValue })
-      .where(eq(schema.memberJourneys.id, journey.id));
+      .where(eq(schema.memberPersonalizadas.id, personalizada.id));
   }
 
   // ─── Session Generation Methods ───────────────────────────────────────
 
   /**
-   * Generate journey sessions for all level groups across specified days.
+   * Generate personalizada sessions for all level groups across specified days.
    *
-   * Uses runJourneyBlockPipeline instead of runBlockPipeline.
-   * DayId format: J-{journeyType}-W{week}-{day}-{memberLevel}
+   * Uses runPersonalizadaBlockPipeline instead of runBlockPipeline.
+   * DayId format: P-{personalizadaType}-W{week}-{day}-{memberLevel}
    *
    * @param week - SPOM week number
-   * @param journeyType - The journey type to generate sessions for
+   * @param personalizadaType - The personalizada type to generate sessions for
    * @param options - Optional days filter and regenerate flag
    */
-  async generateJourneySessions(
+  async generatePersonalizadaSessions(
     week: number,
-    journeyType: JourneyType,
+    personalizadaType: PersonalizadaType,
     options?: { days?: string[]; regenerate?: boolean },
   ): Promise<{ generated: number; skipped: number }> {
     const days = options?.days ?? [...TRAINING_DAYS];
@@ -260,7 +264,7 @@ export class JourneyService {
         const memberLevels = levelGroupToMemberLevels(levelGroup);
 
         for (const memberLevel of memberLevels) {
-          const dayId = `J-${journeyType}-W${week}-${day}-${memberLevel}`;
+          const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
 
           // Check if session exists
           const existing = await this.sessionService.getSessionByDayId(dayId);
@@ -277,13 +281,13 @@ export class JourneyService {
               .where(eq(schema.sessions.dayId, dayId));
           }
 
-          // Generate journey session
-          const session = await this.generateJourneyDailySession({
+          // Generate personalizada session
+          const session = await this.generatePersonalizadaDailySession({
             week,
             day,
             levelGroup,
             memberLevel,
-            journeyType,
+            personalizadaType,
             sharedFormats,
           });
 
@@ -310,43 +314,43 @@ export class JourneyService {
   }
 
   /**
-   * Generate a complete daily journey session.
+   * Generate a complete daily personalizada session.
    *
    * Similar to SessionGeneratorService.generateDailySession but uses
-   * runJourneyBlockPipeline and sets journeyType on the session.
+   * runPersonalizadaBlockPipeline and sets personalizadaType on the session.
    */
-  private async generateJourneyDailySession(input: {
+  private async generatePersonalizadaDailySession(input: {
     week: number;
     day: string;
     levelGroup: LevelGroup;
     memberLevel: ExerciseLevel;
-    journeyType: JourneyType;
+    personalizadaType: PersonalizadaType;
     sharedFormats?: Map<string, { formatId: number; name: string }>;
   }): Promise<DaySession> {
-    const { week, day, levelGroup, memberLevel, journeyType } = input;
+    const { week, day, levelGroup, memberLevel, personalizadaType } = input;
     const startTime = Date.now();
-    const dayId = `J-${journeyType}-W${week}-${day}-${memberLevel}`;
+    const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
 
     const logger = createSessionLogger(week, dayId, levelGroup);
     logger.info(
       {
-        event: "JOURNEY_SESSION_STARTED",
+        event: "PERSONALIZADA_SESSION_STARTED",
         week,
         day,
         levelGroup,
         memberLevel,
-        journeyType,
+        personalizadaType,
       },
-      "Starting journey session generation",
+      "Starting personalizada session generation",
     );
 
     const sessionTrace: TraceEvent[] = [];
     const blocks: BlockPlan[] = [];
     const blockTraces: BlockTrace[] = [];
 
-    // Journey sessions don't use the weekly rotator, so DEUTEROS_2 behavior:
-    // For journey sessions, all blocks get routes from the journey route map.
-    // DEUTEROS_2 is always generated (routes come from journey map, not rotator null check).
+    // Personalizada sessions don't use the weekly rotator, so DEUTEROS_2 behavior:
+    // For personalizada sessions, all blocks get routes from the personalizada route map.
+    // DEUTEROS_2 is always generated (routes come from personalizada map, not rotator null check).
     const skipDeuteros2 = false;
 
     // Track DEUTEROS_1 format for consistency
@@ -359,7 +363,7 @@ export class JourneyService {
         continue;
       }
 
-      // Create initial context with journey-specific blockId
+      // Create initial context with personalizada-specific blockId
       const initialContext = createInitialContext(
         week,
         day,
@@ -379,12 +383,12 @@ export class JourneyService {
             }
           : { excludeFormatNames: usedFormatNames };
 
-      // Run journey pipeline (uses journey route resolution instead of rotator)
-      const blockPlan = await runJourneyBlockPipeline(
+      // Run personalizada pipeline (uses personalizada route resolution instead of rotator)
+      const blockPlan = await runPersonalizadaBlockPipeline(
         initialContext,
         this.spomService,
         this.db,
-        journeyType,
+        personalizadaType,
         pipelineOptions,
       );
 
@@ -438,7 +442,7 @@ export class JourneyService {
           intensity: blockPlan.intensity,
           format: blockPlan.format.name,
           exerciseCount: blockPlan.exercises.length,
-          journeyType,
+          personalizadaType,
         },
       };
       sessionTrace.push(blockCompleteEvent);
@@ -452,7 +456,7 @@ export class JourneyService {
           intensity: blockPlan.intensity,
           format: blockPlan.format.name,
           exerciseCount: blockPlan.exercises.length,
-          journeyType,
+          personalizadaType,
         },
         `Block ${role} completed`,
       );
@@ -473,7 +477,7 @@ export class JourneyService {
       decision: {
         blocksGenerated: blocks.length,
         totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
-        journeyType,
+        personalizadaType,
       },
     });
 
@@ -485,7 +489,7 @@ export class JourneyService {
       memberLevel,
       blocks,
       trace: sessionTrace,
-      journeyType,
+      journeyType: personalizadaType,
     };
 
     // Validate the generated session
@@ -507,7 +511,7 @@ export class JourneyService {
       });
 
       throw new Error(
-        `Journey session validation failed: ${validation.errors.join("; ")}`,
+        `Personalizada session validation failed: ${validation.errors.join("; ")}`,
       );
     }
 
@@ -535,7 +539,7 @@ export class JourneyService {
 
     logger.info(
       {
-        event: "JOURNEY_SESSION_COMPLETE",
+        event: "PERSONALIZADA_SESSION_COMPLETE",
         dayId,
         blocksGenerated: blocks.length,
         totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
@@ -543,9 +547,9 @@ export class JourneyService {
         warnings: fullSessionTrace.summary.totalWarnings,
         errors: fullSessionTrace.summary.totalErrors,
         durationMs,
-        journeyType,
+        personalizadaType,
       },
-      `Journey session ${dayId} generated in ${durationMs}ms`,
+      `Personalizada session ${dayId} generated in ${durationMs}ms`,
     );
 
     return {
@@ -555,22 +559,22 @@ export class JourneyService {
   }
 
   /**
-   * Retrieve a journey session for the member's level,
+   * Retrieve a personalizada session for the member's level,
    * filtering blocks by duration.
    *
    * If no session exists for the current week, falls back to the most
    * recent available week (per CONTEXT.md: "silently fall back to most
    * recent available session").
    */
-  async getJourneySession(
+  async getPersonalizadaSession(
     userId: number,
     week: number,
     day: string,
-    duration: JourneyDuration,
+    duration: PersonalizadaDuration,
   ): Promise<DaySession | null> {
-    // Get user's active journey and level
-    const journey = await this.getActiveJourney(userId);
-    if (!journey) return null;
+    // Get user's active personalizada and level
+    const personalizada = await this.getActivePersonalizada(userId);
+    if (!personalizada) return null;
 
     // Get user's level
     const [user] = await this.db
@@ -580,23 +584,23 @@ export class JourneyService {
     if (!user) return null;
 
     const memberLevel = user.level as ExerciseLevel;
-    const journeyType = journey.journeyType;
+    const personalizadaType = personalizada.personalizadaType;
 
     // Try current week first
-    const dayId = `J-${journeyType}-W${week}-${day}-${memberLevel}`;
+    const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
     let session = await this.sessionService.getSessionByDayId(
       dayId,
       true, // requireApproved
     );
 
     if (!session) {
-      // Fallback: find the most recent available week for this journey+day+level
+      // Fallback: find the most recent available week for this personalizada+day+level
       const fallbackSession = await this.db
         .select({ dayId: schema.sessions.dayId })
         .from(schema.sessions)
         .where(
           and(
-            eq(schema.sessions.journeyType, journeyType),
+            eq(schema.sessions.personalizadaType, personalizadaType),
             eq(schema.sessions.day, day),
             eq(schema.sessions.status, "approved"),
           ),
@@ -638,7 +642,7 @@ export class JourneyService {
  */
 function filterBlocksByDuration(
   blocks: readonly import("../sessions/types").BlockPlan[],
-  duration: JourneyDuration,
+  duration: PersonalizadaDuration,
 ): import("../sessions/types").BlockPlan[] {
   switch (duration) {
     case 20:

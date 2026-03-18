@@ -1,19 +1,19 @@
 /**
- * Fastify JSON schemas for Journey API request/response validation.
+ * Fastify JSON schemas for Personalizadas API request/response validation.
  */
 
-import type { JourneyDuration, JourneyType } from "./types";
+import type { PersonalizadaDuration, PersonalizadaType } from "./types";
 
 // =============================================================================
 // Member Endpoints
 // =============================================================================
 
-export const getMetadataSchema = {
+export const getPersonalizadaMetadataSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        journeys: {
+        personalizadas: {
           type: "array",
           items: {
             type: "object",
@@ -32,18 +32,18 @@ export const getMetadataSchema = {
   },
 };
 
-export const getActiveJourneySchema = {
+export const getActivePersonalizadaSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        journey: {
+        personalizada: {
           oneOf: [
             { type: "null" },
             {
               type: "object",
               properties: {
-                journeyType: { type: "string" },
+                personalizadaType: { type: "string" },
                 semana20: { type: "integer" },
                 semana40: { type: "integer" },
                 semana60: { type: "integer" },
@@ -58,12 +58,12 @@ export const getActiveJourneySchema = {
   },
 };
 
-export const selectJourneySchema = {
+export const selectPersonalizadaSchema = {
   body: {
     type: "object",
-    required: ["journeyType"],
+    required: ["personalizadaType"],
     properties: {
-      journeyType: {
+      personalizadaType: {
         type: "string",
         enum: [
           "tren_superior",
@@ -80,10 +80,10 @@ export const selectJourneySchema = {
     200: {
       type: "object",
       properties: {
-        journey: {
+        personalizada: {
           type: "object",
           properties: {
-            journeyType: { type: "string" },
+            personalizadaType: { type: "string" },
             semana20: { type: "integer" },
             semana40: { type: "integer" },
             semana60: { type: "integer" },
@@ -102,21 +102,21 @@ export const selectJourneySchema = {
   },
 };
 
-export interface SelectJourneyInput {
-  journeyType: JourneyType;
+export interface SelectPersonalizadaInput {
+  personalizadaType: PersonalizadaType;
 }
 
-export const getArchivedJourneysSchema = {
+export const getArchivedPersonalizadasSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        journeys: {
+        personalizadas: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              journeyType: { type: "string" },
+              personalizadaType: { type: "string" },
               semana20: { type: "integer" },
               semana40: { type: "integer" },
               semana60: { type: "integer" },
@@ -130,7 +130,7 @@ export const getArchivedJourneysSchema = {
   },
 };
 
-export const getJourneySessionSchema = {
+export const getPersonalizadaSessionSchema = {
   querystring: {
     type: "object",
     required: ["week", "day", "duration"],
@@ -171,13 +171,13 @@ export const getJourneySessionSchema = {
   },
 };
 
-export interface GetJourneySessionInput {
+export interface GetPersonalizadaSessionInput {
   week: number;
   day: string;
-  duration: JourneyDuration;
+  duration: PersonalizadaDuration;
 }
 
-export const completeJourneySchema = {
+export const completePersonalizadaSchema = {
   body: {
     type: "object",
     required: ["dayId", "duration", "date", "startedAt", "blocksCompleted"],
@@ -209,7 +209,7 @@ export const completeJourneySchema = {
         progress: {
           type: "object",
           properties: {
-            journeyType: { type: "string" },
+            personalizadaType: { type: "string" },
             semana20: { type: "integer" },
             semana40: { type: "integer" },
             semana60: { type: "integer" },
@@ -228,9 +228,9 @@ export const completeJourneySchema = {
   },
 };
 
-export interface CompleteJourneyInput {
+export interface CompletePersonalizadaInput {
   dayId: string;
-  duration: JourneyDuration;
+  duration: PersonalizadaDuration;
   date: string;
   startedAt: string;
   blocksCompleted: string[];
@@ -243,13 +243,13 @@ export interface CompleteJourneyInput {
 // Admin Endpoints
 // =============================================================================
 
-export const generateJourneySessionsSchema = {
+export const generatePersonalizadaSessionsSchema = {
   body: {
     type: "object",
-    required: ["week", "journeyType"],
+    required: ["week", "personalizadaType"],
     properties: {
       week: { type: "integer", minimum: 1, maximum: 52 },
-      journeyType: {
+      personalizadaType: {
         type: "string",
         enum: [
           "tren_superior",
@@ -287,19 +287,19 @@ export const generateJourneySessionsSchema = {
   },
 };
 
-export interface GenerateJourneySessionsInput {
+export interface GeneratePersonalizadaSessionsInput {
   week: number;
-  journeyType: JourneyType;
+  personalizadaType: PersonalizadaType;
   days?: string[];
   regenerate?: boolean;
 }
 
-export const getAdminJourneyMembersSchema = {
+export const getAdminPersonalizadaMembersSchema = {
   querystring: {
     type: "object",
     properties: {
       search: { type: "string" },
-      journeyType: { type: "string" },
+      personalizadaType: { type: "string" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -319,8 +319,8 @@ export const getAdminJourneyMembersSchema = {
               lastName: { type: ["string", "null"] },
               level: { type: "string" },
               branchName: { type: "string" },
-              journeyType: { type: ["string", "null"] },
-              journeyName: { type: ["string", "null"] },
+              personalizadaType: { type: ["string", "null"] },
+              personalizadaName: { type: ["string", "null"] },
               semana20: { type: ["integer", "null"] },
               semana40: { type: ["integer", "null"] },
               semana60: { type: ["integer", "null"] },
@@ -334,14 +334,14 @@ export const getAdminJourneyMembersSchema = {
   },
 };
 
-export interface GetAdminJourneyMembersInput {
+export interface GetAdminPersonalizadaMembersInput {
   search?: string;
-  journeyType?: string;
+  personalizadaType?: string;
   page?: number;
   limit?: number;
 }
 
-export const getAdminJourneyMemberDetailSchema = {
+export const getAdminPersonalizadaMemberDetailSchema = {
   params: {
     type: "object",
     required: ["userId"],
@@ -368,7 +368,7 @@ export const getAdminJourneyMemberDetailSchema = {
             {
               type: "object",
               properties: {
-                journeyType: { type: "string" },
+                personalizadaType: { type: "string" },
                 semana20: { type: "integer" },
                 semana40: { type: "integer" },
                 semana60: { type: "integer" },
@@ -383,7 +383,7 @@ export const getAdminJourneyMemberDetailSchema = {
           items: {
             type: "object",
             properties: {
-              journeyType: { type: "string" },
+              personalizadaType: { type: "string" },
               semana20: { type: "integer" },
               semana40: { type: "integer" },
               semana60: { type: "integer" },
@@ -400,7 +400,7 @@ export const getAdminJourneyMemberDetailSchema = {
             currentStreak: { type: "integer" },
           },
         },
-        journeyStats: {
+        personalizadaStats: {
           type: "object",
           properties: {
             totalSessions: { type: "integer" },
@@ -421,7 +421,7 @@ export const getAdminJourneyMemberDetailSchema = {
             properties: {
               dayId: { type: "string" },
               date: { type: "string" },
-              journeyType: { type: ["string", "null"] },
+              personalizadaType: { type: ["string", "null"] },
               duration: { type: ["integer", "null"] },
               rpe: { type: ["integer", "null"] },
               blocksCompleted: { type: "array" },

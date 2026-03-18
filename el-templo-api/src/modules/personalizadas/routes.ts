@@ -1,42 +1,42 @@
 /**
- * Journey API Routes
+ * Personalizadas API Routes
  *
- * Member endpoints for journey lifecycle (select, session, complete)
+ * Member endpoints for personalizada lifecycle (select, session, complete)
  * and admin endpoints for generation and member overview.
  */
 
 import { FastifyPluginAsync } from "fastify";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { JourneyService } from "./service";
-import { JOURNEY_METADATA, ALL_JOURNEY_TYPES } from "./constants";
+import { PersonalizadasService } from "./service";
+import { PERSONALIZADA_METADATA, ALL_PERSONALIZADA_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
-import type { JourneyType, JourneyDuration } from "./types";
+import type { PersonalizadaType, PersonalizadaDuration } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
-  getMetadataSchema,
-  getActiveJourneySchema,
-  selectJourneySchema,
-  getArchivedJourneysSchema,
-  getJourneySessionSchema,
-  completeJourneySchema,
-  generateJourneySessionsSchema,
-  getAdminJourneyMembersSchema,
-  getAdminJourneyMemberDetailSchema,
-  type SelectJourneyInput,
-  type GetJourneySessionInput,
-  type CompleteJourneyInput,
-  type GenerateJourneySessionsInput,
-  type GetAdminJourneyMembersInput,
+  getPersonalizadaMetadataSchema,
+  getActivePersonalizadaSchema,
+  selectPersonalizadaSchema,
+  getArchivedPersonalizadasSchema,
+  getPersonalizadaSessionSchema,
+  completePersonalizadaSchema,
+  generatePersonalizadaSessionsSchema,
+  getAdminPersonalizadaMembersSchema,
+  getAdminPersonalizadaMemberDetailSchema,
+  type SelectPersonalizadaInput,
+  type GetPersonalizadaSessionInput,
+  type CompletePersonalizadaInput,
+  type GeneratePersonalizadaSessionsInput,
+  type GetAdminPersonalizadaMembersInput,
 } from "./schemas";
 
 import { COACH_ROLES } from "../shared/permissions";
 
 /**
- * Convert a journey DaySession to API response format.
- * Similar to sessionToResponse in sessions/routes.ts but journey-specific.
+ * Convert a personalizada DaySession to API response format.
+ * Similar to sessionToResponse in sessions/routes.ts but personalizada-specific.
  */
-function journeySessionToResponse(session: DaySession) {
+function personalizadaSessionToResponse(session: DaySession) {
   return {
     dayId: session.dayId,
     week: session.week,
@@ -95,100 +95,106 @@ function journeySessionToResponse(session: DaySession) {
   };
 }
 
-export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
-  const journeyService = new JourneyService(fastify.db);
+export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
+  const personalizadasService = new PersonalizadasService(fastify.db);
 
   // =========================================================================
   // Member Endpoints (require authentication)
   // =========================================================================
 
-  // GET /journeys/metadata — Returns all journey types with metadata
+  // GET /personalizadas/metadata — Returns all personalizada types with metadata
   fastify.get(
-    "/journeys/metadata",
+    "/personalizadas/metadata",
     {
       onRequest: [fastify.authenticate],
-      schema: getMetadataSchema,
+      schema: getPersonalizadaMetadataSchema,
     },
     async () => {
-      return { journeys: JOURNEY_METADATA };
+      return { personalizadas: PERSONALIZADA_METADATA };
     },
   );
 
-  // GET /journeys/active — Returns member's active journey or null
+  // GET /personalizadas/active — Returns member's active personalizada or null
   fastify.get(
-    "/journeys/active",
+    "/personalizadas/active",
     {
       onRequest: [fastify.authenticate],
-      schema: getActiveJourneySchema,
+      schema: getActivePersonalizadaSchema,
     },
     async (request) => {
-      const journey = await journeyService.getActiveJourney(
+      const personalizada = await personalizadasService.getActivePersonalizada(
         request.user.userId,
       );
-      return { journey };
+      return { personalizada };
     },
   );
 
-  // POST /journeys/select — Select a journey for the authenticated member
-  fastify.post<{ Body: SelectJourneyInput }>(
-    "/journeys/select",
+  // POST /personalizadas/select — Select a personalizada for the authenticated member
+  fastify.post<{ Body: SelectPersonalizadaInput }>(
+    "/personalizadas/select",
     {
       onRequest: [fastify.authenticate],
-      schema: selectJourneySchema,
+      schema: selectPersonalizadaSchema,
     },
     async (request, reply) => {
-      const { journeyType } = request.body;
+      const { personalizadaType } = request.body;
 
-      if (!ALL_JOURNEY_TYPES.includes(journeyType)) {
+      if (!ALL_PERSONALIZADA_TYPES.includes(personalizadaType)) {
         return reply.status(400).send({
-          error: `Tipo de journey invalido: ${journeyType}`,
+          error: `Tipo de personalizada invalido: ${personalizadaType}`,
         });
       }
 
-      // Check if member already has this same journey active (idempotent)
-      const existing = await journeyService.getActiveJourney(
+      // Check if member already has this same personalizada active (idempotent)
+      const existing = await personalizadasService.getActivePersonalizada(
         request.user.userId,
       );
-      if (existing && existing.journeyType === journeyType) {
-        return { journey: existing };
+      if (existing && existing.personalizadaType === personalizadaType) {
+        return { personalizada: existing };
       }
 
       try {
-        const journey = await journeyService.selectJourney(
+        const personalizada = await personalizadasService.selectPersonalizada(
           request.user.userId,
-          journeyType,
+          personalizadaType,
         );
-        return { journey };
+        return { personalizada };
       } catch (err: unknown) {
         const message =
-          err instanceof Error ? err.message : "Error al seleccionar journey";
-        request.log.error({ err, journeyType }, "Error selecting journey");
+          err instanceof Error
+            ? err.message
+            : "Error al seleccionar personalizada";
+        request.log.error(
+          { err, personalizadaType },
+          "Error selecting personalizada",
+        );
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // GET /journeys/archived — Returns member's archived journey history
+  // GET /personalizadas/archived — Returns member's archived personalizada history
   fastify.get(
-    "/journeys/archived",
+    "/personalizadas/archived",
     {
       onRequest: [fastify.authenticate],
-      schema: getArchivedJourneysSchema,
+      schema: getArchivedPersonalizadasSchema,
     },
     async (request) => {
-      const journeys = await journeyService.getArchivedJourneys(
-        request.user.userId,
-      );
-      return { journeys };
+      const personalizadas =
+        await personalizadasService.getArchivedPersonalizadas(
+          request.user.userId,
+        );
+      return { personalizadas };
     },
   );
 
-  // GET /journeys/session — Returns journey session for member's active journey
-  fastify.get<{ Querystring: GetJourneySessionInput }>(
-    "/journeys/session",
+  // GET /personalizadas/session — Returns personalizada session for member's active personalizada
+  fastify.get<{ Querystring: GetPersonalizadaSessionInput }>(
+    "/personalizadas/session",
     {
       onRequest: [fastify.authenticate],
-      schema: getJourneySessionSchema,
+      schema: getPersonalizadaSessionSchema,
     },
     async (request, reply) => {
       const { week, day, duration } = request.query;
@@ -201,49 +207,51 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const session = await journeyService.getJourneySession(
+        const session = await personalizadasService.getPersonalizadaSession(
           request.user.userId,
           week,
           day,
-          duration as JourneyDuration,
+          duration as PersonalizadaDuration,
         );
 
         if (!session) {
-          // Check if the issue is no active journey vs no session found
-          const activeJourney = await journeyService.getActiveJourney(
-            request.user.userId,
-          );
-          if (!activeJourney) {
+          // Check if the issue is no active personalizada vs no session found
+          const activePersonalizada =
+            await personalizadasService.getActivePersonalizada(
+              request.user.userId,
+            );
+          if (!activePersonalizada) {
             return reply.status(400).send({
-              error: "No tienes un journey activo. Selecciona uno primero.",
+              error:
+                "No tienes una personalizada activa. Selecciona una primero.",
             });
           }
           return reply.status(404).send({
-            error: "Sesion de journey no encontrada para esta semana y dia",
+            error: "Sesion personalizada no encontrada para esta semana y dia",
           });
         }
 
-        return journeySessionToResponse(session);
+        return personalizadaSessionToResponse(session);
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al obtener sesion de journey";
+            : "Error al obtener sesion personalizada";
         request.log.error(
           { err, week, day, duration },
-          "Error getting journey session",
+          "Error getting personalizada session",
         );
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // POST /journeys/complete — Records journey session completion
-  fastify.post<{ Body: CompleteJourneyInput }>(
-    "/journeys/complete",
+  // POST /personalizadas/complete — Records personalizada session completion
+  fastify.post<{ Body: CompletePersonalizadaInput }>(
+    "/personalizadas/complete",
     {
       onRequest: [fastify.authenticate],
-      schema: completeJourneySchema,
+      schema: completePersonalizadaSchema,
     },
     async (request, reply) => {
       const { userId } = request.user;
@@ -268,16 +276,17 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: "Usuario no encontrado" });
       }
 
-      // Get active journey
-      const activeJourney = await journeyService.getActiveJourney(userId);
-      if (!activeJourney) {
+      // Get active personalizada
+      const activePersonalizada =
+        await personalizadasService.getActivePersonalizada(userId);
+      if (!activePersonalizada) {
         return reply.status(400).send({
-          error: "No tienes un journey activo",
+          error: "No tienes una personalizada activa",
         });
       }
 
       try {
-        // Record completion in completed_sessions with journey metadata
+        // Record completion in completed_sessions with personalizada metadata
         const [existing] = await fastify.db
           .select({ id: schema.completedSessions.id })
           .from(schema.completedSessions)
@@ -299,7 +308,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
               notes: notes ?? null,
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
-              journeyType: activeJourney.journeyType,
+              personalizadaType: activePersonalizada.personalizadaType,
               duration,
             })
             .where(eq(schema.completedSessions.id, existing.id));
@@ -315,25 +324,29 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             notes: notes ?? null,
             blocksCompleted,
             exercisesCompleted: exercisesCompleted ?? null,
-            journeyType: activeJourney.journeyType,
+            personalizadaType: activePersonalizada.personalizadaType,
             duration,
           });
         }
 
         // Advance semana for the specific duration
-        await journeyService.advanceSemana(userId, duration as JourneyDuration);
+        await personalizadasService.advanceSemana(
+          userId,
+          duration as PersonalizadaDuration,
+        );
 
         // Return updated progress
-        const progress = await journeyService.getActiveJourney(userId);
+        const progress =
+          await personalizadasService.getActivePersonalizada(userId);
         return { success: true, progress };
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al completar sesion de journey";
+            : "Error al completar sesion personalizada";
         request.log.error(
           { err, dayId, duration },
-          "Error completing journey session",
+          "Error completing personalizada session",
         );
         return reply.status(400).send({ error: message });
       }
@@ -344,12 +357,12 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
   // Admin Endpoints (require admin/coach role)
   // =========================================================================
 
-  // POST /admin/journeys/generate — Generate journey sessions
-  fastify.post<{ Body: GenerateJourneySessionsInput }>(
-    "/admin/journeys/generate",
+  // POST /admin/personalizadas/generate — Generate personalizada sessions
+  fastify.post<{ Body: GeneratePersonalizadaSessionsInput }>(
+    "/admin/personalizadas/generate",
     {
       onRequest: [fastify.authenticate],
-      schema: generateJourneySessionsSchema,
+      schema: generatePersonalizadaSessionsSchema,
     },
     async (request, reply) => {
       if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
@@ -358,41 +371,42 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
-      const { week, journeyType, days, regenerate } = request.body;
+      const { week, personalizadaType, days, regenerate } = request.body;
 
-      if (!ALL_JOURNEY_TYPES.includes(journeyType)) {
+      if (!ALL_PERSONALIZADA_TYPES.includes(personalizadaType)) {
         return reply.status(400).send({
-          error: `Tipo de journey invalido: ${journeyType}`,
+          error: `Tipo de personalizada invalido: ${personalizadaType}`,
         });
       }
 
       try {
-        const result = await journeyService.generateJourneySessions(
-          week,
-          journeyType,
-          { days, regenerate },
-        );
+        const result =
+          await personalizadasService.generatePersonalizadaSessions(
+            week,
+            personalizadaType,
+            { days, regenerate },
+          );
         return result;
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al generar sesiones de journey";
+            : "Error al generar sesiones personalizadas";
         request.log.error(
-          { err, week, journeyType },
-          "Error generating journey sessions",
+          { err, week, personalizadaType },
+          "Error generating personalizada sessions",
         );
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // GET /admin/journeys/members — List members with journey status
-  fastify.get<{ Querystring: GetAdminJourneyMembersInput }>(
-    "/admin/journeys/members",
+  // GET /admin/personalizadas/members — List members with personalizada status
+  fastify.get<{ Querystring: GetAdminPersonalizadaMembersInput }>(
+    "/admin/personalizadas/members",
     {
       onRequest: [fastify.authenticate],
-      schema: getAdminJourneyMembersSchema,
+      schema: getAdminPersonalizadaMembersSchema,
     },
     async (request, reply) => {
       if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
@@ -401,12 +415,12 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
-      const { search, journeyType, page = 1, limit = 20 } = request.query;
+      const { search, personalizadaType, page = 1, limit = 20 } = request.query;
       const offset = (page - 1) * limit;
 
       try {
-        // Build base query: members with optional active journey via left join
-        // We query members (role=member) with their active journey info
+        // Build base query: members with optional active personalizada via left join
+        // We query members (role=member) with their active personalizada info
         const conditions = [eq(schema.users.role, "member")];
 
         if (search) {
@@ -424,7 +438,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
 
         const total = countResult?.count ?? 0;
 
-        // Get paginated members with left join to active journeys and branch
+        // Get paginated members with left join to active personalizadas and branch
         const members = await fastify.db
           .select({
             userId: schema.users.id,
@@ -433,11 +447,11 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             lastName: schema.users.lastName,
             level: schema.users.level,
             branchName: schema.branches.name,
-            journeyType: schema.memberJourneys.journeyType,
-            semana20: schema.memberJourneys.semana20,
-            semana40: schema.memberJourneys.semana40,
-            semana60: schema.memberJourneys.semana60,
-            startedAt: schema.memberJourneys.startedAt,
+            personalizadaType: schema.memberPersonalizadas.personalizadaType,
+            semana20: schema.memberPersonalizadas.semana20,
+            semana40: schema.memberPersonalizadas.semana40,
+            semana60: schema.memberPersonalizadas.semana60,
+            startedAt: schema.memberPersonalizadas.startedAt,
           })
           .from(schema.users)
           .innerJoin(
@@ -445,10 +459,10 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             eq(schema.branches.id, schema.users.branchId),
           )
           .leftJoin(
-            schema.memberJourneys,
+            schema.memberPersonalizadas,
             and(
-              eq(schema.memberJourneys.userId, schema.users.id),
-              eq(schema.memberJourneys.isActive, true),
+              eq(schema.memberPersonalizadas.userId, schema.users.id),
+              eq(schema.memberPersonalizadas.isActive, true),
             ),
           )
           .where(and(...conditions))
@@ -456,17 +470,17 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           .offset(offset)
           .orderBy(schema.users.firstName);
 
-        // Apply journey type filter after join (filtering on left-joined data)
+        // Apply personalizada type filter after join (filtering on left-joined data)
         let filteredMembers = members;
-        if (journeyType) {
+        if (personalizadaType) {
           filteredMembers = members.filter(
-            (m) => m.journeyType === journeyType,
+            (m) => m.personalizadaType === personalizadaType,
           );
         }
 
-        // Map to response with journey name
-        const journeyNameMap = new Map(
-          JOURNEY_METADATA.map((j) => [j.type, j.name]),
+        // Map to response with personalizada name
+        const personalizadaNameMap = new Map(
+          PERSONALIZADA_METADATA.map((p) => [p.type, p.name]),
         );
 
         const result = filteredMembers.map((m) => ({
@@ -476,9 +490,11 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           lastName: m.lastName,
           level: m.level,
           branchName: m.branchName,
-          journeyType: m.journeyType,
-          journeyName: m.journeyType
-            ? (journeyNameMap.get(m.journeyType as JourneyType) ?? null)
+          personalizadaType: m.personalizadaType,
+          personalizadaName: m.personalizadaType
+            ? (personalizadaNameMap.get(
+                m.personalizadaType as PersonalizadaType,
+              ) ?? null)
             : null,
           semana20: m.semana20 ?? null,
           semana40: m.semana40 ?? null,
@@ -490,18 +506,18 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Error al obtener miembros";
-        request.log.error({ err }, "Error fetching journey members");
+        request.log.error({ err }, "Error fetching personalizada members");
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // GET /admin/journeys/members/:userId — Detailed journey info for a member
+  // GET /admin/personalizadas/members/:userId — Detailed personalizada info for a member
   fastify.get<{ Params: { userId: number } }>(
-    "/admin/journeys/members/:userId",
+    "/admin/personalizadas/members/:userId",
     {
       onRequest: [fastify.authenticate],
-      schema: getAdminJourneyMemberDetailSchema,
+      schema: getAdminPersonalizadaMemberDetailSchema,
     },
     async (request, reply) => {
       if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
@@ -533,18 +549,20 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        // Get active journey
-        const active = await journeyService.getActiveJourney(userId);
+        // Get active personalizada
+        const active =
+          await personalizadasService.getActivePersonalizada(userId);
 
-        // Get archived journeys
-        const archived = await journeyService.getArchivedJourneys(userId);
+        // Get archived personalizadas
+        const archived =
+          await personalizadasService.getArchivedPersonalizadas(userId);
 
-        // Get all completions (both entrenamiento and journey)
+        // Get all completions (both entrenamiento and personalizada)
         const completions = await fastify.db
           .select({
             dayId: schema.completedSessions.dayId,
             date: schema.completedSessions.date,
-            journeyType: schema.completedSessions.journeyType,
+            personalizadaType: schema.completedSessions.personalizadaType,
             duration: schema.completedSessions.duration,
             rpe: schema.completedSessions.rpe,
             blocksCompleted: schema.completedSessions.blocksCompleted,
@@ -555,14 +573,14 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
           .orderBy(desc(schema.completedSessions.completedAt))
           .limit(50);
 
-        // Compute entrenamiento stats (journeyType IS NULL)
+        // Compute entrenamiento stats (personalizadaType IS NULL)
         const entrenamientoCompletions = completions.filter(
-          (c) => c.journeyType === null,
+          (c) => c.personalizadaType === null,
         );
 
-        // Compute journey stats (journeyType IS NOT NULL)
-        const journeyCompletions = completions.filter(
-          (c) => c.journeyType !== null,
+        // Compute personalizada stats (personalizadaType IS NOT NULL)
+        const personalizadaCompletions = completions.filter(
+          (c) => c.personalizadaType !== null,
         );
 
         // Unique training days for entrenamiento
@@ -611,18 +629,21 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             totalDays: entrenamientoDays.size,
             currentStreak: streak,
           },
-          journeyStats: {
-            totalSessions: journeyCompletions.length,
+          personalizadaStats: {
+            totalSessions: personalizadaCompletions.length,
             byDuration: {
-              d20: journeyCompletions.filter((c) => c.duration === 20).length,
-              d40: journeyCompletions.filter((c) => c.duration === 40).length,
-              d60: journeyCompletions.filter((c) => c.duration === 60).length,
+              d20: personalizadaCompletions.filter((c) => c.duration === 20)
+                .length,
+              d40: personalizadaCompletions.filter((c) => c.duration === 40)
+                .length,
+              d60: personalizadaCompletions.filter((c) => c.duration === 60)
+                .length,
             },
           },
           completions: completions.map((c) => ({
             dayId: c.dayId,
             date: c.date,
-            journeyType: c.journeyType,
+            personalizadaType: c.personalizadaType,
             duration: c.duration,
             rpe: c.rpe,
             blocksCompleted: c.blocksCompleted as string[],
@@ -636,7 +657,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
             : "Error al obtener detalle de miembro";
         request.log.error(
           { err, userId },
-          "Error fetching member journey detail",
+          "Error fetching member personalizada detail",
         );
         return reply.status(400).send({ error: message });
       }
