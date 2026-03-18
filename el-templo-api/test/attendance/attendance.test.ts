@@ -8,8 +8,13 @@ import {
   vi,
 } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import { eq } from "drizzle-orm";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  cleanAllTestData,
+} from "../helpers";
 import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
 import { payments } from "../../src/db/schema/payments";
@@ -61,10 +66,11 @@ describe("Attendance API", () => {
   };
 
   beforeAll(async () => {
-    // Pin to Wednesday 10:00 UTC (07:00 ART) so booking-window and
+    // Pin to Wednesday 10:00 local time so booking-window and
     // week-range helpers always have valid future slots within Mon-Sat.
+    // No "Z" suffix — local time ensures getHours()=10 matches schedule startTime "10:00".
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-03-11T10:00:00Z")); // Wednesday
+    vi.setSystemTime(new Date("2026-03-11T10:00:00")); // Wednesday 10:00 local
 
     app = await createTestApp();
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
@@ -88,31 +94,7 @@ describe("Attendance API", () => {
    * Helper: clean up all test data in FK order.
    */
   async function cleanupAll(): Promise<void> {
-    await app.db.delete(auraTransactions);
-    await app.db.delete(auraBalances);
-    await app.db.delete(completedSessions);
-    await app.db.delete(bookings);
-    await app.db.delete(holidays);
-    await app.db.delete(attendance);
-    await app.db.delete(subscriptionSchedules);
-    await app.db.delete(schedules);
-    await app.db.delete(activities);
-    await app.db.delete(payments);
-    await app.db.delete(subscriptions);
-    await app.db.delete(subscriptionPlans);
-    await app.db.delete(memberNotes);
-    await app.db.update(users).set({ boardingPassUsed: false });
-    // Delete non-admin test users (disable FK checks to handle all child tables)
-    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 0`);
-    const testUsers = await app.db
-      .select({ id: users.id, email: users.email })
-      .from(users);
-    for (const u of testUsers) {
-      if (u.email !== "admin@test.com") {
-        await app.db.delete(users).where(eq(users.id, u.id));
-      }
-    }
-    await app.db.execute(sql`SET FOREIGN_KEY_CHECKS = 1`);
+    await cleanAllTestData(app);
   }
 
   /**

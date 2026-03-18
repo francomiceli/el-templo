@@ -24,6 +24,9 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
   await conn.query(
     "INSERT INTO branches (name, code) VALUES ('Test Branch', 'TEST')",
   );
+  await conn.query(
+    "INSERT INTO branches (name, code, is_virtual) VALUES ('Templo Online', 'ONLINE', true)",
+  );
   await conn.query("INSERT INTO spom_config (id, current_week) VALUES (1, 1)");
   const hash = await argon2.hash("adminpass123");
   await conn.query(

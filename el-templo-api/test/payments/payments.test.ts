@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq, sql } from "drizzle-orm";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import { eq } from "drizzle-orm";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  cleanAllTestData,
+} from "../helpers";
 import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -57,30 +62,7 @@ describe("Payments API", () => {
    * Helper: clean up all payment/subscription test data.
    */
   async function cleanupAll(): Promise<void> {
-    // Delete in FK order: bookings first (FK on users+schedules), then scheduling, then rest
-    await app.db.delete(bookings);
-    await app.db.delete(holidays);
-    await app.db.delete(attendance);
-    await app.db.delete(subscriptionSchedules);
-    await app.db.delete(schedules);
-    await app.db.delete(activities);
-    await app.db.delete(payments);
-    await app.db.delete(subscriptions);
-    await app.db.delete(subscriptionPlans);
-    await app.db.delete(auraTransactions);
-    await app.db.delete(auraBalances);
-    await app.db.delete(memberNotes);
-    // Reset boarding pass on all users
-    await app.db.update(users).set({ boardingPassUsed: false });
-    // Delete non-admin test users
-    const testUsers = await app.db
-      .select({ id: users.id, email: users.email })
-      .from(users);
-    for (const u of testUsers) {
-      if (u.email !== "admin@test.com") {
-        await app.db.delete(users).where(eq(users.id, u.id));
-      }
-    }
+    await cleanAllTestData(app);
   }
 
   /**

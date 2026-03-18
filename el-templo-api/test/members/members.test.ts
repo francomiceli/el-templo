@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  cleanAllTestData,
+} from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { payments } from "../../src/db/schema/payments";
@@ -46,28 +51,7 @@ describe("Members Management Routes", () => {
    * Also cleans up member_notes, subscriptions, plans.
    */
   async function cleanupTestMembers(): Promise<void> {
-    // Delete in FK order: bookings first (FK on users+schedules), then scheduling, then rest
-    await app.db.delete(bookings);
-    await app.db.delete(holidays);
-    await app.db.delete(attendance);
-    await app.db.delete(subscriptionSchedules);
-    await app.db.delete(schedules);
-    await app.db.delete(activities);
-    await app.db.delete(payments);
-    await app.db.delete(subscriptions);
-    await app.db.delete(subscriptionPlans);
-    await app.db.delete(auraTransactions);
-    await app.db.delete(auraBalances);
-    await app.db.delete(memberNotes);
-    // Delete all members except the admin seed user
-    const testUsers = await app.db
-      .select({ id: users.id, email: users.email })
-      .from(users);
-    for (const u of testUsers) {
-      if (u.email !== "admin@test.com") {
-        await app.db.delete(users).where(eq(users.id, u.id));
-      }
-    }
+    await cleanAllTestData(app);
   }
 
   /**

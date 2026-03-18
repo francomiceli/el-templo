@@ -2,10 +2,13 @@
  * Test helpers for API integration tests.
  *
  * Provides createTestApp() using the existing buildApp() factory,
- * and auth helpers for registering users and obtaining JWT tokens.
+ * auth helpers for registering users and obtaining JWT tokens,
+ * and a shared cleanup function for inter-file test isolation.
  */
 
 import { buildApp } from "../src/app";
+import { eq, sql } from "drizzle-orm";
+import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
 
 /**
@@ -77,4 +80,73 @@ export async function registerUser(
     );
   }
   return JSON.parse(response.body);
+}
+
+/**
+ * Comprehensive cleanup of ALL test data tables.
+ *
+ * Deletes from every user-data table in FK-safe order, preserving only
+ * the seed data (admin user, branch, spom_config). Call this in beforeEach
+ * to guarantee a clean slate regardless of what previous test files wrote.
+ */
+export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
+  // Layer 1: junction tables and leaf tables (no dependents)
+  await app.db.delete(schema.blogPostTags);
+  await app.db.delete(schema.bookings);
+  await app.db.delete(schema.subscriptionSchedules);
+  await app.db.delete(schema.completedSessions);
+  await app.db.delete(schema.sessionTraces);
+  await app.db.delete(schema.sessionBlocks);
+  await app.db.delete(schema.sessionEditLogs);
+  await app.db.delete(schema.sessionPrescriptions);
+  await app.db.delete(schema.savedBlocks);
+  await app.db.delete(schema.memberJourneys);
+  await app.db.delete(schema.evaluationRequests);
+  await app.db.delete(schema.formatCompatibility);
+
+  // Layer 2: tables that reference layer-3 parents
+  await app.db.delete(schema.attendance);
+  await app.db.delete(schema.payments);
+  await app.db.delete(schema.auraTransactions);
+  await app.db.delete(schema.memberNotes);
+  await app.db.delete(schema.holidays);
+
+  // Layer 3: core entity tables
+  await app.db.delete(schema.subscriptions);
+  await app.db.delete(schema.schedules);
+  await app.db.delete(schema.subscriptionPlans);
+  await app.db.delete(schema.auraBalances);
+  await app.db.delete(schema.activities);
+  await app.db.delete(schema.sessions);
+
+  // Layer 4: reference/config tables
+  await app.db.delete(schema.blogPosts);
+  await app.db.delete(schema.blogTags);
+  await app.db.delete(schema.academyInquiries);
+  await app.db.delete(schema.appWaitlist);
+  await app.db.delete(schema.labsInquiries);
+  await app.db.delete(schema.franchiseApplications);
+  await app.db.delete(schema.gladiusInquiries);
+  await app.db.delete(schema.gladiusProducts);
+  await app.db.delete(schema.systemSettings);
+
+  // SPOM reference tables
+  await app.db.delete(schema.exercises);
+  await app.db.delete(schema.formats);
+  await app.db.delete(schema.routes);
+  await app.db.delete(schema.spomRules);
+  await app.db.delete(schema.intensityRules);
+  await app.db.delete(schema.contractionRules);
+  await app.db.delete(schema.weeklyRotator);
+
+  // Reset user flags and delete non-admin users
+  await app.db.update(schema.users).set({ boardingPassUsed: false });
+  const testUsers = await app.db
+    .select({ id: schema.users.id, email: schema.users.email })
+    .from(schema.users);
+  for (const u of testUsers) {
+    if (u.email !== "admin@test.com") {
+      await app.db.delete(schema.users).where(eq(schema.users.id, u.id));
+    }
+  }
 }
