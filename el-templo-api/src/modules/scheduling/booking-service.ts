@@ -107,13 +107,7 @@ export class BookingService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
-    // 6. Check overdue
-    const balance = await this.paymentService.getMemberBalance(memberId);
-    if (balance?.isOverdue) {
-      throw new BadRequestError("Tu suscripcion tiene un pago pendiente");
-    }
-
-    // 6b. Monthly budget check: if classesRemaining is tracked and exhausted
+    // 6. Monthly budget check: if classesRemaining is tracked and exhausted
     if (
       subscription.classesRemaining !== null &&
       subscription.classesRemaining <= 0

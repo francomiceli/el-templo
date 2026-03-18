@@ -120,7 +120,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       multiBranch?: boolean;
       level?: string;
       isActive?: boolean;
-      overdue?: boolean;
       planId?: number;
       page?: number;
       limit?: number;
@@ -132,7 +131,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       multiBranch,
       level,
       isActive,
-      overdue,
       planId,
       page = 1,
       limit = 20,
@@ -144,7 +142,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       multiBranch,
       level,
       isActive,
-      overdue,
       planId,
       page,
       limit,

@@ -67,6 +67,7 @@ describe("Analytics API", () => {
    * Clean up all test data in FK order.
    */
   async function cleanupAll(): Promise<void> {
+    memberSubscriptions.clear();
     await app.db.delete(auraTransactions);
     await app.db.delete(auraBalances);
     await app.db.delete(completedSessions);
@@ -144,11 +145,32 @@ describe("Analytics API", () => {
     return JSON.parse(res.body);
   }
 
+  /**
+   * Track subscription per member so multiple recordPayment calls reuse the same sub.
+   */
+  const memberSubscriptions = new Map<number, number>();
+
+  /**
+   * Helper: create a plan + subscription for a member (if needed) and record a payment.
+   * Needed because subscriptionId is required on payments.
+   */
   async function recordPayment(
     memberId: number,
     amount: number,
     overrides: Record<string, unknown> = {},
   ): Promise<Record<string, unknown>> {
+    // Ensure we have a plan and subscription for this member
+    let subId = overrides.subscriptionId as number | undefined;
+    if (!subId) {
+      subId = memberSubscriptions.get(memberId);
+    }
+    if (!subId) {
+      const plan = await createPlan({ name: `RP-Plan-${Date.now()}` });
+      const sub = await assignSubscription(memberId, plan.id);
+      subId = sub.id as number;
+      memberSubscriptions.set(memberId, subId);
+    }
+
     const today = new Date().toISOString().split("T")[0];
     const res = await app.inject({
       method: "POST",
@@ -158,6 +180,7 @@ describe("Analytics API", () => {
         amount,
         paymentMethod: "cash",
         paymentDate: today,
+        subscriptionId: subId,
         ...overrides,
       },
     });
@@ -230,115 +253,12 @@ describe("Analytics API", () => {
         "activeMembers",
         "monthlyRevenue",
         "dailyAttendanceAvg",
-        "morososCount",
       ]) {
         expect(body[key]).toBeDefined();
         expect(body[key].trend).toBeDefined();
         expect(body[key].trend.direction).toMatch(/^(up|down|flat)$/);
         expect(typeof body[key].trend.percentage).toBe("number");
       }
-    });
-
-    it("should count morosos when member has expired sub with insufficient payment", async () => {
-      const plan = await createPlan({
-        name: "Plan Moroso Test",
-        durationDays: 30,
-        priceRegular: 15000,
-      });
-      const member = await createMember({
-        email: "moroso@test.com",
-        dni: "90000040",
-      });
-
-      // Assign sub starting 35 days ago (will auto-calculate endDate = 5 days ago)
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 35);
-      const sub = await assignSubscription(member.id, plan.id, {
-        startDate: startDate.toISOString().split("T")[0],
-      });
-      const subId = sub.id as number;
-
-      // Force status to expired
-      await app.db
-        .update(subscriptions)
-        .set({ status: "expired" })
-        .where(eq(subscriptions.id, subId));
-
-      // Insert partial payment (5000 of 15000) directly linked to subscription
-      const today = new Date().toISOString().split("T")[0];
-      const [admin] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, "admin@test.com"));
-      await app.db.insert(payments).values({
-        memberId: member.id,
-        subscriptionId: subId,
-        amount: 5000,
-        paymentMethod: "cash",
-        paymentDate: today,
-        recordedBy: admin.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: ANALYTICS_URL,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.morososCount.value).toBeGreaterThanOrEqual(1);
-    });
-
-    it("should not count fully-paid expired sub as moroso", async () => {
-      const plan = await createPlan({
-        name: "Plan Paid Test",
-        durationDays: 30,
-        priceRegular: 15000,
-      });
-      const member = await createMember({
-        email: "paid@test.com",
-        dni: "90000041",
-      });
-
-      // Assign sub starting 35 days ago (endDate = 5 days ago)
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 35);
-      const sub = await assignSubscription(member.id, plan.id, {
-        startDate: startDate.toISOString().split("T")[0],
-      });
-      const subId = sub.id as number;
-
-      // Force expired status
-      await app.db
-        .update(subscriptions)
-        .set({ status: "expired" })
-        .where(eq(subscriptions.id, subId));
-
-      // Insert full payment (15000 of 15000) directly linked to subscription
-      const today = new Date().toISOString().split("T")[0];
-      const [admin] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, "admin@test.com"));
-      await app.db.insert(payments).values({
-        memberId: member.id,
-        subscriptionId: subId,
-        amount: 15000,
-        paymentMethod: "cash",
-        paymentDate: today,
-        recordedBy: admin.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: ANALYTICS_URL,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.morososCount.value).toBe(0);
     });
   });
 
@@ -665,151 +585,6 @@ describe("Analytics API", () => {
       expect(body.revenueByMethod.cash).toBe(5000);
       expect(body.revenueByMethod.transfer).toBe(3000);
       expect(body.revenueByMethod.card).toBe(0);
-    });
-
-    it("should return totalOutstanding and collectionRate", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `${ANALYTICS_URL}/financial`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(typeof body.totalOutstanding).toBe("number");
-      expect(typeof body.collectionRate).toBe("number");
-      expect(body.collectionRate).toBeGreaterThanOrEqual(0);
-      expect(body.collectionRate).toBeLessThanOrEqual(100);
-    });
-
-    it("should compute totalOutstanding as sum of unpaid balances on expired subs", async () => {
-      const plan = await createPlan({
-        name: "Plan Outstanding Test",
-        durationDays: 30,
-        priceRegular: 15000,
-      });
-      const member = await createMember({
-        email: "out@test.com",
-        dni: "90000060",
-      });
-
-      // Assign sub starting 35 days ago (endDate = 5 days ago)
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 35);
-      const sub = await assignSubscription(member.id, plan.id, {
-        startDate: startDate.toISOString().split("T")[0],
-      });
-      const subId = sub.id as number;
-
-      // Force expired status
-      await app.db
-        .update(subscriptions)
-        .set({ status: "expired" })
-        .where(eq(subscriptions.id, subId));
-
-      // Insert partial payment (5000 of 15000) linked to subscription
-      const today = new Date().toISOString().split("T")[0];
-      const [admin] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, "admin@test.com"));
-      await app.db.insert(payments).values({
-        memberId: member.id,
-        subscriptionId: subId,
-        amount: 5000,
-        paymentMethod: "cash",
-        paymentDate: today,
-        recordedBy: admin.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${ANALYTICS_URL}/financial`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      // 15000 owed - 5000 paid = 10000 outstanding
-      expect(body.totalOutstanding).toBe(10000);
-    });
-
-    it("should compute collectionRate from total owed vs total collected", async () => {
-      const plan = await createPlan({
-        name: "Plan Collection Test",
-        durationDays: 30,
-        priceRegular: 10000,
-      });
-
-      const member1 = await createMember({
-        email: "col1@test.com",
-        dni: "90000061",
-      });
-      const member2 = await createMember({
-        email: "col2@test.com",
-        dni: "90000062",
-      });
-
-      // Assign subs starting 35 days ago (endDate = 5 days ago)
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 35);
-      const startDateStr = startDate.toISOString().split("T")[0];
-
-      const sub1 = await assignSubscription(member1.id, plan.id, {
-        startDate: startDateStr,
-      });
-      const sub2 = await assignSubscription(member2.id, plan.id, {
-        startDate: startDateStr,
-      });
-      const sub1Id = sub1.id as number;
-      const sub2Id = sub2.id as number;
-
-      // Force expired status
-      await app.db
-        .update(subscriptions)
-        .set({ status: "expired" })
-        .where(eq(subscriptions.id, sub1Id));
-      await app.db
-        .update(subscriptions)
-        .set({ status: "expired" })
-        .where(eq(subscriptions.id, sub2Id));
-
-      // Insert payments directly to ensure subscription_id FK is set
-      const today = new Date().toISOString().split("T")[0];
-      const [admin] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, "admin@test.com"));
-
-      // Member 1 pays full (10000), Member 2 pays partial (5000)
-      // Total owed = 20000, total collected = 15000, rate = 75%
-      await app.db.insert(payments).values({
-        memberId: member1.id,
-        subscriptionId: sub1Id,
-        amount: 10000,
-        paymentMethod: "cash",
-        paymentDate: today,
-        recordedBy: admin.id,
-      });
-      await app.db.insert(payments).values({
-        memberId: member2.id,
-        subscriptionId: sub2Id,
-        amount: 5000,
-        paymentMethod: "cash",
-        paymentDate: today,
-        recordedBy: admin.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${ANALYTICS_URL}/financial`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      // Total owed = 20000, total collected = 15000 (capped at pricePaid per sub)
-      expect(body.collectionRate).toBe(75);
     });
   });
 

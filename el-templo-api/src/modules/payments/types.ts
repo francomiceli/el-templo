@@ -1,8 +1,8 @@
 /**
  * Payments Module Types
  *
- * Interfaces for payment recording, voiding, balance computation,
- * overdue detection, global payment list, and financial summary.
+ * Interfaces for payment recording, voiding, global payment list,
+ * and financial summary.
  */
 
 // -- Enum Union Types --------------------------------------------------------
@@ -15,7 +15,7 @@ export interface PaymentListItem {
   id: number;
   memberId: number;
   memberName: string;
-  subscriptionId: number | null;
+  subscriptionId: number;
   planName: string | null;
   amount: number;
   paymentMethod: PaymentMethod;
@@ -34,27 +34,16 @@ export interface PaymentDetail extends PaymentListItem {}
 
 export interface RecordPaymentInput {
   memberId: number;
-  subscriptionId?: number;
+  subscriptionId: number;
   amount: number;
   paymentMethod: PaymentMethod;
   paymentDate: string;
   reference?: string;
-  notes?: string;
+  notes?: string | null;
 }
 
 export interface VoidPaymentInput {
   reason: string;
-}
-
-// -- Balance Types -----------------------------------------------------------
-
-export interface MemberBalance {
-  subscriptionId: number;
-  planName: string;
-  pricePaid: number;
-  totalPaid: number;
-  remaining: number;
-  isOverdue: boolean;
 }
 
 // -- Payment List Params -----------------------------------------------------
@@ -73,8 +62,6 @@ export interface PaymentListParams {
 
 export interface FinancialSummary {
   monthlyRevenue: number;
-  totalOutstanding: number;
-  collectionRate: number;
   revenueByMethod: {
     cash: number;
     transfer: number;
@@ -85,17 +72,4 @@ export interface FinancialSummary {
     branchName: string;
     revenue: number;
   }>;
-}
-
-// -- Overdue Member ----------------------------------------------------------
-
-export interface OverdueMember {
-  userId: number;
-  firstName: string | null;
-  lastName: string | null;
-  branchName: string;
-  planName: string;
-  amountOwed: number;
-  amountPaid: number;
-  amountDue: number;
 }

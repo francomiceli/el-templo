@@ -18,7 +18,6 @@ export interface KpiStats {
   activeMembers: { value: number; trend: Trend };
   monthlyRevenue: { value: number; trend: Trend };
   dailyAttendanceAvg: { value: number; trend: Trend };
-  morososCount: { value: number; trend: Trend };
 }
 
 // -- Member Analytics ----------------------------------------------------
@@ -29,7 +28,7 @@ export interface AttentionMember {
   lastName: string | null;
   planName: string;
   phone: string | null;
-  type: "expiring" | "overdue";
+  type: "expiring";
   daysUntilExpiry: number | null;
   daysOverdue: number | null;
 }
@@ -75,8 +74,6 @@ export interface FinancialAnalytics {
     branchName: string;
     revenue: number;
   }>;
-  totalOutstanding: number;
-  collectionRate: number;
 }
 
 // -- Filters -------------------------------------------------------------

@@ -2,10 +2,9 @@
  * Payments API Routes
  *
  * Admin endpoints for payment recording, voiding, member payment
- * history, balance computation, global payment list, financial
- * summary, and morosos count.
+ * history, global payment list, and financial summary.
  *
- * All routes require authentication and coach/admin/superadmin role.
+ * All routes require authentication and coach/admin/superadmin/recepcionista role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -20,13 +19,11 @@ import {
   recordPaymentSchema,
   voidPaymentSchema,
   memberPaymentsSchema,
-  memberBalanceRequestSchema,
   globalPaymentsSchema,
   financialSummarySchema,
-  morososCountSchema,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+const ADMIN_ROLES = ["coach", "admin", "superadmin", "recepcionista"];
 
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   const paymentService = new PaymentService(fastify.db, fastify.log);
@@ -55,7 +52,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       amount: number;
       paymentMethod: PaymentMethod;
       paymentDate: string;
-      subscriptionId?: number;
+      subscriptionId: number;
       reference?: string;
       notes?: string;
     };
@@ -92,24 +89,6 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         request.params.userId,
       );
       return { payments };
-    },
-  );
-
-  // GET /members/:userId/balance - Member balance
-  fastify.get<{ Params: { userId: number } }>(
-    "/members/:userId/balance",
-    { schema: memberBalanceRequestSchema },
-    async (request, reply) => {
-      const balance = await paymentService.getMemberBalance(
-        request.params.userId,
-      );
-      if (!balance) {
-        return reply.code(404).send({
-          error: "Not Found",
-          message: "No se encontro suscripcion para calcular balance",
-        });
-      }
-      return balance;
     },
   );
 
@@ -193,12 +172,4 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
       return paymentService.getFinancialSummary(branchId, dateFrom, dateTo);
     },
   );
-
-  // GET /payments/morosos - Morosos count
-  fastify.get<{
-    Querystring: { branchId?: number };
-  }>("/payments/morosos", { schema: morososCountSchema }, async (request) => {
-    const count = await paymentService.getMorososCount(request.query.branchId);
-    return { count };
-  });
 };

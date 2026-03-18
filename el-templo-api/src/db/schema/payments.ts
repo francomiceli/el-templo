@@ -26,7 +26,9 @@ export const payments = mysqlTable(
     memberId: int("member_id")
       .references(() => users.id)
       .notNull(),
-    subscriptionId: int("subscription_id").references(() => subscriptions.id),
+    subscriptionId: int("subscription_id")
+      .references(() => subscriptions.id)
+      .notNull(),
     amount: int("amount").notNull(),
     paymentMethod: paymentMethodEnum.notNull(),
     paymentDate: date("payment_date", { mode: "string" }).notNull(),

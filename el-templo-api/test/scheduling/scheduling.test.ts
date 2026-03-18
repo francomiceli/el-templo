@@ -163,7 +163,7 @@ describe("Scheduling API", () => {
   async function recordPayment(
     userId: number,
     amount: number,
-    subscriptionId?: number,
+    subscriptionId: number,
   ): Promise<void> {
     const res = await app.inject({
       method: "POST",
@@ -173,7 +173,7 @@ describe("Scheduling API", () => {
         amount,
         paymentMethod: "cash",
         paymentDate: "2026-03-10",
-        ...(subscriptionId ? { subscriptionId } : {}),
+        subscriptionId,
       },
     });
     expect(res.statusCode).toBe(201);
@@ -595,55 +595,6 @@ describe("Scheduling API", () => {
 
       expect(res.statusCode).toBe(400);
       expect(JSON.parse(res.body).message).toContain("suscripcion activa");
-    });
-
-    it("POST reserve when overdue returns 400", async () => {
-      // Create member with paused subscription past end date (overdue)
-      const plan = await createPlan({
-        name: "Plan Overdue Test",
-        durationDays: 1,
-      });
-      const member = await createMember({
-        email: "overdue-sched@test.com",
-        dni: "80000020",
-      });
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
-      });
-
-      // Pause so it's not auto-expired (paused subs stay, creating overdue)
-      await app.db
-        .update(subscriptions)
-        .set({
-          status: "paused",
-          pausedAt: new Date("2025-01-01"),
-        })
-        .where(eq(subscriptions.id, sub.id as number));
-
-      const memberToken = await getAuthToken(
-        app,
-        "overdue-sched@test.com",
-        baseMemberDefaults.password,
-      );
-
-      const activity = await createActivity();
-      const futureSlot = getFutureSlot();
-      const slot = await createScheduleSlot(
-        activity.id,
-        futureSlot.dayOfWeek,
-        futureSlot.startTime,
-        futureSlot.endTime,
-      );
-
-      const res = await app.inject({
-        method: "POST",
-        url: `${MEMBER_URL}/reserve`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { scheduleId: slot.id, date: futureSlot.date },
-      });
-
-      expect(res.statusCode).toBe(400);
-      expect(JSON.parse(res.body).message).toContain("pago pendiente");
     });
 
     it("POST reserve beyond weekly limit returns 400", async () => {

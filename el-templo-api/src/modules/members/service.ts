@@ -44,7 +44,6 @@ export class MemberService {
       multiBranch,
       level,
       isActive,
-      overdue,
       planId,
       page,
       limit,
@@ -91,22 +90,6 @@ export class MemberService {
       conditions.push(eq(schema.users.isActive, isActive));
     }
 
-    // Overdue subquery: member has a subscription where endDate < CURDATE()
-    // AND total non-voided payments < pricePaid
-    const overdueSubquery = sql<number>`(
-      SELECT COUNT(*) FROM subscriptions s
-      WHERE s.user_id = ${schema.users.id}
-        AND s.end_date < CURDATE()
-        AND s.price_paid > COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = s.id AND p.voided_at IS NULL
-        ), 0)
-    )`;
-
-    if (overdue === true) {
-      conditions.push(sql`${overdueSubquery} > 0`);
-    }
-
     // Plan filter: planId=0 means "no active subscription" (Sin plan),
     // planId>0 means filter by specific plan
     if (planId !== undefined) {
@@ -147,7 +130,7 @@ export class MemberService {
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
-    // Get paginated members with branch join, overdue flag, and plan name
+    // Get paginated members with branch join and plan name
     const rows = await this.db
       .select({
         id: schema.users.id,
@@ -162,7 +145,6 @@ export class MemberService {
         branchName: schema.branches.name,
         isActive: schema.users.isActive,
         createdAt: schema.users.createdAt,
-        overdueCount: overdueSubquery,
         planName: planNameSubquery,
       })
       .from(schema.users)
@@ -184,7 +166,6 @@ export class MemberService {
       branchId: r.branchId,
       branchName: r.branchName,
       isActive: r.isActive,
-      isOverdue: Number(r.overdueCount) > 0,
       planName: r.planName ?? null,
       createdAt: r.createdAt.toISOString(),
     }));

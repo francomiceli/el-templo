@@ -175,12 +175,12 @@ describe("Attendance API", () => {
   }
 
   /**
-   * Helper: record a payment for a member (to avoid overdue status).
+   * Helper: record a payment for a member.
    */
   async function recordPayment(
     userId: number,
     amount: number,
-    subscriptionId?: number,
+    subscriptionId: number,
   ): Promise<void> {
     const res = await app.inject({
       method: "POST",
@@ -190,7 +190,7 @@ describe("Attendance API", () => {
         amount,
         paymentMethod: "cash",
         paymentDate: "2026-03-10",
-        ...(subscriptionId ? { subscriptionId } : {}),
+        subscriptionId,
       },
     });
     expect(res.statusCode).toBe(201);
@@ -211,7 +211,7 @@ describe("Attendance API", () => {
     const plan = await createPlan(planOverrides);
     const member = await createMember(memberOverrides);
     const subscription = await assignPlan(member.id, plan.id);
-    // Pay full amount to avoid overdue
+    // Record payment for subscription
     await recordPayment(
       member.id,
       basePlan.priceRegular,
@@ -314,51 +314,6 @@ describe("Attendance API", () => {
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
       expect(body.message).toContain("suscripcion activa");
-    });
-
-    it("POST rejects overdue member check-in", async () => {
-      // Create member with paused subscription past end date and partial payment.
-      // Paused subs are NOT auto-expired, so getMemberSubscription finds it,
-      // and getMemberBalance returns isOverdue=true.
-      const plan = await createPlan({ durationDays: 1 });
-      const member = await createMember({
-        email: "overdue-checkin@test.com",
-        dni: "90000020",
-      });
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
-      });
-
-      // Pause the subscription (before it gets auto-expired)
-      // We need to manually set status=paused + pausedAt in DB
-      // since the pause API checks for active status (but sub is now expired)
-      await app.db
-        .update(subscriptions)
-        .set({
-          status: "paused",
-          pausedAt: new Date("2025-01-01"),
-        })
-        .where(eq(subscriptions.id, sub.id as number));
-
-      // No payment — subscription overdue
-      const memberToken = await getAuthToken(
-        app,
-        "overdue-checkin@test.com",
-        baseMemberDefaults.password,
-      );
-
-      const qrToken = generateQrToken(testBranchId);
-
-      const res = await app.inject({
-        method: "POST",
-        url: `${MEMBER_ATTENDANCE_URL}/check-in`,
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { qrToken },
-      });
-
-      expect(res.statusCode).toBe(400);
-      const body = JSON.parse(res.body);
-      expect(body.message).toContain("pago pendiente");
     });
 
     it("POST rejects check-in with expired subscription (hard block, no grace period)", async () => {

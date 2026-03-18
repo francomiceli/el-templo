@@ -20,7 +20,7 @@ const paymentDetailSchema = {
     id: { type: "integer" },
     memberId: { type: "integer" },
     memberName: { type: "string" },
-    subscriptionId: { type: ["integer", "null"] },
+    subscriptionId: { type: "integer" },
     planName: { type: ["string", "null"] },
     amount: { type: "integer" },
     paymentMethod: { type: "string" },
@@ -36,24 +36,10 @@ const paymentDetailSchema = {
   },
 } as const;
 
-const memberBalanceSchema = {
-  type: "object",
-  properties: {
-    subscriptionId: { type: "integer" },
-    planName: { type: "string" },
-    pricePaid: { type: "integer" },
-    totalPaid: { type: "integer" },
-    remaining: { type: "integer" },
-    isOverdue: { type: "boolean" },
-  },
-} as const;
-
 const financialSummaryResponseSchema = {
   type: "object",
   properties: {
     monthlyRevenue: { type: "integer" },
-    totalOutstanding: { type: "integer" },
-    collectionRate: { type: "number" },
     revenueByMethod: {
       type: "object",
       properties: {
@@ -90,7 +76,7 @@ export const recordPaymentSchema = {
   },
   body: {
     type: "object",
-    required: ["amount", "paymentMethod", "paymentDate"],
+    required: ["amount", "paymentMethod", "paymentDate", "subscriptionId"],
     properties: {
       amount: { type: "integer", minimum: 1 },
       paymentMethod: {
@@ -153,20 +139,6 @@ export const memberPaymentsSchema = {
   },
 };
 
-export const memberBalanceRequestSchema = {
-  params: {
-    type: "object",
-    required: ["userId"],
-    properties: {
-      userId: { type: "integer" },
-    },
-  },
-  response: {
-    200: memberBalanceSchema,
-    404: errorSchema,
-  },
-};
-
 export const globalPaymentsSchema = {
   querystring: {
     type: "object",
@@ -219,22 +191,5 @@ export const financialSummarySchema = {
   },
   response: {
     200: financialSummaryResponseSchema,
-  },
-};
-
-export const morososCountSchema = {
-  querystring: {
-    type: "object",
-    properties: {
-      branchId: { type: "integer" },
-    },
-  },
-  response: {
-    200: {
-      type: "object",
-      properties: {
-        count: { type: "integer" },
-      },
-    },
   },
 };

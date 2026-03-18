@@ -13,7 +13,6 @@ export interface MemberListParams {
   multiBranch?: boolean;
   level?: string;
   isActive?: boolean;
-  overdue?: boolean;
   planId?: number;
   page: number;
   limit: number;
@@ -31,7 +30,6 @@ export interface MemberListItem {
   branchId: number;
   branchName: string;
   isActive: boolean;
-  isOverdue: boolean;
   planName: string | null;
   createdAt: string;
 }

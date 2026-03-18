@@ -39,7 +39,7 @@ export class AnalyticsService {
     const { priorFrom, priorTo } = this.computePriorPeriod(dateFrom, dateTo);
     const branchId = filters.branchId;
 
-    const [activeMembers, monthlyRevenue, dailyAttendanceAvg, morososCount] =
+    const [activeMembers, monthlyRevenue, dailyAttendanceAvg] =
       await Promise.all([
         this.getActiveMembersKpi(
           branchId,
@@ -62,10 +62,9 @@ export class AnalyticsService {
           priorFrom,
           priorTo,
         ),
-        this.getMorososKpi(branchId, dateFrom, dateTo, priorFrom, priorTo),
       ]);
 
-    return { activeMembers, monthlyRevenue, dailyAttendanceAvg, morososCount };
+    return { activeMembers, monthlyRevenue, dailyAttendanceAvg };
   }
 
   // ─── Member Analytics ──────────────────────────────────────────────────────
@@ -126,20 +125,16 @@ export class AnalyticsService {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const branchId = filters.branchId;
 
-    const [revenueTrend, revenueByMethod, revenueByBranch, outstanding] =
-      await Promise.all([
-        this.getRevenueTrend(branchId, dateFrom, dateTo),
-        this.getRevenueByMethod(branchId, dateFrom, dateTo),
-        this.getRevenueByBranch(branchId, dateFrom, dateTo),
-        this.getOutstandingAndCollection(branchId),
-      ]);
+    const [revenueTrend, revenueByMethod, revenueByBranch] = await Promise.all([
+      this.getRevenueTrend(branchId, dateFrom, dateTo),
+      this.getRevenueByMethod(branchId, dateFrom, dateTo),
+      this.getRevenueByBranch(branchId, dateFrom, dateTo),
+    ]);
 
     return {
       revenueTrend,
       revenueByMethod,
       revenueByBranch,
-      totalOutstanding: outstanding.totalOutstanding,
-      collectionRate: outstanding.collectionRate,
     };
   }
 
@@ -220,57 +215,6 @@ export class AnalyticsService {
       value: Math.round(currentAvg * 10) / 10,
       trend: this.computeTrend(currentAvg, priorAvg),
     };
-  }
-
-  private async getMorososKpi(
-    branchId: number | undefined,
-    dateFrom: string,
-    dateTo: string,
-    priorFrom: string,
-    priorTo: string,
-  ): Promise<{ value: number; trend: Trend }> {
-    const current = await this.countMorosos(branchId);
-    // Morosos count is a snapshot, not period-based -- trend shows direction
-    // We approximate prior by assuming flat for now (no historical snapshot)
-    // A simple heuristic: compare with revenue trend direction
-    return {
-      value: current,
-      trend: { direction: "flat", percentage: 0 },
-    };
-  }
-
-  private async countMorosos(branchId: number | undefined): Promise<number> {
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-    ];
-
-    if (branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    // Note: correlated subquery uses raw SQL column names because Drizzle
-    // interpolation of column refs (${schema.subscriptions.id}) inside
-    // subqueries generates parameter placeholders instead of column references.
-    const rows = await this.db
-      .select({
-        pricePaid: schema.subscriptions.pricePaid,
-        paid: sql<number>`COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = subscriptions.id
-          AND p.voided_at IS NULL
-        ), 0)`,
-      })
-      .from(schema.subscriptions)
-      .where(and(...conditions))
-      .having(
-        sql`COALESCE((
-          SELECT SUM(p2.amount) FROM payments p2
-          WHERE p2.subscription_id = subscriptions.id
-          AND p2.voided_at IS NULL
-        ), 0) < subscriptions.price_paid`,
-      );
-
-    return rows.length;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -458,79 +402,12 @@ export class AnalyticsService {
       };
     });
 
-    // Overdue: morosos -- expired subscription with insufficient payments
-    const overdueConditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-    ];
+    // Sort expiring by days ascending (most urgent first)
+    expiring.sort(
+      (a, b) => (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0),
+    );
 
-    if (branchId !== undefined) {
-      overdueConditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    const overdueRows = await this.db
-      .select({
-        userId: schema.subscriptions.userId,
-        firstName: schema.users.firstName,
-        lastName: schema.users.lastName,
-        planName: schema.subscriptionPlans.name,
-        phone: schema.users.phone,
-        endDate: schema.subscriptions.endDate,
-        pricePaid: schema.subscriptions.pricePaid,
-        paid: sql<number>`COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = subscriptions.id
-          AND p.voided_at IS NULL
-        ), 0)`,
-      })
-      .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .where(and(...overdueConditions))
-      .having(
-        sql`COALESCE((
-          SELECT SUM(p2.amount) FROM payments p2
-          WHERE p2.subscription_id = subscriptions.id
-          AND p2.voided_at IS NULL
-        ), 0) < subscriptions.price_paid`,
-      )
-      .limit(10);
-
-    const overdue: AttentionMember[] = overdueRows.map((r) => {
-      const endDate = r.endDate ? new Date(r.endDate) : new Date();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const daysOverdue = Math.ceil(
-        (today.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24),
-      );
-
-      return {
-        userId: r.userId,
-        firstName: r.firstName,
-        lastName: r.lastName,
-        planName: r.planName,
-        phone: r.phone,
-        type: "overdue" as const,
-        daysUntilExpiry: null,
-        daysOverdue,
-      };
-    });
-
-    // Combine and sort: expiring first (by days ascending), then overdue (by days desc)
-    const combined = [...expiring, ...overdue];
-    combined.sort((a, b) => {
-      if (a.type === "expiring" && b.type === "overdue") return -1;
-      if (a.type === "overdue" && b.type === "expiring") return 1;
-      if (a.type === "expiring" && b.type === "expiring") {
-        return (a.daysUntilExpiry ?? 0) - (b.daysUntilExpiry ?? 0);
-      }
-      // Both overdue
-      return (b.daysOverdue ?? 0) - (a.daysOverdue ?? 0);
-    });
-
-    return combined.slice(0, 20);
+    return expiring.slice(0, 20);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -846,48 +723,6 @@ export class AnalyticsService {
       branchName: r.branchName,
       revenue: Number(r.total),
     }));
-  }
-
-  private async getOutstandingAndCollection(
-    branchId: number | undefined,
-  ): Promise<{ totalOutstanding: number; collectionRate: number }> {
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-    ];
-
-    if (branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    const rows = await this.db
-      .select({
-        pricePaid: schema.subscriptions.pricePaid,
-        paid: sql<number>`COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = subscriptions.id
-          AND p.voided_at IS NULL
-        ), 0)`,
-      })
-      .from(schema.subscriptions)
-      .where(and(...conditions));
-
-    let totalOutstanding = 0;
-    let totalOwed = 0;
-    let totalCollected = 0;
-
-    for (const row of rows) {
-      const remaining = Math.max(0, row.pricePaid - Number(row.paid));
-      if (remaining > 0) {
-        totalOutstanding += remaining;
-      }
-      totalOwed += row.pricePaid;
-      totalCollected += Math.min(row.pricePaid, Number(row.paid));
-    }
-
-    const collectionRate =
-      totalOwed > 0 ? Math.round((totalCollected / totalOwed) * 100) : 100;
-
-    return { totalOutstanding, collectionRate };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

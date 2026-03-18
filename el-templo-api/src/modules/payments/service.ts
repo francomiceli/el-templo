@@ -1,9 +1,11 @@
 /**
  * Payment Service
  *
- * Business logic for payment recording, voiding, member balance
- * computation, overdue detection, global payment list with filters,
- * and financial summary reports.
+ * Business logic for payment recording, voiding, global payment list
+ * with filters, and financial summary reports.
+ *
+ * All payments are subscription-linked (subscriptionId NOT NULL).
+ * Voided payments are excluded from list and summary views.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -14,11 +16,9 @@ import { NotFoundError, BadRequestError } from "../shared/errors";
 import type {
   PaymentDetail,
   RecordPaymentInput,
-  MemberBalance,
   PaymentListParams,
   PaymentListItem,
   FinancialSummary,
-  OverdueMember,
   PaymentMethod,
 } from "./types";
 
@@ -47,21 +47,19 @@ export class PaymentService {
       throw new NotFoundError("Miembro no encontrado");
     }
 
-    // Validate subscription exists if provided
-    if (input.subscriptionId) {
-      const [sub] = await this.db
-        .select({ id: schema.subscriptions.id })
-        .from(schema.subscriptions)
-        .where(eq(schema.subscriptions.id, input.subscriptionId));
+    // Validate subscription exists
+    const [sub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, input.subscriptionId));
 
-      if (!sub) {
-        throw new NotFoundError("Suscripcion no encontrada");
-      }
+    if (!sub) {
+      throw new NotFoundError("Suscripcion no encontrada");
     }
 
     const result = await this.db.insert(schema.payments).values({
       memberId: input.memberId,
-      subscriptionId: input.subscriptionId ?? null,
+      subscriptionId: input.subscriptionId,
       amount: input.amount,
       paymentMethod: input.paymentMethod,
       paymentDate: input.paymentDate,
@@ -126,7 +124,7 @@ export class PaymentService {
     return updated;
   }
 
-  // ─── Member Payments & Balance ──────────────────────────────────────────
+  // ─── Member Payments ─────────────────────────────────────────────────────
 
   /**
    * Get all payments for a member, ordered by paymentDate desc.
@@ -177,66 +175,11 @@ export class PaymentService {
     return rows.map((r) => this.mapPaymentRow(r));
   }
 
-  /**
-   * Compute member balance for the most recent active/expired subscription.
-   * Returns null if member has no subscription.
-   */
-  async getMemberBalance(memberId: number): Promise<MemberBalance | null> {
-    // Find the most recent subscription (active first, then any)
-    const [sub] = await this.db
-      .select({
-        id: schema.subscriptions.id,
-        planName: schema.subscriptionPlans.name,
-        pricePaid: schema.subscriptions.pricePaid,
-        endDate: schema.subscriptions.endDate,
-        status: schema.subscriptions.status,
-      })
-      .from(schema.subscriptions)
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .where(eq(schema.subscriptions.userId, memberId))
-      .orderBy(desc(schema.subscriptions.createdAt))
-      .limit(1);
-
-    if (!sub) return null;
-
-    // Sum non-voided payments for this subscription
-    const [paymentSum] = await this.db
-      .select({
-        total: sql<number>`COALESCE(SUM(${schema.payments.amount}), 0)`,
-      })
-      .from(schema.payments)
-      .where(
-        and(
-          eq(schema.payments.memberId, memberId),
-          eq(schema.payments.subscriptionId, sub.id),
-          isNull(schema.payments.voidedAt),
-        ),
-      );
-
-    const totalPaid = Number(paymentSum?.total ?? 0);
-    const remaining = Math.max(0, sub.pricePaid - totalPaid);
-
-    const today = new Date().toISOString().split("T")[0];
-    const isOverdue =
-      sub.endDate !== null && sub.endDate < today && remaining > 0;
-
-    return {
-      subscriptionId: sub.id,
-      planName: sub.planName,
-      pricePaid: sub.pricePaid,
-      totalPaid,
-      remaining,
-      isOverdue,
-    };
-  }
-
   // ─── Global Payment List ───────────────────────────────────────────────
 
   /**
    * Global paginated list of payments with filters.
+   * Excludes voided payments. Only shows subscription-linked payments.
    */
   async listPayments(
     params: PaymentListParams,
@@ -245,7 +188,10 @@ export class PaymentService {
       params;
     const offset = (page - 1) * limit;
 
-    const conditions: ReturnType<typeof eq>[] = [];
+    const conditions: ReturnType<typeof eq>[] = [
+      isNull(schema.payments.voidedAt),
+      isNotNull(schema.payments.subscriptionId),
+    ];
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
@@ -270,7 +216,7 @@ export class PaymentService {
       );
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     // Count
     const [countResult] = await this.db
@@ -331,17 +277,18 @@ export class PaymentService {
   // ─── Financial Summary ─────────────────────────────────────────────────
 
   /**
-   * Compute financial summary: revenue, outstanding, collection rate,
-   * breakdowns by payment method and branch.
+   * Compute financial summary: revenue breakdowns by payment method and branch.
+   * Only includes non-voided, subscription-linked payments.
    */
   async getFinancialSummary(
     branchId?: number,
     dateFrom?: string,
     dateTo?: string,
   ): Promise<FinancialSummary> {
-    // Revenue conditions: non-voided payments within date range
+    // Revenue conditions: non-voided, subscription-linked payments within date range
     const revenueConditions: ReturnType<typeof eq>[] = [
       isNull(schema.payments.voidedAt),
+      isNotNull(schema.payments.subscriptionId),
     ];
 
     if (branchId !== undefined) {
@@ -414,141 +361,11 @@ export class PaymentService {
       revenue: Number(r.total),
     }));
 
-    // Total outstanding: SUM of remaining balances for active/expired subs
-    // where subscription has overdue status
-    const overdueConditions: ReturnType<typeof eq>[] = [];
-    if (branchId !== undefined) {
-      overdueConditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    const overdueWhere =
-      overdueConditions.length > 0 ? and(...overdueConditions) : undefined;
-
-    const outstandingRows = await this.db
-      .select({
-        pricePaid: schema.subscriptions.pricePaid,
-        endDate: schema.subscriptions.endDate,
-        paid: sql<number>`COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = ${schema.subscriptions.id}
-          AND p.voided_at IS NULL
-        ), 0)`,
-      })
-      .from(schema.subscriptions)
-      .where(
-        overdueWhere
-          ? and(sql`${schema.subscriptions.endDate} < CURDATE()`, overdueWhere)
-          : sql`${schema.subscriptions.endDate} < CURDATE()`,
-      );
-
-    let totalOutstanding = 0;
-    let totalOwed = 0;
-    let totalCollected = 0;
-
-    for (const row of outstandingRows) {
-      const remaining = Math.max(0, row.pricePaid - Number(row.paid));
-      if (remaining > 0) {
-        totalOutstanding += remaining;
-      }
-      totalOwed += row.pricePaid;
-      totalCollected += Math.min(row.pricePaid, Number(row.paid));
-    }
-
-    const collectionRate =
-      totalOwed > 0 ? Math.round((totalCollected / totalOwed) * 100) : 100;
-
     return {
       monthlyRevenue,
-      totalOutstanding,
-      collectionRate,
       revenueByMethod,
       revenueByBranch,
     };
-  }
-
-  // ─── Overdue Detection ─────────────────────────────────────────────────
-
-  /**
-   * List members whose subscription is overdue:
-   * endDate < today AND SUM(non-voided payments) < pricePaid.
-   */
-  async getOverdueMembers(branchId?: number): Promise<OverdueMember[]> {
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-    ];
-
-    if (branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    const rows = await this.db
-      .select({
-        userId: schema.subscriptions.userId,
-        firstName: schema.users.firstName,
-        lastName: schema.users.lastName,
-        branchName: schema.branches.name,
-        planName: schema.subscriptionPlans.name,
-        pricePaid: schema.subscriptions.pricePaid,
-        paid: sql<number>`COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          WHERE p.subscription_id = ${schema.subscriptions.id}
-          AND p.voided_at IS NULL
-        ), 0)`,
-      })
-      .from(schema.subscriptions)
-      .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
-      .innerJoin(
-        schema.branches,
-        eq(schema.branches.id, schema.subscriptions.branchId),
-      )
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .where(and(...conditions))
-      .having(
-        sql`COALESCE((
-          SELECT SUM(p2.amount) FROM payments p2
-          WHERE p2.subscription_id = ${schema.subscriptions.id}
-          AND p2.voided_at IS NULL
-        ), 0) < ${schema.subscriptions.pricePaid}`,
-      );
-
-    return rows.map((r) => ({
-      userId: r.userId,
-      firstName: r.firstName,
-      lastName: r.lastName,
-      branchName: r.branchName,
-      planName: r.planName,
-      amountOwed: r.pricePaid,
-      amountPaid: Number(r.paid),
-      amountDue: Math.max(0, r.pricePaid - Number(r.paid)),
-    }));
-  }
-
-  /**
-   * Count of overdue members. Uses COUNT query instead of fetching all data.
-   */
-  async getMorososCount(branchId?: number): Promise<number> {
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.endDate} < CURDATE()`,
-      sql`COALESCE((
-        SELECT SUM(p2.amount) FROM payments p2
-        WHERE p2.subscription_id = ${schema.subscriptions.id}
-        AND p2.voided_at IS NULL
-      ), 0) < ${schema.subscriptions.pricePaid}`,
-    ];
-
-    if (branchId !== undefined) {
-      conditions.push(eq(schema.subscriptions.branchId, branchId));
-    }
-
-    const [result] = await this.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.subscriptions)
-      .where(and(...conditions));
-
-    return Number(result?.count ?? 0);
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────────
@@ -631,7 +448,7 @@ export class PaymentService {
       memberName: [row.memberFirstName, row.memberLastName]
         .filter(Boolean)
         .join(" "),
-      subscriptionId: row.subscriptionId,
+      subscriptionId: row.subscriptionId!,
       planName: row.planName ?? null,
       amount: row.amount,
       paymentMethod: row.paymentMethod as PaymentMethod,

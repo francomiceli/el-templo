@@ -57,14 +57,6 @@ export class AttendanceService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
-    // Check overdue
-    const balance = await this.paymentService.getMemberBalance(memberId);
-    if (balance?.isOverdue) {
-      throw new BadRequestError(
-        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion.",
-      );
-    }
-
     // Check branch enforcement for single-branch plans
     const [planRow] = await this.db
       .select({
@@ -405,12 +397,6 @@ export class AttendanceService {
       ) {
         warnings.push("Clases del periodo agotadas");
       }
-    }
-
-    // Check overdue for warning
-    const balance = await this.paymentService.getMemberBalance(memberId);
-    if (balance?.isOverdue) {
-      warnings.push("Pago pendiente");
     }
 
     // Insert attendance record

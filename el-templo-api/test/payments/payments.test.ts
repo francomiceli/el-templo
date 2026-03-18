@@ -143,10 +143,11 @@ describe("Payments API", () => {
   }
 
   /**
-   * Helper: record a payment via API.
+   * Helper: record a payment via API (requires subscriptionId).
    */
   async function recordPayment(
     userId: number,
+    subscriptionId: number,
     overrides: Record<string, unknown> = {},
   ): Promise<{ statusCode: number; body: Record<string, unknown> }> {
     const res = await app.inject({
@@ -157,6 +158,7 @@ describe("Payments API", () => {
         amount: 15000,
         paymentMethod: "cash",
         paymentDate: "2026-03-10",
+        subscriptionId,
         ...overrides,
       },
     });
@@ -171,20 +173,27 @@ describe("Payments API", () => {
       await cleanupAll();
     });
 
-    it("POST records a payment and returns 201 with detail", async () => {
+    it("POST records a payment linked to subscription and returns 201", async () => {
+      const plan = await createPlan();
       const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
 
-      const { statusCode, body } = await recordPayment(member.id, {
-        amount: 15000,
-        paymentMethod: "cash",
-        paymentDate: "2026-03-10",
-        reference: "REC-001",
-        notes: "Pago mensual",
-      });
+      const { statusCode, body } = await recordPayment(
+        member.id,
+        sub.id as number,
+        {
+          amount: 15000,
+          paymentMethod: "cash",
+          paymentDate: "2026-03-10",
+          reference: "REC-001",
+          notes: "Pago mensual",
+        },
+      );
 
       expect(statusCode).toBe(201);
       expect(body).toHaveProperty("id");
       expect(body.memberId).toBe(member.id);
+      expect(body.subscriptionId).toBe(sub.id);
       expect(body.amount).toBe(15000);
       expect(body.paymentMethod).toBe("cash");
       expect(body.paymentDate).toBe("2026-03-10");
@@ -193,10 +202,13 @@ describe("Payments API", () => {
       expect(body.memberName).toBeTruthy();
       expect(body.recorderName).toBeTruthy();
       expect(body.voidedAt).toBeNull();
+      expect(body.planName).toBe(basePlan.name);
     });
 
     it("POST with invalid amount (below minimum) returns 400", async () => {
+      const plan = await createPlan();
       const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
 
       const res = await app.inject({
         method: "POST",
@@ -206,6 +218,7 @@ describe("Payments API", () => {
           amount: 0,
           paymentMethod: "cash",
           paymentDate: "2026-03-10",
+          subscriptionId: sub.id,
         },
       });
 
@@ -213,34 +226,31 @@ describe("Payments API", () => {
     });
 
     it("POST for non-existent member returns 404", async () => {
-      const { statusCode, body } = await recordPayment(99999);
+      const plan = await createPlan();
+      const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
+
+      const { statusCode, body } = await recordPayment(99999, sub.id as number);
 
       expect(statusCode).toBe(404);
       expect(body.message).toContain("Miembro");
     });
 
-    it("POST with subscription_id links payment to subscription", async () => {
-      const plan = await createPlan();
+    it("POST without subscriptionId returns 400", async () => {
       const member = await createMember();
-      const sub = await assignPlan(member.id, plan.id);
 
-      const { statusCode, body } = await recordPayment(member.id, {
-        subscriptionId: sub.id,
+      const res = await app.inject({
+        method: "POST",
+        url: `${PAYMENTS_URL}/members/${member.id}/payments`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          amount: 15000,
+          paymentMethod: "cash",
+          paymentDate: "2026-03-10",
+        },
       });
 
-      expect(statusCode).toBe(201);
-      expect(body.subscriptionId).toBe(sub.id);
-      expect(body.planName).toBe(basePlan.name);
-    });
-
-    it("POST without subscription_id records one-off payment", async () => {
-      const member = await createMember();
-
-      const { statusCode, body } = await recordPayment(member.id);
-
-      expect(statusCode).toBe(201);
-      expect(body.subscriptionId).toBeNull();
-      expect(body.planName).toBeNull();
+      expect(res.statusCode).toBe(400);
     });
   });
 
@@ -253,8 +263,13 @@ describe("Payments API", () => {
     });
 
     it("POST void returns 200 with voided payment", async () => {
+      const plan = await createPlan();
       const member = await createMember();
-      const { body: payment } = await recordPayment(member.id);
+      const sub = await assignPlan(member.id, plan.id);
+      const { body: payment } = await recordPayment(
+        member.id,
+        sub.id as number,
+      );
 
       const res = await app.inject({
         method: "POST",
@@ -270,8 +285,13 @@ describe("Payments API", () => {
     });
 
     it("POST void on already voided payment returns 400", async () => {
+      const plan = await createPlan();
       const member = await createMember();
-      const { body: payment } = await recordPayment(member.id);
+      const sub = await assignPlan(member.id, plan.id);
+      const { body: payment } = await recordPayment(
+        member.id,
+        sub.id as number,
+      );
 
       // Void first time
       await app.inject({
@@ -315,17 +335,23 @@ describe("Payments API", () => {
     });
 
     it("GET returns payments sorted by date desc, includes voided", async () => {
+      const plan = await createPlan();
       const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
 
       // Record two payments on different dates
-      await recordPayment(member.id, {
+      await recordPayment(member.id, sub.id as number, {
         amount: 5000,
         paymentDate: "2026-03-01",
       });
-      const { body: payment2 } = await recordPayment(member.id, {
-        amount: 10000,
-        paymentDate: "2026-03-15",
-      });
+      const { body: payment2 } = await recordPayment(
+        member.id,
+        sub.id as number,
+        {
+          amount: 10000,
+          paymentDate: "2026-03-15",
+        },
+      );
 
       // Void the second payment
       await app.inject({
@@ -353,111 +379,6 @@ describe("Payments API", () => {
   });
 
   // =========================================================================
-  // Member Balance
-  // =========================================================================
-  describe("Member Balance", () => {
-    beforeEach(async () => {
-      await cleanupAll();
-    });
-
-    it("GET returns correct balance when fully paid (not overdue)", async () => {
-      const plan = await createPlan();
-      const member = await createMember();
-      const sub = await assignPlan(member.id, plan.id);
-
-      // Pay full amount
-      await recordPayment(member.id, {
-        amount: 15000,
-        subscriptionId: sub.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${PAYMENTS_URL}/members/${member.id}/balance`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.pricePaid).toBe(15000);
-      expect(body.totalPaid).toBe(15000);
-      expect(body.remaining).toBe(0);
-      expect(body.isOverdue).toBe(false);
-    });
-
-    it("GET returns isOverdue=true when expired and underpaid", async () => {
-      // Create plan with short duration so it expires
-      const plan = await createPlan({ durationDays: 1 });
-      const member = await createMember();
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
-      });
-
-      // Partial payment
-      await recordPayment(member.id, {
-        amount: 5000,
-        subscriptionId: sub.id,
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${PAYMENTS_URL}/members/${member.id}/balance`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.totalPaid).toBe(5000);
-      expect(body.remaining).toBe(10000);
-      expect(body.isOverdue).toBe(true);
-    });
-
-    it("GET excludes voided payments from totalPaid", async () => {
-      const plan = await createPlan({ durationDays: 1 });
-      const member = await createMember();
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
-      });
-
-      // Record and void a payment
-      const { body: payment } = await recordPayment(member.id, {
-        amount: 15000,
-        subscriptionId: sub.id,
-      });
-      await app.inject({
-        method: "POST",
-        url: `${PAYMENTS_URL}/payments/${payment.id}/void`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { reason: "Error de monto" },
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${PAYMENTS_URL}/members/${member.id}/balance`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.totalPaid).toBe(0);
-      expect(body.remaining).toBe(15000);
-      expect(body.isOverdue).toBe(true);
-    });
-
-    it("GET returns 404 when member has no subscription", async () => {
-      const member = await createMember();
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${PAYMENTS_URL}/members/${member.id}/balance`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(404);
-    });
-  });
-
-  // =========================================================================
   // Global Payment List
   // =========================================================================
   describe("Global Payment List", () => {
@@ -465,16 +386,26 @@ describe("Payments API", () => {
       await cleanupAll();
     });
 
-    it("GET returns paginated results", async () => {
+    it("GET returns paginated results excluding voided payments", async () => {
+      const plan = await createPlan();
       const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
 
-      await recordPayment(member.id, {
+      const { body: p1 } = await recordPayment(member.id, sub.id as number, {
         amount: 5000,
         paymentDate: "2026-03-01",
       });
-      await recordPayment(member.id, {
+      await recordPayment(member.id, sub.id as number, {
         amount: 10000,
         paymentDate: "2026-03-02",
+      });
+
+      // Void the first payment
+      await app.inject({
+        method: "POST",
+        url: `${PAYMENTS_URL}/payments/${p1.id}/void`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { reason: "Error" },
       });
 
       const res = await app.inject({
@@ -485,21 +416,24 @@ describe("Payments API", () => {
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.payments).toHaveLength(2);
-      expect(body.total).toBe(2);
+      // Only 1 non-voided payment should appear
+      expect(body.payments).toHaveLength(1);
+      expect(body.total).toBe(1);
       expect(body.page).toBe(1);
       expect(body.limit).toBe(10);
     });
 
     it("GET filters by branch, payment method, and date range", async () => {
+      const plan = await createPlan();
       const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id);
 
-      await recordPayment(member.id, {
+      await recordPayment(member.id, sub.id as number, {
         amount: 5000,
         paymentMethod: "cash",
         paymentDate: "2026-03-01",
       });
-      await recordPayment(member.id, {
+      await recordPayment(member.id, sub.id as number, {
         amount: 10000,
         paymentMethod: "transfer",
         paymentDate: "2026-04-01",
@@ -544,7 +478,7 @@ describe("Payments API", () => {
       await cleanupAll();
     });
 
-    it("GET returns revenue, outstanding, collection rate", async () => {
+    it("GET returns revenue by method and branch (no outstanding/collectionRate)", async () => {
       const plan = await createPlan({ durationDays: 1 });
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id, {
@@ -553,9 +487,8 @@ describe("Payments API", () => {
 
       // Record a payment in current month
       const today = new Date().toISOString().split("T")[0];
-      await recordPayment(member.id, {
+      await recordPayment(member.id, sub.id as number, {
         amount: 5000,
-        subscriptionId: sub.id,
         paymentDate: today,
       });
 
@@ -568,51 +501,25 @@ describe("Payments API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("monthlyRevenue");
-      expect(body).toHaveProperty("totalOutstanding");
-      expect(body).toHaveProperty("collectionRate");
       expect(body).toHaveProperty("revenueByMethod");
       expect(body).toHaveProperty("revenueByBranch");
+      // These fields should NOT exist anymore
+      expect(body).not.toHaveProperty("totalOutstanding");
+      expect(body).not.toHaveProperty("collectionRate");
       expect(body.monthlyRevenue).toBe(5000);
       expect(body.revenueByMethod).toHaveProperty("cash");
     });
   });
 
   // =========================================================================
-  // Morosos Count
+  // Members List (no overdue)
   // =========================================================================
-  describe("Morosos Count", () => {
+  describe("Members List", () => {
     beforeEach(async () => {
       await cleanupAll();
     });
 
-    it("GET returns count of overdue members", async () => {
-      // Create member with expired unpaid subscription
-      const plan = await createPlan({ durationDays: 1 });
-      const member = await createMember();
-      await assignPlan(member.id, plan.id, { startDate: "2025-01-01" });
-      // No payment — subscription overdue
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${PAYMENTS_URL}/payments/morosos`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.count).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  // =========================================================================
-  // Members List with Overdue Flag
-  // =========================================================================
-  describe("Members List Overdue", () => {
-    beforeEach(async () => {
-      await cleanupAll();
-    });
-
-    it("GET /admin/members returns isOverdue field", async () => {
+    it("GET /admin/members does NOT include isOverdue field", async () => {
       const member = await createMember();
 
       const res = await app.inject({
@@ -624,43 +531,10 @@ describe("Payments API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.members.length).toBeGreaterThanOrEqual(1);
-      // Each member should have isOverdue field
+      // isOverdue should NOT be present anymore
       for (const m of body.members) {
-        expect(m).toHaveProperty("isOverdue");
+        expect(m).not.toHaveProperty("isOverdue");
       }
-    });
-
-    it("GET /admin/members?overdue=true returns only overdue members", async () => {
-      // Create two members: one overdue, one not
-      const plan = await createPlan({ durationDays: 1 });
-
-      const memberOverdue = await createMember({
-        email: "overdue@test.com",
-        dni: "80000100",
-      });
-      await assignPlan(memberOverdue.id, plan.id, {
-        startDate: "2025-01-01",
-      });
-      // No payment, subscription expired => overdue
-
-      const memberPaid = await createMember({
-        email: "paid@test.com",
-        dni: "80000200",
-      });
-      // No subscription => not overdue
-
-      const res = await app.inject({
-        method: "GET",
-        url: `${MEMBERS_URL}?overdue=true`,
-        headers: { authorization: `Bearer ${adminToken}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      // Only the overdue member should appear
-      expect(body.members).toHaveLength(1);
-      expect(body.members[0].email).toBe("overdue@test.com");
-      expect(body.members[0].isOverdue).toBe(true);
     });
   });
 
@@ -685,6 +559,7 @@ describe("Payments API", () => {
             amount: 1000,
             paymentMethod: "cash",
             paymentDate: "2026-03-10",
+            subscriptionId: 1,
           },
         },
         {
@@ -696,18 +571,10 @@ describe("Payments API", () => {
           method: "GET" as const,
           url: `${PAYMENTS_URL}/members/1/payments`,
         },
-        {
-          method: "GET" as const,
-          url: `${PAYMENTS_URL}/members/1/balance`,
-        },
         { method: "GET" as const, url: `${PAYMENTS_URL}/payments` },
         {
           method: "GET" as const,
           url: `${PAYMENTS_URL}/payments/summary`,
-        },
-        {
-          method: "GET" as const,
-          url: `${PAYMENTS_URL}/payments/morosos`,
         },
       ];
 
