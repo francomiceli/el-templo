@@ -80,7 +80,7 @@
     <!-- KPI Cards -->
     <!-- ================================================================== -->
     <div v-if="loadingKpis" class="row q-col-gutter-md q-mb-md">
-      <div v-for="n in 4" :key="n" class="col-12 col-sm-6 col-md-3">
+      <div v-for="n in 3" :key="n" class="col-12 col-sm-6 col-md-4">
         <q-card flat bordered>
           <q-card-section>
             <q-skeleton type="text" width="60%" />
@@ -91,7 +91,7 @@
     </div>
 
     <div v-else class="row q-col-gutter-md q-mb-md">
-      <div v-for="kpi in kpiCards" :key="kpi.key" class="col-12 col-sm-6 col-md-3">
+      <div v-for="kpi in kpiCards" :key="kpi.key" class="col-12 col-sm-6 col-md-4">
         <q-card flat bordered>
           <q-card-section>
             <div class="row items-center no-wrap q-mb-xs">
@@ -310,7 +310,7 @@ const loadingFinancial = ref(false);
 // -- KPI cards -----------------------------------------------------------
 
 interface KpiCard {
-  key: 'activeMembers' | 'monthlyRevenue' | 'dailyAttendanceAvg' | 'morososCount';
+  key: 'activeMembers' | 'monthlyRevenue' | 'dailyAttendanceAvg';
   label: string;
   icon: string;
   formattedValue: string;
@@ -352,13 +352,6 @@ const kpiCards = computed<KpiCard[]>(() => {
       formattedValue: k.dailyAttendanceAvg.value.toFixed(1),
       trend: k.dailyAttendanceAvg.trend,
     },
-    {
-      key: 'morososCount',
-      label: 'Morosos',
-      icon: 'warning',
-      formattedValue: String(k.morososCount.value),
-      trend: k.morososCount.trend,
-    },
   ];
 });
 
@@ -370,11 +363,6 @@ function trendIcon(direction: TrendInfo['direction']): string {
 
 function trendColor(key: KpiCard['key'], direction: TrendInfo['direction']): string {
   if (direction === 'flat') return 'grey-6';
-  // Morosos: up is bad, down is good (inverted)
-  if (key === 'morososCount') {
-    return direction === 'up' ? 'negative' : 'positive';
-  }
-  // All others: up is good, down is bad
   return direction === 'up' ? 'positive' : 'negative';
 }
 

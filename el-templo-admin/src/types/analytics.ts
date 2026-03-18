@@ -16,7 +16,6 @@ export interface KpiStats {
   activeMembers: { value: number; trend: TrendInfo };
   monthlyRevenue: { value: number; trend: TrendInfo };
   dailyAttendanceAvg: { value: number; trend: TrendInfo };
-  morososCount: { value: number; trend: TrendInfo };
 }
 
 // -- Member Analytics ----------------------------------------------------
