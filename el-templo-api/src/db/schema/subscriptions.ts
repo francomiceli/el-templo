@@ -20,6 +20,8 @@ export const subscriptionStatusEnum = mysqlEnum("subscription_status", [
   "paused",
   "cancelled",
   "expired",
+  "completed",
+  "changed",
 ]);
 
 export const priceTypeAppliedEnum = mysqlEnum("price_type_applied", [
@@ -64,6 +66,7 @@ export const subscriptions = mysqlTable(
     notes: text("notes"),
     classesRemaining: int("classes_remaining"),
     classesBudget: int("classes_budget"),
+    previousSubscriptionId: int("previous_subscription_id"),
     replacementCredits: int("replacement_credits").default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

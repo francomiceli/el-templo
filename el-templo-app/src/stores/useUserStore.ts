@@ -4,7 +4,13 @@ import { api } from 'src/boot/axios'
 
 export type Level = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
-export type SubscriptionStatus = 'active' | 'paused' | 'cancelled' | 'expired'
+export type SubscriptionStatus =
+  | 'active'
+  | 'paused'
+  | 'cancelled'
+  | 'expired'
+  | 'completed'
+  | 'changed'
 
 export interface UserProfile {
   id: number
@@ -34,6 +40,8 @@ const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   paused: 'Pausado',
   cancelled: 'Cancelado',
   expired: 'Expirado',
+  completed: 'Completado',
+  changed: 'Cambiado',
 }
 
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -41,6 +49,8 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   paused: 'warning',
   cancelled: 'negative',
   expired: 'grey',
+  completed: 'info',
+  changed: 'purple',
 }
 
 export const useUserStore = defineStore('user', () => {

@@ -224,6 +224,7 @@ export class SubscriptionService {
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
         classesBudget: schema.subscriptions.classesBudget,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -287,6 +288,7 @@ export class SubscriptionService {
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
         classesBudget: schema.subscriptions.classesBudget,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -338,6 +340,7 @@ export class SubscriptionService {
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
         classesBudget: schema.subscriptions.classesBudget,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -759,7 +762,7 @@ export class SubscriptionService {
     plan: PlanDetail,
   ): ProrationResult {
     if (plan.classesPerWeek !== null) {
-      // Class-based plan — use stored budget (accounts for renewals)
+      // Class-based plan — use stored budget (single period, no accumulation)
       const totalBudget =
         subscription.classesBudget ??
         Math.ceil(plan.durationDays / 7) * plan.classesPerWeek;
@@ -866,8 +869,8 @@ export class SubscriptionService {
 
   /**
    * Change a member's current plan to a new one.
-   * Validates upgrade/downgrade, applies proration credit, cancels the
-   * existing subscription, and creates a new one atomically.
+   * Validates upgrade/downgrade, applies proration credit, closes the
+   * existing subscription (status='changed'), and creates a clean new record.
    */
   async changePlan(
     userId: number,
@@ -897,80 +900,197 @@ export class SubscriptionService {
       );
     }
 
-    // Calculate proration and apply as price override
+    // Calculate proration from CURRENT subscription only (single record, no accumulation)
     const proration = this.calculateProration(existingSub, currentPlan);
     const netAmount = Math.max(
       0,
       targetPlan.priceRegular - proration.remainingValue,
     );
 
-    // Override the input so assignPlan records the correct (prorated) amount
-    input.priceOverrideAmount = netAmount;
-    input.priceOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
-
-    // Cancel existing subscription, then assign new plan.
-    // If assignPlan fails, restore the old subscription so the member isn't left without one.
+    // Close old subscription with status='changed'.
+    // We do this BEFORE creating the new one. If new creation fails,
+    // we restore the old sub back to its original status.
+    const oldStatus = existingSub.status as "active" | "paused";
     await this.db
       .update(schema.subscriptions)
       .set({
-        status: "cancelled",
-        cancelledAt: new Date(),
+        status: "changed",
         notes: existingSub.notes
-          ? `${existingSub.notes} | Cambiado a otro plan`
-          : "Cambiado a otro plan",
+          ? `${existingSub.notes} | Cambiado a ${targetPlan.name}`
+          : `Cambiado a ${targetPlan.name}`,
       })
       .where(eq(schema.subscriptions.id, existingSub.id));
 
-    let newSub: SubscriptionDetail;
+    // Cancel future bookings for the old subscription
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(existingSub.id);
+    }
+
+    // Create new subscription directly (not via assignPlan, to avoid conflict check issues)
     try {
-      newSub = await this.assignPlan(userId, input, adminId);
+      // Validate fixed plan schedules
+      if (targetPlan.bookingMode === "fixed") {
+        if (!input.scheduleIds || input.scheduleIds.length === 0) {
+          throw new BadRequestError(
+            "Para planes fijos se requiere scheduleIds con los horarios seleccionados",
+          );
+        }
+        if (
+          targetPlan.classesPerWeek !== null &&
+          input.scheduleIds.length !== targetPlan.classesPerWeek
+        ) {
+          throw new BadRequestError(
+            `Debes seleccionar exactamente ${targetPlan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
+          );
+        }
+        // Validate schedule IDs exist and belong to branch
+        const scheduleRows = await this.db
+          .select({
+            id: schema.schedules.id,
+            branchId: schema.schedules.branchId,
+            isActive: schema.schedules.isActive,
+          })
+          .from(schema.schedules)
+          .where(inArray(schema.schedules.id, input.scheduleIds));
+
+        if (scheduleRows.length !== input.scheduleIds.length) {
+          const foundIds = new Set(scheduleRows.map((s) => s.id));
+          const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
+          throw new BadRequestError(
+            `Horarios no encontrados: ${missing.join(", ")}`,
+          );
+        }
+        for (const row of scheduleRows) {
+          if (!row.isActive) {
+            throw new BadRequestError(`El horario ${row.id} esta inactivo.`);
+          }
+          if (row.branchId !== input.branchId) {
+            throw new BadRequestError(
+              `El horario ${row.id} no pertenece a la sucursal seleccionada`,
+            );
+          }
+        }
+      }
+
+      // Calculate new period
+      const startDate = new Date(input.startDate);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + targetPlan.durationDays);
+      const endDateStr = endDate.toISOString().split("T")[0];
+
+      const classesRemaining =
+        targetPlan.classesPerWeek !== null
+          ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
+          : null;
+
+      const result = await this.db.insert(schema.subscriptions).values({
+        userId,
+        planId: input.planId,
+        branchId: input.branchId,
+        status: "active",
+        startDate: input.startDate,
+        endDate: endDateStr,
+        pricePaid: netAmount,
+        priceTypeApplied: input.priceTypeApplied,
+        priceOverrideAmount: netAmount,
+        priceOverrideReason: `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`,
+        classesRemaining,
+        classesBudget: classesRemaining,
+        previousSubscriptionId: existingSub.id,
+        notes: input.notes ?? null,
+      });
+
+      const newSubscriptionId = Number(result[0].insertId);
+
+      // Fixed plan: store schedules and generate bookings
+      let replacementCredits = 0;
+      if (
+        targetPlan.bookingMode === "fixed" &&
+        input.scheduleIds &&
+        input.scheduleIds.length > 0
+      ) {
+        await this.db.insert(schema.subscriptionSchedules).values(
+          input.scheduleIds.map((scheduleId) => ({
+            subscriptionId: newSubscriptionId,
+            scheduleId,
+          })),
+        );
+
+        if (this.bookingService) {
+          const bookingResult = await this.bookingService.generateFixedBookings(
+            newSubscriptionId,
+            userId,
+            input.scheduleIds,
+            input.startDate,
+            endDateStr,
+            input.branchId,
+          );
+          replacementCredits = bookingResult.holidaysSkipped;
+        }
+
+        if (replacementCredits > 0) {
+          await this.db
+            .update(schema.subscriptions)
+            .set({ replacementCredits })
+            .where(eq(schema.subscriptions.id, newSubscriptionId));
+        }
+      }
+
+      // Record payment for the net amount
+      if (this.paymentService && netAmount > 0) {
+        await this.paymentService.recordPayment(
+          {
+            memberId: userId,
+            subscriptionId: newSubscriptionId,
+            amount: netAmount,
+            paymentMethod: input.paymentMethod,
+            paymentDate: input.startDate,
+            notes: `Cambio de plan: ${existingSub.planName} → ${targetPlan.name}`,
+          },
+          adminId,
+        );
+      }
+
+      const newSub = await this.getSubscriptionById(newSubscriptionId);
+      if (!newSub) {
+        throw new Error(
+          "Failed to retrieve new subscription after plan change",
+        );
+      }
+
+      this.log.info(
+        {
+          userId,
+          oldSubscriptionId: existingSub.id,
+          newSubscriptionId,
+          oldPlan: existingSub.planName,
+          newPlan: targetPlan.name,
+          prorationCredit: proration.remainingValue,
+          netAmount,
+          adminId,
+        },
+        "Plan changed successfully",
+      );
+
+      return newSub;
     } catch (err) {
       // Restore old subscription on failure
       await this.db
         .update(schema.subscriptions)
         .set({
-          status: existingSub.status as "active" | "paused",
-          cancelledAt: null,
+          status: oldStatus,
           notes: existingSub.notes,
         })
         .where(eq(schema.subscriptions.id, existingSub.id));
       throw err;
     }
-
-    // Cancel future bookings for the old subscription (after new one is confirmed)
-    if (this.bookingService) {
-      await this.bookingService.cancelFutureBookings(existingSub.id);
-    }
-
-    this.log.info(
-      {
-        userId,
-        oldSubscriptionId: existingSub.id,
-        adminId,
-        prorationCredit: proration.remainingValue,
-        netAmount,
-      },
-      "Subscription cancelled for plan change",
-    );
-
-    this.log.info(
-      {
-        userId,
-        oldPlan: existingSub.planName,
-        newPlan: newSub.planName,
-        adminId,
-        netAmount,
-      },
-      "Plan changed successfully",
-    );
-
-    return newSub;
   }
 
   /**
    * Renew an existing subscription (active or expired).
-   * Extends endDate by plan's durationDays, resets budget, records payment.
-   * For fixed plans, regenerates bookings for the extended period.
+   * Creates a NEW subscription record for the new period, closes the old one
+   * with status='completed'. For fixed plans, copies schedule assignments
+   * and generates bookings for the new period.
    */
   async renewSubscription(
     userId: number,
@@ -1011,17 +1131,17 @@ export class SubscriptionService {
       throw new NotFoundError("Plan no encontrado");
     }
 
-    // Calculate new endDate: extend from current endDate (or today if expired)
+    // Calculate new period dates: start from current endDate (or today if expired)
     const today = new Date().toISOString().split("T")[0];
-    const baseDate =
+    const newStartDate =
       currentSub.endDate && currentSub.endDate >= today
         ? currentSub.endDate
         : today;
-    const newEnd = new Date(baseDate);
+    const newEnd = new Date(newStartDate);
     newEnd.setDate(newEnd.getDate() + plan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
 
-    // Add one period's worth of classes to existing budget and remaining
+    // Fresh class budget for the new period
     const periodBudget =
       plan.classesPerWeek !== null
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
@@ -1035,28 +1155,36 @@ export class SubscriptionService {
           ? plan.priceCreditCard
           : plan.priceRegular;
 
-    // Update subscription: extend endDate, accumulate budget and pricePaid
+    // Close old subscription period
     await this.db
       .update(schema.subscriptions)
-      .set({
-        endDate: newEndDate,
-        status: "active",
-        ...(periodBudget !== null
-          ? {
-              classesRemaining: sql`${schema.subscriptions.classesRemaining} + ${periodBudget}`,
-              classesBudget: sql`${schema.subscriptions.classesBudget} + ${periodBudget}`,
-            }
-          : {}),
-        pricePaid: sql`${schema.subscriptions.pricePaid} + ${renewalPrice}`,
-        pausedAt: null,
-        resumedAt: null,
-        cancelledAt: null,
-      })
+      .set({ status: "completed" })
       .where(eq(schema.subscriptions.id, currentSub.id));
 
-    // For fixed plans, regenerate bookings for the extended period
-    if (plan.bookingMode === "fixed" && this.bookingService) {
-      // Get existing schedule slot assignments
+    // Create new subscription record for the new period
+    const result = await this.db.insert(schema.subscriptions).values({
+      userId,
+      planId: currentSub.planId,
+      branchId: currentSub.branchId,
+      status: "active",
+      startDate: newStartDate,
+      endDate: newEndDate,
+      pricePaid: renewalPrice,
+      priceTypeApplied: currentSub.priceTypeApplied as
+        | "regular"
+        | "zero"
+        | "credit_card",
+      classesRemaining: periodBudget,
+      classesBudget: periodBudget,
+      previousSubscriptionId: currentSub.id,
+    });
+
+    const newSubscriptionId = Number(result[0].insertId);
+
+    // For fixed plans, copy schedule assignments and generate bookings
+    let replacementCredits = 0;
+    if (plan.bookingMode === "fixed") {
+      // Copy subscription_schedules from old sub to new sub
       const scheduleRows = await this.db
         .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
         .from(schema.subscriptionSchedules)
@@ -1064,32 +1192,40 @@ export class SubscriptionService {
 
       const scheduleIds = scheduleRows.map((r) => r.scheduleId);
       if (scheduleIds.length > 0) {
-        const bookingResult = await this.bookingService.generateFixedBookings(
-          currentSub.id,
-          userId,
-          scheduleIds,
-          baseDate,
-          newEndDate,
-          currentSub.branchId,
+        await this.db.insert(schema.subscriptionSchedules).values(
+          scheduleIds.map((scheduleId) => ({
+            subscriptionId: newSubscriptionId,
+            scheduleId,
+          })),
         );
-        if (bookingResult.holidaysSkipped > 0) {
-          // Add replacement credits
-          await this.db
-            .update(schema.subscriptions)
-            .set({
-              replacementCredits: sql`${schema.subscriptions.replacementCredits} + ${bookingResult.holidaysSkipped}`,
-            })
-            .where(eq(schema.subscriptions.id, currentSub.id));
+
+        if (this.bookingService) {
+          const bookingResult = await this.bookingService.generateFixedBookings(
+            newSubscriptionId,
+            userId,
+            scheduleIds,
+            newStartDate,
+            newEndDate,
+            currentSub.branchId,
+          );
+          replacementCredits = bookingResult.holidaysSkipped;
         }
+      }
+
+      if (replacementCredits > 0) {
+        await this.db
+          .update(schema.subscriptions)
+          .set({ replacementCredits })
+          .where(eq(schema.subscriptions.id, newSubscriptionId));
       }
     }
 
-    // Record payment for the renewal period
+    // Record payment linked to the NEW subscription
     if (this.paymentService && renewalPrice > 0) {
       await this.paymentService.recordPayment(
         {
           memberId: userId,
-          subscriptionId: currentSub.id,
+          subscriptionId: newSubscriptionId,
           amount: renewalPrice,
           paymentMethod: input.paymentMethod,
           paymentDate: today,
@@ -1098,17 +1234,23 @@ export class SubscriptionService {
       );
     }
 
-    const updated = await this.getSubscriptionById(currentSub.id);
-    if (!updated) {
+    const newSub = await this.getSubscriptionById(newSubscriptionId);
+    if (!newSub) {
       throw new Error("Failed to retrieve renewed subscription");
     }
 
     this.log.info(
-      { userId, subscriptionId: currentSub.id, newEndDate, adminId },
-      "Subscription renewed",
+      {
+        userId,
+        oldSubscriptionId: currentSub.id,
+        newSubscriptionId,
+        newEndDate,
+        adminId,
+      },
+      "Subscription renewed (new period created)",
     );
 
-    return updated;
+    return newSub;
   }
 
   // ─── Bulk Migration ──────────────────────────────────────────────────────
@@ -1509,6 +1651,7 @@ export class SubscriptionService {
     cancelledAt: Date | null;
     classesRemaining: number | null;
     classesBudget: number | null;
+    previousSubscriptionId: number | null;
     replacementCredits: number | null;
     notes: string | null;
     createdAt: Date;
@@ -1537,6 +1680,7 @@ export class SubscriptionService {
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       classesRemaining: row.classesRemaining,
       classesBudget: row.classesBudget,
+      previousSubscriptionId: row.previousSubscriptionId,
       replacementCredits: row.replacementCredits ?? 0,
       scheduleIds: [], // populated by enrichWithScheduleIds
       notes: row.notes,

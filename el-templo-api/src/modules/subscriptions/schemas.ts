@@ -63,6 +63,7 @@ const subscriptionDetailSchema = {
     cancelledAt: { type: ["string", "null"] },
     classesRemaining: { type: ["integer", "null"] },
     classesBudget: { type: ["integer", "null"] },
+    previousSubscriptionId: { type: ["integer", "null"] },
     replacementCredits: { type: "integer" },
     scheduleIds: { type: "array", items: { type: "integer" } },
     notes: { type: ["string", "null"] },
@@ -350,7 +351,7 @@ export const renewSubscriptionSchema = {
     },
   },
   response: {
-    200: subscriptionDetailSchema,
+    201: subscriptionDetailSchema,
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,

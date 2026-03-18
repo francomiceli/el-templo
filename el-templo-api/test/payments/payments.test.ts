@@ -520,7 +520,7 @@ describe("Payments API", () => {
       await cleanupAll();
     });
 
-    it("POST renew active subscription extends endDate and records payment", async () => {
+    it("POST renew active subscription creates new period and records payment", async () => {
       const plan = await createPlan({ durationDays: 30 });
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id, {
@@ -535,12 +535,14 @@ describe("Payments API", () => {
         payload: { paymentMethod: "cash" },
       });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.status).toBe("active");
-      // Original endDate was 2026-03-31. Since it's still in the future relative to
-      // when the test runs, the new endDate should be 2026-03-31 + 30 = 2026-04-30
+      // New period starts from old endDate (2026-03-31) and extends by 30 days
+      expect(body.startDate).toBe("2026-03-31");
       expect(body.endDate).toBe("2026-04-30");
+      // New sub links to old sub
+      expect(body.previousSubscriptionId).toBe(sub.id);
 
       // Verify a payment was created for the renewal
       const paymentsRes = await app.inject({
@@ -553,7 +555,7 @@ describe("Payments API", () => {
       expect(paymentsBody.payments.length).toBeGreaterThanOrEqual(2);
     });
 
-    it("POST renew expired subscription extends from today and sets active", async () => {
+    it("POST renew expired subscription creates new period from today", async () => {
       const plan = await createPlan({ durationDays: 30 });
       const member = await createMember({
         email: "renew-expired@test.com",
@@ -576,7 +578,7 @@ describe("Payments API", () => {
         payload: { paymentMethod: "transfer" },
       });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.status).toBe("active");
       // endDate should be today + 30 days since the subscription was expired

@@ -1272,10 +1272,11 @@ describe("Subscriptions API", () => {
       const member = await createMember();
 
       // Assign plan A
-      await assignPlan(member.id, {
+      const assignResult = await assignPlan(member.id, {
         planId: planA.id,
         startDate: "2026-06-01",
       });
+      const oldSubId = assignResult.body.id;
 
       // Set remaining classes to 6 (of 15 budget)
       await app.db
@@ -1300,6 +1301,15 @@ describe("Subscriptions API", () => {
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.planId).toBe(planB.id);
+      // New sub should link to old sub
+      expect(body.previousSubscriptionId).toBe(oldSubId);
+
+      // Old subscription should be 'changed' (not cancelled)
+      const oldSubRows = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, oldSubId as number));
+      expect(oldSubRows[0].status).toBe("changed");
 
       // Verify payment was recorded for the net amount (8800)
       // credit = round((6/15)*8000) = 3200, net = 12000 - 3200 = 8800
@@ -1311,6 +1321,177 @@ describe("Subscriptions API", () => {
       const upgradePmt = paymentRows.find((p) => p.amount === 8800);
       expect(upgradePmt).toBeTruthy();
       expect(upgradePmt!.paymentMethod).toBe("cash");
+      // Upgrade payment linked to the NEW subscription (not the old one)
+      expect(upgradePmt!.subscriptionId).toBe(body.id);
+    });
+  });
+
+  // =========================================================================
+  // Subscription Renewal (Period Model)
+  // =========================================================================
+  describe("Subscription Renewal", () => {
+    beforeEach(async () => {
+      await cleanupSubscriptionData();
+    });
+
+    it("renew creates a new subscription record and completes the old one", async () => {
+      const plan = await createPlan({
+        name: "Renewal Test Plan",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      // Assign plan
+      const assignResult = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+      });
+      const oldSubId = assignResult.body.id;
+
+      // Renew
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const newSub = JSON.parse(res.body);
+
+      // New sub is a different record
+      expect(newSub.id).not.toBe(oldSubId);
+      expect(newSub.status).toBe("active");
+      expect(newSub.planId).toBe(plan.id);
+      // Links back to old sub
+      expect(newSub.previousSubscriptionId).toBe(oldSubId);
+      // Fresh budget (ceil(30/7)*3 = 15)
+      expect(newSub.classesBudget).toBe(15);
+      expect(newSub.classesRemaining).toBe(15);
+      // pricePaid is per-period only (not accumulated)
+      expect(newSub.pricePaid).toBe(10000);
+
+      // Old sub should be 'completed'
+      const oldSubRows = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, oldSubId as number));
+      expect(oldSubRows[0].status).toBe("completed");
+    });
+
+    it("renew records payment linked to the new subscription", async () => {
+      const plan = await createPlan({
+        name: "Renewal Payment Plan",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "transfer" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const newSub = JSON.parse(res.body);
+
+      // Should have 2 payments: one for assign, one for renewal
+      const paymentRows = await app.db
+        .select()
+        .from(payments)
+        .where(eq(payments.memberId, member.id));
+      expect(paymentRows).toHaveLength(2);
+
+      // Renewal payment should be linked to the NEW subscription
+      const renewalPmt = paymentRows.find(
+        (p) => p.subscriptionId === newSub.id,
+      );
+      expect(renewalPmt).toBeTruthy();
+      expect(renewalPmt!.amount).toBe(10000);
+      expect(renewalPmt!.paymentMethod).toBe("transfer");
+    });
+
+    it("renew uses endDate as new startDate when subscription is still active", async () => {
+      const plan = await createPlan({
+        name: "Renewal Date Plan",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const newSub = JSON.parse(res.body);
+      // New sub starts from old endDate (2026-07-01) and extends by 30 days
+      expect(newSub.startDate).toBe("2026-07-01");
+      expect(newSub.endDate).toBe("2026-07-31");
+    });
+
+    it("history shows period chain after renewal", async () => {
+      const plan = await createPlan({
+        name: "History Chain Plan",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+      });
+
+      // Renew once
+      await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+
+      // Check history
+      const historyRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription/history`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(historyRes.statusCode).toBe(200);
+      const history = JSON.parse(historyRes.body);
+      expect(history.subscriptions).toHaveLength(2);
+
+      // Should have one completed (old) and one active (new)
+      const statuses = history.subscriptions.map(
+        (s: Record<string, unknown>) => s.status,
+      );
+      expect(statuses).toContain("completed");
+      expect(statuses).toContain("active");
     });
   });
 });

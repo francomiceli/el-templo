@@ -7,7 +7,13 @@
 
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
-export type SubscriptionStatus = "active" | "paused" | "cancelled" | "expired";
+export type SubscriptionStatus =
+  | "active"
+  | "paused"
+  | "cancelled"
+  | "expired"
+  | "completed"
+  | "changed";
 export type PlanTier = "flex" | "foundation" | "performance" | "other";
 export type BookingMode = "fixed" | "flexible";
 export type PriceType = "regular" | "zero" | "credit_card";
@@ -122,6 +128,7 @@ export interface SubscriptionDetail {
   cancelledAt: string | null;
   classesRemaining: number | null;
   classesBudget: number | null;
+  previousSubscriptionId: number | null;
   replacementCredits: number;
   scheduleIds: number[];
   notes: string | null;

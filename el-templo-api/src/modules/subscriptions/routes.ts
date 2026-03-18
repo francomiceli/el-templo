@@ -330,7 +330,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
           request.body,
           request.user.userId,
         );
-        return sub;
+        return reply.code(201).send(sub);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "renew subscription");
       }

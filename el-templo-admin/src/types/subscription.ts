@@ -7,7 +7,13 @@
 
 export type PlanTier = 'flex' | 'foundation' | 'performance' | 'other';
 export type BookingMode = 'fixed' | 'flexible';
-export type SubscriptionStatus = 'active' | 'paused' | 'cancelled' | 'expired';
+export type SubscriptionStatus =
+  | 'active'
+  | 'paused'
+  | 'cancelled'
+  | 'expired'
+  | 'completed'
+  | 'changed';
 export type PriceType = 'regular' | 'zero' | 'credit_card';
 
 // ─── Label & Color Maps ─────────────────────────────────────────────────────
@@ -29,6 +35,8 @@ export const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   paused: 'Pausado',
   cancelled: 'Cancelado',
   expired: 'Expirado',
+  completed: 'Completado',
+  changed: 'Cambiado',
 };
 
 export const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -36,6 +44,8 @@ export const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   paused: 'warning',
   cancelled: 'negative',
   expired: 'grey',
+  completed: 'info',
+  changed: 'purple',
 };
 
 export const PRICE_TYPE_LABELS: Record<PriceType, string> = {
@@ -143,6 +153,7 @@ export interface SubscriptionDetail {
   priceOverrideReason: string | null;
   classesRemaining: number | null;
   classesBudget: number | null;
+  previousSubscriptionId: number | null;
   scheduleIds: number[];
   replacementCredits: number;
   pausedAt: string | null;
