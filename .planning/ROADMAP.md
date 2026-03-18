@@ -1206,7 +1206,12 @@ Plans:
 2. Each role has a predefined permission set that controls which pages, features, and actions are accessible
 3. Admin can assign a role to any system user from the user management interface
 4. Admin UI dynamically shows/hides sidebar items, page sections, and action buttons based on the logged-in user's role
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 66-01-PLAN.md — Backend: DB migration (superadmin->owner, add recepcionista), centralized permission registry, API module role updates, user management CRUD + tests
+- [ ] 66-02-PLAN.md — Frontend: types/auth/sidebar/route updates for owner role, UsuariosPage for staff management
 
 ---
 
