@@ -1251,12 +1251,13 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 3. User asks for a branch address and receives the address with a Google Maps link
 4. User asks to speak with a human and the conversation status changes to human_takeover, bot stops responding
 5. Switching AI_PROVIDER env var between openai and anthropic changes the underlying model without code changes
-   **Plans:** 2/2 plans complete
+   **Plans:** 3 plans (2 complete, 1 gap closure)
 
 Plans:
 
 - [ ] 68-01-PLAN.md — AI provider implementations (OpenAI + Anthropic) and system prompt
 - [ ] 68-02-PLAN.md — Info tool execution functions and AI-powered webhook handler
+- [ ] 68-03-PLAN.md — Gap closure: human takeover guard + Anthropic multi-turn tool calls
 
 ### Phase 69: Redis Memory Layer + Client State Machine
 
