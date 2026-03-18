@@ -64,6 +64,12 @@
           </q-item-section>
           <q-item-section>Analiticas</q-item-section>
         </q-item>
+        <q-item v-if="isCajaRole" clickable v-ripple to="/reportes">
+          <q-item-section avatar>
+            <q-icon name="summarize" />
+          </q-item-section>
+          <q-item-section>Reportes</q-item-section>
+        </q-item>
 
         <template v-if="isAdminRole">
           <q-separator />

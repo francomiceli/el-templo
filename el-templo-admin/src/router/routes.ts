@@ -38,6 +38,11 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'superadmin'] },
       },
       {
+        path: 'reportes',
+        component: () => import('pages/ReportesPage.vue'),
+        meta: { allowedRoles: ['recepcionista', 'admin', 'superadmin'] },
+      },
+      {
         path: 'blog',
         component: () => import('pages/BlogListPage.vue'),
         meta: { allowedRoles: ['admin', 'superadmin'] },
