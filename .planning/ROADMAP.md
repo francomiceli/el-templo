@@ -1312,6 +1312,13 @@ Plans:
 6. Member app personalizada module is enabled (uncommented in `boot/modules.ts`)
 7. Integration tests cover subscription enforcement and AURA award
 
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 69-01-PLAN.md — Backend: isPersonalizada schema, subscription enforcement, AURA award
+- [ ] 69-02-PLAN.md — Frontend: admin plan toggle, member app module enable
+
 ---
 
 ## v4.2 Progress
@@ -1323,7 +1330,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | -------------------------------------------- | -------------- | -------- | ---------- |
 | 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
 | 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
-| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending  |            |
+| 69. Subscription Gate, AURA Rewards & Enable | 0/2            | Planned  |            |
 
 ---
 
