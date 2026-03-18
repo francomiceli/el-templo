@@ -108,8 +108,22 @@
         </q-card-section>
 
         <!-- Action buttons -->
-        <q-card-actions v-if="subscription.status === 'active' || subscription.status === 'paused'">
+        <q-card-actions
+          v-if="
+            subscription.status === 'active' ||
+            subscription.status === 'paused' ||
+            subscription.status === 'expired'
+          "
+        >
           <template v-if="subscription.status === 'active'">
+            <q-btn
+              flat
+              icon="autorenew"
+              label="Renovar"
+              color="positive"
+              :loading="renewalLoading"
+              @click="showRenewalDialog = true"
+            />
             <q-btn
               flat
               icon="swap_horiz"
@@ -159,6 +173,16 @@
               color="negative"
               :loading="actionLoading"
               @click="confirmCancel"
+            />
+          </template>
+          <template v-else-if="subscription.status === 'expired'">
+            <q-btn
+              flat
+              icon="autorenew"
+              label="Renovar"
+              color="positive"
+              :loading="renewalLoading"
+              @click="showRenewalDialog = true"
             />
           </template>
         </q-card-actions>
@@ -245,6 +269,65 @@
       mode="change"
       @assigned="onAssigned"
     />
+
+    <!-- Renewal Dialog -->
+    <q-dialog v-model="showRenewalDialog">
+      <q-card style="width: 450px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Renovar Suscripcion</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section v-if="subscription">
+          <q-list dense>
+            <q-item>
+              <q-item-section>Plan</q-item-section>
+              <q-item-section side class="text-weight-medium">{{
+                subscription.planName
+              }}</q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Vencimiento actual</q-item-section>
+              <q-item-section side>{{
+                subscription.endDate ? formatDate(subscription.endDate) : '—'
+              }}</q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Nuevo vencimiento</q-item-section>
+              <q-item-section side class="text-weight-bold text-positive">{{
+                renewalEndDate
+              }}</q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Precio</q-item-section>
+              <q-item-section side class="text-weight-bold text-h6"
+                >${{ subscription.pricePaid.toLocaleString() }}</q-item-section
+              >
+            </q-item>
+          </q-list>
+
+          <q-select
+            v-model="renewalMethod"
+            :options="paymentMethodOptions"
+            label="Metodo de pago *"
+            dense
+            outlined
+            emit-value
+            map-options
+            class="q-mt-md"
+          />
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" color="grey" @click="showRenewalDialog = false" />
+          <q-btn
+            color="positive"
+            label="Confirmar Renovacion"
+            icon="check"
+            :loading="renewalLoading"
+            @click="executeRenewal"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -266,6 +349,7 @@ import {
   type SubscriptionStatus,
   type PriceType,
 } from 'src/types/subscription';
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 
 const log = createLogger('MemberSubscriptionTab');
@@ -298,6 +382,11 @@ const loadingHistory = ref(false);
 const actionLoading = ref(false);
 const showAssignDialog = ref(false);
 const showChangeDialog = ref(false);
+const showRenewalDialog = ref(false);
+const renewalMethod = ref<PaymentMethod>('cash');
+const renewalLoading = ref(false);
+
+const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
 const daysRemaining = computed(() => {
   if (!subscription.value?.endDate) return 0;
@@ -310,6 +399,21 @@ const daysRemaining = computed(() => {
 const showClassUsage = computed(() => {
   if (!classUsage.value) return false;
   return classUsage.value.weeklyLimit !== null || classUsage.value.scheduleIds.length > 0;
+});
+
+const renewalEndDate = computed(() => {
+  if (!subscription.value?.endDate) return '—';
+  // Calculate duration from current start/end, then project new end from today or current end
+  const startMs = new Date(subscription.value.startDate).getTime();
+  const endMs = new Date(subscription.value.endDate).getTime();
+  const durationMs = endMs - startMs;
+  const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+  // Renewal starts from current endDate (if active) or today (if expired)
+  const today = new Date().toISOString().split('T')[0];
+  const renewStart = subscription.value.endDate >= today ? subscription.value.endDate : today;
+  const end = new Date(renewStart);
+  end.setDate(end.getDate() + (durationDays > 0 ? durationDays : 30));
+  return formatDate(end.toISOString().split('T')[0]);
 });
 
 // =========================================================================
@@ -411,6 +515,26 @@ async function refreshAll() {
 // =========================================================================
 // Lifecycle Actions
 // =========================================================================
+
+async function executeRenewal() {
+  renewalLoading.value = true;
+  try {
+    await subsApi.renewSubscription(props.userId, {
+      paymentMethod: renewalMethod.value,
+    });
+    $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
+    showRenewalDialog.value = false;
+    renewalMethod.value = 'cash';
+    refreshAll();
+    emit('subscription-changed');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error renewing subscription', { error: message });
+    $q.notify({ type: 'negative', message: 'Error renovando suscripcion' });
+  } finally {
+    renewalLoading.value = false;
+  }
+}
 
 function confirmPause() {
   $q.dialog({
