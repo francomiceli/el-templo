@@ -30,8 +30,8 @@ export const clientStateEnum = mysqlEnum("client_state", [
   "lead",
   "trial",
   "active_member",
-  "lapsed",
-  "returning",
+  "inactive_member",
+  "expired_member",
 ]);
 
 export const messageDirectionEnum = mysqlEnum("message_direction", [
