@@ -1,8 +1,9 @@
 /**
  * Vitest globalSetup: creates and seeds a test MySQL database.
  *
- * Uses mysql CLI for database creation and drizzle-kit push for schema
- * to avoid mysql2 driver issues with DDL in vitest's globalSetup context.
+ * Uses mysql2/promise for database creation (works in CI Docker containers),
+ * drizzle-kit push for schema from TypeScript definitions, and mysql2/promise
+ * again for seed data.
  */
 
 import dotenv from "dotenv";
@@ -36,16 +37,18 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
 }
 
 export async function setup(): Promise<void> {
-  const m = `-u ${DB_USER} -p${DB_PASSWORD} -h ${DB_HOST} -P ${DB_PORT}`;
-
-  // Ensure database exists then drop all tables for clean slate
-  execSync(`mysql ${m} -e "CREATE DATABASE IF NOT EXISTS ${TEST_DB};"`, {
-    stdio: "pipe",
+  // Connect without database to create/drop (uses TCP, works in CI containers)
+  const rootConn = await mysql.createConnection({
+    host: DB_HOST,
+    port: DB_PORT,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    multipleStatements: true,
   });
-  execSync(
-    `mysql ${m} ${TEST_DB} -N -e "SET FOREIGN_KEY_CHECKS=0; SET @tables = NULL; SELECT GROUP_CONCAT(CONCAT('\\\`', table_name, '\\\`')) INTO @tables FROM information_schema.tables WHERE table_schema = '${TEST_DB}'; SET @q = IFNULL(CONCAT('DROP TABLE IF EXISTS ', @tables), 'SELECT 1'); PREPARE stmt FROM @q; EXECUTE stmt; DEALLOCATE PREPARE stmt; SET FOREIGN_KEY_CHECKS=1;"`,
-    { stdio: "pipe" },
-  );
+
+  await rootConn.execute(`DROP DATABASE IF EXISTS \`${TEST_DB}\``);
+  await rootConn.execute(`CREATE DATABASE \`${TEST_DB}\``);
+  await rootConn.end();
 
   // Use drizzle-kit push to create schema from TypeScript definitions
   execSync("npx drizzle-kit push --force", {
