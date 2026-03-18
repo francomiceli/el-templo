@@ -7,6 +7,9 @@
  * Select provider via AI_PROVIDER env var ('openai' | 'anthropic').
  */
 
+import { AnthropicProvider } from "./anthropic";
+import { OpenAiProvider } from "./openai";
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
@@ -40,21 +43,25 @@ export interface AiProvider {
   chat(messages: ChatMessage[], tools?: ToolDefinition[]): Promise<AiResponse>;
 }
 
+const DEFAULTS: Record<string, string> = {
+  openai: "gpt-4o-mini",
+  anthropic: "claude-haiku-4-5-20251001",
+};
+
 /**
- * Factory function — create the right provider based on env config.
+ * Factory function -- create the right provider based on env config.
  *
- * TODO: Implement. Read AI_PROVIDER env, instantiate OpenAiProvider or AnthropicProvider.
+ * Uses AI_PROVIDER env var to select implementation, AI_MODEL for model override.
  */
 export function createAiProvider(): AiProvider {
   const provider = process.env.AI_PROVIDER || "openai";
+  const model = process.env.AI_MODEL || DEFAULTS[provider];
 
   switch (provider) {
     case "openai":
-      // TODO: return new OpenAiProvider(process.env.AI_MODEL || "gpt-4o-mini");
-      throw new Error("OpenAI provider not yet implemented");
+      return new OpenAiProvider(model);
     case "anthropic":
-      // TODO: return new AnthropicProvider(process.env.AI_MODEL || "claude-haiku-4-5-20251001");
-      throw new Error("Anthropic provider not yet implemented");
+      return new AnthropicProvider(model);
     default:
       throw new Error(`Unknown AI provider: ${provider}`);
   }
