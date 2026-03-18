@@ -929,8 +929,9 @@ describe("Members Management Routes", () => {
       expect(sheet!.rowCount).toBe(2); // 1 header + 1 data row
 
       const dataRow = sheet!.getRow(2);
-      expect(dataRow.getCell("nombre").value).toBe("Activo Member");
-      expect(dataRow.getCell("estado").value).toBe("Activo");
+      // Column 1 = Nombre, Column 8 = Estado
+      expect(dataRow.getCell(1).value).toBe("Activo Member");
+      expect(dataRow.getCell(8).value).toBe("Activo");
     });
   });
 
