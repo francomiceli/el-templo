@@ -1334,7 +1334,7 @@ describe("Subscriptions API", () => {
       await cleanupSubscriptionData();
     });
 
-    it("renew creates a new subscription record and completes the old one", async () => {
+    it("early renewal keeps old sub active, creates new future sub", async () => {
       const plan = await createPlan({
         name: "Renewal Test Plan",
         classesPerWeek: 3,
@@ -1344,14 +1344,14 @@ describe("Subscriptions API", () => {
       });
       const member = await createMember();
 
-      // Assign plan
+      // Assign plan (future start — sub is still active)
       const assignResult = await assignPlan(member.id, {
         planId: plan.id,
         startDate: "2026-06-01",
       });
       const oldSubId = assignResult.body.id;
 
-      // Renew
+      // Renew (early — old sub hasn't expired yet)
       const res = await app.inject({
         method: "POST",
         url: `${BASE_URL}/members/${member.id}/subscription/renew`,
@@ -1374,12 +1374,22 @@ describe("Subscriptions API", () => {
       // pricePaid is per-period only (not accumulated)
       expect(newSub.pricePaid).toBe(10000);
 
-      // Old sub should be 'completed'
+      // Old sub stays ACTIVE (not completed) — still has time left
       const oldSubRows = await app.db
         .select()
         .from(subscriptions)
         .where(eq(subscriptions.id, oldSubId as number));
-      expect(oldSubRows[0].status).toBe("completed");
+      expect(oldSubRows[0].status).toBe("active");
+
+      // getMemberSubscription returns the OLD sub (covers today, not the future one)
+      const currentRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(currentRes.statusCode).toBe(200);
+      const current = JSON.parse(currentRes.body);
+      expect(current.id).toBe(oldSubId);
     });
 
     it("renew records payment linked to the new subscription", async () => {
@@ -1467,7 +1477,7 @@ describe("Subscriptions API", () => {
         startDate: "2026-06-01",
       });
 
-      // Renew once
+      // Renew once (early — old sub still active)
       await app.inject({
         method: "POST",
         url: `${BASE_URL}/members/${member.id}/subscription/renew`,
@@ -1486,12 +1496,12 @@ describe("Subscriptions API", () => {
       const history = JSON.parse(historyRes.body);
       expect(history.subscriptions).toHaveLength(2);
 
-      // Should have one completed (old) and one active (new)
-      const statuses = history.subscriptions.map(
-        (s: Record<string, unknown>) => s.status,
+      // Both subs are active (early renewal keeps old active)
+      // The newer one has previousSubscriptionId linking to the old one
+      const linked = history.subscriptions.find(
+        (s: Record<string, unknown>) => s.previousSubscriptionId !== null,
       );
-      expect(statuses).toContain("completed");
-      expect(statuses).toContain("active");
+      expect(linked).toBeTruthy();
     });
   });
 });

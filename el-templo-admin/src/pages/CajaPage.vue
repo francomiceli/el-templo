@@ -186,10 +186,16 @@
         </q-td>
       </template>
 
-      <!-- Plan column -->
+      <!-- Plan / Periodo column -->
       <template #body-cell-plan="slotProps">
         <q-td :props="slotProps" :class="{ 'text-grey-5': isVoided(slotProps.row) }">
-          {{ slotProps.row.planName ?? '—' }}
+          <div>{{ slotProps.row.planName ?? '—' }}</div>
+          <div v-if="slotProps.row.subscriptionStartDate" class="text-caption text-grey-6">
+            {{ formatDate(slotProps.row.subscriptionStartDate) }}
+            <template v-if="slotProps.row.subscriptionEndDate">
+              — {{ formatDate(slotProps.row.subscriptionEndDate) }}
+            </template>
+          </div>
         </q-td>
       </template>
 
@@ -205,23 +211,9 @@
         <q-td :props="slotProps">
           <q-btn flat dense round icon="more_vert" size="sm">
             <q-menu>
-              <q-item
-                v-if="slotProps.row.reference || slotProps.row.notes"
-                clickable
-                v-close-popup
-                @click="showPaymentDetails(slotProps.row)"
-              >
+              <q-item clickable v-close-popup @click="showPaymentDetails(slotProps.row)">
                 <q-item-section avatar><q-icon name="info" /></q-item-section>
                 <q-item-section>Detalles</q-item-section>
-              </q-item>
-              <q-item
-                v-if="isVoided(slotProps.row)"
-                clickable
-                v-close-popup
-                @click="showVoidDetails(slotProps.row)"
-              >
-                <q-item-section avatar><q-icon name="block" color="negative" /></q-item-section>
-                <q-item-section>Motivo anulacion</q-item-section>
               </q-item>
               <q-item
                 v-if="!isVoided(slotProps.row)"
@@ -252,6 +244,100 @@
         </div>
       </q-card-section>
     </q-card>
+    <!-- ========================================== -->
+    <!-- Payment Details Dialog -->
+    <!-- ========================================== -->
+    <q-dialog v-model="showDetailDialog">
+      <q-card v-if="detailPayment" style="width: 480px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Detalle del Pago #{{ detailPayment.id }}</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <q-list dense>
+            <q-item>
+              <q-item-section>Alumno</q-item-section>
+              <q-item-section side class="text-weight-medium">
+                {{ detailPayment.memberName }}
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Monto</q-item-section>
+              <q-item-section side class="text-weight-bold text-h6">
+                ${{ detailPayment.amount.toLocaleString() }}
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Metodo</q-item-section>
+              <q-item-section side>
+                <q-badge
+                  :color="methodColor(detailPayment.paymentMethod)"
+                  :label="methodLabel(detailPayment.paymentMethod)"
+                />
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Fecha de pago</q-item-section>
+              <q-item-section side>{{ formatDate(detailPayment.paymentDate) }}</q-item-section>
+            </q-item>
+            <q-separator spaced />
+            <q-item>
+              <q-item-section>Plan</q-item-section>
+              <q-item-section side class="text-weight-medium">
+                {{ detailPayment.planName ?? '—' }}
+              </q-item-section>
+            </q-item>
+            <q-item v-if="detailPayment.subscriptionStartDate">
+              <q-item-section>Periodo</q-item-section>
+              <q-item-section side>
+                {{ formatDate(detailPayment.subscriptionStartDate) }}
+                <template v-if="detailPayment.subscriptionEndDate">
+                  — {{ formatDate(detailPayment.subscriptionEndDate) }}
+                </template>
+              </q-item-section>
+            </q-item>
+            <q-separator spaced />
+            <q-item>
+              <q-item-section>Registrado por</q-item-section>
+              <q-item-section side>{{ detailPayment.recorderName }}</q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Fecha registro</q-item-section>
+              <q-item-section side>{{ formatDate(detailPayment.createdAt) }}</q-item-section>
+            </q-item>
+            <q-item v-if="detailPayment.reference">
+              <q-item-section>Referencia</q-item-section>
+              <q-item-section side>{{ detailPayment.reference }}</q-item-section>
+            </q-item>
+            <q-item v-if="detailPayment.notes">
+              <q-item-section>Notas</q-item-section>
+              <q-item-section side class="text-italic">{{ detailPayment.notes }}</q-item-section>
+            </q-item>
+            <template v-if="isVoided(detailPayment)">
+              <q-separator spaced />
+              <q-item>
+                <q-item-section>
+                  <q-badge color="negative" label="ANULADO" class="q-pa-xs" />
+                </q-item-section>
+              </q-item>
+              <q-item>
+                <q-item-section>Motivo</q-item-section>
+                <q-item-section side class="text-negative text-italic">
+                  {{ detailPayment.voidReason ?? 'Sin motivo' }}
+                </q-item-section>
+              </q-item>
+              <q-item v-if="detailPayment.voidedAt">
+                <q-item-section>Fecha anulacion</q-item-section>
+                <q-item-section side>{{ formatDate(detailPayment.voidedAt) }}</q-item-section>
+              </q-item>
+            </template>
+          </q-list>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cerrar" color="grey" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -338,7 +424,7 @@ const columns: QTableProps['columns'] = [
   { name: 'alumno', label: 'Alumno', field: 'memberName', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'metodo', label: 'Metodo', field: 'paymentMethod', align: 'left', sortable: false },
-  { name: 'plan', label: 'Plan', field: 'planName', align: 'left', sortable: false },
+  { name: 'plan', label: 'Plan / Periodo', field: 'planName', align: 'left', sortable: false },
   {
     name: 'registrado',
     label: 'Registrado por',
@@ -435,21 +521,12 @@ async function loadPayments() {
 // Payment details
 // =========================================================================
 
-function showPaymentDetails(payment: PaymentListItem) {
-  const parts: string[] = [];
-  if (payment.reference) parts.push(`Referencia: ${payment.reference}`);
-  if (payment.notes) parts.push(`Notas: ${payment.notes}`);
-  $q.dialog({
-    title: 'Detalles del pago',
-    message: parts.join('\n\n'),
-  });
-}
+const detailPayment = ref<PaymentListItem | null>(null);
+const showDetailDialog = ref(false);
 
-function showVoidDetails(payment: PaymentListItem) {
-  $q.dialog({
-    title: 'Pago anulado',
-    message: `Motivo: ${payment.voidReason ?? 'Sin motivo'}`,
-  });
+function showPaymentDetails(payment: PaymentListItem) {
+  detailPayment.value = payment;
+  showDetailDialog.value = true;
 }
 
 // =========================================================================

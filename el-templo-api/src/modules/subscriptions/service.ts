@@ -248,6 +248,12 @@ export class SubscriptionService {
           ),
         ),
       )
+      // When multiple active subs exist (early renewal), prefer the one
+      // covering today (startDate <= today). Fall back to earliest future sub.
+      .orderBy(
+        sql`CASE WHEN ${schema.subscriptions.startDate} <= CURDATE() THEN 0 ELSE 1 END`,
+        schema.subscriptions.startDate,
+      )
       .limit(1);
 
     if (rows.length === 0) return null;
@@ -1155,11 +1161,16 @@ export class SubscriptionService {
           ? plan.priceCreditCard
           : plan.priceRegular;
 
-    // Close old subscription period
-    await this.db
-      .update(schema.subscriptions)
-      .set({ status: "completed" })
-      .where(eq(schema.subscriptions.id, currentSub.id));
+    // Close old subscription period only if it's already expired.
+    // If still active (early renewal / advance payment), leave it active —
+    // auto-expire will transition it to "completed" when its endDate passes.
+    const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
+    if (oldSubExpired) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({ status: "completed" })
+        .where(eq(schema.subscriptions.id, currentSub.id));
+    }
 
     // Create new subscription record for the new period
     const result = await this.db.insert(schema.subscriptions).values({
@@ -1418,14 +1429,16 @@ export class SubscriptionService {
   /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
-   * Expired subscription = immediate hard block (no grace period).
+   * If the expiring sub has a successor (from early renewal), mark as "completed"
+   * instead of "expired" for cleaner history.
    */
   private async autoExpireSubscriptions(userId: number): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
 
-    await this.db
-      .update(schema.subscriptions)
-      .set({ status: "expired" })
+    // Find active subs past their end date
+    const expiredSubs = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
       .where(
         and(
           eq(schema.subscriptions.userId, userId),
@@ -1433,6 +1446,44 @@ export class SubscriptionService {
           sql`${schema.subscriptions.endDate} < ${today}`,
         ),
       );
+
+    if (expiredSubs.length === 0) return;
+
+    const expiredIds = expiredSubs.map((s) => s.id);
+
+    // Check which expired subs have a successor (another sub pointing to them)
+    const successors = await this.db
+      .select({
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
+        ),
+      );
+
+    const hasSuccessor = new Set(
+      successors.map((s) => s.previousSubscriptionId),
+    );
+
+    // Mark subs with successor as "completed", others as "expired"
+    const completedIds = expiredIds.filter((id) => hasSuccessor.has(id));
+    const expiredOnlyIds = expiredIds.filter((id) => !hasSuccessor.has(id));
+
+    if (completedIds.length > 0) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({ status: "completed" })
+        .where(inArray(schema.subscriptions.id, completedIds));
+    }
+    if (expiredOnlyIds.length > 0) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({ status: "expired" })
+        .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+    }
   }
 
   /**

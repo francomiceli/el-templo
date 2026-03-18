@@ -142,6 +142,8 @@ export class PaymentService {
         memberLastName: memberAlias.lastName,
         subscriptionId: schema.payments.subscriptionId,
         planName: schema.subscriptionPlans.name,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
@@ -236,6 +238,8 @@ export class PaymentService {
         memberLastName: schema.users.lastName,
         subscriptionId: schema.payments.subscriptionId,
         planName: schema.subscriptionPlans.name,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
@@ -386,6 +390,8 @@ export class PaymentService {
         memberLastName: memberAlias.lastName,
         subscriptionId: schema.payments.subscriptionId,
         planName: schema.subscriptionPlans.name,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
@@ -429,6 +435,8 @@ export class PaymentService {
     memberLastName: string | null;
     subscriptionId: number | null;
     planName: string | null;
+    subscriptionStartDate: string | null;
+    subscriptionEndDate: string | null;
     amount: number;
     paymentMethod: string;
     paymentDate: string;
@@ -450,6 +458,8 @@ export class PaymentService {
         .join(" "),
       subscriptionId: row.subscriptionId!,
       planName: row.planName ?? null,
+      subscriptionStartDate: row.subscriptionStartDate ?? null,
+      subscriptionEndDate: row.subscriptionEndDate ?? null,
       amount: row.amount,
       paymentMethod: row.paymentMethod as PaymentMethod,
       paymentDate: row.paymentDate,

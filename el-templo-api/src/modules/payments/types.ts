@@ -17,6 +17,8 @@ export interface PaymentListItem {
   memberName: string;
   subscriptionId: number;
   planName: string | null;
+  subscriptionStartDate: string | null;
+  subscriptionEndDate: string | null;
   amount: number;
   paymentMethod: PaymentMethod;
   paymentDate: string;
