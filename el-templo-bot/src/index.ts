@@ -11,6 +11,7 @@ import pino from "pino";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../../el-templo-api/src/db/schema/index.js";
 import { db, pool } from "./db.js";
+import { disconnectRedis } from "./redis.js";
 import { webhookRoutes } from "./webhook/routes.js";
 
 // Augment Fastify instance with the Drizzle DB type
@@ -46,6 +47,7 @@ async function main(): Promise<void> {
     try {
       await app.close();
       await pool.end();
+      await disconnectRedis();
       app.log.info("Graceful shutdown complete");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

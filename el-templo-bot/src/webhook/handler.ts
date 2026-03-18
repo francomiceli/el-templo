@@ -16,6 +16,7 @@ import { createAiProvider } from "../ai/provider.js";
 import type { ChatMessage } from "../ai/provider.js";
 import { getSystemPrompt } from "../ai/system-prompt.js";
 import { BOT_TOOLS, executeTool } from "../ai/tools.js";
+import { getSession, updateSession } from "../memory/session.js";
 import { sendTextMessage } from "../whatsapp/client.js";
 import type { ParsedInboundMessage } from "../whatsapp/types.js";
 
@@ -128,7 +129,7 @@ export async function handleInboundMessage(
 
   // 4. AI-powered reply (best-effort)
   try {
-    await processWithAi(db, log, conversationId, message.phone);
+    await processWithAi(db, log, conversationId, message.phone, message.text);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     log.error(
@@ -140,36 +141,59 @@ export async function handleInboundMessage(
 
 /**
  * Process a message through the AI pipeline:
- * build history, call AI with tool loop, send split response.
+ * build history from Redis session (primary) or MySQL (fallback),
+ * call AI with tool loop, send split response, update session.
  */
 async function processWithAi(
   db: DB,
   log: FastifyBaseLogger,
   conversationId: number,
   phone: string,
+  inboundText: string,
 ): Promise<void> {
-  // Build message history (last 10 messages for context)
-  const historyResult = await db.execute<MessageRow[]>(
-    sql`SELECT content, message_direction
-        FROM whatsapp_messages
-        WHERE conversation_id = ${conversationId}
-        ORDER BY created_at DESC
-        LIMIT 10`,
-  );
-  const historyRows = (historyResult[0] as unknown as MessageRow[]).reverse();
+  // Store inbound message in Redis session (before AI call so future lookups include it)
+  await updateSession(phone, "user", inboundText);
+
+  // Build message history -- Redis session is primary, MySQL is fallback
+  const session = await getSession(phone);
 
   const messages: ChatMessage[] = [
     { role: "system", content: getSystemPrompt() },
   ];
 
-  for (const row of historyRows) {
-    if (row.message_direction === "inbound") {
-      messages.push({ role: "user", content: row.content });
-    } else if (
-      row.message_direction === "outbound_bot" ||
-      row.message_direction === "outbound_human"
-    ) {
-      messages.push({ role: "assistant", content: row.content });
+  if (session && session.messages.length > 0) {
+    // Primary: use Redis session context (includes the inbound we just added)
+    log.info(
+      { phone, sessionMessages: session.messages.length },
+      "Using Redis session context for AI",
+    );
+    for (const msg of session.messages) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+  } else {
+    // Fallback: load from MySQL (Redis unavailable or new session)
+    log.info(
+      { phone, conversationId },
+      "Redis session unavailable, falling back to MySQL history",
+    );
+    const historyResult = await db.execute<MessageRow[]>(
+      sql`SELECT content, message_direction
+          FROM whatsapp_messages
+          WHERE conversation_id = ${conversationId}
+          ORDER BY created_at DESC
+          LIMIT 20`,
+    );
+    const historyRows = (historyResult[0] as unknown as MessageRow[]).reverse();
+
+    for (const row of historyRows) {
+      if (row.message_direction === "inbound") {
+        messages.push({ role: "user", content: row.content });
+      } else if (
+        row.message_direction === "outbound_bot" ||
+        row.message_direction === "outbound_human"
+      ) {
+        messages.push({ role: "assistant", content: row.content });
+      }
     }
   }
 
@@ -235,6 +259,9 @@ async function processWithAi(
   } else {
     replyText = response.content ?? FALLBACK_MESSAGE;
   }
+
+  // Store assistant reply in Redis session
+  await updateSession(phone, "assistant", replyText);
 
   // Split response into multiple messages for conversational feel
   const segments = splitMessage(replyText);
