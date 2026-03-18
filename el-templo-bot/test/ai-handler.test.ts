@@ -411,6 +411,25 @@ describe("handleInboundMessage - human takeover segment suppression", () => {
       },
     }));
 
+    vi.doMock("../src/memory/session", () => ({
+      getSession: async () => null,
+      updateSession: async () => {},
+    }));
+
+    vi.doMock("../src/memory/profile", () => ({
+      getProfile: async () => null,
+      updateProfile: async () => {},
+      buildProfileContext: () => "",
+    }));
+
+    vi.doMock("../src/state/machine", () => ({
+      determineClientState: async () => ({
+        state: "lead",
+        userId: null,
+      }),
+      updateConversationState: async () => {},
+    }));
+
     const { handleInboundMessage } = await import("../src/webhook/handler");
 
     // Mock DB

@@ -13,10 +13,21 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../../el-templo-api/src/db/schema/index.js";
 import { createAiProvider } from "../ai/provider.js";
-import type { ChatMessage } from "../ai/provider.js";
+import type { AiProvider, ChatMessage } from "../ai/provider.js";
 import { getSystemPrompt } from "../ai/system-prompt.js";
 import { BOT_TOOLS, executeTool } from "../ai/tools.js";
+import {
+  getProfile,
+  updateProfile,
+  buildProfileContext,
+} from "../memory/profile.js";
+import type { CustomerProfile } from "../memory/profile.js";
 import { getSession, updateSession } from "../memory/session.js";
+import {
+  determineClientState,
+  updateConversationState,
+} from "../state/machine.js";
+import type { ClientState } from "../state/machine.js";
 import { sendTextMessage } from "../whatsapp/client.js";
 import type { ParsedInboundMessage } from "../whatsapp/types.js";
 
@@ -70,6 +81,8 @@ export async function handleInboundMessage(
   let conversationId: number;
   let conversationStatus: string;
 
+  let isNewConversation = false;
+
   if (rows.length === 0) {
     const result = await db.execute(
       sql`INSERT INTO whatsapp_conversations (phone, contact_name, conversation_status, client_state, last_message_at, created_at, updated_at)
@@ -78,6 +91,7 @@ export async function handleInboundMessage(
     const insertResult = result[0] as unknown as { insertId: number };
     conversationId = insertResult.insertId;
     conversationStatus = "active";
+    isNewConversation = true;
     log.info(
       { conversationId, phone: message.phone },
       "Created new conversation",
@@ -95,6 +109,32 @@ export async function handleInboundMessage(
       "Updated existing conversation",
     );
   }
+
+  // Determine client state from DB and update conversation
+  const { state: clientState, userId: matchedUserId } =
+    await determineClientState(message.phone, db);
+  await updateConversationState(conversationId, clientState, db);
+
+  log.info(
+    { conversationId, clientState, matchedUserId },
+    "Client state determined",
+  );
+
+  // Link member if this is a new conversation and we found a matching user
+  if (isNewConversation && matchedUserId) {
+    await db.execute(
+      sql`UPDATE whatsapp_conversations
+          SET linked_member_id = ${matchedUserId}
+          WHERE id = ${conversationId}`,
+    );
+    log.info(
+      { conversationId, matchedUserId },
+      "Linked conversation to member",
+    );
+  }
+
+  // Load customer profile from Redis
+  const profile = await getProfile(message.phone);
 
   // 2. Dedup check -- insert inbound message
   try {
@@ -129,7 +169,15 @@ export async function handleInboundMessage(
 
   // 4. AI-powered reply (best-effort)
   try {
-    await processWithAi(db, log, conversationId, message.phone, message.text);
+    await processWithAi(
+      db,
+      log,
+      conversationId,
+      message.phone,
+      message.text,
+      clientState,
+      profile,
+    );
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     log.error(
@@ -150,6 +198,8 @@ async function processWithAi(
   conversationId: number,
   phone: string,
   inboundText: string,
+  clientState: ClientState,
+  currentProfile: CustomerProfile | null,
 ): Promise<void> {
   // Store inbound message in Redis session (before AI call so future lookups include it)
   await updateSession(phone, "user", inboundText);
@@ -157,8 +207,19 @@ async function processWithAi(
   // Build message history -- Redis session is primary, MySQL is fallback
   const session = await getSession(phone);
 
+  // Build state-adaptive system prompt with profile context
+  const profileContext = currentProfile
+    ? buildProfileContext(currentProfile)
+    : undefined;
+
   const messages: ChatMessage[] = [
-    { role: "system", content: getSystemPrompt() },
+    {
+      role: "system",
+      content: getSystemPrompt({
+        clientState,
+        profileContext: profileContext || undefined,
+      }),
+    },
   ];
 
   if (session && session.messages.length > 0) {
@@ -262,6 +323,23 @@ async function processWithAi(
 
   // Store assistant reply in Redis session
   await updateSession(phone, "assistant", replyText);
+
+  // Fire-and-forget profile extraction -- never blocks the main response
+  extractAndUpdateProfile(
+    provider,
+    log,
+    phone,
+    inboundText,
+    replyText,
+    currentProfile,
+    clientState,
+  ).catch((err: unknown) => {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log.error(
+      { err: errorMessage, phone },
+      "Profile extraction outer error (should not happen)",
+    );
+  });
 
   // Split response into multiple messages for conversational feel
   const segments = splitMessage(replyText);
@@ -373,4 +451,109 @@ function splitMessage(text: string): string[] {
   }
 
   return finalSegments.length > 0 ? finalSegments : [text];
+}
+
+/**
+ * Extract profile updates from a conversation exchange using a lightweight AI call.
+ *
+ * This is fire-and-forget: errors are logged but never propagated.
+ * Malformed JSON from the AI is explicitly caught and logged.
+ */
+async function extractAndUpdateProfile(
+  provider: AiProvider,
+  log: FastifyBaseLogger,
+  phone: string,
+  userMessage: string,
+  replyText: string,
+  currentProfile: CustomerProfile | null,
+  clientState: ClientState,
+): Promise<void> {
+  try {
+    const extractionPrompt: ChatMessage[] = [
+      {
+        role: "system",
+        content:
+          "Sos un extractor de datos. Dado este intercambio, extraes datos nuevos del perfil del cliente en formato JSON. Solo responde con JSON valido o '{}' si no hay nada nuevo. Campos posibles: name (string), injuries (string[]), classPreferences (string[]), branchPreference (string), notes (string - observaciones breves).",
+      },
+      {
+        role: "user",
+        content: `Mensaje del usuario: ${userMessage}\nRespuesta del bot: ${replyText}\nPerfil actual: ${JSON.stringify(currentProfile)}`,
+      },
+    ];
+
+    const extractionResponse = await provider.chat(extractionPrompt);
+    const rawContent = extractionResponse.content ?? "{}";
+
+    // Explicit inner try/catch for JSON.parse -- malformed AI output must not propagate
+    let extracted: Record<string, unknown>;
+    try {
+      extracted = JSON.parse(rawContent) as Record<string, unknown>;
+    } catch {
+      log.warn(
+        { phone, rawContent },
+        "Profile extraction returned malformed JSON, skipping update",
+      );
+      return;
+    }
+
+    // Skip if empty extraction
+    if (Object.keys(extracted).length === 0) {
+      return;
+    }
+
+    // Merge into existing profile
+    const merged: CustomerProfile = currentProfile
+      ? { ...currentProfile }
+      : { clientState, notes: "", updatedAt: Date.now() };
+
+    if (typeof extracted.name === "string" && extracted.name.length > 0) {
+      merged.name = extracted.name;
+    }
+    if (
+      typeof extracted.branchPreference === "string" &&
+      extracted.branchPreference.length > 0
+    ) {
+      merged.branchPreference = extracted.branchPreference;
+    }
+    if (Array.isArray(extracted.injuries) && extracted.injuries.length > 0) {
+      merged.injuries = [
+        ...new Set([
+          ...(merged.injuries ?? []),
+          ...(extracted.injuries as string[]),
+        ]),
+      ];
+    }
+    if (
+      Array.isArray(extracted.classPreferences) &&
+      extracted.classPreferences.length > 0
+    ) {
+      merged.classPreferences = [
+        ...new Set([
+          ...(merged.classPreferences ?? []),
+          ...(extracted.classPreferences as string[]),
+        ]),
+      ];
+    }
+    if (typeof extracted.notes === "string" && extracted.notes.length > 0) {
+      merged.notes = merged.notes
+        ? `${merged.notes}\n${extracted.notes}`
+        : extracted.notes;
+    }
+
+    // Ensure client state is current
+    merged.clientState = clientState;
+
+    await updateProfile(phone, merged);
+
+    log.info(
+      { phone, extractedFields: Object.keys(extracted) },
+      "Profile updated from extraction",
+    );
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    log.error(
+      { err: errorMessage, phone },
+      "Profile extraction failed (fire-and-forget)",
+    );
+  }
 }
