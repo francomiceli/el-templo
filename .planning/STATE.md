@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 63 of 66 (Cash Box) -- 6th of 9 phases in v4.1
-Plan: 1 of 3
-Status: In Progress
-Last activity: 2026-03-18 -- Plan 63-01 complete (schema migration, morosos removal, renewal endpoint)
+Plan: 3 of 3
+Status: Complete
+Last activity: 2026-03-18 -- Plan 63-03 complete (payment method selector, renewal dialog, Renovar button)
 
 Progress: [██████████] 99%
 
@@ -50,7 +50,7 @@ Progress: [██████████] 99%
 
 **Recent Trend (from v4.0):**
 
-- Last 5 plans: 63-01 (39min), 61-02 (25min), 61-01 (23min), 60-02 (22min), 60-03 (5min)
+- Last 5 plans: 63-03 (4min), 63-01 (39min), 61-02 (25min), 61-01 (23min), 60-02 (22min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -63,6 +63,7 @@ _Updated after each plan completion_
 | Phase 61 P01 | 23min | 2 tasks | 20 files |
 | Phase 61 P02 | 25min | 2 tasks | 17 files |
 | Phase 63 P01 | 39min | 2 tasks | 29 files |
+| Phase 63 P03 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,8 @@ Recent decisions affecting current work:
 - [Phase 63]: Subscription renewal extends existing record (same ID) rather than creating new subscription
 - [Phase 63]: Auto-payment recording on assign/change/renew via PaymentService DI in SubscriptionService
 - [Phase 63]: Morosos/balance/overdue concept fully removed from payments, members, analytics, attendance, booking
+- [Phase 63]: Renewal end date preview computed client-side from subscription duration; actual calculation server-side
+- [Phase 63]: Payment method selector pattern: QSelect with PAYMENT_METHOD_OPTIONS, emit-value, map-options
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T03:06:00Z
-Stopped at: Completed 63-01-PLAN.md
-Resume file: .planning/phases/63-cash-box/63-01-SUMMARY.md
+Last session: 2026-03-18T03:14:41Z
+Stopped at: Completed 63-03-PLAN.md
+Resume file: .planning/phases/63-cash-box/63-03-SUMMARY.md

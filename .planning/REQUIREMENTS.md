@@ -40,8 +40,8 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Cash Box
 
-- [ ] **CASH-02**: System tracks all cash movements organized by payment method (cash, transfer, card)
-- [ ] **CASH-03**: Recepcionista can view cash box summary showing collected vs spent amounts by payment method
+- [x] **CASH-02**: System tracks all cash movements organized by payment method (cash, transfer, card)
+- [x] **CASH-03**: Recepcionista can view cash box summary showing collected vs spent amounts by payment method
 
 ### Payments
 
@@ -133,8 +133,8 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | PAY-02      | Phase 62 | N/A      |
 | PAY-03      | Phase 62 | N/A      |
 | PAY-04      | Phase 62 | N/A      |
-| CASH-02     | Phase 63 | Pending  |
-| CASH-03     | Phase 63 | Pending  |
+| CASH-02     | Phase 63 | Complete |
+| CASH-03     | Phase 63 | Complete |
 | MEMBER-01   | Phase 64 | Pending  |
 | MEMBER-02   | Phase 64 | Pending  |
 | MEMBER-03   | Phase 64 | Pending  |

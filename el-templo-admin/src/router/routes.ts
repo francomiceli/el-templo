@@ -27,9 +27,9 @@ const routes: RouteRecordRaw[] = [
         meta: { allowedRoles: ['admin', 'superadmin'] },
       },
       {
-        path: 'pagos',
-        component: () => import('pages/PagosPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        path: 'caja',
+        component: () => import('pages/CajaPage.vue'),
+        meta: { allowedRoles: ['recepcionista', 'admin', 'superadmin'] },
       },
       { path: 'horarios', component: () => import('pages/HorariosPage.vue') },
       {

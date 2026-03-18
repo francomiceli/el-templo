@@ -91,7 +91,6 @@
         <q-tab name="entrenamiento" label="Entrenamiento" />
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
-        <q-tab name="pagos" label="Pagos" />
         <q-tab name="asistencia" label="Asistencia" />
       </q-tabs>
       <q-separator />
@@ -340,15 +339,6 @@
           />
         </q-tab-panel>
 
-        <!-- Pagos Tab -->
-        <q-tab-panel name="pagos">
-          <MemberPaymentTab
-            :userId="userId"
-            :memberName="memberName"
-            @payment-changed="onPaymentChanged"
-          />
-        </q-tab-panel>
-
         <!-- Asistencia Tab -->
         <q-tab-panel name="asistencia">
           <MemberAttendanceTab :userId="userId" />
@@ -380,7 +370,6 @@ import { useMembersApi } from 'src/composables/useMembersApi';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
-import MemberPaymentTab from 'src/components/MemberPaymentTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import type { MemberProfile, BranchOption } from 'src/types/member';
@@ -596,11 +585,6 @@ async function onMemberSaved() {
 
 async function onSubscriptionChanged() {
   // Refresh member profile in case boarding pass usage changed
-  await loadMemberProfile();
-}
-
-async function onPaymentChanged() {
-  // Refresh member profile in case overdue status changed
   await loadMemberProfile();
 }
 

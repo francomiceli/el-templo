@@ -78,14 +78,6 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-1">
-        <q-toggle
-          v-model="filters.overdue"
-          label="Morosos"
-          color="negative"
-          @update:model-value="onFilterChange"
-        />
-      </div>
       <div class="col-6 col-sm-2 text-right">
         <q-btn
           icon="person_add"
@@ -156,7 +148,6 @@
           >
             {{ displayName(props.row) }}
           </span>
-          <q-badge v-if="props.row.isOverdue" color="negative" label="Deuda" class="q-ml-sm" />
         </q-td>
       </template>
 
@@ -253,7 +244,6 @@ const filters = reactive({
   branchId: null as number | string | null,
   level: null as string | null,
   isActive: true as boolean | null,
-  overdue: false,
 });
 
 const tablePagination = ref({
@@ -548,7 +538,6 @@ async function loadMembers() {
       multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
-      overdue: filters.overdue || undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });

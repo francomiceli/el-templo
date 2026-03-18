@@ -39,9 +39,6 @@
             <q-icon name="people" />
           </q-item-section>
           <q-item-section>Alumnos</q-item-section>
-          <q-item-section side v-if="morososCount > 0">
-            <q-badge color="negative" :label="morososCount" />
-          </q-item-section>
         </q-item>
         <q-item v-if="isAdminRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
@@ -49,11 +46,11 @@
           </q-item-section>
           <q-item-section>Planes</q-item-section>
         </q-item>
-        <q-item v-if="isAdminRole" clickable v-ripple to="/pagos">
+        <q-item v-if="isCajaRole" clickable v-ripple to="/caja">
           <q-item-section avatar>
-            <q-icon name="payments" />
+            <q-icon name="point_of_sale" />
           </q-item-section>
-          <q-item-section>Pagos</q-item-section>
+          <q-item-section>Caja</q-item-section>
         </q-item>
         <q-item clickable v-ripple to="/horarios">
           <q-item-section avatar>
@@ -134,24 +131,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
-import { usePaymentsApi } from 'src/composables/usePaymentsApi';
-import { createLogger } from 'src/utils/logger';
 
-const log = createLogger('AdminLayout');
 const drawer = ref(false);
 const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
-const paymentsApi = usePaymentsApi();
-const morososCount = ref(0);
-let morososInterval: ReturnType<typeof setInterval> | null = null;
 
 const isAdminRole = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role ?? ''));
+const isCajaRole = computed(() =>
+  ['recepcionista', 'admin', 'superadmin'].includes(authStore.user?.role ?? '')
+);
 const isSuperadminRole = computed(() => authStore.user?.role === 'superadmin');
 
 async function handleLogout() {
@@ -159,39 +153,17 @@ async function handleLogout() {
   router.push('/login');
 }
 
-async function fetchMorososCount() {
-  try {
-    const result = await paymentsApi.getMorososCount();
-    morososCount.value = result.count;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error fetching morosos count', { error: message });
-  }
-}
-
-// Fetch pending count, coverage, and morosos on mount
+// Fetch pending count and coverage on mount
 onMounted(() => {
   adminStore.fetchPendingCount();
   adminStore.checkSessionCoverage();
-  fetchMorososCount();
-
-  // Refresh morosos count every 60 seconds
-  morososInterval = setInterval(fetchMorososCount, 60_000);
 });
 
-onUnmounted(() => {
-  if (morososInterval !== null) {
-    clearInterval(morososInterval);
-    morososInterval = null;
-  }
-});
-
-// Refresh pending count and morosos on route change
+// Refresh pending count on route change
 watch(
   () => route.path,
   () => {
     adminStore.fetchPendingCount();
-    fetchMorososCount();
   }
 );
 </script>
