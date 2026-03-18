@@ -1288,7 +1288,7 @@ Plans:
 5. `vue-tsc --noEmit` passes on both admin and member app
 6. Zero remaining "journey" or "Journey" references in any `src/` directory
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
@@ -1319,11 +1319,11 @@ Plans:
 **Execution Order:**
 Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable)
 
-| Phase                                        | Plans Complete | Status   | Completed  |
-| -------------------------------------------- | -------------- | -------- | ---------- |
-| 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
-| 68. Personalizadas Frontend Rename           | 0/2            | Planned  |            |
-| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending  |            |
+| Phase                                        | Plans Complete | Status      | Completed  |
+| -------------------------------------------- | -------------- | ----------- | ---------- |
+| 67. Personalizadas Backend Rename            | 2/2            | Complete    | 2026-03-18 |
+| 68. Personalizadas Frontend Rename           | 1/2            | In Progress |            |
+| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending     |            |
 
 ---
 
