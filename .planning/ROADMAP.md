@@ -1255,7 +1255,7 @@ Ship the existing "Journeys" feature to production as "Clases Personalizadas". T
 **Goal**: All backend references to "journey/journeys" are renamed to "personalizada/personalizadas" — database tables, columns, API module, routes, types, constants, pipeline, and tests
 **Depends on**: None (can start immediately)
 **Requirements**: PERS-01, PERS-02, PERS-03, PERS-04, PERS-05, PERS-06, PERS-07
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1312,11 +1312,11 @@ Plans:
 **Execution Order:**
 Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable)
 
-| Phase                                        | Plans Complete | Status      | Completed |
-| -------------------------------------------- | -------------- | ----------- | --------- |
-| 67. Personalizadas Backend Rename            | 1/2            | In Progress |           |
-| 68. Personalizadas Frontend Rename           | 0/0            | Pending     |           |
-| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending     |           |
+| Phase                                        | Plans Complete | Status   | Completed  |
+| -------------------------------------------- | -------------- | -------- | ---------- |
+| 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
+| 68. Personalizadas Frontend Rename           | 0/0            | Pending  |            |
+| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending  |            |
 
 ---
 
