@@ -29,9 +29,9 @@ export const completedSessions = mysqlTable(
     blocksCompleted: json("blocks_completed").notNull(), // Array of block role strings
     exercisesCompleted: json("exercises_completed"), // Nullable - { "NUCLEUS": [123, 456], ... } maps block role to prescription IDs
 
-    // Journey support: null = general Entrenamiento, non-null = journey type code
-    journeyType: varchar("journey_type", { length: 30 }),
-    // Duration played: 20, 40, or 60 for journey sessions; null for general
+    // Personalizada support: null = general Entrenamiento, non-null = personalizada type code
+    personalizadaType: varchar("personalizada_type", { length: 30 }),
+    // Duration played: 20, 40, or 60 for personalizada sessions; null for general
     duration: int("duration"),
   },
   (table) => [

@@ -197,6 +197,13 @@
       "when": 1773851442000,
       "tag": "0047_role_rename_and_recepcionista",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1773873350000,
+      "tag": "0048_rename_journeys_to_personalizadas",
+      "breakpoints": true
     }
   ]
 }
