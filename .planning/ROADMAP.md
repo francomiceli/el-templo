@@ -1186,7 +1186,7 @@ Plans:
 3. REPORT-03 (debt report) N/A — debt/morosos concept removed in Phase 63
 4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window, with WhatsApp contact
 5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold, with WhatsApp contact
-   **Plans:** 2 plans
+   **Plans:** 1/2 plans executed
 
 Plans:
 
@@ -1224,7 +1224,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
 | 64. Member Management Enhancements  | 3/3            | Complete    | 2026-03-18 |
-| 65. Reports Dashboard               | 0/2            | Not started | -          |
+| 65. Reports Dashboard               | 1/2            | In Progress |            |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
 
 ---

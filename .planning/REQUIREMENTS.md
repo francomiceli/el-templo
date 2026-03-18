@@ -52,11 +52,11 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Reports
 
-- [ ] **REPORT-01**: Dashboard shows access log report with filters (period, member, access status) and Excel export
-- [ ] **REPORT-02**: Dashboard shows charge history report with filters (period, payment method, member, concept) and Excel export
-- [ ] **REPORT-03**: Dashboard shows member debt report listing all members with outstanding balances, contact info, and WhatsApp shortcut
-- [ ] **REPORT-04**: Dashboard shows expiring memberships report (members with expired or soon-to-expire subscriptions within configurable window)
-- [ ] **REPORT-05**: Dashboard shows inactive member report (active subscription but no check-ins within configurable days threshold)
+- [x] **REPORT-01**: Dashboard shows access log report with filters (period, member, access status) and Excel export
+- [x] **REPORT-02**: Dashboard shows charge history report with filters (period, payment method, member, concept) and Excel export
+- [x] **REPORT-03**: Dashboard shows member debt report listing all members with outstanding balances, contact info, and WhatsApp shortcut
+- [x] **REPORT-04**: Dashboard shows expiring memberships report (members with expired or soon-to-expire subscriptions within configurable window)
+- [x] **REPORT-05**: Dashboard shows inactive member report (active subscription but no check-ins within configurable days threshold)
 
 ### Roles & Permissions
 
@@ -138,11 +138,11 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | MEMBER-01   | Phase 64 | Complete |
 | MEMBER-02   | Phase 64 | Complete |
 | MEMBER-03   | Phase 64 | Complete |
-| REPORT-01   | Phase 65 | Pending  |
-| REPORT-02   | Phase 65 | Pending  |
-| REPORT-03   | Phase 65 | Pending  |
-| REPORT-04   | Phase 65 | Pending  |
-| REPORT-05   | Phase 65 | Pending  |
+| REPORT-01   | Phase 65 | Complete |
+| REPORT-02   | Phase 65 | Complete |
+| REPORT-03   | Phase 65 | Complete |
+| REPORT-04   | Phase 65 | Complete |
+| REPORT-05   | Phase 65 | Complete |
 | ROLES-01    | Phase 66 | Pending  |
 | ROLES-02    | Phase 66 | Pending  |
 | ROLES-03    | Phase 66 | Pending  |

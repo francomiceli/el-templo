@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 64 of 66 (Member Management Enhancements) -- 7th of 9 phases in v4.1
-Plan: 2 of 3
+Phase: 65 of 66 (Reports Dashboard) -- 8th of 9 phases in v4.1
+Plan: 1 of 2
 Status: In Progress
-Last activity: 2026-03-18 -- Plan 64-02 complete (plan change proration, preview endpoint, price comparison UI)
+Last activity: 2026-03-18 -- Plan 65-01 complete (reports API with 4 data + 4 export endpoints)
 
 Progress: [██████████] 99%
 
@@ -67,6 +67,7 @@ _Updated after each plan completion_
 | Phase 63 P03 | 4min | 2 tasks | 4 files |
 | Phase 64 P01 | 26min | 2 tasks | 11 files |
 | Phase 64 P03 | 47min | 2 tasks | 8 files |
+| Phase 65 P01 | 7min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,9 @@ Recent decisions affecting current work:
 - [Phase 64]: [Phase 64]: exceljs for server-side Excel export with styled headers; drizzle-kit push replaces raw SQL migration parsing in test setup
 - [Phase 64]: Proration credit uses pricePaid (actual amount paid) not priceRegular; applied via priceOverrideAmount to reuse assignPlan logic
 - [Phase 64]: Preview endpoint pattern: GET /change-plan-preview returns mutation preview before POST confirmation
+- [Phase 65]: Raw SQL for charge history recorder self-join (drizzle lacks multi-alias on same table)
+- [Phase 65]: Export methods reuse query methods with high limit for DRY
+- [Phase 65]: Paginated report pattern: PaginatedResult<T> with rows/total/page/limit
 
 ### Pending Todos
 
@@ -123,6 +127,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T15:02:48.313Z
-Stopped at: Phase 65 context gathered
-Resume file: .planning/phases/65-reports-dashboard/65-CONTEXT.md
+Last session: 2026-03-18T15:21:47Z
+Stopped at: Completed 65-01-PLAN.md
+Resume file: .planning/phases/65-reports-dashboard/65-02-PLAN.md
