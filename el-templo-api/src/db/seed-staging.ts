@@ -77,7 +77,7 @@ async function seedStaging() {
         passwordHash,
         firstName: "Test",
         lastName: "Admin",
-        role: "superadmin",
+        role: "owner",
         level: "spartan",
         branchId: 1,
       },

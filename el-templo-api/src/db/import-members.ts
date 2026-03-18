@@ -749,13 +749,13 @@ async function main(): Promise<void> {
         .select({ id: subscriptionPlans.id, name: subscriptionPlans.name })
         .from(subscriptionPlans);
 
-      // 2. Find superadmin for note authorId
-      const [superadmin] = await db
+      // 2. Find owner for note authorId
+      const [ownerUser] = await db
         .select({ id: users.id })
         .from(users)
-        .where(eq(users.role, "superadmin"))
+        .where(eq(users.role, "owner"))
         .limit(1);
-      const noteAuthorId = superadmin?.id ?? 1;
+      const noteAuthorId = ownerUser?.id ?? 1;
 
       // 3. UPSERT members
       let usersCreated = 0;

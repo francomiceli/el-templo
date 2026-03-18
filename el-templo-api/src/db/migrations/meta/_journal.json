@@ -190,6 +190,13 @@
       "when": 1772776800000,
       "tag": "0026_app_waitlist_labs_inquiries",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1773851442000,
+      "tag": "0047_role_rename_and_recepcionista",
+      "breakpoints": true
     }
   ]
 }

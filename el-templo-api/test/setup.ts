@@ -31,7 +31,7 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
   await conn.query("INSERT INTO spom_config (id, current_week) VALUES (1, 1)");
   const hash = await argon2.hash("adminpass123");
   await conn.query(
-    "INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, level) VALUES ('admin@test.com', ?, 'Test', 'Admin', 'superadmin', 1, 'spartan')",
+    "INSERT INTO users (email, password_hash, first_name, last_name, role, branch_id, level) VALUES ('admin@test.com', ?, 'Test', 'Admin', 'owner', 1, 'spartan')",
     [hash],
   );
 }

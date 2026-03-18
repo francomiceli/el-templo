@@ -46,18 +46,18 @@ async function seed() {
   const defaultPasswordHash = await argon2.hash(SEED_DEFAULT_PASSWORD!);
   const adminPasswordHash = await argon2.hash(SEED_ADMIN_PASSWORD!);
 
-  // Insert superadmin
-  console.log("Creating superadmin...");
+  // Insert owner
+  console.log("Creating owner...");
   await db.insert(users).values({
     email: "admin@eltemplo.com",
     passwordHash: adminPasswordHash,
     firstName: "Super",
     lastName: "Admin",
-    role: "superadmin",
+    role: "owner",
     branchId: branchIds[0], // Centro
     level: "spartan",
   });
-  console.log("✓ Created superadmin (admin@eltemplo.com)");
+  console.log("✓ Created owner (admin@eltemplo.com)");
 
   // Insert coaches (1 per branch)
   console.log("Creating coaches...");
@@ -97,7 +97,7 @@ async function seed() {
   console.log(`
 Summary:
 - 5 branches
-- 1 superadmin (admin@eltemplo.com)
+- 1 owner (admin@eltemplo.com)
 - 5 coaches (coach1-5@eltemplo.com)
 - 20 members (member1-20@eltemplo.com)
 
