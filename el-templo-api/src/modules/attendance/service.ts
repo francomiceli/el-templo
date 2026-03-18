@@ -100,9 +100,26 @@ export class AttendanceService {
       throw new BadRequestError("Agotaste tus clases del periodo");
     }
 
-    // Find today's booking within the check-in time window (±20 min of class start)
+    // One check-in per day
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
+
+    const [existingToday] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+        ),
+      )
+      .limit(1);
+
+    if (existingToday) {
+      throw new BadRequestError("Ya registraste asistencia hoy");
+    }
+
+    // Find today's booking within the check-in time window (±20 min of class start)
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const windowMinutes = 20;
 
@@ -152,22 +169,6 @@ export class AttendanceService {
       throw new BadRequestError(
         "No tenes una clase reservada para hoy en esta sede",
       );
-    }
-
-    // One check-in per day
-    const [existingToday] = await this.db
-      .select({ id: schema.attendance.id })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
-        ),
-      )
-      .limit(1);
-
-    if (existingToday) {
-      throw new BadRequestError("Ya registraste asistencia hoy");
     }
 
     // Insert attendance record linked to the specific class
