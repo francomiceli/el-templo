@@ -908,7 +908,8 @@ export class SubscriptionService {
     input.priceOverrideAmount = netAmount;
     input.priceOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
 
-    // Cancel existing subscription
+    // Cancel existing subscription, then assign new plan.
+    // If assignPlan fails, restore the old subscription so the member isn't left without one.
     await this.db
       .update(schema.subscriptions)
       .set({
@@ -920,7 +921,23 @@ export class SubscriptionService {
       })
       .where(eq(schema.subscriptions.id, existingSub.id));
 
-    // Cancel future bookings for the old subscription
+    let newSub: SubscriptionDetail;
+    try {
+      newSub = await this.assignPlan(userId, input, adminId);
+    } catch (err) {
+      // Restore old subscription on failure
+      await this.db
+        .update(schema.subscriptions)
+        .set({
+          status: existingSub.status as "active" | "paused",
+          cancelledAt: null,
+          notes: existingSub.notes,
+        })
+        .where(eq(schema.subscriptions.id, existingSub.id));
+      throw err;
+    }
+
+    // Cancel future bookings for the old subscription (after new one is confirmed)
     if (this.bookingService) {
       await this.bookingService.cancelFutureBookings(existingSub.id);
     }
@@ -935,9 +952,6 @@ export class SubscriptionService {
       },
       "Subscription cancelled for plan change",
     );
-
-    // Assign new plan (reuses all pricing/budget/scheduleIds logic)
-    const newSub = await this.assignPlan(userId, input, adminId);
 
     this.log.info(
       {
