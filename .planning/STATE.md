@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: completed
-stopped_at: Completed 68-02-PLAN.md (Phase 68 complete)
-last_updated: "2026-03-18T23:29:16.067Z"
+stopped_at: Phase 69 context gathered
+last_updated: "2026-03-18T23:50:51.765Z"
 last_activity: 2026-03-18 -- Plan 68-02 complete (member app personalizada rename)
 progress:
   total_phases: 40
@@ -144,6 +144,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T23:23:50.458Z
-Stopped at: Completed 68-02-PLAN.md (Phase 68 complete)
-Resume file: None
+Last session: 2026-03-18T23:50:51.760Z
+Stopped at: Phase 69 context gathered
+Resume file: .planning/phases/69-personalizadas-subscription-aura-enable/69-CONTEXT.md
