@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 67-02-PLAN.md
-last_updated: "2026-03-17T17:16:45.000Z"
-last_activity: 2026-03-17 -- Completed Plan 02 of Phase 67 (phase complete)
+stopped_at: Completed 68-01-PLAN.md
+last_updated: "2026-03-18T17:13:01.000Z"
+last_activity: 2026-03-18 -- Completed Plan 01 of Phase 68
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 14
+  total_plans: 4
+  completed_plans: 3
+  percent: 21
 ---
 
 # Project State
@@ -21,28 +21,29 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 67 -- WhatsApp Cloud API Webhook + Echo Bot
+**Current focus:** Phase 68 -- AI Integration + Info Tools
 
 ## Current Position
 
-Phase: 67 of 73 (WhatsApp Cloud API Webhook + Echo Bot)
-Plan: 2 of 2
-Status: Phase Complete
-Last activity: 2026-03-17 -- Completed Plan 02 of Phase 67
+Phase: 68 of 73 (AI Integration + Info Tools)
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-03-18 -- Completed Plan 01 of Phase 68
 
-Progress: [▓▓░░░░░░░░] 14%
+Progress: [▓▓░░░░░░░░] 21%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 2 (v5.0)
+- Total plans completed: 3 (v5.0)
 
 **By Phase:**
 
 | Phase | Plans | Total  | Avg/Plan |
 | ----- | ----- | ------ | -------- |
 | 67    | 2/2   | 12 min | 6 min    |
+| 68    | 1/2   | 4 min  | 4 min    |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Recent decisions affecting current work:
 - [67-01] MySQL pool exported from db.ts for graceful shutdown
 - [67-02] Raw SQL via drizzle sql template literals to avoid cross-package type conflicts
 - [67-02] Fire-and-forget POST handler with onMessageHandled callback for testability
+- [68-01] Both providers use SDK-native error types for structured error handling
+- [68-01] System prompt uses voseo/tuteo for casual Argentine Spanish tone
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17
-Stopped at: Completed 67-02-PLAN.md (Phase 67 complete)
-Resume file: .planning/phases/67-whatsapp-cloud-api-webhook-echo-bot/67-02-SUMMARY.md
+Last session: 2026-03-18
+Stopped at: Completed 68-01-PLAN.md
+Resume file: .planning/phases/68-ai-integration-info-tools/68-01-SUMMARY.md
