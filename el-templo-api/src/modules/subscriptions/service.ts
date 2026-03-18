@@ -223,6 +223,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -285,6 +286,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -335,6 +337,7 @@ export class SubscriptionService {
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
         createdAt: schema.subscriptions.createdAt,
@@ -545,6 +548,7 @@ export class SubscriptionService {
       priceOverrideAmount,
       priceOverrideReason,
       classesRemaining,
+      classesBudget: classesRemaining,
       notes: input.notes ?? null,
     });
 
@@ -755,8 +759,9 @@ export class SubscriptionService {
     plan: PlanDetail,
   ): ProrationResult {
     if (plan.classesPerWeek !== null) {
-      // Class-based plan
+      // Class-based plan — use stored budget (accounts for renewals)
       const totalBudget =
+        subscription.classesBudget ??
         Math.ceil(plan.durationDays / 7) * plan.classesPerWeek;
       const remaining = subscription.classesRemaining ?? 0;
       const ratio = totalBudget > 0 ? remaining / totalBudget : 0;
@@ -768,7 +773,7 @@ export class SubscriptionService {
       };
     }
 
-    // Unlimited plan — prorate by remaining days
+    // Unlimited plan — prorate by remaining days using actual subscription duration
     const today = new Date().toISOString().split("T")[0];
     const endDate = subscription.endDate;
     if (!endDate) {
@@ -778,18 +783,20 @@ export class SubscriptionService {
         remainingDetail: "0/0 dias",
       };
     }
+    const startMs = new Date(subscription.startDate).getTime();
     const endMs = new Date(endDate).getTime();
     const todayMs = new Date(today).getTime();
+    const totalDays = Math.ceil((endMs - startMs) / (1000 * 60 * 60 * 24));
     const daysRemaining = Math.max(
       0,
       Math.ceil((endMs - todayMs) / (1000 * 60 * 60 * 24)),
     );
-    const ratio = plan.durationDays > 0 ? daysRemaining / plan.durationDays : 0;
+    const ratio = totalDays > 0 ? daysRemaining / totalDays : 0;
     const remainingValue = Math.round(ratio * subscription.pricePaid);
     return {
       remainingValue,
       remainingRatio: ratio,
-      remainingDetail: `${daysRemaining}/${plan.durationDays} dias`,
+      remainingDetail: `${daysRemaining}/${totalDays} dias`,
     };
   }
 
@@ -1000,19 +1007,25 @@ export class SubscriptionService {
     newEnd.setDate(newEnd.getDate() + plan.durationDays);
     const newEndDate = newEnd.toISOString().split("T")[0];
 
-    // Recalculate budget (classes remaining)
-    const classesRemaining =
+    // Add one period's worth of classes to existing budget and remaining
+    const periodBudget =
       plan.classesPerWeek !== null
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Update subscription: extend endDate, set status active, reset budget, clear paused/cancelled fields
+    // Update subscription: extend endDate, accumulate budget, update pricePaid
     await this.db
       .update(schema.subscriptions)
       .set({
         endDate: newEndDate,
         status: "active",
-        classesRemaining,
+        ...(periodBudget !== null
+          ? {
+              classesRemaining: sql`${schema.subscriptions.classesRemaining} + ${periodBudget}`,
+              classesBudget: sql`${schema.subscriptions.classesBudget} + ${periodBudget}`,
+            }
+          : {}),
+        pricePaid: sql`${schema.subscriptions.pricePaid} + ${currentSub.pricePaid}`,
         pausedAt: null,
         resumedAt: null,
         cancelledAt: null,
@@ -1385,6 +1398,7 @@ export class SubscriptionService {
 
     return {
       classesRemaining: sub.classesRemaining,
+      classesBudget: sub.classesBudget,
       classesUsedThisWeek,
       weeklyLimit: plan.classesPerWeek,
       bookingMode: plan.bookingMode,
@@ -1472,6 +1486,7 @@ export class SubscriptionService {
     resumedAt: Date | null;
     cancelledAt: Date | null;
     classesRemaining: number | null;
+    classesBudget: number | null;
     replacementCredits: number | null;
     notes: string | null;
     createdAt: Date;
@@ -1499,6 +1514,7 @@ export class SubscriptionService {
       resumedAt: row.resumedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       classesRemaining: row.classesRemaining,
+      classesBudget: row.classesBudget,
       replacementCredits: row.replacementCredits ?? 0,
       scheduleIds: [], // populated by enrichWithScheduleIds
       notes: row.notes,

@@ -63,6 +63,7 @@ export const subscriptions = mysqlTable(
     cancelledAt: timestamp("cancelled_at"),
     notes: text("notes"),
     classesRemaining: int("classes_remaining"),
+    classesBudget: int("classes_budget"),
     replacementCredits: int("replacement_credits").default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

@@ -121,6 +121,7 @@ export interface SubscriptionDetail {
   resumedAt: string | null;
   cancelledAt: string | null;
   classesRemaining: number | null;
+  classesBudget: number | null;
   replacementCredits: number;
   scheduleIds: number[];
   notes: string | null;
@@ -142,6 +143,7 @@ export interface ScheduleSlotInfo {
 
 export interface ClassUsageInfo {
   classesRemaining: number | null;
+  classesBudget: number | null;
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   bookingMode: BookingMode;

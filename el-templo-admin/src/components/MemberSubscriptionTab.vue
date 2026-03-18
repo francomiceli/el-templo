@@ -55,7 +55,9 @@
               <div class="text-caption text-grey-7">Clases restantes</div>
               <div>
                 {{
-                  classUsage.classesRemaining !== null ? classUsage.classesRemaining : 'Sin limite'
+                  classUsage.classesRemaining !== null
+                    ? `${classUsage.classesRemaining} / ${classUsage.classesBudget}`
+                    : 'Sin limite'
                 }}
               </div>
             </div>

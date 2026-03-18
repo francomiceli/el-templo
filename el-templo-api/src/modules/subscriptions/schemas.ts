@@ -62,6 +62,7 @@ const subscriptionDetailSchema = {
     resumedAt: { type: ["string", "null"] },
     cancelledAt: { type: ["string", "null"] },
     classesRemaining: { type: ["integer", "null"] },
+    classesBudget: { type: ["integer", "null"] },
     replacementCredits: { type: "integer" },
     scheduleIds: { type: "array", items: { type: "integer" } },
     notes: { type: ["string", "null"] },
@@ -457,6 +458,7 @@ export const classUsageSchema = {
       type: "object",
       properties: {
         classesRemaining: { type: ["integer", "null"] },
+        classesBudget: { type: ["integer", "null"] },
         classesUsedThisWeek: { type: "integer" },
         weeklyLimit: { type: ["integer", "null"] },
         bookingMode: { type: "string" },

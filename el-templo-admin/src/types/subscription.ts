@@ -142,6 +142,7 @@ export interface SubscriptionDetail {
   priceOverrideAmount: number | null;
   priceOverrideReason: string | null;
   classesRemaining: number | null;
+  classesBudget: number | null;
   scheduleIds: number[];
   replacementCredits: number;
   pausedAt: string | null;
@@ -215,6 +216,7 @@ export interface ScheduleSlotInfo {
 
 export interface ClassUsageInfo {
   classesRemaining: number | null;
+  classesBudget: number | null;
   classesUsedThisWeek: number;
   weeklyLimit: number | null;
   scheduleIds: number[];
