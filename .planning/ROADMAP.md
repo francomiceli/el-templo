@@ -1164,7 +1164,13 @@ Plans:
 1. Admin can upload a member photo via file upload or capture via webcam from the member profile
 2. Admin can change a member's active subscription to a different plan, seeing the price difference calculation before confirming
 3. Admin can export the current filtered member list as an Excel file
-   **Plans**: TBD
+   **Plans:** 3 plans
+
+Plans:
+
+- [ ] 64-01-PLAN.md — Member photo upload (R2 migration, presigned URL endpoint, webcam/file upload component)
+- [ ] 64-02-PLAN.md — Plan change with proration (upgrade/downgrade validation, price comparison preview)
+- [ ] 64-03-PLAN.md — Member Excel export (exceljs backend, download button on AlumnosPage)
 
 ---
 
@@ -1212,7 +1218,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 61. QR Access Control               | 2/3            | In Progress |            |
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
-| 64. Member Management Enhancements  | 0/?            | Not started | -          |
+| 64. Member Management Enhancements  | 0/3            | Not started | -          |
 | 65. Reports Dashboard               | 0/?            | Not started | -          |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
 
