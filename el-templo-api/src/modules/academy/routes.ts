@@ -14,7 +14,7 @@ interface InquireBody {
   mensaje?: string;
 }
 
-const ADMIN_ROLES = ["admin", "superadmin"];
+import { OWNER_ROLES } from "../shared/permissions";
 
 const inquireSchema = {
   body: {
@@ -101,7 +101,7 @@ export const academyRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===========================================================================
-  // Admin routes (admin/superadmin only)
+  // Admin routes (owner only)
   // ===========================================================================
 
   // GET /admin/inquiries — list all academy inquiries
@@ -109,7 +109,7 @@ export const academyRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/inquiries",
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });

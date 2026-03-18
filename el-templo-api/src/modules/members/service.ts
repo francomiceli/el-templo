@@ -627,10 +627,10 @@ export class MemberService {
 
   /**
    * Check if a user can edit/delete a note.
-   * Authors can edit their own notes; admin/superadmin can edit/delete any.
+   * Authors can edit their own notes; admin/owner can edit/delete any.
    */
   canEditNote(noteAuthorId: number, userId: number, userRole: string): boolean {
-    if (userRole === "admin" || userRole === "superadmin") return true;
+    if (userRole === "admin" || userRole === "owner") return true;
     return noteAuthorId === userId;
   }
 }

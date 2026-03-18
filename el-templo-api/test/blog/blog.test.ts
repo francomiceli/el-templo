@@ -191,7 +191,7 @@ describe("Blog Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // Admin routes — CRUD (admin/superadmin only)
+  // Admin routes — CRUD (owner only)
   // ---------------------------------------------------------------
   describe("Admin CRUD routes", () => {
     it("POST /api/blog/admin/posts creates a draft post and returns 201", async () => {

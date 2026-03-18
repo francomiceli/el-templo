@@ -46,7 +46,7 @@ import {
 } from "./schemas";
 import type { DayOfWeek } from "./types";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { COACH_ROLES } from "../shared/permissions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)
@@ -83,7 +83,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",

@@ -6,7 +6,7 @@ import { franchiseApplications } from "../../src/db/schema/franchise-application
 
 describe("Franchise Admin Routes", () => {
   let app: FastifyInstance;
-  let superadminToken: string;
+  let ownerToken: string;
   let memberToken: string;
 
   const TEST_EMAIL_PREFIX = "fran-admin-test";
@@ -45,8 +45,8 @@ describe("Franchise Admin Routes", () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    // admin@test.com is seeded as superadmin in globalSetup
-    superadminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+    // admin@test.com is seeded as owner in globalSetup
+    ownerToken = await getAuthToken(app, "admin@test.com", "adminpass123");
     // Register a regular member for role guard tests
     await registerUser(app, {
       email: "fran-admin-member@test.com",
@@ -96,7 +96,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/franchise/admin/applications",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(200);
@@ -133,7 +133,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/franchise/admin/applications?status=contacted",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(200);
@@ -159,7 +159,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/franchise/admin/applications?search=Buenos",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(200);
@@ -183,7 +183,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/franchise/admin/applications?limit=2&page=2",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(200);
@@ -207,7 +207,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(200);
@@ -228,7 +228,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/franchise/admin/applications/99999",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
 
       expect(res.statusCode).toBe(404);
@@ -249,7 +249,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "PATCH",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { status: "contacted" },
       });
 
@@ -266,7 +266,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "PATCH",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { notes: "Llamar manana a las 10hs" },
       });
 
@@ -283,7 +283,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "PATCH",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { status: "negotiating", notes: "En negociacion activa" },
       });
 
@@ -302,7 +302,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "PATCH",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { status: "closed" },
       });
 
@@ -313,7 +313,7 @@ describe("Franchise Admin Routes", () => {
       const res2 = await app.inject({
         method: "PATCH",
         url: `/api/franchise/admin/applications/${id}`,
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { status: "new" },
       });
 
@@ -325,7 +325,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "PATCH",
         url: "/api/franchise/admin/applications/99999",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { status: "contacted" },
       });
 
@@ -350,7 +350,7 @@ describe("Franchise Admin Routes", () => {
         const res = await app.inject({
           method: "POST",
           url: `/api/franchise/admin/applications/${id}/generate`,
-          headers: { authorization: `Bearer ${superadminToken}` },
+          headers: { authorization: `Bearer ${ownerToken}` },
           payload: { agentType: "strategy" },
         });
 
@@ -369,7 +369,7 @@ describe("Franchise Admin Routes", () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/franchise/admin/applications/99999/generate",
-        headers: { authorization: `Bearer ${superadminToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
         payload: { agentType: "strategy" },
       });
 
@@ -422,9 +422,9 @@ describe("Franchise Admin Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // Role guard — 403 for non-superadmin
+  // Role guard — 403 for non-owner
   // ---------------------------------------------------------------
-  describe("Role guard — 403 for non-superadmin", () => {
+  describe("Role guard — 403 for non-owner", () => {
     it("GET /admin/applications returns 403 for member", async () => {
       const res = await app.inject({
         method: "GET",

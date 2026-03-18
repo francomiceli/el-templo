@@ -314,7 +314,7 @@ describe("Auth Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("email", "admin@test.com");
-      expect(body).toHaveProperty("role", "superadmin");
+      expect(body).toHaveProperty("role", "owner");
       expect(body).toHaveProperty("branchId");
     });
   });

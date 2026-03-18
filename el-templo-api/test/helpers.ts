@@ -8,6 +8,7 @@
 
 import { buildApp } from "../src/app";
 import { eq, sql } from "drizzle-orm";
+import argon2 from "argon2";
 import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
 
@@ -139,6 +140,9 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.contractionRules);
   await app.db.delete(schema.weeklyRotator);
 
+  // Layer 5: user management test data
+  // (nothing extra needed; non-admin users are cleaned below)
+
   // Reset user flags and delete non-admin users
   await app.db.update(schema.users).set({ boardingPassUsed: false });
   const testUsers = await app.db
@@ -149,4 +153,34 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
       await app.db.delete(schema.users).where(eq(schema.users.id, u.id));
     }
   }
+}
+
+/**
+ * Create a staff user directly in the database (bypasses API auth).
+ * Returns the created user's ID.
+ */
+export async function createStaffUser(
+  app: FastifyInstance,
+  data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    branchId: number;
+  },
+): Promise<number> {
+  const passwordHash = await argon2.hash(data.password);
+  const [result] = await app.db
+    .insert(schema.users)
+    .values({
+      email: data.email,
+      passwordHash,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role as "coach" | "admin" | "owner" | "recepcionista",
+      branchId: data.branchId,
+    })
+    .$returningId();
+  return result.id;
 }

@@ -40,7 +40,7 @@ interface GenerateAiBody {
 
 // ---------- Role guard ----------
 
-const SUPERADMIN_ROLES = ["superadmin"];
+import { OWNER_ROLES } from "../shared/permissions";
 
 // ---------- JSON Schemas ----------
 
@@ -180,7 +180,7 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===========================================================================
-  // Admin routes (superadmin only)
+  // Admin routes (owner only)
   // ===========================================================================
 
   // GET /admin/applications — List all applications with filters
@@ -188,10 +188,8 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/applications",
     { preHandler: [fastify.authenticate], schema: listApplicationsSchema },
     async (request, reply) => {
-      if (!SUPERADMIN_ROLES.includes(request.user.role)) {
-        return reply
-          .status(403)
-          .send({ error: "Acceso de superadmin requerido" });
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
       return service.listApplications({
         page: request.query.page,
@@ -209,10 +207,8 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/applications/:id",
     { preHandler: [fastify.authenticate], schema: applicationIdSchema },
     async (request, reply) => {
-      if (!SUPERADMIN_ROLES.includes(request.user.role)) {
-        return reply
-          .status(403)
-          .send({ error: "Acceso de superadmin requerido" });
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
       const application = await service.getApplication(request.params.id);
       if (!application) {
@@ -227,10 +223,8 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/applications/:id",
     { preHandler: [fastify.authenticate], schema: updateApplicationSchema },
     async (request, reply) => {
-      if (!SUPERADMIN_ROLES.includes(request.user.role)) {
-        return reply
-          .status(403)
-          .send({ error: "Acceso de superadmin requerido" });
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
       const updated = await service.updateApplication(
         request.params.id,
@@ -248,19 +242,15 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/applications/:id/generate",
     { preHandler: [fastify.authenticate], schema: generateAiSchema },
     async (request, reply) => {
-      if (!SUPERADMIN_ROLES.includes(request.user.role)) {
-        return reply
-          .status(403)
-          .send({ error: "Acceso de superadmin requerido" });
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.status(403).send({ error: "Acceso de owner requerido" });
       }
 
       // Check ANTHROPIC_API_KEY is configured
       if (!process.env.ANTHROPIC_API_KEY) {
-        return reply
-          .status(503)
-          .send({
-            error: "AI service not configured (ANTHROPIC_API_KEY missing)",
-          });
+        return reply.status(503).send({
+          error: "AI service not configured (ANTHROPIC_API_KEY missing)",
+        });
       }
 
       const application = await service.getApplication(request.params.id);

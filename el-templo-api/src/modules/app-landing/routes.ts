@@ -27,7 +27,7 @@ interface IdParams {
   id: number;
 }
 
-const ADMIN_ROLES = ["admin", "superadmin"];
+import { OWNER_ROLES } from "../shared/permissions";
 
 const waitlistSchema = {
   body: {
@@ -150,7 +150,7 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===========================================================================
-  // Admin routes (admin/superadmin only)
+  // Admin routes (owner only)
   // ===========================================================================
 
   // GET /admin/waitlist — list all waitlist entries
@@ -158,7 +158,7 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/waitlist",
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -172,7 +172,7 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/labs-inquiries",
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -189,7 +189,7 @@ export const appLandingRoutes: FastifyPluginAsync = async (fastify) => {
       schema: statusUpdateSchema,
     },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });

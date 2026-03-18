@@ -33,6 +33,7 @@ import {
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { settingsRoutes } from "./modules/settings";
+import { userRoutes } from "./modules/users";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -150,6 +151,11 @@ export async function buildApp() {
   // Settings routes (system-wide settings: grace period, etc.)
   await app.register(settingsRoutes, {
     prefix: "/api/admin/settings",
+  });
+
+  // User management routes (owner-only staff CRUD)
+  await app.register(userRoutes, {
+    prefix: "/api/admin/users",
   });
 
   // Health check endpoint

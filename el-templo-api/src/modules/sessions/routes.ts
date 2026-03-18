@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from "fastify";
 import { eq, sql, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
+import { ADMIN_ROLES } from "../shared/permissions";
 import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
@@ -292,7 +293,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       // Check admin role
-      if (!["admin", "superadmin"].includes(request.user.role)) {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
         return reply.status(403).send({ error: "Admin access required" });
       }
 

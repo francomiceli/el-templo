@@ -30,7 +30,7 @@ import {
   type GetAdminJourneyMembersInput,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { COACH_ROLES } from "../shared/permissions";
 
 /**
  * Convert a journey DaySession to API response format.
@@ -352,7 +352,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       schema: generateJourneySessionsSchema,
     },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -395,7 +395,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getAdminJourneyMembersSchema,
     },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -504,7 +504,7 @@ export const journeyRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getAdminJourneyMemberDetailSchema,
     },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });

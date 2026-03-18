@@ -4,7 +4,7 @@
  * Admin endpoints for member CRUD, profile management,
  * DNI uniqueness checks, and internal notes.
  *
- * All routes require authentication and coach/admin/superadmin role.
+ * All routes require authentication and coach/admin/owner/recepcionista role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -37,7 +37,7 @@ import {
 } from "./schemas";
 import { Workbook } from "exceljs";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { MEMBER_ROLES } from "../shared/permissions";
 
 /**
  * Check if an error is a MySQL duplicate key error and extract details.
@@ -76,7 +76,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (!(MEMBER_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",

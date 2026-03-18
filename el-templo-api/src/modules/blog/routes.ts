@@ -66,7 +66,7 @@ interface RelatedQuery {
   limit?: number;
 }
 
-const ADMIN_ROLES = ["admin", "superadmin"];
+import { OWNER_ROLES } from "../shared/permissions";
 
 const listPostsSchema = {
   querystring: {
@@ -326,7 +326,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // ===========================================================================
-  // Admin routes (admin/superadmin only)
+  // Admin routes (owner only)
   // ===========================================================================
 
   // GET /admin/posts — all posts with status filter
@@ -334,7 +334,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts",
     { preHandler: [fastify.authenticate], schema: adminListPostsSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -351,7 +351,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts/:id",
     { preHandler: [fastify.authenticate], schema: postIdSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -369,7 +369,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts",
     { preHandler: [fastify.authenticate], schema: createPostSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -384,7 +384,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts/:id",
     { preHandler: [fastify.authenticate], schema: updatePostSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -402,7 +402,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts/:id",
     { preHandler: [fastify.authenticate], schema: postIdSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -417,7 +417,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/upload-image",
     { preHandler: [fastify.authenticate], schema: uploadImageSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -443,7 +443,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/tags",
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -458,7 +458,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/tags",
     { preHandler: [fastify.authenticate], schema: createTagSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -480,7 +480,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/tags/:id",
     { preHandler: [fastify.authenticate], schema: updateTagSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -505,7 +505,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/tags/:id",
     { preHandler: [fastify.authenticate], schema: tagIdSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
@@ -520,7 +520,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
     "/admin/posts/:id/tags",
     { preHandler: [fastify.authenticate], schema: assignTagsSchema },
     async (request, reply) => {
-      if (!ADMIN_ROLES.includes(request.user.role)) {
+      if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });

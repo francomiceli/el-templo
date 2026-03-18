@@ -23,7 +23,7 @@ describe("Gladius Routes", () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    // Get admin token from seeded superadmin user
+    // Get admin token from seeded owner user
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
   });
 
@@ -237,7 +237,7 @@ describe("Gladius Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // Admin routes — CRUD (admin/superadmin only)
+  // Admin routes — CRUD (owner only)
   // ---------------------------------------------------------------
   describe("Admin CRUD routes", () => {
     it("POST /api/gladius/admin/products creates product and returns 201", async () => {

@@ -23,7 +23,7 @@ import {
   removeCheckInSchema,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { ATTENDANCE_ROLES } from "../shared/permissions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/attendance)
@@ -50,7 +50,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (!(ATTENDANCE_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",

@@ -5,7 +5,7 @@
  * and inactive members reports. Each report has a data endpoint and
  * an Excel export endpoint.
  *
- * All endpoints require recepcionista/admin/superadmin role.
+ * All endpoints require recepcionista/admin/owner role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -29,17 +29,17 @@ import {
   inactiveExportSchema,
 } from "./schemas";
 
-const REPORT_ROLES = ["recepcionista", "admin", "superadmin"];
+import { CAJA_ROLES } from "../shared/permissions";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
 
   /**
-   * Guard: require recepcionista/admin/superadmin role on all routes.
+   * Guard: require recepcionista/admin/owner role on all routes.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!REPORT_ROLES.includes(request.user.role)) {
+    if (!(CAJA_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso requerido",

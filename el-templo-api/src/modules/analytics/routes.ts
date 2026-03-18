@@ -17,7 +17,7 @@ import {
   financialAnalyticsSchema,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { ADMIN_ROLES } from "../shared/permissions";
 
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const analyticsService = new AnalyticsService(fastify.db, fastify.log);
@@ -27,7 +27,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",

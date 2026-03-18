@@ -4,7 +4,7 @@
  * Admin endpoints for payment recording, voiding, member payment
  * history, global payment list, and financial summary.
  *
- * All routes require authentication and coach/admin/superadmin/recepcionista role.
+ * All routes require authentication and coach/admin/owner/recepcionista role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -23,7 +23,7 @@ import {
   financialSummarySchema,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin", "recepcionista"];
+import { PAYMENT_ROLES } from "../shared/permissions";
 
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   const paymentService = new PaymentService(fastify.db, fastify.log);
@@ -33,7 +33,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (!(PAYMENT_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",

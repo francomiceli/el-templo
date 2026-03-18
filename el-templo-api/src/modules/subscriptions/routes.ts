@@ -4,7 +4,7 @@
  * Admin endpoints for subscription plans CRUD and subscription lifecycle
  * management (assign, pause, resume, cancel, pricing preview).
  *
- * All routes require authentication and coach/admin/superadmin role.
+ * All routes require authentication and coach/admin/owner role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -42,7 +42,7 @@ import {
   pricingPreviewSchema,
 } from "./schemas";
 
-const ADMIN_ROLES = ["coach", "admin", "superadmin"];
+import { SUBSCRIPTION_ROLES } from "../shared/permissions";
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -66,7 +66,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!ADMIN_ROLES.includes(request.user.role)) {
+    if (
+      !(SUBSCRIPTION_ROLES as readonly string[]).includes(request.user.role)
+    ) {
       return reply.code(403).send({
         error: "Forbidden",
         message: "Acceso de administrador requerido",
