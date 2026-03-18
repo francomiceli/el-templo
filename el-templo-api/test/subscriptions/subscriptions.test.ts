@@ -133,6 +133,7 @@ describe("Subscriptions API", () => {
         branchId: 1,
         startDate: "2026-03-01",
         priceTypeApplied: "regular",
+        paymentMethod: "cash",
         ...overrides,
       },
     });

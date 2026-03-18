@@ -167,6 +167,7 @@ describe("Attendance API", () => {
         branchId: testBranchId,
         startDate: "2026-03-01",
         priceTypeApplied: "regular",
+        paymentMethod: "cash",
         ...overrides,
       },
     });

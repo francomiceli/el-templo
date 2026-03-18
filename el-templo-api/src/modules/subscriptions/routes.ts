@@ -16,6 +16,7 @@ import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
   AssignPlanInput,
+  RenewSubscriptionInput,
   BulkMigrateInput,
   CreatePlanInput,
   UpdatePlanInput,
@@ -32,6 +33,7 @@ import {
   getMemberSubscriptionHistorySchema,
   assignPlanSchema,
   changePlanSchema,
+  renewSubscriptionSchema,
   pauseSubscriptionSchema,
   resumeSubscriptionSchema,
   cancelSubscriptionSchema,
@@ -48,6 +50,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.db,
     fastify.log,
     auraService,
+    paymentService,
   );
   const bookingService = new BookingService(
     fastify.db,
@@ -288,6 +291,27 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return sub;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "cancel subscription");
+      }
+    },
+  );
+
+  // POST /members/:userId/subscription/renew — Renew subscription
+  fastify.post<{
+    Params: { userId: number };
+    Body: RenewSubscriptionInput;
+  }>(
+    "/members/:userId/subscription/renew",
+    { schema: renewSubscriptionSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.renewSubscription(
+          request.params.userId,
+          request.body,
+          request.user.userId,
+        );
+        return sub;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "renew subscription");
       }
     },
   );

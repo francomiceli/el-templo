@@ -23,6 +23,7 @@ import type {
   UpdatePlanInput,
   SubscriptionDetail,
   AssignPlanInput,
+  RenewSubscriptionInput,
   PricingPreview,
   BulkMigrateInput,
   BulkMigrateResult,
@@ -33,6 +34,7 @@ import type {
   SubscriptionStatus,
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
+import type { PaymentService } from "../payments/service";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -45,6 +47,7 @@ export class SubscriptionService {
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
+    private paymentService?: PaymentService,
   ) {}
 
   /**
@@ -587,6 +590,21 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
+    // Auto-record payment for the subscription
+    if (this.paymentService && pricePaid > 0) {
+      await this.paymentService.recordPayment(
+        {
+          memberId: userId,
+          subscriptionId,
+          amount: pricePaid,
+          paymentMethod: input.paymentMethod,
+          paymentDate: input.startDate,
+          notes: input.notes ?? null,
+        },
+        adminId,
+      );
+    }
+
     this.log.info(
       {
         userId,
@@ -775,6 +793,136 @@ export class SubscriptionService {
     );
 
     return newSub;
+  }
+
+  /**
+   * Renew an existing subscription (active or expired).
+   * Extends endDate by plan's durationDays, resets budget, records payment.
+   * For fixed plans, regenerates bookings for the extended period.
+   */
+  async renewSubscription(
+    userId: number,
+    input: RenewSubscriptionInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    // Find current subscription (active or expired)
+    const [currentSub] = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        planId: schema.subscriptions.planId,
+        branchId: schema.subscriptions.branchId,
+        status: schema.subscriptions.status,
+        endDate: schema.subscriptions.endDate,
+        pricePaid: schema.subscriptions.pricePaid,
+        priceTypeApplied: schema.subscriptions.priceTypeApplied,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "expired"),
+          ),
+        ),
+      )
+      .orderBy(desc(schema.subscriptions.createdAt))
+      .limit(1);
+
+    if (!currentSub) {
+      throw new NotFoundError("No se encontro suscripcion para renovar");
+    }
+
+    // Get the plan to know durationDays
+    const plan = await this.getPlanById(currentSub.planId);
+    if (!plan) {
+      throw new NotFoundError("Plan no encontrado");
+    }
+
+    // Calculate new endDate: extend from current endDate (or today if expired)
+    const today = new Date().toISOString().split("T")[0];
+    const baseDate =
+      currentSub.endDate && currentSub.endDate >= today
+        ? currentSub.endDate
+        : today;
+    const newEnd = new Date(baseDate);
+    newEnd.setDate(newEnd.getDate() + plan.durationDays);
+    const newEndDate = newEnd.toISOString().split("T")[0];
+
+    // Recalculate budget (classes remaining)
+    const classesRemaining =
+      plan.classesPerWeek !== null
+        ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
+        : null;
+
+    // Update subscription: extend endDate, set status active, reset budget, clear paused/cancelled fields
+    await this.db
+      .update(schema.subscriptions)
+      .set({
+        endDate: newEndDate,
+        status: "active",
+        classesRemaining,
+        pausedAt: null,
+        resumedAt: null,
+        cancelledAt: null,
+      })
+      .where(eq(schema.subscriptions.id, currentSub.id));
+
+    // For fixed plans, regenerate bookings for the extended period
+    if (plan.bookingMode === "fixed" && this.bookingService) {
+      // Get existing schedule slot assignments
+      const scheduleRows = await this.db
+        .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+        .from(schema.subscriptionSchedules)
+        .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
+
+      const scheduleIds = scheduleRows.map((r) => r.scheduleId);
+      if (scheduleIds.length > 0) {
+        const bookingResult = await this.bookingService.generateFixedBookings(
+          currentSub.id,
+          userId,
+          scheduleIds,
+          baseDate,
+          newEndDate,
+          currentSub.branchId,
+        );
+        if (bookingResult.holidaysSkipped > 0) {
+          // Add replacement credits
+          await this.db
+            .update(schema.subscriptions)
+            .set({
+              replacementCredits: sql`${schema.subscriptions.replacementCredits} + ${bookingResult.holidaysSkipped}`,
+            })
+            .where(eq(schema.subscriptions.id, currentSub.id));
+        }
+      }
+    }
+
+    // Record payment for the renewal
+    if (this.paymentService && currentSub.pricePaid > 0) {
+      await this.paymentService.recordPayment(
+        {
+          memberId: userId,
+          subscriptionId: currentSub.id,
+          amount: currentSub.pricePaid,
+          paymentMethod: input.paymentMethod,
+          paymentDate: today,
+        },
+        adminId,
+      );
+    }
+
+    const updated = await this.getSubscriptionById(currentSub.id);
+    if (!updated) {
+      throw new Error("Failed to retrieve renewed subscription");
+    }
+
+    this.log.info(
+      { userId, subscriptionId: currentSub.id, newEndDate, adminId },
+      "Subscription renewed",
+    );
+
+    return updated;
   }
 
   // ─── Bulk Migration ──────────────────────────────────────────────────────

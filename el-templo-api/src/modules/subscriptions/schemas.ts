@@ -259,7 +259,13 @@ export const assignPlanSchema = {
   },
   body: {
     type: "object",
-    required: ["planId", "branchId", "startDate", "priceTypeApplied"],
+    required: [
+      "planId",
+      "branchId",
+      "startDate",
+      "priceTypeApplied",
+      "paymentMethod",
+    ],
     properties: {
       planId: { type: "integer" },
       branchId: { type: "integer" },
@@ -268,6 +274,7 @@ export const assignPlanSchema = {
         type: "string",
         enum: ["regular", "zero", "credit_card"],
       },
+      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
@@ -294,7 +301,13 @@ export const changePlanSchema = {
   },
   body: {
     type: "object",
-    required: ["planId", "branchId", "startDate", "priceTypeApplied"],
+    required: [
+      "planId",
+      "branchId",
+      "startDate",
+      "priceTypeApplied",
+      "paymentMethod",
+    ],
     properties: {
       planId: { type: "integer" },
       branchId: { type: "integer" },
@@ -303,6 +316,7 @@ export const changePlanSchema = {
         type: "string",
         enum: ["regular", "zero", "credit_card"],
       },
+      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
@@ -313,6 +327,29 @@ export const changePlanSchema = {
   },
   response: {
     201: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+};
+
+export const renewSubscriptionSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["paymentMethod"],
+    properties: {
+      paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,

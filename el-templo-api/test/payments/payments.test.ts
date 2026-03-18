@@ -135,6 +135,7 @@ describe("Payments API", () => {
         branchId: 1,
         startDate: "2026-03-01",
         priceTypeApplied: "regular",
+        paymentMethod: "cash",
         ...overrides,
       },
     });
@@ -338,12 +339,9 @@ describe("Payments API", () => {
       const plan = await createPlan();
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
+      // assignPlan auto-records 1 payment on startDate (2026-03-01)
 
-      // Record two payments on different dates
-      await recordPayment(member.id, sub.id as number, {
-        amount: 5000,
-        paymentDate: "2026-03-01",
-      });
+      // Record an additional payment on a later date
       const { body: payment2 } = await recordPayment(
         member.id,
         sub.id as number,
@@ -353,7 +351,7 @@ describe("Payments API", () => {
         },
       );
 
-      // Void the second payment
+      // Void the later payment
       await app.inject({
         method: "POST",
         url: `${PAYMENTS_URL}/payments/${payment2.id}/void`,
@@ -369,6 +367,7 @@ describe("Payments API", () => {
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
+      // 1 auto from assign + 1 manual = 2 total
       expect(body.payments).toHaveLength(2);
       // Most recent first
       expect(body.payments[0].paymentDate).toBe("2026-03-15");
@@ -390,17 +389,14 @@ describe("Payments API", () => {
       const plan = await createPlan();
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
+      // assignPlan auto-records 1 payment
 
       const { body: p1 } = await recordPayment(member.id, sub.id as number, {
         amount: 5000,
-        paymentDate: "2026-03-01",
-      });
-      await recordPayment(member.id, sub.id as number, {
-        amount: 10000,
         paymentDate: "2026-03-02",
       });
 
-      // Void the first payment
+      // Void the manually recorded payment
       await app.inject({
         method: "POST",
         url: `${PAYMENTS_URL}/payments/${p1.id}/void`,
@@ -416,40 +412,36 @@ describe("Payments API", () => {
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      // Only 1 non-voided payment should appear
+      // 1 auto from assign (non-voided) + 1 manual (voided) = 1 visible
       expect(body.payments).toHaveLength(1);
       expect(body.total).toBe(1);
       expect(body.page).toBe(1);
       expect(body.limit).toBe(10);
     });
 
-    it("GET filters by branch, payment method, and date range", async () => {
+    it("GET filters by payment method and date range", async () => {
       const plan = await createPlan();
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
+      // assignPlan auto-records 1 cash payment on 2026-03-01
 
-      await recordPayment(member.id, sub.id as number, {
-        amount: 5000,
-        paymentMethod: "cash",
-        paymentDate: "2026-03-01",
-      });
       await recordPayment(member.id, sub.id as number, {
         amount: 10000,
         paymentMethod: "transfer",
         paymentDate: "2026-04-01",
       });
 
-      // Filter by method
+      // Filter by method: transfer should return 1
       const resByMethod = await app.inject({
         method: "GET",
-        url: `${PAYMENTS_URL}/payments?paymentMethod=cash`,
+        url: `${PAYMENTS_URL}/payments?paymentMethod=transfer`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
       const bodyByMethod = JSON.parse(resByMethod.body);
       expect(bodyByMethod.payments).toHaveLength(1);
-      expect(bodyByMethod.payments[0].paymentMethod).toBe("cash");
+      expect(bodyByMethod.payments[0].paymentMethod).toBe("transfer");
 
-      // Filter by date range
+      // Filter by date range (April only)
       const resByDate = await app.inject({
         method: "GET",
         url: `${PAYMENTS_URL}/payments?dateFrom=2026-04-01&dateTo=2026-04-30`,
@@ -459,7 +451,7 @@ describe("Payments API", () => {
       expect(bodyByDate.payments).toHaveLength(1);
       expect(bodyByDate.payments[0].amount).toBe(10000);
 
-      // Filter by branch
+      // Filter by branch: should return all 2 payments (1 auto + 1 manual)
       const resByBranch = await app.inject({
         method: "GET",
         url: `${PAYMENTS_URL}/payments?branchId=1`,
@@ -535,6 +527,97 @@ describe("Payments API", () => {
       for (const m of body.members) {
         expect(m).not.toHaveProperty("isOverdue");
       }
+    });
+  });
+
+  // =========================================================================
+  // Subscription Renewal
+  // =========================================================================
+  describe("Subscription Renewal", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("POST renew active subscription extends endDate and records payment", async () => {
+      const plan = await createPlan({ durationDays: 30 });
+      const member = await createMember();
+      const sub = await assignPlan(member.id, plan.id, {
+        startDate: "2026-03-01",
+      });
+
+      // Renew the subscription
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("active");
+      // Original endDate was 2026-03-31. Since it's still in the future relative to
+      // when the test runs, the new endDate should be 2026-03-31 + 30 = 2026-04-30
+      expect(body.endDate).toBe("2026-04-30");
+
+      // Verify a payment was created for the renewal
+      const paymentsRes = await app.inject({
+        method: "GET",
+        url: `${PAYMENTS_URL}/members/${member.id}/payments`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const paymentsBody = JSON.parse(paymentsRes.body);
+      // assignPlan auto-records one payment, renew records another = 2 total
+      expect(paymentsBody.payments.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("POST renew expired subscription extends from today and sets active", async () => {
+      const plan = await createPlan({ durationDays: 30 });
+      const member = await createMember({
+        email: "renew-expired@test.com",
+        dni: "80000300",
+      });
+      const sub = await assignPlan(member.id, plan.id, {
+        startDate: "2025-01-01",
+      });
+
+      // Force status to expired
+      await app.db
+        .update(subscriptions)
+        .set({ status: "expired" })
+        .where(eq(subscriptions.id, sub.id as number));
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "transfer" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("active");
+      // endDate should be today + 30 days since the subscription was expired
+      const today = new Date();
+      const expected = new Date(today);
+      expected.setDate(expected.getDate() + 30);
+      expect(body.endDate).toBe(expected.toISOString().split("T")[0]);
+    });
+
+    it("POST renew with no subscription returns 404", async () => {
+      const member = await createMember({
+        email: "no-sub-renew@test.com",
+        dni: "80000301",
+      });
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+
+      expect(res.statusCode).toBe(404);
     });
   });
 

@@ -193,6 +193,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               branchId: request.body.branchId,
               startDate: today,
               priceTypeApplied: "regular",
+              paymentMethod: "cash",
             },
             request.user.userId,
           );

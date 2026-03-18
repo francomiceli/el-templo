@@ -138,6 +138,7 @@ describe("Analytics API", () => {
         branchId: testBranchId,
         startDate: today,
         priceTypeApplied: "regular",
+        paymentMethod: "cash",
         ...overrides,
       },
     });
@@ -544,6 +545,8 @@ describe("Analytics API", () => {
         email: "fin-m1@test.com",
         dni: "90000020",
       });
+      // recordPayment auto-creates a plan+subscription (auto-payment of priceRegular=15000)
+      // then records the manual payment of 15000 on top
       await recordPayment(member.id, 15000);
 
       const today = new Date().toISOString().split("T")[0];
@@ -559,7 +562,8 @@ describe("Analytics API", () => {
       const body = JSON.parse(res.body);
       expect(body.revenueTrend).toBeInstanceOf(Array);
       expect(body.revenueTrend.length).toBeGreaterThanOrEqual(1);
-      expect(body.revenueTrend[0].revenue).toBe(15000);
+      // Total: 15000 (auto from assign) + 15000 (manual) = 30000
+      expect(body.revenueTrend[0].revenue).toBe(30000);
     });
 
     it("should return revenueByMethod breakdown", async () => {
@@ -567,7 +571,10 @@ describe("Analytics API", () => {
         email: "fin-m2@test.com",
         dni: "90000021",
       });
+      // First recordPayment creates a plan+sub (auto-payment of 15000 cash)
+      // then records 5000 cash manually
       await recordPayment(member.id, 5000, { paymentMethod: "cash" });
+      // Second recordPayment reuses same sub, records 3000 transfer
       await recordPayment(member.id, 3000, { paymentMethod: "transfer" });
 
       const today = new Date().toISOString().split("T")[0];
@@ -582,7 +589,8 @@ describe("Analytics API", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.revenueByMethod).toBeDefined();
-      expect(body.revenueByMethod.cash).toBe(5000);
+      // cash: 15000 (auto) + 5000 (manual) = 20000
+      expect(body.revenueByMethod.cash).toBe(20000);
       expect(body.revenueByMethod.transfer).toBe(3000);
       expect(body.revenueByMethod.card).toBe(0);
     });

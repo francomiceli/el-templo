@@ -153,6 +153,7 @@ describe("Scheduling API", () => {
         branchId: testBranchId,
         startDate: "2026-03-01",
         priceTypeApplied: "regular",
+        paymentMethod: "cash",
         ...overrides,
       },
     });
@@ -1472,6 +1473,7 @@ describe("Scheduling API", () => {
           branchId: testBranchId,
           startDate: "2026-06-01",
           priceTypeApplied: "regular",
+          paymentMethod: "cash",
           scheduleIds: slotIds,
         },
       });
@@ -1534,6 +1536,7 @@ describe("Scheduling API", () => {
           branchId: testBranchId,
           startDate: "2026-06-01",
           priceTypeApplied: "regular",
+          paymentMethod: "cash",
           scheduleIds: [monResult.id],
         },
       });
@@ -1591,6 +1594,7 @@ describe("Scheduling API", () => {
           branchId: testBranchId,
           startDate: "2026-03-02", // starts in past (we're pinned to Wed Mar 11)
           priceTypeApplied: "regular",
+          paymentMethod: "cash",
           scheduleIds: [monResult.id],
         },
       });

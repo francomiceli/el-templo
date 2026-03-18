@@ -154,12 +154,17 @@ export interface AssignPlanInput {
   branchId: number;
   startDate: string;
   priceTypeApplied: PriceType;
+  paymentMethod: import("../payments/types").PaymentMethod;
   scheduleIds?: number[];
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
   boardingPass?: boolean;
   notes?: string;
+}
+
+export interface RenewSubscriptionInput {
+  paymentMethod: import("../payments/types").PaymentMethod;
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────
