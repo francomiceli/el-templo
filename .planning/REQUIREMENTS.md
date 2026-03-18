@@ -68,7 +68,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 ### Member Management
 
 - [x] **MEMBER-01**: Admin can upload or capture a member photo (webcam or file upload)
-- [ ] **MEMBER-02**: Admin can change a member's active subscription to a different plan with price difference calculation
+- [x] **MEMBER-02**: Admin can change a member's active subscription to a different plan with price difference calculation
 - [x] **MEMBER-03**: Admin can export filtered member list as Excel file
 - [x] **MEMBER-04**: Admin can view and edit member's document type and home address
 
@@ -136,7 +136,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | CASH-02     | Phase 63 | Complete |
 | CASH-03     | Phase 63 | Complete |
 | MEMBER-01   | Phase 64 | Complete |
-| MEMBER-02   | Phase 64 | Pending  |
+| MEMBER-02   | Phase 64 | Complete |
 | MEMBER-03   | Phase 64 | Complete |
 | REPORT-01   | Phase 65 | Pending  |
 | REPORT-02   | Phase 65 | Pending  |

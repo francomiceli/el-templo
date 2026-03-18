@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 64 of 66 (Member Management Enhancements) -- 7th of 9 phases in v4.1
-Plan: 1 of 3
+Plan: 2 of 3
 Status: In Progress
-Last activity: 2026-03-18 -- Plan 64-01 complete (member photo upload, R2 presigned URL, webcam capture)
+Last activity: 2026-03-18 -- Plan 64-02 complete (plan change proration, preview endpoint, price comparison UI)
 
 Progress: [██████████] 99%
 
@@ -110,6 +110,8 @@ Recent decisions affecting current work:
 - [Phase 63]: Morosos/overdue UI fully removed from sidebar, AlumnosPage, AlumnoDetailPage
 - [Phase 64]: Reused blog image presigned URL pattern for member photos (PutObjectCommand + getSignedUrl)
 - [Phase 64]: [Phase 64]: exceljs for server-side Excel export with styled headers; drizzle-kit push replaces raw SQL migration parsing in test setup
+- [Phase 64]: Proration credit uses pricePaid (actual amount paid) not priceRegular; applied via priceOverrideAmount to reuse assignPlan logic
+- [Phase 64]: Preview endpoint pattern: GET /change-plan-preview returns mutation preview before POST confirmation
 
 ### Pending Todos
 
