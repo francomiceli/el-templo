@@ -480,6 +480,60 @@ export const classUsageSchema = {
   },
 };
 
+export const changePlanPreviewSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  querystring: {
+    type: "object",
+    required: ["targetPlanId"],
+    properties: {
+      targetPlanId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        allowed: { type: "boolean" },
+        reason: { type: "string" },
+        currentPlan: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            name: { type: "string" },
+            priceRegular: { type: "integer" },
+            pricePaid: { type: "integer" },
+          },
+        },
+        targetPlan: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            name: { type: "string" },
+            priceRegular: { type: "integer" },
+          },
+        },
+        proration: {
+          type: ["object", "null"],
+          properties: {
+            remainingValue: { type: "integer" },
+            remainingRatio: { type: "number" },
+            remainingDetail: { type: "string" },
+          },
+        },
+        netAmount: { type: ["integer", "null"] },
+        expiryDate: { type: "string" },
+      },
+    },
+    404: errorSchema,
+  },
+};
+
 export const pricingPreviewSchema = {
   params: {
     type: "object",

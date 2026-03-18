@@ -33,6 +33,7 @@ import {
   getMemberSubscriptionHistorySchema,
   assignPlanSchema,
   changePlanSchema,
+  changePlanPreviewSchema,
   renewSubscriptionSchema,
   pauseSubscriptionSchema,
   resumeSubscriptionSchema,
@@ -219,6 +220,26 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
             .send({ error: "Bad Request", message: err.message });
         }
         handleServiceError(err, reply, request.log, "assign subscription");
+      }
+    },
+  );
+
+  // GET /members/:userId/subscription/change-plan-preview — Preview plan change with proration
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { targetPlanId: number };
+  }>(
+    "/members/:userId/subscription/change-plan-preview",
+    { schema: changePlanPreviewSchema },
+    async (request, reply) => {
+      try {
+        const preview = await subscriptionService.getChangePlanPreview(
+          request.params.userId,
+          request.query.targetPlanId,
+        );
+        return preview;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "change plan preview");
       }
     },
   );

@@ -32,6 +32,8 @@ import type {
   BookingMode,
   PriceType,
   SubscriptionStatus,
+  ProrationResult,
+  ChangePlanPreview,
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
@@ -744,8 +746,121 @@ export class SubscriptionService {
   }
 
   /**
+   * Calculate prorated credit for an active subscription.
+   * Class-based plans: ratio of remaining classes to total budget.
+   * Unlimited plans: ratio of remaining days to total duration.
+   */
+  calculateProration(
+    subscription: SubscriptionDetail,
+    plan: PlanDetail,
+  ): ProrationResult {
+    if (plan.classesPerWeek !== null) {
+      // Class-based plan
+      const totalBudget =
+        Math.ceil(plan.durationDays / 7) * plan.classesPerWeek;
+      const remaining = subscription.classesRemaining ?? 0;
+      const ratio = totalBudget > 0 ? remaining / totalBudget : 0;
+      const remainingValue = Math.round(ratio * subscription.pricePaid);
+      return {
+        remainingValue,
+        remainingRatio: ratio,
+        remainingDetail: `${remaining}/${totalBudget} clases`,
+      };
+    }
+
+    // Unlimited plan — prorate by remaining days
+    const today = new Date().toISOString().split("T")[0];
+    const endDate = subscription.endDate;
+    if (!endDate) {
+      return {
+        remainingValue: 0,
+        remainingRatio: 0,
+        remainingDetail: "0/0 dias",
+      };
+    }
+    const endMs = new Date(endDate).getTime();
+    const todayMs = new Date(today).getTime();
+    const daysRemaining = Math.max(
+      0,
+      Math.ceil((endMs - todayMs) / (1000 * 60 * 60 * 24)),
+    );
+    const ratio = plan.durationDays > 0 ? daysRemaining / plan.durationDays : 0;
+    const remainingValue = Math.round(ratio * subscription.pricePaid);
+    return {
+      remainingValue,
+      remainingRatio: ratio,
+      remainingDetail: `${daysRemaining}/${plan.durationDays} dias`,
+    };
+  }
+
+  /**
+   * Preview a plan change for a member: checks upgrade/downgrade,
+   * calculates proration, and returns net amount.
+   */
+  async getChangePlanPreview(
+    userId: number,
+    targetPlanId: number,
+  ): Promise<ChangePlanPreview> {
+    const sub = await this.getMemberSubscription(userId);
+    if (!sub) {
+      throw new NotFoundError("No se encontro suscripcion activa o pausada");
+    }
+
+    const currentPlan = await this.getPlanById(sub.planId);
+    if (!currentPlan) {
+      throw new NotFoundError("Plan actual no encontrado");
+    }
+
+    const targetPlan = await this.getPlanById(targetPlanId);
+    if (!targetPlan) {
+      throw new NotFoundError("Plan destino no encontrado");
+    }
+
+    const currentPlanInfo = {
+      id: currentPlan.id,
+      name: currentPlan.name,
+      priceRegular: currentPlan.priceRegular,
+      pricePaid: sub.pricePaid,
+    };
+    const targetPlanInfo = {
+      id: targetPlan.id,
+      name: targetPlan.name,
+      priceRegular: targetPlan.priceRegular,
+    };
+
+    // Downgrade check: block if target is cheaper
+    if (targetPlan.priceRegular < currentPlan.priceRegular) {
+      return {
+        allowed: false,
+        reason: `No se puede cambiar a un plan de menor precio durante el periodo activo. La suscripcion vence el ${sub.endDate}.`,
+        currentPlan: currentPlanInfo,
+        targetPlan: targetPlanInfo,
+        proration: null,
+        netAmount: null,
+        expiryDate: sub.endDate ?? undefined,
+      };
+    }
+
+    // Upgrade or same price: calculate proration
+    const proration = this.calculateProration(sub, currentPlan);
+    const netAmount = Math.max(
+      0,
+      targetPlan.priceRegular - proration.remainingValue,
+    );
+
+    return {
+      allowed: true,
+      currentPlan: currentPlanInfo,
+      targetPlan: targetPlanInfo,
+      proration,
+      netAmount,
+    };
+  }
+
+  /**
    * Change a member's current plan to a new one.
-   * Cancels the existing subscription and creates a new one atomically.
+   * Validates upgrade/downgrade, applies proration credit, cancels the
+   * existing subscription, and creates a new one atomically.
    */
   async changePlan(
     userId: number,
@@ -756,6 +871,35 @@ export class SubscriptionService {
     if (!existingSub) {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
+
+    // Get current and target plans for upgrade/downgrade validation
+    const currentPlan = await this.getPlanById(existingSub.planId);
+    if (!currentPlan) {
+      throw new NotFoundError("Plan actual no encontrado");
+    }
+
+    const targetPlan = await this.getPlanById(input.planId);
+    if (!targetPlan) {
+      throw new NotFoundError("Plan destino no encontrado");
+    }
+
+    // Block downgrade (target cheaper than current)
+    if (targetPlan.priceRegular < currentPlan.priceRegular) {
+      throw new BadRequestError(
+        "No se puede cambiar a un plan de menor precio durante el periodo activo",
+      );
+    }
+
+    // Calculate proration and apply as price override
+    const proration = this.calculateProration(existingSub, currentPlan);
+    const netAmount = Math.max(
+      0,
+      targetPlan.priceRegular - proration.remainingValue,
+    );
+
+    // Override the input so assignPlan records the correct (prorated) amount
+    input.priceOverrideAmount = netAmount;
+    input.priceOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
 
     // Cancel existing subscription
     await this.db
@@ -775,7 +919,13 @@ export class SubscriptionService {
     }
 
     this.log.info(
-      { userId, oldSubscriptionId: existingSub.id, adminId },
+      {
+        userId,
+        oldSubscriptionId: existingSub.id,
+        adminId,
+        prorationCredit: proration.remainingValue,
+        netAmount,
+      },
       "Subscription cancelled for plan change",
     );
 
@@ -788,6 +938,7 @@ export class SubscriptionService {
         oldPlan: existingSub.planName,
         newPlan: newSub.planName,
         adminId,
+        netAmount,
       },
       "Plan changed successfully",
     );

@@ -167,6 +167,29 @@ export interface RenewSubscriptionInput {
   paymentMethod: import("../payments/types").PaymentMethod;
 }
 
+// ─── Plan Change / Proration Types ─────────────────────────────────────────
+
+export interface ProrationResult {
+  remainingValue: number; // how much credit from old plan (integer pesos)
+  remainingRatio: number; // 0-1 ratio of unused portion
+  remainingDetail: string; // e.g. "6/15 clases" or "15/30 dias"
+}
+
+export interface ChangePlanPreview {
+  allowed: boolean;
+  reason?: string; // only if not allowed (downgrade block message)
+  currentPlan: {
+    id: number;
+    name: string;
+    priceRegular: number;
+    pricePaid: number;
+  };
+  targetPlan: { id: number; name: string; priceRegular: number };
+  proration: ProrationResult | null; // null if not allowed
+  netAmount: number | null; // null if not allowed; new plan priceRegular minus proration credit
+  expiryDate?: string; // only if downgrade blocked -- current subscription endDate
+}
+
 // ─── Pricing Types ──────────────────────────────────────────────────────────
 
 export interface PricingPreview {
