@@ -1046,4 +1046,289 @@ describe("Subscriptions API", () => {
       expect(body.scheduleIds.sort()).toEqual([...slotIds].sort());
     });
   });
+
+  // =========================================================================
+  // Change plan with proration (Phase 64 Plan 02)
+  // =========================================================================
+  describe("Change plan with proration", () => {
+    beforeEach(async () => {
+      await cleanupSubscriptionData();
+    });
+
+    it("upgrade allowed — unlimited plan prorates by remaining days", async () => {
+      // Plan A: unlimited, 30 days, priceRegular=10000
+      const planA = await createPlan({
+        name: "Plan A Unlimited",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      // Plan B: more expensive
+      const planB = await createPlan({
+        name: "Plan B Premium",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 15000,
+        priceZero: 10000,
+      });
+      const member = await createMember();
+
+      // Assign plan A with a start date 15 days in the past
+      const today = new Date();
+      const startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 15);
+      const startDateStr = startDate.toISOString().split("T")[0];
+
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: startDateStr,
+      });
+
+      // Preview: should be allowed with prorated credit
+      const previewRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan-preview?targetPlanId=${planB.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(previewRes.statusCode).toBe(200);
+      const preview = JSON.parse(previewRes.body);
+      expect(preview.allowed).toBe(true);
+      expect(preview.currentPlan.id).toBe(planA.id);
+      expect(preview.currentPlan.pricePaid).toBe(10000);
+      expect(preview.targetPlan.id).toBe(planB.id);
+      expect(preview.targetPlan.priceRegular).toBe(15000);
+      expect(preview.proration).toBeTruthy();
+      expect(preview.proration.remainingValue).toBeGreaterThan(0);
+      expect(preview.proration.remainingDetail).toContain("dias");
+      expect(preview.netAmount).toBeLessThan(15000);
+      expect(preview.netAmount).toBeGreaterThanOrEqual(0);
+    });
+
+    it("upgrade allowed — class-based plan prorates by remaining classes", async () => {
+      // Plan A: class-based, 3 classes/week, 30 days, budget = ceil(30/7)*3 = 15
+      const planA = await createPlan({
+        name: "Plan A Classes",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      // Plan B: more expensive
+      const planB = await createPlan({
+        name: "Plan B Classes Premium",
+        classesPerWeek: 5,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember();
+
+      // Assign plan A
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      // Simulate some classes used: budget is 15, set remaining to 6
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 6 })
+        .where(eq(subscriptions.userId, member.id));
+
+      // Preview
+      const previewRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan-preview?targetPlanId=${planB.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(previewRes.statusCode).toBe(200);
+      const preview = JSON.parse(previewRes.body);
+      expect(preview.allowed).toBe(true);
+      expect(preview.proration).toBeTruthy();
+      // credit = Math.round((6/15) * 8000) = Math.round(3200) = 3200
+      expect(preview.proration.remainingValue).toBe(3200);
+      expect(preview.proration.remainingDetail).toBe("6/15 clases");
+      // net = 12000 - 3200 = 8800
+      expect(preview.netAmount).toBe(8800);
+    });
+
+    it("downgrade blocked — returns allowed=false with expiry date", async () => {
+      // Plan A: expensive
+      const planA = await createPlan({
+        name: "Plan A Expensive",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 15000,
+        priceZero: 10000,
+      });
+      // Plan B: cheaper
+      const planB = await createPlan({
+        name: "Plan B Cheap",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      // Assign expensive plan
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      // Preview downgrade: should be blocked
+      const previewRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan-preview?targetPlanId=${planB.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(previewRes.statusCode).toBe(200);
+      const preview = JSON.parse(previewRes.body);
+      expect(preview.allowed).toBe(false);
+      expect(preview.reason).toContain("menor precio");
+      expect(preview.expiryDate).toBe("2026-07-01");
+      expect(preview.proration).toBeNull();
+      expect(preview.netAmount).toBeNull();
+    });
+
+    it("same price allowed — calculates proration normally", async () => {
+      const planA = await createPlan({
+        name: "Plan A Same",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const planC = await createPlan({
+        name: "Plan C Same Price",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      const previewRes = await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan-preview?targetPlanId=${planC.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(previewRes.statusCode).toBe(200);
+      const preview = JSON.parse(previewRes.body);
+      expect(preview.allowed).toBe(true);
+      expect(preview.proration).toBeTruthy();
+      expect(preview.netAmount).toBeGreaterThanOrEqual(0);
+    });
+
+    it("change-plan POST blocks downgrade with 400", async () => {
+      const planA = await createPlan({
+        name: "Plan Expensive Post",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 15000,
+        priceZero: 10000,
+      });
+      const planB = await createPlan({
+        name: "Plan Cheap Post",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      // Attempt downgrade via POST
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: new Date().toISOString().split("T")[0],
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("menor precio");
+    });
+
+    it("change-plan POST upgrade records payment for net amount", async () => {
+      const planA = await createPlan({
+        name: "Plan A Payment",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan({
+        name: "Plan B Payment",
+        classesPerWeek: 5,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember();
+
+      // Assign plan A
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      // Set remaining classes to 6 (of 15 budget)
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 6 })
+        .where(eq(subscriptions.userId, member.id));
+
+      // Execute upgrade
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: new Date().toISOString().split("T")[0],
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.planId).toBe(planB.id);
+
+      // Verify payment was recorded for the net amount (8800)
+      // credit = round((6/15)*8000) = 3200, net = 12000 - 3200 = 8800
+      const paymentRows = await app.db
+        .select()
+        .from(payments)
+        .where(eq(payments.memberId, member.id));
+      // Two payments: one for original assignment (8000), one for upgrade (8800)
+      const upgradePmt = paymentRows.find((p) => p.amount === 8800);
+      expect(upgradePmt).toBeTruthy();
+      expect(upgradePmt!.paymentMethod).toBe("cash");
+    });
+  });
 });
