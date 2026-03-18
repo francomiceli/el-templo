@@ -281,6 +281,25 @@ export function useMembersApi() {
     return publicUrl;
   }
 
+  // ─── Export ──────────────────────────────────────────────────────────
+
+  async function exportMembers(params?: Omit<MemberListParams, 'page' | 'limit'>): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/members/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando miembros');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -305,6 +324,7 @@ export function useMembersApi() {
     deleteNote,
     getBranches,
     uploadMemberPhoto,
+    exportMembers,
     cleanup,
   };
 }

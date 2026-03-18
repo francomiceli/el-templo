@@ -78,13 +78,18 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2 text-right">
-        <q-btn
-          icon="person_add"
-          label="Crear Alumno"
-          color="primary"
-          @click="showCreateDialog = true"
-        />
+      <div class="col-6 col-sm-3 text-right">
+        <div class="q-gutter-sm">
+          <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
+            <q-tooltip>Exportar a Excel</q-tooltip>
+          </q-btn>
+          <q-btn
+            icon="person_add"
+            label="Crear Alumno"
+            color="primary"
+            @click="showCreateDialog = true"
+          />
+        </div>
       </div>
     </div>
 
@@ -228,6 +233,7 @@ const membersApi = useMembersApi();
 const members = ref<MemberListItem[]>([]);
 const branches = ref<BranchOption[]>([]);
 const loading = ref(false);
+const exporting = ref(false);
 const showCreateDialog = ref(false);
 
 // Selection state
@@ -559,6 +565,39 @@ async function loadMembers() {
 function onFilterChange() {
   tablePagination.value.page = 1;
   loadMembers();
+}
+
+async function onExport() {
+  exporting.value = true;
+  try {
+    const blob = await membersApi.exportMembers({
+      search: filters.search || undefined,
+      branchId:
+        filters.branchId === 'multiBranch'
+          ? undefined
+          : ((filters.branchId as number | undefined) ?? undefined),
+      multiBranch: filters.branchId === 'multiBranch' ? true : undefined,
+      level: filters.level || undefined,
+      isActive: filters.isActive ?? undefined,
+      planId: filters.planId ?? undefined,
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const today = new Date().toISOString().split('T')[0];
+    a.download = `alumnos-${today}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    $q.notify({ type: 'positive', message: 'Exportacion completada' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error exporting members', { error: message });
+    $q.notify({ type: 'negative', message: 'Error al exportar' });
+  } finally {
+    exporting.value = false;
+  }
 }
 
 function onTableRequest(props: { pagination: { page: number; rowsPerPage: number } }) {
