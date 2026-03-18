@@ -7,9 +7,12 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
+  ContentBlockParam,
   MessageParam,
+  TextBlockParam,
   Tool,
   ToolResultBlockParam,
+  ToolUseBlockParam,
 } from "@anthropic-ai/sdk/resources/messages";
 import pino from "pino";
 import type {
@@ -110,21 +113,38 @@ export class AnthropicProvider implements AiProvider {
    * sent as user messages with tool_result content blocks.
    */
   private mapMessages(messages: ChatMessage[]): MessageParam[] {
-    const result: MessageParam[] = [];
+    const raw: MessageParam[] = [];
 
     for (const msg of messages) {
       switch (msg.role) {
         case "user":
-          result.push({ role: "user", content: msg.content });
+          raw.push({ role: "user", content: msg.content });
           break;
 
         case "assistant": {
-          // If the assistant message has associated tool calls, those would have
-          // been tracked via the ToolCall[] in AiResponse. For conversation replay,
-          // we reconstruct assistant messages with tool_use blocks when toolCallId
-          // context is available in subsequent tool result messages.
-          // For plain text assistant messages, map directly.
-          result.push({ role: "assistant", content: msg.content });
+          // Reconstruct tool_use content blocks when the assistant message
+          // triggered tool calls, as Anthropic requires these for valid
+          // multi-turn tool conversations.
+          if (msg.toolCalls && msg.toolCalls.length > 0) {
+            const contentBlocks: (TextBlockParam | ToolUseBlockParam)[] = [];
+
+            if (msg.content) {
+              contentBlocks.push({ type: "text", text: msg.content });
+            }
+
+            for (const tc of msg.toolCalls) {
+              contentBlocks.push({
+                type: "tool_use",
+                id: tc.id,
+                name: tc.name,
+                input: tc.arguments,
+              });
+            }
+
+            raw.push({ role: "assistant", content: contentBlocks });
+          } else {
+            raw.push({ role: "assistant", content: msg.content });
+          }
           break;
         }
 
@@ -136,12 +156,36 @@ export class AnthropicProvider implements AiProvider {
             tool_use_id: msg.toolCallId ?? "",
             content: msg.content,
           };
-          result.push({
+          raw.push({
             role: "user",
             content: [toolResultBlock],
           });
           break;
         }
+      }
+    }
+
+    // Post-processing: merge consecutive user messages with tool_result blocks
+    // into a single user message. Anthropic requires alternating user/assistant
+    // turns, so consecutive tool results must be combined.
+    const result: MessageParam[] = [];
+
+    for (const msg of raw) {
+      const prev = result[result.length - 1];
+
+      if (
+        prev &&
+        prev.role === "user" &&
+        msg.role === "user" &&
+        Array.isArray(prev.content) &&
+        Array.isArray(msg.content)
+      ) {
+        // Merge content blocks into previous user message
+        (prev.content as ContentBlockParam[]).push(
+          ...(msg.content as ContentBlockParam[]),
+        );
+      } else {
+        result.push(msg);
       }
     }
 

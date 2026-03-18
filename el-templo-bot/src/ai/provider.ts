@@ -15,6 +15,7 @@ export interface ChatMessage {
   content: string;
   toolCallId?: string;
   name?: string;
+  toolCalls?: ToolCall[]; // Present on assistant messages that triggered tool calls
 }
 
 export interface ToolDefinition {

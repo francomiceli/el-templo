@@ -189,6 +189,7 @@ async function processWithAi(
     messages.push({
       role: "assistant",
       content: response.content ?? toolCallSummary,
+      toolCalls: response.toolCalls,
     });
 
     // Execute each tool call and append results
@@ -235,10 +236,34 @@ async function processWithAi(
     replyText = response.content ?? FALLBACK_MESSAGE;
   }
 
-  // If human takeover was triggered, the AI should have already composed
-  // a handoff message. Send it and stop.
   // Split response into multiple messages for conversational feel
   const segments = splitMessage(replyText);
+
+  // If human takeover was triggered, only send the first segment (handoff message)
+  // and suppress any additional segments to avoid confusing the user after escalation.
+  if (humanTakeoverTriggered) {
+    const handoffSegment = segments[0];
+    try {
+      const sentWamid = await sendTextMessage(phone, handoffSegment);
+
+      await db.execute(
+        sql`INSERT INTO whatsapp_messages (conversation_id, message_direction, content, wa_message_type, whatsapp_message_id, created_at)
+            VALUES (${conversationId}, 'outbound_bot', ${handoffSegment}, 'text', ${sentWamid}, NOW())`,
+      );
+
+      log.info(
+        { conversationId, sentWamid, suppressedSegments: segments.length - 1 },
+        "Handoff message sent, extra segments suppressed",
+      );
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      log.error(
+        { err: errorMessage, conversationId, phone },
+        "Failed to send handoff message",
+      );
+    }
+    return;
+  }
 
   for (const segment of segments) {
     try {
