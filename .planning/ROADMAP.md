@@ -1031,7 +1031,7 @@ Plans:
 - [x] **Phase 60: Plan Configuration** - Turnos-per-week limits, class-based plans, multi-branch flag, trial flag, grace period, class tracking (completed 2026-03-17)
 - [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
 - [x] **Phase 62: Payment Enhancements** - SKIPPED: Deportnet patterns, not applicable to El Templo's model
-- [ ] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view
+- [x] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view (completed 2026-03-18)
 - [ ] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export
 - [ ] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export
 - [ ] **Phase 66: Roles & Permissions** - Predefined roles (admin, coach, recepcionista, owner) with permission-based UI visibility
@@ -1140,7 +1140,7 @@ Plans:
 **Goal**: CajaPage with per-method revenue summary, integrated payment recording on plan assign/renew, and morosos cleanup
 **Depends on**: Phase 61 (needs subscription/payment infrastructure in place)
 **Requirements**: CASH-02, CASH-03
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 **Success Criteria** (what must be TRUE):
 
 1. All cash movements (income and expenses) are organized and visible by payment method (cash, transfer, card)
@@ -1211,7 +1211,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 60. Plan Configuration              | 3/3            | Complete    | 2026-03-17 |
 | 61. QR Access Control               | 2/3            | In Progress |            |
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
-| 63. Cash Box                        | 2/3            | In Progress |            |
+| 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
 | 64. Member Management Enhancements  | 0/?            | Not started | -          |
 | 65. Reports Dashboard               | 0/?            | Not started | -          |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
