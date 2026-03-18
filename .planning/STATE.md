@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: in-progress
-stopped_at: Completed 66-01-PLAN.md
-last_updated: "2026-03-18T16:41:42.000Z"
-last_activity: 2026-03-18 -- Plan 66-01 complete (backend role system with centralized permissions and user management CRUD)
+stopped_at: Completed 66-02-PLAN.md
+last_updated: "2026-03-18T16:49:36Z"
+last_activity: 2026-03-18 -- Plan 66-02 complete (frontend role enforcement with permission-aware sidebar and UsuariosPage)
 progress:
   total_phases: 37
-  completed_phases: 33
-  total_plans: 114
-  completed_plans: 113
-  percent: 99
+  completed_phases: 34
+  total_plans: 115
+  completed_plans: 115
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 66 of 66 (Roles & Permissions) -- 9th of 9 phases in v4.1
-Plan: 1 of 2
-Status: In Progress
-Last activity: 2026-03-18 -- Plan 66-01 complete (backend role system with centralized permissions and user management CRUD)
+Plan: 2 of 2
+Status: Complete
+Last activity: 2026-03-18 -- Plan 66-02 complete (frontend role enforcement with permission-aware sidebar and UsuariosPage)
 
-Progress: [██████████] 99%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -70,6 +70,7 @@ _Updated after each plan completion_
 | Phase 65 P01 | 7min | 2 tasks | 7 files |
 | Phase 65 P02 | 3min | 2 tasks | 5 files |
 | Phase 66 P01 | 11min | 2 tasks | 38 files |
+| Phase 66 P02 | 4min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,8 @@ Recent decisions affecting current work:
 - [Phase 66]: Centralized role permission registry in shared/permissions.ts; all modules import role groups, never define local arrays
 - [Phase 66]: Owner replaces superadmin throughout API; four-role hierarchy: owner > admin > coach = recepcionista (parallel)
 - [Phase 66]: Cast pattern (ROLES as readonly string[]).includes() for const array TypeScript compatibility
+- [Phase 66]: Permission-aware sidebar with isCoachRole/isAdminRole/isCajaRole/isOwnerRole computed props
+- [Phase 66]: Role-based route redirect: recepcionista -> /alumnos, all others -> /sessions
 
 ### Pending Todos
 
@@ -133,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:41:42.000Z
-Stopped at: Completed 66-01-PLAN.md
-Resume file: .planning/phases/66-roles-permissions/66-02-PLAN.md
+Last session: 2026-03-18T16:49:36Z
+Stopped at: Completed 66-02-PLAN.md
+Resume file: Phase 66 complete
