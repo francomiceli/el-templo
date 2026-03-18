@@ -127,7 +127,7 @@
         @request="handleRequestEvaluation"
       />
 
-      <!-- Journey section hidden from this release -->
+      <!-- Personalizada section hidden from this release -->
     </div>
   </q-page>
 </template>
@@ -141,21 +141,21 @@
  * - Training statistics (sessions, days, streak)
  * - RPE trend chart with average
  * - Evaluation request status and button
- * - Journey progress and archived history
+ * - Personalizada progress and archived history
  *
- * Fetches progression data and journey data on mount.
+ * Fetches progression data and personalizada data on mount.
  */
 import { computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
-// import { useJourneyProgress } from '../composables/useJourneyProgress' // Hidden from this release
+// import { usePersonalizadaProgress } from '../composables/usePersonalizadaProgress' // Hidden from this release
 import { useUserStore } from 'src/stores/useUserStore'
 import LevelDisplay from '../components/LevelDisplay.vue'
 import TrainingStats from '../components/TrainingStats.vue'
 import RpeTrendChart from '../components/RpeTrendChart.vue'
 import EvaluationRequest from '../components/EvaluationRequest.vue'
-// import JourneySection from '../components/JourneySection.vue' // Hidden from this release
+// import PersonalizadaSection from '../components/PersonalizadaSection.vue' // Hidden from this release
 
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()

@@ -7,8 +7,8 @@ import {
   manifest as progressionManifest,
   registerModule as registerProgression,
 } from 'src/modules/progression'
-// Journey module hidden from this release — routes and manifest commented out
-// import { manifest as journeyManifest, registerModule as registerJourney } from 'src/modules/journey'
+// Personalizada module hidden from this release — routes and manifest commented out
+// import { manifest as personalizadaManifest, registerModule as registerPersonalizada } from 'src/modules/personalizada'
 
 // Handle Vite chunk load failures (e.g., after deployment with cleared old chunks)
 if (typeof window !== 'undefined') {
@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
 export const modules = [
   trainingManifest,
   progressionManifest,
-  // journeyManifest, // Hidden from this release
+  // personalizadaManifest, // Hidden from this release
   // Future modules added here:
   // academyManifest,
   // agoraManifest,
@@ -32,7 +32,7 @@ export default boot(({ router }) => {
   // Register all module routes
   registerTraining(router)
   registerProgression(router)
-  // registerJourney(router) // Hidden from this release
+  // registerPersonalizada(router) // Hidden from this release
 
   // Future modules:
   // registerAcademy(router)

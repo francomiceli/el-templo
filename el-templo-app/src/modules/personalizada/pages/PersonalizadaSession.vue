@@ -76,11 +76,11 @@
       <!-- Block Progression View (reused from training) -->
       <BlockProgressionView
         :day-name="dayLabel"
-        :current-block="currentBlock"
+        :playable-blocks="playableBlocks"
+        :active-block-index="activeBlockIndex"
         :completed-blocks="completedBlocks"
         :elapsed-seconds="elapsedSeconds"
-        :current-block-completed-exercises="currentBlockCompletedExercises"
-        :is-session-complete="isSessionComplete"
+        :completed-exercises="allCompletedExercises"
         @back="handleBackNavigation"
         @restart="restartSession"
         @complete-block="onBlockComplete"
@@ -204,12 +204,14 @@ const splashInfo = computed(() => ({
 
 // Bridge player state to sub-components (null-safe accessors)
 const currentBlock = computed(() => player.value?.currentBlock.value ?? null)
+const playableBlocks = computed(() => player.value?.visibleBlocks.value ?? [])
+const activeBlockIndex = computed(() => player.value?.currentBlockIndex.value ?? 0)
 const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
 const isSessionComplete = computed(() => player.value?.isSessionComplete.value ?? false)
-const currentBlockCompletedExercises = computed<number[]>(() => {
-  if (!player.value || !currentBlock.value) return []
-  return player.value.completedExercises.value[currentBlock.value.role] ?? []
+const allCompletedExercises = computed<Record<string, number[]>>(() => {
+  if (!player.value) return {}
+  return player.value.completedExercises.value
 })
 
 // Summary data
