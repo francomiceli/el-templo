@@ -153,23 +153,20 @@ export class AttendanceService {
       );
     }
 
-    // Check this specific booking hasn't already been checked in
-    const [existingAttendance] = await this.db
+    // One check-in per day
+    const [existingToday] = await this.db
       .select({ id: schema.attendance.id })
       .from(schema.attendance)
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
-          eq(schema.attendance.scheduleId, matchingBooking.scheduleId),
           sql`DATE(${schema.attendance.checkedInAt}) = CURDATE()`,
         ),
       )
       .limit(1);
 
-    if (existingAttendance) {
-      throw new BadRequestError(
-        `Ya registraste asistencia para ${matchingBooking.activityName} ${matchingBooking.startTime}`,
-      );
+    if (existingToday) {
+      throw new BadRequestError("Ya registraste asistencia hoy");
     }
 
     // Insert attendance record linked to the specific class
