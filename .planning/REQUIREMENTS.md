@@ -29,8 +29,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 - [x] **MEM-01**: Redis connection (ioredis) with fallback handling
 - [x] **MEM-02**: Session context stores last N messages + conversation facts in Redis (6h TTL), injected into AI context
-- [ ] **MEM-03**: Customer profile persists data across conversations in Redis (90d TTL) — member status, preferences, injury notes
-- [ ] **MEM-04**: Client state machine (LEAD → TRIAL → ACTIVE_MEMBER → INACTIVE_MEMBER → EXPIRED_MEMBER) auto-detected from DB
+- [x] **MEM-03**: Customer profile persists data across conversations in Redis (90d TTL) — member status, preferences, injury notes
+- [x] **MEM-04**: Client state machine (LEAD → TRIAL → ACTIVE_MEMBER → INACTIVE_MEMBER → EXPIRED_MEMBER) auto-detected from DB
 
 ### Proactive Schedulers
 
@@ -90,8 +90,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 | AI-08       | Phase 70 | Pending  |
 | MEM-01      | Phase 69 | Complete |
 | MEM-02      | Phase 69 | Complete |
-| MEM-03      | Phase 69 | Pending  |
-| MEM-04      | Phase 69 | Pending  |
+| MEM-03      | Phase 69 | Complete |
+| MEM-04      | Phase 69 | Complete |
 | SCHED-01    | Phase 71 | Pending  |
 | SCHED-02    | Phase 71 | Pending  |
 | ADMIN-01    | Phase 72 | Pending  |

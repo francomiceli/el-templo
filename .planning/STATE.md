@@ -10,8 +10,8 @@ progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 7
-  completed_plans: 6
-  percent: 35
+  completed_plans: 7
+  percent: 40
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 69 of 73 (Redis Memory Layer + Client State Machine)
-Plan: 1 of 2
-Status: Executing
-Last activity: 2026-03-18 -- Completed Plan 01 of Phase 69
+Plan: 2 of 2
+Status: Phase Complete
+Last activity: 2026-03-18 -- Completed Plan 02 of Phase 69
 
-Progress: [▓▓▓▓░░░░░░] 35%
+Progress: [▓▓▓▓░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 6 (v5.0)
+- Total plans completed: 7 (v5.0)
 
 **By Phase:**
 
@@ -44,7 +44,7 @@ Progress: [▓▓▓▓░░░░░░] 35%
 | ----- | ----- | ------ | -------- |
 | 67    | 2/2   | 12 min | 6 min    |
 | 68    | 3/3   | 14 min | 5 min    |
-| 69    | 1/2   | 4 min  | 4 min    |
+| 69    | 2/2   | 16 min | 8 min    |
 
 ## Accumulated Context
 
@@ -75,6 +75,10 @@ Recent decisions affecting current work:
 - [69-01] Redis session updated before AI call (inbound) and after response (assistant) for full continuity
 - [69-01] Redis session primary context source, MySQL fallback (was primary)
 - [69-01] MySQL fallback query limit updated from 10 to 20 messages to match session window
+- [69-02] State machine returns {state, userId} tuple for conversation-member linking
+- [69-02] Profile extraction fire-and-forget with explicit inner JSON.parse try/catch
+- [69-02] Paused subscriptions map to inactive_member state
+- [69-02] Notes cap truncates from beginning (oldest notes dropped first)
 
 ### Pending Todos
 
@@ -87,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-18
-Stopped at: Completed 69-01-PLAN.md
-Resume file: .planning/phases/69-redis-memory-layer-client-state-machine/69-01-SUMMARY.md
+Stopped at: Completed 69-02-PLAN.md (Phase 69 complete)
+Resume file: .planning/phases/69-redis-memory-layer-client-state-machine/69-02-SUMMARY.md

@@ -1214,7 +1214,7 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 
 - [x] **Phase 67: WhatsApp Cloud API Webhook + Echo Bot** - Bot process receives and replies to WhatsApp messages, persists to DB (completed 2026-03-17)
 - [x] **Phase 68: AI Integration + Info Tools** - AI-primary message processing with schedule, membership, location, and escalation tools (completed 2026-03-18)
-- [ ] **Phase 69: Redis Memory Layer + Client State Machine** - Session context, customer profiles, and automatic client state detection
+- [x] **Phase 69: Redis Memory Layer + Client State Machine** - Session context, customer profiles, and automatic client state detection (completed 2026-03-18)
 - [ ] **Phase 70: Action Tools** - Book class and register trial via WhatsApp with confirmation steps
 - [ ] **Phase 71: Proactive Schedulers** - Class reminders and trial follow-ups via template messages with distributed locks
 - [ ] **Phase 72: Admin Panel -- Conversations UI** - Conversation list, chat detail, and sidebar integration in el-templo-admin
@@ -1270,7 +1270,7 @@ Plans:
 2. Customer profile data (e.g., injury notes mentioned in a prior conversation) persists and is available in a new conversation days later
 3. A phone number matching an active member is automatically detected as ACTIVE_MEMBER state; an unknown number starts as LEAD
 4. Redis connection failure does not crash the bot -- it degrades gracefully (no memory, still responds)
-   **Plans:** 1/2 plans executed
+   **Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1336,7 +1336,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | --------------------------------------------- | -------------- | ----------- | ---------- |
 | 67. WhatsApp Cloud API Webhook + Echo Bot     | 2/2            | Complete    | 2026-03-17 |
 | 68. AI Integration + Info Tools               | 3/3            | Complete    | 2026-03-18 |
-| 69. Redis Memory Layer + Client State Machine | 1/2            | In Progress |            |
+| 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
 | 70. Action Tools                              | 0/?            | Not started | -          |
 | 71. Proactive Schedulers                      | 0/?            | Not started | -          |
 | 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
