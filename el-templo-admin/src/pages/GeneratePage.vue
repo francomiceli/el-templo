@@ -145,7 +145,7 @@
       </q-tab-panel>
 
       <!-- ============================================================ -->
-      <!-- PERSONALIZADAS TAB (journey session generation) -->
+      <!-- PERSONALIZADAS TAB (personalizada session generation) -->
       <!-- ============================================================ -->
       <q-tab-panel name="personalizadas" class="q-pa-none">
         <!-- Week selector -->
@@ -153,7 +153,7 @@
           <q-card-section>
             <div class="row items-center q-gutter-md">
               <q-input
-                v-model.number="journeyWeek"
+                v-model.number="personalizadaWeek"
                 type="number"
                 label="Semana"
                 :min="1"
@@ -169,13 +169,13 @@
           </q-card-section>
         </q-card>
 
-        <!-- Journey type selection -->
-        <q-card v-if="isJourneyFutureWeek" flat bordered class="q-mb-md">
+        <!-- Personalizada type selection -->
+        <q-card v-if="isPersonalizadaFutureWeek" flat bordered class="q-mb-md">
           <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Tipos de Journey</div>
+            <div class="text-subtitle1 q-mb-md">Tipos de Personalizada</div>
 
             <!-- Grouped by tier -->
-            <div v-for="tier in journeyTiers" :key="tier.key" class="q-mb-md">
+            <div v-for="tier in personalizadaTiers" :key="tier.key" class="q-mb-md">
               <div class="text-caption text-weight-bold q-mb-xs" :class="`text-${tier.color}`">
                 {{ tier.label }}
               </div>
@@ -183,11 +183,11 @@
                 <q-chip
                   v-for="jt in tier.types"
                   :key="jt.type"
-                  :selected="selectedJourneyTypes.includes(jt.type)"
+                  :selected="selectedPersonalizadaTypes.includes(jt.type)"
                   clickable
-                  :color="selectedJourneyTypes.includes(jt.type) ? tier.color : 'grey-3'"
-                  :text-color="selectedJourneyTypes.includes(jt.type) ? 'white' : 'grey-8'"
-                  @click="toggleJourneyType(jt.type)"
+                  :color="selectedPersonalizadaTypes.includes(jt.type) ? tier.color : 'grey-3'"
+                  :text-color="selectedPersonalizadaTypes.includes(jt.type) ? 'white' : 'grey-8'"
+                  @click="togglePersonalizadaType(jt.type)"
                 >
                   {{ jt.label }}
                 </q-chip>
@@ -196,7 +196,7 @@
 
             <!-- Regenerate option -->
             <q-checkbox
-              v-model="journeyRegenerate"
+              v-model="personalizadaRegenerate"
               label="Regenerar sesiones existentes"
               class="q-mb-md"
             />
@@ -207,27 +207,27 @@
                 color="primary"
                 icon="auto_awesome"
                 label="Generar Todo"
-                :loading="journeyGenerating"
-                :disable="selectedJourneyTypes.length === 0"
-                @click="handleJourneyGenerateAll"
+                :loading="personalizadaGenerating"
+                :disable="selectedPersonalizadaTypes.length === 0"
+                @click="handlePersonalizadaGenerateAll"
               />
             </div>
           </q-card-section>
         </q-card>
 
         <!-- Per-type generation rows -->
-        <q-card v-if="isJourneyFutureWeek" flat bordered class="q-mb-md">
+        <q-card v-if="isPersonalizadaFutureWeek" flat bordered class="q-mb-md">
           <q-card-section>
             <div class="text-subtitle1 q-mb-md">Generacion por Tipo</div>
 
             <q-list separator>
-              <q-item v-for="jt in allJourneyTypesList" :key="jt.type">
+              <q-item v-for="jt in allPersonalizadaTypesList" :key="jt.type">
                 <q-item-section>
                   <q-item-label>
                     {{ jt.label }}
                     <q-badge
-                      :color="JOURNEY_TIER_COLORS[jt.tier]"
-                      :label="JOURNEY_TIER_LABELS[jt.tier]"
+                      :color="PERSONALIZADA_TIER_COLORS[jt.tier]"
+                      :label="PERSONALIZADA_TIER_LABELS[jt.tier]"
                       class="q-ml-sm"
                     />
                   </q-item-label>
@@ -235,15 +235,15 @@
                 <q-item-section side>
                   <div class="row items-center q-gutter-sm">
                     <span
-                      v-if="journeyResults[jt.type]"
+                      v-if="personalizadaResults[jt.type]"
                       class="text-caption"
                       :class="
-                        journeyResults[jt.type]!.generated > 0 ? 'text-positive' : 'text-grey'
+                        personalizadaResults[jt.type]!.generated > 0 ? 'text-positive' : 'text-grey'
                       "
                     >
-                      {{ journeyResults[jt.type]!.generated }} generadas
-                      <template v-if="journeyResults[jt.type]!.skipped > 0">
-                        , {{ journeyResults[jt.type]!.skipped }} omitidas
+                      {{ personalizadaResults[jt.type]!.generated }} generadas
+                      <template v-if="personalizadaResults[jt.type]!.skipped > 0">
+                        , {{ personalizadaResults[jt.type]!.skipped }} omitidas
                       </template>
                     </span>
                     <q-btn
@@ -252,8 +252,8 @@
                       color="primary"
                       icon="play_arrow"
                       label="Generar"
-                      :loading="journeyTypeLoading === jt.type"
-                      @click="handleJourneyGenerateSingle(jt.type)"
+                      :loading="personalizadaTypeLoading === jt.type"
+                      @click="handlePersonalizadaGenerateSingle(jt.type)"
                     />
                   </div>
                 </q-item-section>
@@ -263,7 +263,7 @@
         </q-card>
 
         <!-- No future week selected -->
-        <q-banner v-if="!isJourneyFutureWeek" class="bg-warning text-white q-mt-md">
+        <q-banner v-if="!isPersonalizadaFutureWeek" class="bg-warning text-white q-mt-md">
           <template #avatar>
             <q-icon name="info" />
           </template>
@@ -285,22 +285,22 @@ import {
   type WeekSummary,
   type GenerateResult,
 } from 'src/composables/useGenerateApi';
-import { useJourneyAdminApi } from 'src/composables/useJourneyAdminApi';
+import { usePersonalizadasAdminApi } from 'src/composables/usePersonalizadasAdminApi';
 import {
-  ALL_JOURNEY_TYPES,
-  JOURNEY_TIER_MAP,
-  JOURNEY_TYPE_LABELS,
-  JOURNEY_TIER_LABELS,
-  JOURNEY_TIER_COLORS,
-  type JourneyType,
-  type JourneyTier,
-  type JourneyGenerateResult,
-} from 'src/types/journey';
+  ALL_PERSONALIZADA_TYPES,
+  PERSONALIZADA_TIER_MAP,
+  PERSONALIZADA_TYPE_LABELS,
+  PERSONALIZADA_TIER_LABELS,
+  PERSONALIZADA_TIER_COLORS,
+  type PersonalizadaType,
+  type PersonalizadaTier,
+  type PersonalizadaGenerateResult,
+} from 'src/types/personalizada';
 
 const log = createLogger('GeneratePage');
 const $q = useQuasar();
 const generateApi = useGenerateApi();
-const journeyApi = useJourneyAdminApi();
+const personalizadaApi = usePersonalizadasAdminApi();
 
 // ============================================================
 // Shared state
@@ -539,103 +539,113 @@ const StatusIndicator = defineComponent({
 // ============================================================
 // Personalizadas tab state
 // ============================================================
-const journeyWeek = ref(2);
-const selectedJourneyTypes = ref<JourneyType[]>([...ALL_JOURNEY_TYPES]);
-const journeyRegenerate = ref(false);
-const journeyGenerating = ref(false);
-const journeyTypeLoading = ref<JourneyType | null>(null);
-const journeyResults = ref<Record<string, JourneyGenerateResult>>({});
+const personalizadaWeek = ref(2);
+const selectedPersonalizadaTypes = ref<PersonalizadaType[]>([...ALL_PERSONALIZADA_TYPES]);
+const personalizadaRegenerate = ref(false);
+const personalizadaGenerating = ref(false);
+const personalizadaTypeLoading = ref<PersonalizadaType | null>(null);
+const personalizadaResults = ref<Record<string, PersonalizadaGenerateResult>>({});
 
-const isJourneyFutureWeek = computed(() => journeyWeek.value > currentWeek.value);
+const isPersonalizadaFutureWeek = computed(() => personalizadaWeek.value > currentWeek.value);
 
-interface JourneyTierGroup {
-  key: JourneyTier;
+interface PersonalizadaTierGroup {
+  key: PersonalizadaTier;
   label: string;
   color: string;
-  types: Array<{ type: JourneyType; label: string }>;
+  types: Array<{ type: PersonalizadaType; label: string }>;
 }
 
-const journeyTiers = computed<JourneyTierGroup[]>(() => {
-  const tiers: JourneyTier[] = ['principiante', 'intermedio', 'avanzado'];
+const personalizadaTiers = computed<PersonalizadaTierGroup[]>(() => {
+  const tiers: PersonalizadaTier[] = ['principiante', 'intermedio', 'avanzado'];
   return tiers.map((tier) => ({
     key: tier,
-    label: JOURNEY_TIER_LABELS[tier],
-    color: JOURNEY_TIER_COLORS[tier],
-    types: ALL_JOURNEY_TYPES.filter((jt) => JOURNEY_TIER_MAP[jt] === tier).map((jt) => ({
-      type: jt,
-      label: JOURNEY_TYPE_LABELS[jt],
-    })),
+    label: PERSONALIZADA_TIER_LABELS[tier],
+    color: PERSONALIZADA_TIER_COLORS[tier],
+    types: ALL_PERSONALIZADA_TYPES.filter((jt) => PERSONALIZADA_TIER_MAP[jt] === tier).map(
+      (jt) => ({
+        type: jt,
+        label: PERSONALIZADA_TYPE_LABELS[jt],
+      })
+    ),
   }));
 });
 
-const allJourneyTypesList = computed(() =>
-  ALL_JOURNEY_TYPES.map((jt) => ({
+const allPersonalizadaTypesList = computed(() =>
+  ALL_PERSONALIZADA_TYPES.map((jt) => ({
     type: jt,
-    label: JOURNEY_TYPE_LABELS[jt],
-    tier: JOURNEY_TIER_MAP[jt],
+    label: PERSONALIZADA_TYPE_LABELS[jt],
+    tier: PERSONALIZADA_TIER_MAP[jt],
   }))
 );
 
-function toggleJourneyType(jt: JourneyType) {
-  const idx = selectedJourneyTypes.value.indexOf(jt);
+function togglePersonalizadaType(jt: PersonalizadaType) {
+  const idx = selectedPersonalizadaTypes.value.indexOf(jt);
   if (idx >= 0) {
-    selectedJourneyTypes.value.splice(idx, 1);
+    selectedPersonalizadaTypes.value.splice(idx, 1);
   } else {
-    selectedJourneyTypes.value.push(jt);
+    selectedPersonalizadaTypes.value.push(jt);
   }
 }
 
-async function handleJourneyGenerateAll() {
-  if (selectedJourneyTypes.value.length === 0) return;
+async function handlePersonalizadaGenerateAll() {
+  if (selectedPersonalizadaTypes.value.length === 0) return;
 
-  journeyGenerating.value = true;
-  journeyResults.value = {};
+  personalizadaGenerating.value = true;
+  personalizadaResults.value = {};
 
   let totalGenerated = 0;
   let totalSkipped = 0;
 
   try {
-    for (const jt of selectedJourneyTypes.value) {
+    for (const jt of selectedPersonalizadaTypes.value) {
       try {
-        const result = await journeyApi.generateJourneySessions(journeyWeek.value, jt, {
-          regenerate: journeyRegenerate.value,
-        });
-        journeyResults.value[jt] = result;
+        const result = await personalizadaApi.generatePersonalizadaSessions(
+          personalizadaWeek.value,
+          jt,
+          {
+            regenerate: personalizadaRegenerate.value,
+          }
+        );
+        personalizadaResults.value[jt] = result;
         totalGenerated += result.generated;
         totalSkipped += result.skipped;
       } catch (err: unknown) {
-        log.error('Error generating journey type', {
-          journeyType: jt,
+        log.error('Error generating personalizada type', {
+          personalizadaType: jt,
           error: err instanceof Error ? err.message : String(err),
         });
-        journeyResults.value[jt] = { generated: 0, skipped: 0 };
+        personalizadaResults.value[jt] = { generated: 0, skipped: 0 };
       }
     }
 
     $q.notify({
       type: 'positive',
-      message: `Generadas ${totalGenerated} sesiones de journey. ${totalSkipped > 0 ? `${totalSkipped} omitidas.` : ''}`,
+      message: `Generadas ${totalGenerated} sesiones de personalizada. ${totalSkipped > 0 ? `${totalSkipped} omitidas.` : ''}`,
     });
   } finally {
-    journeyGenerating.value = false;
+    personalizadaGenerating.value = false;
   }
 }
 
-async function handleJourneyGenerateSingle(jt: JourneyType) {
-  journeyTypeLoading.value = jt;
+async function handlePersonalizadaGenerateSingle(jt: PersonalizadaType) {
+  personalizadaTypeLoading.value = jt;
   try {
-    const result = await journeyApi.generateJourneySessions(journeyWeek.value, jt, {
-      regenerate: journeyRegenerate.value,
-    });
-    journeyResults.value[jt] = result;
+    const result = await personalizadaApi.generatePersonalizadaSessions(
+      personalizadaWeek.value,
+      jt,
+      {
+        regenerate: personalizadaRegenerate.value,
+      }
+    );
+    personalizadaResults.value[jt] = result;
     $q.notify({
       type: 'positive',
-      message: `${JOURNEY_TYPE_LABELS[jt]}: ${result.generated} generadas${result.skipped > 0 ? `, ${result.skipped} omitidas` : ''}`,
+      message: `${PERSONALIZADA_TYPE_LABELS[jt]}: ${result.generated} generadas${result.skipped > 0 ? `, ${result.skipped} omitidas` : ''}`,
     });
   } catch {
-    $q.notify({ type: 'negative', message: `Error generando ${JOURNEY_TYPE_LABELS[jt]}` });
+    $q.notify({ type: 'negative', message: `Error generando ${PERSONALIZADA_TYPE_LABELS[jt]}` });
   } finally {
-    journeyTypeLoading.value = null;
+    personalizadaTypeLoading.value = null;
   }
 }
 
@@ -649,7 +659,7 @@ onMounted(async () => {
     $q.notify({ type: 'negative', message: 'Error cargando semana actual' });
   }
   selectedWeek.value = currentWeek.value + 1;
-  journeyWeek.value = currentWeek.value + 1;
+  personalizadaWeek.value = currentWeek.value + 1;
   loadWeekSummary();
 });
 </script>

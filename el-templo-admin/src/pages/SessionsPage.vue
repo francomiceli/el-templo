@@ -148,24 +148,24 @@
       </q-tab-panel>
 
       <!-- ============================================================ -->
-      <!-- PERSONALIZADAS TAB (journey sessions) -->
+      <!-- PERSONALIZADAS TAB (personalizada sessions) -->
       <!-- ============================================================ -->
       <q-tab-panel name="personalizadas" class="q-pa-none">
         <!-- Week selector -->
         <div class="row items-center q-mb-md q-gutter-sm">
-          <q-btn icon="chevron_left" flat round @click="prevJourneyWeek" />
-          <div class="text-subtitle1">{{ formatWeekLabel(journeyWeek) }}</div>
-          <q-btn icon="chevron_right" flat round @click="nextJourneyWeek" />
+          <q-btn icon="chevron_left" flat round @click="prevPersonalizadaWeek" />
+          <div class="text-subtitle1">{{ formatWeekLabel(personalizadaWeek) }}</div>
+          <q-btn icon="chevron_right" flat round @click="nextPersonalizadaWeek" />
           <q-btn icon="event" flat round dense>
             <q-popup-proxy
-              v-model="showJourneyDatePicker"
+              v-model="showPersonalizadaDatePicker"
               cover
               transition-show="scale"
               transition-hide="scale"
             >
               <q-date
-                :model-value="weekToQDate(journeyWeek)"
-                @update:model-value="onJourneyDatePicked"
+                :model-value="weekToQDate(personalizadaWeek)"
+                @update:model-value="onPersonalizadaDatePicked"
                 minimal
                 first-day-of-week="1"
                 navigation-min-year-month="2026/02"
@@ -175,35 +175,35 @@
           </q-btn>
         </div>
 
-        <!-- Journey type sub-tabs -->
+        <!-- Personalizada type sub-tabs -->
         <q-tabs
-          v-model="selectedJourneyTab"
+          v-model="selectedPersonalizadaTab"
           dense
           class="text-grey q-mb-md"
           active-color="primary"
           indicator-color="primary"
           align="left"
           narrow-indicator
-          @update:model-value="loadJourneySessions"
+          @update:model-value="loadPersonalizadaSessions"
         >
-          <q-tab v-for="jt in ALL_JOURNEY_TYPES" :key="jt" :name="jt">
+          <q-tab v-for="jt in ALL_PERSONALIZADA_TYPES" :key="jt" :name="jt">
             <q-badge
-              :color="getJourneyBadgeColor(jt)"
-              :label="getJourneyLabel(jt)"
+              :color="getPersonalizadaBadgeColor(jt)"
+              :label="getPersonalizadaLabel(jt)"
               class="q-px-sm"
             />
           </q-tab>
         </q-tabs>
 
         <!-- Loading -->
-        <div v-if="journeyLoading" class="flex flex-center q-pa-xl">
+        <div v-if="personalizadaLoading" class="flex flex-center q-pa-xl">
           <q-spinner-dots size="50px" color="primary" />
         </div>
 
         <!-- Day cards (mirrors General tab structure) -->
         <template v-else>
           <q-card
-            v-for="dayGroup in journeyDayGroups"
+            v-for="dayGroup in personalizadaDayGroups"
             :key="dayGroup.day"
             flat
             bordered
@@ -224,7 +224,7 @@
                     icon="edit"
                     color="primary"
                     size="md"
-                    @click="editJourneyDay(dayGroup.day)"
+                    @click="editPersonalizadaDay(dayGroup.day)"
                   >
                     <q-tooltip>Editar dia</q-tooltip>
                   </q-btn>
@@ -236,7 +236,7 @@
                     icon="check_circle"
                     color="positive"
                     size="md"
-                    @click="handleBulkApproveJourneyDay(dayGroup)"
+                    @click="handleBulkApprovePersonalizadaDay(dayGroup)"
                   >
                     <q-tooltip>Aprobar {{ dayGroup.pendingCount }} pendientes</q-tooltip>
                     <q-badge floating color="red" :label="dayGroup.pendingCount" />
@@ -274,11 +274,11 @@
           </q-card>
 
           <!-- No sessions -->
-          <div v-if="journeyDayGroups.length === 0" class="text-center q-pa-xl text-grey">
+          <div v-if="personalizadaDayGroups.length === 0" class="text-center q-pa-xl text-grey">
             <q-icon name="info" size="xl" class="q-mb-md" />
             <div class="text-h6">
-              No hay sesiones de {{ getJourneyLabel(selectedJourneyTab) }} para
-              {{ formatWeekLabel(journeyWeek) }}
+              No hay sesiones de {{ getPersonalizadaLabel(selectedPersonalizadaTab) }} para
+              {{ formatWeekLabel(personalizadaWeek) }}
             </div>
             <div class="text-caption q-mt-sm">
               Genera sesiones en la pestana "Generar Sesiones" > Personalizadas
@@ -314,12 +314,12 @@ import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import {
-  ALL_JOURNEY_TYPES,
-  JOURNEY_TYPE_LABELS,
-  JOURNEY_TIER_MAP,
-  JOURNEY_TIER_COLORS,
-  type JourneyType,
-} from 'src/types/journey';
+  ALL_PERSONALIZADA_TYPES,
+  PERSONALIZADA_TYPE_LABELS,
+  PERSONALIZADA_TIER_MAP,
+  PERSONALIZADA_TIER_COLORS,
+  type PersonalizadaType,
+} from 'src/types/personalizada';
 import type { SessionSummary } from 'src/types/session';
 
 const log = createLogger('SessionsPage');
@@ -396,7 +396,7 @@ async function loadSessions() {
   try {
     const response = await sessionsApi.fetchSessions({
       week: currentWeek.value,
-      journeyType: 'null', // General tab: only non-journey sessions
+      personalizadaType: 'null', // General tab: only non-personalizada sessions
       limit: 100,
     });
     sessions.value = response.sessions;
@@ -529,13 +529,13 @@ async function onDownloadWeekPdf() {
 // ============================================================
 // Personalizadas tab state
 // ============================================================
-const journeyWeek = ref(initialWeek);
-const selectedJourneyTab = ref<JourneyType>(ALL_JOURNEY_TYPES[0]);
-const journeySessions = ref<SessionSummary[]>([]);
-const journeyLoading = ref(false);
-const showJourneyDatePicker = ref(false);
+const personalizadaWeek = ref(initialWeek);
+const selectedPersonalizadaTab = ref<PersonalizadaType>(ALL_PERSONALIZADA_TYPES[0]);
+const personalizadaSessions = ref<SessionSummary[]>([]);
+const personalizadaLoading = ref(false);
+const showPersonalizadaDatePicker = ref(false);
 
-interface JourneyDayLevelStatus {
+interface PersonalizadaDayLevelStatus {
   memberLevel: string;
   status: string | null;
   sessionId: number | null;
@@ -543,16 +543,16 @@ interface JourneyDayLevelStatus {
   blockCount: number;
 }
 
-interface JourneyDayGroup {
+interface PersonalizadaDayGroup {
   day: string;
-  levels: JourneyDayLevelStatus[];
+  levels: PersonalizadaDayLevelStatus[];
   sessions: SessionSummary[];
   pendingCount: number;
 }
 
-const journeyDayGroups = computed<JourneyDayGroup[]>(() => {
+const personalizadaDayGroups = computed<PersonalizadaDayGroup[]>(() => {
   return DAYS.map((day) => {
-    const daySessions = journeySessions.value.filter((s) => s.day === day);
+    const daySessions = personalizadaSessions.value.filter((s) => s.day === day);
     const levels = DISPLAY_LEVELS.map((level) => {
       const session = daySessions.find((s) => s.memberLevel === level);
       return {
@@ -568,34 +568,34 @@ const journeyDayGroups = computed<JourneyDayGroup[]>(() => {
   }).filter((dg) => dg.sessions.length > 0);
 });
 
-async function loadJourneySessions() {
-  journeyLoading.value = true;
+async function loadPersonalizadaSessions() {
+  personalizadaLoading.value = true;
   try {
     const response = await sessionsApi.fetchSessions({
-      week: journeyWeek.value,
-      journeyType: selectedJourneyTab.value,
+      week: personalizadaWeek.value,
+      personalizadaType: selectedPersonalizadaTab.value,
       limit: 100,
     });
-    journeySessions.value = response.sessions;
+    personalizadaSessions.value = response.sessions;
   } catch {
     $q.notify({ type: 'negative', message: 'Error cargando sesiones personalizadas' });
   } finally {
-    journeyLoading.value = false;
+    personalizadaLoading.value = false;
   }
 }
 
-function editJourneyDay(day: string) {
+function editPersonalizadaDay(day: string) {
   router.push({
     path: '/sessions/edit',
     query: {
-      week: weekToUrlParam(journeyWeek.value),
+      week: weekToUrlParam(personalizadaWeek.value),
       day,
-      journeyType: selectedJourneyTab.value,
+      personalizadaType: selectedPersonalizadaTab.value,
     },
   });
 }
 
-async function handleBulkApproveJourneyDay(dayGroup: JourneyDayGroup) {
+async function handleBulkApprovePersonalizadaDay(dayGroup: PersonalizadaDayGroup) {
   const pendingIds = dayGroup.sessions
     .filter((s) => s.status === 'pending_review')
     .map((s) => s.id);
@@ -604,14 +604,14 @@ async function handleBulkApproveJourneyDay(dayGroup: JourneyDayGroup) {
 
   $q.dialog({
     title: 'Aprobar Sesiones',
-    message: `Aprobar ${pendingIds.length} sesiones pendientes de ${getJourneyLabel(selectedJourneyTab.value)} para ${dayLabel(dayGroup.day)}?`,
+    message: `Aprobar ${pendingIds.length} sesiones pendientes de ${getPersonalizadaLabel(selectedPersonalizadaTab.value)} para ${dayLabel(dayGroup.day)}?`,
     cancel: true,
     persistent: true,
   }).onOk(async () => {
     try {
       const result = await sessionsApi.bulkApprove(pendingIds);
       $q.notify({ type: 'positive', message: `${result.approvedCount} sesiones aprobadas` });
-      loadJourneySessions();
+      loadPersonalizadaSessions();
       adminStore.fetchPendingCount();
       adminStore.checkSessionCoverage();
     } catch {
@@ -620,34 +620,34 @@ async function handleBulkApproveJourneyDay(dayGroup: JourneyDayGroup) {
   });
 }
 
-function prevJourneyWeek() {
-  if (journeyWeek.value > 1) {
-    journeyWeek.value--;
-    loadJourneySessions();
+function prevPersonalizadaWeek() {
+  if (personalizadaWeek.value > 1) {
+    personalizadaWeek.value--;
+    loadPersonalizadaSessions();
   }
 }
 
-function nextJourneyWeek() {
-  if (journeyWeek.value < 52) {
-    journeyWeek.value++;
-    loadJourneySessions();
+function nextPersonalizadaWeek() {
+  if (personalizadaWeek.value < 52) {
+    personalizadaWeek.value++;
+    loadPersonalizadaSessions();
   }
 }
 
-function onJourneyDatePicked(val: string | null) {
-  showJourneyDatePicker.value = false;
+function onPersonalizadaDatePicked(val: string | null) {
+  showPersonalizadaDatePicker.value = false;
   if (!val) return;
-  journeyWeek.value = qDateToWeek(val);
-  loadJourneySessions();
+  personalizadaWeek.value = qDateToWeek(val);
+  loadPersonalizadaSessions();
 }
 
-function getJourneyBadgeColor(journeyType: string): string {
-  const tier = JOURNEY_TIER_MAP[journeyType as JourneyType];
-  return tier ? JOURNEY_TIER_COLORS[tier] : 'grey';
+function getPersonalizadaBadgeColor(personalizadaType: string): string {
+  const tier = PERSONALIZADA_TIER_MAP[personalizadaType as PersonalizadaType];
+  return tier ? PERSONALIZADA_TIER_COLORS[tier] : 'grey';
 }
 
-function getJourneyLabel(journeyType: string): string {
-  return JOURNEY_TYPE_LABELS[journeyType as JourneyType] ?? journeyType;
+function getPersonalizadaLabel(personalizadaType: string): string {
+  return PERSONALIZADA_TYPE_LABELS[personalizadaType as PersonalizadaType] ?? personalizadaType;
 }
 
 // ============================================================
@@ -699,19 +699,19 @@ function memberLevelLabel(level: string): string {
   }
 }
 
-// Reload journey sessions when switching to Personalizadas tab
+// Reload personalizada sessions when switching to Personalizadas tab
 watch(activeTab, (newTab) => {
-  if (newTab === 'personalizadas' && journeySessions.value.length === 0) {
-    loadJourneySessions();
+  if (newTab === 'personalizadas' && personalizadaSessions.value.length === 0) {
+    loadPersonalizadaSessions();
   }
 });
 
 onMounted(() => {
   syncWeekUrl();
   loadSessions();
-  // If starting on personalizadas tab, load journey sessions too
+  // If starting on personalizadas tab, load personalizada sessions too
   if (activeTab.value === 'personalizadas') {
-    loadJourneySessions();
+    loadPersonalizadaSessions();
   }
 });
 </script>

@@ -21,9 +21,13 @@
           <span class="text-h5">
             Editar Sesion - {{ formatWeekLabel(week) }} - {{ dayLabel(day) }}
             <q-badge
-              v-if="journeyType"
-              :color="JOURNEY_TIER_COLORS[JOURNEY_TIER_MAP[journeyType as JourneyType]]"
-              :label="JOURNEY_TYPE_LABELS[journeyType as JourneyType]"
+              v-if="personalizadaType"
+              :color="
+                PERSONALIZADA_TIER_COLORS[
+                  PERSONALIZADA_TIER_MAP[personalizadaType as PersonalizadaType]
+                ]
+              "
+              :label="PERSONALIZADA_TYPE_LABELS[personalizadaType as PersonalizadaType]"
               class="q-ml-sm"
               style="font-size: 0.6em; vertical-align: middle"
             />
@@ -133,11 +137,11 @@ import type {
 import type { BlockGroup } from 'src/types/block-group';
 import { LEVEL_ORDER } from 'src/constants/levels';
 import {
-  JOURNEY_TYPE_LABELS,
-  JOURNEY_TIER_MAP,
-  JOURNEY_TIER_COLORS,
-  type JourneyType,
-} from 'src/types/journey';
+  PERSONALIZADA_TYPE_LABELS,
+  PERSONALIZADA_TIER_MAP,
+  PERSONALIZADA_TIER_COLORS,
+  type PersonalizadaType,
+} from 'src/types/personalizada';
 
 const route = useRoute();
 const router = useRouter();
@@ -176,7 +180,7 @@ const week = computed(() => {
   return param ? (urlParamToWeek(param) ?? 1) : 1;
 });
 const day = computed(() => (route.query.day as string) || 'lunes');
-const journeyType = computed(() => (route.query.journeyType as string) || undefined);
+const personalizadaType = computed(() => (route.query.personalizadaType as string) || undefined);
 
 // Preview dialog state
 const previewOpen = ref(false);
@@ -264,7 +268,7 @@ async function loadDay() {
     const details = await sessionsApi.fetchDaySessionDetails(
       week.value,
       day.value,
-      journeyType.value
+      personalizadaType.value
     );
 
     // Sort by level order: alfa, delta, sigma, omega, spartan
@@ -317,7 +321,7 @@ async function refreshDay(savedScrollY?: number) {
     const details = await sessionsApi.fetchDaySessionDetails(
       week.value,
       day.value,
-      journeyType.value
+      personalizadaType.value
     );
     details.sort((a, b) => LEVEL_ORDER.indexOf(a.memberLevel) - LEVEL_ORDER.indexOf(b.memberLevel));
     sessions.value = details;
@@ -331,7 +335,7 @@ async function refreshDay(savedScrollY?: number) {
 
 function goBack() {
   const query: Record<string, string> = { week: weekToUrlParam(week.value) };
-  if (journeyType.value) query.tab = 'personalizadas';
+  if (personalizadaType.value) query.tab = 'personalizadas';
   router.push({ path: '/sessions', query });
 }
 
