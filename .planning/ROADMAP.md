@@ -6,6 +6,7 @@
 - **v3.0 Landing Page** - Phases 29-36 (planned)
 - **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
+- **v4.2 Clases Personalizadas Launch** - Phases 67-69 (planned)
 
 ---
 
@@ -1235,3 +1236,88 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 ---
 
 _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
+
+</details>
+
+<details>
+<summary>v4.2 Clases Personalizadas Launch (Phases 67-69)</summary>
+
+## v4.2 Overview
+
+Ship the existing "Journeys" feature to production as "Clases Personalizadas". The feature is architecturally complete but disabled. This milestone renames everything, adds subscription gating, wires AURA rewards, and enables the member app module.
+
+**Source spec:** .docs/journey-wrap-up.md
+
+## v4.2 Phases
+
+### Phase 67: Personalizadas Backend Rename
+
+**Goal**: All backend references to "journey/journeys" are renamed to "personalizada/personalizadas" — database tables, columns, API module, routes, types, constants, pipeline, and tests
+**Depends on**: None (can start immediately)
+**Requirements**: PERS-01, PERS-02, PERS-03, PERS-04, PERS-05, PERS-06, PERS-07
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 67-01-PLAN.md — DB migration + schema rename + module folder rename
+- [ ] 67-02-PLAN.md — Cross-references, pipeline rename, app.ts wiring, tests
+
+**Success Criteria** (what must be TRUE):
+
+1. DB migration renames `member_journeys` → `member_personalizadas` and `journey_type` → `personalizada_type` in all 3 tables
+2. Existing `J-` dayId prefixes updated to `P-` in session records
+3. API module lives at `src/modules/personalizadas/` with all types, constants, and services renamed
+4. Route paths are `/personalizadas/*` and `/admin/personalizadas/*`
+5. Pipeline file is `personalizada-pipeline.ts` with updated cross-references
+6. All tests pass from `test/personalizadas/` with updated endpoints and types
+7. `pnpm test` passes with zero failures
+
+---
+
+### Phase 68: Personalizadas Frontend Rename
+
+**Goal**: All frontend references to "journey/journeys" are renamed to "personalizada/personalizadas" across admin and member app — types, composables, stores, pages, components, routes, and UI text
+**Depends on**: Phase 67 (frontend calls renamed API endpoints)
+**Requirements**: PERS-08, PERS-09, PERS-10, PERS-11, PERS-12
+**Success Criteria** (what must be TRUE):
+
+1. Admin types, composables, and pages use personalizada naming and hit `/personalizadas/*` endpoints
+2. Member app module folder is `src/modules/personalizada/` with all internal files renamed
+3. All UI text shows "Clase Personalizada" / "Personalizadas" (Spanish)
+4. Member app routes are `/personalizada/*`
+5. `vue-tsc --noEmit` passes on both admin and member app
+6. Zero remaining "journey" or "Journey" references in any `src/` directory
+
+---
+
+### Phase 69: Subscription Gate, AURA Rewards & Module Enable
+
+**Goal**: Personalizadas is gated behind a subscription flag, awards AURA on completion, and the member app module is activated
+**Depends on**: Phase 68 (needs renamed module to enable)
+**Requirements**: PERS-13, PERS-14, PERS-15, PERS-16, PERS-17
+**Success Criteria** (what must be TRUE):
+
+1. `subscription_plans` table has `isPersonalizada` boolean column
+2. Admin can toggle "Personalizada" flag when creating/editing a plan
+3. PersonalizadasService returns 403 for members without an active Personalizadas subscription on getSession, select, and complete
+4. Metadata endpoint stays public (browsing available programs)
+5. Completing a personalizada session awards 10 AURA points
+6. Member app personalizada module is enabled (uncommented in `boot/modules.ts`)
+7. Integration tests cover subscription enforcement and AURA award
+
+---
+
+## v4.2 Progress
+
+**Execution Order:**
+Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable)
+
+| Phase                                        | Plans Complete | Status  | Completed |
+| -------------------------------------------- | -------------- | ------- | --------- |
+| 67. Personalizadas Backend Rename            | 0/2            | Planned |           |
+| 68. Personalizadas Frontend Rename           | 0/0            | Pending |           |
+| 69. Subscription Gate, AURA Rewards & Enable | 0/0            | Pending |           |
+
+---
+
+_v4.2 phases added: 2026-03-18 — 3 phases (67-69), 17 requirements mapped_
