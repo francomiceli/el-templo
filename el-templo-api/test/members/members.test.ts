@@ -852,6 +852,89 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
+  // Member export
+  // =========================================================================
+  describe("Member export", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("export returns 200 with xlsx Content-Type and Content-Disposition", async () => {
+      await createMember({ firstName: "Juan", lastName: "Perez" });
+      await createMember({
+        email: "member2@test.com",
+        dni: "40111222",
+        firstName: "Maria",
+        lastName: "Lopez",
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members/export",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["content-type"]).toContain(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      const disposition = res.headers["content-disposition"] as string;
+      expect(disposition).toContain("attachment");
+      expect(disposition).toContain(".xlsx");
+      // Response body should be a non-empty buffer
+      expect(res.rawPayload.length).toBeGreaterThan(0);
+    });
+
+    it("filter params (isActive=true) reduce result set correctly", async () => {
+      // Create active member
+      await createMember({
+        firstName: "Activo",
+        lastName: "Member",
+        email: "activo@test.com",
+        dni: "50111111",
+      });
+      // Create member then deactivate
+      const inactive = await createMember({
+        firstName: "Inactivo",
+        lastName: "Member",
+        email: "inactivo@test.com",
+        dni: "50222222",
+      });
+      await app.inject({
+        method: "PATCH",
+        url: `/api/admin/members/${inactive.id}/status`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { isActive: false },
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members/export?isActive=true",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+
+      // Parse the xlsx buffer with exceljs to verify contents
+      const { Workbook } = await import("exceljs");
+      const workbook = new Workbook();
+      await workbook.xlsx.load(res.rawPayload);
+
+      const sheet = workbook.getWorksheet("Alumnos");
+      expect(sheet).toBeDefined();
+
+      // Row 1 is header, data rows start at 2
+      // Only the active member should appear
+      expect(sheet!.rowCount).toBe(2); // 1 header + 1 data row
+
+      const dataRow = sheet!.getRow(2);
+      expect(dataRow.getCell("nombre").value).toBe("Activo Member");
+      expect(dataRow.getCell("estado").value).toBe("Activo");
+    });
+  });
+
+  // =========================================================================
   // Deactivated login block
   // =========================================================================
   describe("Deactivated user login block", () => {
@@ -902,6 +985,98 @@ describe("Members Management Routes", () => {
       expect(loginRes.statusCode).toBe(401);
       const body = JSON.parse(loginRes.body);
       expect(body.message).toContain("desactivada");
+    });
+  });
+
+  // =========================================================================
+  // Member photo upload URL
+  // =========================================================================
+  describe("Member photo upload URL", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("returns 503 when R2 is not configured", async () => {
+      // In the test environment, R2 is not configured (no R2_ACCOUNT_ID env var),
+      // so fastify.r2 should be undefined and the endpoint should return 503.
+      const hasR2 = !!process.env.R2_ACCOUNT_ID;
+      if (hasR2) {
+        // If R2 is configured in test env, skip this test
+        return;
+      }
+
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "POST",
+        url: `/api/admin/members/${member.id}/photo/upload-url`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { filename: "profile.jpg" },
+      });
+
+      expect(res.statusCode).toBe(503);
+      const body = JSON.parse(res.body);
+      expect(body.message).toBe("Image storage not configured");
+    });
+
+    it("returns photoUrl field in member profile (null by default)", async () => {
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body).toHaveProperty("photoUrl");
+      expect(body.photoUrl).toBeNull();
+    });
+
+    it("returns photoUrl field in member list (null by default)", async () => {
+      await createMember();
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.members.length).toBeGreaterThanOrEqual(1);
+      expect(body.members[0]).toHaveProperty("photoUrl");
+      expect(body.members[0].photoUrl).toBeNull();
+    });
+
+    it("photoUrl persists after update via PUT", async () => {
+      const member = await createMember();
+      const testUrl = "https://cdn.example.com/members/photos/1-12345.jpg";
+
+      // Update photoUrl via PUT member endpoint
+      const updateRes = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { photoUrl: testUrl },
+      });
+
+      expect(updateRes.statusCode).toBe(200);
+      const updateBody = JSON.parse(updateRes.body);
+      expect(updateBody.photoUrl).toBe(testUrl);
+
+      // Verify it persists on GET
+      const getRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(getRes.statusCode).toBe(200);
+      const getBody = JSON.parse(getRes.body);
+      expect(getBody.photoUrl).toBe(testUrl);
     });
   });
 });

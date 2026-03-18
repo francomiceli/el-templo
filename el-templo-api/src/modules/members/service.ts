@@ -15,6 +15,7 @@ import type {
   MemberListParams,
   MemberListItem,
   MemberProfile,
+  MemberExportRow,
   CreateMemberInput,
   UpdateMemberInput,
   MemberNote,
@@ -140,6 +141,7 @@ export class MemberService {
         phone: schema.users.phone,
         dni: schema.users.dni,
         documentType: schema.users.documentType,
+        photoUrl: schema.users.photoUrl,
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
@@ -162,6 +164,7 @@ export class MemberService {
       phone: r.phone,
       dni: r.dni,
       documentType: r.documentType,
+      photoUrl: r.photoUrl ?? null,
       level: r.level,
       branchId: r.branchId,
       branchName: r.branchName,
@@ -186,6 +189,7 @@ export class MemberService {
         phone: schema.users.phone,
         dni: schema.users.dni,
         documentType: schema.users.documentType,
+        photoUrl: schema.users.photoUrl,
         address: schema.users.address,
         dateOfBirth: schema.users.dateOfBirth,
         gender: schema.users.gender,
@@ -214,6 +218,7 @@ export class MemberService {
       phone: row.phone,
       dni: row.dni,
       documentType: row.documentType,
+      photoUrl: row.photoUrl ?? null,
       address: row.address,
       dateOfBirth: row.dateOfBirth,
       gender: row.gender,
@@ -300,6 +305,7 @@ export class MemberService {
         | "NIF"
         | "Otro"
         | null;
+    if (input.photoUrl !== undefined) updateData.photoUrl = input.photoUrl;
     if (input.address !== undefined) updateData.address = input.address;
     if (input.dateOfBirth !== undefined)
       updateData.dateOfBirth = input.dateOfBirth;
@@ -381,6 +387,135 @@ export class MemberService {
     }
 
     return { available: true };
+  }
+
+  /**
+   * Update just the photo_url column for a given user.
+   */
+  async updatePhoto(userId: number, photoUrl: string): Promise<void> {
+    await this.db
+      .update(schema.users)
+      .set({ photoUrl })
+      .where(eq(schema.users.id, userId));
+  }
+
+  // ─── Export ──────────────────────────────────────────────────────────
+
+  /**
+   * Export all members matching filters (no pagination) as rows for Excel export.
+   * Reuses the same filter logic as listMembers but without offset/limit.
+   */
+  async exportMembers(
+    params: Omit<MemberListParams, "page" | "limit">,
+  ): Promise<MemberExportRow[]> {
+    const { search, branchId, multiBranch, level, isActive, planId } = params;
+
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    conditions.push(eq(schema.users.role, "member"));
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      conditions.push(
+        sql`(${schema.users.firstName} LIKE ${searchPattern} OR ${schema.users.lastName} LIKE ${searchPattern} OR ${schema.users.email} LIKE ${searchPattern} OR ${schema.users.dni} LIKE ${searchPattern})`,
+      );
+    }
+
+    if (multiBranch === true) {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM subscriptions sub
+          INNER JOIN subscription_plans sp ON sp.id = sub.plan_id
+          WHERE sub.user_id = ${schema.users.id}
+            AND sp.multi_branch = 1
+            AND (sub.subscription_status = 'active' OR sub.end_date >= CURDATE())
+        )`,
+      );
+    } else if (branchId !== undefined) {
+      conditions.push(eq(schema.users.branchId, branchId));
+    }
+
+    if (level !== undefined) {
+      conditions.push(
+        eq(
+          schema.users.level,
+          level as "alfa" | "delta" | "sigma" | "omega" | "spartan",
+        ),
+      );
+    }
+
+    if (isActive !== undefined) {
+      conditions.push(eq(schema.users.isActive, isActive));
+    }
+
+    if (planId !== undefined) {
+      if (planId === 0) {
+        conditions.push(
+          sql`NOT EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+          )`,
+        );
+      } else {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+          )`,
+        );
+      }
+    }
+
+    const whereClause = and(...conditions);
+
+    // Subquery: active subscription plan name
+    const planNameSubquery = sql<string | null>`(
+      SELECT sp.name FROM subscriptions s
+      JOIN subscription_plans sp ON sp.id = s.plan_id
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    // Subquery: subscription end date
+    const endDateSubquery = sql<string | null>`(
+      SELECT DATE_FORMAT(s.end_date, '%Y-%m-%d') FROM subscriptions s
+      WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
+      ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    const rows = await this.db
+      .select({
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        email: schema.users.email,
+        dni: schema.users.dni,
+        phone: schema.users.phone,
+        branchName: schema.branches.name,
+        level: schema.users.level,
+        isActive: schema.users.isActive,
+        planName: planNameSubquery,
+        endDate: endDateSubquery,
+        dateOfBirth: schema.users.dateOfBirth,
+        address: schema.users.address,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(whereClause)
+      .orderBy(schema.users.lastName, schema.users.firstName);
+
+    return rows.map((r) => ({
+      nombre: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
+      email: r.email,
+      dni: r.dni ?? "",
+      telefono: r.phone ?? "",
+      sucursal: r.branchName,
+      nivel: r.level.charAt(0).toUpperCase() + r.level.slice(1),
+      plan: r.planName ?? "Sin plan",
+      estado: r.isActive ? "Activo" : "Inactivo",
+      vencimientoSuscripcion: r.endDate ?? "",
+      fechaNacimiento: r.dateOfBirth ?? "",
+      direccion: r.address ?? "",
+    }));
   }
 
   // ─── Notes ─────────────────────────────────────────────────────────────

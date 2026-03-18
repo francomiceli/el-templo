@@ -26,6 +26,7 @@ export interface MemberListItem {
   phone: string | null;
   dni: string | null;
   documentType: string | null;
+  photoUrl: string | null;
   level: string;
   branchId: number;
   branchName: string;
@@ -42,6 +43,7 @@ export interface MemberProfile {
   phone: string | null;
   dni: string | null;
   documentType: string | null;
+  photoUrl: string | null;
   address: string | null;
   dateOfBirth: string | null;
   gender: string | null;
@@ -81,6 +83,7 @@ export interface UpdateMemberInput {
   phone?: string;
   dni?: string;
   documentType?: string | null;
+  photoUrl?: string | null;
   address?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
@@ -113,4 +116,18 @@ export interface UpdateNoteInput {
 export interface DniCheckResult {
   available: boolean;
   existingMemberName?: string;
+}
+
+export interface MemberExportRow {
+  nombre: string;
+  email: string;
+  dni: string;
+  telefono: string;
+  sucursal: string;
+  nivel: string;
+  plan: string;
+  estado: string;
+  vencimientoSuscripcion: string;
+  fechaNacimiento: string;
+  direccion: string;
 }

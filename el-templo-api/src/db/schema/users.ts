@@ -57,6 +57,7 @@ export const users = mysqlTable(
     emergencyContactRelationship: varchar("emergency_contact_relationship", {
       length: 50,
     }),
+    photoUrl: varchar("photo_url", { length: 500 }),
     isActive: boolean("is_active").default(true).notNull(),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

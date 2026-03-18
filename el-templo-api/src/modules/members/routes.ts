@@ -9,6 +9,8 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -26,11 +28,14 @@ import {
   updateMemberSchema,
   toggleStatusSchema,
   checkDniSchema,
+  exportMembersSchema,
+  uploadPhotoUrlSchema,
   listNotesSchema,
   createNoteSchema,
   updateNoteSchema,
   deleteNoteSchema,
 } from "./schemas";
+import { Workbook } from "exceljs";
 
 const ADMIN_ROLES = ["coach", "admin", "superadmin"];
 
@@ -106,6 +111,76 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   }>("/check-dni", { schema: checkDniSchema }, async (request) => {
     const { dni, excludeUserId } = request.query;
     return memberService.checkDniUniqueness(dni, excludeUserId);
+  });
+
+  // =========================================================================
+  // Export (must be defined BEFORE :userId param routes)
+  // =========================================================================
+
+  // GET /admin/members/export — Export filtered members as .xlsx
+  fastify.get<{
+    Querystring: {
+      search?: string;
+      branchId?: number;
+      multiBranch?: boolean;
+      level?: string;
+      isActive?: boolean;
+      planId?: number;
+    };
+  }>("/export", { schema: exportMembersSchema }, async (request, reply) => {
+    const rows = await memberService.exportMembers({
+      search: request.query.search,
+      branchId: request.query.branchId,
+      multiBranch: request.query.multiBranch,
+      level: request.query.level,
+      isActive: request.query.isActive,
+      planId: request.query.planId,
+    });
+
+    const workbook = new Workbook();
+    workbook.creator = "El Templo";
+    workbook.created = new Date();
+    const sheet = workbook.addWorksheet("Alumnos");
+
+    sheet.columns = [
+      { header: "Nombre", key: "nombre", width: 30 },
+      { header: "Email", key: "email", width: 30 },
+      { header: "DNI", key: "dni", width: 15 },
+      { header: "Telefono", key: "telefono", width: 18 },
+      { header: "Sucursal", key: "sucursal", width: 20 },
+      { header: "Nivel", key: "nivel", width: 12 },
+      { header: "Plan", key: "plan", width: 25 },
+      { header: "Estado", key: "estado", width: 12 },
+      { header: "Vencimiento", key: "vencimientoSuscripcion", width: 15 },
+      { header: "Fecha Nac.", key: "fechaNacimiento", width: 15 },
+      { header: "Direccion", key: "direccion", width: 35 },
+    ];
+
+    // Style header row: bold, background color
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    for (const row of rows) {
+      sheet.addRow(row);
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    const today = new Date().toISOString().split("T")[0];
+    const filename = `alumnos-${today}.xlsx`;
+
+    return reply
+      .header(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      )
+      .header("Content-Disposition", `attachment; filename="${filename}"`)
+      .send(Buffer.from(buffer as ArrayBuffer));
   });
 
   // =========================================================================
@@ -306,6 +381,58 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Not Found", message: "Miembro no encontrado" });
       }
       return member;
+    },
+  );
+
+  // =========================================================================
+  // Photo Upload
+  // =========================================================================
+
+  // POST /admin/members/:userId/photo/upload-url — Generate R2 presigned URL for member photo
+  fastify.post<{ Params: { userId: number }; Body: { filename: string } }>(
+    "/:userId/photo/upload-url",
+    { schema: uploadPhotoUrlSchema },
+    async (request, reply) => {
+      if (!fastify.r2) {
+        return reply.code(503).send({
+          error: "Service Unavailable",
+          message: "Image storage not configured",
+        });
+      }
+
+      const sanitized = request.body.filename
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]/g, "-")
+        .replace(/-+/g, "-");
+      const ext = sanitized.split(".").pop()?.toLowerCase() ?? "";
+      const MIME_MAP: Record<string, string> = {
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        webp: "image/webp",
+      };
+      const contentType = MIME_MAP[ext] ?? "image/jpeg";
+      const key = `members/photos/${request.params.userId}-${Date.now()}.${ext || "jpg"}`;
+
+      const command = new PutObjectCommand({
+        Bucket: fastify.r2Bucket,
+        Key: key,
+        ContentType: contentType,
+      });
+      const uploadUrl = await getSignedUrl(fastify.r2, command, {
+        expiresIn: 900,
+      });
+      const publicUrl = `${process.env.R2_PUBLIC_URL || ""}/${key}`;
+
+      // Save publicUrl to DB immediately
+      await memberService.updatePhoto(request.params.userId, publicUrl);
+
+      request.log.info(
+        { userId: request.params.userId, key },
+        "Member photo upload URL generated",
+      );
+
+      return { uploadUrl, publicUrl };
     },
   );
 

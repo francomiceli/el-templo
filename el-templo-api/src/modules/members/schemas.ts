@@ -16,6 +16,7 @@ const memberListItemSchema = {
     phone: { type: ["string", "null"] },
     dni: { type: ["string", "null"] },
     documentType: { type: ["string", "null"] },
+    photoUrl: { type: ["string", "null"] },
     level: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
@@ -35,6 +36,7 @@ const memberProfileSchema = {
     phone: { type: ["string", "null"] },
     dni: { type: ["string", "null"] },
     documentType: { type: ["string", "null"] },
+    photoUrl: { type: ["string", "null"] },
     address: { type: ["string", "null"] },
     dateOfBirth: { type: ["string", "null"] },
     gender: { type: ["string", "null"] },
@@ -181,6 +183,7 @@ export const updateMemberSchema = {
         type: ["string", "null"],
         enum: ["DNI", "Pasaporte", "NIE", "NIF", "Otro", null],
       },
+      photoUrl: { type: ["string", "null"] },
       address: { type: ["string", "null"], maxLength: 500 },
       dateOfBirth: { type: ["string", "null"] },
       gender: {
@@ -242,6 +245,59 @@ export const checkDniSchema = {
         existingMemberName: { type: "string" },
       },
     },
+  },
+};
+
+// =============================================================================
+// Export Endpoint
+// =============================================================================
+
+export const exportMembersSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      search: { type: "string" },
+      branchId: { type: "integer" },
+      multiBranch: { type: "boolean" },
+      level: {
+        type: "string",
+        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+      },
+      isActive: { type: "boolean" },
+      planId: { type: "integer" },
+    },
+  },
+  // No response schema -- binary file response
+};
+
+// =============================================================================
+// Photo Upload Endpoint
+// =============================================================================
+
+export const uploadPhotoUrlSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["filename"],
+    properties: {
+      filename: { type: "string", minLength: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        uploadUrl: { type: "string" },
+        publicUrl: { type: "string" },
+      },
+    },
+    503: errorSchema,
   },
 };
 
