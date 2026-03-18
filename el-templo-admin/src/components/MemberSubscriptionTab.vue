@@ -599,10 +599,8 @@ function confirmCancel() {
   }).onOk(async (notes: string) => {
     actionLoading.value = true;
     try {
-      subscription.value = await subsApi.cancelSubscription(
-        props.userId,
-        notes.trim() || undefined
-      );
+      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined);
+      subscription.value = null;
       $q.notify({ type: 'positive', message: 'Suscripcion cancelada' });
       emit('subscription-changed');
       loadHistory();
