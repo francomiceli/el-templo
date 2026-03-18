@@ -38,7 +38,15 @@ export default defineRouter(function () {
     // Role-based access: if route specifies allowedRoles, check user's role
     const allowedRoles = to.meta.allowedRoles;
     if (allowedRoles && !allowedRoles.includes(authStore.user?.role as AdminRole)) {
-      return '/sessions';
+      // Redirect to role's default landing page
+      const role = authStore.user?.role as AdminRole;
+      const defaultPages: Record<string, string> = {
+        owner: '/sessions',
+        admin: '/sessions',
+        coach: '/sessions',
+        recepcionista: '/alumnos',
+      };
+      return defaultPages[role] || '/sessions';
     }
 
     return true;

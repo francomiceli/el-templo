@@ -236,7 +236,7 @@ function onDeleteNote(note: MemberNote) {
 // =========================================================================
 
 function canEdit(note: MemberNote): boolean {
-  if (props.currentUserRole === 'admin' || props.currentUserRole === 'superadmin') return true;
+  if (props.currentUserRole === 'admin' || props.currentUserRole === 'owner') return true;
   return note.authorId === props.currentUserId;
 }
 

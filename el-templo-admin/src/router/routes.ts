@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router';
+import type { AdminRole } from 'src/types/admin';
 
 const routes: RouteRecordRaw[] = [
   {
@@ -11,81 +12,119 @@ const routes: RouteRecordRaw[] = [
     component: () => import('layouts/AdminLayout.vue'),
     children: [
       { path: '', redirect: '/sessions' },
-      { path: 'sessions', component: () => import('pages/SessionsPage.vue') },
-      { path: 'sessions/edit', component: () => import('pages/SessionEditPage.vue') },
-      { path: 'sessions/:id', component: () => import('pages/SessionEditLegacyRedirect.vue') },
-      { path: 'generate', component: () => import('pages/GeneratePage.vue') },
-      { path: 'exercises', component: () => import('pages/ExercisesPage.vue') },
-      { path: 'alumnos', component: () => import('pages/AlumnosPage.vue') },
+      {
+        path: 'sessions',
+        component: () => import('pages/SessionsPage.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'sessions/edit',
+        component: () => import('pages/SessionEditPage.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'sessions/:id',
+        component: () => import('pages/SessionEditLegacyRedirect.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'generate',
+        component: () => import('pages/GeneratePage.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'exercises',
+        component: () => import('pages/ExercisesPage.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
+      {
+        path: 'alumnos',
+        component: () => import('pages/AlumnosPage.vue'),
+        meta: {
+          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+        },
+      },
       {
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
+        meta: {
+          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+        },
       },
       {
         path: 'planes',
         component: () => import('pages/PlanesPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'caja',
         component: () => import('pages/CajaPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'superadmin'] },
+        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
       },
-      { path: 'horarios', component: () => import('pages/HorariosPage.vue') },
+      {
+        path: 'horarios',
+        component: () => import('pages/HorariosPage.vue'),
+        meta: { allowedRoles: ['coach', 'admin', 'owner'] as AdminRole[] },
+      },
       {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'reportes',
         component: () => import('pages/ReportesPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'superadmin'] },
+        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'blog',
         component: () => import('pages/BlogListPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'blog/new',
         component: () => import('pages/BlogEditorPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'blog/:id',
         component: () => import('pages/BlogEditorPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'gladius',
         component: () => import('pages/GladiusProductsPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'academy',
         component: () => import('pages/AcademyInquiriesPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'app-waitlist',
         component: () => import('pages/AppWaitlistPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'labs-inquiries',
         component: () => import('pages/LabsInquiriesPage.vue'),
-        meta: { allowedRoles: ['admin', 'superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'franquicias',
         component: () => import('pages/FranchiseListPage.vue'),
-        meta: { allowedRoles: ['superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
       {
         path: 'franquicias/:id',
         component: () => import('pages/FranchiseDetailPage.vue'),
-        meta: { allowedRoles: ['superadmin'] },
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
+      },
+      {
+        path: 'usuarios',
+        component: () => import('pages/UsuariosPage.vue'),
+        meta: { allowedRoles: ['owner'] as AdminRole[] },
       },
     ],
   },

@@ -1,4 +1,4 @@
-export type AdminRole = 'recepcionista' | 'coach' | 'admin' | 'superadmin';
+export type AdminRole = 'recepcionista' | 'coach' | 'admin' | 'owner';
 
 declare module 'vue-router' {
   interface RouteMeta {

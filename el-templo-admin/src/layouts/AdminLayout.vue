@@ -13,7 +13,7 @@
     <q-drawer v-model="drawer" show-if-above bordered>
       <q-list>
         <q-item-label header>Menu</q-item-label>
-        <q-item clickable v-ripple to="/sessions">
+        <q-item v-if="isCoachRole" clickable v-ripple to="/sessions">
           <q-item-section avatar>
             <q-icon name="fitness_center" />
           </q-item-section>
@@ -22,13 +22,13 @@
             <q-badge color="negative" :label="adminStore.pendingCount" />
           </q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/generate">
+        <q-item v-if="isCoachRole" clickable v-ripple to="/generate">
           <q-item-section avatar>
             <q-icon name="auto_awesome" />
           </q-item-section>
           <q-item-section>Generar</q-item-section>
         </q-item>
-        <q-item clickable v-ripple to="/exercises">
+        <q-item v-if="isCoachRole" clickable v-ripple to="/exercises">
           <q-item-section avatar>
             <q-icon name="sports_gymnastics" />
           </q-item-section>
@@ -39,6 +39,12 @@
             <q-icon name="people" />
           </q-item-section>
           <q-item-section>Alumnos</q-item-section>
+        </q-item>
+        <q-item v-if="isCoachRole" clickable v-ripple to="/horarios">
+          <q-item-section avatar>
+            <q-icon name="calendar_month" />
+          </q-item-section>
+          <q-item-section>Horarios</q-item-section>
         </q-item>
         <q-item v-if="isAdminRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
@@ -51,12 +57,6 @@
             <q-icon name="point_of_sale" />
           </q-item-section>
           <q-item-section>Caja</q-item-section>
-        </q-item>
-        <q-item clickable v-ripple to="/horarios">
-          <q-item-section avatar>
-            <q-icon name="calendar_month" />
-          </q-item-section>
-          <q-item-section>Horarios</q-item-section>
         </q-item>
         <q-item v-if="isAdminRole" clickable v-ripple to="/analiticas">
           <q-item-section avatar>
@@ -71,7 +71,7 @@
           <q-item-section>Reportes</q-item-section>
         </q-item>
 
-        <template v-if="isAdminRole">
+        <template v-if="isOwnerRole">
           <q-separator />
           <q-item-label header>Contenido</q-item-label>
           <q-item clickable v-ripple to="/blog">
@@ -106,14 +106,20 @@
           </q-item>
         </template>
 
-        <template v-if="isSuperadminRole">
+        <template v-if="isOwnerRole">
           <q-separator />
-          <q-item-label header>Franquicias</q-item-label>
+          <q-item-label header>Administracion</q-item-label>
           <q-item clickable v-ripple to="/franquicias">
             <q-item-section avatar>
               <q-icon name="store" />
             </q-item-section>
             <q-item-section>Solicitudes</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/usuarios">
+            <q-item-section avatar>
+              <q-icon name="manage_accounts" />
+            </q-item-section>
+            <q-item-section>Usuarios</q-item-section>
           </q-item>
         </template>
       </q-list>
@@ -121,7 +127,7 @@
 
     <q-page-container>
       <!-- Low sessions alert banner -->
-      <q-banner v-if="adminStore.lowSessionsAlert" class="bg-warning text-white">
+      <q-banner v-if="isCoachRole && adminStore.lowSessionsAlert" class="bg-warning text-white">
         <template #avatar>
           <q-icon name="warning" />
         </template>
@@ -148,28 +154,41 @@ const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
 
-const isAdminRole = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role ?? ''));
-const isCajaRole = computed(() =>
-  ['recepcionista', 'admin', 'superadmin'].includes(authStore.user?.role ?? '')
-);
-const isSuperadminRole = computed(() => authStore.user?.role === 'superadmin');
+// Permission-based sidebar visibility
+const userRole = computed(() => authStore.user?.role ?? '');
+
+// coach, admin, owner can see training pages (sesiones, generar, ejercicios, horarios)
+const isCoachRole = computed(() => ['coach', 'admin', 'owner'].includes(userRole.value));
+
+// admin, owner can see admin pages (planes, analiticas)
+const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));
+
+// recepcionista, admin, owner can see caja and reportes
+const isCajaRole = computed(() => ['recepcionista', 'admin', 'owner'].includes(userRole.value));
+
+// owner only for content pages, franquicias, usuarios
+const isOwnerRole = computed(() => userRole.value === 'owner');
 
 async function handleLogout() {
   await authStore.logout();
   router.push('/login');
 }
 
-// Fetch pending count and coverage on mount
+// Fetch pending count and coverage on mount (only for coach+ roles)
 onMounted(() => {
-  adminStore.fetchPendingCount();
-  adminStore.checkSessionCoverage();
+  if (isCoachRole.value) {
+    adminStore.fetchPendingCount();
+    adminStore.checkSessionCoverage();
+  }
 });
 
-// Refresh pending count on route change
+// Refresh pending count on route change (only for coach+ roles)
 watch(
   () => route.path,
   () => {
-    adminStore.fetchPendingCount();
+    if (isCoachRole.value) {
+      adminStore.fetchPendingCount();
+    }
   }
 );
 </script>
