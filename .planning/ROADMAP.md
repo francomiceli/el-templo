@@ -1270,7 +1270,12 @@ Plans:
 2. Customer profile data (e.g., injury notes mentioned in a prior conversation) persists and is available in a new conversation days later
 3. A phone number matching an active member is automatically detected as ACTIVE_MEMBER state; an unknown number starts as LEAD
 4. Redis connection failure does not crash the bot -- it degrades gracefully (no memory, still responds)
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 69-01-PLAN.md — Redis connection + session context (last 20 messages, 6h TTL, graceful degradation)
+- [ ] 69-02-PLAN.md — Customer profile (90d TTL) + client state machine + state-adaptive system prompt
 
 ### Phase 70: Action Tools
 
