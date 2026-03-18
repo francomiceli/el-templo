@@ -11,6 +11,7 @@ export type SubscriptionStatus =
   | 'expired'
   | 'completed'
   | 'changed'
+  | 'scheduled'
 
 export interface UserProfile {
   id: number
@@ -42,6 +43,7 @@ const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   expired: 'Expirado',
   completed: 'Completado',
   changed: 'Cambiado',
+  scheduled: 'Programado',
 }
 
 const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -51,6 +53,7 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   expired: 'grey',
   completed: 'info',
   changed: 'purple',
+  scheduled: 'blue-grey',
 }
 
 export const useUserStore = defineStore('user', () => {

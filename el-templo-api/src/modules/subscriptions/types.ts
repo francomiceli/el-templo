@@ -13,7 +13,8 @@ export type SubscriptionStatus =
   | "cancelled"
   | "expired"
   | "completed"
-  | "changed";
+  | "changed"
+  | "scheduled";
 export type PlanTier = "flex" | "foundation" | "performance" | "other";
 export type BookingMode = "fixed" | "flexible";
 export type PriceType = "regular" | "zero" | "credit_card";

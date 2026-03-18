@@ -718,6 +718,7 @@ export class SubscriptionService {
 
   /**
    * Cancel an active or paused subscription.
+   * Also cancels any scheduled (early-renewed) subscription for this member.
    */
   async cancelSubscription(
     userId: number,
@@ -745,6 +746,21 @@ export class SubscriptionService {
       .update(schema.subscriptions)
       .set(updateData)
       .where(eq(schema.subscriptions.id, sub.id));
+
+    // Also cancel any scheduled successor
+    await this.db
+      .update(schema.subscriptions)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        notes: "Cancelado por cancelacion de suscripcion activa",
+      })
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+        ),
+      );
 
     // Cancel all future bookings for fixed-plan subscriptions
     if (this.bookingService) {
@@ -877,12 +893,28 @@ export class SubscriptionService {
    * Change a member's current plan to a new one.
    * Validates upgrade/downgrade, applies proration credit, closes the
    * existing subscription (status='changed'), and creates a clean new record.
+   * Cancels any scheduled (early-renewed) subscription first.
    */
   async changePlan(
     userId: number,
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Cancel any scheduled successor before proceeding
+    await this.db
+      .update(schema.subscriptions)
+      .set({
+        status: "cancelled",
+        cancelledAt: new Date(),
+        notes: "Cancelado por cambio de plan",
+      })
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+        ),
+      );
+
     const existingSub = await this.getMemberSubscription(userId);
     if (!existingSub) {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
@@ -1094,15 +1126,33 @@ export class SubscriptionService {
 
   /**
    * Renew an existing subscription (active or expired).
-   * Creates a NEW subscription record for the new period, closes the old one
-   * with status='completed'. For fixed plans, copies schedule assignments
-   * and generates bookings for the new period.
+   * Creates a NEW subscription record for the new period. If the current sub
+   * is still active, the new sub is created as "scheduled" (queued).
+   * For fixed plans, copies schedule assignments and generates bookings.
    */
   async renewSubscription(
     userId: number,
     input: RenewSubscriptionInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
+    // Block if there's already a scheduled renewal
+    const [existingScheduled] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+        ),
+      )
+      .limit(1);
+
+    if (existingScheduled) {
+      throw new ConflictError(
+        "Ya existe una renovacion programada. Cancele la existente antes de renovar nuevamente.",
+      );
+    }
+
     // Find current subscription (active or expired)
     const [currentSub] = await this.db
       .select({
@@ -1161,9 +1211,9 @@ export class SubscriptionService {
           ? plan.priceCreditCard
           : plan.priceRegular;
 
-    // Close old subscription period only if it's already expired.
-    // If still active (early renewal / advance payment), leave it active —
-    // auto-expire will transition it to "completed" when its endDate passes.
+    // If old sub is already expired, close it now.
+    // If still active (early renewal), leave it active — auto-expire will
+    // transition it to "completed" and activate the scheduled sub.
     const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
     if (oldSubExpired) {
       await this.db
@@ -1172,12 +1222,16 @@ export class SubscriptionService {
         .where(eq(schema.subscriptions.id, currentSub.id));
     }
 
+    // Early renewal → new sub is "scheduled" (paid, queued, not yet usable).
+    // Expired renewal → new sub is "active" immediately.
+    const newStatus = oldSubExpired ? "active" : "scheduled";
+
     // Create new subscription record for the new period
     const result = await this.db.insert(schema.subscriptions).values({
       userId,
       planId: currentSub.planId,
       branchId: currentSub.branchId,
-      status: "active",
+      status: newStatus,
       startDate: newStartDate,
       endDate: newEndDate,
       pricePaid: renewalPrice,
@@ -1429,8 +1483,8 @@ export class SubscriptionService {
   /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
-   * If the expiring sub has a successor (from early renewal), mark as "completed"
-   * instead of "expired" for cleaner history.
+   * If the expiring sub has a scheduled successor (from early renewal),
+   * mark old as "completed" and activate the scheduled sub.
    */
   private async autoExpireSubscriptions(userId: number): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
@@ -1451,26 +1505,32 @@ export class SubscriptionService {
 
     const expiredIds = expiredSubs.map((s) => s.id);
 
-    // Check which expired subs have a successor (another sub pointing to them)
-    const successors = await this.db
+    // Find scheduled successors that should be activated
+    const scheduledSuccessors = await this.db
       .select({
+        id: schema.subscriptions.id,
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
       })
       .from(schema.subscriptions)
       .where(
         and(
           eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
           inArray(schema.subscriptions.previousSubscriptionId, expiredIds),
         ),
       );
 
-    const hasSuccessor = new Set(
-      successors.map((s) => s.previousSubscriptionId),
+    const hasScheduledSuccessor = new Set(
+      scheduledSuccessors.map((s) => s.previousSubscriptionId),
     );
 
-    // Mark subs with successor as "completed", others as "expired"
-    const completedIds = expiredIds.filter((id) => hasSuccessor.has(id));
-    const expiredOnlyIds = expiredIds.filter((id) => !hasSuccessor.has(id));
+    // Mark subs with scheduled successor as "completed", others as "expired"
+    const completedIds = expiredIds.filter((id) =>
+      hasScheduledSuccessor.has(id),
+    );
+    const expiredOnlyIds = expiredIds.filter(
+      (id) => !hasScheduledSuccessor.has(id),
+    );
 
     if (completedIds.length > 0) {
       await this.db
@@ -1483,6 +1543,15 @@ export class SubscriptionService {
         .update(schema.subscriptions)
         .set({ status: "expired" })
         .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+    }
+
+    // Activate scheduled successors
+    if (scheduledSuccessors.length > 0) {
+      const scheduledIds = scheduledSuccessors.map((s) => s.id);
+      await this.db
+        .update(schema.subscriptions)
+        .set({ status: "active" })
+        .where(inArray(schema.subscriptions.id, scheduledIds));
     }
   }
 

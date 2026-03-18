@@ -22,6 +22,7 @@ export const subscriptionStatusEnum = mysqlEnum("subscription_status", [
   "expired",
   "completed",
   "changed",
+  "scheduled",
 ]);
 
 export const priceTypeAppliedEnum = mysqlEnum("price_type_applied", [

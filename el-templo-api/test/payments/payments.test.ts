@@ -537,7 +537,8 @@ describe("Payments API", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("active");
+      // Old sub still active (endDate in future) → new sub is scheduled
+      expect(body.status).toBe("scheduled");
       // New period starts from old endDate (2026-03-31) and extends by 30 days
       expect(body.startDate).toBe("2026-03-31");
       expect(body.endDate).toBe("2026-04-30");

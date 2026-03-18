@@ -1334,7 +1334,7 @@ describe("Subscriptions API", () => {
       await cleanupSubscriptionData();
     });
 
-    it("early renewal keeps old sub active, creates new future sub", async () => {
+    it("early renewal keeps old sub active, creates scheduled future sub", async () => {
       const plan = await createPlan({
         name: "Renewal Test Plan",
         classesPerWeek: 3,
@@ -1362,9 +1362,9 @@ describe("Subscriptions API", () => {
       expect(res.statusCode).toBe(201);
       const newSub = JSON.parse(res.body);
 
-      // New sub is a different record
+      // New sub is a different record with status "scheduled"
       expect(newSub.id).not.toBe(oldSubId);
-      expect(newSub.status).toBe("active");
+      expect(newSub.status).toBe("scheduled");
       expect(newSub.planId).toBe(plan.id);
       // Links back to old sub
       expect(newSub.previousSubscriptionId).toBe(oldSubId);
@@ -1381,7 +1381,7 @@ describe("Subscriptions API", () => {
         .where(eq(subscriptions.id, oldSubId as number));
       expect(oldSubRows[0].status).toBe("active");
 
-      // getMemberSubscription returns the OLD sub (covers today, not the future one)
+      // getMemberSubscription returns the OLD sub (scheduled is not "current")
       const currentRes = await app.inject({
         method: "GET",
         url: `${BASE_URL}/members/${member.id}/subscription`,
@@ -1390,6 +1390,40 @@ describe("Subscriptions API", () => {
       expect(currentRes.statusCode).toBe(200);
       const current = JSON.parse(currentRes.body);
       expect(current.id).toBe(oldSubId);
+    });
+
+    it("blocks double early renewal when scheduled sub already exists", async () => {
+      const plan = await createPlan({
+        name: "Double Renewal Plan",
+        classesPerWeek: 3,
+        durationDays: 30,
+        priceRegular: 10000,
+        priceZero: 5000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: "2026-06-01",
+      });
+
+      // First renewal (creates scheduled sub)
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+      expect(res1.statusCode).toBe(201);
+
+      // Second renewal should be blocked
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/renew`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { paymentMethod: "cash" },
+      });
+      expect(res2.statusCode).toBe(409);
     });
 
     it("renew records payment linked to the new subscription", async () => {
@@ -1462,7 +1496,7 @@ describe("Subscriptions API", () => {
       expect(newSub.endDate).toBe("2026-07-31");
     });
 
-    it("history shows period chain after renewal", async () => {
+    it("history shows active + scheduled after early renewal", async () => {
       const plan = await createPlan({
         name: "History Chain Plan",
         classesPerWeek: 3,
@@ -1496,12 +1530,11 @@ describe("Subscriptions API", () => {
       const history = JSON.parse(historyRes.body);
       expect(history.subscriptions).toHaveLength(2);
 
-      // Both subs are active (early renewal keeps old active)
-      // The newer one has previousSubscriptionId linking to the old one
-      const linked = history.subscriptions.find(
-        (s: Record<string, unknown>) => s.previousSubscriptionId !== null,
+      const statuses = history.subscriptions.map(
+        (s: Record<string, unknown>) => s.status,
       );
-      expect(linked).toBeTruthy();
+      expect(statuses).toContain("active");
+      expect(statuses).toContain("scheduled");
     });
   });
 });

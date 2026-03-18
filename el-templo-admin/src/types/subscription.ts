@@ -13,7 +13,8 @@ export type SubscriptionStatus =
   | 'cancelled'
   | 'expired'
   | 'completed'
-  | 'changed';
+  | 'changed'
+  | 'scheduled';
 export type PriceType = 'regular' | 'zero' | 'credit_card';
 
 // ─── Label & Color Maps ─────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export const STATUS_LABELS: Record<SubscriptionStatus, string> = {
   expired: 'Expirado',
   completed: 'Completado',
   changed: 'Cambiado',
+  scheduled: 'Programado',
 };
 
 export const STATUS_COLORS: Record<SubscriptionStatus, string> = {
@@ -46,6 +48,7 @@ export const STATUS_COLORS: Record<SubscriptionStatus, string> = {
   expired: 'grey',
   completed: 'info',
   changed: 'purple',
+  scheduled: 'blue-grey',
 };
 
 export const PRICE_TYPE_LABELS: Record<PriceType, string> = {
