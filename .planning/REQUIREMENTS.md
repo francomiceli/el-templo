@@ -60,9 +60,9 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Roles & Permissions
 
-- [ ] **ROLES-01**: System supports predefined roles: admin, coach, recepcionista, owner
-- [ ] **ROLES-02**: Each role has predefined permission set controlling feature/page access
-- [ ] **ROLES-03**: Admin can assign roles to system users
+- [x] **ROLES-01**: System supports predefined roles: admin, coach, recepcionista, owner
+- [x] **ROLES-02**: Each role has predefined permission set controlling feature/page access
+- [x] **ROLES-03**: Admin can assign roles to system users
 - [ ] **ROLES-04**: Admin UI shows/hides features and actions based on user's assigned role
 
 ### Member Management
@@ -143,9 +143,9 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | REPORT-03   | Phase 65 | Complete |
 | REPORT-04   | Phase 65 | Complete |
 | REPORT-05   | Phase 65 | Complete |
-| ROLES-01    | Phase 66 | Pending  |
-| ROLES-02    | Phase 66 | Pending  |
-| ROLES-03    | Phase 66 | Pending  |
+| ROLES-01    | Phase 66 | Complete |
+| ROLES-02    | Phase 66 | Complete |
+| ROLES-03    | Phase 66 | Complete |
 | ROLES-04    | Phase 66 | Pending  |
 
 **Coverage:**

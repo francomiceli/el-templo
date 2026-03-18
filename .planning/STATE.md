@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Phase 66 context gathered
-last_updated: "2026-03-18T16:15:32.567Z"
-last_activity: 2026-03-18 -- Plan 65-02 complete (reports frontend with 4 tabs, filters, export, WhatsApp)
+status: in-progress
+stopped_at: Completed 66-01-PLAN.md
+last_updated: "2026-03-18T16:41:42.000Z"
+last_activity: 2026-03-18 -- Plan 66-01 complete (backend role system with centralized permissions and user management CRUD)
 progress:
   total_phases: 37
   completed_phases: 33
-  total_plans: 113
-  completed_plans: 112
+  total_plans: 114
+  completed_plans: 113
   percent: 99
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 65 of 66 (Reports Dashboard) -- 8th of 9 phases in v4.1
-Plan: 2 of 2
-Status: Complete
-Last activity: 2026-03-18 -- Plan 65-02 complete (reports frontend with 4 tabs, filters, export, WhatsApp)
+Phase: 66 of 66 (Roles & Permissions) -- 9th of 9 phases in v4.1
+Plan: 1 of 2
+Status: In Progress
+Last activity: 2026-03-18 -- Plan 66-01 complete (backend role system with centralized permissions and user management CRUD)
 
 Progress: [██████████] 99%
 
@@ -69,6 +69,7 @@ _Updated after each plan completion_
 | Phase 64 P03 | 47min | 2 tasks | 8 files |
 | Phase 65 P01 | 7min | 2 tasks | 7 files |
 | Phase 65 P02 | 3min | 2 tasks | 5 files |
+| Phase 66 P01 | 11min | 2 tasks | 38 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting current work:
 - [Phase 65]: Export methods reuse query methods with high limit for DRY
 - [Phase 65]: Paginated report pattern: PaginatedResult<T> with rows/total/page/limit
 - [Phase 65]: Single-file ReportesPage with inline tabs for data table simplicity; per-tab independent date ranges
+- [Phase 66]: Centralized role permission registry in shared/permissions.ts; all modules import role groups, never define local arrays
+- [Phase 66]: Owner replaces superadmin throughout API; four-role hierarchy: owner > admin > coach = recepcionista (parallel)
+- [Phase 66]: Cast pattern (ROLES as readonly string[]).includes() for const array TypeScript compatibility
 
 ### Pending Todos
 
@@ -129,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:15:32.536Z
-Stopped at: Phase 66 context gathered
-Resume file: .planning/phases/66-roles-permissions/66-CONTEXT.md
+Last session: 2026-03-18T16:41:42.000Z
+Stopped at: Completed 66-01-PLAN.md
+Resume file: .planning/phases/66-roles-permissions/66-02-PLAN.md
