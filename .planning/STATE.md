@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 68-03-PLAN.md (Phase 68 complete)
-last_updated: "2026-03-18T17:42:36.000Z"
-last_activity: 2026-03-18 -- Completed Plan 03 of Phase 68
+stopped_at: Completed 69-01-PLAN.md
+last_updated: "2026-03-18T19:50:14.000Z"
+last_activity: 2026-03-18 -- Completed Plan 01 of Phase 69
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 29
+  total_plans: 7
+  completed_plans: 6
+  percent: 35
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 68 -- AI Integration + Info Tools
+**Current focus:** Phase 69 -- Redis Memory Layer + Client State Machine
 
 ## Current Position
 
-Phase: 68 of 73 (AI Integration + Info Tools)
-Plan: 3 of 3
-Status: Phase Complete
-Last activity: 2026-03-18 -- Completed Plan 03 of Phase 68
+Phase: 69 of 73 (Redis Memory Layer + Client State Machine)
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-03-18 -- Completed Plan 01 of Phase 69
 
-Progress: [▓▓▓░░░░░░░] 29%
+Progress: [▓▓▓▓░░░░░░] 35%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 5 (v5.0)
+- Total plans completed: 6 (v5.0)
 
 **By Phase:**
 
@@ -44,6 +44,7 @@ Progress: [▓▓▓░░░░░░░] 29%
 | ----- | ----- | ------ | -------- |
 | 67    | 2/2   | 12 min | 6 min    |
 | 68    | 3/3   | 14 min | 5 min    |
+| 69    | 1/2   | 4 min  | 4 min    |
 
 ## Accumulated Context
 
@@ -71,6 +72,9 @@ Recent decisions affecting current work:
 - [68-02] Last 10 messages for AI conversation context
 - [68-03] Bot unit tests in el-templo-bot/test/ with vitest (pure mocks, no DB)
 - [68-03] Anthropic tool_use blocks reconstructed in provider mapMessages (provider-agnostic handler)
+- [69-01] Redis session updated before AI call (inbound) and after response (assistant) for full continuity
+- [69-01] Redis session primary context source, MySQL fallback (was primary)
+- [69-01] MySQL fallback query limit updated from 10 to 20 messages to match session window
 
 ### Pending Todos
 
@@ -83,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-18
-Stopped at: Completed 68-03-PLAN.md (Phase 68 complete)
-Resume file: .planning/phases/68-ai-integration-info-tools/68-03-SUMMARY.md
+Stopped at: Completed 69-01-PLAN.md
+Resume file: .planning/phases/69-redis-memory-layer-client-state-machine/69-01-SUMMARY.md
