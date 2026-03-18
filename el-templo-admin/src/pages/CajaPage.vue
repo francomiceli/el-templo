@@ -2,52 +2,74 @@
   <q-page class="q-pa-md">
     <!-- Header -->
     <div class="row items-center q-mb-md">
-      <div class="text-h5 col">Pagos</div>
-      <q-btn icon="add" label="Registrar Pago" color="primary" @click="showRegisterDialog = true" />
+      <div class="text-h5 col">Caja</div>
     </div>
 
     <!-- ========================================== -->
     <!-- Summary Cards -->
     <!-- ========================================== -->
     <div class="row q-col-gutter-md q-mb-md">
-      <div class="col-12 col-sm-4">
+      <!-- Efectivo -->
+      <div class="col-6 col-sm-3">
         <q-card flat bordered>
           <q-card-section>
-            <div class="text-caption text-grey-7">Ingresos del mes</div>
+            <div class="text-caption text-grey-7">
+              <q-icon name="payments" color="green" class="q-mr-xs" /> Efectivo
+            </div>
+            <div v-if="loadingSummary" class="q-mt-xs">
+              <q-skeleton type="text" width="100px" />
+            </div>
+            <div v-else class="text-h5 text-weight-bold q-mt-xs">
+              ${{ summary.revenueByMethod.cash.toLocaleString() }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+      <!-- Transferencia -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-caption text-grey-7">
+              <q-icon name="account_balance" color="blue" class="q-mr-xs" /> Transferencia
+            </div>
+            <div v-if="loadingSummary" class="q-mt-xs">
+              <q-skeleton type="text" width="100px" />
+            </div>
+            <div v-else class="text-h5 text-weight-bold q-mt-xs">
+              ${{ summary.revenueByMethod.transfer.toLocaleString() }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+      <!-- Tarjeta -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered>
+          <q-card-section>
+            <div class="text-caption text-grey-7">
+              <q-icon name="credit_card" color="purple" class="q-mr-xs" /> Tarjeta
+            </div>
+            <div v-if="loadingSummary" class="q-mt-xs">
+              <q-skeleton type="text" width="100px" />
+            </div>
+            <div v-else class="text-h5 text-weight-bold q-mt-xs">
+              ${{ summary.revenueByMethod.card.toLocaleString() }}
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+      <!-- Total -->
+      <div class="col-6 col-sm-3">
+        <q-card flat bordered class="bg-grey-1">
+          <q-card-section>
+            <div class="text-caption text-grey-7">
+              <q-icon name="account_balance_wallet" class="q-mr-xs" /> Total
+            </div>
             <div v-if="loadingSummary" class="q-mt-xs">
               <q-skeleton type="text" width="100px" />
             </div>
             <div v-else class="text-h5 text-weight-bold text-positive q-mt-xs">
               ${{ summary.monthlyRevenue.toLocaleString() }}
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">Deudas pendientes</div>
-            <div v-if="loadingSummary" class="q-mt-xs">
-              <q-skeleton type="text" width="100px" />
-            </div>
-            <div
-              v-else
-              class="text-h5 text-weight-bold q-mt-xs"
-              :class="summary.totalOutstanding > 0 ? 'text-negative' : ''"
-            >
-              ${{ summary.totalOutstanding.toLocaleString() }}
-            </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-4">
-        <q-card flat bordered>
-          <q-card-section>
-            <div class="text-caption text-grey-7">Tasa de cobro</div>
-            <div v-if="loadingSummary" class="q-mt-xs">
-              <q-skeleton type="text" width="80px" />
-            </div>
-            <div v-else class="text-h5 text-weight-bold q-mt-xs">{{ summary.collectionRate }}%</div>
           </q-card-section>
         </q-card>
       </div>
@@ -97,24 +119,13 @@
         />
       </div>
       <div class="col-6 col-sm-2">
+        <!-- @vue-ignore: "month" is valid HTML5 but not in Quasar's type union -->
         <q-input
-          v-model="filters.dateFrom"
-          label="Desde"
-          type="date"
+          v-model="selectedMonth"
+          label="Mes"
+          type="month"
           dense
           outlined
-          clearable
-          @update:model-value="onFilterChange"
-        />
-      </div>
-      <div class="col-6 col-sm-2">
-        <q-input
-          v-model="filters.dateTo"
-          label="Hasta"
-          type="date"
-          dense
-          outlined
-          clearable
           @update:model-value="onFilterChange"
         />
       </div>
@@ -182,14 +193,6 @@
         </q-td>
       </template>
 
-      <!-- Estado column -->
-      <template #body-cell-estado="slotProps">
-        <q-td :props="slotProps">
-          <q-badge v-if="isVoided(slotProps.row)" color="negative" label="Anulado" />
-          <q-badge v-else color="positive" label="Completado" />
-        </q-td>
-      </template>
-
       <!-- Registrado por column -->
       <template #body-cell-registrado="slotProps">
         <q-td :props="slotProps" :class="{ 'text-grey-5': isVoided(slotProps.row) }">
@@ -236,14 +239,24 @@
     </q-table>
 
     <!-- ========================================== -->
-    <!-- Register Payment Dialog -->
+    <!-- Egresos Placeholder -->
     <!-- ========================================== -->
-    <RegisterPaymentDialog v-model="showRegisterDialog" @saved="onPaymentSaved" />
+    <q-card flat bordered class="q-mt-lg">
+      <q-card-section>
+        <div class="row items-center q-gutter-sm">
+          <div class="text-subtitle1 text-weight-bold text-grey-7">Egresos</div>
+          <q-badge color="grey" label="Proximamente" />
+        </div>
+        <div class="text-caption text-grey-5 q-mt-sm">
+          Seguimiento de gastos y fondo de caja. Disponible en una futura actualizacion.
+        </div>
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
@@ -260,9 +273,8 @@ import {
   type FinancialSummary,
 } from 'src/types/payment';
 import type { BranchOption } from 'src/types/member';
-import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
 
-const log = createLogger('PagosPage');
+const log = createLogger('CajaPage');
 const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
@@ -275,22 +287,28 @@ const paymentsApi = usePaymentsApi();
 const payments = ref<PaymentListItem[]>([]);
 const loadingTable = ref(false);
 const loadingSummary = ref(false);
-const showRegisterDialog = ref(false);
 
 const summary = reactive<FinancialSummary>({
   monthlyRevenue: 0,
-  totalOutstanding: 0,
-  collectionRate: 0,
   revenueByMethod: { cash: 0, transfer: 0, card: 0 },
   revenueByBranch: [],
+});
+
+const selectedMonth = ref(new Date().toISOString().slice(0, 7));
+
+const dateRange = computed(() => {
+  if (!selectedMonth.value) return { dateFrom: undefined, dateTo: undefined };
+  const [year, month] = selectedMonth.value.split('-').map(Number);
+  const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const dateTo = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  return { dateFrom, dateTo };
 });
 
 const filters = reactive({
   search: '',
   branchId: null as number | null,
   paymentMethod: null as PaymentMethod | null,
-  dateFrom: null as string | null,
-  dateTo: null as string | null,
 });
 
 const tablePagination = ref({
@@ -321,14 +339,6 @@ const columns: QTableProps['columns'] = [
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'metodo', label: 'Metodo', field: 'paymentMethod', align: 'left', sortable: false },
   { name: 'plan', label: 'Plan', field: 'planName', align: 'left', sortable: false },
-  {
-    name: 'estado',
-    label: 'Estado',
-    field: 'voidedAt',
-    align: 'center',
-    sortable: false,
-    style: 'width: 110px',
-  },
   {
     name: 'registrado',
     label: 'Registrado por',
@@ -384,12 +394,10 @@ async function loadSummary() {
   try {
     const data = await paymentsApi.getFinancialSummary(
       filters.branchId ?? undefined,
-      filters.dateFrom ?? undefined,
-      filters.dateTo ?? undefined
+      dateRange.value.dateFrom,
+      dateRange.value.dateTo
     );
     summary.monthlyRevenue = data.monthlyRevenue;
-    summary.totalOutstanding = data.totalOutstanding;
-    summary.collectionRate = data.collectionRate;
     summary.revenueByMethod = data.revenueByMethod;
     summary.revenueByBranch = data.revenueByBranch;
   } catch (err: unknown) {
@@ -407,8 +415,8 @@ async function loadPayments() {
       search: filters.search || undefined,
       branchId: filters.branchId ?? undefined,
       paymentMethod: filters.paymentMethod ?? undefined,
-      dateFrom: filters.dateFrom ?? undefined,
-      dateTo: filters.dateTo ?? undefined,
+      dateFrom: dateRange.value.dateFrom,
+      dateTo: dateRange.value.dateTo,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -492,11 +500,6 @@ function onTableRequest(props: { pagination: { page: number; rowsPerPage: number
 
 function goToMember(memberId: number) {
   router.push(`/alumnos/${memberId}`);
-}
-
-function onPaymentSaved() {
-  loadPayments();
-  loadSummary();
 }
 
 // =========================================================================

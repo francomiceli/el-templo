@@ -48,28 +48,8 @@ export interface PaymentListItem {
   createdAt: string;
 }
 
-export interface RecordPaymentInput {
-  amount: number;
-  paymentMethod: PaymentMethod;
-  paymentDate: string;
-  subscriptionId?: number;
-  reference?: string;
-  notes?: string;
-}
-
 export interface VoidPaymentInput {
   reason: string;
-}
-
-// -- Balance Types ------------------------------------------------------------
-
-export interface MemberBalance {
-  subscriptionId: number;
-  planName: string;
-  pricePaid: number;
-  totalPaid: number;
-  remaining: number;
-  isOverdue: boolean;
 }
 
 // -- Payment List Params ------------------------------------------------------
@@ -88,8 +68,6 @@ export interface PaymentListParams {
 
 export interface FinancialSummary {
   monthlyRevenue: number;
-  totalOutstanding: number;
-  collectionRate: number;
   revenueByMethod: {
     cash: number;
     transfer: number;
