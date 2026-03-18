@@ -1176,17 +1176,22 @@ Plans:
 
 ### Phase 65: Reports Dashboard
 
-**Goal**: Admin has a reports section with five key operational reports, all filterable and exportable to Excel
+**Goal**: Admin has a dedicated reports section with four operational reports (access log, charge history, expiring memberships, inactive members), all filterable by branch and report-specific criteria, with Excel export per report
 **Depends on**: Phase 61 (access log data)
 **Requirements**: REPORT-01, REPORT-02, REPORT-03, REPORT-04, REPORT-05
 **Success Criteria** (what must be TRUE):
 
-1. Access log report shows check-in history with filters (period, member, access status) and exports to Excel
-2. Charge history report shows payment records with filters (period, payment method, member, concept) and exports to Excel
-3. Debt report lists all members with outstanding balances, showing contact info and a WhatsApp shortcut
-4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window
-5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold
-   **Plans**: TBD
+1. Access log report shows check-in history with filters (period, member, source) and exports to Excel
+2. Charge history report shows payment records with filters (period, payment method, member) and exports to Excel — voided payments visually distinct
+3. REPORT-03 (debt report) N/A — debt/morosos concept removed in Phase 63
+4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window, with WhatsApp contact
+5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold, with WhatsApp contact
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 65-01-PLAN.md — API reports module: types, service, routes, schemas, Excel export, integration tests
+- [ ] 65-02-PLAN.md — Frontend ReportesPage: 4 tabs with filters, pagination, export, WhatsApp buttons
 
 ---
 
@@ -1219,7 +1224,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
 | 64. Member Management Enhancements  | 3/3            | Complete    | 2026-03-18 |
-| 65. Reports Dashboard               | 0/?            | Not started | -          |
+| 65. Reports Dashboard               | 0/2            | Not started | -          |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
 
 ---
