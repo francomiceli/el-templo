@@ -286,6 +286,83 @@
         <!-- ============================================================ -->
         <q-step :name="confirmStep" title="Confirmar" icon="check_circle">
           <template v-if="selectedPlan">
+            <!-- Loading preview spinner for change mode -->
+            <div v-if="props.mode === 'change' && loadingPreview" class="flex flex-center q-pa-lg">
+              <q-spinner-dots size="40px" color="primary" />
+            </div>
+
+            <!-- Downgrade blocked message -->
+            <q-card
+              v-if="
+                props.mode === 'change' && changePlanPreviewData && !changePlanPreviewData.allowed
+              "
+              flat
+              bordered
+              class="q-mb-md bg-red-1"
+            >
+              <q-card-section>
+                <div class="row items-center q-gutter-sm q-mb-sm">
+                  <q-icon name="block" color="negative" size="sm" />
+                  <div class="text-subtitle2 text-negative text-weight-bold">
+                    Cambio no permitido
+                  </div>
+                </div>
+                <div class="text-body2">{{ changePlanPreviewData.reason }}</div>
+                <div
+                  v-if="changePlanPreviewData.expiryDate"
+                  class="text-caption text-grey-7 q-mt-sm"
+                >
+                  Vencimiento actual: {{ formatDate(changePlanPreviewData.expiryDate) }}
+                </div>
+              </q-card-section>
+            </q-card>
+
+            <!-- Upgrade price comparison summary -->
+            <q-card
+              v-if="props.mode === 'change' && changePlanPreviewData?.allowed"
+              flat
+              bordered
+              class="q-mb-md bg-blue-1"
+            >
+              <q-card-section>
+                <div class="text-subtitle2 text-weight-bold q-mb-sm">Resumen de Cambio de Plan</div>
+                <q-list dense>
+                  <q-item>
+                    <q-item-section>Plan actual</q-item-section>
+                    <q-item-section side>
+                      {{ changePlanPreviewData.currentPlan.name }} — ${{
+                        changePlanPreviewData.currentPlan.pricePaid.toLocaleString()
+                      }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Credito prorrateado</q-item-section>
+                    <q-item-section side class="text-positive">
+                      -${{ changePlanPreviewData.proration!.remainingValue.toLocaleString() }}
+                      <span class="text-caption text-grey-6 q-ml-xs">
+                        ({{ changePlanPreviewData.proration!.remainingDetail }})
+                      </span>
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Nuevo plan</q-item-section>
+                    <q-item-section side>
+                      {{ changePlanPreviewData.targetPlan.name }} — ${{
+                        changePlanPreviewData.targetPlan.priceRegular.toLocaleString()
+                      }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator />
+                  <q-item>
+                    <q-item-section class="text-weight-bold">Monto a cobrar</q-item-section>
+                    <q-item-section side class="text-weight-bold text-h6">
+                      ${{ changePlanPreviewData.netAmount!.toLocaleString() }}
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
+
             <q-card flat bordered class="q-mb-md">
               <q-card-section>
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Confirmacion</div>
@@ -356,12 +433,18 @@
             />
 
             <q-stepper-navigation>
-              <q-btn flat label="Volver" @click="step = isFixedMode ? 3 : 2" class="q-mr-sm" />
+              <q-btn
+                flat
+                label="Volver"
+                @click="step = props.mode === 'change' ? 1 : isFixedMode ? 3 : 2"
+                class="q-mr-sm"
+              />
               <q-btn
                 color="primary"
                 label="Confirmar"
                 icon="check"
                 :loading="assigning"
+                :disable="props.mode === 'change' && changePlanPreviewData?.allowed === false"
                 @click="onConfirm"
               />
             </q-stepper-navigation>
@@ -394,6 +477,7 @@ import {
   type PriceType,
   type PricingPreview,
   type AssignPlanInput,
+  type ChangePlanPreview,
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import { DAY_SHORT_LABELS, type WeeklySlotView, type DayOfWeek } from 'src/types/scheduling';
@@ -432,6 +516,8 @@ const plans = ref<PlanListItem[]>([]);
 const loadingPlans = ref(false);
 const selectedPlan = ref<PlanListItem | null>(null);
 const pricingPreview = ref<PricingPreview | null>(null);
+const changePlanPreviewData = ref<ChangePlanPreview | null>(null);
+const loadingPreview = ref(false);
 const assigning = ref(false);
 
 // Schedule slot picker state
@@ -701,7 +787,7 @@ function getMonday(d: Date): string {
 // Actions
 // =========================================================================
 
-function selectPlan(plan: PlanListItem) {
+async function selectPlan(plan: PlanListItem) {
   selectedPlan.value = plan;
   assignForm.value.priceTypeApplied = 'regular';
   assignForm.value.boardingPass = false;
@@ -710,12 +796,32 @@ function selectPlan(plan: PlanListItem) {
   assignForm.value.priceOverrideAmount = null;
   assignForm.value.priceOverrideReason = '';
   selectedScheduleIds.value = [];
-  step.value = 2;
-  loadPricingPreview();
 
-  // Pre-load branch schedules for fixed plans
-  if (plan.bookingMode === 'fixed') {
-    loadBranchSchedules();
+  if (props.mode === 'change') {
+    // Upgrade starts a new full period from today
+    assignForm.value.startDate = new Date().toISOString().split('T')[0];
+
+    // Fetch change plan preview
+    loadingPreview.value = true;
+    try {
+      changePlanPreviewData.value = await subsApi.getChangePlanPreview(props.userId, plan.id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.error('Error loading change plan preview', { error: message });
+    } finally {
+      loadingPreview.value = false;
+    }
+
+    // Skip directly to confirm step (proration determines the price)
+    step.value = confirmStep.value;
+  } else {
+    step.value = 2;
+    loadPricingPreview();
+
+    // Pre-load branch schedules for fixed plans
+    if (plan.bookingMode === 'fixed') {
+      loadBranchSchedules();
+    }
   }
 }
 
@@ -814,6 +920,7 @@ watch(
       step.value = 1;
       selectedPlan.value = null;
       pricingPreview.value = null;
+      changePlanPreviewData.value = null;
       branchSchedules.value = [];
       selectedScheduleIds.value = [];
       assignForm.value = {

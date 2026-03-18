@@ -16,6 +16,7 @@ import type {
   AssignPlanInput,
   RenewSubscriptionInput,
   PricingPreview,
+  ChangePlanPreview,
   PriceType,
   ClassUsageInfo,
 } from 'src/types/subscription';
@@ -287,6 +288,28 @@ export function useSubscriptionsApi() {
     }
   }
 
+  // ─── Change Plan Preview ────────────────────────────────────────────
+
+  async function getChangePlanPreview(
+    userId: number,
+    targetPlanId: number
+  ): Promise<ChangePlanPreview> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<ChangePlanPreview>(
+        `/admin/subscriptions/members/${userId}/subscription/change-plan-preview`,
+        { params: { targetPlanId } }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error obteniendo preview de cambio');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -311,6 +334,7 @@ export function useSubscriptionsApi() {
     resumeSubscription,
     cancelSubscription,
     getPricingPreview,
+    getChangePlanPreview,
     getClassUsage,
     cleanup,
   };

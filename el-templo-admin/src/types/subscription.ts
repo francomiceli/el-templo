@@ -172,6 +172,24 @@ export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
 }
 
+// ─── Plan Change / Proration Types ─────────────────────────────────────────
+
+export interface ProrationResult {
+  remainingValue: number;
+  remainingRatio: number;
+  remainingDetail: string;
+}
+
+export interface ChangePlanPreview {
+  allowed: boolean;
+  reason?: string;
+  currentPlan: { id: number; name: string; priceRegular: number; pricePaid: number };
+  targetPlan: { id: number; name: string; priceRegular: number };
+  proration: ProrationResult | null;
+  netAmount: number | null;
+  expiryDate?: string;
+}
+
 // ─── Pricing Types ──────────────────────────────────────────────────────────
 
 export interface PricingPreview {
