@@ -22,11 +22,12 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 ### Access Control
 
-- [ ] **ACCESS-01**: Branch entrance has a kiosk welcome screen showing member name, photo, subscription status, and classes remaining after QR scan
-- [ ] **ACCESS-02**: Kiosk performs soft verification: checks subscription validity and shows warnings (expired, has debt, no classes remaining) without hard-blocking access
-- [ ] **ACCESS-03**: Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
+- [x] ~~**ACCESS-01**: Branch entrance has a kiosk welcome screen~~ — Replaced by physical QR per branch
+- [x] ~~**ACCESS-02**: Kiosk performs soft verification~~ — Replaced by physical QR per branch
+- [x] ~~**ACCESS-03**: Admin panel shows real-time access log~~ — Replaced by physical QR per branch
 - [x] **ACCESS-04**: Recepcionista can manually check in a member by search from the admin panel
 - [x] **ACCESS-05**: Access log records member details, subscription info, and any warnings at time of check-in
+- [x] **ACCESS-06**: Admin can generate and download a physical QR code per branch for members to scan with the app
 
 ### Plan Configuration
 
@@ -108,7 +109,7 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 | Requirement | Phase    | Status   |
 | ----------- | -------- | -------- |
-| DEPLOY-01   | Phase 58 | Pending  |
+| DEPLOY-01   | Phase 58 | Complete |
 | DATA-01     | Phase 59 | Complete |
 | DATA-02     | Phase 59 | Complete |
 | DATA-03     | Phase 59 | Complete |
@@ -122,15 +123,16 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 | PLANS-04    | Phase 60 | Complete |
 | PLANS-05    | Phase 60 | Complete |
 | PLANS-06    | Phase 60 | Complete |
-| ACCESS-01   | Phase 61 | Pending  |
-| ACCESS-02   | Phase 61 | Pending  |
-| ACCESS-03   | Phase 61 | Pending  |
+| ACCESS-01   | Phase 61 | Removed  |
+| ACCESS-02   | Phase 61 | Removed  |
+| ACCESS-03   | Phase 61 | Removed  |
 | ACCESS-04   | Phase 61 | Complete |
 | ACCESS-05   | Phase 61 | Complete |
-| PAY-01      | Phase 62 | Pending  |
-| PAY-02      | Phase 62 | Pending  |
-| PAY-03      | Phase 62 | Pending  |
-| PAY-04      | Phase 62 | Pending  |
+| ACCESS-06   | Phase 61 | Complete |
+| PAY-01      | Phase 62 | N/A      |
+| PAY-02      | Phase 62 | N/A      |
+| PAY-03      | Phase 62 | N/A      |
+| PAY-04      | Phase 62 | N/A      |
 | CASH-02     | Phase 63 | Pending  |
 | CASH-03     | Phase 63 | Pending  |
 | MEMBER-01   | Phase 64 | Pending  |
@@ -148,11 +150,11 @@ Requirements for admin consolidation milestone. Each maps to roadmap phases.
 
 **Coverage:**
 
-- v4.1 requirements: 37 total
-- Mapped to phases: 37
+- v4.1 requirements: 38 total (ACCESS-06 added, ACCESS-01/02/03 removed → kiosk replaced by physical QR)
+- Mapped to phases: 38
 - Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-03-14_
-_Last updated: 2026-03-14 after roadmap creation (all 37 requirements mapped to phases 58-66)_
+_Last updated: 2026-03-18 — kiosk (ACCESS-01/02/03) replaced with physical branch QR (ACCESS-06); DEPLOY-01 marked complete; PAY-01-04 marked N/A_
