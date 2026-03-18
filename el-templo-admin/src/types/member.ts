@@ -18,6 +18,7 @@ export interface MemberListItem {
   isActive: boolean;
   isOverdue: boolean;
   documentType: string | null;
+  photoUrl: string | null;
   planName: string | null;
   createdAt: string;
 }

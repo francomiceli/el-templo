@@ -5,6 +5,7 @@
  */
 
 import { ref } from 'vue';
+import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type {
@@ -259,6 +260,27 @@ export function useMembersApi() {
     }
   }
 
+  // ─── Photo Upload ────────────────────────────────────────────────────
+
+  async function getPhotoUploadUrl(
+    userId: number,
+    filename: string
+  ): Promise<{ uploadUrl: string; publicUrl: string }> {
+    const { data } = await api.post<{ uploadUrl: string; publicUrl: string }>(
+      `/admin/members/${userId}/photo/upload-url`,
+      { filename }
+    );
+    return data;
+  }
+
+  async function uploadMemberPhoto(userId: number, file: File): Promise<string> {
+    const { uploadUrl, publicUrl } = await getPhotoUploadUrl(userId, file.name);
+    await axios.put(uploadUrl, file, {
+      headers: { 'Content-Type': file.type || 'image/jpeg' },
+    });
+    return publicUrl;
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -282,6 +304,7 @@ export function useMembersApi() {
     updateNote,
     deleteNote,
     getBranches,
+    uploadMemberPhoto,
     cleanup,
   };
 }

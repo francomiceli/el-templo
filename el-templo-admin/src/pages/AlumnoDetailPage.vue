@@ -22,14 +22,21 @@
       <q-card flat bordered class="q-mb-md">
         <q-card-section>
           <div class="row items-center q-gutter-md">
-            <!-- Level letter -->
-            <div>
-              <span
-                class="text-h4 text-weight-bold"
-                :class="`text-${levelColor(memberProfile.level)}`"
-              >
-                {{ greekLevel(memberProfile.level) }}
-              </span>
+            <!-- Photo + Level badge -->
+            <div class="relative-position">
+              <MemberPhotoUpload
+                :userId="memberProfile.id"
+                :currentPhotoUrl="memberProfile.photoUrl"
+                @uploaded="onPhotoUploaded"
+              />
+              <q-badge
+                rounded
+                floating
+                :color="levelColor(memberProfile.level)"
+                :label="greekLevel(memberProfile.level)"
+                class="text-weight-bold"
+                style="font-size: 14px; bottom: 28px; right: -4px"
+              />
             </div>
 
             <!-- Name and details -->
@@ -372,6 +379,7 @@ import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
+import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 import {
   JOURNEY_TYPE_LABELS,
@@ -576,6 +584,12 @@ function confirmToggleStatus() {
       $q.notify({ type: 'negative', message: 'Error actualizando estado' });
     }
   });
+}
+
+function onPhotoUploaded(url: string) {
+  if (memberProfile.value) {
+    memberProfile.value.photoUrl = url;
+  }
 }
 
 async function onMemberSaved() {
