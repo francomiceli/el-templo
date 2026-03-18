@@ -102,6 +102,7 @@ export class AttendanceService {
 
     // Find today's booking within the check-in time window (±20 min of class start)
     const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const windowMinutes = 20;
 
@@ -124,7 +125,7 @@ export class AttendanceService {
       .where(
         and(
           eq(schema.bookings.memberId, memberId),
-          sql`${schema.bookings.bookingDate} = CURDATE()`,
+          eq(schema.bookings.bookingDate, todayStr),
           eq(schema.bookings.status, "reservado"),
           eq(schema.schedules.branchId, branchId),
         ),
@@ -160,7 +161,7 @@ export class AttendanceService {
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = CURDATE()`,
+          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
         ),
       )
       .limit(1);

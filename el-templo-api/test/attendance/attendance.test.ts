@@ -234,6 +234,46 @@ describe("Attendance API", () => {
     return generateQr(branchId);
   }
 
+  /**
+   * Helper: create an activity, schedule slot, and booking for a member.
+   * The schedule is set to the faked "now" time (10:00) on Wednesday (day 3)
+   * so it falls within the ±20 min check-in window.
+   */
+  async function createBookingForNow(
+    memberId: number,
+    branchId: number,
+  ): Promise<{ activityId: number; scheduleId: number; bookingId: number }> {
+    // Create activity
+    const [actResult] = await app.db.insert(activities).values({
+      name: "Calistenia Test",
+      branchId,
+    });
+    const activityId = Number(actResult.insertId);
+
+    // Create schedule for Wednesday (day 3) at 10:00 (matches faked time)
+    const [schResult] = await app.db.insert(schedules).values({
+      activityId,
+      branchId,
+      dayOfWeek: 3, // Wednesday
+      startTime: "10:00",
+      endTime: "11:00",
+      isActive: true,
+    });
+    const scheduleId = Number(schResult.insertId);
+
+    // Create booking for the faked today (2026-03-11)
+    const [bkResult] = await app.db.insert(bookings).values({
+      memberId,
+      scheduleId,
+      branchId,
+      bookingDate: "2026-03-11",
+      status: "reservado",
+    });
+    const bookingId = Number(bkResult.insertId);
+
+    return { activityId, scheduleId, bookingId };
+  }
+
   // =========================================================================
   // Member Check-in
   // =========================================================================
@@ -244,6 +284,7 @@ describe("Attendance API", () => {
 
     it("POST valid QR check-in returns 201 with confirmado record and awards AURA", async () => {
       const { member, memberToken } = await setupMemberWithSubscription();
+      await createBookingForNow(member.id, testBranchId);
 
       const qrToken = generateQrToken(testBranchId);
 
@@ -348,7 +389,8 @@ describe("Attendance API", () => {
     });
 
     it("POST rejects duplicate check-in same day", async () => {
-      const { memberToken } = await setupMemberWithSubscription();
+      const { member, memberToken } = await setupMemberWithSubscription();
+      await createBookingForNow(member.id, testBranchId);
 
       const qrToken = generateQrToken(testBranchId);
 
@@ -421,6 +463,7 @@ describe("Attendance API", () => {
 
     it("GET /member/:userId returns member attendance history", async () => {
       const { member, memberToken } = await setupMemberWithSubscription();
+      await createBookingForNow(member.id, testBranchId);
 
       // Check in via QR
       const qrToken = generateQrToken(testBranchId);
@@ -447,6 +490,7 @@ describe("Attendance API", () => {
 
     it("GET /history returns member's own attendance", async () => {
       const { member, memberToken } = await setupMemberWithSubscription();
+      await createBookingForNow(member.id, testBranchId);
 
       // Check in via QR
       const qrToken = generateQrToken(testBranchId);
@@ -604,6 +648,7 @@ describe("Attendance API", () => {
           { email: "decrement@test.com", dni: "60020003" },
           { classesPerWeek: 3, name: "Plan Decrement Test" },
         );
+      await createBookingForNow(member.id, testBranchId);
 
       // Get initial classesRemaining
       const [before] = await app.db
