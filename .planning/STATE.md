@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: completed
-stopped_at: Completed 66-02-PLAN.md
-last_updated: "2026-03-18T16:55:42.241Z"
-last_activity: 2026-03-18 -- Plan 66-02 complete (frontend role enforcement with permission-aware sidebar and UsuariosPage)
+status: in_progress
+stopped_at: Completed 67-01-PLAN.md
+last_updated: "2026-03-18T22:42:00Z"
+last_activity: 2026-03-18 -- Plan 67-01 complete (backend rename journeys to personalizadas - DB migration, schema, module)
 progress:
-  total_phases: 37
+  total_phases: 40
   completed_phases: 34
-  total_plans: 115
-  completed_plans: 114
-  percent: 100
+  total_plans: 117
+  completed_plans: 116
+  percent: 99
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 61 -- QR Access Control / Subscription & Attendance Rework
+**Current focus:** Phase 67 -- Personalizadas Backend Rename (v4.2)
 
 ## Current Position
 
-Phase: 66 of 66 (Roles & Permissions) -- 9th of 9 phases in v4.1
-Plan: 2 of 2
-Status: Complete
-Last activity: 2026-03-18 -- Plan 66-02 complete (frontend role enforcement with permission-aware sidebar and UsuariosPage)
+Phase: 67 (Personalizadas Backend Rename) -- 1st phase in v4.2
+Plan: 1 of 2
+Status: In Progress
+Last activity: 2026-03-18 -- Plan 67-01 complete (backend rename journeys to personalizadas - DB migration, schema, module)
 
-Progress: [██████████] 100%
+Progress: [██████████] 99%
 
 ## Performance Metrics
 
@@ -71,6 +71,7 @@ _Updated after each plan completion_
 | Phase 65 P02 | 3min | 2 tasks | 5 files |
 | Phase 66 P01 | 11min | 2 tasks | 38 files |
 | Phase 66 P02 | 4min | 2 tasks | 8 files |
+| Phase 67 P01 | 6min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,9 @@ Recent decisions affecting current work:
 - [Phase 66]: Cast pattern (ROLES as readonly string[]).includes() for const array TypeScript compatibility
 - [Phase 66]: Permission-aware sidebar with isCoachRole/isAdminRole/isCajaRole/isOwnerRole computed props
 - [Phase 66]: Role-based route redirect: recepcionista -> /alumnos, all others -> /sessions
+- [Phase 67]: DayId prefix changed from J- to P- for personalizada sessions
+- [Phase 67]: API response keys renamed: journey -> personalizada, journeys -> personalizadas
+- [Phase 67]: Spanish error messages updated to use personalizada terminology
 
 ### Pending Todos
 
@@ -136,6 +140,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18T16:49:36Z
-Stopped at: Completed 66-02-PLAN.md
-Resume file: Phase 66 complete
+Last session: 2026-03-18T22:42:00Z
+Stopped at: Completed 67-01-PLAN.md
+Resume file: Continue with 67-02-PLAN.md
