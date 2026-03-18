@@ -178,6 +178,7 @@ export class AttendanceService {
       scheduleId: matchingBooking.scheduleId,
       status: "confirmado",
       source: "qr",
+      checkedInAt: now,
     });
 
     const recordId = Number(result[0].insertId);
