@@ -1033,7 +1033,7 @@ Plans:
 - [x] **Phase 62: Payment Enhancements** - SKIPPED: Deportnet patterns, not applicable to El Templo's model
 - [x] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view (completed 2026-03-18)
 - [x] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export (completed 2026-03-18)
-- [ ] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export
+- [x] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export (completed 2026-03-18)
 - [ ] **Phase 66: Roles & Permissions** - Predefined roles (admin, coach, recepcionista, owner) with permission-based UI visibility
 
 ## v4.1 Phase Details
@@ -1186,7 +1186,7 @@ Plans:
 3. REPORT-03 (debt report) N/A — debt/morosos concept removed in Phase 63
 4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window, with WhatsApp contact
 5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold, with WhatsApp contact
-   **Plans:** 1/2 plans executed
+   **Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1224,7 +1224,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
 | 64. Member Management Enhancements  | 3/3            | Complete    | 2026-03-18 |
-| 65. Reports Dashboard               | 1/2            | In Progress |            |
+| 65. Reports Dashboard               | 2/2            | Complete    | 2026-03-18 |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
 
 ---
