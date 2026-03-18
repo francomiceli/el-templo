@@ -1,4 +1,4 @@
-export type JourneyType =
+export type PersonalizadaType =
   | 'tren_superior'
   | 'tren_inferior'
   | 'empuje'
@@ -6,35 +6,35 @@ export type JourneyType =
   | 'planche'
   | 'front_lever';
 
-export type JourneyTier = 'principiante' | 'intermedio' | 'avanzado';
+export type PersonalizadaTier = 'principiante' | 'intermedio' | 'avanzado';
 
-export type JourneyDuration = 20 | 40 | 60;
+export type PersonalizadaDuration = 20 | 40 | 60;
 
-export interface JourneyMetadata {
-  type: JourneyType;
+export interface PersonalizadaMetadata {
+  type: PersonalizadaType;
   name: string;
-  tier: JourneyTier;
+  tier: PersonalizadaTier;
   description: string;
   zones: string[];
   idealFor: string;
 }
 
-export interface MemberJourneyInfo {
+export interface MemberPersonalizadaInfo {
   userId: number;
   email: string;
   firstName: string | null;
   lastName: string | null;
   level: string;
   branchName: string;
-  journeyType: JourneyType | null;
-  journeyName: string | null;
+  personalizadaType: PersonalizadaType | null;
+  personalizadaName: string | null;
   semana20: number | null;
   semana40: number | null;
   semana60: number | null;
   startedAt: string | null;
 }
 
-export interface MemberJourneyDetail {
+export interface MemberPersonalizadaDetail {
   user: {
     firstName: string | null;
     lastName: string | null;
@@ -42,7 +42,7 @@ export interface MemberJourneyDetail {
     branchName: string;
   };
   active: {
-    journeyType: JourneyType;
+    personalizadaType: PersonalizadaType;
     semana20: number;
     semana40: number;
     semana60: number;
@@ -50,7 +50,7 @@ export interface MemberJourneyDetail {
     startedAt: string;
   } | null;
   archived: Array<{
-    journeyType: JourneyType;
+    personalizadaType: PersonalizadaType;
     semana20: number;
     semana40: number;
     semana60: number;
@@ -62,7 +62,7 @@ export interface MemberJourneyDetail {
     totalDays: number;
     currentStreak: number;
   };
-  journeyStats: {
+  personalizadaStats: {
     totalSessions: number;
     byDuration: {
       d20: number;
@@ -73,7 +73,7 @@ export interface MemberJourneyDetail {
   completions: Array<{
     dayId: string;
     date: string;
-    journeyType: JourneyType | null;
+    personalizadaType: PersonalizadaType | null;
     duration: number | null;
     rpe: number | null;
     blocksCompleted: string[];
@@ -81,12 +81,12 @@ export interface MemberJourneyDetail {
   }>;
 }
 
-export interface JourneyGenerateResult {
+export interface PersonalizadaGenerateResult {
   generated: number;
   skipped: number;
 }
 
-export const ALL_JOURNEY_TYPES: JourneyType[] = [
+export const ALL_PERSONALIZADA_TYPES: PersonalizadaType[] = [
   'tren_superior',
   'tren_inferior',
   'empuje',
@@ -95,7 +95,7 @@ export const ALL_JOURNEY_TYPES: JourneyType[] = [
   'front_lever',
 ];
 
-export const JOURNEY_TIER_MAP: Record<JourneyType, JourneyTier> = {
+export const PERSONALIZADA_TIER_MAP: Record<PersonalizadaType, PersonalizadaTier> = {
   tren_superior: 'principiante',
   tren_inferior: 'principiante',
   empuje: 'intermedio',
@@ -104,7 +104,7 @@ export const JOURNEY_TIER_MAP: Record<JourneyType, JourneyTier> = {
   front_lever: 'avanzado',
 };
 
-export const JOURNEY_TYPE_LABELS: Record<JourneyType, string> = {
+export const PERSONALIZADA_TYPE_LABELS: Record<PersonalizadaType, string> = {
   tren_superior: 'Tren Superior',
   tren_inferior: 'Tren Inferior',
   empuje: 'Empuje',
@@ -113,14 +113,14 @@ export const JOURNEY_TYPE_LABELS: Record<JourneyType, string> = {
   front_lever: 'Front Lever',
 };
 
-export const JOURNEY_TIER_LABELS: Record<JourneyTier, string> = {
+export const PERSONALIZADA_TIER_LABELS: Record<PersonalizadaTier, string> = {
   principiante: 'Principiante',
   intermedio: 'Intermedio',
   avanzado: 'Avanzado',
 };
 
-/** Color for journey type badges, grouped by tier */
-export const JOURNEY_TIER_COLORS: Record<JourneyTier, string> = {
+/** Color for personalizada type badges, grouped by tier */
+export const PERSONALIZADA_TIER_COLORS: Record<PersonalizadaTier, string> = {
   principiante: 'brown-4',
   intermedio: 'deep-orange',
   avanzado: 'deep-orange-9',

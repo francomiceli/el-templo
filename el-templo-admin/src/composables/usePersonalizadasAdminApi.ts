@@ -2,29 +2,29 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type {
-  JourneyType,
-  JourneyGenerateResult,
-  MemberJourneyInfo,
-  MemberJourneyDetail,
-} from 'src/types/journey';
+  PersonalizadaType,
+  PersonalizadaGenerateResult,
+  MemberPersonalizadaInfo,
+  MemberPersonalizadaDetail,
+} from 'src/types/personalizada';
 
-export function useJourneyAdminApi() {
+export function usePersonalizadasAdminApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  async function generateJourneySessions(
+  async function generatePersonalizadaSessions(
     week: number,
-    journeyType: JourneyType,
+    personalizadaType: PersonalizadaType,
     options?: { days?: string[]; regenerate?: boolean }
-  ): Promise<JourneyGenerateResult> {
+  ): Promise<PersonalizadaGenerateResult> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<JourneyGenerateResult>(
-        '/admin/journeys/generate',
+      const { data } = await api.post<PersonalizadaGenerateResult>(
+        '/admin/personalizadas/generate',
         {
           week,
-          journeyType,
+          personalizadaType,
           days: options?.days,
           regenerate: options?.regenerate,
         },
@@ -34,7 +34,7 @@ export function useJourneyAdminApi() {
       );
       return data;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error generando sesiones de journey');
+      error.value = extractError(err, 'Error generando sesiones de personalizada');
       throw err;
     } finally {
       loading.value = false;
@@ -43,15 +43,15 @@ export function useJourneyAdminApi() {
 
   async function getMembers(params?: {
     search?: string;
-    journeyType?: string;
+    personalizadaType?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ members: MemberJourneyInfo[]; total: number }> {
+  }): Promise<{ members: MemberPersonalizadaInfo[]; total: number }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ members: MemberJourneyInfo[]; total: number }>(
-        '/admin/journeys/members',
+      const { data } = await api.get<{ members: MemberPersonalizadaInfo[]; total: number }>(
+        '/admin/personalizadas/members',
         { params }
       );
       return data;
@@ -63,11 +63,13 @@ export function useJourneyAdminApi() {
     }
   }
 
-  async function getMemberDetail(userId: number): Promise<MemberJourneyDetail> {
+  async function getMemberDetail(userId: number): Promise<MemberPersonalizadaDetail> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<MemberJourneyDetail>(`/admin/journeys/members/${userId}`);
+      const { data } = await api.get<MemberPersonalizadaDetail>(
+        `/admin/personalizadas/members/${userId}`
+      );
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando detalle de miembro');
@@ -85,7 +87,7 @@ export function useJourneyAdminApi() {
   return {
     loading,
     error,
-    generateJourneySessions,
+    generatePersonalizadaSessions,
     getMembers,
     getMemberDetail,
     cleanup,

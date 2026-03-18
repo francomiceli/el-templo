@@ -11,7 +11,7 @@ export interface SessionSummary {
   routesSummary: string;
   status: SessionStatus;
   blockCount: number;
-  journeyType: string | null;
+  personalizadaType: string | null;
   approvedAt: string | null;
   approvedBy: number | null;
   approvedByName: string | null;
@@ -24,8 +24,8 @@ export interface SessionFilter {
   day?: string;
   levelGroup?: LevelGroup;
   status?: SessionStatus;
-  /** "null" = general only, "notnull" = journey only, or specific journey type */
-  journeyType?: string;
+  /** "null" = general only, "notnull" = personalizada only, or specific personalizada type */
+  personalizadaType?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
