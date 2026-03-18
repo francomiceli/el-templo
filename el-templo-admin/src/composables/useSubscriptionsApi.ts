@@ -14,6 +14,7 @@ import type {
   SubscriptionDetail,
   SubscriptionHistoryItem,
   AssignPlanInput,
+  RenewSubscriptionInput,
   PricingPreview,
   PriceType,
   ClassUsageInfo,
@@ -207,6 +208,26 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function renewSubscription(
+    userId: number,
+    input: RenewSubscriptionInput
+  ): Promise<SubscriptionDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<SubscriptionDetail>(
+        `/admin/subscriptions/members/${userId}/subscription/renew`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error renovando suscripcion');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function cancelSubscription(userId: number, notes?: string): Promise<SubscriptionDetail> {
     loading.value = true;
     error.value = null;
@@ -285,6 +306,7 @@ export function useSubscriptionsApi() {
     getMemberSubscriptionHistory,
     assignPlan,
     changePlan,
+    renewSubscription,
     pauseSubscription,
     resumeSubscription,
     cancelSubscription,

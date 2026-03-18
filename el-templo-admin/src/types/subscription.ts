@@ -119,6 +119,8 @@ export interface UpdatePlanInput {
   groupMaxMembers?: number | null;
 }
 
+import type { PaymentMethod } from './payment';
+
 // ─── Subscription Types ─────────────────────────────────────────────────────
 
 export interface SubscriptionDetail {
@@ -157,12 +159,17 @@ export interface AssignPlanInput {
   branchId: number;
   startDate: string;
   priceTypeApplied: PriceType;
+  paymentMethod: PaymentMethod;
   scheduleIds?: number[];
   auraSpend?: number;
   priceOverrideAmount?: number;
   priceOverrideReason?: string;
   boardingPass?: boolean;
   notes?: string;
+}
+
+export interface RenewSubscriptionInput {
+  paymentMethod: PaymentMethod;
 }
 
 // ─── Pricing Types ──────────────────────────────────────────────────────────

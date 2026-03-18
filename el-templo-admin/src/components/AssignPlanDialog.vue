@@ -332,6 +332,18 @@
               </q-card-section>
             </q-card>
 
+            <!-- Payment method selector -->
+            <q-select
+              v-model="assignForm.paymentMethod"
+              :options="paymentMethodOptions"
+              label="Metodo de pago *"
+              dense
+              outlined
+              emit-value
+              map-options
+              class="q-mb-md"
+            />
+
             <!-- Notes -->
             <q-input
               v-model="assignForm.notes"
@@ -383,6 +395,7 @@ import {
   type PricingPreview,
   type AssignPlanInput,
 } from 'src/types/subscription';
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import { DAY_SHORT_LABELS, type WeeklySlotView, type DayOfWeek } from 'src/types/scheduling';
 
 const log = createLogger('AssignPlanDialog');
@@ -429,6 +442,7 @@ const selectedScheduleIds = ref<number[]>([]);
 const assignForm = ref({
   priceTypeApplied: 'regular' as PriceType,
   startDate: new Date().toISOString().split('T')[0],
+  paymentMethod: 'cash' as PaymentMethod,
   boardingPass: false,
   auraSpend: null as number | null,
   useOverride: false,
@@ -436,6 +450,8 @@ const assignForm = ref({
   priceOverrideReason: '',
   notes: '',
 });
+
+const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
 // =========================================================================
 // Computed
@@ -746,6 +762,7 @@ async function executeConfirm() {
       branchId: props.memberBranchId,
       startDate: assignForm.value.startDate,
       priceTypeApplied: assignForm.value.boardingPass ? 'zero' : assignForm.value.priceTypeApplied,
+      paymentMethod: assignForm.value.paymentMethod,
       scheduleIds:
         isFixedMode.value && selectedScheduleIds.value.length > 0
           ? selectedScheduleIds.value
@@ -802,6 +819,7 @@ watch(
       assignForm.value = {
         priceTypeApplied: 'regular',
         startDate: new Date().toISOString().split('T')[0],
+        paymentMethod: 'cash',
         boardingPass: false,
         auraSpend: null,
         useOverride: false,
