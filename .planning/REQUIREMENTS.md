@@ -18,10 +18,10 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 - [x] **AI-01**: Model-agnostic AiProvider interface with OpenAI and Anthropic implementations, selectable via env var
 - [x] **AI-02**: System prompt with El Templo business context (schedules, pricing, locations, FAQ)
-- [ ] **AI-03**: check_schedule tool returns available classes for a given day/branch
-- [ ] **AI-04**: check_membership tool returns member subscription status and pricing info
-- [ ] **AI-05**: get_location tool returns branch address and Google Maps link
-- [ ] **AI-06**: request_human tool escalates conversation to human agent (sets status to human_takeover)
+- [x] **AI-03**: check_schedule tool returns available classes for a given day/branch
+- [x] **AI-04**: check_membership tool returns member subscription status and pricing info
+- [x] **AI-05**: get_location tool returns branch address and Google Maps link
+- [x] **AI-06**: request_human tool escalates conversation to human agent (sets status to human_takeover)
 - [ ] **AI-07**: book_class tool reserves a class spot via el-templo-api localhost call with confirmation step
 - [ ] **AI-08**: register_trial tool creates trial user via el-templo-api localhost call with confirmation step
 
@@ -82,10 +82,10 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 | HOOK-04     | Phase 67 | Complete |
 | AI-01       | Phase 68 | Complete |
 | AI-02       | Phase 68 | Complete |
-| AI-03       | Phase 68 | Pending  |
-| AI-04       | Phase 68 | Pending  |
-| AI-05       | Phase 68 | Pending  |
-| AI-06       | Phase 68 | Pending  |
+| AI-03       | Phase 68 | Complete |
+| AI-04       | Phase 68 | Complete |
+| AI-05       | Phase 68 | Complete |
+| AI-06       | Phase 68 | Complete |
 | AI-07       | Phase 70 | Pending  |
 | AI-08       | Phase 70 | Pending  |
 | MEM-01      | Phase 69 | Pending  |
