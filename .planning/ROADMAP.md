@@ -1032,7 +1032,7 @@ Plans:
 - [ ] **Phase 61: QR Access Control** - Kiosk welcome screen with soft verification, real-time access log, manual check-in
 - [x] **Phase 62: Payment Enhancements** - SKIPPED: Deportnet patterns, not applicable to El Templo's model
 - [x] **Phase 63: Cash Box** - Daily cash movement tracking by payment method, cash box summary view (completed 2026-03-18)
-- [ ] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export
+- [x] **Phase 64: Member Management Enhancements** - Photo upload/capture, subscription change workflow, Excel export (completed 2026-03-18)
 - [ ] **Phase 65: Reports Dashboard** - Access log, charge history, debt list, expiring memberships, inactive members with filters and Excel export
 - [ ] **Phase 66: Roles & Permissions** - Predefined roles (admin, coach, recepcionista, owner) with permission-based UI visibility
 
@@ -1164,7 +1164,7 @@ Plans:
 1. Admin can upload a member photo via file upload or capture via webcam from the member profile
 2. Admin can change a member's active subscription to a different plan, seeing the price difference calculation before confirming
 3. Admin can export the current filtered member list as an Excel file
-   **Plans:** 1/3 plans executed
+   **Plans:** 3/3 plans complete
 
 Plans:
 
@@ -1218,7 +1218,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 61. QR Access Control               | 2/3            | In Progress |            |
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
 | 63. Cash Box                        | 3/3            | Complete    | 2026-03-18 |
-| 64. Member Management Enhancements  | 1/3            | In Progress |            |
+| 64. Member Management Enhancements  | 3/3            | Complete    | 2026-03-18 |
 | 65. Reports Dashboard               | 0/?            | Not started | -          |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |
 
