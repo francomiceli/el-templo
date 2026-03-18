@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 
-describe("Journey Routes", () => {
+describe("Personalizada Routes", () => {
   let app: FastifyInstance;
   let memberToken: string;
   let adminToken: string;
@@ -14,27 +14,27 @@ describe("Journey Routes", () => {
     // Get admin token (admin@test.com seeded in globalSetup)
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
-    // Register member for journey tests
+    // Register member for personalizada tests
     await registerUser(app, {
-      email: "journey-member@test.com",
+      email: "personalizada-member@test.com",
       password: "password123",
       branchId: 1,
     });
     memberToken = await getAuthToken(
       app,
-      "journey-member@test.com",
+      "personalizada-member@test.com",
       "password123",
     );
 
     // Register a second member for isolation tests
     await registerUser(app, {
-      email: "journey-member2@test.com",
+      email: "personalizada-member2@test.com",
       password: "password123",
       branchId: 1,
     });
     memberToken2 = await getAuthToken(
       app,
-      "journey-member2@test.com",
+      "personalizada-member2@test.com",
       "password123",
     );
   });
@@ -44,46 +44,46 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/journeys/metadata
+  // GET /api/personalizadas/metadata
   // ---------------------------------------------------------------
-  describe("GET /api/journeys/metadata", () => {
+  describe("GET /api/personalizadas/metadata", () => {
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/metadata",
+        url: "/api/personalizadas/metadata",
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns all 6 journey types with correct structure", async () => {
+    it("returns all 6 personalizada types with correct structure", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/metadata",
+        url: "/api/personalizadas/metadata",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("journeys");
-      expect(body.journeys).toHaveLength(6);
+      expect(body).toHaveProperty("personalizadas");
+      expect(body.personalizadas).toHaveLength(6);
 
-      // Verify structure of each journey
-      for (const journey of body.journeys) {
-        expect(journey).toHaveProperty("type");
-        expect(journey).toHaveProperty("name");
-        expect(journey).toHaveProperty("tier");
-        expect(journey).toHaveProperty("description");
-        expect(journey).toHaveProperty("zones");
-        expect(journey).toHaveProperty("idealFor");
-        expect(Array.isArray(journey.zones)).toBe(true);
+      // Verify structure of each personalizada
+      for (const personalizada of body.personalizadas) {
+        expect(personalizada).toHaveProperty("type");
+        expect(personalizada).toHaveProperty("name");
+        expect(personalizada).toHaveProperty("tier");
+        expect(personalizada).toHaveProperty("description");
+        expect(personalizada).toHaveProperty("zones");
+        expect(personalizada).toHaveProperty("idealFor");
+        expect(Array.isArray(personalizada.zones)).toBe(true);
         expect(["principiante", "intermedio", "avanzado"]).toContain(
-          journey.tier,
+          personalizada.tier,
         );
       }
 
       // Verify all 6 types are present
-      const types = body.journeys.map((j: { type: string }) => j.type);
+      const types = body.personalizadas.map((p: { type: string }) => p.type);
       expect(types).toContain("tren_superior");
       expect(types).toContain("tren_inferior");
       expect(types).toContain("empuje");
@@ -94,151 +94,151 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/journeys/active
+  // GET /api/personalizadas/active
   // ---------------------------------------------------------------
-  describe("GET /api/journeys/active", () => {
-    it("returns null when no journey is active", async () => {
+  describe("GET /api/personalizadas/active", () => {
+    it("returns null when no personalizada is active", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/active",
+        url: "/api/personalizadas/active",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("journey");
-      expect(body.journey).toBeNull();
+      expect(body).toHaveProperty("personalizada");
+      expect(body.personalizada).toBeNull();
     });
   });
 
   // ---------------------------------------------------------------
-  // POST /api/journeys/select
+  // POST /api/personalizadas/select
   // ---------------------------------------------------------------
-  describe("POST /api/journeys/select", () => {
+  describe("POST /api/personalizadas/select", () => {
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/select",
-        payload: { journeyType: "empuje" },
+        url: "/api/personalizadas/select",
+        payload: { personalizadaType: "empuje" },
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns 400 for invalid journey type", async () => {
+    it("returns 400 for invalid personalizada type", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/select",
+        url: "/api/personalizadas/select",
         headers: { authorization: `Bearer ${memberToken}` },
-        payload: { journeyType: "nonexistent" },
+        payload: { personalizadaType: "nonexistent" },
       });
 
       expect(res.statusCode).toBe(400);
     });
 
-    it("selects a journey and returns progress", async () => {
+    it("selects a personalizada and returns progress", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/select",
+        url: "/api/personalizadas/select",
         headers: { authorization: `Bearer ${memberToken}` },
-        payload: { journeyType: "empuje" },
+        payload: { personalizadaType: "empuje" },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("journey");
-      expect(body.journey.journeyType).toBe("empuje");
-      expect(body.journey.semana20).toBe(1);
-      expect(body.journey.semana40).toBe(1);
-      expect(body.journey.semana60).toBe(1);
-      expect(body.journey.isActive).toBe(true);
-      expect(body.journey.startedAt).toBeTruthy();
+      expect(body).toHaveProperty("personalizada");
+      expect(body.personalizada.personalizadaType).toBe("empuje");
+      expect(body.personalizada.semana20).toBe(1);
+      expect(body.personalizada.semana40).toBe(1);
+      expect(body.personalizada.semana60).toBe(1);
+      expect(body.personalizada.isActive).toBe(true);
+      expect(body.personalizada.startedAt).toBeTruthy();
     });
 
-    it("returns current state when selecting same journey again (idempotent)", async () => {
+    it("returns current state when selecting same personalizada again (idempotent)", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/select",
+        url: "/api/personalizadas/select",
         headers: { authorization: `Bearer ${memberToken}` },
-        payload: { journeyType: "empuje" },
+        payload: { personalizadaType: "empuje" },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.journey.journeyType).toBe("empuje");
-      expect(body.journey.isActive).toBe(true);
+      expect(body.personalizada.personalizadaType).toBe("empuje");
+      expect(body.personalizada.isActive).toBe(true);
     });
 
-    it("archives old journey when selecting a different one", async () => {
+    it("archives old personalizada when selecting a different one", async () => {
       // Switch from empuje to traccion
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/select",
+        url: "/api/personalizadas/select",
         headers: { authorization: `Bearer ${memberToken}` },
-        payload: { journeyType: "traccion" },
+        payload: { personalizadaType: "traccion" },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.journey.journeyType).toBe("traccion");
-      expect(body.journey.isActive).toBe(true);
-      expect(body.journey.semana20).toBe(1); // Fresh start
+      expect(body.personalizada.personalizadaType).toBe("traccion");
+      expect(body.personalizada.isActive).toBe(true);
+      expect(body.personalizada.semana20).toBe(1); // Fresh start
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/journeys/active (after selection)
+  // GET /api/personalizadas/active (after selection)
   // ---------------------------------------------------------------
-  describe("GET /api/journeys/active (after selection)", () => {
-    it("returns the active journey with correct semana values", async () => {
+  describe("GET /api/personalizadas/active (after selection)", () => {
+    it("returns the active personalizada with correct semana values", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/active",
+        url: "/api/personalizadas/active",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.journey).not.toBeNull();
-      expect(body.journey.journeyType).toBe("traccion");
-      expect(body.journey.semana20).toBe(1);
-      expect(body.journey.semana40).toBe(1);
-      expect(body.journey.semana60).toBe(1);
+      expect(body.personalizada).not.toBeNull();
+      expect(body.personalizada.personalizadaType).toBe("traccion");
+      expect(body.personalizada.semana20).toBe(1);
+      expect(body.personalizada.semana40).toBe(1);
+      expect(body.personalizada.semana60).toBe(1);
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/journeys/archived
+  // GET /api/personalizadas/archived
   // ---------------------------------------------------------------
-  describe("GET /api/journeys/archived", () => {
-    it("returns empty array when no archived journeys exist", async () => {
+  describe("GET /api/personalizadas/archived", () => {
+    it("returns empty array when no archived personalizadas exist", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/archived",
+        url: "/api/personalizadas/archived",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("journeys");
-      expect(body.journeys).toHaveLength(0);
+      expect(body).toHaveProperty("personalizadas");
+      expect(body.personalizadas).toHaveLength(0);
     });
 
-    it("returns archived journey after switching", async () => {
+    it("returns archived personalizada after switching", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/archived",
+        url: "/api/personalizadas/archived",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("journeys");
+      expect(body).toHaveProperty("personalizadas");
       // Member switched from empuje to traccion, so empuje should be archived
-      expect(body.journeys.length).toBeGreaterThanOrEqual(1);
+      expect(body.personalizadas.length).toBeGreaterThanOrEqual(1);
 
-      const archivedEmpuje = body.journeys.find(
-        (j: { journeyType: string }) => j.journeyType === "empuje",
+      const archivedEmpuje = body.personalizadas.find(
+        (p: { personalizadaType: string }) => p.personalizadaType === "empuje",
       );
       expect(archivedEmpuje).toBeDefined();
       expect(archivedEmpuje.archivedAt).toBeTruthy();
@@ -246,30 +246,30 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/journeys/session
+  // GET /api/personalizadas/session
   // ---------------------------------------------------------------
-  describe("GET /api/journeys/session", () => {
-    it("returns 400 when member has no active journey", async () => {
+  describe("GET /api/personalizadas/session", () => {
+    it("returns 400 when member has no active personalizada", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/session?week=1&day=lunes&duration=20",
+        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
 
-      // member2 has no journey selected
+      // member2 has no personalizada selected
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.error).toContain("journey activo");
+      expect(body.error).toContain("personalizada activa");
     });
 
     it("returns 404 when no session exists for the given week/day", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/session?week=1&day=lunes&duration=20",
+        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
-      // No journey sessions have been generated yet
+      // No personalizada sessions have been generated yet
       expect(res.statusCode).toBe(404);
       const body = JSON.parse(res.body);
       expect(body.error).toBeTruthy();
@@ -278,7 +278,7 @@ describe("Journey Routes", () => {
     it("returns 400 for missing required query params", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/journeys/session?week=1&day=lunes",
+        url: "/api/personalizadas/session?week=1&day=lunes",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -287,16 +287,16 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // POST /api/journeys/complete
+  // POST /api/personalizadas/complete
   // ---------------------------------------------------------------
-  describe("POST /api/journeys/complete", () => {
-    it("returns 400 when member has no active journey", async () => {
+  describe("POST /api/personalizadas/complete", () => {
+    it("returns 400 when member has no active personalizada", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/complete",
+        url: "/api/personalizadas/complete",
         headers: { authorization: `Bearer ${memberToken2}` },
         payload: {
-          dayId: "J-empuje-W1-lunes-alfa",
+          dayId: "P-empuje-W1-lunes-alfa",
           duration: 20,
           date: "2026-02-10",
           startedAt: new Date().toISOString(),
@@ -306,16 +306,16 @@ describe("Journey Routes", () => {
 
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.error).toContain("journey activo");
+      expect(body.error).toContain("personalizada activa");
     });
 
-    it("records a journey session completion and advances semana", async () => {
+    it("records a personalizada session completion and advances semana", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/complete",
+        url: "/api/personalizadas/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
-          dayId: "J-traccion-W1-lunes-alfa",
+          dayId: "P-traccion-W1-lunes-alfa",
           duration: 40,
           date: "2026-02-10",
           startedAt: new Date().toISOString(),
@@ -329,7 +329,7 @@ describe("Journey Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.success).toBe(true);
       expect(body.progress).toBeDefined();
-      expect(body.progress.journeyType).toBe("traccion");
+      expect(body.progress.personalizadaType).toBe("traccion");
       // semana40 should be incremented to 2 (was 1 + 1)
       expect(body.progress.semana40).toBe(2);
       // Other durations should remain at 1
@@ -340,7 +340,7 @@ describe("Journey Routes", () => {
     it("validates required fields", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/journeys/complete",
+        url: "/api/personalizadas/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           // Missing required fields
@@ -353,17 +353,17 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // POST /api/admin/journeys/generate
+  // POST /api/admin/personalizadas/generate
   // ---------------------------------------------------------------
-  describe("POST /api/admin/journeys/generate", () => {
+  describe("POST /api/admin/personalizadas/generate", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/journeys/generate",
+        url: "/api/admin/personalizadas/generate",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           week: 1,
-          journeyType: "empuje",
+          personalizadaType: "empuje",
         },
       });
 
@@ -375,24 +375,24 @@ describe("Journey Routes", () => {
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/journeys/generate",
+        url: "/api/admin/personalizadas/generate",
         payload: {
           week: 1,
-          journeyType: "empuje",
+          personalizadaType: "empuje",
         },
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns 400 for invalid journey type", async () => {
+    it("returns 400 for invalid personalizada type", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/journeys/generate",
+        url: "/api/admin/personalizadas/generate",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           week: 1,
-          journeyType: "invalid_type",
+          personalizadaType: "invalid_type",
         },
       });
 
@@ -404,11 +404,11 @@ describe("Journey Routes", () => {
     it("accepts valid generate request from admin", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/journeys/generate",
+        url: "/api/admin/personalizadas/generate",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           week: 50,
-          journeyType: "tren_inferior",
+          personalizadaType: "tren_inferior",
           days: ["lunes"],
         },
       });
@@ -428,23 +428,23 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/admin/journeys/members
+  // GET /api/admin/personalizadas/members
   // ---------------------------------------------------------------
-  describe("GET /api/admin/journeys/members", () => {
+  describe("GET /api/admin/personalizadas/members", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members",
+        url: "/api/admin/personalizadas/members",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(403);
     });
 
-    it("returns members list with journey status for admin", async () => {
+    it("returns members list with personalizada status for admin", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members",
+        url: "/api/admin/personalizadas/members",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -461,15 +461,15 @@ describe("Journey Routes", () => {
         expect(member).toHaveProperty("userId");
         expect(member).toHaveProperty("email");
         expect(member).toHaveProperty("level");
-        // journeyType can be string or null
-        expect(member).toHaveProperty("journeyType");
+        // personalizadaType can be string or null
+        expect(member).toHaveProperty("personalizadaType");
       }
     });
 
     it("supports search filter", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members?search=journey-member",
+        url: "/api/admin/personalizadas/members?search=personalizada-member",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -479,9 +479,10 @@ describe("Journey Routes", () => {
       // All returned members should match the search
       for (const member of body.members) {
         const matchesSearch =
-          member.email.includes("journey-member") ||
-          (member.firstName && member.firstName.includes("journey-member")) ||
-          (member.lastName && member.lastName.includes("journey-member"));
+          member.email.includes("personalizada-member") ||
+          (member.firstName &&
+            member.firstName.includes("personalizada-member")) ||
+          (member.lastName && member.lastName.includes("personalizada-member"));
         expect(matchesSearch).toBe(true);
       }
     });
@@ -489,7 +490,7 @@ describe("Journey Routes", () => {
     it("supports pagination", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members?page=1&limit=1",
+        url: "/api/admin/personalizadas/members?page=1&limit=1",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -500,13 +501,13 @@ describe("Journey Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/admin/journeys/members/:userId
+  // GET /api/admin/personalizadas/members/:userId
   // ---------------------------------------------------------------
-  describe("GET /api/admin/journeys/members/:userId", () => {
+  describe("GET /api/admin/personalizadas/members/:userId", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members/1",
+        url: "/api/admin/personalizadas/members/1",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -516,18 +517,18 @@ describe("Journey Routes", () => {
     it("returns 404 for nonexistent user", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members/99999",
+        url: "/api/admin/personalizadas/members/99999",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns detailed journey info for a specific member", async () => {
+    it("returns detailed personalizada info for a specific member", async () => {
       // First, get the member's user ID from the members list
       const listRes = await app.inject({
         method: "GET",
-        url: "/api/admin/journeys/members?search=journey-member@test.com",
+        url: "/api/admin/personalizadas/members?search=personalizada-member@test.com",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -538,7 +539,7 @@ describe("Journey Routes", () => {
       // Get detail
       const res = await app.inject({
         method: "GET",
-        url: `/api/admin/journeys/members/${memberId}`,
+        url: `/api/admin/personalizadas/members/${memberId}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -548,9 +549,9 @@ describe("Journey Routes", () => {
       expect(body).toHaveProperty("archived");
       expect(body).toHaveProperty("completions");
 
-      // Active journey should be traccion (set earlier in tests)
+      // Active personalizada should be traccion (set earlier in tests)
       expect(body.active).not.toBeNull();
-      expect(body.active.journeyType).toBe("traccion");
+      expect(body.active.personalizadaType).toBe("traccion");
 
       // Archived should contain empuje (switched earlier)
       expect(Array.isArray(body.archived)).toBe(true);
@@ -563,7 +564,7 @@ describe("Journey Routes", () => {
       const completion = body.completions[0];
       expect(completion).toHaveProperty("dayId");
       expect(completion).toHaveProperty("date");
-      expect(completion).toHaveProperty("journeyType");
+      expect(completion).toHaveProperty("personalizadaType");
       expect(completion).toHaveProperty("duration");
       expect(completion).toHaveProperty("completedAt");
     });
