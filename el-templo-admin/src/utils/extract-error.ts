@@ -6,7 +6,7 @@ import axios from 'axios';
  */
 export function extractError(err: unknown, fallback: string): string {
   if (axios.isAxiosError(err)) {
-    const message = err.response?.data?.error ?? err.response?.data?.message;
+    const message = err.response?.data?.message ?? err.response?.data?.error;
     if (typeof message === 'string') return message;
   }
   if (err instanceof Error) return err.message;
