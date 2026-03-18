@@ -1,5 +1,5 @@
 <template>
-  <div class="journey-progress">
+  <div class="personalizada-progress">
     <q-linear-progress
       :value="progress"
       :color="progressColor"
@@ -7,13 +7,13 @@
       size="8px"
       rounded
     />
-    <div class="journey-progress__labels">
+    <div class="personalizada-progress__labels">
       <span
         v-for="(label, index) in labels"
         :key="label + index"
         :class="[
-          'journey-progress__label',
-          { 'journey-progress__label--completed': index < completedCount },
+          'personalizada-progress__label',
+          { 'personalizada-progress__label--completed': index < completedCount },
         ]"
       >
         {{ label }}
@@ -53,18 +53,18 @@ const progressColor = computed(() => getBlockAccentColor(props.currentBlock))
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.journey-progress {
+.personalizada-progress {
   padding: 8px 16px;
   background: $cream;
 }
 
-.journey-progress__labels {
+.personalizada-progress__labels {
   display: flex;
   justify-content: space-between;
   margin-top: 4px;
 }
 
-.journey-progress__label {
+.personalizada-progress__label {
   font-size: 10px;
   color: rgba($primary, 0.5);
   text-transform: uppercase;
@@ -72,7 +72,7 @@ const progressColor = computed(() => getBlockAccentColor(props.currentBlock))
   font-family: 'Montserrat', sans-serif;
 }
 
-.journey-progress__label--completed {
+.personalizada-progress__label--completed {
   color: $secondary;
   font-weight: 600;
 }

@@ -3,21 +3,21 @@ import type { ModuleManifest } from '../types'
 import routes from './routes'
 
 /**
- * Journey module manifest.
+ * Personalizada module manifest.
  *
- * Provides personalized journey selection and session flow
+ * Provides personalized session selection and session flow
  * for zone-focused training paths.
  */
 export const manifest: ModuleManifest = {
-  name: 'journey',
-  label: 'Journey',
+  name: 'personalizada',
+  label: 'Personalizada',
   icon: 'explore',
-  basePath: '/journey',
+  basePath: '/personalizada',
   routes,
 }
 
 /**
- * Register journey module routes under the layout parent.
+ * Register personalizada module routes under the layout parent.
  *
  * @param router - Vue Router instance
  */

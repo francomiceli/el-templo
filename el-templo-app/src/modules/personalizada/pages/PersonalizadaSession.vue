@@ -1,5 +1,5 @@
 <template>
-  <q-page class="journey-session">
+  <q-page class="personalizada-session">
     <!-- Initial Splash Screen -->
     <SplashScreen
       v-if="showSplash && session"
@@ -36,22 +36,26 @@
       @finish="onSummaryFinish"
     />
 
-    <!-- Journey Progress Indicator -->
-    <JourneyProgressIndicator
-      v-else-if="showProgress && journeyStore.activeJourney && journeyStore.activeJourneyName"
-      :journey-name="journeyStore.activeJourneyName"
-      :progress="journeyStore.activeJourney"
+    <!-- Personalizada Progress Indicator -->
+    <PersonalizadaProgressIndicator
+      v-else-if="
+        showProgress &&
+        personalizadaStore.activePersonalizada &&
+        personalizadaStore.activePersonalizadaName
+      "
+      :personalizada-name="personalizadaStore.activePersonalizadaName"
+      :progress="personalizadaStore.activePersonalizada"
       :completed-duration="selectedDuration!"
       @continue="onProgressContinue"
     />
 
     <!-- Loading State -->
-    <div v-else-if="isLoading" class="journey-session__loading flex flex-center">
+    <div v-else-if="isLoading" class="personalizada-session__loading flex flex-center">
       <q-spinner-dots color="primary" size="60px" />
     </div>
 
     <!-- No Session State -->
-    <div v-else-if="!session" class="journey-session__empty flex flex-center column">
+    <div v-else-if="!session" class="personalizada-session__empty flex flex-center column">
       <q-icon name="event_busy" size="80px" color="grey-4" />
       <div class="text-h6 text-grey-6 q-mt-md">No hay sesion disponible</div>
       <p class="text-grey-5 text-center q-px-lg">
@@ -62,10 +66,10 @@
 
     <!-- Main Player Content -->
     <template v-else-if="session && player && !showCelebration && !showSummary && !showProgress">
-      <!-- Journey Header Badge -->
-      <div class="journey-session__badge">
-        <span class="badge-name">{{ journeyStore.activeJourneyName }}</span>
-        <span class="badge-separator">·</span>
+      <!-- Personalizada Header Badge -->
+      <div class="personalizada-session__badge">
+        <span class="badge-name">{{ personalizadaStore.activePersonalizadaName }}</span>
+        <span class="badge-separator">&middot;</span>
         <span class="badge-duration">{{ selectedDuration }} min</span>
       </div>
 
@@ -98,29 +102,29 @@ import CelebrationScreen from '../../training/components/player/CelebrationScree
 import SessionSummary from '../../training/components/player/SessionSummary.vue'
 import BlockProgressionView from '../../training/components/BlockProgressionView.vue'
 
-// Journey components
-import JourneyProgressIndicator from '../components/JourneyProgressIndicator.vue'
+// Personalizada components
+import PersonalizadaProgressIndicator from '../components/PersonalizadaProgressIndicator.vue'
 
 // Composables and stores
-import { useJourneySession } from '../composables/useJourneySession'
+import { usePersonalizadaSession } from '../composables/usePersonalizadaSession'
 import { useWakeLock } from '../../training/composables/useWakeLock'
-import { useJourneyStore } from '../stores/journeyStore'
+import { usePersonalizadaStore } from '../stores/personalizadaStore'
 import { createLogger } from 'src/utils/logger'
 
 import { getQuoteForBlock } from '../../training/data/quotes'
 import type { Quote } from '../../training/data/quotes'
-import type { JourneySessionResponse } from '../types'
+import type { PersonalizadaSessionResponse } from '../types'
 
-const log = createLogger('JourneySession')
+const log = createLogger('PersonalizadaSession')
 
 const router = useRouter()
 const $q = useQuasar()
-const journeyStore = useJourneyStore()
+const personalizadaStore = usePersonalizadaStore()
 const wakeLock = useWakeLock()
 
-// --- Guard: Redirect if no active journey or no duration selected ---
-const selectedDuration = computed(() => journeyStore.selectedDuration)
-const session = ref<JourneySessionResponse | null>(null)
+// --- Guard: Redirect if no active personalizada or no duration selected ---
+const selectedDuration = computed(() => personalizadaStore.selectedDuration)
+const session = ref<PersonalizadaSessionResponse | null>(null)
 const isLoading = ref(true)
 const isSubmitting = ref(false)
 
@@ -165,13 +169,13 @@ const todaySpanishDay = computed(() => {
 
 // Player composable (created when session/duration change, via shallowRef + watch
 // to avoid the composable-inside-computed anti-pattern which leaks reactive instances)
-const player = shallowRef<ReturnType<typeof useJourneySession> | null>(null)
+const player = shallowRef<ReturnType<typeof usePersonalizadaSession> | null>(null)
 
 watch(
   [() => session.value, () => selectedDuration.value] as const,
   ([newSession, newDuration]) => {
     if (newSession && newDuration) {
-      player.value = useJourneySession(newSession, newDuration)
+      player.value = usePersonalizadaSession(newSession, newDuration)
     } else {
       player.value = null
     }
@@ -195,7 +199,7 @@ const dayLabel = computed(() => {
 
 const splashInfo = computed(() => ({
   day: todaySpanishDay.value,
-  level: '', // Journey sessions don't use level display in splash
+  level: '', // Personalizada sessions don't use level display in splash
 }))
 
 // Bridge player state to sub-components (null-safe accessors)
@@ -332,7 +336,7 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
 
   isSubmitting.value = true
   try {
-    const success = await journeyStore.completeJourneySession({
+    const success = await personalizadaStore.completePersonalizadaSession({
       dayId: session.value.dayId,
       duration: selectedDuration.value,
       date: todayDate.value,
@@ -363,11 +367,11 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
 
 function onProgressContinue(): void {
   // Navigate back to duration picker for next session
-  router.push({ name: 'journey-duration' })
+  router.push({ name: 'personalizada-duration' })
 }
 
 function navigateBack(): void {
-  router.push({ name: 'journey-duration' })
+  router.push({ name: 'personalizada-duration' })
 }
 
 const exitDialogOpts = {
@@ -433,34 +437,34 @@ onBeforeRouteLeave((_to, _from, next) => {
 // --- Session Loading ---
 
 async function loadSession(): Promise<void> {
-  // Guard: must have active journey and selected duration
-  if (!journeyStore.hasActiveJourney) {
-    await journeyStore.fetchActiveJourney()
-    if (!journeyStore.hasActiveJourney) {
-      log.warn('No active journey, redirecting to selection')
-      void router.replace({ name: 'journey-selection' })
+  // Guard: must have active personalizada and selected duration
+  if (!personalizadaStore.hasActivePersonalizada) {
+    await personalizadaStore.fetchActivePersonalizada()
+    if (!personalizadaStore.hasActivePersonalizada) {
+      log.warn('No active personalizada, redirecting to selection')
+      void router.replace({ name: 'personalizada-selection' })
       return
     }
   }
 
   if (!selectedDuration.value) {
     log.warn('No duration selected, redirecting to duration picker')
-    void router.replace({ name: 'journey-duration' })
+    void router.replace({ name: 'personalizada-duration' })
     return
   }
 
   // Determine current week from the gym-wide SPOM week
-  // Use the journeyStore.currentWeek if already set, otherwise default to 1
-  const week = journeyStore.currentWeek
+  // Use the personalizadaStore.currentWeek if already set, otherwise default to 1
+  const week = personalizadaStore.currentWeek
 
   try {
     isLoading.value = true
-    await journeyStore.fetchSession(week, todaySpanishDay.value)
-    session.value = journeyStore.currentSession
+    await personalizadaStore.fetchSession(week, todaySpanishDay.value)
+    session.value = personalizadaStore.currentSession
 
     if (session.value) {
-      journeyStore.setCurrentWeek(session.value.week)
-      log.debug('Journey session loaded', {
+      personalizadaStore.setCurrentWeek(session.value.week)
+      log.debug('Personalizada session loaded', {
         dayId: session.value.dayId,
         blockCount: session.value.blocks.length,
         duration: selectedDuration.value,
@@ -472,7 +476,7 @@ async function loadSession(): Promise<void> {
       })
     }
   } catch (err: unknown) {
-    log.error('Failed to load journey session', {
+    log.error('Failed to load personalizada session', {
       error: err instanceof Error ? err.message : String(err),
     })
   } finally {
@@ -508,9 +512,9 @@ onMounted(() => {
   void loadSession()
   wakeLock.initialize()
 
-  // Ensure metadata is loaded for journey name display
-  if (journeyStore.journeyMetadata.length === 0) {
-    void journeyStore.fetchMetadata()
+  // Ensure metadata is loaded for personalizada name display
+  if (personalizadaStore.personalizadaMetadata.length === 0) {
+    void personalizadaStore.fetchMetadata()
   }
 })
 
@@ -523,14 +527,14 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.journey-session {
+.personalizada-session {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: $cream;
 }
 
-.journey-session__badge {
+.personalizada-session__badge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -558,8 +562,8 @@ onUnmounted(() => {
   color: #c27a5d;
 }
 
-.journey-session__loading,
-.journey-session__empty {
+.personalizada-session__loading,
+.personalizada-session__empty {
   flex: 1;
   padding: 24px;
 }

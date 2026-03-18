@@ -4,10 +4,10 @@
       <!-- Back Button -->
       <q-btn flat dense no-caps icon="arrow_back" label="Volver" class="back-btn" @click="goBack" />
 
-      <!-- Journey Context -->
-      <div class="journey-context">
-        <span class="context-label">Tu Journey</span>
-        <h2 class="context-name">{{ journeyStore.activeJourneyName }}</h2>
+      <!-- Personalizada Context -->
+      <div class="personalizada-context">
+        <span class="context-label">Tu Personalizada</span>
+        <h2 class="context-name">{{ personalizadaStore.activePersonalizadaName }}</h2>
       </div>
 
       <!-- Duration Header -->
@@ -73,39 +73,39 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
-import { useJourneyStore } from '../stores/journeyStore'
-import type { JourneyDuration } from '../types'
+import { usePersonalizadaStore } from '../stores/personalizadaStore'
+import type { PersonalizadaDuration } from '../types'
 
 const log = createLogger('DurationPicker')
 const router = useRouter()
-const journeyStore = useJourneyStore()
+const personalizadaStore = usePersonalizadaStore()
 
 function goBack(): void {
-  void router.push('/journey')
+  void router.push('/personalizada')
 }
 
-function onSelectDuration(duration: JourneyDuration): void {
+function onSelectDuration(duration: PersonalizadaDuration): void {
   log.debug('Duration selected', { duration })
-  journeyStore.setDuration(duration)
-  void router.push('/journey/session')
+  personalizadaStore.setDuration(duration)
+  void router.push('/personalizada/session')
 }
 
 onMounted(async () => {
-  // Must have active journey to be here
-  if (!journeyStore.hasActiveJourney) {
-    if (!journeyStore.activeJourney) {
-      await journeyStore.fetchActiveJourney()
+  // Must have active personalizada to be here
+  if (!personalizadaStore.hasActivePersonalizada) {
+    if (!personalizadaStore.activePersonalizada) {
+      await personalizadaStore.fetchActivePersonalizada()
     }
-    if (!journeyStore.hasActiveJourney) {
-      log.warn('No active journey, redirecting to selection')
-      void router.replace('/journey')
+    if (!personalizadaStore.hasActivePersonalizada) {
+      log.warn('No active personalizada, redirecting to selection')
+      void router.replace('/personalizada')
       return
     }
   }
 
-  // Ensure metadata is loaded for journey name display
-  if (journeyStore.journeyMetadata.length === 0) {
-    await journeyStore.fetchMetadata()
+  // Ensure metadata is loaded for personalizada name display
+  if (personalizadaStore.personalizadaMetadata.length === 0) {
+    await personalizadaStore.fetchMetadata()
   }
 })
 </script>
@@ -129,8 +129,8 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
-/* Journey Context */
-.journey-context {
+/* Personalizada Context */
+.personalizada-context {
   margin-bottom: 24px;
 }
 

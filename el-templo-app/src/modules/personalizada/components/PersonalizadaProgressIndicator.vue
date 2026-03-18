@@ -1,13 +1,13 @@
 <template>
-  <div class="journey-progress-indicator">
+  <div class="personalizada-progress-indicator">
     <!-- Header -->
     <div class="indicator__header">
       <q-icon name="trending_up" size="28px" class="indicator__icon" />
       <h3 class="indicator__title">Tu Progreso</h3>
     </div>
 
-    <!-- Journey Name & Total -->
-    <div class="indicator__journey-name">{{ journeyName }}</div>
+    <!-- Personalizada Name & Total -->
+    <div class="indicator__personalizada-name">{{ personalizadaName }}</div>
     <div class="indicator__total">
       {{ totalSessions }} {{ totalSessions === 1 ? 'sesion' : 'sesiones' }} completadas
     </div>
@@ -58,15 +58,15 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { JourneyDuration, JourneyProgress } from '../types'
+import type { PersonalizadaDuration, PersonalizadaProgress } from '../types'
 
 interface Props {
-  /** Journey display name */
-  journeyName: string
-  /** Current journey progress with per-duration semana */
-  progress: JourneyProgress
+  /** Personalizada display name */
+  personalizadaName: string
+  /** Current personalizada progress with per-duration semana */
+  progress: PersonalizadaProgress
   /** Duration that was just completed */
-  completedDuration: JourneyDuration
+  completedDuration: PersonalizadaDuration
 }
 
 interface Emits {
@@ -90,7 +90,7 @@ const totalSessions = computed(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.journey-progress-indicator {
+.personalizada-progress-indicator {
   background: #f5f2eb;
   padding: 24px 20px;
   max-width: 500px;
@@ -116,7 +116,7 @@ const totalSessions = computed(() => {
   margin: 0;
 }
 
-.indicator__journey-name {
+.indicator__personalizada-name {
   font-family: 'Montserrat', sans-serif;
   font-size: 1.1rem;
   color: #4a4a4a;

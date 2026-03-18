@@ -1,5 +1,5 @@
 <template>
-  <q-page class="journey-overview-page">
+  <q-page class="personalizada-overview-page">
     <div class="page-content">
       <!-- Loading -->
       <div v-if="loading" class="text-center q-pa-xl">
@@ -7,13 +7,13 @@
       </div>
 
       <!-- Not Found -->
-      <div v-else-if="!journey" class="text-center q-pa-xl">
+      <div v-else-if="!personalizada" class="text-center q-pa-xl">
         <q-icon name="search_off" size="48px" color="grey-6" />
-        <p class="q-mt-md text-grey-7">Journey no encontrado</p>
-        <q-btn flat color="primary" label="Volver" to="/journey" />
+        <p class="q-mt-md text-grey-7">Personalizada no encontrada</p>
+        <q-btn flat color="primary" label="Volver" to="/personalizada" />
       </div>
 
-      <!-- Journey Details -->
+      <!-- Personalizada Details -->
       <template v-else>
         <!-- Back Button -->
         <q-btn
@@ -26,8 +26,8 @@
           @click="goBack"
         />
 
-        <!-- Journey Name -->
-        <h1 class="journey-name">{{ journey.name }}</h1>
+        <!-- Personalizada Name -->
+        <h1 class="personalizada-name">{{ personalizada.name }}</h1>
 
         <!-- Tier Badge -->
         <div class="tier-badge-wrapper">
@@ -35,13 +35,13 @@
         </div>
 
         <!-- Description -->
-        <p class="journey-description">{{ journey.description }}</p>
+        <p class="personalizada-description">{{ personalizada.description }}</p>
 
         <!-- Zones Section -->
         <div class="detail-section">
           <h3 class="section-title">Zonas Objetivo</h3>
           <div class="zones-list">
-            <div v-for="zone in journey.zones" :key="zone" class="zone-item">
+            <div v-for="zone in personalizada.zones" :key="zone" class="zone-item">
               <q-icon name="fiber_manual_record" size="8px" class="zone-dot" />
               <span class="zone-text">{{ zone }}</span>
             </div>
@@ -51,7 +51,7 @@
         <!-- Ideal For Section -->
         <div class="detail-section">
           <h3 class="section-title">Ideal Para</h3>
-          <p class="ideal-text">{{ journey.idealFor }}</p>
+          <p class="ideal-text">{{ personalizada.idealFor }}</p>
         </div>
 
         <!-- Difficulty Indicator -->
@@ -74,8 +74,8 @@
             unelevated
             no-caps
             class="cta-btn"
-            :label="isCurrentlyActive ? 'Continuar' : 'Elegir este Journey'"
-            :loading="journeyStore.loading"
+            :label="isCurrentlyActive ? 'Continuar' : 'Elegir esta Personalizada'"
+            :loading="personalizadaStore.loading"
             @click="onConfirm"
           />
           <q-btn flat no-caps color="grey-7" label="Volver" @click="goBack" />
@@ -90,44 +90,44 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { createLogger } from 'src/utils/logger'
-import { useJourneyStore } from '../stores/journeyStore'
-import type { JourneyMetadata, JourneyType, JourneyTier } from '../types'
+import { usePersonalizadaStore } from '../stores/personalizadaStore'
+import type { PersonalizadaMetadata, PersonalizadaType, PersonalizadaTier } from '../types'
 
-const log = createLogger('JourneyOverview')
+const log = createLogger('PersonalizadaOverview')
 const route = useRoute()
 const router = useRouter()
 const $q = useQuasar()
-const journeyStore = useJourneyStore()
+const personalizadaStore = usePersonalizadaStore()
 
 const loading = ref(true)
 
-const journeyType = computed(() => route.params.type as JourneyType)
+const personalizadaType = computed(() => route.params.type as PersonalizadaType)
 
-const journey = computed<JourneyMetadata | undefined>(() =>
-  journeyStore.journeyMetadata.find((j) => j.type === journeyType.value),
+const personalizada = computed<PersonalizadaMetadata | undefined>(() =>
+  personalizadaStore.personalizadaMetadata.find((j) => j.type === personalizadaType.value),
 )
 
 const isCurrentlyActive = computed(
-  () => journeyStore.activeJourney?.journeyType === journeyType.value,
+  () => personalizadaStore.activePersonalizada?.personalizadaType === personalizadaType.value,
 )
 
 const tierLabel = computed(() => {
-  const labels: Record<JourneyTier, string> = {
+  const labels: Record<PersonalizadaTier, string> = {
     principiante: 'Principiante',
     intermedio: 'Intermedio',
     avanzado: 'Avanzado',
   }
-  return journey.value ? labels[journey.value.tier] : ''
+  return personalizada.value ? labels[personalizada.value.tier] : ''
 })
 
 const difficultyLevel = computed(() => {
-  if (!journey.value) return 0
-  const map: Record<JourneyTier, number> = {
+  if (!personalizada.value) return 0
+  const map: Record<PersonalizadaTier, number> = {
     principiante: 1,
     intermedio: 2,
     avanzado: 3,
   }
-  return map[journey.value.tier]
+  return map[personalizada.value.tier]
 })
 
 const difficultyLabel = computed(() => {
@@ -136,41 +136,41 @@ const difficultyLabel = computed(() => {
 })
 
 function goBack(): void {
-  void router.push('/journey')
+  void router.push('/personalizada')
 }
 
 async function onConfirm(): Promise<void> {
   if (isCurrentlyActive.value) {
     // Already active, go straight to duration
-    void router.push('/journey/duration')
+    void router.push('/personalizada/duration')
     return
   }
 
   try {
-    await journeyStore.selectJourney(journeyType.value)
+    await personalizadaStore.selectPersonalizada(personalizadaType.value)
     $q.notify({
       type: 'positive',
-      message: `Journey "${journey.value?.name}" seleccionado`,
+      message: `Personalizada "${personalizada.value?.name}" seleccionada`,
     })
-    void router.push('/journey/duration')
+    void router.push('/personalizada/duration')
   } catch (err: unknown) {
-    log.error('Failed to select journey', {
+    log.error('Failed to select personalizada', {
       error: err instanceof Error ? err.message : String(err),
     })
     $q.notify({
       type: 'negative',
-      message: 'Error al seleccionar el journey',
+      message: 'Error al seleccionar la personalizada',
     })
   }
 }
 
 onMounted(async () => {
   // Ensure metadata is loaded
-  if (journeyStore.journeyMetadata.length === 0) {
-    await journeyStore.fetchMetadata()
+  if (personalizadaStore.personalizadaMetadata.length === 0) {
+    await personalizadaStore.fetchMetadata()
   }
-  if (!journeyStore.activeJourney) {
-    await journeyStore.fetchActiveJourney()
+  if (!personalizadaStore.activePersonalizada) {
+    await personalizadaStore.fetchActivePersonalizada()
   }
   loading.value = false
 })
@@ -179,7 +179,7 @@ onMounted(async () => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.journey-overview-page {
+.personalizada-overview-page {
   background-color: #f5f2eb;
   min-height: 100vh;
 }
@@ -195,7 +195,7 @@ onMounted(async () => {
   margin-bottom: 16px;
 }
 
-.journey-name {
+.personalizada-name {
   font-family: 'Montserrat', sans-serif;
   font-size: 2rem;
   font-weight: 400;
@@ -220,7 +220,7 @@ onMounted(async () => {
   padding: 4px 12px;
 }
 
-.journey-description {
+.personalizada-description {
   font-size: 0.95rem;
   color: #3a3a3a;
   line-height: 1.7;

@@ -2,22 +2,22 @@ import { ref, computed } from 'vue'
 import { useSessionPlayerStore } from '../../training/stores/sessionPlayerStore'
 import { createLogger } from 'src/utils/logger'
 import type { Block, BlockRole } from '../../training/types/session'
-import type { JourneyType, JourneyDuration, JourneySessionResponse } from '../types'
+import type { PersonalizadaDuration, PersonalizadaSessionResponse } from '../types'
 
-const log = createLogger('JourneySession')
+const log = createLogger('PersonalizadaSession')
 
 /**
- * Duration-based block filtering for journey sessions.
+ * Duration-based block filtering for personalizada sessions.
  *
  * - 20 min: INITIUM + NUCLEUS only
  * - 40 min: INITIUM + NUCLEUS + DEUTEROS_1 (single, no choice)
  * - 60 min: All blocks (INITIUM + NUCLEUS + DEUTEROS_1 + ATHLOS/EPIKOS)
  *
- * Note: Journey sessions do NOT have DEUTEROS_2 choice like regular sessions.
+ * Note: Personalizada sessions do NOT have DEUTEROS_2 choice like regular sessions.
  * The 40-min shows only DEUTEROS_1. For 60-min, the coach determines
  * which final block (Athlos or Epikos) is present in the generated session.
  */
-export function getBlocksForDuration(blocks: Block[], duration: JourneyDuration): Block[] {
+export function getBlocksForDuration(blocks: Block[], duration: PersonalizadaDuration): Block[] {
   switch (duration) {
     case 20:
       return blocks.filter((b) => b.role === 'INITIUM' || b.role === 'NUCLEUS')
@@ -26,7 +26,7 @@ export function getBlocksForDuration(blocks: Block[], duration: JourneyDuration)
         (b) => b.role === 'INITIUM' || b.role === 'NUCLEUS' || b.role === 'DEUTEROS_1',
       )
     case 60:
-      // All blocks except DEUTEROS_2 (journey sessions use DEUTEROS_1 only)
+      // All blocks except DEUTEROS_2 (personalizada sessions use DEUTEROS_1 only)
       return blocks.filter((b) => b.role !== 'DEUTEROS_2')
     default:
       return blocks
@@ -34,20 +34,23 @@ export function getBlocksForDuration(blocks: Block[], duration: JourneyDuration)
 }
 
 /**
- * Journey session player composable.
+ * Personalizada session player composable.
  *
- * Manages the lifecycle of a journey session: block filtering by duration,
+ * Manages the lifecycle of a personalizada session: block filtering by duration,
  * block-by-block progression, exercise completion tracking, timer, and
  * session completion.
  *
- * Follows the useSessionPlayer pattern but simplified for journeys:
+ * Follows the useSessionPlayer pattern but simplified for personalizadas:
  * - No Deuteros choice (duration determines which blocks are visible)
  * - Block count varies by duration (2 for 20min, 3 for 40min, 4+ for 60min)
  * - Reuses sessionPlayerStore for progress persistence
  *
  * Returns cleanup() per composable convention.
  */
-export function useJourneySession(session: JourneySessionResponse, duration: JourneyDuration) {
+export function usePersonalizadaSession(
+  session: PersonalizadaSessionResponse,
+  duration: PersonalizadaDuration,
+) {
   const store = useSessionPlayerStore()
 
   // Core state
@@ -66,7 +69,7 @@ export function useJourneySession(session: JourneySessionResponse, duration: Jou
 
   /**
    * Visible blocks filtered by selected duration.
-   * Unlike regular sessions, journey sessions have no Deuteros choice.
+   * Unlike regular sessions, personalizada sessions have no Deuteros choice.
    */
   const visibleBlocks = computed<Block[]>(() => {
     return getBlocksForDuration(session.blocks, duration)
@@ -247,7 +250,7 @@ export function useJourneySession(session: JourneySessionResponse, duration: Jou
     elapsedSeconds.value = accumulatedSeconds
 
     isInitialized.value = true
-    log.debug('Journey session initialized', {
+    log.debug('Personalizada session initialized', {
       dayId: session.dayId,
       duration,
       visibleBlockCount: visibleBlocks.value.length,

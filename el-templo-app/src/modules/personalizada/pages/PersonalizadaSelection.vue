@@ -1,21 +1,21 @@
 <template>
-  <q-page class="journey-selection-page">
+  <q-page class="personalizada-selection-page">
     <div class="page-content">
       <!-- Header -->
       <div class="page-header">
-        <h1 class="page-title">Elige tu Journey</h1>
+        <h1 class="page-title">Elige tu Clase Personalizada</h1>
         <p class="page-subtitle">
           Selecciona una ruta de entrenamiento personalizada segun tus objetivos
         </p>
       </div>
 
-      <!-- Active Journey Banner -->
-      <div v-if="journeyStore.hasActiveJourney" class="active-journey-banner">
+      <!-- Active Personalizada Banner -->
+      <div v-if="personalizadaStore.hasActivePersonalizada" class="active-personalizada-banner">
         <div class="banner-content">
           <FlameIcon size="sm" />
           <div class="banner-text">
-            <span class="banner-label">Tu Journey Actual</span>
-            <span class="banner-name">{{ journeyStore.activeJourneyName }}</span>
+            <span class="banner-label">Tu Personalizada Actual</span>
+            <span class="banner-name">{{ personalizadaStore.activePersonalizadaName }}</span>
           </div>
         </div>
         <div class="banner-actions">
@@ -25,24 +25,24 @@
             no-caps
             class="banner-btn"
             label="Continuar"
-            @click="onContinueActiveJourney"
+            @click="onContinueActivePersonalizada"
           />
         </div>
       </div>
 
       <!-- Loading State -->
-      <div v-if="journeyStore.loading" class="text-center q-pa-xl">
+      <div v-if="personalizadaStore.loading" class="text-center q-pa-xl">
         <q-spinner-dots size="40px" color="grey-6" />
       </div>
 
       <!-- Error State -->
-      <div v-else-if="journeyStore.error" class="text-center q-pa-xl">
+      <div v-else-if="personalizadaStore.error" class="text-center q-pa-xl">
         <q-icon name="error_outline" size="48px" color="grey-6" />
-        <p class="q-mt-md text-grey-7">{{ journeyStore.error }}</p>
+        <p class="q-mt-md text-grey-7">{{ personalizadaStore.error }}</p>
         <q-btn flat color="primary" label="Reintentar" @click="loadData" />
       </div>
 
-      <!-- Journey Tiers -->
+      <!-- Personalizada Tiers -->
       <template v-else>
         <div v-for="tier in tiers" :key="tier.key" class="tier-section">
           <div class="tier-header">
@@ -51,26 +51,30 @@
             <span class="tier-divider" />
           </div>
 
-          <div class="tier-journeys">
+          <div class="tier-personalizadas">
             <div
-              v-for="journey in getJourneysByTier(tier.key)"
-              :key="journey.type"
-              class="journey-card"
-              @click="onSelectJourney(journey.type)"
+              v-for="personalizada in getPersonalizadasByTier(tier.key)"
+              :key="personalizada.type"
+              class="personalizada-card"
+              @click="onSelectPersonalizada(personalizada.type)"
             >
               <div class="card-header">
-                <h3 class="card-title">{{ journey.name }}</h3>
-                <q-badge v-if="isActiveJourney(journey.type)" class="active-badge" label="Activo" />
+                <h3 class="card-title">{{ personalizada.name }}</h3>
+                <q-badge
+                  v-if="isActivePersonalizada(personalizada.type)"
+                  class="active-badge"
+                  label="Activo"
+                />
               </div>
 
               <div class="card-zones">
-                <span v-for="zone in journey.zones" :key="zone" class="zone-badge">
+                <span v-for="zone in personalizada.zones" :key="zone" class="zone-badge">
                   {{ zone }}
                 </span>
               </div>
 
               <p class="card-description">
-                {{ truncateDescription(journey.description) }}
+                {{ truncateDescription(personalizada.description) }}
               </p>
 
               <div class="card-footer">
@@ -89,25 +93,25 @@ import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { createLogger } from 'src/utils/logger'
-import { useJourneyStore } from '../stores/journeyStore'
-import type { JourneyType, JourneyTier } from '../types'
+import { usePersonalizadaStore } from '../stores/personalizadaStore'
+import type { PersonalizadaType, PersonalizadaTier } from '../types'
 
-const log = createLogger('JourneySelection')
+const log = createLogger('PersonalizadaSelection')
 const router = useRouter()
-const journeyStore = useJourneyStore()
+const personalizadaStore = usePersonalizadaStore()
 
-const tiers: { key: JourneyTier; label: string }[] = [
+const tiers: { key: PersonalizadaTier; label: string }[] = [
   { key: 'principiante', label: 'Principiante' },
   { key: 'intermedio', label: 'Intermedio' },
   { key: 'avanzado', label: 'Avanzado' },
 ]
 
-function getJourneysByTier(tier: JourneyTier) {
-  return journeyStore.journeyMetadata.filter((j) => j.tier === tier)
+function getPersonalizadasByTier(tier: PersonalizadaTier) {
+  return personalizadaStore.personalizadaMetadata.filter((j) => j.tier === tier)
 }
 
-function isActiveJourney(type: JourneyType): boolean {
-  return journeyStore.activeJourney?.journeyType === type
+function isActivePersonalizada(type: PersonalizadaType): boolean {
+  return personalizadaStore.activePersonalizada?.personalizadaType === type
 }
 
 function truncateDescription(desc: string): string {
@@ -116,17 +120,20 @@ function truncateDescription(desc: string): string {
   return desc.substring(0, maxLen).trimEnd() + '...'
 }
 
-function onSelectJourney(type: JourneyType): void {
-  log.debug('Journey selected for overview', { type })
-  void router.push(`/journey/overview/${type}`)
+function onSelectPersonalizada(type: PersonalizadaType): void {
+  log.debug('Personalizada selected for overview', { type })
+  void router.push(`/personalizada/overview/${type}`)
 }
 
-function onContinueActiveJourney(): void {
-  void router.push('/journey/duration')
+function onContinueActivePersonalizada(): void {
+  void router.push('/personalizada/duration')
 }
 
 async function loadData(): Promise<void> {
-  await Promise.all([journeyStore.fetchMetadata(), journeyStore.fetchActiveJourney()])
+  await Promise.all([
+    personalizadaStore.fetchMetadata(),
+    personalizadaStore.fetchActivePersonalizada(),
+  ])
 }
 
 onMounted(() => {
@@ -137,7 +144,7 @@ onMounted(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.journey-selection-page {
+.personalizada-selection-page {
   background-color: #f5f2eb;
   min-height: 100vh;
 }
@@ -169,8 +176,8 @@ onMounted(() => {
   line-height: 1.5;
 }
 
-/* Active Journey Banner */
-.active-journey-banner {
+/* Active Personalizada Banner */
+.active-personalizada-banner {
   background-color: #e6e2d6;
   padding: 16px;
   margin-bottom: 24px;
@@ -238,14 +245,14 @@ onMounted(() => {
   background-color: #d4d0c6;
 }
 
-/* Journey Cards */
-.tier-journeys {
+/* Personalizada Cards */
+.tier-personalizadas {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.journey-card {
+.personalizada-card {
   background-color: #e6e2d6;
   padding: 20px;
   cursor: pointer;
