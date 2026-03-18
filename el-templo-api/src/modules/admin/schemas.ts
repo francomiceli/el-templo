@@ -6,7 +6,7 @@ export const getSessionsSchema = {
       day: { type: "string" },
       levelGroup: { type: "string" },
       status: { type: "string", enum: ["pending_review", "approved"] },
-      journeyType: { type: "string" },
+      personalizadaType: { type: "string" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
       sortBy: { type: "string", enum: ["day", "week", "status"] },
@@ -391,7 +391,7 @@ export const getDaySessionDetailsSchema = {
         type: "string",
         enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
       },
-      journeyType: { type: "string" },
+      personalizadaType: { type: "string" },
     },
   },
 };

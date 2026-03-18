@@ -489,7 +489,7 @@ export class PersonalizadasService {
       memberLevel,
       blocks,
       trace: sessionTrace,
-      journeyType: personalizadaType,
+      personalizadaType,
     };
 
     // Validate the generated session

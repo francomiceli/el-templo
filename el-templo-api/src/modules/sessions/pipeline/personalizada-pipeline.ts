@@ -1,13 +1,13 @@
 /**
- * Journey Pipeline Orchestrator
+ * Personalizada Pipeline Orchestrator
  *
- * Modified pipeline for journey sessions that replaces Stage 1 (rotator)
- * with deterministic route selection from the journey route map, disables
+ * Modified pipeline for personalizada sessions that replaces Stage 1 (rotator)
+ * with deterministic route selection from the personalizada route map, disables
  * cross-route exercise mixing (100% zone bias), and uses zone-specific
  * Initium warmup.
  *
  * Reuses stages 2-7 from the main pipeline — only Stage 1 is replaced
- * and Stages 2/6 have guard logic for journey-specific behavior.
+ * and Stages 2/6 have guard logic for personalizada-specific behavior.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -30,9 +30,9 @@ import { generatePrescriptions } from "./stage-7-prescription";
 // Import INITIUM special pipeline
 import { runInitiumPipeline } from "./initium-pipeline";
 
-// Import journey constants
-import { JOURNEY_ROUTE_MAP } from "../../journeys/constants";
-import type { JourneyType } from "../../journeys/types";
+// Import personalizada constants
+import { PERSONALIZADA_ROUTE_MAP } from "../../personalizadas/constants";
+import type { PersonalizadaType } from "../../personalizadas/types";
 
 // Import mobility routes for zone-specific Initium
 import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
@@ -50,31 +50,36 @@ function simpleHash(input: string): number {
 }
 
 /**
- * Journey Route Resolution (replaces Stage 1: Rotator)
+ * Personalizada Route Resolution (replaces Stage 1: Rotator)
  *
- * Selects route deterministically from the journey's allowed routes using
+ * Selects route deterministically from the personalizada's allowed routes using
  * a hash of (week, day, blockRole). This ensures route variety across days
  * and blocks while remaining reproducible.
  */
-function resolveJourneyRoute(
+function resolvePersonalizadaRoute(
   ctx: BlockContext,
-  journeyType: JourneyType,
+  personalizadaType: PersonalizadaType,
 ): BlockContextWithRoute {
-  const allowedRoutes = JOURNEY_ROUTE_MAP[journeyType];
+  const allowedRoutes = PERSONALIZADA_ROUTE_MAP[personalizadaType];
 
   // Deterministic route selection: hash of (week, day, blockRole) modulo allowedRoutes.length
   const hashInput = `${ctx.week}-${ctx.day}-${ctx.role}`;
   const routeIndex = simpleHash(hashInput) % allowedRoutes.length;
   const selectedRoute = allowedRoutes[routeIndex];
 
-  const traceEvent = createTraceEvent(ctx, "JOURNEY_ROUTE_SELECTED", "INFO", {
-    journeyType,
-    allowedRoutes,
-    hashInput,
-    routeIndex,
-    selectedRoute,
-    source: "journey_route_map",
-  });
+  const traceEvent = createTraceEvent(
+    ctx,
+    "PERSONALIZADA_ROUTE_SELECTED",
+    "INFO",
+    {
+      personalizadaType,
+      allowedRoutes,
+      hashInput,
+      routeIndex,
+      selectedRoute,
+      source: "personalizada_route_map",
+    },
+  );
 
   return {
     ...appendTrace(ctx, traceEvent),
@@ -83,14 +88,16 @@ function resolveJourneyRoute(
 }
 
 /**
- * Get the first available journey route for Initium zone-specific warmup.
- * Returns all unique mobility routes that map to the journey's route pool.
+ * Get the first available personalizada route for Initium zone-specific warmup.
+ * Returns all unique mobility routes that map to the personalizada's route pool.
  */
-function getJourneyMobilityRoutes(journeyType: JourneyType): string[] {
-  const journeyRoutes = JOURNEY_ROUTE_MAP[journeyType];
+function getPersonalizadaMobilityRoutes(
+  personalizadaType: PersonalizadaType,
+): string[] {
+  const personalizadaRoutes = PERSONALIZADA_ROUTE_MAP[personalizadaType];
   const mobilityRoutes = new Set<string>();
 
-  for (const route of journeyRoutes) {
+  for (const route of personalizadaRoutes) {
     const related = ROUTE_TO_MOBILITY_ROUTES[route];
     if (related) {
       for (const r of related) {
@@ -105,7 +112,7 @@ function getJourneyMobilityRoutes(journeyType: JourneyType): string[] {
 /**
  * Attempt SPOM resolution with fallback for missing rules.
  *
- * For journey sessions, a route may not have a SPOM rule for the current week
+ * For personalizada sessions, a route may not have a SPOM rule for the current week
  * (the rotator only uses certain routes per week). Fallback strategy:
  *   1. Try the requested week + route (normal).
  *   2. Try nearest available week for the same route.
@@ -175,7 +182,7 @@ async function resolveSpomWithFallback(
 
       const fallbackTrace = createTraceEvent(
         ctx,
-        "JOURNEY_SPOM_FALLBACK",
+        "PERSONALIZADA_SPOM_FALLBACK",
         "WARNING",
         {
           requestedWeek: ctx.week,
@@ -199,7 +206,7 @@ async function resolveSpomWithFallback(
   // Ultimate fallback: no SPOM rule exists for this route at any week
   const defaultTrace = createTraceEvent(
     ctx,
-    "JOURNEY_SPOM_FALLBACK",
+    "PERSONALIZADA_SPOM_FALLBACK",
     "WARNING",
     {
       route: ctx.route,
@@ -219,10 +226,10 @@ async function resolveSpomWithFallback(
 }
 
 /**
- * Run the journey block pipeline.
+ * Run the personalizada block pipeline.
  *
- * Executes a modified 7-stage pipeline for journey sessions:
- *   Stage 1: Journey route resolution (replaces rotator)
+ * Executes a modified 7-stage pipeline for personalizada sessions:
+ *   Stage 1: Personalizada route resolution (replaces rotator)
  *   Stage 2: SPOM resolution with fallback
  *   Stage 3-5: Budget, contraction, format (unchanged)
  *   Stage 6: Exercise selection with cross-route disabled
@@ -231,33 +238,34 @@ async function resolveSpomWithFallback(
  * @param initialContext - Starting context with week, day, levelGroup, role
  * @param spomService - SPOM service for data lookups
  * @param db - Database connection for direct queries
- * @param journeyType - The journey type for route resolution
+ * @param personalizadaType - The personalizada type for route resolution
  * @param options - Optional pipeline options (e.g., forced format)
  * @returns Complete BlockPlan with all fields populated
  */
-export async function runJourneyBlockPipeline(
+export async function runPersonalizadaBlockPipeline(
   initialContext: BlockContext,
   spomService: SpomService,
   db: MySql2Database<typeof schema>,
-  journeyType: JourneyType,
+  personalizadaType: PersonalizadaType,
   options?: BlockPipelineOptions,
 ): Promise<BlockPlan> {
-  // INITIUM uses special pipeline with journey zone-specific mobility
+  // INITIUM uses special pipeline with personalizada zone-specific mobility
   if (initialContext.role === "INITIUM") {
-    const journeyMobilityRoutes = getJourneyMobilityRoutes(journeyType);
+    const personalizadaMobilityRoutes =
+      getPersonalizadaMobilityRoutes(personalizadaType);
     return runInitiumPipeline(
       initialContext,
       db,
       options?.excludeFormatNames,
-      journeyMobilityRoutes,
+      personalizadaMobilityRoutes,
     );
   }
 
   let ctx: BlockContext | BlockContextWithRoute = initialContext;
 
   try {
-    // Stage 1: Journey route resolution (replaces rotator)
-    const ctx1 = resolveJourneyRoute(ctx, journeyType);
+    // Stage 1: Personalizada route resolution (replaces rotator)
+    const ctx1 = resolvePersonalizadaRoute(ctx, personalizadaType);
 
     // Stage 2: SPOM resolution with fallback for missing rules
     const spomResult = await resolveSpomWithFallback(ctx1, spomService, db);
@@ -276,9 +284,9 @@ export async function runJourneyBlockPipeline(
         {
           intensity: spomResult.intensity,
           pattern: spomResult.pattern,
-          pattern2: null, // Explicitly disable cross-route for journey sessions
+          pattern2: null, // Explicitly disable cross-route for personalizada sessions
           category: spomResult.category,
-          source: "journey_fallback",
+          source: "personalizada_fallback",
         },
       );
       ctx2 = {
@@ -291,16 +299,17 @@ export async function runJourneyBlockPipeline(
       };
     }
 
-    // For journey sessions where SPOM resolves normally, override pattern2
+    // For personalizada sessions where SPOM resolves normally, override pattern2
     // to null to enforce 100% zone bias (no cross-route mixing)
     if (ctx2.pattern2 !== null) {
       const biasTrace = createTraceEvent(
         ctx2,
-        "JOURNEY_CROSS_ROUTE_DISABLED",
+        "PERSONALIZADA_CROSS_ROUTE_DISABLED",
         "INFO",
         {
           originalPattern2: ctx2.pattern2,
-          reason: "Journey sessions use 100% zone bias — cross-route disabled",
+          reason:
+            "Personalizada sessions use 100% zone bias — cross-route disabled",
         },
       );
       ctx2 = {
@@ -356,9 +365,9 @@ export async function runJourneyBlockPipeline(
     // Add ERROR trace and re-throw
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorTrace = createTraceEvent(ctx, "PIPELINE_ERROR", "ERROR", {
-      stage: "journey_pipeline",
+      stage: "personalizada_pipeline",
       error: errorMessage,
-      journeyType,
+      personalizadaType,
     });
     ctx = appendTrace(ctx, errorTrace);
     throw error;

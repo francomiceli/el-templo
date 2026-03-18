@@ -10,7 +10,7 @@ import sessionsPlugin from "./plugins/sessions";
 import progressionPlugin from "./plugins/progression";
 import { authRoutes } from "./modules/auth";
 import { adminRoutes } from "./modules/admin";
-import { journeyRoutes } from "./modules/journeys";
+import { personalizadasRoutes } from "./modules/personalizadas";
 import { franchiseRoutes } from "./modules/franchise";
 import { gladiusRoutes } from "./modules/gladius";
 import { blogRoutes } from "./modules/blog";
@@ -84,8 +84,8 @@ export async function buildApp() {
   // Admin routes (session management for coaches/admins)
   await app.register(adminRoutes, { prefix: "/api/admin" });
 
-  // Journey routes (member journey lifecycle + admin journey management)
-  await app.register(journeyRoutes, { prefix: "/api" });
+  // Personalizada routes (member personalizada lifecycle + admin personalizada management)
+  await app.register(personalizadasRoutes, { prefix: "/api" });
 
   // Franchise routes (public franchise application form)
   await app.register(franchiseRoutes, { prefix: "/api/franchise" });

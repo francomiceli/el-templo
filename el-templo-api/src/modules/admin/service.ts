@@ -26,8 +26,8 @@ export interface SessionFilter {
   day?: string;
   levelGroup?: string;
   status?: SessionStatus;
-  /** "null" = general (no journey), "notnull" = any journey, or specific journey type */
-  journeyType?: string;
+  /** "null" = general (no personalizada), "notnull" = any personalizada, or specific personalizada type */
+  personalizadaType?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -51,7 +51,7 @@ export interface AdminSessionSummary {
   routesSummary: string;
   status: SessionStatus;
   blockCount: number;
-  journeyType: string | null;
+  personalizadaType: string | null;
   approvedAt: Date | null;
   approvedBy: number | null;
   approvedByName: string | null;
@@ -80,13 +80,15 @@ export class AdminSessionService {
     if (filter.status)
       conditions.push(eq(schema.sessions.status, filter.status));
 
-    // Journey type filtering: "null" = general only, "notnull" = journey only, else specific type
-    if (filter.journeyType === "null") {
-      conditions.push(isNull(schema.sessions.journeyType));
-    } else if (filter.journeyType === "notnull") {
-      conditions.push(isNotNull(schema.sessions.journeyType));
-    } else if (filter.journeyType) {
-      conditions.push(eq(schema.sessions.journeyType, filter.journeyType));
+    // Personalizada type filtering: "null" = general only, "notnull" = personalizada only, else specific type
+    if (filter.personalizadaType === "null") {
+      conditions.push(isNull(schema.sessions.personalizadaType));
+    } else if (filter.personalizadaType === "notnull") {
+      conditions.push(isNotNull(schema.sessions.personalizadaType));
+    } else if (filter.personalizadaType) {
+      conditions.push(
+        eq(schema.sessions.personalizadaType, filter.personalizadaType),
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -107,7 +109,7 @@ export class AdminSessionService {
         levelGroup: schema.sessions.levelGroup,
         status: schema.sessions.status,
         blockCount: schema.sessions.blockCount,
-        journeyType: schema.sessions.journeyType,
+        personalizadaType: schema.sessions.personalizadaType,
         approvedAt: schema.sessions.approvedAt,
         approvedBy: schema.sessions.approvedBy,
         approvedBySystem: schema.sessions.approvedBySystem,
@@ -180,7 +182,7 @@ export class AdminSessionService {
           routesSummary: routesBySession.get(s.id) || "",
           status: s.status as SessionStatus,
           blockCount: s.blockCount,
-          journeyType: s.journeyType ?? null,
+          personalizadaType: s.personalizadaType ?? null,
           approvedAt: s.approvedAt,
           approvedBy: s.approvedBy,
           approvedByName:
@@ -298,17 +300,21 @@ export class AdminSessionService {
    * Batch fetch all session details for a given week+day (eliminates N+1).
    * Returns fully hydrated sessions sorted by memberLevel.
    */
-  async getDaySessionDetails(week: number, day: string, journeyType?: string) {
-    // 1. Get all sessions for this week+day, optionally filtered by journeyType
+  async getDaySessionDetails(
+    week: number,
+    day: string,
+    personalizadaType?: string,
+  ) {
+    // 1. Get all sessions for this week+day, optionally filtered by personalizadaType
     const conditions = [
       eq(schema.sessions.week, week),
       eq(schema.sessions.day, day),
     ];
 
-    if (journeyType) {
-      conditions.push(eq(schema.sessions.journeyType, journeyType));
+    if (personalizadaType) {
+      conditions.push(eq(schema.sessions.personalizadaType, personalizadaType));
     } else {
-      conditions.push(isNull(schema.sessions.journeyType));
+      conditions.push(isNull(schema.sessions.personalizadaType));
     }
 
     const sessions = await this.db
