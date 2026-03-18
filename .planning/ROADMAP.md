@@ -1140,7 +1140,7 @@ Plans:
 **Goal**: CajaPage with per-method revenue summary, integrated payment recording on plan assign/renew, and morosos cleanup
 **Depends on**: Phase 61 (needs subscription/payment infrastructure in place)
 **Requirements**: CASH-02, CASH-03
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 **Success Criteria** (what must be TRUE):
 
 1. All cash movements (income and expenses) are organized and visible by payment method (cash, transfer, card)
@@ -1211,7 +1211,7 @@ Phase 58 (Deploy) → Phase 59 (Data Import) → Phase 60 (Plans) → Phase 61 (
 | 60. Plan Configuration              | 3/3            | Complete    | 2026-03-17 |
 | 61. QR Access Control               | 2/3            | In Progress |            |
 | 62. Payment Enhancements            | —              | Skipped     | 2026-03-17 |
-| 63. Cash Box                        | 0/3            | Planned     | -          |
+| 63. Cash Box                        | 1/3            | In Progress |            |
 | 64. Member Management Enhancements  | 0/?            | Not started | -          |
 | 65. Reports Dashboard               | 0/?            | Not started | -          |
 | 66. Roles & Permissions             | 0/?            | Not started | -          |

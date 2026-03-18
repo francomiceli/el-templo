@@ -10,7 +10,7 @@ progress:
   total_phases: 37
   completed_phases: 30
   total_plans: 105
-  completed_plans: 104
+  completed_plans: 105
   percent: 99
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 61 of 66 (QR Access Control) -- 4th of 9 phases in v4.1
-Plan: 2 of 3
+Phase: 63 of 66 (Cash Box) -- 6th of 9 phases in v4.1
+Plan: 1 of 3
 Status: In Progress
-Last activity: 2026-03-17 -- Plan 61-02 complete (fixed schedule subscriptions and slot attendance API)
+Last activity: 2026-03-18 -- Plan 63-01 complete (schema migration, morosos removal, renewal endpoint)
 
 Progress: [██████████] 99%
 
@@ -50,7 +50,7 @@ Progress: [██████████] 99%
 
 **Recent Trend (from v4.0):**
 
-- Last 5 plans: 61-02 (25min), 61-01 (23min), 60-02 (22min), 60-03 (5min), 60-01 (25min)
+- Last 5 plans: 63-01 (39min), 61-02 (25min), 61-01 (23min), 60-02 (22min), 60-03 (5min)
 - Trend: Stable
 
 _Updated after each plan completion_
@@ -62,6 +62,7 @@ _Updated after each plan completion_
 | Phase 60 P03 | 5min | 2 tasks | 7 files |
 | Phase 61 P01 | 23min | 2 tasks | 20 files |
 | Phase 61 P02 | 25min | 2 tasks | 17 files |
+| Phase 63 P01 | 39min | 2 tasks | 29 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 61]: Setter DI pattern (setBookingService) for SubscriptionService<->BookingService circular dependency
 - [Phase 61]: Coach check-in from slot always allows action but returns subscription warnings
 - [Phase 61]: Attendance undo uses AURA spend for reversal (graceful if insufficient balance)
+- [Phase 63]: Subscription renewal extends existing record (same ID) rather than creating new subscription
+- [Phase 63]: Auto-payment recording on assign/change/renew via PaymentService DI in SubscriptionService
+- [Phase 63]: Morosos/balance/overdue concept fully removed from payments, members, analytics, attendance, booking
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-17T21:29:50.541Z
-Stopped at: Phase 63 context gathered
-Resume file: .planning/phases/63-cash-box/63-CONTEXT.md
+Last session: 2026-03-18T03:06:00Z
+Stopped at: Completed 63-01-PLAN.md
+Resume file: .planning/phases/63-cash-box/63-01-SUMMARY.md
