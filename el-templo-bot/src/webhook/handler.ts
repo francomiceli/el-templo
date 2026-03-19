@@ -15,7 +15,7 @@ import type * as schema from "../../../el-templo-api/src/db/schema/index.js";
 import { createAiProvider } from "../ai/provider.js";
 import type { AiProvider, ChatMessage } from "../ai/provider.js";
 import { getSystemPrompt } from "../ai/system-prompt.js";
-import { BOT_TOOLS, executeTool } from "../ai/tools.js";
+import { BOT_TOOLS, executeTool, resolvePendingAction } from "../ai/tools.js";
 import {
   getProfile,
   updateProfile,
@@ -135,6 +135,59 @@ export async function handleInboundMessage(
 
   // Load customer profile from Redis
   const profile = await getProfile(message.phone);
+
+  // Interactive button reply dispatch -- handle confirm/cancel/schedule buttons
+  // directly without going through AI processing
+  if (message.interactiveReplyId) {
+    const replyId = message.interactiveReplyId;
+
+    // Confirmation buttons
+    if (replyId === "confirm_booking" || replyId === "confirm_trial") {
+      const pending = resolvePendingAction(message.phone);
+      if (pending) {
+        const result = await executeTool(
+          pending.tool,
+          pending.args,
+          db,
+          conversationId,
+          { phone: message.phone, clientState },
+        );
+        if (result !== "[BUTTONS_SENT]") {
+          await sendTextMessage(message.phone, result);
+        }
+        return;
+      }
+    }
+
+    // Cancel buttons
+    if (replyId === "cancel_booking" || replyId === "cancel_trial") {
+      resolvePendingAction(message.phone); // Clear pending action
+      await sendTextMessage(
+        message.phone,
+        "No hay problema, si cambias de idea aca estoy!",
+      );
+      return;
+    }
+
+    // Class selection buttons (schedule_XX_YYYY-MM-DD format from alternatives)
+    if (replyId.startsWith("schedule_")) {
+      const parts = replyId.split("_");
+      const selectedScheduleId = parseInt(parts[1], 10);
+      const selectedDate = parts.slice(2).join("_");
+      // Re-invoke book_class with the selected schedule (unconfirmed, so it will show confirmation buttons)
+      const result = await executeTool(
+        "book_class",
+        { scheduleId: selectedScheduleId, date: selectedDate },
+        db,
+        conversationId,
+        { phone: message.phone, clientState },
+      );
+      if (result !== "[BUTTONS_SENT]") {
+        await sendTextMessage(message.phone, result);
+      }
+      return;
+    }
+  }
 
   // 2. Dedup check -- insert inbound message
   try {
@@ -263,6 +316,7 @@ async function processWithAi(
   let response = await provider.chat(messages, BOT_TOOLS);
   let iterations = 0;
   let humanTakeoverTriggered = false;
+  let lastToolResult = "";
 
   while (response.toolCalls.length > 0 && iterations < MAX_TOOL_ITERATIONS) {
     iterations++;
@@ -289,7 +343,10 @@ async function processWithAi(
         toolCall.arguments,
         db,
         conversationId,
+        { phone, clientState },
       );
+
+      lastToolResult = toolResult;
 
       if (toolCall.name === "request_human") {
         humanTakeoverTriggered = true;
@@ -301,6 +358,15 @@ async function processWithAi(
         toolCallId: toolCall.id,
         name: toolCall.name,
       });
+    }
+
+    // If buttons were sent by the tool, don't call AI again -- the interactive message IS the reply
+    if (lastToolResult === "[BUTTONS_SENT]") {
+      log.info(
+        { conversationId },
+        "Interactive buttons sent by tool, suppressing AI text response",
+      );
+      return;
     }
 
     // Call AI again with tool results
