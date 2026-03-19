@@ -32,7 +32,7 @@
               no-caps
               label="Entrenar"
               icon-right="arrow_forward"
-              to="/personalizada/duration"
+              to="/training"
             />
           </q-card-section>
         </q-card>
