@@ -25,7 +25,7 @@ export const PERSONALIZADA_ROUTE_MAP: Record<PersonalizadaType, string[]> = {
     "OAP",
     "OAR",
     "BL", // Upper pull
-    "HR",
+    // "HR" excluded — only has exercises up to sigma level, fails for omega generation
     "HD/ID",
     "MN/RP", // Handstand/core (upper-body-adjacent)
   ],

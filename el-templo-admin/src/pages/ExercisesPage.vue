@@ -19,6 +19,20 @@
       <q-btn label="Crear Ejercicio" icon="add" color="primary" @click="showCreateDialog = true" />
     </div>
 
+    <!-- HR route data gap alert -->
+    <q-banner class="bg-warning text-white q-mb-md" rounded>
+      <template #avatar>
+        <q-icon name="warning" />
+      </template>
+      <div class="text-weight-medium">Ruta HR — Ejercicios incompletos</div>
+      <div class="text-caption q-mt-xs">
+        La ruta HR (Core Posterior / Core Lateral) no tiene ejercicios para niveles Omega y Spartan,
+        y le faltan variantes EXC en esos niveles. Esto impide generar sesiones personalizadas de
+        Tren Superior cuando el bloque cae en HR para alumnos avanzados. Agregar ejercicios HR en
+        niveles omega/spartan con esfuerzo CON, EXC e ISO para habilitarla.
+      </div>
+    </q-banner>
+
     <!-- Filter bar -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
       <div class="col-12 col-sm-3">
