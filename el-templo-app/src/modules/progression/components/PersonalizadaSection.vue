@@ -32,7 +32,7 @@
               no-caps
               label="Entrenar"
               icon-right="arrow_forward"
-              to="/personalizada"
+              to="/personalizada/duration"
             />
           </q-card-section>
         </q-card>
@@ -200,37 +200,20 @@
                   </div>
                 </div>
 
-                <!-- CTAs -->
+                <!-- CTA -->
                 <div class="personalizada-section__wrapup-actions">
                   <q-btn
-                    outline
+                    unelevated
                     no-caps
+                    color="secondary"
+                    text-color="primary"
                     class="personalizada-section__wrapup-btn"
-                    label="Cambiar Personalizada"
-                    icon="swap_horiz"
-                    @click="showChangeDialog = true"
-                  />
-                  <q-btn
-                    flat
-                    no-caps
-                    class="personalizada-section__wrapup-consult"
                     label="Consulta en recepcion para renovar"
                     icon="support_agent"
                   />
                 </div>
               </q-card-section>
             </q-card>
-
-            <!-- Change Personalizada Button (when no wrap-up card shown) -->
-            <q-btn
-              v-if="!cycleStats?.cycleComplete"
-              outline
-              no-caps
-              class="personalizada-section__change-btn"
-              label="Cambiar Personalizada"
-              icon="swap_horiz"
-              @click="showChangeDialog = true"
-            />
           </q-card-section>
         </q-card>
 
@@ -283,53 +266,18 @@
         </q-expansion-item>
       </template>
 
-      <!-- No Active Personalizada - Prompt -->
+      <!-- No Active Personalizada - Info -->
       <q-card v-else class="personalizada-section__prompt-card" flat bordered>
         <q-card-section class="personalizada-section__prompt-content">
           <q-icon name="explore" size="40px" class="personalizada-section__prompt-icon" />
-          <h3 class="personalizada-section__prompt-title">Comienza tu Clase Personalizada</h3>
+          <h3 class="personalizada-section__prompt-title">Clases Personalizadas</h3>
           <p class="personalizada-section__prompt-text">
-            Elige una ruta de entrenamiento enfocada en tus objetivos: tren superior, inferior,
-            empuje, traccion y mas.
+            Tu plan no incluye una personalizada activa. Consulta en recepcion para conocer los
+            planes de Clases Personalizadas.
           </p>
-          <q-btn
-            unelevated
-            no-caps
-            color="secondary"
-            text-color="primary"
-            label="Elegir Personalizada"
-            icon-right="arrow_forward"
-            to="/personalizada"
-          />
         </q-card-section>
       </q-card>
     </template>
-
-    <!-- Change Personalizada Confirmation Dialog -->
-    <q-dialog v-model="showChangeDialog">
-      <q-card class="personalizada-section__dialog">
-        <q-card-section>
-          <div class="text-h6 personalizada-section__dialog-title">Cambiar Personalizada</div>
-        </q-card-section>
-
-        <q-card-section class="q-pt-none">
-          <p class="personalizada-section__dialog-text">
-            Cambiar de Personalizada reiniciara tu progreso actual. Tu historial sera guardado.
-          </p>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat no-caps label="Cancelar" color="grey-7" v-close-popup />
-          <q-btn
-            flat
-            no-caps
-            label="Cambiar"
-            class="personalizada-section__dialog-confirm"
-            @click="onConfirmChange"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </div>
 </template>
 
@@ -343,8 +291,7 @@
  * - Archived history in a collapsible section
  * - Personalizada switching with confirmation dialog
  */
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { formatDate } from 'src/utils/format-date'
 import type {
@@ -355,8 +302,7 @@ import type {
   CycleStats,
 } from 'src/modules/personalizada/types'
 
-const log = createLogger('PersonalizadaSection')
-const router = useRouter()
+createLogger('PersonalizadaSection')
 
 const props = defineProps<{
   activePersonalizada: PersonalizadaProgress | null
@@ -366,8 +312,6 @@ const props = defineProps<{
   loading: boolean
   error: string | null
 }>()
-
-const showChangeDialog = ref(false)
 
 const TIER_LABELS: Record<PersonalizadaTier, string> = {
   principiante: 'Principiante',
@@ -416,12 +360,6 @@ function getPersonalizadaTierLabel(personalizadaType: string): string {
   const meta = props.allMetadata.find((m) => m.type === personalizadaType)
   if (!meta) return ''
   return TIER_LABELS[meta.tier] ?? ''
-}
-
-function onConfirmChange(): void {
-  showChangeDialog.value = false
-  log.info('User confirmed personalizada change')
-  void router.push('/personalizada')
 }
 </script>
 
@@ -693,18 +631,6 @@ function onConfirmChange(): void {
     border-color: $secondary !important;
   }
 
-  &__wrapup-consult {
-    width: 100%;
-    color: rgba($primary, 0.6) !important;
-    font-size: 13px;
-  }
-
-  &__change-btn {
-    width: 100%;
-    color: $secondary !important;
-    border-color: $secondary !important;
-  }
-
   // No Personalizada Prompt
   &__prompt-card {
     background-color: white;
@@ -804,28 +730,6 @@ function onConfirmChange(): void {
     color: rgba($primary, 0.6);
     margin: 0;
     font-weight: 500;
-  }
-
-  // Dialog
-  &__dialog {
-    min-width: 300px;
-  }
-
-  &__dialog-title {
-    font-family: 'Montserrat', sans-serif;
-    color: $primary;
-  }
-
-  &__dialog-text {
-    font-size: 14px;
-    color: rgba($primary, 0.7);
-    line-height: 1.5;
-    margin: 0;
-  }
-
-  &__dialog-confirm {
-    color: $secondary !important;
-    font-weight: 600;
   }
 }
 </style>

@@ -85,7 +85,7 @@ const router = useRouter()
 const personalizadaStore = usePersonalizadaStore()
 
 function goBack(): void {
-  void router.push('/personalizada')
+  void router.push('/mi-camino')
 }
 
 function onSelectDuration(duration: PersonalizadaDuration): void {
@@ -100,8 +100,8 @@ onMounted(async () => {
       await personalizadaStore.fetchActivePersonalizada()
     }
     if (!personalizadaStore.hasActivePersonalizada) {
-      log.warn('No active personalizada, redirecting to selection')
-      void router.replace('/personalizada')
+      log.warn('No active personalizada, redirecting to mi camino')
+      void router.replace('/mi-camino')
       return
     }
   }
