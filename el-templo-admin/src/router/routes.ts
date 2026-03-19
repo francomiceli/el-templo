@@ -29,6 +29,14 @@ const routes: RouteRecordRaw[] = [
         component: () => import('pages/AnaliticasPage.vue'),
       },
       {
+        path: 'conversaciones',
+        component: () => import('pages/ConversacionesPage.vue'),
+      },
+      {
+        path: 'conversaciones/:id',
+        component: () => import('pages/ConversacionDetailPage.vue'),
+      },
+      {
         path: 'blog',
         component: () => import('pages/BlogListPage.vue'),
         meta: { allowedRoles: ['admin', 'superadmin'] },

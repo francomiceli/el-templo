@@ -67,6 +67,15 @@
           </q-item-section>
           <q-item-section>Analiticas</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/conversaciones">
+          <q-item-section avatar>
+            <q-icon name="chat" />
+          </q-item-section>
+          <q-item-section>WhatsApp</q-item-section>
+          <q-item-section side v-if="whatsappActiveCount > 0">
+            <q-badge color="negative" :label="whatsappActiveCount" />
+          </q-item-section>
+        </q-item>
 
         <template v-if="isAdminRole">
           <q-separator />
@@ -139,6 +148,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import { usePaymentsApi } from 'src/composables/usePaymentsApi';
+import { useWhatsappApi } from 'src/composables/useWhatsappApi';
 import { createLogger } from 'src/utils/logger';
 
 const log = createLogger('AdminLayout');
@@ -148,8 +158,11 @@ const route = useRoute();
 const authStore = useAuthStore();
 const adminStore = useAdminStore();
 const paymentsApi = usePaymentsApi();
+const whatsappApi = useWhatsappApi();
 const morososCount = ref(0);
+const whatsappActiveCount = ref(0);
 let morososInterval: ReturnType<typeof setInterval> | null = null;
+let whatsappInterval: ReturnType<typeof setInterval> | null = null;
 
 const isAdminRole = computed(() => ['admin', 'superadmin'].includes(authStore.user?.role ?? ''));
 const isSuperadminRole = computed(() => authStore.user?.role === 'superadmin');
@@ -169,20 +182,34 @@ async function fetchMorososCount() {
   }
 }
 
-// Fetch pending count, coverage, and morosos on mount
+async function fetchWhatsappActiveCount() {
+  try {
+    whatsappActiveCount.value = await whatsappApi.getActiveCount();
+  } catch {
+    // Silently ignore -- badge shows 0 on failure
+  }
+}
+
+// Fetch pending count, coverage, morosos, and whatsapp on mount
 onMounted(() => {
   adminStore.fetchPendingCount();
   adminStore.checkSessionCoverage();
   fetchMorososCount();
+  fetchWhatsappActiveCount();
 
-  // Refresh morosos count every 60 seconds
+  // Refresh counts every 60 seconds
   morososInterval = setInterval(fetchMorososCount, 60_000);
+  whatsappInterval = setInterval(fetchWhatsappActiveCount, 60_000);
 });
 
 onUnmounted(() => {
   if (morososInterval !== null) {
     clearInterval(morososInterval);
     morososInterval = null;
+  }
+  if (whatsappInterval !== null) {
+    clearInterval(whatsappInterval);
+    whatsappInterval = null;
   }
 });
 
