@@ -12,28 +12,35 @@
 
     <q-drawer v-model="drawer" show-if-above bordered>
       <q-list>
-        <q-item-label header>Menu</q-item-label>
-        <q-item v-if="isCoachRole" clickable v-ripple to="/sessions">
-          <q-item-section avatar>
-            <q-icon name="fitness_center" />
-          </q-item-section>
-          <q-item-section>Sesiones</q-item-section>
-          <q-item-section side v-if="adminStore.pendingCount > 0">
-            <q-badge color="negative" :label="adminStore.pendingCount" />
-          </q-item-section>
-        </q-item>
-        <q-item v-if="isCoachRole" clickable v-ripple to="/generate">
-          <q-item-section avatar>
-            <q-icon name="auto_awesome" />
-          </q-item-section>
-          <q-item-section>Generar</q-item-section>
-        </q-item>
-        <q-item v-if="isCoachRole" clickable v-ripple to="/exercises">
-          <q-item-section avatar>
-            <q-icon name="sports_gymnastics" />
-          </q-item-section>
-          <q-item-section>Ejercicios</q-item-section>
-        </q-item>
+        <!-- Entrenamiento -->
+        <template v-if="isCoachRole">
+          <q-item-label header>Entrenamiento</q-item-label>
+          <q-item clickable v-ripple to="/sessions">
+            <q-item-section avatar>
+              <q-icon name="fitness_center" />
+            </q-item-section>
+            <q-item-section>Sesiones</q-item-section>
+            <q-item-section side v-if="adminStore.pendingCount > 0">
+              <q-badge color="negative" :label="adminStore.pendingCount" />
+            </q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/generate">
+            <q-item-section avatar>
+              <q-icon name="auto_awesome" />
+            </q-item-section>
+            <q-item-section>Programador</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/exercises">
+            <q-item-section avatar>
+              <q-icon name="sports_gymnastics" />
+            </q-item-section>
+            <q-item-section>Ejercicios</q-item-section>
+          </q-item>
+        </template>
+
+        <!-- Gestion -->
+        <q-separator v-if="isCoachRole" />
+        <q-item-label header>Gestion</q-item-label>
         <q-item clickable v-ripple to="/alumnos">
           <q-item-section avatar>
             <q-icon name="people" />
@@ -71,9 +78,10 @@
           <q-item-section>Reportes</q-item-section>
         </q-item>
 
+        <!-- Landing (owner only) -->
         <template v-if="isOwnerRole">
           <q-separator />
-          <q-item-label header>Contenido</q-item-label>
+          <q-item-label header>Landing</q-item-label>
           <q-item clickable v-ripple to="/blog">
             <q-item-section avatar>
               <q-icon name="article" />
@@ -104,17 +112,18 @@
             </q-item-section>
             <q-item-section>Labs Inquiries</q-item-section>
           </q-item>
-        </template>
-
-        <template v-if="isOwnerRole">
-          <q-separator />
-          <q-item-label header>Administracion</q-item-label>
           <q-item clickable v-ripple to="/franquicias">
             <q-item-section avatar>
               <q-icon name="store" />
             </q-item-section>
-            <q-item-section>Solicitudes</q-item-section>
+            <q-item-section>Franquicias</q-item-section>
           </q-item>
+        </template>
+
+        <!-- Administracion (owner only) -->
+        <template v-if="isOwnerRole">
+          <q-separator />
+          <q-item-label header>Administracion</q-item-label>
           <q-item clickable v-ripple to="/usuarios">
             <q-item-section avatar>
               <q-icon name="manage_accounts" />
