@@ -100,6 +100,14 @@ export interface MetaWebhookError {
   };
 }
 
+// ─── Template Message Types ─────────────────────────────────────────────────
+
+/** Component for WhatsApp template messages (body, header, or button parameters) */
+export interface TemplateComponent {
+  type: "body" | "header" | "button";
+  parameters: Array<{ type: "text"; text: string }>;
+}
+
 // ─── Interactive Message Types ──────────────────────────────────────────────
 
 /** WhatsApp interactive button for confirmation/selection */

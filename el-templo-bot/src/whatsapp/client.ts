@@ -13,6 +13,7 @@ import type {
   ParsedInboundMessage,
   SendMessageResponse,
   InteractiveButton,
+  TemplateComponent,
 } from "./types.js";
 
 const log = pino({ name: "whatsapp-client" });
@@ -196,6 +197,88 @@ export async function sendInteractiveMessage(
   }
 
   log.info({ phone, messageId }, "Interactive message sent successfully");
+  return messageId;
+}
+
+/**
+ * Send a template message via WhatsApp Cloud API.
+ *
+ * Template messages must be pre-approved in Meta Business Manager.
+ * The bot sends them by name; the actual template text is configured
+ * in Meta's dashboard.
+ *
+ * @param phone - Recipient phone number
+ * @param templateName - Pre-approved template name (e.g. "class_reminder")
+ * @param languageCode - Template language code (e.g. "es_AR")
+ * @param components - Optional template parameters (body, header, button values)
+ * @returns The wamid of the sent message
+ * @throws On API error or missing configuration
+ */
+export async function sendTemplateMessage(
+  phone: string,
+  templateName: string,
+  languageCode: string,
+  components?: TemplateComponent[],
+): Promise<string> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
+
+  if (!token || !phoneId) {
+    throw new Error(
+      "Missing WHATSAPP_TOKEN or WHATSAPP_PHONE_ID environment variables",
+    );
+  }
+
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneId}/messages`;
+
+  const template: Record<string, unknown> = {
+    name: templateName,
+    language: { code: languageCode },
+  };
+
+  if (components && components.length > 0) {
+    template.components = components;
+  }
+
+  const body = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "template",
+    template,
+  };
+
+  log.info({ phone, templateName, languageCode }, "Sending template message");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    log.error(
+      { status: response.status, body: errorBody, phone, templateName },
+      "WhatsApp API error (template)",
+    );
+    throw new Error(`WhatsApp API error: ${response.status} - ${errorBody}`);
+  }
+
+  const data = (await response.json()) as SendMessageResponse;
+  const messageId = data.messages[0]?.id;
+
+  if (!messageId) {
+    log.error({ data }, "No message ID in template API response");
+    throw new Error("No message ID returned from WhatsApp API");
+  }
+
+  log.info(
+    { phone, messageId, templateName },
+    "Template message sent successfully",
+  );
   return messageId;
 }
 
