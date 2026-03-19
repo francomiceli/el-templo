@@ -19,7 +19,19 @@
       <q-btn label="Crear Ejercicio" icon="add" color="primary" @click="showCreateDialog = true" />
     </div>
 
-    <!-- HR route data gap alert -->
+    <!-- Exercise data gap alerts -->
+    <q-banner class="bg-warning text-white q-mb-sm" rounded>
+      <template #avatar>
+        <q-icon name="warning" />
+      </template>
+      <div class="text-weight-medium">Ruta SS — Esfuerzo sin especificar</div>
+      <div class="text-caption q-mt-xs">
+        13 de 19 ejercicios en la ruta SS (Sissy Squat) no tienen tipo de esfuerzo asignado
+        (CON/EXC/ISO). Esto impide que el generador de sesiones personalizadas los encuentre.
+        Filtrar por Ruta = SS y asignar el esfuerzo correspondiente a cada ejercicio.
+      </div>
+    </q-banner>
+
     <q-banner class="bg-warning text-white q-mb-md" rounded>
       <template #avatar>
         <q-icon name="warning" />
