@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 72-02-PLAN.md
-last_updated: "2026-03-19T05:00:00.000Z"
-last_activity: 2026-03-19 -- Completed Plan 02 of Phase 72
+stopped_at: Completed 73-01-PLAN.md
+last_updated: "2026-03-19T18:24:45.000Z"
+last_activity: 2026-03-19 -- Completed Plan 01 of Phase 73
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 9
-  completed_plans: 13
-  percent: 80
+  completed_plans: 14
+  percent: 87
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 72 -- Admin Panel Conversations UI
+**Current focus:** Phase 73 -- Admin Panel Human Takeover
 
 ## Current Position
 
-Phase: 72 of 73 (Admin Panel Conversations UI)
-Plan: 2 of 2 (Phase Complete)
+Phase: 73 of 73 (Admin Panel Human Takeover)
+Plan: 1 of 2
 Status: Executing
-Last activity: 2026-03-19 -- Completed Plan 02 of Phase 72
+Last activity: 2026-03-19 -- Completed Plan 01 of Phase 73
 
-Progress: [▓▓▓▓▓▓▓▓░░] 80%
+Progress: [▓▓▓▓▓▓▓▓▓░] 87%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 13 (v5.0)
+- Total plans completed: 14 (v5.0)
 
 **By Phase:**
 
@@ -48,6 +48,7 @@ Progress: [▓▓▓▓▓▓▓▓░░] 80%
 | 70    | 2/2   | 8 min  | 4 min    |
 | 71    | 2/2   | 7 min  | 4 min    |
 | 72    | 2/2   | 7 min  | 4 min    |
+| 73    | 1/2   | 10 min | 10 min   |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Recent decisions affecting current work:
 - [72-02] useWhatsappApi follows useMembersApi pattern with loading/error refs and cleanup method
 - [72-02] Chat bubbles use CSS flexbox with direction-based alignment and color coding (grey/green/blue)
 - [72-02] Active conversation count badge polls every 60s via setInterval in AdminLayout
+- [73-01] Best-effort WhatsApp delivery: message saved to DB first, Cloud API failure logged but not thrown
+- [73-01] Private sendWhatsAppMessage helper in API service (not reusing bot client.ts) for self-containment
+- [73-01] Re-fetch conversation with full shape after mutations for consistent API responses
 
 ### Pending Todos
 
@@ -115,5 +119,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed 72-02-PLAN.md (Phase 72 complete)
-Resume file: .planning/phases/72-admin-panel-conversations-ui/72-02-SUMMARY.md
+Stopped at: Completed 73-01-PLAN.md
+Resume file: .planning/phases/73-admin-panel-human-takeover/73-01-SUMMARY.md
