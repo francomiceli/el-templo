@@ -30,6 +30,7 @@ import {
   schedulingAdminRoutes,
   schedulingMemberRoutes,
 } from "./modules/scheduling";
+import { schedulingBotRoutes } from "./modules/scheduling/bot-routes";
 import { analyticsRoutes } from "./modules/analytics";
 import { whatsappAdminRoutes } from "./modules/whatsapp";
 
@@ -78,6 +79,11 @@ export async function buildApp() {
 
   // Routes
   await app.register(authRoutes, { prefix: "/api/auth" });
+
+  // Bot-internal routes (service-to-service, API key auth — registered before JWT-guarded routes)
+  await app.register(schedulingBotRoutes, {
+    prefix: "/api/bot/scheduling",
+  });
 
   // Admin routes (session management for coaches/admins)
   await app.register(adminRoutes, { prefix: "/api/admin" });
