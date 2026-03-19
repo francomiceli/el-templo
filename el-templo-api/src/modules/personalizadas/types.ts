@@ -36,3 +36,17 @@ export interface PersonalizadaMetadata {
   zones: string[]; // Body zones targeted
   idealFor: string; // Spanish "ideal for" text
 }
+
+export interface CycleStats {
+  cycleWeeks: number; // ceil(plan.durationDays / 7)
+  currentWeek: number; // which week we're in (1-based, calendar from startedAt)
+  cycleEndDate: string; // ISO date string when cycle ends (startedAt + durationDays)
+  totalCompletions: number; // sessions completed during this cycle window
+  durationBreakdown: {
+    // completions per duration within cycle window
+    d20: number;
+    d40: number;
+    d60: number;
+  };
+  cycleComplete: boolean; // true if current date >= cycleEndDate
+}

@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, desc, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SpomService } from "../spom/service";
 import { SessionGeneratorService } from "../sessions/service";
@@ -41,6 +41,7 @@ import type {
   PersonalizadaDuration,
   PersonalizadaProgress,
   ArchivedPersonalizada,
+  CycleStats,
 } from "./types";
 import { PERSONALIZADA_ROUTE_MAP } from "./constants";
 import type { BlockPipelineOptions } from "../sessions/pipeline/index";
@@ -191,6 +192,99 @@ export class PersonalizadasService {
       startedAt: p.startedAt.toISOString(),
       archivedAt: p.archivedAt?.toISOString() ?? new Date().toISOString(),
     }));
+  }
+
+  /**
+   * Get cycle stats for the member's active personalizada subscription.
+   * Returns null if no active personalizada or no personalizada subscription.
+   */
+  async getCycleStats(userId: number): Promise<CycleStats | null> {
+    // Step 1: Get active personalizada (has startedAt + personalizadaType)
+    const [personalizada] = await this.db
+      .select()
+      .from(schema.memberPersonalizadas)
+      .where(
+        and(
+          eq(schema.memberPersonalizadas.userId, userId),
+          eq(schema.memberPersonalizadas.isActive, true),
+        ),
+      );
+
+    if (!personalizada) return null;
+
+    // Step 2: Get the member's active personalizada subscription plan to get durationDays
+    const [sub] = await this.db
+      .select({ durationDays: schema.subscriptionPlans.durationDays })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+          eq(schema.subscriptionPlans.isPersonalizada, true),
+        ),
+      )
+      .limit(1);
+
+    if (!sub) return null;
+
+    const durationDays = sub.durationDays;
+    const cycleWeeks = Math.ceil(durationDays / 7);
+
+    // Step 3: Calculate cycle end date and current week
+    const startedAt = personalizada.startedAt; // Date object from DB
+    const cycleEndDate = new Date(
+      startedAt.getTime() + durationDays * 24 * 60 * 60 * 1000,
+    );
+    const now = new Date();
+
+    const msElapsed = now.getTime() - startedAt.getTime();
+    const daysElapsed = Math.floor(msElapsed / (24 * 60 * 60 * 1000));
+    const currentWeek = Math.min(Math.floor(daysElapsed / 7) + 1, cycleWeeks);
+    const cycleComplete = now >= cycleEndDate;
+
+    // Step 4: Count completions within the cycle window
+    const startDateStr = startedAt.toISOString().slice(0, 10);
+    const endDateStr = cycleEndDate.toISOString().slice(0, 10);
+
+    const completions = await this.db
+      .select({
+        duration: schema.completedSessions.duration,
+      })
+      .from(schema.completedSessions)
+      .where(
+        and(
+          eq(schema.completedSessions.userId, userId),
+          eq(
+            schema.completedSessions.personalizadaType,
+            personalizada.personalizadaType,
+          ),
+          sql`${schema.completedSessions.date} >= ${startDateStr}`,
+          sql`${schema.completedSessions.date} <= ${endDateStr}`,
+        ),
+      );
+
+    const totalCompletions = completions.length;
+    const durationBreakdown = {
+      d20: completions.filter((c) => c.duration === 20).length,
+      d40: completions.filter((c) => c.duration === 40).length,
+      d60: completions.filter((c) => c.duration === 60).length,
+    };
+
+    return {
+      cycleWeeks,
+      currentWeek: Math.max(currentWeek, 1),
+      cycleEndDate: cycleEndDate.toISOString(),
+      totalCompletions,
+      durationBreakdown,
+      cycleComplete,
+    };
   }
 
   /**
