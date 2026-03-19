@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 71-02-PLAN.md
-last_updated: "2026-03-19T01:37:39.000Z"
-last_activity: 2026-03-19 -- Completed Plan 02 of Phase 71 (Phase complete)
+stopped_at: Completed 72-01-PLAN.md
+last_updated: "2026-03-19T02:10:29.000Z"
+last_activity: 2026-03-19 -- Completed Plan 01 of Phase 72
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 9
-  completed_plans: 11
-  percent: 65
+  completed_plans: 12
+  percent: 70
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 71 -- Proactive Schedulers
+**Current focus:** Phase 72 -- Admin Panel Conversations UI
 
 ## Current Position
 
-Phase: 71 of 73 (Proactive Schedulers)
-Plan: 2 of 2 (Phase complete)
+Phase: 72 of 73 (Admin Panel Conversations UI)
+Plan: 1 of 2
 Status: Executing
-Last activity: 2026-03-19 -- Completed Plan 02 of Phase 71 (Phase complete)
+Last activity: 2026-03-19 -- Completed Plan 01 of Phase 72
 
-Progress: [▓▓▓▓▓▓▓░░░] 65%
+Progress: [▓▓▓▓▓▓▓░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 11 (v5.0)
+- Total plans completed: 12 (v5.0)
 
 **By Phase:**
 
@@ -47,6 +47,7 @@ Progress: [▓▓▓▓▓▓▓░░░] 65%
 | 69    | 2/2   | 16 min | 8 min    |
 | 70    | 2/2   | 8 min  | 4 min    |
 | 71    | 2/2   | 7 min  | 4 min    |
+| 72    | 1/2   | 3 min  | 3 min    |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [71-02] Trial detection via pricePaid=0 AND priceTypeApplied='zero' (per 70-01 convention)
 - [71-02] NOT EXISTS subquery to exclude converted members (any subscription with pricePaid > 0)
 - [71-02] Follow-up dedup via Redis key wa:followup:trial:{userId} with 7d TTL
+- [72-01] ClientState enum updated to match DB schema: inactive_member/expired_member instead of lapsed/returning
+- [72-01] listConversations returns page and limit in response for frontend pagination
+- [72-01] SQL subqueries for lastMessagePreview and messageCount to avoid N+1
 
 ### Pending Todos
 
@@ -108,5 +112,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed 71-02-PLAN.md (Phase 71 complete)
-Resume file: .planning/phases/71-proactive-schedulers/71-02-SUMMARY.md
+Stopped at: Completed 72-01-PLAN.md
+Resume file: .planning/phases/72-admin-panel-conversations-ui/72-01-SUMMARY.md

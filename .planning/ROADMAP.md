@@ -1348,7 +1348,7 @@ Plans:
 1. Admin sees a paginated list of all conversations with search by name/phone and filters by status and client state
 2. Clicking a conversation shows the full message history in a chat bubble UI with timestamps and direction indicators
 3. WhatsApp menu item appears in the admin sidebar with a badge showing the count of unread/active conversations
-   **Plans:** 2 plans
+   **Plans:** 1/2 plans executed
    Plans:
 
 - [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
@@ -1380,7 +1380,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
 | 70. Action Tools                              | 2/2            | Complete    | 2026-03-19 |
 | 71. Proactive Schedulers                      | 2/2            | Complete    | 2026-03-19 |
-| 72. Admin Panel -- Conversations UI           | 0/2            | Planning    | -          |
+| 72. Admin Panel -- Conversations UI           | 1/2            | In Progress |            |
 | 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |
 
 ---

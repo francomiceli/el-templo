@@ -39,8 +39,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 ### Admin Panel
 
-- [ ] **ADMIN-01**: ConversacionesPage lists all conversations with search, status/state filters, and pagination
-- [ ] **ADMIN-02**: ConversacionDetailPage shows chat bubble UI with full message history and member link
+- [x] **ADMIN-01**: ConversacionesPage lists all conversations with search, status/state filters, and pagination
+- [x] **ADMIN-02**: ConversacionDetailPage shows chat bubble UI with full message history and member link
 - [ ] **ADMIN-03**: Admin can take over a conversation (bot pauses) and send messages manually via Cloud API
 - [ ] **ADMIN-04**: Admin can resume bot processing for a conversation after takeover
 - [ ] **ADMIN-05**: WhatsApp sidebar menu item in AdminLayout with unread conversation badge
@@ -94,8 +94,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 | MEM-04      | Phase 69 | Complete |
 | SCHED-01    | Phase 71 | Complete |
 | SCHED-02    | Phase 71 | Complete |
-| ADMIN-01    | Phase 72 | Pending  |
-| ADMIN-02    | Phase 72 | Pending  |
+| ADMIN-01    | Phase 72 | Complete |
+| ADMIN-02    | Phase 72 | Complete |
 | ADMIN-03    | Phase 73 | Pending  |
 | ADMIN-04    | Phase 73 | Pending  |
 | ADMIN-05    | Phase 72 | Pending  |
