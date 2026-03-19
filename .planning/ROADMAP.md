@@ -1326,15 +1326,15 @@ Plans:
 **Execution Order:**
 Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX) → Phase 73 (Mi Plan Catalog)
 
-| Phase                                        | Plans Complete | Status      | Completed  |
-| -------------------------------------------- | -------------- | ----------- | ---------- |
-| 67. Personalizadas Backend Rename            | 2/2            | Complete    | 2026-03-18 |
-| 68. Personalizadas Frontend Rename           | 2/2            | Complete    | 2026-03-18 |
-| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete    | 2026-03-19 |
-| 70. Personalizadas Cycle Config              | 2/2            | Complete    | 2026-03-19 |
-| 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete    | 2026-03-19 |
-| 72. Unified Training Experience              | 3/3            | Complete    | 2026-03-19 |
-| 73. Planes — Plan Catalog for Members        | 1/2            | In Progress |            |
+| Phase                                        | Plans Complete | Status   | Completed  |
+| -------------------------------------------- | -------------- | -------- | ---------- |
+| 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
+| 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
+| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
+| 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
+| 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete | 2026-03-19 |
+| 72. Unified Training Experience              | 3/3            | Complete | 2026-03-19 |
+| 73. Planes — Plan Catalog for Members        | 2/2            | Complete | 2026-03-19 |
 
 ---
 
@@ -1409,7 +1409,7 @@ Plans:
 **Goal**: Members can browse all available plans (gym and personalizada) in a "Planes" section of the member app. Each plan shows details and a WhatsApp CTA to contact about changing plans. No prices shown. Current plan highlighted. Read-only catalog.
 **Depends on**: Phase 71 (plan-driven assignment in place, selection flow removed)
 **Requirements**: PLANES-01, PLANES-02, PLANES-03, PLANES-04, PLANES-05, PLANES-06
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 **Success Criteria** (what must be TRUE):
 
