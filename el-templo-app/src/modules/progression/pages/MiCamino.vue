@@ -127,7 +127,14 @@
         @request="handleRequestEvaluation"
       />
 
-      <!-- Personalizada section hidden from this release -->
+      <!-- Personalizada Section -->
+      <PersonalizadaSection
+        :active-personalizada="personalizadaProgress.activePersonalizada.value"
+        :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
+        :all-metadata="personalizadaProgress.allMetadata.value"
+        :loading="personalizadaProgress.loading.value"
+        :error="personalizadaProgress.error.value"
+      />
     </div>
   </q-page>
 </template>
@@ -149,17 +156,18 @@ import { computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
-// import { usePersonalizadaProgress } from '../composables/usePersonalizadaProgress' // Hidden from this release
+import { usePersonalizadaProgress } from '../composables/usePersonalizadaProgress'
 import { useUserStore } from 'src/stores/useUserStore'
 import LevelDisplay from '../components/LevelDisplay.vue'
 import TrainingStats from '../components/TrainingStats.vue'
 import RpeTrendChart from '../components/RpeTrendChart.vue'
 import EvaluationRequest from '../components/EvaluationRequest.vue'
-// import PersonalizadaSection from '../components/PersonalizadaSection.vue' // Hidden from this release
+import PersonalizadaSection from '../components/PersonalizadaSection.vue'
 
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
+const personalizadaProgress = usePersonalizadaProgress()
 
 /**
  * User's display name - uses fullName computed from userStore
@@ -221,6 +229,7 @@ async function handleRequestEvaluation() {
 
 onMounted(() => {
   fetchStats()
+  personalizadaProgress.fetchPersonalizadaData()
 })
 </script>
 
