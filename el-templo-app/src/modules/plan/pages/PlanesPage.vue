@@ -31,7 +31,15 @@
                 label="Tu plan actual"
                 class="q-mb-sm"
               />
-              <div v-if="plan.description" class="text-body2 text-grey-7">
+              <div class="q-mt-sm q-gutter-xs">
+                <q-badge v-if="plan.durationDays" outline color="grey-7">
+                  {{ plan.durationDays }} dias
+                </q-badge>
+                <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
+                  {{ plan.classesPerWeek }} clases/semana
+                </q-badge>
+              </div>
+              <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
                 {{ plan.description }}
               </div>
             </q-card-section>
@@ -46,7 +54,7 @@
                 flat
                 no-caps
                 color="positive"
-                icon="sym_o_chat"
+                icon="chat"
                 :label="ctaText"
                 @click="openWhatsApp(plan)"
               />
@@ -75,6 +83,9 @@
               <div v-if="plan.description" class="text-body2 text-grey-7">
                 {{ plan.description }}
               </div>
+              <div v-if="plan.durationDays" class="q-mt-sm">
+                <q-badge outline color="grey-7"> {{ plan.durationDays }} dias </q-badge>
+              </div>
               <div v-if="plan.personalizadaZones?.length" class="q-mt-sm">
                 <div class="text-caption text-grey-6">Zonas</div>
                 <div class="q-gutter-xs q-mt-xs">
@@ -99,7 +110,7 @@
                 flat
                 no-caps
                 color="positive"
-                icon="sym_o_chat"
+                icon="chat"
                 :label="ctaText"
                 @click="openWhatsApp(plan)"
               />
@@ -124,6 +135,8 @@ interface MemberPlan {
   name: string
   description: string | null
   planTier: string
+  durationDays: number
+  classesPerWeek: number | null
   isPersonalizada: boolean
   personalizadaType: string | null
   personalizadaZones: string[] | null

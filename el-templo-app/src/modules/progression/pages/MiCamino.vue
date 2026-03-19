@@ -58,40 +58,6 @@
           :loading="false"
           :error="personalizadaProgress.error.value"
         />
-
-        <!-- Entrenar CTA button -->
-        <q-btn
-          color="primary"
-          unelevated
-          no-caps
-          label="Entrenar"
-          icon-right="arrow_forward"
-          to="/training"
-          class="full-width mi-camino__train-btn"
-        />
-
-        <!-- General Training Stats (collapsible) -->
-        <q-expansion-item
-          dense
-          header-class="mi-camino__stats-header"
-          class="mi-camino__stats-expansion"
-        >
-          <template #header>
-            <q-item-section>
-              <q-item-label class="mi-camino__stats-title">
-                Estadisticas de Entrenamiento
-              </q-item-label>
-            </q-item-section>
-          </template>
-          <GeneralContent
-            :today-completed="todayCompleted"
-            :today-session="progressionStore.todaySession"
-            :stats="progressionStore.stats"
-            :rpe-trend="progressionStore.rpeTrend"
-            :evaluation="progressionStore.evaluation"
-            @request-evaluation="handleRequestEvaluation"
-          />
-        </q-expansion-item>
       </template>
 
       <!-- MODE 2: Tabs (archived personalizadas but no active — keep existing tabs) -->
