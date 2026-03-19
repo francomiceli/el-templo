@@ -12,8 +12,8 @@ export type ClientState =
   | "lead"
   | "trial"
   | "active_member"
-  | "lapsed"
-  | "returning";
+  | "inactive_member"
+  | "expired_member";
 
 export type MessageDirection = "inbound" | "outbound_bot" | "outbound_human";
 

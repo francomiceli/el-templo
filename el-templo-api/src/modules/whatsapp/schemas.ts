@@ -26,7 +26,13 @@ const conversationSchema = {
     },
     clientState: {
       type: "string",
-      enum: ["lead", "trial", "active_member", "lapsed", "returning"],
+      enum: [
+        "lead",
+        "trial",
+        "active_member",
+        "inactive_member",
+        "expired_member",
+      ],
     },
     assignedAdminId: { type: ["integer", "null"] },
     linkedMemberId: { type: ["integer", "null"] },
@@ -73,7 +79,13 @@ export const listConversationsSchema = {
       },
       clientState: {
         type: "string",
-        enum: ["lead", "trial", "active_member", "lapsed", "returning"],
+        enum: [
+          "lead",
+          "trial",
+          "active_member",
+          "inactive_member",
+          "expired_member",
+        ],
       },
       search: { type: "string" },
       page: { type: "integer", minimum: 1, default: 1 },
