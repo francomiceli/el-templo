@@ -5,6 +5,7 @@ import type {
   PersonalizadaProgress,
   ArchivedPersonalizada,
   PersonalizadaMetadata,
+  CycleStats,
 } from 'src/modules/personalizada/types'
 
 const log = createLogger('PersonalizadaProgress')
@@ -30,6 +31,7 @@ export function usePersonalizadaProgress() {
   const activePersonalizada = ref<PersonalizadaProgress | null>(null)
   const archivedPersonalizadas = ref<ArchivedPersonalizada[]>([])
   const allMetadata = ref<PersonalizadaMetadata[]>([])
+  const cycleStats = ref<CycleStats | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -47,20 +49,23 @@ export function usePersonalizadaProgress() {
       loading.value = true
       error.value = null
 
-      const [active, archived, metadata] = await Promise.all([
+      const [active, archived, metadata, stats] = await Promise.all([
         api.getActivePersonalizada(),
         api.getArchivedPersonalizadas(),
         api.getMetadata(),
+        api.getStats(),
       ])
 
       activePersonalizada.value = active
       archivedPersonalizadas.value = archived
       allMetadata.value = metadata
+      cycleStats.value = stats
 
       log.debug('Personalizada progress loaded', {
         hasActive: active !== null,
         archivedCount: archived.length,
         metadataCount: metadata.length,
+        hasCycleStats: stats !== null,
       })
     } catch (err: unknown) {
       error.value = 'Error cargando datos de personalizada'
@@ -96,6 +101,7 @@ export function usePersonalizadaProgress() {
     activePersonalizada,
     archivedPersonalizadas,
     allMetadata,
+    cycleStats,
     loading,
     error,
     fetchPersonalizadaData,

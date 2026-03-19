@@ -7,6 +7,7 @@ import type {
   PersonalizadaProgress,
   ArchivedPersonalizada,
   PersonalizadaSessionResponse,
+  CycleStats,
 } from '../types'
 
 const log = createLogger('PersonalizadaApi')
@@ -133,6 +134,28 @@ export function usePersonalizadaApi() {
   }
 
   /**
+   * Fetch cycle progress stats for the member's active personalizada.
+   * GET /api/personalizadas/stats
+   * Returns null if no active personalizada.
+   */
+  async function getStats(): Promise<CycleStats | null> {
+    try {
+      const response = await api.get<{ stats: CycleStats | null }>('/personalizadas/stats', {
+        signal: createAbortSignal(),
+      })
+      return response.data.stats
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'CanceledError') {
+        return null
+      }
+      log.error('Failed to fetch personalizada stats', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+      throw err
+    }
+  }
+
+  /**
    * Fetch a personalizada session for a specific week/day/duration.
    * GET /api/personalizadas/session
    */
@@ -199,6 +222,7 @@ export function usePersonalizadaApi() {
     getActivePersonalizada,
     selectPersonalizada,
     getArchivedPersonalizadas,
+    getStats,
     getSession,
     completeSession,
     cleanup,

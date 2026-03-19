@@ -47,6 +47,23 @@ export interface PersonalizadaMetadata {
 }
 
 /**
+ * Cycle progress stats from GET /personalizadas/stats.
+ * Derived from subscription plan durationDays and completed sessions.
+ */
+export interface CycleStats {
+  cycleWeeks: number
+  currentWeek: number
+  cycleEndDate: string
+  totalCompletions: number
+  durationBreakdown: {
+    d20: number
+    d40: number
+    d60: number
+  }
+  cycleComplete: boolean
+}
+
+/**
  * Personalizada session response from API.
  * Structured like existing Session type but with personalizada context.
  */
