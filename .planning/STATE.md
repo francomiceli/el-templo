@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 72-01-PLAN.md
-last_updated: "2026-03-19T19:40:25.485Z"
+stopped_at: Completed 72-03-PLAN.md
+last_updated: "2026-03-19T19:45:52.635Z"
 progress:
   total_phases: 71
   completed_phases: 58
   total_plans: 257
-  completed_plans: 248
+  completed_plans: 250
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 72 — unified-training-experience
+**Current focus:** Phase 73 — mi-plan-catalog
 
 ## Current Position
 
-Phase: 72 (unified-training-experience) — EXECUTING
-Plan: 2 of 3
+Phase: 73 (mi-plan-catalog) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -76,6 +76,8 @@ _Updated after each plan completion_
 | Phase 71 P02 | 5min | 2 tasks | 8 files |
 | Phase 71 P01 | 15min | 2 tasks | 7 files |
 | Phase 72 P01 | 4min | 2 tasks | 2 files |
+| Phase 73 P01 | 3min | 2 tasks | 2 files |
+| Phase 72 P03 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -146,6 +148,8 @@ Recent decisions affecting current work:
 - [Phase 71]: Removed selectPersonalizada from store and API composable since only deleted pages used it
 - [Phase 71]: PersonalizadasService instantiated in SubscriptionService constructor (no circular dependency)
 - [Phase 72]: Secondary plan query pattern in member-routes handler for plan-level fields, avoiding shared SubscriptionDetail type modification
+- [Phase 73]: No new types needed -- member plan response shape derived inline with field filtering
+- [Phase 72]: Three-mode Mi Camino layout: unified personalizada view (no tabs), archived tabs with renewal banner, and unchanged regular member view
 
 ### Pending Todos
 
@@ -157,6 +161,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T19:40:25.481Z
-Stopped at: Completed 72-01-PLAN.md
+Last session: 2026-03-19T19:45:52.622Z
+Stopped at: Completed 72-03-PLAN.md
 Resume file: None

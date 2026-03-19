@@ -1334,7 +1334,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 70. Personalizadas Cycle Config              | 2/2            | Complete    | 2026-03-19 |
 | 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete    | 2026-03-19 |
 | 72. Unified Training Experience              | 1/3            | In Progress |            |
-| 73. Planes — Plan Catalog for Members        | 0/2            | Planned     |            |
+| 73. Planes — Plan Catalog for Members        | 1/2            | In Progress |            |
 
 ---
 
@@ -1409,7 +1409,7 @@ Plans:
 **Goal**: Members can browse all available plans (gym and personalizada) in a "Planes" section of the member app. Each plan shows details and a WhatsApp CTA to contact about changing plans. No prices shown. Current plan highlighted. Read-only catalog.
 **Depends on**: Phase 71 (plan-driven assignment in place, selection flow removed)
 **Requirements**: PLANES-01, PLANES-02, PLANES-03, PLANES-04, PLANES-05, PLANES-06
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 **Success Criteria** (what must be TRUE):
 
