@@ -13,6 +13,8 @@ import type * as schema from "../../el-templo-api/src/db/schema/index.js";
 import { db, pool } from "./db.js";
 import { disconnectRedis } from "./redis.js";
 import { webhookRoutes } from "./webhook/routes.js";
+import { startClassReminderScheduler } from "./schedulers/class-reminder.js";
+import { startTrialFollowupScheduler } from "./schedulers/trial-followup.js";
 
 // Augment Fastify instance with the Drizzle DB type
 declare module "fastify" {
@@ -40,6 +42,11 @@ async function main(): Promise<void> {
   // Start listening
   await app.listen({ port: PORT, host: "0.0.0.0" });
   app.log.info(`El Templo Bot listening on port ${PORT}`);
+
+  // Start proactive schedulers
+  startClassReminderScheduler(db);
+  startTrialFollowupScheduler(db);
+  app.log.info("Proactive schedulers started");
 
   // Graceful shutdown
   const shutdown = async (signal: string): Promise<void> => {
