@@ -17,6 +17,7 @@ export const auraConfigSourceTypeEnum = mysqlEnum("aura_config_source_type", [
   "manual_adjustment",
   "challenge",
   "social",
+  "personalizada_completion",
 ]);
 
 export const auraConfig = mysqlTable("aura_config", {

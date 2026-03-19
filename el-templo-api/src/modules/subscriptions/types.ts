@@ -49,6 +49,7 @@ export interface PlanListItem {
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
+  isPersonalizada: boolean;
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -85,6 +86,7 @@ export interface CreatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
+  isPersonalizada?: boolean;
   groupMaxMembers?: number;
 }
 
@@ -101,6 +103,7 @@ export interface UpdatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
+  isPersonalizada?: boolean;
   groupMaxMembers?: number | null;
 }
 

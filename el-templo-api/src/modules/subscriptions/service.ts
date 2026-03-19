@@ -118,6 +118,7 @@ export class SubscriptionService {
       multiBranch: input.multiBranch ?? false,
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
+      isPersonalizada: input.isPersonalizada ?? false,
       groupMaxMembers: input.groupMaxMembers ?? null,
     });
 
@@ -159,6 +160,8 @@ export class SubscriptionService {
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
+    if (input.isPersonalizada !== undefined)
+      updateData.isPersonalizada = input.isPersonalizada;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
 
@@ -1620,6 +1623,7 @@ export class SubscriptionService {
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
+      isPersonalizada: row.isPersonalizada,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
       isArchived: row.isArchived,

@@ -8,7 +8,8 @@ export type AuraSourceType =
   | "subscription_discount"
   | "manual_adjustment"
   | "challenge"
-  | "social";
+  | "social"
+  | "personalizada_completion";
 
 export interface AwardInput {
   userId: number;
