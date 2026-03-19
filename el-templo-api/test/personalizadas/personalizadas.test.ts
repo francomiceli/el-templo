@@ -10,6 +10,7 @@ describe("Personalizada Routes", () => {
   let adminToken: string;
   let memberToken2: string;
   let memberId: number;
+  let personalizadaPlanId: number;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -42,7 +43,7 @@ describe("Personalizada Routes", () => {
       "password123",
     );
 
-    // Create a personalizada-enabled subscription plan
+    // Create a personalizada-enabled subscription plan with personalizadaType
     const planRes = await app.inject({
       method: "POST",
       url: `${SUBSCRIPTIONS_URL}/plans`,
@@ -56,10 +57,12 @@ describe("Personalizada Routes", () => {
         durationDays: 30,
         classesPerWeek: 3,
         isPersonalizada: true,
+        personalizadaType: "tren_superior",
       },
     });
     expect(planRes.statusCode).toBe(201);
     const plan = JSON.parse(planRes.body);
+    personalizadaPlanId = plan.id;
 
     // Assign the personalizada plan to member1
     const assignRes = await app.inject({
@@ -85,16 +88,14 @@ describe("Personalizada Routes", () => {
   // Subscription Enforcement
   // ---------------------------------------------------------------
   describe("Subscription Enforcement", () => {
-    it("returns 403 on POST /personalizadas/select without personalizada subscription", async () => {
-      // member2 has no subscription at all
+    it("POST /personalizadas/select returns 404 (route removed)", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken2}` },
-        payload: { personalizadaType: "empuje" },
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { personalizadaType: "tren_superior" },
       });
-      expect(res.statusCode).toBe(403);
-      expect(JSON.parse(res.body).error).toContain("Clases Personalizadas");
+      expect(res.statusCode).toBe(404);
     });
 
     it("returns 403 on GET /personalizadas/session without personalizada subscription", async () => {
@@ -219,85 +220,94 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // POST /api/personalizadas/select
+  // Plan-driven personalizada assignment
   // ---------------------------------------------------------------
-  describe("POST /api/personalizadas/select", () => {
-    it("returns 401 without authentication", async () => {
+  describe("Plan-driven personalizada assignment", () => {
+    it("rejects plan creation with isPersonalizada=true but no personalizadaType", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/personalizadas/select",
-        payload: { personalizadaType: "empuje" },
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          name: "Bad Personalizada Plan",
+          planTier: "other",
+          bookingMode: "flexible",
+          priceRegular: 10000,
+          priceZero: 8000,
+          durationDays: 30,
+          isPersonalizada: true,
+          // no personalizadaType
+        },
       });
-
-      expect(res.statusCode).toBe(401);
-    });
-
-    it("returns 400 for invalid personalizada type", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { personalizadaType: "nonexistent" },
-      });
-
       expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("personalizada");
     });
 
-    it("selects a personalizada and returns progress", async () => {
+    it("plan list includes personalizadaType field", async () => {
       const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { personalizadaType: "empuje" },
+        method: "GET",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
       });
-
       expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("personalizada");
-      expect(body.personalizada.personalizadaType).toBe("empuje");
+      const plans = JSON.parse(res.body).plans;
+      const persoPlan = plans.find(
+        (p: { isPersonalizada: boolean }) => p.isPersonalizada,
+      );
+      expect(persoPlan).toBeDefined();
+      expect(persoPlan.personalizadaType).toBe("tren_superior");
+    });
+
+    it("assigning a personalizada plan auto-creates member_personalizadas", async () => {
+      // Use a fresh member to avoid conflicts with existing subscription
+      const freshMember = await registerUser(app, {
+        email: "personalizada-auto-assign@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      const freshToken = await getAuthToken(
+        app,
+        "personalizada-auto-assign@test.com",
+        "password123",
+      );
+      const freshMemberId = (freshMember.user as { id: number }).id;
+
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${freshMemberId}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: personalizadaPlanId,
+          branchId: 1,
+          startDate: new Date().toISOString().split("T")[0],
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+        },
+      });
+      expect(assignRes.statusCode).toBe(201);
+
+      // Verify member_personalizadas was auto-created
+      const activeRes = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/active",
+        headers: { authorization: `Bearer ${freshToken}` },
+      });
+      expect(activeRes.statusCode).toBe(200);
+      const body = JSON.parse(activeRes.body);
+      expect(body.personalizada).not.toBeNull();
+      expect(body.personalizada.personalizadaType).toBe("tren_superior");
+      expect(body.personalizada.isActive).toBe(true);
       expect(body.personalizada.semana20).toBe(1);
-      expect(body.personalizada.semana40).toBe(1);
-      expect(body.personalizada.semana60).toBe(1);
-      expect(body.personalizada.isActive).toBe(true);
-      expect(body.personalizada.startedAt).toBeTruthy();
-    });
-
-    it("returns current state when selecting same personalizada again (idempotent)", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { personalizadaType: "empuje" },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.personalizada.personalizadaType).toBe("empuje");
-      expect(body.personalizada.isActive).toBe(true);
-    });
-
-    it("archives old personalizada when selecting a different one", async () => {
-      // Switch from empuje to traccion
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { personalizadaType: "traccion" },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.personalizada.personalizadaType).toBe("traccion");
-      expect(body.personalizada.isActive).toBe(true);
-      expect(body.personalizada.semana20).toBe(1); // Fresh start
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/active (after selection)
+  // GET /api/personalizadas/active (after auto-assignment from plan)
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/active (after selection)", () => {
-    it("returns the active personalizada with correct semana values", async () => {
+  describe("GET /api/personalizadas/active (after auto-assignment)", () => {
+    it("returns the auto-assigned personalizada with correct semana values", async () => {
+      // member1 was assigned a plan with personalizadaType: "tren_superior" in beforeAll
       const res = await app.inject({
         method: "GET",
         url: "/api/personalizadas/active",
@@ -307,7 +317,7 @@ describe("Personalizada Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.personalizada).not.toBeNull();
-      expect(body.personalizada.personalizadaType).toBe("traccion");
+      expect(body.personalizada.personalizadaType).toBe("tren_superior");
       expect(body.personalizada.semana20).toBe(1);
       expect(body.personalizada.semana40).toBe(1);
       expect(body.personalizada.semana60).toBe(1);
@@ -331,7 +341,8 @@ describe("Personalizada Routes", () => {
       expect(body.personalizadas).toHaveLength(0);
     });
 
-    it("returns archived personalizada after switching", async () => {
+    it("returns empty archived list for member with only auto-assigned personalizada", async () => {
+      // member1 was only auto-assigned tren_superior from plan, no prior switching
       const res = await app.inject({
         method: "GET",
         url: "/api/personalizadas/archived",
@@ -341,14 +352,7 @@ describe("Personalizada Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("personalizadas");
-      // Member switched from empuje to traccion, so empuje should be archived
-      expect(body.personalizadas.length).toBeGreaterThanOrEqual(1);
-
-      const archivedEmpuje = body.personalizadas.find(
-        (p: { personalizadaType: string }) => p.personalizadaType === "empuje",
-      );
-      expect(archivedEmpuje).toBeDefined();
-      expect(archivedEmpuje.archivedAt).toBeTruthy();
+      expect(Array.isArray(body.personalizadas)).toBe(true);
     });
   });
 
@@ -368,7 +372,7 @@ describe("Personalizada Routes", () => {
     });
 
     it("returns cycle stats for member with active personalizada", async () => {
-      // member1 already has an active personalizada (traccion) from earlier tests
+      // member1 has an active personalizada (tren_superior) auto-assigned from plan
       const res = await app.inject({
         method: "GET",
         url: "/api/personalizadas/stats",
@@ -440,13 +444,13 @@ describe("Personalizada Routes", () => {
         url: "/api/personalizadas/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
-          dayId: "P-traccion-W1-lunes-alfa",
+          dayId: "P-tren_superior-W1-lunes-alfa",
           duration: 40,
           date: "2026-02-10",
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1"],
           rpe: 7,
-          notes: "Buen entrenamiento de traccion",
+          notes: "Buen entrenamiento de tren superior",
         },
       });
 
@@ -454,7 +458,7 @@ describe("Personalizada Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.success).toBe(true);
       expect(body.progress).toBeDefined();
-      expect(body.progress.personalizadaType).toBe("traccion");
+      expect(body.progress.personalizadaType).toBe("tren_superior");
       // semana40 should be incremented to 2 (was 1 + 1)
       expect(body.progress.semana40).toBe(2);
       // Other durations should remain at 1
@@ -674,13 +678,12 @@ describe("Personalizada Routes", () => {
       expect(body).toHaveProperty("archived");
       expect(body).toHaveProperty("completions");
 
-      // Active personalizada should be traccion (set earlier in tests)
+      // Active personalizada should be tren_superior (auto-assigned from plan)
       expect(body.active).not.toBeNull();
-      expect(body.active.personalizadaType).toBe("traccion");
+      expect(body.active.personalizadaType).toBe("tren_superior");
 
-      // Archived should contain empuje (switched earlier)
+      // Archived may be empty (no manual switching since route removed)
       expect(Array.isArray(body.archived)).toBe(true);
-      expect(body.archived.length).toBeGreaterThanOrEqual(1);
 
       // Completions should include the completion recorded earlier
       expect(Array.isArray(body.completions)).toBe(true);
