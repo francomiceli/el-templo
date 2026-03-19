@@ -34,6 +34,8 @@ export interface MemberSubscription {
   endDate: string | null
   daysRemaining: number
   pricePaid: number
+  isPersonalizada: boolean
+  personalizadaType: string | null
 }
 
 const STATUS_LABELS: Record<SubscriptionStatus, string> = {
@@ -89,6 +91,14 @@ export const useUserStore = defineStore('user', () => {
     return STATUS_COLORS[subscription.value.status] ?? 'grey'
   })
 
+  const hasActivePersonalizada = computed(() => {
+    return subscription.value?.status === 'active' && subscription.value?.isPersonalizada === true
+  })
+
+  const hasActiveSubscription = computed(() => {
+    return subscription.value?.status === 'active' || subscription.value?.status === 'paused'
+  })
+
   // Actions
   function setProfile(newProfile: UserProfile) {
     profile.value = newProfile
@@ -132,6 +142,8 @@ export const useUserStore = defineStore('user', () => {
     displayLevel,
     subscriptionStatusLabel,
     subscriptionStatusColor,
+    hasActivePersonalizada,
+    hasActiveSubscription,
     // Actions
     setProfile,
     clearProfile,
