@@ -1326,15 +1326,15 @@ Plans:
 **Execution Order:**
 Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX) → Phase 73 (Mi Plan Catalog)
 
-| Phase                                        | Plans Complete | Status      | Completed  |
-| -------------------------------------------- | -------------- | ----------- | ---------- |
-| 67. Personalizadas Backend Rename            | 2/2            | Complete    | 2026-03-18 |
-| 68. Personalizadas Frontend Rename           | 2/2            | Complete    | 2026-03-18 |
-| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete    | 2026-03-19 |
-| 70. Personalizadas Cycle Config              | 2/2            | Complete    | 2026-03-19 |
-| 71. Plan-Driven Personalizada Assignment     | 1/2            | In Progress |            |
-| 72. Unified Training Experience              | 0/0            | Pending     |            |
-| 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending     |            |
+| Phase                                        | Plans Complete | Status   | Completed  |
+| -------------------------------------------- | -------------- | -------- | ---------- |
+| 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
+| 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
+| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
+| 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
+| 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete | 2026-03-19 |
+| 72. Unified Training Experience              | 0/0            | Pending  |            |
+| 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending  |            |
 
 ---
 
@@ -1372,7 +1372,7 @@ Plans:
 4. Personalizada nav item is removed from member app bottom navigation
 5. Existing members with active personalizadas continue working (migration handles current data)
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
