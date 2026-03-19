@@ -1334,7 +1334,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
 | 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete | 2026-03-19 |
 | 72. Unified Training Experience              | 0/3            | Planned  |            |
-| 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending  |            |
+| 73. Planes — Plan Catalog for Members        | 0/2            | Planned  |            |
 
 ---
 
@@ -1404,26 +1404,29 @@ Plans:
 
 ---
 
-### Phase 73: Mi Plan — Plan Catalog for Members
+### Phase 73: Planes -- Plan Catalog for Members
 
-**Goal**: Members can browse all available plans (gym plans like Flex, Foundation, etc. AND personalizada plans) in a "Mi Plan" section of the app. Each plan shows its details and a "Contacta para cambiar de plan" CTA. Personalizadas plans explain duration options. This replaces the removed personalizada selection grid with a broader plan discovery experience.
+**Goal**: Members can browse all available plans (gym and personalizada) in a "Planes" section of the member app. Each plan shows details and a WhatsApp CTA to contact about changing plans. No prices shown. Current plan highlighted. Read-only catalog.
 **Depends on**: Phase 71 (plan-driven assignment in place, selection flow removed)
-**Requirements**: TBD
+**Requirements**: PLANES-01, PLANES-02, PLANES-03, PLANES-04, PLANES-05, PLANES-06
+**Plans:** 2 plans
+
 **Success Criteria** (what must be TRUE):
 
-1. Member app has a "Mi Plan" section accessible from navigation
-2. All active plans from subscription_plans are displayed (gym and personalizada)
-3. Each plan shows name, description, tier, pricing, and relevant details
-4. Personalizada plans show their type and explain duration flexibility
-5. "Contacta para cambiar de plan" CTA on each plan card
-6. Member's current plan is highlighted/indicated
-
-**Plans:** 0 plans
+1. Member app has a "Planes" bottom tab (5th tab) accessible to all members
+2. All active, non-archived, non-trial plans are displayed in two sections: Planes de Gimnasio and Clases Personalizadas
+3. Gym plan cards show tier badge, name, description (no prices)
+4. Personalizada cards show zone/focus info but no tier badge (no principiante/intermedio/avanzado)
+5. Member's current plan shows "Tu plan actual" badge and "Activo -- vence [fecha]" instead of CTA
+6. Other plan cards show WhatsApp CTA with hardcoded ventas number (5492235820521)
+7. CTA text contextual: "Contacta para cambiar de plan" vs "Contacta para elegir tu plan"
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 73 to break down)
+- [ ] 73-01-PLAN.md -- API: member-facing plan listing endpoint with zone metadata
+- [ ] 73-02-PLAN.md -- Frontend: plan module, PlanesPage, navigation wiring
 
 ---
 
-_v4.2 phases added: 2026-03-18 — 7 phases (67-73), 17+ requirements mapped_
+_v4.2 phases added: 2026-03-18 -- 7 phases (67-73), 17+ requirements mapped_
+_Phase 73 (Planes Catalog) planned: 2026-03-19 -- 2 plans, 6 requirements (PLANES-01 through PLANES-06)_
