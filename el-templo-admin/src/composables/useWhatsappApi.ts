@@ -10,6 +10,7 @@ import type { ConversationRecord, MessageRecord, ConversationListParams } from '
 
 export function useWhatsappApi() {
   const loading = ref(false);
+  const sending = ref(false);
   const error = ref<string | null>(null);
 
   // ─── Conversations ──────────────────────────────────────────────────────
@@ -85,19 +86,75 @@ export function useWhatsappApi() {
     }
   }
 
+  // ─── Actions ───────────────────────────────────────────────────────────
+
+  async function sendMessage(conversationId: number, content: string): Promise<MessageRecord> {
+    sending.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{ message: MessageRecord }>(
+        `/admin/whatsapp/conversations/${conversationId}/send`,
+        { content }
+      );
+      return data.message;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error enviando mensaje');
+      throw err;
+    } finally {
+      sending.value = false;
+    }
+  }
+
+  async function takeover(conversationId: number): Promise<ConversationRecord> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.put<{ conversation: ConversationRecord }>(
+        `/admin/whatsapp/conversations/${conversationId}/takeover`
+      );
+      return data.conversation;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error tomando control');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function resumeBot(conversationId: number): Promise<ConversationRecord> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.put<{ conversation: ConversationRecord }>(
+        `/admin/whatsapp/conversations/${conversationId}/resume`
+      );
+      return data.conversation;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error devolviendo al bot');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Cleanup ────────────────────────────────────────────────────────────
 
   function cleanup() {
     loading.value = false;
+    sending.value = false;
     error.value = null;
   }
 
   return {
     loading,
+    sending,
     error,
     getConversations,
     getConversation,
     getActiveCount,
+    sendMessage,
+    takeover,
+    resumeBot,
     cleanup,
   };
 }
