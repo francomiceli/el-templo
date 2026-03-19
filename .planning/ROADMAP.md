@@ -1287,7 +1287,7 @@ Plans:
 1. User requests to book a class and the bot asks for confirmation before executing -- booking appears in the admin scheduling system
 2. New user registers for a trial class through WhatsApp and a trial user record is created in the system
 3. Both actions call el-templo-api via localhost HTTP (no duplicated business logic in the bot)
-   **Plans:** 2 plans
+   **Plans:** 1/2 plans executed
 
 Plans:
 
@@ -1342,7 +1342,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | 67. WhatsApp Cloud API Webhook + Echo Bot     | 2/2            | Complete    | 2026-03-17 |
 | 68. AI Integration + Info Tools               | 3/3            | Complete    | 2026-03-18 |
 | 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
-| 70. Action Tools                              | 0/?            | Not started | -          |
+| 70. Action Tools                              | 1/2            | In Progress |            |
 | 71. Proactive Schedulers                      | 0/?            | Not started | -          |
 | 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
 | 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |

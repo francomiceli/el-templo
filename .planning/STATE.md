@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 69-01-PLAN.md
-last_updated: "2026-03-18T19:50:14.000Z"
-last_activity: 2026-03-18 -- Completed Plan 01 of Phase 69
+stopped_at: Completed 70-01-PLAN.md
+last_updated: "2026-03-19T00:52:04.000Z"
+last_activity: 2026-03-19 -- Completed Plan 01 of Phase 70
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 40
+  total_plans: 9
+  completed_plans: 8
+  percent: 47
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 69 -- Redis Memory Layer + Client State Machine
+**Current focus:** Phase 70 -- Action Tools
 
 ## Current Position
 
-Phase: 69 of 73 (Redis Memory Layer + Client State Machine)
-Plan: 2 of 2
-Status: Phase Complete
-Last activity: 2026-03-18 -- Completed Plan 02 of Phase 69
+Phase: 70 of 73 (Action Tools)
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-03-19 -- Completed Plan 01 of Phase 70
 
-Progress: [▓▓▓▓░░░░░░] 40%
+Progress: [▓▓▓▓▓░░░░░] 47%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 7 (v5.0)
+- Total plans completed: 8 (v5.0)
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [▓▓▓▓░░░░░░] 40%
 | 67    | 2/2   | 12 min | 6 min    |
 | 68    | 3/3   | 14 min | 5 min    |
 | 69    | 2/2   | 16 min | 8 min    |
+| 70    | 1/2   | 3 min  | 3 min    |
 
 ## Accumulated Context
 
@@ -79,6 +80,10 @@ Recent decisions affecting current work:
 - [69-02] Profile extraction fire-and-forget with explicit inner JSON.parse try/catch
 - [69-02] Paused subscriptions map to inactive_member state
 - [69-02] Notes cap truncates from beginning (oldest notes dropped first)
+- [70-01] Placeholder email/password for bot-created trial users (DB requires notNull email+passwordHash)
+- [70-01] Bot routes registered before JWT-guarded routes in app.ts for independent API key auth
+- [70-01] Interactive replies set text to button title for seamless AI pipeline flow
+- [70-01] Trial subscription uses pricePaid: 0, priceTypeApplied: 'zero' for free trials
 
 ### Pending Todos
 
@@ -90,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-18
-Stopped at: Completed 69-02-PLAN.md (Phase 69 complete)
-Resume file: .planning/phases/69-redis-memory-layer-client-state-machine/69-02-SUMMARY.md
+Last session: 2026-03-19
+Stopped at: Completed 70-01-PLAN.md
+Resume file: .planning/phases/70-action-tools/70-01-SUMMARY.md

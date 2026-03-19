@@ -22,8 +22,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 - [x] **AI-04**: check_membership tool returns member subscription status and pricing info
 - [x] **AI-05**: get_location tool returns branch address and Google Maps link
 - [x] **AI-06**: request_human tool escalates conversation to human agent (sets status to human_takeover)
-- [ ] **AI-07**: book_class tool reserves a class spot via el-templo-api localhost call with confirmation step
-- [ ] **AI-08**: register_trial tool creates trial user via el-templo-api localhost call with confirmation step
+- [x] **AI-07**: book_class tool reserves a class spot via el-templo-api localhost call with confirmation step
+- [x] **AI-08**: register_trial tool creates trial user via el-templo-api localhost call with confirmation step
 
 ### Memory & State
 
@@ -86,8 +86,8 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 | AI-04       | Phase 68 | Complete |
 | AI-05       | Phase 68 | Complete |
 | AI-06       | Phase 68 | Complete |
-| AI-07       | Phase 70 | Pending  |
-| AI-08       | Phase 70 | Pending  |
+| AI-07       | Phase 70 | Complete |
+| AI-08       | Phase 70 | Complete |
 | MEM-01      | Phase 69 | Complete |
 | MEM-02      | Phase 69 | Complete |
 | MEM-03      | Phase 69 | Complete |
