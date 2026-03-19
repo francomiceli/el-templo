@@ -133,6 +133,19 @@
             </q-toggle>
           </div>
 
+          <q-select
+            v-if="form.isPersonalizada"
+            v-model="form.personalizadaType"
+            :options="personalizadaTypeOptions"
+            label="Tipo de Personalizada *"
+            dense
+            outlined
+            emit-value
+            map-options
+            class="q-mt-sm"
+            :rules="[requiredRule('Tipo de personalizada')]"
+          />
+
           <q-input
             v-if="form.isGroup"
             v-model.number="form.groupMaxMembers"
@@ -215,6 +228,7 @@ const form = ref({
   isTrial: false,
   isGroup: false,
   isPersonalizada: false,
+  personalizadaType: null as string | null,
   groupMaxMembers: null as number | null,
 });
 
@@ -231,6 +245,15 @@ const bookingModeOptions = (Object.keys(BOOKING_MODE_LABELS) as BookingMode[]).m
   label: BOOKING_MODE_LABELS[key],
   value: key,
 }));
+
+const personalizadaTypeOptions = [
+  { label: 'Tren Superior', value: 'tren_superior' },
+  { label: 'Tren Inferior', value: 'tren_inferior' },
+  { label: 'Empuje', value: 'empuje' },
+  { label: 'Traccion', value: 'traccion' },
+  { label: 'Planche', value: 'planche' },
+  { label: 'Front Lever', value: 'front_lever' },
+];
 
 // =========================================================================
 // Validation rules
@@ -269,6 +292,7 @@ watch(
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
         isPersonalizada: props.plan.isPersonalizada,
+        personalizadaType: props.plan.personalizadaType ?? null,
         groupMaxMembers: props.plan.groupMaxMembers,
       };
     } else {
@@ -286,8 +310,18 @@ watch(
         isTrial: false,
         isGroup: false,
         isPersonalizada: false,
+        personalizadaType: null,
         groupMaxMembers: null,
       };
+    }
+  }
+);
+
+watch(
+  () => form.value.isPersonalizada,
+  (val) => {
+    if (!val) {
+      form.value.personalizadaType = null;
     }
   }
 );
@@ -316,6 +350,9 @@ async function onSubmit() {
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,
       isPersonalizada: form.value.isPersonalizada,
+      personalizadaType: form.value.isPersonalizada
+        ? (form.value.personalizadaType ?? undefined)
+        : undefined,
       groupMaxMembers: form.value.isGroup ? (form.value.groupMaxMembers ?? undefined) : undefined,
     };
 

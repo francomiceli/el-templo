@@ -88,6 +88,7 @@ export interface PlanListItem {
   isTrial: boolean;
   isGroup: boolean;
   isPersonalizada: boolean;
+  personalizadaType: string | null;
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -115,6 +116,7 @@ export interface CreatePlanInput {
   isTrial?: boolean;
   isGroup?: boolean;
   isPersonalizada?: boolean;
+  personalizadaType?: string;
   groupMaxMembers?: number;
 }
 
@@ -132,6 +134,7 @@ export interface UpdatePlanInput {
   isTrial?: boolean;
   isGroup?: boolean;
   isPersonalizada?: boolean;
+  personalizadaType?: string | null;
   groupMaxMembers?: number | null;
 }
 
