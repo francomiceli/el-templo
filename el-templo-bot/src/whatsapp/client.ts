@@ -12,6 +12,7 @@ import type {
   MetaWebhookPayload,
   ParsedInboundMessage,
   SendMessageResponse,
+  InteractiveButton,
 } from "./types.js";
 
 const log = pino({ name: "whatsapp-client" });
@@ -109,6 +110,96 @@ export async function sendTextMessage(
 }
 
 /**
+ * Send an interactive button message via WhatsApp Cloud API.
+ *
+ * Max 3 buttons per message (WhatsApp API limit). If more are provided,
+ * a warning is logged and the list is truncated to 3.
+ *
+ * @returns The wamid of the sent message
+ * @throws On API error or missing configuration
+ */
+export async function sendInteractiveMessage(
+  phone: string,
+  bodyText: string,
+  buttons: InteractiveButton[],
+): Promise<string> {
+  const token = process.env.WHATSAPP_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID;
+
+  if (!token || !phoneId) {
+    throw new Error(
+      "Missing WHATSAPP_TOKEN or WHATSAPP_PHONE_ID environment variables",
+    );
+  }
+
+  // WhatsApp API limit: max 3 buttons per interactive message
+  let truncatedButtons = buttons;
+  if (buttons.length > 3) {
+    log.warn(
+      { buttonCount: buttons.length },
+      "Interactive message has more than 3 buttons, truncating to 3",
+    );
+    truncatedButtons = buttons.slice(0, 3);
+  }
+
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneId}/messages`;
+
+  const body = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: bodyText },
+      action: {
+        buttons: truncatedButtons.map((b) => ({
+          type: "reply" as const,
+          reply: { id: b.id, title: b.title },
+        })),
+      },
+    },
+  };
+
+  log.info(
+    {
+      phone,
+      bodyTextLength: bodyText.length,
+      buttonCount: truncatedButtons.length,
+    },
+    "Sending interactive button message",
+  );
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    log.error(
+      { status: response.status, body: errorBody, phone },
+      "WhatsApp API error (interactive)",
+    );
+    throw new Error(`WhatsApp API error: ${response.status} - ${errorBody}`);
+  }
+
+  const data = (await response.json()) as SendMessageResponse;
+  const messageId = data.messages[0]?.id;
+
+  if (!messageId) {
+    log.error({ data }, "No message ID in interactive API response");
+    throw new Error("No message ID returned from WhatsApp API");
+  }
+
+  log.info({ phone, messageId }, "Interactive message sent successfully");
+  return messageId;
+}
+
+/**
  * Parse a Meta webhook payload to extract the first text message.
  *
  * Returns null if:
@@ -139,16 +230,44 @@ export function parseWebhookPayload(
     return null;
   }
 
+  const contact = value.contacts?.[0];
+
+  // Handle interactive replies (button_reply or list_reply)
+  if (message.type === "interactive" && message.interactive) {
+    const interactive = message.interactive;
+    let replyId: string | undefined;
+    let replyTitle: string | undefined;
+
+    if (interactive.type === "button_reply" && interactive.button_reply) {
+      replyId = interactive.button_reply.id;
+      replyTitle = interactive.button_reply.title;
+    } else if (interactive.type === "list_reply" && interactive.list_reply) {
+      replyId = interactive.list_reply.id;
+      replyTitle = interactive.list_reply.title;
+    }
+
+    if (replyId && replyTitle) {
+      return {
+        phone: message.from,
+        contactName: contact?.profile?.name || "Unknown",
+        text: replyTitle,
+        messageType: "text",
+        whatsappMessageId: message.id,
+        timestamp: parseInt(message.timestamp, 10),
+        rawPayload: body,
+        interactiveReplyId: replyId,
+      };
+    }
+  }
+
   if (message.type !== "text" || !message.text?.body) {
-    // Non-text message — ignore silently
+    // Non-text, non-interactive message — ignore silently
     log.debug(
       { type: message.type, from: message.from },
       "Ignoring non-text message",
     );
     return null;
   }
-
-  const contact = value.contacts?.[0];
 
   return {
     phone: message.from,

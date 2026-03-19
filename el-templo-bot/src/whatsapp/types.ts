@@ -69,6 +69,11 @@ export interface MetaWebhookMessage {
   audio?: MetaWebhookMedia;
   document?: MetaWebhookMedia;
   sticker?: MetaWebhookMedia;
+  interactive?: {
+    type: "button_reply" | "list_reply";
+    button_reply?: { id: string; title: string };
+    list_reply?: { id: string; title: string; description?: string };
+  };
 }
 
 export interface MetaWebhookMedia {
@@ -95,6 +100,21 @@ export interface MetaWebhookError {
   };
 }
 
+// ─── Interactive Message Types ──────────────────────────────────────────────
+
+/** WhatsApp interactive button for confirmation/selection */
+export interface InteractiveButton {
+  id: string; // e.g. "confirm_booking", "cancel_booking"
+  title: string; // e.g. "Confirmar", "Cancelar" (max 20 chars)
+}
+
+/** WhatsApp interactive list row for class selection */
+export interface InteractiveListRow {
+  id: string; // e.g. "schedule_42"
+  title: string; // e.g. "Yoga 18:00" (max 24 chars)
+  description?: string; // e.g. "Sede Alem - 3 lugares" (max 72 chars)
+}
+
 // ─── Send Message API Response ──────────────────────────────────────────────
 
 export interface SendMessageResponse {
@@ -119,4 +139,6 @@ export interface ParsedInboundMessage {
   whatsappMessageId: string;
   timestamp: number;
   rawPayload: MetaWebhookPayload;
+  /** Set when message is an interactive reply (button or list selection) */
+  interactiveReplyId?: string;
 }
