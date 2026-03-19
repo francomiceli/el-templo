@@ -37,9 +37,6 @@
                 style="min-width: 280px"
                 @update:model-value="loadWeekSummary"
               />
-              <span class="text-caption text-grey">
-                Actual: {{ formatWeekLabel(currentWeek) }}
-              </span>
             </div>
           </q-card-section>
         </q-card>
@@ -162,9 +159,6 @@
                 map-options
                 style="min-width: 280px"
               />
-              <span class="text-caption text-grey">
-                Actual: {{ formatWeekLabel(currentWeek) }}
-              </span>
             </div>
           </q-card-section>
         </q-card>
@@ -306,10 +300,10 @@ const personalizadaApi = usePersonalizadasAdminApi();
 // ============================================================
 const activeTab = ref('general');
 
-// Week selector options: show next 8 weeks as date ranges
+// Week selector options: all future weeks until end of cycle (week 52)
 const weekOptions = computed(() => {
   const options = [];
-  for (let w = currentWeek.value + 1; w <= Math.min(currentWeek.value + 8, 52); w++) {
+  for (let w = currentWeek.value + 1; w <= 52; w++) {
     options.push({ label: formatWeekLabel(w), value: w });
   }
   return options;
