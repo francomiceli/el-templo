@@ -37,6 +37,9 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
+import { PersonalizadasService } from "../personalizadas/service";
+import { ALL_PERSONALIZADA_TYPES } from "../personalizadas/constants";
+import type { PersonalizadaType } from "../personalizadas/types";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -44,13 +47,16 @@ type BookingServiceType =
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
+  private personalizadasService: PersonalizadasService;
 
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
     private paymentService?: PaymentService,
-  ) {}
+  ) {
+    this.personalizadasService = new PersonalizadasService(db);
+  }
 
   /**
    * Set the BookingService reference (avoids circular constructor dependency).
@@ -105,6 +111,22 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
+    // Validate personalizadaType when isPersonalizada is true
+    if (input.isPersonalizada) {
+      if (!input.personalizadaType) {
+        throw new BadRequestError(
+          "Para planes personalizados se requiere el tipo de personalizada",
+        );
+      }
+      if (
+        !(ALL_PERSONALIZADA_TYPES as readonly string[]).includes(
+          input.personalizadaType,
+        )
+      ) {
+        throw new BadRequestError("Tipo de personalizada invalido");
+      }
+    }
+
     const result = await this.db.insert(schema.subscriptionPlans).values({
       name: input.name,
       description: input.description ?? null,
@@ -119,6 +141,9 @@ export class SubscriptionService {
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
       isPersonalizada: input.isPersonalizada ?? false,
+      personalizadaType: input.isPersonalizada
+        ? (input.personalizadaType ?? null)
+        : null,
       groupMaxMembers: input.groupMaxMembers ?? null,
     });
 
@@ -162,8 +187,25 @@ export class SubscriptionService {
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
     if (input.isPersonalizada !== undefined)
       updateData.isPersonalizada = input.isPersonalizada;
+    if (input.personalizadaType !== undefined)
+      updateData.personalizadaType = input.personalizadaType;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
+
+    // Validate: if resulting plan would be personalizada but without type, reject
+    const resultIsPersonalizada =
+      input.isPersonalizada !== undefined
+        ? input.isPersonalizada
+        : existing.isPersonalizada;
+    const resultPersonalizadaType =
+      input.personalizadaType !== undefined
+        ? input.personalizadaType
+        : existing.personalizadaType;
+    if (resultIsPersonalizada && !resultPersonalizadaType) {
+      throw new BadRequestError(
+        "Para planes personalizados se requiere el tipo de personalizada",
+      );
+    }
 
     if (Object.keys(updateData).length > 0) {
       await this.db
@@ -606,6 +648,18 @@ export class SubscriptionService {
     const subscription = await this.getSubscriptionById(subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
+    }
+
+    // Auto-assign personalizada from plan type
+    if (plan.isPersonalizada && plan.personalizadaType) {
+      await this.personalizadasService.selectPersonalizada(
+        userId,
+        plan.personalizadaType as PersonalizadaType,
+      );
+      this.log.info(
+        { userId, personalizadaType: plan.personalizadaType },
+        "Auto-assigned personalizada from plan",
+      );
     }
 
     // Auto-record payment for the subscription
@@ -1077,6 +1131,18 @@ export class SubscriptionService {
         }
       }
 
+      // Auto-assign personalizada from target plan type
+      if (targetPlan.isPersonalizada && targetPlan.personalizadaType) {
+        await this.personalizadasService.selectPersonalizada(
+          userId,
+          targetPlan.personalizadaType as PersonalizadaType,
+        );
+        this.log.info(
+          { userId, personalizadaType: targetPlan.personalizadaType },
+          "Auto-assigned personalizada on plan change",
+        );
+      }
+
       // Record payment for the net amount
       if (this.paymentService && netAmount > 0) {
         await this.paymentService.recordPayment(
@@ -1286,6 +1352,18 @@ export class SubscriptionService {
           .set({ replacementCredits })
           .where(eq(schema.subscriptions.id, newSubscriptionId));
       }
+    }
+
+    // Auto-assign personalizada from plan type (archives old, creates fresh)
+    if (plan.isPersonalizada && plan.personalizadaType) {
+      await this.personalizadasService.selectPersonalizada(
+        userId,
+        plan.personalizadaType as PersonalizadaType,
+      );
+      this.log.info(
+        { userId, personalizadaType: plan.personalizadaType },
+        "Auto-assigned personalizada on renewal",
+      );
     }
 
     // Record payment linked to the NEW subscription
@@ -1624,6 +1702,7 @@ export class SubscriptionService {
       isTrial: row.isTrial,
       isGroup: row.isGroup,
       isPersonalizada: row.isPersonalizada,
+      personalizadaType: row.personalizadaType ?? null,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
       isArchived: row.isArchived,

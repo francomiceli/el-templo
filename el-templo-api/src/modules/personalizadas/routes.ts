@@ -17,7 +17,6 @@ import type { DaySession } from "../sessions/types";
 import {
   getPersonalizadaMetadataSchema,
   getActivePersonalizadaSchema,
-  selectPersonalizadaSchema,
   getArchivedPersonalizadasSchema,
   getPersonalizadaStatsSchema,
   getPersonalizadaSessionSchema,
@@ -25,7 +24,6 @@ import {
   generatePersonalizadaSessionsSchema,
   getAdminPersonalizadaMembersSchema,
   getAdminPersonalizadaMemberDetailSchema,
-  type SelectPersonalizadaInput,
   type GetPersonalizadaSessionInput,
   type CompletePersonalizadaInput,
   type GeneratePersonalizadaSessionsInput,
@@ -129,60 +127,6 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
         request.user.userId,
       );
       return { personalizada };
-    },
-  );
-
-  // POST /personalizadas/select — Select a personalizada for the authenticated member
-  fastify.post<{ Body: SelectPersonalizadaInput }>(
-    "/personalizadas/select",
-    {
-      onRequest: [fastify.authenticate],
-      schema: selectPersonalizadaSchema,
-    },
-    async (request, reply) => {
-      // Subscription enforcement: require personalizada-enabled plan
-      try {
-        await personalizadasService.checkSubscription(request.user.userId);
-      } catch (err: unknown) {
-        if (err instanceof SubscriptionRequiredError) {
-          return reply.status(403).send({ error: err.message });
-        }
-        throw err;
-      }
-
-      const { personalizadaType } = request.body;
-
-      if (!ALL_PERSONALIZADA_TYPES.includes(personalizadaType)) {
-        return reply.status(400).send({
-          error: `Tipo de personalizada invalido: ${personalizadaType}`,
-        });
-      }
-
-      // Check if member already has this same personalizada active (idempotent)
-      const existing = await personalizadasService.getActivePersonalizada(
-        request.user.userId,
-      );
-      if (existing && existing.personalizadaType === personalizadaType) {
-        return { personalizada: existing };
-      }
-
-      try {
-        const personalizada = await personalizadasService.selectPersonalizada(
-          request.user.userId,
-          personalizadaType,
-        );
-        return { personalizada };
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "Error al seleccionar personalizada";
-        request.log.error(
-          { err, personalizadaType },
-          "Error selecting personalizada",
-        );
-        return reply.status(400).send({ error: message });
-      }
     },
   );
 

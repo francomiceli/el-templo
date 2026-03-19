@@ -58,54 +58,6 @@ export const getActivePersonalizadaSchema = {
   },
 };
 
-export const selectPersonalizadaSchema = {
-  body: {
-    type: "object",
-    required: ["personalizadaType"],
-    properties: {
-      personalizadaType: {
-        type: "string",
-        enum: [
-          "tren_superior",
-          "tren_inferior",
-          "empuje",
-          "traccion",
-          "planche",
-          "front_lever",
-        ],
-      },
-    },
-  },
-  response: {
-    200: {
-      type: "object",
-      properties: {
-        personalizada: {
-          type: "object",
-          properties: {
-            personalizadaType: { type: "string" },
-            semana20: { type: "integer" },
-            semana40: { type: "integer" },
-            semana60: { type: "integer" },
-            isActive: { type: "boolean" },
-            startedAt: { type: "string" },
-          },
-        },
-      },
-    },
-    400: {
-      type: "object",
-      properties: {
-        error: { type: "string" },
-      },
-    },
-  },
-};
-
-export interface SelectPersonalizadaInput {
-  personalizadaType: PersonalizadaType;
-}
-
 export const getArchivedPersonalizadasSchema = {
   response: {
     200: {
