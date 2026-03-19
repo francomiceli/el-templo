@@ -451,14 +451,7 @@ const tablePagination = ref({
 // Filter options
 // =========================================================================
 
-const categoryOptions = [
-  { label: 'Todas', value: '' },
-  { label: 'Fuerza', value: 'Fuerza' },
-  { label: 'Halterofilia', value: 'Halterofilia' },
-  { label: 'Gimnasia', value: 'Gimnasia' },
-  { label: 'Movilidad', value: 'Movilidad' },
-  { label: 'Cardio', value: 'Cardio' },
-];
+const categoryOptions = [{ label: 'Todas', value: '' }, ...createCategoryOptions];
 
 const levelOptions = [
   { label: 'Todos', value: '' },
@@ -469,16 +462,7 @@ const levelOptions = [
   { label: 'Spartan', value: 'spartan' },
 ];
 
-const routeOptions = [
-  { label: 'Todas', value: '' },
-  { label: 'PL', value: 'PL' },
-  { label: 'HT', value: 'HT' },
-  { label: 'FL', value: 'FL' },
-  { label: 'GN', value: 'GN' },
-  { label: 'MX', value: 'MX' },
-  { label: 'CD', value: 'CD' },
-  { label: 'MV', value: 'MV' },
-];
+const routeOptions = [{ label: 'Todas', value: '' }, ...createRouteOptions];
 
 const effortOptions = [
   { label: 'Todos', value: '' },
