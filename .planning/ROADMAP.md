@@ -1287,7 +1287,12 @@ Plans:
 1. User requests to book a class and the bot asks for confirmation before executing -- booking appears in the admin scheduling system
 2. New user registers for a trial class through WhatsApp and a trial user record is created in the system
 3. Both actions call el-templo-api via localhost HTTP (no duplicated business logic in the bot)
-   **Plans**: TBD
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 70-01-PLAN.md — Bot-internal API endpoints (book-class, register-trial) + WhatsApp interactive button support
+- [ ] 70-02-PLAN.md — book_class and register_trial AI tool handlers, system prompt update, unit tests
 
 ### Phase 71: Proactive Schedulers
 
