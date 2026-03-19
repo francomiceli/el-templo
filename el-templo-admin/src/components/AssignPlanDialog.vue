@@ -317,15 +317,15 @@
               </q-card-section>
             </q-card>
 
-            <!-- Upgrade price comparison summary -->
+            <!-- Change plan: unified summary -->
             <q-card
               v-if="props.mode === 'change' && changePlanPreviewData?.allowed"
               flat
               bordered
-              class="q-mb-md bg-blue-1"
+              class="q-mb-md"
             >
               <q-card-section>
-                <div class="text-subtitle2 text-weight-bold q-mb-sm">Resumen de Cambio de Plan</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-md">Resumen de Cambio de Plan</div>
                 <q-list dense>
                   <q-item>
                     <q-item-section>Plan actual</q-item-section>
@@ -344,18 +344,37 @@
                       </span>
                     </q-item-section>
                   </q-item>
+                  <q-separator spaced />
                   <q-item>
                     <q-item-section>Nuevo plan</q-item-section>
-                    <q-item-section side>
-                      {{ changePlanPreviewData.targetPlan.name }} — ${{
-                        changePlanPreviewData.targetPlan.priceRegular.toLocaleString()
-                      }}
+                    <q-item-section side class="text-weight-medium">
+                      {{ changePlanPreviewData.targetPlan.name }}
                     </q-item-section>
                   </q-item>
-                  <q-separator />
                   <q-item>
-                    <q-item-section class="text-weight-bold">Monto a cobrar</q-item-section>
-                    <q-item-section side class="text-weight-bold text-h6">
+                    <q-item-section>Precio del plan</q-item-section>
+                    <q-item-section side>
+                      ${{ changePlanPreviewData.targetPlan.priceRegular.toLocaleString() }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Inicio</q-item-section>
+                    <q-item-section side>{{ formatDate(assignForm.startDate) }}</q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Vencimiento</q-item-section>
+                    <q-item-section side>{{ formatDate(calculatedEndDate) }}</q-item-section>
+                  </q-item>
+                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                    <q-item-section>Horarios fijos</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ formatSelectedSchedules() }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator spaced />
+                  <q-item class="bg-blue-1 rounded-borders q-pa-sm">
+                    <q-item-section class="text-weight-bold text-h6">Total a cobrar</q-item-section>
+                    <q-item-section side class="text-weight-bold text-h5 text-primary">
                       ${{ changePlanPreviewData.netAmount!.toLocaleString() }}
                     </q-item-section>
                   </q-item>
@@ -363,7 +382,8 @@
               </q-card-section>
             </q-card>
 
-            <q-card flat bordered class="q-mb-md">
+            <!-- Assign mode: confirmation card -->
+            <q-card v-if="props.mode !== 'change'" flat bordered class="q-mb-md">
               <q-card-section>
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Confirmacion</div>
                 <q-list dense>
