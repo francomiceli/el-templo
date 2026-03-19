@@ -4,21 +4,21 @@ const routes: RouteRecordRaw[] = [
   {
     path: 'training',
     name: 'training',
-    component: () => import('./pages/WeeklyView.vue'),
-    meta: { requiresAuth: true }
+    component: () => import('./pages/TrainingIndex.vue'),
+    meta: { requiresAuth: true },
   },
   {
     path: 'training/session/:date',
     name: 'day-player',
     component: () => import('./pages/DayPlayer.vue'),
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true },
   },
   {
     path: 'training/conceptos',
     name: 'conceptos',
     component: () => import('./pages/ConceptosPage.vue'),
-    meta: { requiresAuth: true }
-  }
+    meta: { requiresAuth: true },
+  },
 ]
 
 export default routes

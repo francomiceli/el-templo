@@ -47,23 +47,42 @@
         />
       </div>
 
-      <!-- Tabs (only shown when user has personalizada data) -->
-      <q-tabs
-        v-if="showTabs"
-        v-model="activeTab"
-        dense
-        class="mi-camino__tabs"
-        active-color="primary"
-        indicator-color="secondary"
-        align="left"
-        no-caps
-      >
-        <q-tab name="general" label="Entrenamiento" />
-        <q-tab name="personalizadas" label="Personalizadas" />
-      </q-tabs>
+      <!-- MODE 1: Unified personalizada view (no tabs) -->
+      <template v-if="isUnifiedPersonalizada">
+        <!-- Personalizada Section as primary content -->
+        <PersonalizadaSection
+          :active-personalizada="personalizadaProgress.activePersonalizada.value"
+          :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
+          :all-metadata="personalizadaProgress.allMetadata.value"
+          :cycle-stats="personalizadaProgress.cycleStats.value"
+          :loading="false"
+          :error="personalizadaProgress.error.value"
+        />
 
-      <q-tab-panels v-if="showTabs" v-model="activeTab" animated class="mi-camino__panels">
-        <q-tab-panel name="general" class="mi-camino__panel">
+        <!-- Entrenar CTA button -->
+        <q-btn
+          color="primary"
+          unelevated
+          no-caps
+          label="Entrenar"
+          icon-right="arrow_forward"
+          to="/training"
+          class="full-width mi-camino__train-btn"
+        />
+
+        <!-- General Training Stats (collapsible) -->
+        <q-expansion-item
+          dense
+          header-class="mi-camino__stats-header"
+          class="mi-camino__stats-expansion"
+        >
+          <template #header>
+            <q-item-section>
+              <q-item-label class="mi-camino__stats-title">
+                Estadisticas de Entrenamiento
+              </q-item-label>
+            </q-item-section>
+          </template>
           <GeneralContent
             :today-completed="todayCompleted"
             :today-session="progressionStore.todaySession"
@@ -72,23 +91,63 @@
             :evaluation="progressionStore.evaluation"
             @request-evaluation="handleRequestEvaluation"
           />
-        </q-tab-panel>
+        </q-expansion-item>
+      </template>
 
-        <q-tab-panel name="personalizadas" class="mi-camino__panel">
-          <PersonalizadaSection
-            :active-personalizada="personalizadaProgress.activePersonalizada.value"
-            :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
-            :all-metadata="personalizadaProgress.allMetadata.value"
-            :cycle-stats="personalizadaProgress.cycleStats.value"
-            :loading="false"
-            :error="personalizadaProgress.error.value"
-          />
-        </q-tab-panel>
-      </q-tab-panels>
+      <!-- MODE 2: Tabs (archived personalizadas but no active — keep existing tabs) -->
+      <template v-else-if="showTabs">
+        <!-- Renewal prompt for expired personalizada members -->
+        <q-banner
+          v-if="hasExpiredPersonalizada"
+          class="mi-camino__renewal-banner"
+          rounded
+          dense
+          icon="info"
+        >
+          <span class="mi-camino__renewal-text">Consulta en recepcion para renovar</span>
+        </q-banner>
 
-      <!-- No tabs: just general content -->
+        <q-tabs
+          v-model="activeTab"
+          dense
+          class="mi-camino__tabs"
+          active-color="primary"
+          indicator-color="secondary"
+          align="left"
+          no-caps
+        >
+          <q-tab name="general" label="Entrenamiento" />
+          <q-tab name="personalizadas" label="Personalizadas" />
+        </q-tabs>
+
+        <q-tab-panels v-model="activeTab" animated class="mi-camino__panels">
+          <q-tab-panel name="general" class="mi-camino__panel">
+            <GeneralContent
+              :today-completed="todayCompleted"
+              :today-session="progressionStore.todaySession"
+              :stats="progressionStore.stats"
+              :rpe-trend="progressionStore.rpeTrend"
+              :evaluation="progressionStore.evaluation"
+              @request-evaluation="handleRequestEvaluation"
+            />
+          </q-tab-panel>
+
+          <q-tab-panel name="personalizadas" class="mi-camino__panel">
+            <PersonalizadaSection
+              :active-personalizada="personalizadaProgress.activePersonalizada.value"
+              :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
+              :all-metadata="personalizadaProgress.allMetadata.value"
+              :cycle-stats="personalizadaProgress.cycleStats.value"
+              :loading="false"
+              :error="personalizadaProgress.error.value"
+            />
+          </q-tab-panel>
+        </q-tab-panels>
+      </template>
+
+      <!-- MODE 3: Regular member — GeneralContent only (unchanged) -->
       <GeneralContent
-        v-if="!showTabs"
+        v-else
         :today-completed="todayCompleted"
         :today-session="progressionStore.todaySession"
         :stats="progressionStore.stats"
@@ -104,12 +163,13 @@
 /**
  * MiCamino page
  *
- * Main progression tracking page with two modes:
- * - Regular users: single view with training stats, RPE, evaluation
- * - Personalizada users: tabs for General (training) and Personalizadas
+ * Main progression tracking page with three layout modes:
+ * - MODE 1 (Unified): Active personalizada members see a single view with
+ *   personalizada progress as primary content, general stats in a collapsible section
+ * - MODE 2 (Tabs): Members with only archived personalizadas see tabs + renewal prompt
+ * - MODE 3 (General): Regular members see GeneralContent only (unchanged)
  *
- * Tab visibility is automatic — shows tabs only when user has active
- * or archived personalizadas.
+ * Layout mode is automatic based on subscription state and personalizada data.
  */
 import { ref, computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
@@ -129,12 +189,34 @@ const personalizadaProgress = usePersonalizadaProgress()
 const activeTab = ref('general')
 
 /**
- * Show tabs when user has any personalizada data (active or archived)
+ * MODE 1: Unified view when member has an active personalizada subscription.
+ * No tabs — personalizada progress is primary, general stats are collapsible.
+ */
+const isUnifiedPersonalizada = computed(() => {
+  return userStore.hasActivePersonalizada
+})
+
+/**
+ * MODE 2: Show tabs when user has personalizada data but NOT an active personalizada
+ * (e.g., only archived personalizadas from an expired subscription).
  */
 const showTabs = computed(() => {
+  if (isUnifiedPersonalizada.value) return false
   return (
     personalizadaProgress.activePersonalizada.value !== null ||
     personalizadaProgress.archivedPersonalizadas.value.length > 0
+  )
+})
+
+/**
+ * Detect expired personalizada members in MODE 2: they have archived
+ * personalizadas but no active one. Shows a renewal prompt banner.
+ */
+const hasExpiredPersonalizada = computed(() => {
+  return (
+    !isUnifiedPersonalizada.value &&
+    personalizadaProgress.archivedPersonalizadas.value.length > 0 &&
+    personalizadaProgress.activePersonalizada.value === null
   )
 })
 
@@ -170,8 +252,8 @@ async function handleRequestEvaluation() {
 onMounted(async () => {
   fetchStats()
   await personalizadaProgress.fetchPersonalizadaData()
-  // Default to Personalizadas tab when member has an active personalizada
-  if (personalizadaProgress.activePersonalizada.value) {
+  // Default to Personalizadas tab only when showing tabs (not unified mode)
+  if (!isUnifiedPersonalizada.value && personalizadaProgress.activePersonalizada.value) {
     activeTab.value = 'personalizadas'
   }
 })
@@ -296,6 +378,38 @@ onMounted(async () => {
 
   &__panel {
     padding: 0;
+  }
+
+  &__train-btn {
+    margin-top: 8px;
+  }
+
+  &__stats-expansion {
+    margin-top: 16px;
+  }
+
+  &__stats-header {
+    padding: 8px 0;
+  }
+
+  &__stats-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba($primary, 0.6);
+  }
+
+  &__renewal-banner {
+    margin-bottom: 12px;
+    background-color: rgba($secondary, 0.08);
+    border: 1px solid rgba($secondary, 0.2);
+  }
+
+  &__renewal-text {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: $dark;
   }
 }
 </style>
