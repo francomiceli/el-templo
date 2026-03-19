@@ -1092,7 +1092,11 @@ Plans:
 2. Admin can toggle multi-branch access and trial flags on any plan
 3. Admin can set a grace period per branch that extends membership validity for renewal windows
 4. Class-based plan members see their remaining classes, and each confirmed check-in decrements the count
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1108,7 +1112,11 @@ Plans:
 3. Admin panel shows real-time access log with color-coded statuses (green=ok, yellow=warning, red=issue)
 4. Recepcionista can manually check in a member by searching their name from the admin panel
 5. Each access log entry records member details, subscription info, and any warnings at time of check-in
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1123,7 +1131,11 @@ Plans:
 2. Admin can cancel a charge, and all booking slots (turnos) associated with that charge are automatically freed
 3. System tracks outstanding balance per member when partial payment is recorded (cuenta corriente)
 4. Admin can collect outstanding debt from a member's cuenta corriente via a dedicated "Cobrar deuda" action
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1136,7 +1148,11 @@ Plans:
 
 1. All cash movements (income and expenses) are organized and visible by payment method (cash, transfer, card)
 2. Recepcionista can view a cash box summary showing collected vs spent amounts per payment method for the current day
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1150,7 +1166,11 @@ Plans:
 1. Admin can upload a member photo via file upload or capture via webcam from the member profile
 2. Admin can change a member's active subscription to a different plan, seeing the price difference calculation before confirming
 3. Admin can export the current filtered member list as an Excel file
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1166,7 +1186,11 @@ Plans:
 3. Debt report lists all members with outstanding balances, showing contact info and a WhatsApp shortcut
 4. Expiring memberships report shows members with expired or soon-to-expire subscriptions within a configurable window
 5. Inactive member report shows members with active subscriptions but no check-ins within a configurable days threshold
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1181,7 +1205,11 @@ Plans:
 2. Each role has a predefined permission set that controls which pages, features, and actions are accessible
 3. Admin can assign a role to any system user from the user management interface
 4. Admin UI dynamically shows/hides sidebar items, page sections, and action buttons based on the logged-in user's role
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ---
 
@@ -1320,7 +1348,11 @@ Plans:
 1. Admin sees a paginated list of all conversations with search by name/phone and filters by status and client state
 2. Clicking a conversation shows the full message history in a chat bubble UI with timestamps and direction indicators
 3. WhatsApp menu item appears in the admin sidebar with a badge showing the count of unread/active conversations
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 72-01-PLAN.md — API service implementation: listConversations and getConversation + integration tests
+- [ ] 72-02-PLAN.md — Admin UI: ConversacionesPage, ConversacionDetailPage, composable, sidebar integration
 
 ### Phase 73: Admin Panel -- Human Takeover
 
@@ -1348,7 +1380,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
 | 70. Action Tools                              | 2/2            | Complete    | 2026-03-19 |
 | 71. Proactive Schedulers                      | 2/2            | Complete    | 2026-03-19 |
-| 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
+| 72. Admin Panel -- Conversations UI           | 0/2            | Planning    | -          |
 | 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |
 
 ---
