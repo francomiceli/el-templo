@@ -1216,7 +1216,7 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 - [x] **Phase 68: AI Integration + Info Tools** - AI-primary message processing with schedule, membership, location, and escalation tools (completed 2026-03-18)
 - [x] **Phase 69: Redis Memory Layer + Client State Machine** - Session context, customer profiles, and automatic client state detection (completed 2026-03-18)
 - [x] **Phase 70: Action Tools** - Book class and register trial via WhatsApp with confirmation steps (completed 2026-03-19)
-- [ ] **Phase 71: Proactive Schedulers** - Class reminders and trial follow-ups via template messages with distributed locks
+- [x] **Phase 71: Proactive Schedulers** - Class reminders and trial follow-ups via template messages with distributed locks (completed 2026-03-19)
 - [ ] **Phase 72: Admin Panel -- Conversations UI** - Conversation list, chat detail, and sidebar integration in el-templo-admin
 - [ ] **Phase 73: Admin Panel -- Human Takeover** - Admin takes over conversation, sends messages, resumes bot
 
@@ -1304,7 +1304,7 @@ Plans:
 1. Member with a booked class receives a WhatsApp template reminder N hours before class time
 2. Trial attendee receives a follow-up message 24-48h after their trial asking how it went and offering membership info
 3. Schedulers use Redis distributed locks so duplicate messages are never sent even if the process restarts
-   **Plans:** 1/2 plans executed
+   **Plans:** 2/2 plans complete
    Plans:
 
 - [ ] 71-01-PLAN.md — Distributed lock, sendTemplateMessage, class reminder scheduler with tests
@@ -1347,7 +1347,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | 68. AI Integration + Info Tools               | 3/3            | Complete    | 2026-03-18 |
 | 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
 | 70. Action Tools                              | 2/2            | Complete    | 2026-03-19 |
-| 71. Proactive Schedulers                      | 1/2            | In Progress |            |
+| 71. Proactive Schedulers                      | 2/2            | Complete    | 2026-03-19 |
 | 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
 | 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |
 

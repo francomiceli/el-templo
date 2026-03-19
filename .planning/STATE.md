@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 71-01-PLAN.md
-last_updated: "2026-03-19T01:31:24.000Z"
-last_activity: 2026-03-19 -- Completed Plan 01 of Phase 71
+stopped_at: Completed 71-02-PLAN.md
+last_updated: "2026-03-19T01:37:39.000Z"
+last_activity: 2026-03-19 -- Completed Plan 02 of Phase 71 (Phase complete)
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 10
-  percent: 59
+  completed_plans: 11
+  percent: 65
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 71 of 73 (Proactive Schedulers)
-Plan: 1 of 2
+Plan: 2 of 2 (Phase complete)
 Status: Executing
-Last activity: 2026-03-19 -- Completed Plan 01 of Phase 71
+Last activity: 2026-03-19 -- Completed Plan 02 of Phase 71 (Phase complete)
 
-Progress: [▓▓▓▓▓▓░░░░] 59%
+Progress: [▓▓▓▓▓▓▓░░░] 65%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 9 (v5.0)
+- Total plans completed: 11 (v5.0)
 
 **By Phase:**
 
@@ -46,7 +46,7 @@ Progress: [▓▓▓▓▓▓░░░░] 59%
 | 68    | 3/3   | 14 min | 5 min    |
 | 69    | 2/2   | 16 min | 8 min    |
 | 70    | 2/2   | 8 min  | 4 min    |
-| 71    | 1/2   | 3 min  | 3 min    |
+| 71    | 2/2   | 7 min  | 4 min    |
 
 ## Accumulated Context
 
@@ -92,6 +92,10 @@ Recent decisions affecting current work:
 - [71-01] TemplateComponent type uses union 'body' | 'header' | 'button' for Meta API template components
 - [71-01] Reminder hours configurable via CLASS_REMINDER_HOURS env var (default 2)
 - [71-01] Reminder dedup via Redis key wa:reminder:class:{bookingId} with 24h TTL
+- [71-02] Business hours check (10-20 Argentina) before lock acquisition to avoid unnecessary Redis calls
+- [71-02] Trial detection via pricePaid=0 AND priceTypeApplied='zero' (per 70-01 convention)
+- [71-02] NOT EXISTS subquery to exclude converted members (any subscription with pricePaid > 0)
+- [71-02] Follow-up dedup via Redis key wa:followup:trial:{userId} with 7d TTL
 
 ### Pending Todos
 
@@ -104,5 +108,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed 71-01-PLAN.md
-Resume file: .planning/phases/71-proactive-schedulers/71-01-SUMMARY.md
+Stopped at: Completed 71-02-PLAN.md (Phase 71 complete)
+Resume file: .planning/phases/71-proactive-schedulers/71-02-SUMMARY.md
