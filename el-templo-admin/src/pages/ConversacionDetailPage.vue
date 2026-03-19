@@ -24,6 +24,34 @@
         :label="clientStateLabel(conversation.clientState)"
         class="q-mr-sm"
       />
+      <!-- Takeover button -->
+      <q-btn
+        v-if="conversation?.status === 'active'"
+        dense
+        no-caps
+        icon="pan_tool"
+        label="Tomar control"
+        color="orange"
+        size="sm"
+        class="q-mr-sm"
+        :loading="whatsappApi.loading.value"
+        :disable="whatsappApi.loading.value"
+        @click="handleTakeover"
+      />
+      <!-- Resume bot button -->
+      <q-btn
+        v-if="conversation?.status === 'human_takeover'"
+        dense
+        no-caps
+        icon="smart_toy"
+        label="Devolver al bot"
+        color="green"
+        size="sm"
+        class="q-mr-sm"
+        :loading="whatsappApi.loading.value"
+        :disable="whatsappApi.loading.value"
+        @click="handleResumeBot"
+      />
       <q-btn
         v-if="conversation?.linkedMemberId"
         flat
@@ -85,12 +113,40 @@
       <!-- Bottom sentinel for auto-scroll -->
       <div ref="bottomSentinel" />
     </div>
+
+    <!-- Message input bar (only in human_takeover mode) -->
+    <div
+      v-if="conversation?.status === 'human_takeover'"
+      class="row items-center q-pa-sm bg-grey-1"
+      style="border-top: 1px solid #e0e0e0"
+    >
+      <q-input
+        v-model="newMessage"
+        outlined
+        dense
+        placeholder="Escribi un mensaje..."
+        class="col"
+        @keyup.enter="handleSendMessage"
+      />
+      <q-btn
+        round
+        dense
+        flat
+        icon="send"
+        color="primary"
+        class="q-ml-sm"
+        :loading="whatsappApi.sending.value"
+        :disable="whatsappApi.sending.value || !newMessage.trim()"
+        @click="handleSendMessage"
+      />
+    </div>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useWhatsappApi } from 'src/composables/useWhatsappApi';
 import type {
@@ -104,6 +160,7 @@ import type {
 const log = createLogger('ConversacionDetailPage');
 const route = useRoute();
 const router = useRouter();
+const $q = useQuasar();
 const whatsappApi = useWhatsappApi();
 
 // =========================================================================
@@ -118,6 +175,8 @@ const loadingOlder = ref(false);
 const errorMessage = ref<string | null>(null);
 const chatContainer = ref<HTMLDivElement | null>(null);
 const bottomSentinel = ref<HTMLDivElement | null>(null);
+const newMessage = ref('');
+const pollTimer = ref<ReturnType<typeof setInterval> | null>(null);
 
 const messagePage = ref(1);
 const messageLimit = 50;
@@ -288,11 +347,109 @@ async function loadOlderMessages() {
 }
 
 // =========================================================================
+// Actions: takeover, resume, send
+// =========================================================================
+
+async function handleTakeover() {
+  const id = Number(route.params.id);
+  if (Number.isNaN(id)) return;
+
+  errorMessage.value = null;
+  try {
+    const updated = await whatsappApi.takeover(id);
+    conversation.value = updated;
+    $q.notify({ type: 'positive', message: 'Control tomado' });
+  } catch {
+    errorMessage.value = whatsappApi.error.value ?? 'Error tomando control';
+  }
+}
+
+async function handleResumeBot() {
+  const id = Number(route.params.id);
+  if (Number.isNaN(id)) return;
+
+  errorMessage.value = null;
+  try {
+    const updated = await whatsappApi.resumeBot(id);
+    conversation.value = updated;
+    $q.notify({ type: 'positive', message: 'Bot reactivado' });
+  } catch {
+    errorMessage.value = whatsappApi.error.value ?? 'Error devolviendo al bot';
+  }
+}
+
+async function handleSendMessage() {
+  const id = Number(route.params.id);
+  const content = newMessage.value.trim();
+  if (Number.isNaN(id) || !content) return;
+
+  errorMessage.value = null;
+  try {
+    const msg = await whatsappApi.sendMessage(id, content);
+    messages.value.push(msg);
+    newMessage.value = '';
+    scrollToBottom();
+  } catch {
+    errorMessage.value = whatsappApi.error.value ?? 'Error enviando mensaje';
+  }
+}
+
+// =========================================================================
+// Polling
+// =========================================================================
+
+async function pollMessages() {
+  const id = Number(route.params.id);
+  if (Number.isNaN(id)) return;
+
+  try {
+    const result = await whatsappApi.getConversation(id, 1, messageLimit);
+
+    // Update conversation status if changed
+    if (conversation.value && result.conversation.status !== conversation.value.status) {
+      conversation.value = result.conversation;
+    }
+
+    // Update messages if total changed (new messages arrived)
+    if (result.totalMessages !== totalMessages.value) {
+      messages.value = result.messages;
+      totalMessages.value = result.totalMessages;
+      hasMoreMessages.value = result.messages.length < result.totalMessages;
+      scrollToBottom();
+    }
+  } catch (err: unknown) {
+    // Silent polling failure -- don't overwrite user-facing errors
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Polling error', { error: message });
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer.value = setInterval(() => {
+    void pollMessages();
+  }, 5000);
+}
+
+function stopPolling() {
+  if (pollTimer.value !== null) {
+    clearInterval(pollTimer.value);
+    pollTimer.value = null;
+  }
+}
+
+// =========================================================================
 // Lifecycle
 // =========================================================================
 
-onMounted(() => {
-  loadConversation();
+onMounted(async () => {
+  await loadConversation();
+  startPolling();
+});
+
+onUnmounted(() => {
+  stopPolling();
+  whatsappApi.cleanup();
 });
 </script>
 
