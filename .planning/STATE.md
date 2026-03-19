@@ -80,6 +80,10 @@ _Updated after each plan completion_
 
 ## Accumulated Context
 
+### Roadmap Evolution
+
+- Phase 70 added: Personalizadas Cycle Config — configurable cycle length per plan, progress bars in member app
+
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.

@@ -1324,14 +1324,35 @@ Plans:
 ## v4.2 Progress
 
 **Execution Order:**
-Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable)
+Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config)
 
 | Phase                                        | Plans Complete | Status   | Completed  |
 | -------------------------------------------- | -------------- | -------- | ---------- |
 | 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
 | 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
+| 70. Personalizadas Cycle Config              | 0/0            | Pending  |            |
 
 ---
 
-_v4.2 phases added: 2026-03-18 — 3 phases (67-69), 17 requirements mapped_
+### Phase 70: Personalizadas Cycle Config
+
+**Goal**: Admin can configure cycle length (weeks) per personalizada plan, member app shows progress bars against target cycle, and semana counters become meaningful with a defined endpoint
+**Depends on**: Phase 69 (needs personalizada subscription and plan infrastructure)
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+1. `subscription_plans` table has `personalizadaCycleWeeks` integer column (nullable, default null = unlimited)
+2. Admin can set cycle length when creating/editing a personalizada plan
+3. Member app Mi Camino Personalizadas tab shows progress bars (semana X / cycleWeeks) per duration
+4. When cycle completes, member sees completion state (not just an incrementing counter)
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 70 to break down)
+
+---
+
+_v4.2 phases added: 2026-03-18 — 4 phases (67-70), 17+ requirements mapped_
