@@ -1331,27 +1331,28 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
 | 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
-| 70. Personalizadas Cycle Config              | 0/0            | Pending  |            |
+| 70. Personalizadas Cycle Config              | 0/2            | Planned  |            |
 
 ---
 
 ### Phase 70: Personalizadas Cycle Config
 
-**Goal**: Admin can configure cycle length (weeks) per personalizada plan, member app shows progress bars against target cycle, and semana counters become meaningful with a defined endpoint
+**Goal**: Cycle length derives from existing plan durationDays (no new DB column), member app shows week-based progress bars with session counts and duration breakdown, and completed cycles get a wrap-up card with completion stats and next-step CTAs
 **Depends on**: Phase 69 (needs personalizada subscription and plan infrastructure)
-**Requirements**: TBD
+**Requirements**: CYCLE-01, CYCLE-02, CYCLE-03, CYCLE-04
 **Success Criteria** (what must be TRUE):
 
-1. `subscription_plans` table has `personalizadaCycleWeeks` integer column (nullable, default null = unlimited)
-2. Admin can set cycle length when creating/editing a personalizada plan
-3. Member app Mi Camino Personalizadas tab shows progress bars (semana X / cycleWeeks) per duration
-4. When cycle completes, member sees completion state (not just an incrementing counter)
+1. `GET /personalizadas/stats` endpoint returns cycleWeeks (derived from ceil(plan.durationDays / 7)), currentWeek, cycleEndDate, totalCompletions, durationBreakdown, cycleComplete
+2. No new DB column needed — cycle length derives from existing `subscription_plans.durationDays`
+3. Member app Mi Camino Personalizadas tab shows progress bar ("Semana X de Y") with session count and duration breakdown
+4. When cycle completes, member sees wrap-up card with completion stats, duration breakdown, and CTAs
 
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 70 to break down)
+- [ ] 70-01-PLAN.md — API: CycleStats type, getCycleStats service method, stats endpoint, integration tests
+- [ ] 70-02-PLAN.md — Frontend: types, composables, progress bar + duration breakdown + wrap-up card, default tab
 
 ---
 
