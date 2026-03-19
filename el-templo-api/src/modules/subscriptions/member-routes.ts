@@ -6,6 +6,8 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
+import { eq } from "drizzle-orm";
+import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
 
@@ -44,6 +46,16 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     }
 
+    // Get plan personalizada info
+    const [plan] = await fastify.db
+      .select({
+        isPersonalizada: schema.subscriptionPlans.isPersonalizada,
+        personalizadaType: schema.subscriptionPlans.personalizadaType,
+      })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, sub.planId))
+      .limit(1);
+
     return {
       id: sub.id,
       planName: sub.planName,
@@ -53,6 +65,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       endDate: sub.endDate,
       daysRemaining,
       pricePaid: sub.pricePaid,
+      isPersonalizada: plan?.isPersonalizada ?? false,
+      personalizadaType: plan?.personalizadaType ?? null,
     };
   });
 };
