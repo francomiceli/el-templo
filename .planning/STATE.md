@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 72-01-PLAN.md
-last_updated: "2026-03-19T02:10:29.000Z"
-last_activity: 2026-03-19 -- Completed Plan 01 of Phase 72
+stopped_at: Completed 72-02-PLAN.md
+last_updated: "2026-03-19T05:00:00.000Z"
+last_activity: 2026-03-19 -- Completed Plan 02 of Phase 72
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 9
-  completed_plans: 12
-  percent: 70
+  completed_plans: 13
+  percent: 80
 ---
 
 # Project State
@@ -26,17 +26,17 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 72 of 73 (Admin Panel Conversations UI)
-Plan: 1 of 2
+Plan: 2 of 2 (Phase Complete)
 Status: Executing
-Last activity: 2026-03-19 -- Completed Plan 01 of Phase 72
+Last activity: 2026-03-19 -- Completed Plan 02 of Phase 72
 
-Progress: [▓▓▓▓▓▓▓░░░] 70%
+Progress: [▓▓▓▓▓▓▓▓░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 12 (v5.0)
+- Total plans completed: 13 (v5.0)
 
 **By Phase:**
 
@@ -47,7 +47,7 @@ Progress: [▓▓▓▓▓▓▓░░░] 70%
 | 69    | 2/2   | 16 min | 8 min    |
 | 70    | 2/2   | 8 min  | 4 min    |
 | 71    | 2/2   | 7 min  | 4 min    |
-| 72    | 1/2   | 3 min  | 3 min    |
+| 72    | 2/2   | 7 min  | 4 min    |
 
 ## Accumulated Context
 
@@ -100,6 +100,9 @@ Recent decisions affecting current work:
 - [72-01] ClientState enum updated to match DB schema: inactive_member/expired_member instead of lapsed/returning
 - [72-01] listConversations returns page and limit in response for frontend pagination
 - [72-01] SQL subqueries for lastMessagePreview and messageCount to avoid N+1
+- [72-02] useWhatsappApi follows useMembersApi pattern with loading/error refs and cleanup method
+- [72-02] Chat bubbles use CSS flexbox with direction-based alignment and color coding (grey/green/blue)
+- [72-02] Active conversation count badge polls every 60s via setInterval in AdminLayout
 
 ### Pending Todos
 
@@ -112,5 +115,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed 72-01-PLAN.md
-Resume file: .planning/phases/72-admin-panel-conversations-ui/72-01-SUMMARY.md
+Stopped at: Completed 72-02-PLAN.md (Phase 72 complete)
+Resume file: .planning/phases/72-admin-panel-conversations-ui/72-02-SUMMARY.md
