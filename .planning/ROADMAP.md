@@ -1324,7 +1324,7 @@ Plans:
 ## v4.2 Progress
 
 **Execution Order:**
-Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config)
+Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX)
 
 | Phase                                        | Plans Complete | Status   | Completed  |
 | -------------------------------------------- | -------------- | -------- | ---------- |
@@ -1332,6 +1332,8 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
 | 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
+| 71. Plan-Driven Personalizada Assignment     | 0/0            | Pending  |            |
+| 72. Unified Training Experience              | 0/0            | Pending  |            |
 
 ---
 
@@ -1356,4 +1358,46 @@ Plans:
 
 ---
 
-_v4.2 phases added: 2026-03-18 — 4 phases (67-70), 17+ requirements mapped_
+### Phase 71: Plan-Driven Personalizada Assignment
+
+**Goal**: The subscription plan defines which personalizada type a member trains — no member-side selection. Admin assigns personalizada type via the plan, subscription activation auto-populates member_personalizadas, and the member app selection flow (grid, overview, confirm) is removed along with the Personalizada nav item.
+**Depends on**: Phase 70 (cycle config in place, personalizada subscription infrastructure)
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+1. `subscription_plans` table has a `personalizadaType` column linking plan to a specific personalizada
+2. On subscription activation, `member_personalizadas` is created/updated from the plan's personalizada type automatically
+3. Member app no longer shows personalizada selection grid, overview, or confirmation flow
+4. Personalizada nav item is removed from member app bottom navigation
+5. Existing members with active personalizadas continue working (migration handles current data)
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 71 to break down)
+
+---
+
+### Phase 72: Unified Training Experience
+
+**Goal**: The Entrenar tab becomes context-aware — members with an active personalizada see the duration picker directly instead of the weekly view, and Mi Camino shows a unified progress view (no tabs) when personalizada is active. Post-session flow navigates to Mi Camino to close the feedback loop.
+**Depends on**: Phase 71 (plan-driven assignment, selection flow removed)
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+1. Entrenar tab shows duration picker when member has active personalizada, weekly view otherwise
+2. After personalizada session completion, member navigates to Mi Camino (not duration picker)
+3. Mi Camino shows single unified view when personalizada is active (no Entrenamiento/Personalizadas tabs)
+4. General training stats still accessible (secondary/collapsible) for personalizada members
+5. Members without personalizada subscription see zero changes to their experience
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 72 to break down)
+
+---
+
+_v4.2 phases added: 2026-03-18 — 6 phases (67-72), 17+ requirements mapped_
