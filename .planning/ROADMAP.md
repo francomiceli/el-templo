@@ -1326,15 +1326,15 @@ Plans:
 **Execution Order:**
 Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX) → Phase 73 (Mi Plan Catalog)
 
-| Phase                                        | Plans Complete | Status   | Completed  |
-| -------------------------------------------- | -------------- | -------- | ---------- |
-| 67. Personalizadas Backend Rename            | 2/2            | Complete | 2026-03-18 |
-| 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
-| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
-| 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
-| 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete | 2026-03-19 |
-| 72. Unified Training Experience              | 0/3            | Planned  |            |
-| 73. Planes — Plan Catalog for Members        | 0/2            | Planned  |            |
+| Phase                                        | Plans Complete | Status      | Completed  |
+| -------------------------------------------- | -------------- | ----------- | ---------- |
+| 67. Personalizadas Backend Rename            | 2/2            | Complete    | 2026-03-18 |
+| 68. Personalizadas Frontend Rename           | 2/2            | Complete    | 2026-03-18 |
+| 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete    | 2026-03-19 |
+| 70. Personalizadas Cycle Config              | 2/2            | Complete    | 2026-03-19 |
+| 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete    | 2026-03-19 |
+| 72. Unified Training Experience              | 1/3            | In Progress |            |
+| 73. Planes — Plan Catalog for Members        | 0/2            | Planned     |            |
 
 ---
 
@@ -1394,7 +1394,7 @@ Plans:
 4. General training stats still accessible (secondary/collapsible) for personalizada members
 5. Members without personalizada subscription see zero changes to their experience
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 

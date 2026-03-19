@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 73 context gathered
-last_updated: "2026-03-19T19:31:27.354Z"
+stopped_at: Completed 72-01-PLAN.md
+last_updated: "2026-03-19T19:40:25.485Z"
 progress:
   total_phases: 71
   completed_phases: 58
-  total_plans: 255
-  completed_plans: 247
+  total_plans: 257
+  completed_plans: 248
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 71 — plan-driven-personalizada-assignment
+**Current focus:** Phase 72 — unified-training-experience
 
 ## Current Position
 
-Phase: 71 (plan-driven-personalizada-assignment) — EXECUTING
-Plan: 2 of 2
+Phase: 72 (unified-training-experience) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -75,6 +75,7 @@ _Updated after each plan completion_
 | Phase 70 P02 | 4min | 2 tasks | 5 files |
 | Phase 71 P02 | 5min | 2 tasks | 8 files |
 | Phase 71 P01 | 15min | 2 tasks | 7 files |
+| Phase 72 P01 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -144,6 +145,7 @@ Recent decisions affecting current work:
 - [Phase 70]: Change button hidden when wrap-up card shows (wrap-up has own CTA); fetchPersonalizadaData awaited to set default tab
 - [Phase 71]: Removed selectPersonalizada from store and API composable since only deleted pages used it
 - [Phase 71]: PersonalizadasService instantiated in SubscriptionService constructor (no circular dependency)
+- [Phase 72]: Secondary plan query pattern in member-routes handler for plan-level fields, avoiding shared SubscriptionDetail type modification
 
 ### Pending Todos
 
@@ -155,6 +157,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T19:31:27.351Z
-Stopped at: Phase 73 context gathered
-Resume file: .planning/phases/73-mi-plan-catalog/73-CONTEXT.md
+Last session: 2026-03-19T19:40:25.481Z
+Stopped at: Completed 72-01-PLAN.md
+Resume file: None
