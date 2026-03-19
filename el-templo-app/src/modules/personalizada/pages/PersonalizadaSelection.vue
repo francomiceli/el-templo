@@ -1,89 +1,68 @@
 <template>
-  <q-page class="personalizada-selection-page">
+  <q-page class="personalizada-page">
     <div class="page-content">
       <!-- Header -->
       <div class="page-header">
-        <h1 class="page-title">Elige tu Clase Personalizada</h1>
-        <p class="page-subtitle">
-          Selecciona una ruta de entrenamiento personalizada segun tus objetivos
-        </p>
-      </div>
-
-      <!-- Active Personalizada Banner -->
-      <div v-if="personalizadaStore.hasActivePersonalizada" class="active-personalizada-banner">
-        <div class="banner-content">
-          <FlameIcon size="sm" />
-          <div class="banner-text">
-            <span class="banner-label">Tu Personalizada Actual</span>
-            <span class="banner-name">{{ personalizadaStore.activePersonalizadaName }}</span>
-          </div>
-        </div>
-        <div class="banner-actions">
-          <q-btn
-            flat
-            dense
-            no-caps
-            class="banner-btn"
-            label="Continuar"
-            @click="onContinueActivePersonalizada"
-          />
-        </div>
+        <h1 class="page-title">Clases Personalizadas</h1>
+        <p class="page-subtitle">Elige una ruta de entrenamiento enfocada en tus objetivos</p>
       </div>
 
       <!-- Loading State -->
-      <div v-if="personalizadaStore.loading" class="text-center q-pa-xl">
-        <q-spinner-dots size="40px" color="grey-6" />
+      <div v-if="personalizadaStore.loading" class="loading-state">
+        <q-spinner-dots size="40px" color="secondary" />
       </div>
 
       <!-- Error State -->
-      <div v-else-if="personalizadaStore.error" class="text-center q-pa-xl">
+      <div v-else-if="personalizadaStore.error" class="error-state">
         <q-icon name="error_outline" size="48px" color="grey-6" />
-        <p class="q-mt-md text-grey-7">{{ personalizadaStore.error }}</p>
-        <q-btn flat color="primary" label="Reintentar" @click="loadData" />
+        <p class="error-text">{{ personalizadaStore.error }}</p>
+        <q-btn flat no-caps color="primary" label="Reintentar" @click="loadData" />
       </div>
 
-      <!-- Personalizada Tiers -->
-      <template v-else>
-        <div v-for="tier in tiers" :key="tier.key" class="tier-section">
-          <div class="tier-header">
-            <FlameIcon size="xs" />
-            <span class="tier-label">{{ tier.label }}</span>
-            <span class="tier-divider" />
+      <!-- Personalizada Grid -->
+      <div v-else class="personalizada-grid">
+        <div
+          v-for="personalizada in personalizadaStore.personalizadaMetadata"
+          :key="personalizada.type"
+          class="personalizada-card"
+          :class="{ 'personalizada-card--active': isActive(personalizada.type) }"
+          @click="onSelectPersonalizada(personalizada.type)"
+        >
+          <!-- Card Icon -->
+          <div class="card-icon-wrap">
+            <q-icon :name="getIcon(personalizada.type)" size="28px" class="card-icon" />
           </div>
 
-          <div class="tier-personalizadas">
-            <div
-              v-for="personalizada in getPersonalizadasByTier(tier.key)"
-              :key="personalizada.type"
-              class="personalizada-card"
-              @click="onSelectPersonalizada(personalizada.type)"
-            >
-              <div class="card-header">
-                <h3 class="card-title">{{ personalizada.name }}</h3>
-                <q-badge
-                  v-if="isActivePersonalizada(personalizada.type)"
-                  class="active-badge"
-                  label="Activo"
-                />
-              </div>
+          <!-- Card Name -->
+          <h3 class="card-name">{{ personalizada.name }}</h3>
 
-              <div class="card-zones">
-                <span v-for="zone in personalizada.zones" :key="zone" class="zone-badge">
-                  {{ zone }}
-                </span>
-              </div>
+          <!-- Zone Tags -->
+          <div class="card-zones">
+            <span v-for="zone in personalizada.zones" :key="zone" class="zone-tag">
+              {{ zone }}
+            </span>
+          </div>
 
-              <p class="card-description">
-                {{ truncateDescription(personalizada.description) }}
-              </p>
+          <!-- Continue button for active personalizada -->
+          <q-btn
+            v-if="isActive(personalizada.type)"
+            unelevated
+            no-caps
+            dense
+            color="primary"
+            text-color="white"
+            label="Continuar"
+            icon-right="arrow_forward"
+            class="card-continue-btn"
+            @click.stop="onContinue"
+          />
 
-              <div class="card-footer">
-                <q-icon name="arrow_forward" size="20px" class="card-arrow" />
-              </div>
-            </div>
+          <!-- Arrow for non-active -->
+          <div v-else class="card-arrow-wrap">
+            <q-icon name="arrow_forward" size="18px" class="card-arrow" />
           </div>
         </div>
-      </template>
+      </div>
     </div>
   </q-page>
 </template>
@@ -91,33 +70,29 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import FlameIcon from 'src/components/FlameIcon.vue'
 import { createLogger } from 'src/utils/logger'
 import { usePersonalizadaStore } from '../stores/personalizadaStore'
-import type { PersonalizadaType, PersonalizadaTier } from '../types'
+import type { PersonalizadaType } from '../types'
 
 const log = createLogger('PersonalizadaSelection')
 const router = useRouter()
 const personalizadaStore = usePersonalizadaStore()
 
-const tiers: { key: PersonalizadaTier; label: string }[] = [
-  { key: 'principiante', label: 'Principiante' },
-  { key: 'intermedio', label: 'Intermedio' },
-  { key: 'avanzado', label: 'Avanzado' },
-]
-
-function getPersonalizadasByTier(tier: PersonalizadaTier) {
-  return personalizadaStore.personalizadaMetadata.filter((j) => j.tier === tier)
+const ICONS: Record<PersonalizadaType, string> = {
+  tren_superior: 'accessibility_new',
+  tren_inferior: 'directions_run',
+  empuje: 'fitness_center',
+  traccion: 'sports_gymnastics',
+  planche: 'self_improvement',
+  front_lever: 'iron',
 }
 
-function isActivePersonalizada(type: PersonalizadaType): boolean {
+function getIcon(type: PersonalizadaType): string {
+  return ICONS[type] ?? 'explore'
+}
+
+function isActive(type: PersonalizadaType): boolean {
   return personalizadaStore.activePersonalizada?.personalizadaType === type
-}
-
-function truncateDescription(desc: string): string {
-  const maxLen = 100
-  if (desc.length <= maxLen) return desc
-  return desc.substring(0, maxLen).trimEnd() + '...'
 }
 
 function onSelectPersonalizada(type: PersonalizadaType): void {
@@ -125,7 +100,7 @@ function onSelectPersonalizada(type: PersonalizadaType): void {
   void router.push(`/personalizada/overview/${type}`)
 }
 
-function onContinueActivePersonalizada(): void {
+function onContinue(): void {
   void router.push('/personalizada/duration')
 }
 
@@ -144,8 +119,8 @@ onMounted(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.personalizada-selection-page {
-  background-color: #f5f2eb;
+.personalizada-page {
+  background-color: $cream;
   min-height: 100vh;
 }
 
@@ -161,162 +136,129 @@ onMounted(() => {
 
 .page-title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 1.6rem;
-  font-weight: 400;
-  color: #2a2a2a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: $accent;
   letter-spacing: -0.02em;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 .page-subtitle {
-  font-size: 0.9rem;
-  color: #6b6b6b;
-  letter-spacing: 0.03em;
+  font-size: 0.85rem;
+  color: rgba($accent, 0.6);
   margin: 0;
   line-height: 1.5;
 }
 
-/* Active Personalizada Banner */
-.active-personalizada-banner {
-  background-color: #e6e2d6;
-  padding: 16px;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.banner-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.banner-text {
+.loading-state,
+.error-state {
   display: flex;
   flex-direction: column;
-}
-
-.banner-label {
-  font-size: 0.75rem;
-  color: #6b6b6b;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.banner-name {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 1rem;
-  color: #2a2a2a;
-  font-weight: 500;
-}
-
-.banner-btn {
-  color: #c27a5d;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-}
-
-/* Tier Sections */
-.tier-section {
-  margin-bottom: 28px;
-}
-
-.tier-header {
-  display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
 }
 
-.tier-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #8a9a8a;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  white-space: nowrap;
+.error-text {
+  font-size: 0.85rem;
+  color: rgba($accent, 0.6);
+  margin: 12px 0;
 }
 
-.tier-divider {
-  flex: 1;
-  height: 1px;
-  background-color: #d4d0c6;
-}
-
-/* Personalizada Cards */
-.tier-personalizadas {
-  display: flex;
-  flex-direction: column;
+/* 2-column, 3-row grid */
+.personalizada-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
+/* Card */
 .personalizada-card {
-  background-color: #e6e2d6;
-  padding: 20px;
+  background-color: white;
+  border: 1px solid rgba($secondary, 0.2);
+  border-radius: 12px;
+  padding: 16px;
   cursor: pointer;
-  transition: transform 0.15s ease;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 
   &:active {
-    transform: scale(0.98);
+    transform: scale(0.97);
+  }
+
+  &--active {
+    border-color: $primary;
+    background-color: rgba($primary, 0.04);
   }
 }
 
-.card-header {
+.card-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background-color: rgba($secondary, 0.1);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
+  justify-content: center;
+  margin-bottom: 12px;
 }
 
-.card-title {
+.card-icon {
+  color: $secondary;
+}
+
+.personalizada-card--active .card-icon-wrap {
+  background-color: rgba($primary, 0.12);
+}
+
+.personalizada-card--active .card-icon {
+  color: $primary;
+}
+
+.card-name {
   font-family: 'Montserrat', sans-serif;
-  font-size: 1.15rem;
-  font-weight: 400;
-  color: #2a2a2a;
-  margin: 0;
-  letter-spacing: -0.01em;
-}
-
-.active-badge {
-  background-color: #c27a5d !important;
-  color: white;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 2px 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: $accent;
+  margin: 0 0 8px;
+  line-height: 1.3;
 }
 
 .card-zones {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 4px;
+  margin-bottom: 12px;
+  flex: 1;
 }
 
-.zone-badge {
-  background-color: rgba(138, 154, 138, 0.2);
-  color: #5e6e5e;
-  font-size: 0.72rem;
-  padding: 2px 8px;
-  letter-spacing: 0.03em;
+.zone-tag {
+  background-color: rgba($secondary, 0.1);
+  color: $secondary;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
 }
 
-.card-description {
-  font-size: 0.85rem;
-  color: #5a5a5a;
-  line-height: 1.5;
-  margin: 0 0 12px;
+.card-continue-btn {
+  width: 100%;
+  font-size: 0.8rem;
+  margin-top: auto;
 }
 
-.card-footer {
+.card-arrow-wrap {
   display: flex;
   justify-content: flex-end;
+  margin-top: auto;
 }
 
 .card-arrow {
-  color: #c27a5d;
+  color: rgba($accent, 0.3);
 }
 </style>
