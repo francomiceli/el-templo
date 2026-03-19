@@ -1,0 +1,210 @@
+<template>
+  <div class="general-content">
+    <!-- Today's Training CTA -->
+    <q-card class="general-content__today-card" flat bordered>
+      <q-card-section class="general-content__today-content">
+        <div class="general-content__today-info">
+          <q-icon
+            :name="todayCompleted ? 'check_circle' : 'fitness_center'"
+            :color="todayCompleted ? 'positive' : 'secondary'"
+            size="40px"
+          />
+          <div class="general-content__today-text">
+            <p class="general-content__today-title">
+              {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
+            </p>
+            <p v-if="!todayCompleted" class="general-content__today-subtitle">
+              Lista para comenzar
+            </p>
+            <div v-else class="general-content__session-summary">
+              <span v-if="todaySession?.durationMinutes" class="general-content__summary-item">
+                <q-icon name="timer" size="14px" />
+                {{ todaySession.durationMinutes }} min
+              </span>
+              <span v-if="todaySession?.rpe" class="general-content__summary-item">
+                <q-icon name="speed" size="14px" />
+                RPE {{ todaySession.rpe }}
+              </span>
+              <span
+                v-if="todaySession?.notes"
+                class="general-content__summary-item general-content__summary-notes"
+              >
+                <q-icon name="notes" size="14px" />
+                {{ todaySession.notes }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <q-btn
+          v-if="!todayCompleted"
+          color="primary"
+          text-color="white"
+          unelevated
+          no-caps
+          label="Entrenar"
+          icon-right="arrow_forward"
+          to="/training"
+        />
+      </q-card-section>
+    </q-card>
+
+    <!-- Training Stats -->
+    <TrainingStats v-if="stats" :stats="stats" class="general-content__stats" />
+
+    <!-- RPE Trend Chart -->
+    <q-card v-if="hasRpeData" class="general-content__chart-card" flat bordered>
+      <q-card-section>
+        <div class="general-content__chart-header">
+          <h3 class="general-content__chart-title">Tendencia de Esfuerzo</h3>
+          <div class="general-content__chart-average">
+            Promedio: <strong>{{ rpeTrend?.averageRpe.toFixed(1) }}</strong>
+          </div>
+        </div>
+        <RpeTrendChart :labels="rpeTrend?.labels ?? []" :data="rpeTrend?.data ?? []" />
+      </q-card-section>
+    </q-card>
+
+    <!-- Evaluation Request -->
+    <EvaluationRequest
+      v-if="evaluation"
+      :eligible="evaluation.eligible"
+      :pending="evaluation.pendingRequest"
+      :average-rpe="evaluation.averageRpeLast2Weeks"
+      class="general-content__evaluation"
+      @request="$emit('requestEvaluation')"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import TrainingStats from './TrainingStats.vue'
+import RpeTrendChart from './RpeTrendChart.vue'
+import EvaluationRequest from './EvaluationRequest.vue'
+import type { ProgressionStats, RpeTrend, EvaluationStatus, TodaySession } from '../types'
+
+const props = defineProps<{
+  todayCompleted: boolean
+  todaySession: TodaySession | null
+  stats: ProgressionStats | null
+  rpeTrend: RpeTrend | null
+  evaluation: EvaluationStatus | null
+}>()
+
+defineEmits<{
+  requestEvaluation: []
+}>()
+
+const hasRpeData = computed(() => {
+  const data = props.rpeTrend?.data
+  if (!data || data.length === 0) return false
+  return data.some((rpe) => rpe !== null)
+})
+</script>
+
+<style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
+.general-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__today-card {
+    background-color: white;
+    border-color: rgba($secondary, 0.3);
+    border-radius: 12px;
+  }
+
+  &__today-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__today-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__today-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__today-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__today-subtitle {
+    font-size: 13px;
+    color: rgba($primary, 0.6);
+    margin: 0;
+  }
+
+  &__session-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  &__summary-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: rgba($primary, 0.7);
+    background: rgba($secondary, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+  }
+
+  &__summary-notes {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__chart-card {
+    background-color: white;
+    border-color: rgba($secondary, 0.2);
+    border-radius: 12px;
+  }
+
+  &__chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  &__chart-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__chart-average {
+    font-size: 13px;
+    color: rgba($primary, 0.7);
+    background: rgba($secondary, 0.1);
+    padding: 4px 10px;
+    border-radius: 12px;
+
+    strong {
+      color: $primary;
+      font-weight: 600;
+    }
+  }
+}
+</style>

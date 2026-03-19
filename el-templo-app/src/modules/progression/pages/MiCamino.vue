@@ -32,7 +32,7 @@
 
     <!-- Content State -->
     <div v-else class="mi-camino__content">
-      <!-- Welcome Header -->
+      <!-- Welcome Header (shared, always visible) -->
       <div class="mi-camino__welcome">
         <div class="mi-camino__welcome-text">
           <p class="mi-camino__greeting">Bienvenido,</p>
@@ -47,96 +47,53 @@
         />
       </div>
 
-      <!-- Today's Training CTA -->
-      <q-card class="mi-camino__today-card" flat bordered>
-        <q-card-section class="mi-camino__today-content">
-          <div class="mi-camino__today-info">
-            <q-icon
-              :name="todayCompleted ? 'check_circle' : 'fitness_center'"
-              :color="todayCompleted ? 'positive' : 'secondary'"
-              size="40px"
-            />
-            <div class="mi-camino__today-text">
-              <p class="mi-camino__today-title">
-                {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
-              </p>
-              <p v-if="!todayCompleted" class="mi-camino__today-subtitle">Lista para comenzar</p>
-              <!-- Session summary when completed -->
-              <div v-else class="mi-camino__session-summary">
-                <span
-                  v-if="progressionStore.todaySession?.durationMinutes"
-                  class="mi-camino__summary-item"
-                >
-                  <q-icon name="timer" size="14px" />
-                  {{ progressionStore.todaySession.durationMinutes }} min
-                </span>
-                <span v-if="progressionStore.todaySession?.rpe" class="mi-camino__summary-item">
-                  <q-icon name="speed" size="14px" />
-                  RPE {{ progressionStore.todaySession.rpe }}
-                </span>
-                <span
-                  v-if="progressionStore.todaySession?.notes"
-                  class="mi-camino__summary-item mi-camino__summary-notes"
-                >
-                  <q-icon name="notes" size="14px" />
-                  {{ progressionStore.todaySession.notes }}
-                </span>
-              </div>
-            </div>
-          </div>
-          <q-btn
-            v-if="!todayCompleted"
-            color="primary"
-            text-color="white"
-            unelevated
-            no-caps
-            label="Entrenar"
-            icon-right="arrow_forward"
-            to="/training"
-          />
-        </q-card-section>
-      </q-card>
+      <!-- Tabs (only shown when user has personalizada data) -->
+      <q-tabs
+        v-if="showTabs"
+        v-model="activeTab"
+        dense
+        class="mi-camino__tabs"
+        active-color="primary"
+        indicator-color="secondary"
+        align="left"
+        no-caps
+      >
+        <q-tab name="general" label="Entrenamiento" />
+        <q-tab name="personalizadas" label="Personalizadas" />
+      </q-tabs>
 
-      <!-- Training Stats (4 cards in grid) -->
-      <TrainingStats
-        v-if="progressionStore.stats"
+      <q-tab-panels v-if="showTabs" v-model="activeTab" animated class="mi-camino__panels">
+        <q-tab-panel name="general" class="mi-camino__panel">
+          <GeneralContent
+            :today-completed="todayCompleted"
+            :today-session="progressionStore.todaySession"
+            :stats="progressionStore.stats"
+            :rpe-trend="progressionStore.rpeTrend"
+            :evaluation="progressionStore.evaluation"
+            @request-evaluation="handleRequestEvaluation"
+          />
+        </q-tab-panel>
+
+        <q-tab-panel name="personalizadas" class="mi-camino__panel">
+          <PersonalizadaSection
+            :active-personalizada="personalizadaProgress.activePersonalizada.value"
+            :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
+            :all-metadata="personalizadaProgress.allMetadata.value"
+            :loading="false"
+            :error="personalizadaProgress.error.value"
+          />
+        </q-tab-panel>
+      </q-tab-panels>
+
+      <!-- No tabs: just general content -->
+      <GeneralContent
+        v-if="!showTabs"
+        :today-completed="todayCompleted"
+        :today-session="progressionStore.todaySession"
         :stats="progressionStore.stats"
-        class="mi-camino__stats"
-      />
-
-      <!-- RPE Trend Chart in a Card (only shown if user has submitted RPE) -->
-      <q-card v-if="hasRpeData" class="mi-camino__chart-card" flat bordered>
-        <q-card-section>
-          <div class="mi-camino__chart-header">
-            <h3 class="mi-camino__chart-title">Tendencia de Esfuerzo</h3>
-            <div class="mi-camino__chart-average">
-              Promedio: <strong>{{ progressionStore.rpeTrend?.averageRpe.toFixed(1) }}</strong>
-            </div>
-          </div>
-          <RpeTrendChart
-            :labels="progressionStore.rpeTrend?.labels ?? []"
-            :data="progressionStore.rpeTrend?.data ?? []"
-          />
-        </q-card-section>
-      </q-card>
-
-      <!-- Evaluation Request -->
-      <EvaluationRequest
-        v-if="progressionStore.evaluation"
-        :eligible="progressionStore.evaluation.eligible"
-        :pending="progressionStore.evaluation.pendingRequest"
-        :average-rpe="progressionStore.evaluation.averageRpeLast2Weeks"
-        class="mi-camino__evaluation"
-        @request="handleRequestEvaluation"
-      />
-
-      <!-- Personalizada Section -->
-      <PersonalizadaSection
-        :active-personalizada="personalizadaProgress.activePersonalizada.value"
-        :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
-        :all-metadata="personalizadaProgress.allMetadata.value"
-        :loading="personalizadaProgress.loading.value"
-        :error="personalizadaProgress.error.value"
+        :rpe-trend="progressionStore.rpeTrend"
+        :evaluation="progressionStore.evaluation"
+        @request-evaluation="handleRequestEvaluation"
       />
     </div>
   </q-page>
@@ -146,25 +103,21 @@
 /**
  * MiCamino page
  *
- * Main progression tracking page showing:
- * - Current level with Greek letter display
- * - Training statistics (sessions, days, streak)
- * - RPE trend chart with average
- * - Evaluation request status and button
- * - Personalizada progress and archived history
+ * Main progression tracking page with two modes:
+ * - Regular users: single view with training stats, RPE, evaluation
+ * - Personalizada users: tabs for General (training) and Personalizadas
  *
- * Fetches progression data and personalizada data on mount.
+ * Tab visibility is automatic — shows tabs only when user has active
+ * or archived personalizadas.
  */
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { usePersonalizadaProgress } from '../composables/usePersonalizadaProgress'
 import { useUserStore } from 'src/stores/useUserStore'
 import LevelDisplay from '../components/LevelDisplay.vue'
-import TrainingStats from '../components/TrainingStats.vue'
-import RpeTrendChart from '../components/RpeTrendChart.vue'
-import EvaluationRequest from '../components/EvaluationRequest.vue'
+import GeneralContent from '../components/GeneralContent.vue'
 import PersonalizadaSection from '../components/PersonalizadaSection.vue'
 
 const progressionStore = useProgressionStore()
@@ -172,16 +125,22 @@ const userStore = useUserStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
 const personalizadaProgress = usePersonalizadaProgress()
 
+const activeTab = ref('general')
+
 /**
- * User's display name - uses fullName computed from userStore
+ * Show tabs when user has any personalizada data (active or archived)
  */
+const showTabs = computed(() => {
+  return (
+    personalizadaProgress.activePersonalizada.value !== null ||
+    personalizadaProgress.archivedPersonalizadas.value.length > 0
+  )
+})
+
 const userName = computed(() => {
   return userStore.fullName || 'Atleta'
 })
 
-/**
- * Today's date formatted in Spanish
- */
 const todayFormatted = computed(() => {
   const options: Intl.DateTimeFormatOptions = {
     weekday: 'long',
@@ -189,49 +148,20 @@ const todayFormatted = computed(() => {
     month: 'long',
   }
   const date = new Date().toLocaleDateString('es-ES', options)
-  // Capitalize first letter
   return date.charAt(0).toUpperCase() + date.slice(1)
 })
 
-/**
- * Check if today's session is completed
- * Uses progressionStore.todaySession from API (more reliable than weekStore)
- */
 const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false
 })
 
-/**
- * Check if this is a new user with no training data at all.
- * Not empty if they have any completed sessions OR an active personalizada.
- */
 const isEmptyState = computed(() => {
-  // Has an active personalizada → not empty
   if (personalizadaProgress.activePersonalizada.value) return false
-
-  // Stats loaded with sessions → not empty
   if (progressionStore.stats && progressionStore.stats.totalSessions > 0) return false
-
-  // Stats loaded with 0 sessions and no personalizada → empty
   if (progressionStore.stats && progressionStore.stats.totalSessions === 0) return true
-
-  // No data loaded at all (shouldn't happen normally)
   return !progressionStore.level && !progressionStore.stats && !progressionStore.error
 })
 
-/**
- * Check if user has any RPE data to display the trend chart
- */
-const hasRpeData = computed(() => {
-  const data = progressionStore.rpeTrend?.data
-  if (!data || data.length === 0) return false
-  // Check if at least one RPE value is not null
-  return data.some((rpe) => rpe !== null)
-})
-
-/**
- * Handle evaluation request button click
- */
 async function handleRequestEvaluation() {
   await requestEvaluation()
 }
@@ -283,12 +213,6 @@ onMounted(() => {
   &__error-text {
     font-size: 14px;
     color: rgba($primary, 0.8);
-    margin-bottom: 16px;
-  }
-
-  &__empty-icon {
-    font-size: 72px;
-    color: $secondary;
     margin-bottom: 16px;
   }
 
@@ -350,105 +274,23 @@ onMounted(() => {
     margin-left: 16px;
   }
 
-  &__today-card {
-    background-color: white;
-    border-color: rgba($secondary, 0.3);
-    border-radius: 12px;
-  }
+  &__tabs {
+    margin: -8px -4px 0;
 
-  &__today-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-  }
-
-  &__today-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  &__today-text {
-    display: flex;
-    flex-direction: column;
-  }
-
-  &__today-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    color: $primary;
-    margin: 0;
-  }
-
-  &__today-subtitle {
-    font-size: 13px;
-    color: rgba($primary, 0.6);
-    margin: 0;
-  }
-
-  &__session-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
-  }
-
-  &__summary-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: rgba($primary, 0.7);
-    background: rgba($secondary, 0.1);
-    padding: 2px 8px;
-    border-radius: 10px;
-  }
-
-  &__summary-notes {
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__level {
-    margin-bottom: 8px;
-  }
-
-  &__chart-card {
-    background-color: white;
-    border-color: rgba($secondary, 0.2);
-    border-radius: 12px;
-  }
-
-  &__chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-  }
-
-  &__chart-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
-    font-weight: 600;
-    color: $primary;
-    margin: 0;
-  }
-
-  &__chart-average {
-    font-size: 13px;
-    color: rgba($primary, 0.7);
-    background: rgba($secondary, 0.1);
-    padding: 4px 10px;
-    border-radius: 12px;
-
-    strong {
-      color: $primary;
+    :deep(.q-tab) {
+      font-family: 'Montserrat', sans-serif;
       font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.02em;
     }
+  }
+
+  &__panels {
+    background: transparent;
+  }
+
+  &__panel {
+    padding: 0;
   }
 }
 </style>

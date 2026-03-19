@@ -29,7 +29,7 @@
             <q-icon name="explore" size="28px" class="personalizada-section__icon" />
           </div>
 
-          <p class="personalizada-section__since">
+          <p v-if="activePersonalizada.startedAt" class="personalizada-section__since">
             Activo desde {{ formatDate(activePersonalizada.startedAt) }}
           </p>
 
