@@ -34,7 +34,7 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 
 ### Proactive Schedulers
 
-- [ ] **SCHED-01**: Class reminder sends WhatsApp template message N hours before booked class (node-cron + Redis distributed lock)
+- [x] **SCHED-01**: Class reminder sends WhatsApp template message N hours before booked class (node-cron + Redis distributed lock)
 - [ ] **SCHED-02**: Trial follow-up sends message 24-48h after trial attendance asking how it went + offering membership
 
 ### Admin Panel
@@ -92,7 +92,7 @@ Requirements for WhatsApp AI chatbot milestone. Each maps to roadmap phases.
 | MEM-02      | Phase 69 | Complete |
 | MEM-03      | Phase 69 | Complete |
 | MEM-04      | Phase 69 | Complete |
-| SCHED-01    | Phase 71 | Pending  |
+| SCHED-01    | Phase 71 | Complete |
 | SCHED-02    | Phase 71 | Pending  |
 | ADMIN-01    | Phase 72 | Pending  |
 | ADMIN-02    | Phase 72 | Pending  |

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.0
 milestone_name: WhatsApp AI Chatbot
 status: executing
-stopped_at: Completed 70-02-PLAN.md
-last_updated: "2026-03-19T00:52:04.000Z"
-last_activity: 2026-03-19 -- Completed Plan 02 of Phase 70
+stopped_at: Completed 71-01-PLAN.md
+last_updated: "2026-03-19T01:31:24.000Z"
+last_activity: 2026-03-19 -- Completed Plan 01 of Phase 71
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 9
-  completed_plans: 9
-  percent: 53
+  completed_plans: 10
+  percent: 59
 ---
 
 # Project State
@@ -21,22 +21,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-17)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp -- and can book classes and register for trials without human intervention.
-**Current focus:** Phase 70 -- Action Tools
+**Current focus:** Phase 71 -- Proactive Schedulers
 
 ## Current Position
 
-Phase: 70 of 73 (Action Tools)
-Plan: 2 of 2
-Status: Phase Complete
-Last activity: 2026-03-19 -- Completed Plan 02 of Phase 70
+Phase: 71 of 73 (Proactive Schedulers)
+Plan: 1 of 2
+Status: Executing
+Last activity: 2026-03-19 -- Completed Plan 01 of Phase 71
 
-Progress: [▓▓▓▓▓▓░░░░] 53%
+Progress: [▓▓▓▓▓▓░░░░] 59%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 8 (v5.0)
+- Total plans completed: 9 (v5.0)
 
 **By Phase:**
 
@@ -46,6 +46,7 @@ Progress: [▓▓▓▓▓▓░░░░] 53%
 | 68    | 3/3   | 14 min | 5 min    |
 | 69    | 2/2   | 16 min | 8 min    |
 | 70    | 2/2   | 8 min  | 4 min    |
+| 71    | 1/2   | 3 min  | 3 min    |
 
 ## Accumulated Context
 
@@ -88,6 +89,9 @@ Recent decisions affecting current work:
 - [70-02] pendingActions module-level Map keyed by phone for button reply state
 - [70-02] [BUTTONS_SENT] marker returned by tools to suppress AI text response
 - [70-02] Button replies dispatched directly in handler before AI processing
+- [71-01] TemplateComponent type uses union 'body' | 'header' | 'button' for Meta API template components
+- [71-01] Reminder hours configurable via CLASS_REMINDER_HOURS env var (default 2)
+- [71-01] Reminder dedup via Redis key wa:reminder:class:{bookingId} with 24h TTL
 
 ### Pending Todos
 
@@ -100,5 +104,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Completed 70-02-PLAN.md (Phase 70 complete)
-Resume file: .planning/phases/70-action-tools/70-02-SUMMARY.md
+Stopped at: Completed 71-01-PLAN.md
+Resume file: .planning/phases/71-proactive-schedulers/71-01-SUMMARY.md
