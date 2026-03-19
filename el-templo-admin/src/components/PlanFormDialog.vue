@@ -128,6 +128,9 @@
             <q-toggle v-model="form.multiBranch" label="Multi-sucursal" />
             <q-toggle v-model="form.isTrial" label="Plan de prueba" />
             <q-toggle v-model="form.isGroup" label="Plan grupal" />
+            <q-toggle v-model="form.isPersonalizada" label="Personalizada">
+              <q-tooltip>Otorga acceso a Clases Personalizadas</q-tooltip>
+            </q-toggle>
           </div>
 
           <q-input
@@ -211,6 +214,7 @@ const form = ref({
   multiBranch: false,
   isTrial: false,
   isGroup: false,
+  isPersonalizada: false,
   groupMaxMembers: null as number | null,
 });
 
@@ -264,6 +268,7 @@ watch(
         multiBranch: props.plan.multiBranch,
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
+        isPersonalizada: props.plan.isPersonalizada,
         groupMaxMembers: props.plan.groupMaxMembers,
       };
     } else {
@@ -280,6 +285,7 @@ watch(
         multiBranch: false,
         isTrial: false,
         isGroup: false,
+        isPersonalizada: false,
         groupMaxMembers: null,
       };
     }
@@ -309,6 +315,7 @@ async function onSubmit() {
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,
+      isPersonalizada: form.value.isPersonalizada,
       groupMaxMembers: form.value.isGroup ? (form.value.groupMaxMembers ?? undefined) : undefined,
     };
 
