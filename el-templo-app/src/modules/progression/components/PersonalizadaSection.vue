@@ -90,32 +90,62 @@
                 size="10px"
                 class="personalizada-section__cycle-bar"
               />
-              <!-- Duration Breakdown -->
-              <div class="personalizada-section__breakdown">
-                <span
-                  v-if="cycleStats.durationBreakdown.d20 > 0"
-                  class="personalizada-section__breakdown-item"
-                >
-                  {{ cycleStats.durationBreakdown.d20 }} de 20 min
-                </span>
-                <span
-                  v-if="cycleStats.durationBreakdown.d40 > 0"
-                  class="personalizada-section__breakdown-item"
-                >
-                  {{ cycleStats.durationBreakdown.d40 }} de 40 min
-                </span>
-                <span
-                  v-if="cycleStats.durationBreakdown.d60 > 0"
-                  class="personalizada-section__breakdown-item"
-                >
-                  {{ cycleStats.durationBreakdown.d60 }} de 60 min
-                </span>
-                <span
-                  v-if="cycleStats.totalCompletions === 0"
-                  class="personalizada-section__breakdown-item personalizada-section__breakdown-item--empty"
-                >
-                  Aun no completaste sesiones en este ciclo
-                </span>
+              <!-- Per-Duration Semana Progress (matches post-session resumen) -->
+              <div class="personalizada-section__durations">
+                <div class="personalizada-section__duration-row">
+                  <span class="personalizada-section__duration-time"
+                    >20 <span class="personalizada-section__duration-unit">min</span></span
+                  >
+                  <div class="personalizada-section__duration-info">
+                    <span class="personalizada-section__duration-label"
+                      >Semana {{ activePersonalizada.semana20 }}</span
+                    >
+                    <q-linear-progress
+                      :value="activePersonalizada.semana20 / 21"
+                      color="secondary"
+                      track-color="grey-3"
+                      size="6px"
+                      rounded
+                      class="q-mt-xs"
+                    />
+                  </div>
+                </div>
+                <div class="personalizada-section__duration-row">
+                  <span class="personalizada-section__duration-time"
+                    >40 <span class="personalizada-section__duration-unit">min</span></span
+                  >
+                  <div class="personalizada-section__duration-info">
+                    <span class="personalizada-section__duration-label"
+                      >Semana {{ activePersonalizada.semana40 }}</span
+                    >
+                    <q-linear-progress
+                      :value="activePersonalizada.semana40 / 21"
+                      color="secondary"
+                      track-color="grey-3"
+                      size="6px"
+                      rounded
+                      class="q-mt-xs"
+                    />
+                  </div>
+                </div>
+                <div class="personalizada-section__duration-row">
+                  <span class="personalizada-section__duration-time"
+                    >60 <span class="personalizada-section__duration-unit">min</span></span
+                  >
+                  <div class="personalizada-section__duration-info">
+                    <span class="personalizada-section__duration-label"
+                      >Semana {{ activePersonalizada.semana60 }}</span
+                    >
+                    <q-linear-progress
+                      :value="activePersonalizada.semana60 / 21"
+                      color="secondary"
+                      track-color="grey-3"
+                      size="6px"
+                      rounded
+                      class="q-mt-xs"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -551,24 +581,43 @@ function onConfirmChange(): void {
     margin-bottom: 12px;
   }
 
-  &__breakdown {
+  &__durations {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  &__breakdown-item {
-    font-size: 12px;
-    color: rgba($primary, 0.6);
-    background-color: rgba($cream, 0.7);
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-weight: 500;
+  &__duration-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    background: rgba($cream, 0.7);
+    border-radius: 8px;
+  }
 
-    &--empty {
-      font-style: italic;
-      background-color: transparent;
-    }
+  &__duration-time {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: $secondary;
+    min-width: 50px;
+    line-height: 1;
+  }
+
+  &__duration-unit {
+    font-size: 0.7rem;
+    color: rgba($primary, 0.4);
+  }
+
+  &__duration-info {
+    flex: 1;
+  }
+
+  &__duration-label {
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: $primary;
   }
 
   // Wrap-Up Card
