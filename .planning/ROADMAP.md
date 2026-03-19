@@ -1332,7 +1332,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 68. Personalizadas Frontend Rename           | 2/2            | Complete | 2026-03-18 |
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
 | 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
-| 71. Plan-Driven Personalizada Assignment     | 0/0            | Pending  |            |
+| 71. Plan-Driven Personalizada Assignment     | 0/2            | Planned  |            |
 | 72. Unified Training Experience              | 0/0            | Pending  |            |
 | 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending  |            |
 
@@ -1363,7 +1363,7 @@ Plans:
 
 **Goal**: The subscription plan defines which personalizada type a member trains — no member-side selection. Admin assigns personalizada type via the plan, subscription activation auto-populates member_personalizadas, and the member app selection flow (grid, overview, confirm) is removed along with the Personalizada nav item.
 **Depends on**: Phase 70 (cycle config in place, personalizada subscription infrastructure)
-**Requirements**: TBD
+**Requirements**: PDRV-01, PDRV-02, PDRV-03, PDRV-04, PDRV-05
 **Success Criteria** (what must be TRUE):
 
 1. `subscription_plans` table has a `personalizadaType` column linking plan to a specific personalizada
@@ -1372,11 +1372,12 @@ Plans:
 4. Personalizada nav item is removed from member app bottom navigation
 5. Existing members with active personalizadas continue working (migration handles current data)
 
-**Plans:** 0 plans
+**Plans:** 2 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 71 to break down)
+- [ ] 71-01-PLAN.md — Backend: schema migration, types, service hooks, route removal, integration tests
+- [ ] 71-02-PLAN.md — Frontend: admin personalizadaType dropdown, member app selection flow removal
 
 ---
 
