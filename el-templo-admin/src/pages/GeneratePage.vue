@@ -26,19 +26,19 @@
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
             <div class="row items-center q-gutter-md">
-              <q-input
-                v-model.number="selectedWeek"
-                type="number"
+              <q-select
+                v-model="selectedWeek"
+                :options="weekOptions"
                 label="Semana"
-                :min="1"
-                max="52"
                 outlined
                 dense
-                style="width: 100px"
+                emit-value
+                map-options
+                style="min-width: 280px"
                 @update:model-value="loadWeekSummary"
               />
               <span class="text-caption text-grey">
-                Actual: {{ formatWeekLabel(currentWeek) }} (solo semanas futuras)
+                Actual: {{ formatWeekLabel(currentWeek) }}
               </span>
             </div>
           </q-card-section>
@@ -152,18 +152,18 @@
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
             <div class="row items-center q-gutter-md">
-              <q-input
-                v-model.number="personalizadaWeek"
-                type="number"
+              <q-select
+                v-model="personalizadaWeek"
+                :options="weekOptions"
                 label="Semana"
-                :min="1"
-                max="52"
                 outlined
                 dense
-                style="width: 100px"
+                emit-value
+                map-options
+                style="min-width: 280px"
               />
               <span class="text-caption text-grey">
-                Actual: {{ formatWeekLabel(currentWeek) }} (solo semanas futuras)
+                Actual: {{ formatWeekLabel(currentWeek) }}
               </span>
             </div>
           </q-card-section>
@@ -267,8 +267,7 @@
           <template #avatar>
             <q-icon name="info" />
           </template>
-          Selecciona una semana futura (posterior a {{ formatWeekLabel(currentWeek) }}) para generar
-          sesiones personalizadas.
+          Selecciona una semana futura para generar sesiones personalizadas.
         </q-banner>
       </q-tab-panel>
     </q-tab-panels>
@@ -306,6 +305,15 @@ const personalizadaApi = usePersonalizadasAdminApi();
 // Shared state
 // ============================================================
 const activeTab = ref('general');
+
+// Week selector options: show next 8 weeks as date ranges
+const weekOptions = computed(() => {
+  const options = [];
+  for (let w = currentWeek.value + 1; w <= Math.min(currentWeek.value + 8, 52); w++) {
+    options.push({ label: formatWeekLabel(w), value: w });
+  }
+  return options;
+});
 const currentWeek = ref(1);
 
 // ============================================================
