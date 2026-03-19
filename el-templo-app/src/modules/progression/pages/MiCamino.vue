@@ -79,6 +79,7 @@
             :active-personalizada="personalizadaProgress.activePersonalizada.value"
             :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
             :all-metadata="personalizadaProgress.allMetadata.value"
+            :cycle-stats="personalizadaProgress.cycleStats.value"
             :loading="false"
             :error="personalizadaProgress.error.value"
           />
@@ -166,9 +167,13 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchStats()
-  personalizadaProgress.fetchPersonalizadaData()
+  await personalizadaProgress.fetchPersonalizadaData()
+  // Default to Personalizadas tab when member has an active personalizada
+  if (personalizadaProgress.activePersonalizada.value) {
+    activeTab.value = 'personalizadas'
+  }
 })
 </script>
 

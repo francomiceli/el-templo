@@ -73,30 +73,126 @@
               Activo desde {{ formatDate(activePersonalizada.startedAt) }}
             </p>
 
-            <!-- Per-duration semana counters -->
-            <div class="personalizada-section__semanas">
-              <div class="personalizada-section__semana-row">
-                <span class="personalizada-section__duration-label">20 min</span>
-                <span class="personalizada-section__semana-value"
-                  >Semana {{ activePersonalizada.semana20 }}</span
-                >
+            <!-- Cycle Progress (replaces per-duration semana rows) -->
+            <div
+              v-if="cycleStats && !cycleStats.cycleComplete"
+              class="personalizada-section__cycle"
+            >
+              <div class="personalizada-section__cycle-header">
+                <span class="personalizada-section__cycle-week">{{ cycleWeekLabel }}</span>
+                <span class="personalizada-section__cycle-completions">{{ completionLabel }}</span>
               </div>
-              <div class="personalizada-section__semana-row">
-                <span class="personalizada-section__duration-label">40 min</span>
-                <span class="personalizada-section__semana-value"
-                  >Semana {{ activePersonalizada.semana40 }}</span
+              <q-linear-progress
+                :value="cycleProgress"
+                color="secondary"
+                track-color="grey-3"
+                rounded
+                size="10px"
+                class="personalizada-section__cycle-bar"
+              />
+              <!-- Duration Breakdown -->
+              <div class="personalizada-section__breakdown">
+                <span
+                  v-if="cycleStats.durationBreakdown.d20 > 0"
+                  class="personalizada-section__breakdown-item"
                 >
-              </div>
-              <div class="personalizada-section__semana-row">
-                <span class="personalizada-section__duration-label">60 min</span>
-                <span class="personalizada-section__semana-value"
-                  >Semana {{ activePersonalizada.semana60 }}</span
+                  {{ cycleStats.durationBreakdown.d20 }} de 20 min
+                </span>
+                <span
+                  v-if="cycleStats.durationBreakdown.d40 > 0"
+                  class="personalizada-section__breakdown-item"
                 >
+                  {{ cycleStats.durationBreakdown.d40 }} de 40 min
+                </span>
+                <span
+                  v-if="cycleStats.durationBreakdown.d60 > 0"
+                  class="personalizada-section__breakdown-item"
+                >
+                  {{ cycleStats.durationBreakdown.d60 }} de 60 min
+                </span>
+                <span
+                  v-if="cycleStats.totalCompletions === 0"
+                  class="personalizada-section__breakdown-item personalizada-section__breakdown-item--empty"
+                >
+                  Aun no completaste sesiones en este ciclo
+                </span>
               </div>
             </div>
 
-            <!-- Change Personalizada Button -->
+            <!-- Cycle Complete Wrap-Up Card -->
+            <q-card
+              v-if="cycleStats && cycleStats.cycleComplete"
+              class="personalizada-section__wrapup"
+              flat
+              bordered
+            >
+              <q-card-section>
+                <div class="personalizada-section__wrapup-header">
+                  <q-icon name="emoji_events" size="36px" color="secondary" />
+                  <h3 class="personalizada-section__wrapup-title">Ciclo Completo!</h3>
+                </div>
+
+                <p class="personalizada-section__wrapup-summary">
+                  Completaste
+                  <strong>{{ cycleStats.totalCompletions }} sesiones</strong> en
+                  {{ cycleStats.cycleWeeks }} semanas.
+                </p>
+
+                <!-- Duration Breakdown in wrap-up -->
+                <div class="personalizada-section__wrapup-breakdown">
+                  <div
+                    v-if="cycleStats.durationBreakdown.d20 > 0"
+                    class="personalizada-section__wrapup-duration"
+                  >
+                    <span class="personalizada-section__wrapup-count">{{
+                      cycleStats.durationBreakdown.d20
+                    }}</span>
+                    <span class="personalizada-section__wrapup-label">sesiones de 20 min</span>
+                  </div>
+                  <div
+                    v-if="cycleStats.durationBreakdown.d40 > 0"
+                    class="personalizada-section__wrapup-duration"
+                  >
+                    <span class="personalizada-section__wrapup-count">{{
+                      cycleStats.durationBreakdown.d40
+                    }}</span>
+                    <span class="personalizada-section__wrapup-label">sesiones de 40 min</span>
+                  </div>
+                  <div
+                    v-if="cycleStats.durationBreakdown.d60 > 0"
+                    class="personalizada-section__wrapup-duration"
+                  >
+                    <span class="personalizada-section__wrapup-count">{{
+                      cycleStats.durationBreakdown.d60
+                    }}</span>
+                    <span class="personalizada-section__wrapup-label">sesiones de 60 min</span>
+                  </div>
+                </div>
+
+                <!-- CTAs -->
+                <div class="personalizada-section__wrapup-actions">
+                  <q-btn
+                    outline
+                    no-caps
+                    class="personalizada-section__wrapup-btn"
+                    label="Cambiar Personalizada"
+                    icon="swap_horiz"
+                    @click="showChangeDialog = true"
+                  />
+                  <q-btn
+                    flat
+                    no-caps
+                    class="personalizada-section__wrapup-consult"
+                    label="Consulta en recepcion para renovar"
+                    icon="support_agent"
+                  />
+                </div>
+              </q-card-section>
+            </q-card>
+
+            <!-- Change Personalizada Button (when no wrap-up card shown) -->
             <q-btn
+              v-if="!cycleStats?.cycleComplete"
               outline
               no-caps
               class="personalizada-section__change-btn"
@@ -225,6 +321,7 @@ import type {
   ArchivedPersonalizada,
   PersonalizadaMetadata,
   PersonalizadaTier,
+  CycleStats,
 } from 'src/modules/personalizada/types'
 
 const log = createLogger('PersonalizadaSection')
@@ -234,6 +331,7 @@ const props = defineProps<{
   activePersonalizada: PersonalizadaProgress | null
   archivedPersonalizadas: ArchivedPersonalizada[]
   allMetadata: PersonalizadaMetadata[]
+  cycleStats: CycleStats | null
   loading: boolean
   error: string | null
 }>()
@@ -260,6 +358,22 @@ const activePersonalizadaName = computed(() => {
 const activePersonalizadaTierLabel = computed(() => {
   if (!activeMetadata.value) return ''
   return TIER_LABELS[activeMetadata.value.tier] ?? ''
+})
+
+const cycleProgress = computed(() => {
+  if (!props.cycleStats) return 0
+  return props.cycleStats.currentWeek / props.cycleStats.cycleWeeks
+})
+
+const cycleWeekLabel = computed(() => {
+  if (!props.cycleStats) return ''
+  return `Semana ${props.cycleStats.currentWeek} de ${props.cycleStats.cycleWeeks}`
+})
+
+const completionLabel = computed(() => {
+  if (!props.cycleStats) return ''
+  const n = props.cycleStats.totalCompletions
+  return `${n} ${n === 1 ? 'sesion completada' : 'sesiones completadas'}`
 })
 
 function getPersonalizadaName(personalizadaType: string): string {
@@ -409,34 +523,130 @@ function onConfirmChange(): void {
     margin: 0 0 12px;
   }
 
-  // Per-duration semana counters
-  &__semanas {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  // Cycle Progress
+  &__cycle {
     margin-bottom: 16px;
   }
 
-  &__semana-row {
+  &__cycle-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background-color: rgba($cream, 0.7);
-    border-radius: 8px;
+    align-items: baseline;
+    margin-bottom: 8px;
   }
 
-  &__duration-label {
-    font-size: 13px;
-    color: rgba($primary, 0.6);
-    font-weight: 500;
-  }
-
-  &__semana-value {
+  &__cycle-week {
     font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: $primary;
+  }
+
+  &__cycle-completions {
+    font-size: 13px;
+    color: rgba($primary, 0.6);
+  }
+
+  &__cycle-bar {
+    margin-bottom: 12px;
+  }
+
+  &__breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__breakdown-item {
+    font-size: 12px;
+    color: rgba($primary, 0.6);
+    background-color: rgba($cream, 0.7);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+
+    &--empty {
+      font-style: italic;
+      background-color: transparent;
+    }
+  }
+
+  // Wrap-Up Card
+  &__wrapup {
+    background-color: white;
+    border-color: rgba($secondary, 0.4);
+    border-radius: 12px;
+    margin-bottom: 16px;
+  }
+
+  &__wrapup-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  &__wrapup-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__wrapup-summary {
+    font-size: 14px;
+    color: rgba($primary, 0.7);
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+
+  &__wrapup-breakdown {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  &__wrapup-duration {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    padding: 12px 8px;
+    background-color: rgba($cream, 0.7);
+    border-radius: 10px;
+  }
+
+  &__wrapup-count {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: $secondary;
+  }
+
+  &__wrapup-label {
+    font-size: 11px;
+    color: rgba($primary, 0.6);
+    text-align: center;
+    margin-top: 4px;
+  }
+
+  &__wrapup-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__wrapup-btn {
+    width: 100%;
+    color: $secondary !important;
+    border-color: $secondary !important;
+  }
+
+  &__wrapup-consult {
+    width: 100%;
+    color: rgba($primary, 0.6) !important;
+    font-size: 13px;
   }
 
   &__change-btn {
