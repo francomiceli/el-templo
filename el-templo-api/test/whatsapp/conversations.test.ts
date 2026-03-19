@@ -1,9 +1,10 @@
 /**
  * Integration tests for WhatsApp admin conversation endpoints.
  *
- * Tests GET /api/admin/whatsapp/conversations (list) and
- * GET /api/admin/whatsapp/conversations/:id (detail) against
- * a real MySQL test database.
+ * Tests GET /api/admin/whatsapp/conversations (list),
+ * GET /api/admin/whatsapp/conversations/:id (detail),
+ * PUT /conversations/:id/takeover, PUT /conversations/:id/resume,
+ * and POST /conversations/:id/send against a real MySQL test database.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -223,5 +224,131 @@ describe("WhatsApp Admin Conversations", () => {
       const curr = new Date(messages[i].createdAt).getTime();
       expect(curr).toBeGreaterThanOrEqual(prev);
     }
+  });
+
+  // ─── Takeover ───────────────────────────────────────────────────────────
+
+  it("PUT /conversations/:id/takeover returns 200 with human_takeover status", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[1]}/takeover`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.status).toBe("human_takeover");
+    expect(body.assignedAdminId).toBeTypeOf("number");
+    expect(body.id).toBe(conversationIds[1]);
+  });
+
+  it("PUT /conversations/:id/takeover on already-taken-over conversation returns 400", async () => {
+    // conversationIds[1] was taken over in the previous test
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[1]}/takeover`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PUT /conversations/:id/takeover on non-existent id returns 404", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/admin/whatsapp/conversations/999999/takeover",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  // ─── Resume ─────────────────────────────────────────────────────────────
+
+  it("PUT /conversations/:id/resume returns 200 with active status", async () => {
+    // conversationIds[1] is in human_takeover from takeover tests above
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[1]}/resume`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.status).toBe("active");
+    expect(body.assignedAdminId).toBeNull();
+    expect(body.id).toBe(conversationIds[1]);
+  });
+
+  it("PUT /conversations/:id/resume on non-taken-over conversation returns 400", async () => {
+    // conversationIds[1] was just resumed, so it's active again
+    const res = await app.inject({
+      method: "PUT",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[1]}/resume`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PUT /conversations/:id/resume on non-existent id returns 404", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/admin/whatsapp/conversations/999999/resume",
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  // ─── Send Message ───────────────────────────────────────────────────────
+
+  it("POST /conversations/:id/send returns 201 with outbound_human message", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[0]}/send`,
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": "application/json",
+      },
+      payload: { content: "Hola desde admin" },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.direction).toBe("outbound_human");
+    expect(body.content).toBe("Hola desde admin");
+    expect(body.conversationId).toBe(conversationIds[0]);
+    expect(body.messageType).toBe("text");
+    expect(body).toHaveProperty("id");
+    expect(body).toHaveProperty("createdAt");
+  });
+
+  it("POST /conversations/:id/send on non-existent id returns 404", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/whatsapp/conversations/999999/send",
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": "application/json",
+      },
+      payload: { content: "Test message" },
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("POST /conversations/:id/send without content returns 400", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/admin/whatsapp/conversations/${conversationIds[0]}/send`,
+      headers: {
+        authorization: `Bearer ${adminToken}`,
+        "content-type": "application/json",
+      },
+      payload: {},
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });
