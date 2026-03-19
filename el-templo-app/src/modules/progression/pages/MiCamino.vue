@@ -1,7 +1,10 @@
 <template>
   <q-page class="mi-camino">
     <!-- Loading State -->
-    <div v-if="progressionStore.loading" class="mi-camino__loading">
+    <div
+      v-if="progressionStore.loading || personalizadaProgress.loading.value"
+      class="mi-camino__loading"
+    >
       <q-spinner color="primary" size="60px" />
       <div class="mi-camino__loading-row">
         <FlameIcon size="xs" />
@@ -199,14 +202,20 @@ const todayCompleted = computed(() => {
 })
 
 /**
- * Check if this is a new user with no training data
+ * Check if this is a new user with no training data at all.
+ * Not empty if they have any completed sessions OR an active personalizada.
  */
 const isEmptyState = computed(() => {
-  // Empty if stats exist but show 0 sessions
-  if (progressionStore.stats && progressionStore.stats.totalSessions === 0) {
-    return true
-  }
-  // Also empty if no data loaded at all (shouldn't happen normally)
+  // Has an active personalizada → not empty
+  if (personalizadaProgress.activePersonalizada.value) return false
+
+  // Stats loaded with sessions → not empty
+  if (progressionStore.stats && progressionStore.stats.totalSessions > 0) return false
+
+  // Stats loaded with 0 sessions and no personalizada → empty
+  if (progressionStore.stats && progressionStore.stats.totalSessions === 0) return true
+
+  // No data loaded at all (shouldn't happen normally)
   return !progressionStore.level && !progressionStore.stats && !progressionStore.error
 })
 
