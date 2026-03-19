@@ -368,8 +368,8 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
 }
 
 function onProgressContinue(): void {
-  // Navigate back to duration picker for next session
-  router.push({ name: 'personalizada-duration' })
+  // Navigate to Mi Camino after viewing progress
+  router.push('/mi-camino')
 }
 
 function navigateBack(): void {

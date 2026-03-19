@@ -350,7 +350,7 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
       position: 'top',
       timeout: 2000,
     })
-    router.push({ name: 'training' })
+    router.push('/mi-camino')
   } else {
     $q.notify({
       type: 'negative',
