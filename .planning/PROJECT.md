@@ -4,27 +4,24 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v4.1 Admin Consolidation & Data Migration
+## Current Milestone: v4.2 Clases Personalizadas Launch
 
-**Goal:** Make the admin + member app ecosystem operational for physical branches by importing real member data, enhancing the admin with features from the legacy system tutorials, and deploying everything to production.
+**Goal:** Ship the "Journeys" feature to production as "Clases Personalizadas" — full rename across DB/API/frontend, subscription gating via standalone Personalizadas plan type, AURA rewards on completion, and member app module activation.
 
 **Target features:**
 
-- Production deployment: push all v4.0 staging work to production so all environments match
-- Schema extensions & data import: add documentType, address fields; import 5 branch CSV datasets (alem, constitucion, jujuy, mogotes, moreno)
-- QR access system: kiosk welcome screen + enhanced admin panel with soft verification (subscription validity, warnings, no hard blocks)
-- Plan configuration: turnos-per-week limits, class-based plans (X classes to spend), multi-branch flag, trial flag, grace period
-- Cash box (Estado de Caja): daily cash reconciliation, float entry, collection tracking by payment method
-- Payment improvements: discounts with reason, charge cancellation (frees booking slots), cuenta corriente (account balance/debt tracking)
-- Enhanced reports: access log, charge history, debt list, expiring memberships, inactive members — all as dashboard tabs with filters + Excel export
-- Role-based permissions: admin, coach, recepcionista, owner roles with predefined permission sets
-- Member management: photo upload, subscription change workflow, Excel export
+- Full backend rename: DB migration (tables + columns), API module/routes/types/constants from journey → personalizada
+- Full frontend rename: Admin and member app types, composables, pages, components, routes from journey → personalizada
+- Subscription gate: `isPersonalizada` flag on plans, 403 enforcement in service layer
+- AURA rewards: 10 points on personalizada session completion (same as QR check-in)
+- Member app module enable: uncomment personalizada module registration
+- Cycle progress: week-based progress bars, duration breakdown, cycle completion wrap-up card
 
 ## Core Value
 
 Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels — transforming daily training into visible progression toward mastery.
 
-**v4.1 core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
+**v4.2 core value:** Members with a Personalizadas subscription can access personalized training sessions (body-zone focused programs), complete them for AURA rewards, and see their progress — fully branded as "Clases Personalizadas" throughout the platform.
 
 ## Requirements
 
@@ -44,10 +41,11 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ Member management CRUD, subscriptions, payments, attendance, scheduling, analytics (v4.0)
 - ✓ QR check-in, class booking, dashboard analytics (v4.0)
 - ✓ Registration flow fixes, codebase health, god object decomposition (v4.0)
+- ✓ Production deployment, data import, plan config, QR access, cash box, reports, roles (v4.1)
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v4.1 scope)
+See: .planning/REQUIREMENTS-v4.2.md (v4.2 scope)
 
 ### Out of Scope
 
@@ -113,4 +111,4 @@ See: .planning/REQUIREMENTS.md (v4.1 scope)
 
 ---
 
-_Last updated: 2026-03-14 after v4.1 milestone initialization_
+_Last updated: 2026-03-19 after Phase 70 (Personalizadas Cycle Config) completion — all v4.2 phases complete_
