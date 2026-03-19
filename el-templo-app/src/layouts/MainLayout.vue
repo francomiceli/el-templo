@@ -68,13 +68,6 @@
           <q-item-section>Reservas</q-item-section>
         </q-item>
 
-        <q-item clickable to="/personalizada" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="explore" />
-          </q-item-section>
-          <q-item-section>Personalizada</q-item-section>
-        </q-item>
-
         <q-item clickable to="/training/conceptos" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="menu_book" />
@@ -162,7 +155,6 @@ const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-camino', icon: 'trending_up', label: 'Mi Camino', badge: true },
     { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
-    { to: '/personalizada', icon: 'explore', label: 'Personalizada' },
   ]
   if (!userStore.profile?.branchIsVirtual) {
     tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })

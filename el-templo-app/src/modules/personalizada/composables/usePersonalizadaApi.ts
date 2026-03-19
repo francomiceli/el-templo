@@ -91,28 +91,6 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Select/start a new personalizada for the member.
-   * POST /api/personalizadas/select
-   * Archives any currently active personalizada.
-   */
-  async function selectPersonalizada(type: PersonalizadaType): Promise<PersonalizadaProgress> {
-    try {
-      const response = await api.post<PersonalizadaProgress>(
-        '/personalizadas/select',
-        { personalizadaType: type },
-        { signal: createAbortSignal() },
-      )
-      return response.data
-    } catch (err: unknown) {
-      log.error('Failed to select personalizada', {
-        error: err instanceof Error ? err.message : String(err),
-        personalizadaType: type,
-      })
-      throw err
-    }
-  }
-
-  /**
    * Fetch archived/completed personalizadas for the member.
    * GET /api/personalizadas/archived
    */
@@ -220,7 +198,6 @@ export function usePersonalizadaApi() {
   return {
     getMetadata,
     getActivePersonalizada,
-    selectPersonalizada,
     getArchivedPersonalizadas,
     getStats,
     getSession,

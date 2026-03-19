@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import { usePersonalizadaApi } from '../composables/usePersonalizadaApi'
 import type {
-  PersonalizadaType,
   PersonalizadaDuration,
   PersonalizadaProgress,
   PersonalizadaMetadata,
@@ -103,27 +102,6 @@ export const usePersonalizadaStore = defineStore('personalizada', () => {
       log.error('Failed to fetch active personalizada', {
         error: err instanceof Error ? err.message : String(err),
       })
-    } finally {
-      loading.value = false
-      api.cleanup()
-    }
-  }
-
-  /** Select a new personalizada (archives current if any) */
-  async function selectPersonalizada(type: PersonalizadaType): Promise<void> {
-    const api = usePersonalizadaApi()
-    try {
-      loading.value = true
-      error.value = null
-      activePersonalizada.value = await api.selectPersonalizada(type)
-      log.info('Personalizada selected', { personalizadaType: type })
-    } catch (err: unknown) {
-      error.value = 'Error seleccionando personalizada'
-      log.error('Failed to select personalizada', {
-        error: err instanceof Error ? err.message : String(err),
-        personalizadaType: type,
-      })
-      throw err
     } finally {
       loading.value = false
       api.cleanup()
@@ -253,7 +231,6 @@ export const usePersonalizadaStore = defineStore('personalizada', () => {
     // Actions
     fetchMetadata,
     fetchActivePersonalizada,
-    selectPersonalizada,
     setDuration,
     fetchSession,
     completePersonalizadaSession,
