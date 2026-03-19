@@ -19,6 +19,7 @@ import {
   getActivePersonalizadaSchema,
   selectPersonalizadaSchema,
   getArchivedPersonalizadasSchema,
+  getPersonalizadaStatsSchema,
   getPersonalizadaSessionSchema,
   completePersonalizadaSchema,
   generatePersonalizadaSessionsSchema,
@@ -198,6 +199,21 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           request.user.userId,
         );
       return { personalizadas };
+    },
+  );
+
+  // GET /personalizadas/stats — Returns cycle progress stats for member's active personalizada
+  fastify.get(
+    "/personalizadas/stats",
+    {
+      onRequest: [fastify.authenticate],
+      schema: getPersonalizadaStatsSchema,
+    },
+    async (request) => {
+      const stats = await personalizadasService.getCycleStats(
+        request.user.userId,
+      );
+      return { stats };
     },
   );
 

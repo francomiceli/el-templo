@@ -353,6 +353,56 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
+  // GET /api/personalizadas/stats
+  // ---------------------------------------------------------------
+  describe("GET /personalizadas/stats", () => {
+    it("returns null stats when member has no active personalizada", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/stats",
+        headers: { authorization: `Bearer ${memberToken2}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.stats).toBeNull();
+    });
+
+    it("returns cycle stats for member with active personalizada", async () => {
+      // member1 already has an active personalizada (traccion) from earlier tests
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/stats",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.stats).not.toBeNull();
+      expect(body.stats.cycleWeeks).toBeGreaterThan(0);
+      expect(body.stats.currentWeek).toBeGreaterThanOrEqual(1);
+      expect(body.stats.cycleEndDate).toBeTruthy();
+      expect(body.stats.totalCompletions).toBeGreaterThanOrEqual(0);
+      expect(body.stats.durationBreakdown).toEqual(
+        expect.objectContaining({
+          d20: expect.any(Number),
+          d40: expect.any(Number),
+          d60: expect.any(Number),
+        }),
+      );
+      expect(typeof body.stats.cycleComplete).toBe("boolean");
+      // Plan has durationDays=30, so cycleWeeks should be ceil(30/7) = 5
+      expect(body.stats.cycleWeeks).toBe(5);
+    });
+
+    it("returns 401 when not authenticated", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/stats",
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  // ---------------------------------------------------------------
   // GET /api/personalizadas/session
   // ---------------------------------------------------------------
   describe("GET /api/personalizadas/session", () => {

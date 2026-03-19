@@ -130,6 +130,39 @@ export const getArchivedPersonalizadasSchema = {
   },
 };
 
+export const getPersonalizadaStatsSchema = {
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        stats: {
+          oneOf: [
+            { type: "null" },
+            {
+              type: "object",
+              properties: {
+                cycleWeeks: { type: "integer" },
+                currentWeek: { type: "integer" },
+                cycleEndDate: { type: "string" },
+                totalCompletions: { type: "integer" },
+                durationBreakdown: {
+                  type: "object",
+                  properties: {
+                    d20: { type: "integer" },
+                    d40: { type: "integer" },
+                    d60: { type: "integer" },
+                  },
+                },
+                cycleComplete: { type: "boolean" },
+              },
+            },
+          ],
+        },
+      },
+    },
+  },
+};
+
 export const getPersonalizadaSessionSchema = {
   querystring: {
     type: "object",
