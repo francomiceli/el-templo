@@ -1324,7 +1324,7 @@ Plans:
 ## v4.2 Progress
 
 **Execution Order:**
-Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX)
+Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscription + AURA + Enable) → Phase 70 (Cycle Config) → Phase 71 (Plan-Driven Assignment) → Phase 72 (Unified Training UX) → Phase 73 (Mi Plan Catalog)
 
 | Phase                                        | Plans Complete | Status   | Completed  |
 | -------------------------------------------- | -------------- | -------- | ---------- |
@@ -1334,6 +1334,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
 | 71. Plan-Driven Personalizada Assignment     | 0/0            | Pending  |            |
 | 72. Unified Training Experience              | 0/0            | Pending  |            |
+| 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending  |            |
 
 ---
 
@@ -1400,4 +1401,26 @@ Plans:
 
 ---
 
-_v4.2 phases added: 2026-03-18 — 6 phases (67-72), 17+ requirements mapped_
+### Phase 73: Mi Plan — Plan Catalog for Members
+
+**Goal**: Members can browse all available plans (gym plans like Flex, Foundation, etc. AND personalizada plans) in a "Mi Plan" section of the app. Each plan shows its details and a "Contacta para cambiar de plan" CTA. Personalizadas plans explain duration options. This replaces the removed personalizada selection grid with a broader plan discovery experience.
+**Depends on**: Phase 71 (plan-driven assignment in place, selection flow removed)
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+1. Member app has a "Mi Plan" section accessible from navigation
+2. All active plans from subscription_plans are displayed (gym and personalizada)
+3. Each plan shows name, description, tier, pricing, and relevant details
+4. Personalizada plans show their type and explain duration flexibility
+5. "Contacta para cambiar de plan" CTA on each plan card
+6. Member's current plan is highlighted/indicated
+
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd:plan-phase 73 to break down)
+
+---
+
+_v4.2 phases added: 2026-03-18 — 7 phases (67-73), 17+ requirements mapped_
