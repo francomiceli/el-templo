@@ -111,4 +111,4 @@ See: .planning/REQUIREMENTS-v4.2.md (v4.2 scope)
 
 ---
 
-_Last updated: 2026-03-19 after Phase 70 (Personalizadas Cycle Config) completion — all v4.2 phases complete_
+_Last updated: 2026-03-19 after Phase 73 (Planes — Plan Catalog for Members) completion — all v4.2 phases complete_
