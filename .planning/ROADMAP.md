@@ -1333,7 +1333,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete    | 2026-03-19 |
 | 70. Personalizadas Cycle Config              | 2/2            | Complete    | 2026-03-19 |
 | 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete    | 2026-03-19 |
-| 72. Unified Training Experience              | 2/3            | In Progress |            |
+| 72. Unified Training Experience              | 3/3            | Complete    | 2026-03-19 |
 | 73. Planes — Plan Catalog for Members        | 1/2            | In Progress |            |
 
 ---
@@ -1394,7 +1394,7 @@ Plans:
 4. General training stats still accessible (secondary/collapsible) for personalizada members
 5. Members without personalizada subscription see zero changes to their experience
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 

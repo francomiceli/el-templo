@@ -74,6 +74,13 @@
           </q-item-section>
           <q-item-section>Conceptos</q-item-section>
         </q-item>
+
+        <q-item clickable to="/planes" @click="leftDrawerOpen = false">
+          <q-item-section avatar>
+            <q-icon name="card_membership" />
+          </q-item-section>
+          <q-item-section>Planes</q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
@@ -160,6 +167,7 @@ const mobileTabs = computed<MobileTab[]>(() => {
     tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
   }
   tabs.push({ to: '/training/conceptos', icon: 'menu_book', label: 'Conceptos' })
+  tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
   return tabs
 })
 

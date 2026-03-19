@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 72-03-PLAN.md
-last_updated: "2026-03-19T19:45:52.635Z"
+stopped_at: Completed 72-02-PLAN.md
+last_updated: "2026-03-19T19:48:49.617Z"
 progress:
   total_phases: 71
-  completed_phases: 58
+  completed_phases: 59
   total_plans: 257
-  completed_plans: 250
+  completed_plans: 251
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 73 (mi-plan-catalog) — EXECUTING
-Plan: 2 of 2
+Phase: 72 (unified-training-experience) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -78,6 +78,7 @@ _Updated after each plan completion_
 | Phase 72 P01 | 4min | 2 tasks | 2 files |
 | Phase 73 P01 | 3min | 2 tasks | 2 files |
 | Phase 72 P03 | 3min | 2 tasks | 2 files |
+| Phase 72 P02 | 5min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,7 @@ Recent decisions affecting current work:
 - [Phase 72]: Secondary plan query pattern in member-routes handler for plan-level fields, avoiding shared SubscriptionDetail type modification
 - [Phase 73]: No new types needed -- member plan response shape derived inline with field filtering
 - [Phase 72]: Three-mode Mi Camino layout: unified personalizada view (no tabs), archived tabs with renewal banner, and unchanged regular member view
+- [Phase 72]: Context-aware /training page branches on hasActivePersonalizada/hasActiveSubscription; post-session flows unified to /mi-camino
 
 ### Pending Todos
 
@@ -161,6 +163,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T19:45:52.622Z
-Stopped at: Completed 72-03-PLAN.md
+Last session: 2026-03-19T19:48:49.612Z
+Stopped at: Completed 72-02-PLAN.md
 Resume file: None
