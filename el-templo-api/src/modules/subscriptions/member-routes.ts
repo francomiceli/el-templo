@@ -1,7 +1,8 @@
 /**
  * Member-facing Subscription Routes
  *
- * Read-only endpoint for members to view their own subscription.
+ * Read-only endpoints for members to view their own subscription
+ * and browse available plans.
  * Requires authentication but NOT admin role.
  */
 
@@ -10,6 +11,7 @@ import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
+import { PERSONALIZADA_METADATA } from "../personalizadas/constants";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -68,5 +70,41 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       isPersonalizada: plan?.isPersonalizada ?? false,
       personalizadaType: plan?.personalizadaType ?? null,
     };
+  });
+
+  // GET /plans — List all active, non-archived, non-trial plans for member catalog
+  fastify.get("/plans", async () => {
+    const allPlans = await subscriptionService.listPlans(true, false);
+
+    // Exclude trial plans
+    const plans = allPlans.filter((p) => !p.isTrial);
+
+    // Map to member-safe response (no prices) and enrich personalizada zones
+    const mapped = plans.map((p) => {
+      const meta = p.isPersonalizada
+        ? PERSONALIZADA_METADATA.find((m) => m.type === p.personalizadaType)
+        : undefined;
+
+      return {
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        planTier: p.planTier,
+        isPersonalizada: p.isPersonalizada,
+        personalizadaType: p.personalizadaType,
+        personalizadaZones: meta?.zones ?? null,
+      };
+    });
+
+    // Sort: gym plans first (isPersonalizada=false), then personalizada plans
+    // Within each group, sort by name alphabetically
+    mapped.sort((a, b) => {
+      if (a.isPersonalizada !== b.isPersonalizada) {
+        return a.isPersonalizada ? 1 : -1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return { plans: mapped };
   });
 };
