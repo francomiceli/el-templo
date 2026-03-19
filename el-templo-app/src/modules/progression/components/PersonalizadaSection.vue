@@ -73,7 +73,7 @@
               Activo desde {{ formatDate(activePersonalizada.startedAt) }}
             </p>
 
-            <!-- Cycle Progress (replaces per-duration semana rows) -->
+            <!-- Cycle Progress (only when subscription has durationDays) -->
             <div
               v-if="cycleStats && !cycleStats.cycleComplete"
               class="personalizada-section__cycle"
@@ -90,61 +90,62 @@
                 size="10px"
                 class="personalizada-section__cycle-bar"
               />
-              <!-- Per-Duration Semana Progress (matches post-session resumen) -->
-              <div class="personalizada-section__durations">
-                <div class="personalizada-section__duration-row">
-                  <span class="personalizada-section__duration-time"
-                    >20 <span class="personalizada-section__duration-unit">min</span></span
+            </div>
+
+            <!-- Per-Duration Semana Progress (always visible, matches post-session resumen) -->
+            <div class="personalizada-section__durations">
+              <div class="personalizada-section__duration-row">
+                <span class="personalizada-section__duration-time"
+                  >20 <span class="personalizada-section__duration-unit">min</span></span
+                >
+                <div class="personalizada-section__duration-info">
+                  <span class="personalizada-section__duration-label"
+                    >Semana {{ activePersonalizada.semana20 }}</span
                   >
-                  <div class="personalizada-section__duration-info">
-                    <span class="personalizada-section__duration-label"
-                      >Semana {{ activePersonalizada.semana20 }}</span
-                    >
-                    <q-linear-progress
-                      :value="activePersonalizada.semana20 / 21"
-                      color="secondary"
-                      track-color="grey-3"
-                      size="6px"
-                      rounded
-                      class="q-mt-xs"
-                    />
-                  </div>
+                  <q-linear-progress
+                    :value="activePersonalizada.semana20 / 21"
+                    color="secondary"
+                    track-color="grey-3"
+                    size="6px"
+                    rounded
+                    class="q-mt-xs"
+                  />
                 </div>
-                <div class="personalizada-section__duration-row">
-                  <span class="personalizada-section__duration-time"
-                    >40 <span class="personalizada-section__duration-unit">min</span></span
+              </div>
+              <div class="personalizada-section__duration-row">
+                <span class="personalizada-section__duration-time"
+                  >40 <span class="personalizada-section__duration-unit">min</span></span
+                >
+                <div class="personalizada-section__duration-info">
+                  <span class="personalizada-section__duration-label"
+                    >Semana {{ activePersonalizada.semana40 }}</span
                   >
-                  <div class="personalizada-section__duration-info">
-                    <span class="personalizada-section__duration-label"
-                      >Semana {{ activePersonalizada.semana40 }}</span
-                    >
-                    <q-linear-progress
-                      :value="activePersonalizada.semana40 / 21"
-                      color="secondary"
-                      track-color="grey-3"
-                      size="6px"
-                      rounded
-                      class="q-mt-xs"
-                    />
-                  </div>
+                  <q-linear-progress
+                    :value="activePersonalizada.semana40 / 21"
+                    color="secondary"
+                    track-color="grey-3"
+                    size="6px"
+                    rounded
+                    class="q-mt-xs"
+                  />
                 </div>
-                <div class="personalizada-section__duration-row">
-                  <span class="personalizada-section__duration-time"
-                    >60 <span class="personalizada-section__duration-unit">min</span></span
+              </div>
+              <div class="personalizada-section__duration-row">
+                <span class="personalizada-section__duration-time"
+                  >60 <span class="personalizada-section__duration-unit">min</span></span
+                >
+                <div class="personalizada-section__duration-info">
+                  <span class="personalizada-section__duration-label"
+                    >Semana {{ activePersonalizada.semana60 }}</span
                   >
-                  <div class="personalizada-section__duration-info">
-                    <span class="personalizada-section__duration-label"
-                      >Semana {{ activePersonalizada.semana60 }}</span
-                    >
-                    <q-linear-progress
-                      :value="activePersonalizada.semana60 / 21"
-                      color="secondary"
-                      track-color="grey-3"
-                      size="6px"
-                      rounded
-                      class="q-mt-xs"
-                    />
-                  </div>
+                  <q-linear-progress
+                    :value="activePersonalizada.semana60 / 21"
+                    color="secondary"
+                    track-color="grey-3"
+                    size="6px"
+                    rounded
+                    class="q-mt-xs"
+                  />
                 </div>
               </div>
             </div>
