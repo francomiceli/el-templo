@@ -1304,7 +1304,11 @@ Plans:
 1. Member with a booked class receives a WhatsApp template reminder N hours before class time
 2. Trial attendee receives a follow-up message 24-48h after their trial asking how it went and offering membership info
 3. Schedulers use Redis distributed locks so duplicate messages are never sent even if the process restarts
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 71-01-PLAN.md — Distributed lock, sendTemplateMessage, class reminder scheduler with tests
+- [ ] 71-02-PLAN.md — Trial follow-up scheduler, wire both schedulers into bot entry point
 
 ### Phase 72: Admin Panel -- Conversations UI
 
@@ -1343,7 +1347,7 @@ Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -
 | 68. AI Integration + Info Tools               | 3/3            | Complete    | 2026-03-18 |
 | 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
 | 70. Action Tools                              | 2/2            | Complete    | 2026-03-19 |
-| 71. Proactive Schedulers                      | 0/?            | Not started | -          |
+| 71. Proactive Schedulers                      | 0/2            | Not started | -          |
 | 72. Admin Panel -- Conversations UI           | 0/?            | Not started | -          |
 | 73. Admin Panel -- Human Takeover             | 0/?            | Not started | -          |
 
