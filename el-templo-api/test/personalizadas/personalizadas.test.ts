@@ -2,11 +2,14 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 
+const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
+
 describe("Personalizada Routes", () => {
   let app: FastifyInstance;
   let memberToken: string;
   let adminToken: string;
   let memberToken2: string;
+  let memberId: number;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -15,7 +18,7 @@ describe("Personalizada Routes", () => {
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
     // Register member for personalizada tests
-    await registerUser(app, {
+    const member1Result = await registerUser(app, {
       email: "personalizada-member@test.com",
       password: "password123",
       branchId: 1,
@@ -25,8 +28,9 @@ describe("Personalizada Routes", () => {
       "personalizada-member@test.com",
       "password123",
     );
+    memberId = (member1Result.user as { id: number }).id;
 
-    // Register a second member for isolation tests
+    // Register a second member for isolation/enforcement tests (no subscription)
     await registerUser(app, {
       email: "personalizada-member2@test.com",
       password: "password123",
@@ -37,10 +41,113 @@ describe("Personalizada Routes", () => {
       "personalizada-member2@test.com",
       "password123",
     );
+
+    // Create a personalizada-enabled subscription plan
+    const planRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Plan Personalizada Test",
+        planTier: "flex",
+        bookingMode: "flexible",
+        priceRegular: 20000,
+        priceZero: 15000,
+        durationDays: 30,
+        classesPerWeek: 3,
+        isPersonalizada: true,
+      },
+    });
+    expect(planRes.statusCode).toBe(201);
+    const plan = JSON.parse(planRes.body);
+
+    // Assign the personalizada plan to member1
+    const assignRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/assign`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: plan.id,
+        branchId: 1,
+        startDate: "2026-03-01",
+        priceTypeApplied: "regular",
+        paymentMethod: "cash",
+      },
+    });
+    expect(assignRes.statusCode).toBe(201);
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  // ---------------------------------------------------------------
+  // Subscription Enforcement
+  // ---------------------------------------------------------------
+  describe("Subscription Enforcement", () => {
+    it("returns 403 on POST /personalizadas/select without personalizada subscription", async () => {
+      // member2 has no subscription at all
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/personalizadas/select",
+        headers: { authorization: `Bearer ${memberToken2}` },
+        payload: { personalizadaType: "empuje" },
+      });
+      expect(res.statusCode).toBe(403);
+      expect(JSON.parse(res.body).error).toContain("Clases Personalizadas");
+    });
+
+    it("returns 403 on GET /personalizadas/session without personalizada subscription", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
+        headers: { authorization: `Bearer ${memberToken2}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("returns 403 on POST /personalizadas/complete without personalizada subscription", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/personalizadas/complete",
+        headers: { authorization: `Bearer ${memberToken2}` },
+        payload: {
+          dayId: "P-empuje-W1-lunes-alfa",
+          duration: 20,
+          date: "2026-03-18",
+          startedAt: new Date().toISOString(),
+          blocksCompleted: ["INITIUM"],
+        },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("GET /personalizadas/metadata returns 200 without subscription (public)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/metadata",
+        headers: { authorization: `Bearer ${memberToken2}` },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("GET /personalizadas/active returns 200 without subscription (no gate)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/active",
+        headers: { authorization: `Bearer ${memberToken2}` },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it("GET /personalizadas/archived returns 200 without subscription (no gate)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/personalizadas/archived",
+        headers: { authorization: `Bearer ${memberToken2}` },
+      });
+      expect(res.statusCode).toBe(200);
+    });
   });
 
   // ---------------------------------------------------------------
@@ -249,19 +356,6 @@ describe("Personalizada Routes", () => {
   // GET /api/personalizadas/session
   // ---------------------------------------------------------------
   describe("GET /api/personalizadas/session", () => {
-    it("returns 400 when member has no active personalizada", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
-        headers: { authorization: `Bearer ${memberToken2}` },
-      });
-
-      // member2 has no personalizada selected
-      expect(res.statusCode).toBe(400);
-      const body = JSON.parse(res.body);
-      expect(body.error).toContain("personalizada activa");
-    });
-
     it("returns 404 when no session exists for the given week/day", async () => {
       const res = await app.inject({
         method: "GET",
@@ -290,25 +384,6 @@ describe("Personalizada Routes", () => {
   // POST /api/personalizadas/complete
   // ---------------------------------------------------------------
   describe("POST /api/personalizadas/complete", () => {
-    it("returns 400 when member has no active personalizada", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/complete",
-        headers: { authorization: `Bearer ${memberToken2}` },
-        payload: {
-          dayId: "P-empuje-W1-lunes-alfa",
-          duration: 20,
-          date: "2026-02-10",
-          startedAt: new Date().toISOString(),
-          blocksCompleted: ["INITIUM", "NUCLEUS"],
-        },
-      });
-
-      expect(res.statusCode).toBe(400);
-      const body = JSON.parse(res.body);
-      expect(body.error).toContain("personalizada activa");
-    });
-
     it("records a personalizada session completion and advances semana", async () => {
       const res = await app.inject({
         method: "POST",
@@ -534,12 +609,12 @@ describe("Personalizada Routes", () => {
 
       const listBody = JSON.parse(listRes.body);
       expect(listBody.members.length).toBeGreaterThanOrEqual(1);
-      const memberId = listBody.members[0].userId;
+      const targetMemberId = listBody.members[0].userId;
 
       // Get detail
       const res = await app.inject({
         method: "GET",
-        url: `/api/admin/personalizadas/members/${memberId}`,
+        url: `/api/admin/personalizadas/members/${targetMemberId}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 

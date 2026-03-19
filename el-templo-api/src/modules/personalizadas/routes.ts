@@ -8,7 +8,8 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { PersonalizadasService } from "./service";
+import { PersonalizadasService, SubscriptionRequiredError } from "./service";
+import { AuraService } from "../aura/service";
 import { PERSONALIZADA_METADATA, ALL_PERSONALIZADA_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import type { PersonalizadaType, PersonalizadaDuration } from "./types";
@@ -97,6 +98,7 @@ function personalizadaSessionToResponse(session: DaySession) {
 
 export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
   const personalizadasService = new PersonalizadasService(fastify.db);
+  const auraService = new AuraService(fastify.db);
 
   // =========================================================================
   // Member Endpoints (require authentication)
@@ -137,6 +139,16 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       schema: selectPersonalizadaSchema,
     },
     async (request, reply) => {
+      // Subscription enforcement: require personalizada-enabled plan
+      try {
+        await personalizadasService.checkSubscription(request.user.userId);
+      } catch (err: unknown) {
+        if (err instanceof SubscriptionRequiredError) {
+          return reply.status(403).send({ error: err.message });
+        }
+        throw err;
+      }
+
       const { personalizadaType } = request.body;
 
       if (!ALL_PERSONALIZADA_TYPES.includes(personalizadaType)) {
@@ -197,6 +209,16 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getPersonalizadaSessionSchema,
     },
     async (request, reply) => {
+      // Subscription enforcement: require personalizada-enabled plan
+      try {
+        await personalizadasService.checkSubscription(request.user.userId);
+      } catch (err: unknown) {
+        if (err instanceof SubscriptionRequiredError) {
+          return reply.status(403).send({ error: err.message });
+        }
+        throw err;
+      }
+
       const { week, day, duration } = request.query;
 
       // Validate duration
@@ -255,6 +277,17 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { userId } = request.user;
+
+      // Subscription enforcement: require personalizada-enabled plan
+      try {
+        await personalizadasService.checkSubscription(userId);
+      } catch (err: unknown) {
+        if (err instanceof SubscriptionRequiredError) {
+          return reply.status(403).send({ error: err.message });
+        }
+        throw err;
+      }
+
       const {
         dayId,
         duration,
@@ -297,7 +330,9 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             ),
           );
 
+        let completionId: number;
         if (existing) {
+          completionId = existing.id;
           await fastify.db
             .update(schema.completedSessions)
             .set({
@@ -313,20 +348,23 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             })
             .where(eq(schema.completedSessions.id, existing.id));
         } else {
-          await fastify.db.insert(schema.completedSessions).values({
-            userId,
-            dayId,
-            date,
-            branchId: user.branchId,
-            startedAt: new Date(startedAt),
-            completedAt: new Date(),
-            rpe: rpe ?? null,
-            notes: notes ?? null,
-            blocksCompleted,
-            exercisesCompleted: exercisesCompleted ?? null,
-            personalizadaType: activePersonalizada.personalizadaType,
-            duration,
-          });
+          const result = await fastify.db
+            .insert(schema.completedSessions)
+            .values({
+              userId,
+              dayId,
+              date,
+              branchId: user.branchId,
+              startedAt: new Date(startedAt),
+              completedAt: new Date(),
+              rpe: rpe ?? null,
+              notes: notes ?? null,
+              blocksCompleted,
+              exercisesCompleted: exercisesCompleted ?? null,
+              personalizadaType: activePersonalizada.personalizadaType,
+              duration,
+            });
+          completionId = Number(result[0].insertId);
         }
 
         // Advance semana for the specific duration
@@ -334,6 +372,22 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           userId,
           duration as PersonalizadaDuration,
         );
+
+        // Award AURA for personalizada completion
+        try {
+          await auraService.award({
+            userId,
+            sourceType: "personalizada_completion",
+            referenceType: "personalizada_session",
+            referenceId: completionId,
+          });
+        } catch (auraErr: unknown) {
+          // Log but don't fail the completion if AURA award fails (e.g., duplicate)
+          request.log.warn(
+            { err: auraErr, userId, dayId },
+            "AURA award failed for personalizada completion",
+          );
+        }
 
         // Return updated progress
         const progress =

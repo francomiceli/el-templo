@@ -8,7 +8,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SpomService } from "../spom/service";
 import { SessionGeneratorService } from "../sessions/service";
@@ -89,6 +89,13 @@ function semanaColumn(
   }
 }
 
+export class SubscriptionRequiredError extends Error {
+  constructor() {
+    super("Consulta en recepcion sobre los planes de Clases Personalizadas.");
+    this.name = "SubscriptionRequiredError";
+  }
+}
+
 export class PersonalizadasService {
   private spomService: SpomService;
   private sessionService: SessionGeneratorService;
@@ -96,6 +103,37 @@ export class PersonalizadasService {
   constructor(private db: MySql2Database<typeof schema>) {
     this.spomService = new SpomService(db);
     this.sessionService = new SessionGeneratorService(db);
+  }
+
+  // ─── Subscription Enforcement ──────────────────────────────────────────────
+
+  /**
+   * Check that the member has an active subscription with a personalizada-enabled plan.
+   * Throws SubscriptionRequiredError if not.
+   */
+  async checkSubscription(userId: number): Promise<void> {
+    const [sub] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+          eq(schema.subscriptionPlans.isPersonalizada, true),
+        ),
+      )
+      .limit(1);
+
+    if (!sub) {
+      throw new SubscriptionRequiredError();
+    }
   }
 
   // ─── Personalizada Lifecycle Methods ────────────────────────────────────────
