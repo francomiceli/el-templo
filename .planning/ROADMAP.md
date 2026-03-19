@@ -1333,7 +1333,7 @@ Phase 67 (Backend Rename) → Phase 68 (Frontend Rename) → Phase 69 (Subscript
 | 69. Subscription Gate, AURA Rewards & Enable | 2/2            | Complete | 2026-03-19 |
 | 70. Personalizadas Cycle Config              | 2/2            | Complete | 2026-03-19 |
 | 71. Plan-Driven Personalizada Assignment     | 2/2            | Complete | 2026-03-19 |
-| 72. Unified Training Experience              | 0/0            | Pending  |            |
+| 72. Unified Training Experience              | 0/3            | Planned  |            |
 | 73. Mi Plan — Plan Catalog for Members       | 0/0            | Pending  |            |
 
 ---
@@ -1385,7 +1385,7 @@ Plans:
 
 **Goal**: The Entrenar tab becomes context-aware — members with an active personalizada see the duration picker directly instead of the weekly view, and Mi Camino shows a unified progress view (no tabs) when personalizada is active. Post-session flow navigates to Mi Camino to close the feedback loop.
 **Depends on**: Phase 71 (plan-driven assignment, selection flow removed)
-**Requirements**: TBD
+**Requirements**: UTE-01, UTE-02, UTE-03, UTE-04, UTE-05, UTE-06, UTE-07
 **Success Criteria** (what must be TRUE):
 
 1. Entrenar tab shows duration picker when member has active personalizada, weekly view otherwise
@@ -1394,11 +1394,13 @@ Plans:
 4. General training stats still accessible (secondary/collapsible) for personalizada members
 5. Members without personalizada subscription see zero changes to their experience
 
-**Plans:** 0 plans
+**Plans:** 3 plans
 
 Plans:
 
-- [ ] TBD (run /gsd:plan-phase 72 to break down)
+- [ ] 72-01-PLAN.md — API subscription response + frontend type extension (isPersonalizada, personalizadaType)
+- [ ] 72-02-PLAN.md — Context-aware TrainingIndex + post-session navigation to Mi Camino
+- [ ] 72-03-PLAN.md — Mi Camino unified view for personalizada members (no tabs, stats collapsible)
 
 ---
 
