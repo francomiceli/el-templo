@@ -1364,7 +1364,11 @@ Plans:
 1. Admin clicks "Tomar control" and the bot immediately stops responding to that conversation
 2. Admin types and sends messages from the conversation detail page -- messages arrive on the user's WhatsApp
 3. Admin clicks "Devolver al bot" and the bot resumes AI processing for that conversation on the next incoming message
-   **Plans**: TBD
+   **Plans:** 2 plans
+   Plans:
+
+- [ ] 73-01-PLAN.md — API: implement takeover, resumeBot, sendMessage service methods + integration tests
+- [ ] 73-02-PLAN.md — Admin UI: takeover/resume buttons, message input, polling
 
 ---
 
