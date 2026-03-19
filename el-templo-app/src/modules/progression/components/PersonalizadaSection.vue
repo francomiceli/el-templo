@@ -13,59 +13,148 @@
 
     <!-- Content -->
     <template v-else>
-      <!-- Active Personalizada Card -->
-      <q-card v-if="activePersonalizada" class="personalizada-section__active-card" flat bordered>
-        <q-card-section>
-          <div class="personalizada-section__active-header">
-            <div>
-              <h3 class="personalizada-section__personalizada-name">
-                {{ activePersonalizadaName }}
-              </h3>
-              <q-badge
-                class="personalizada-section__tier-badge"
-                :label="activePersonalizadaTierLabel"
-              />
+      <!-- Active Personalizada -->
+      <template v-if="activePersonalizada">
+        <!-- Train CTA Card -->
+        <q-card class="personalizada-section__cta-card" flat bordered>
+          <q-card-section class="personalizada-section__cta-content">
+            <div class="personalizada-section__cta-info">
+              <q-icon name="self_improvement" color="secondary" size="40px" />
+              <div class="personalizada-section__cta-text">
+                <p class="personalizada-section__cta-title">Tu Clase Personalizada</p>
+                <p class="personalizada-section__cta-subtitle">{{ activePersonalizadaName }}</p>
+              </div>
             </div>
-            <q-icon name="explore" size="28px" class="personalizada-section__icon" />
+            <q-btn
+              color="primary"
+              text-color="white"
+              unelevated
+              no-caps
+              label="Entrenar"
+              icon-right="arrow_forward"
+              to="/personalizada"
+            />
+          </q-card-section>
+        </q-card>
+
+        <!-- Description + Zones -->
+        <q-card v-if="activeMetadata" class="personalizada-section__info-card" flat bordered>
+          <q-card-section>
+            <div class="personalizada-section__info-header">
+              <div>
+                <h3 class="personalizada-section__personalizada-name">
+                  {{ activePersonalizadaName }}
+                </h3>
+                <q-badge
+                  class="personalizada-section__tier-badge"
+                  :label="activePersonalizadaTierLabel"
+                />
+              </div>
+              <q-icon name="explore" size="28px" class="personalizada-section__icon" />
+            </div>
+
+            <p class="personalizada-section__description">
+              {{ activeMetadata.description }}
+            </p>
+
+            <!-- Zones chips -->
+            <div class="personalizada-section__zones">
+              <q-chip
+                v-for="zone in activeMetadata.zones"
+                :key="zone"
+                dense
+                class="personalizada-section__zone-chip"
+              >
+                {{ zone }}
+              </q-chip>
+            </div>
+
+            <p v-if="activePersonalizada.startedAt" class="personalizada-section__since">
+              Activo desde {{ formatDate(activePersonalizada.startedAt) }}
+            </p>
+
+            <!-- Per-duration semana counters -->
+            <div class="personalizada-section__semanas">
+              <div class="personalizada-section__semana-row">
+                <span class="personalizada-section__duration-label">20 min</span>
+                <span class="personalizada-section__semana-value"
+                  >Semana {{ activePersonalizada.semana20 }}</span
+                >
+              </div>
+              <div class="personalizada-section__semana-row">
+                <span class="personalizada-section__duration-label">40 min</span>
+                <span class="personalizada-section__semana-value"
+                  >Semana {{ activePersonalizada.semana40 }}</span
+                >
+              </div>
+              <div class="personalizada-section__semana-row">
+                <span class="personalizada-section__duration-label">60 min</span>
+                <span class="personalizada-section__semana-value"
+                  >Semana {{ activePersonalizada.semana60 }}</span
+                >
+              </div>
+            </div>
+
+            <!-- Change Personalizada Button -->
+            <q-btn
+              outline
+              no-caps
+              class="personalizada-section__change-btn"
+              label="Cambiar Personalizada"
+              icon="swap_horiz"
+              @click="showChangeDialog = true"
+            />
+          </q-card-section>
+        </q-card>
+
+        <!-- Archived Personalizadas (collapsible) -->
+        <q-expansion-item
+          v-if="archivedPersonalizadas.length > 0"
+          dense
+          header-class="personalizada-section__archived-header"
+          expand-icon-class="personalizada-section__archived-expand"
+        >
+          <template #header>
+            <q-item-section>
+              <q-item-label class="personalizada-section__archived-title">
+                Historial ({{ archivedPersonalizadas.length }})
+              </q-item-label>
+            </q-item-section>
+          </template>
+
+          <div class="personalizada-section__archived-list">
+            <q-card
+              v-for="(archived, index) in archivedPersonalizadas"
+              :key="index"
+              class="personalizada-section__archived-card"
+              flat
+              bordered
+            >
+              <q-card-section class="personalizada-section__archived-content">
+                <div class="personalizada-section__archived-row">
+                  <span class="personalizada-section__archived-name">{{
+                    getPersonalizadaName(archived.personalizadaType)
+                  }}</span>
+                  <q-badge
+                    class="personalizada-section__archived-tier-badge"
+                    :label="getPersonalizadaTierLabel(archived.personalizadaType)"
+                  />
+                </div>
+
+                <p class="personalizada-section__archived-dates">
+                  {{ formatDate(archived.startedAt) }} - {{ formatDate(archived.archivedAt) }}
+                </p>
+
+                <p class="personalizada-section__archived-semanas">
+                  20 min: S{{ archived.semana20 }} · 40 min: S{{ archived.semana40 }} · 60 min: S{{
+                    archived.semana60
+                  }}
+                </p>
+              </q-card-section>
+            </q-card>
           </div>
-
-          <p v-if="activePersonalizada.startedAt" class="personalizada-section__since">
-            Activo desde {{ formatDate(activePersonalizada.startedAt) }}
-          </p>
-
-          <!-- Per-duration semana counters -->
-          <div class="personalizada-section__semanas">
-            <div class="personalizada-section__semana-row">
-              <span class="personalizada-section__duration-label">20 min</span>
-              <span class="personalizada-section__semana-value"
-                >Semana {{ activePersonalizada.semana20 }}</span
-              >
-            </div>
-            <div class="personalizada-section__semana-row">
-              <span class="personalizada-section__duration-label">40 min</span>
-              <span class="personalizada-section__semana-value"
-                >Semana {{ activePersonalizada.semana40 }}</span
-              >
-            </div>
-            <div class="personalizada-section__semana-row">
-              <span class="personalizada-section__duration-label">60 min</span>
-              <span class="personalizada-section__semana-value"
-                >Semana {{ activePersonalizada.semana60 }}</span
-              >
-            </div>
-          </div>
-
-          <!-- Change Personalizada Button -->
-          <q-btn
-            outline
-            no-caps
-            class="personalizada-section__change-btn"
-            label="Cambiar Personalizada"
-            icon="swap_horiz"
-            @click="showChangeDialog = true"
-          />
-        </q-card-section>
-      </q-card>
+        </q-expansion-item>
+      </template>
 
       <!-- No Active Personalizada - Prompt -->
       <q-card v-else class="personalizada-section__prompt-card" flat bordered>
@@ -87,41 +176,6 @@
           />
         </q-card-section>
       </q-card>
-
-      <!-- Archived Personalizadas Section -->
-      <div v-if="archivedPersonalizadas.length > 0" class="personalizada-section__archived">
-        <h3 class="personalizada-section__archived-title">Historial de Personalizadas</h3>
-
-        <q-card
-          v-for="(archived, index) in archivedPersonalizadas"
-          :key="index"
-          class="personalizada-section__archived-card"
-          flat
-          bordered
-        >
-          <q-card-section>
-            <div class="personalizada-section__archived-header">
-              <span class="personalizada-section__archived-name">{{
-                getPersonalizadaName(archived.personalizadaType)
-              }}</span>
-              <q-badge
-                class="personalizada-section__archived-tier-badge"
-                :label="getPersonalizadaTierLabel(archived.personalizadaType)"
-              />
-            </div>
-
-            <p class="personalizada-section__archived-dates">
-              Activo: {{ formatDate(archived.startedAt) }} -
-              {{ formatDate(archived.archivedAt) }}
-            </p>
-
-            <p class="personalizada-section__archived-semanas">
-              20 min: S{{ archived.semana20 }} &middot; 40 min: S{{ archived.semana40 }} &middot; 60
-              min: S{{ archived.semana60 }}
-            </p>
-          </q-card-section>
-        </q-card>
-      </div>
     </template>
 
     <!-- Change Personalizada Confirmation Dialog -->
@@ -154,13 +208,13 @@
 
 <script setup lang="ts">
 /**
- * PersonalizadaSection component for Mi Camino page.
+ * PersonalizadaSection component for Mi Camino Personalizadas tab.
  *
  * Displays:
- * - Active personalizada with per-duration semana counters
- * - No-personalizada prompt with CTA to start
- * - Archived personalizada history as summary cards
- * - Personalizada switching with warning dialog
+ * - Train CTA card with action button
+ * - Active personalizada info with description, zones, and semana counters
+ * - Archived history in a collapsible section
+ * - Personalizada switching with confirmation dialog
  */
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -176,8 +230,6 @@ import type {
 const log = createLogger('PersonalizadaSection')
 const router = useRouter()
 
-// --- Props ---
-
 const props = defineProps<{
   activePersonalizada: PersonalizadaProgress | null
   archivedPersonalizadas: ArchivedPersonalizada[]
@@ -186,11 +238,7 @@ const props = defineProps<{
   error: string | null
 }>()
 
-// --- State ---
-
 const showChangeDialog = ref(false)
-
-// --- Computed ---
 
 const TIER_LABELS: Record<PersonalizadaTier, string> = {
   principiante: 'Principiante',
@@ -213,8 +261,6 @@ const activePersonalizadaTierLabel = computed(() => {
   if (!activeMetadata.value) return ''
   return TIER_LABELS[activeMetadata.value.tier] ?? ''
 })
-
-// --- Methods ---
 
 function getPersonalizadaName(personalizadaType: string): string {
   const meta = props.allMetadata.find((m) => m.type === personalizadaType)
@@ -262,14 +308,53 @@ function onConfirmChange(): void {
     margin: 0;
   }
 
-  // Active Personalizada Card
-  &__active-card {
+  // Train CTA Card
+  &__cta-card {
     background-color: white;
     border-color: rgba($secondary, 0.3);
     border-radius: 12px;
   }
 
-  &__active-header {
+  &__cta-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__cta-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__cta-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__cta-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__cta-subtitle {
+    font-size: 13px;
+    color: rgba($primary, 0.6);
+    margin: 0;
+  }
+
+  // Info Card (description + zones + semanas)
+  &__info-card {
+    background-color: white;
+    border-color: rgba($secondary, 0.3);
+    border-radius: 12px;
+  }
+
+  &__info-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -297,10 +382,31 @@ function onConfirmChange(): void {
     color: $secondary;
   }
 
+  &__description {
+    font-size: 13px;
+    color: rgba($primary, 0.7);
+    line-height: 1.5;
+    margin: 0 0 12px;
+  }
+
+  &__zones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  &__zone-chip {
+    background-color: rgba($secondary, 0.1) !important;
+    color: $secondary !important;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
   &__since {
     font-size: 13px;
-    color: rgba($primary, 0.6);
-    margin: 0 0 16px;
+    color: rgba($primary, 0.5);
+    margin: 0 0 12px;
   }
 
   // Per-duration semana counters
@@ -375,19 +481,23 @@ function onConfirmChange(): void {
     line-height: 1.5;
   }
 
-  // Archived Personalizadas
-  &__archived {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+  // Archived (collapsible)
+  &__archived-header {
+    padding: 8px 0;
   }
 
   &__archived-title {
     font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
-    color: $primary;
-    margin: 4px 0 8px;
+    color: rgba($primary, 0.6);
+  }
+
+  &__archived-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 0 8px;
   }
 
   &__archived-card {
@@ -396,11 +506,15 @@ function onConfirmChange(): void {
     border-radius: 10px;
   }
 
-  &__archived-header {
+  &__archived-content {
+    padding: 12px 16px;
+  }
+
+  &__archived-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
 
   &__archived-name {
