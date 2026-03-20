@@ -1,10 +1,7 @@
 <template>
   <q-page class="mi-camino">
     <!-- Loading State -->
-    <div
-      v-if="progressionStore.loading || personalizadaProgress.loading.value"
-      class="mi-camino__loading"
-    >
+    <div v-if="progressionStore.loading" class="mi-camino__loading">
       <q-spinner color="primary" size="60px" />
       <div class="mi-camino__loading-row">
         <FlameIcon size="xs" />
@@ -47,73 +44,7 @@
         />
       </div>
 
-      <!-- MODE 1: Unified personalizada view (no tabs) -->
-      <template v-if="isUnifiedPersonalizada">
-        <!-- Personalizada Section as primary content -->
-        <PersonalizadaSection
-          :active-personalizada="personalizadaProgress.activePersonalizada.value"
-          :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
-          :all-metadata="personalizadaProgress.allMetadata.value"
-          :cycle-stats="personalizadaProgress.cycleStats.value"
-          :loading="false"
-          :error="personalizadaProgress.error.value"
-        />
-      </template>
-
-      <!-- MODE 2: Tabs (archived personalizadas but no active — keep existing tabs) -->
-      <template v-else-if="showTabs">
-        <!-- Renewal prompt for expired personalizada members -->
-        <q-banner
-          v-if="hasExpiredPersonalizada"
-          class="mi-camino__renewal-banner"
-          rounded
-          dense
-          icon="info"
-        >
-          <span class="mi-camino__renewal-text">Consulta en recepcion para renovar</span>
-        </q-banner>
-
-        <q-tabs
-          v-model="activeTab"
-          dense
-          class="mi-camino__tabs"
-          active-color="primary"
-          indicator-color="secondary"
-          align="left"
-          no-caps
-        >
-          <q-tab name="general" label="Entrenamiento" />
-          <q-tab name="personalizadas" label="Personalizadas" />
-        </q-tabs>
-
-        <q-tab-panels v-model="activeTab" animated class="mi-camino__panels">
-          <q-tab-panel name="general" class="mi-camino__panel">
-            <GeneralContent
-              :today-completed="todayCompleted"
-              :today-session="progressionStore.todaySession"
-              :stats="progressionStore.stats"
-              :rpe-trend="progressionStore.rpeTrend"
-              :evaluation="progressionStore.evaluation"
-              @request-evaluation="handleRequestEvaluation"
-            />
-          </q-tab-panel>
-
-          <q-tab-panel name="personalizadas" class="mi-camino__panel">
-            <PersonalizadaSection
-              :active-personalizada="personalizadaProgress.activePersonalizada.value"
-              :archived-personalizadas="personalizadaProgress.archivedPersonalizadas.value"
-              :all-metadata="personalizadaProgress.allMetadata.value"
-              :cycle-stats="personalizadaProgress.cycleStats.value"
-              :loading="false"
-              :error="personalizadaProgress.error.value"
-            />
-          </q-tab-panel>
-        </q-tab-panels>
-      </template>
-
-      <!-- MODE 3: Regular member — GeneralContent only (unchanged) -->
       <GeneralContent
-        v-else
         :today-completed="todayCompleted"
         :today-session="progressionStore.todaySession"
         :stats="progressionStore.stats"
@@ -127,64 +58,21 @@
 
 <script setup lang="ts">
 /**
- * MiCamino page
- *
- * Main progression tracking page with three layout modes:
- * - MODE 1 (Unified): Active personalizada members see a single view with
- *   personalizada progress as primary content, general stats in a collapsible section
- * - MODE 2 (Tabs): Members with only archived personalizadas see tabs + renewal prompt
- * - MODE 3 (General): Regular members see GeneralContent only (unchanged)
- *
- * Layout mode is automatic based on subscription state and personalizada data.
+ * MiCamino page — progression tracking with GeneralContent.
+ * "Tu Sesion de Hoy" CTA routes to /training which handles both
+ * regular and personalizada sessions.
  */
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
-import { usePersonalizadaProgress } from '../composables/usePersonalizadaProgress'
 import { useUserStore } from 'src/stores/useUserStore'
 import LevelDisplay from '../components/LevelDisplay.vue'
 import GeneralContent from '../components/GeneralContent.vue'
-import PersonalizadaSection from '../components/PersonalizadaSection.vue'
 
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
-const personalizadaProgress = usePersonalizadaProgress()
-
-const activeTab = ref('general')
-
-/**
- * MODE 1: Unified view when member has an active personalizada subscription.
- * No tabs — personalizada progress is primary, general stats are collapsible.
- */
-const isUnifiedPersonalizada = computed(() => {
-  return userStore.hasActivePersonalizada
-})
-
-/**
- * MODE 2: Show tabs when user has personalizada data but NOT an active personalizada
- * (e.g., only archived personalizadas from an expired subscription).
- */
-const showTabs = computed(() => {
-  if (isUnifiedPersonalizada.value) return false
-  return (
-    personalizadaProgress.activePersonalizada.value !== null ||
-    personalizadaProgress.archivedPersonalizadas.value.length > 0
-  )
-})
-
-/**
- * Detect expired personalizada members in MODE 2: they have archived
- * personalizadas but no active one. Shows a renewal prompt banner.
- */
-const hasExpiredPersonalizada = computed(() => {
-  return (
-    !isUnifiedPersonalizada.value &&
-    personalizadaProgress.archivedPersonalizadas.value.length > 0 &&
-    personalizadaProgress.activePersonalizada.value === null
-  )
-})
 
 const userName = computed(() => {
   return userStore.fullName || 'Atleta'
@@ -205,7 +93,6 @@ const todayCompleted = computed(() => {
 })
 
 const isEmptyState = computed(() => {
-  if (personalizadaProgress.activePersonalizada.value) return false
   if (progressionStore.stats && progressionStore.stats.totalSessions > 0) return false
   if (progressionStore.stats && progressionStore.stats.totalSessions === 0) return true
   return !progressionStore.level && !progressionStore.stats && !progressionStore.error
@@ -215,13 +102,8 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
-onMounted(async () => {
+onMounted(() => {
   fetchStats()
-  await personalizadaProgress.fetchPersonalizadaData()
-  // Default to Personalizadas tab only when showing tabs (not unified mode)
-  if (!isUnifiedPersonalizada.value && personalizadaProgress.activePersonalizada.value) {
-    activeTab.value = 'personalizadas'
-  }
 })
 </script>
 
@@ -325,57 +207,6 @@ onMounted(async () => {
   &__level-badge {
     flex-shrink: 0;
     margin-left: 16px;
-  }
-
-  &__tabs {
-    margin: -8px -4px 0;
-
-    :deep(.q-tab) {
-      font-family: 'Montserrat', sans-serif;
-      font-weight: 600;
-      font-size: 13px;
-      letter-spacing: 0.02em;
-    }
-  }
-
-  &__panels {
-    background: transparent;
-  }
-
-  &__panel {
-    padding: 0;
-  }
-
-  &__train-btn {
-    margin-top: 8px;
-  }
-
-  &__stats-expansion {
-    margin-top: 16px;
-  }
-
-  &__stats-header {
-    padding: 8px 0;
-  }
-
-  &__stats-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba($primary, 0.6);
-  }
-
-  &__renewal-banner {
-    margin-bottom: 12px;
-    background-color: rgba($secondary, 0.08);
-    border: 1px solid rgba($secondary, 0.2);
-  }
-
-  &__renewal-text {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    color: $dark;
   }
 }
 </style>
