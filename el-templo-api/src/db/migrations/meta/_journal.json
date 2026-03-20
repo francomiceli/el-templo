@@ -232,6 +232,13 @@
       "when": 1773873350004,
       "tag": "0052_add_personalizada_type_to_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "5",
+      "when": 1774070400000,
+      "tag": "0053_plan_descriptions",
+      "breakpoints": true
     }
   ]
 }
