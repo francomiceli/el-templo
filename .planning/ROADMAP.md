@@ -6,7 +6,8 @@
 - **v3.0 Landing Page** - Phases 29-36 (planned)
 - **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
-- **v4.2 Clases Personalizadas Launch** - Phases 67-69 (planned)
+- **v4.2 Clases Personalizadas Launch** - Phases 67-73 (complete)
+- **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
 
 ---
 
@@ -1430,3 +1431,103 @@ Plans:
 
 _v4.2 phases added: 2026-03-18 -- 7 phases (67-73), 17+ requirements mapped_
 _Phase 73 (Planes Catalog) planned: 2026-03-19 -- 2 plans, 6 requirements (PLANES-01 through PLANES-06)_
+
+</details>
+
+<details>
+<summary>v4.3 Android Play Store Launch (Phases 74-77)</summary>
+
+## v4.3 Overview
+
+Get the member app (el-templo-app) published on Google Play Store. The app already runs as a Capacitor hybrid app with staging debug APK builds via GitHub Actions. This milestone adds release signing, production build workflows, Play Store listing assets, and launches through Google's testing tracks to production.
+
+**Source:** Existing Android infrastructure in `build-android-staging.yml`, `src-capacitor/android/`
+
+## v4.3 Phases
+
+### Phase 74: Pre-Release Prep
+
+**Goal**: Align Capacitor versions, establish version management strategy, and audit the app for production readiness before signing and submission
+**Depends on**: None (can start immediately)
+**Requirements**: PLAY-01, PLAY-02, PLAY-03, PLAY-04
+**Success Criteria** (what must be TRUE):
+
+1. Capacitor CLI and native plugins are on the same major version (all v8 or all v7) — `npx cap doctor` reports no version mismatches
+2. `build.gradle` has `versionCode` and `versionName` strategy documented and implemented (versionCode auto-increments, versionName = semver)
+3. App name, package ID, icon, and splash screen verified as production-ready
+4. AndroidManifest.xml declares only necessary permissions
+5. Existing staging debug workflow still builds successfully after version alignment
+
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 74-01-PLAN.md — Capacitor v8 migration (upgrade native deps, Gradle toolchain, SDK targets)
+- [ ] 74-02-PLAN.md — Production hardening + version management (permissions, ProGuard, manifest overlays, CI version wiring)
+
+---
+
+### Phase 75: Android Signing & Release Build
+
+**Goal**: Generate an upload keystore, configure Gradle signing for release builds, and create a GitHub Actions workflow that produces a signed AAB (Android App Bundle) ready for Play Store upload
+**Depends on**: Phase 74 (version alignment and app audit complete)
+**Requirements**: PLAY-05, PLAY-06, PLAY-07, PLAY-08, PLAY-09
+**Success Criteria** (what must be TRUE):
+
+1. Upload keystore exists (NOT committed to repo) with backup strategy documented
+2. `build.gradle` has `signingConfigs.release` block reading credentials from environment variables
+3. GitHub Actions workflow `build-android-production.yml` runs on `workflow_dispatch`, builds production-flavor signed AAB
+4. Signed AAB is uploaded as GitHub Actions artifact (downloadable for Play Console upload)
+5. Existing `build-android-staging.yml` workflow still works without regression
+6. Keystore credentials stored as GitHub Secrets with documentation in `.github/SECRETS.md`
+
+---
+
+### Phase 76: Play Store Setup & Listing
+
+**Goal**: Set up Google Play Developer account, create the app listing with all required assets (screenshots, descriptions, privacy policy), and complete all compliance forms (data safety, content rating, audience)
+**Depends on**: Phase 75 (need signed AAB to upload) and Google Play Developer account registration (manual, $25)
+**Requirements**: PLAY-10, PLAY-11, PLAY-12, PLAY-13, PLAY-14, PLAY-15, PLAY-16, PLAY-17
+**Success Criteria** (what must be TRUE):
+
+1. Google Play Developer account active and verified
+2. App created in Play Console with package name `com.eltemplo.app`
+3. Store listing has: app name, short description (80 chars), full description, feature graphic (1024x500), at least 4 phone screenshots
+4. Privacy policy URL is live and linked in Play Console
+5. Data safety form completed and submitted
+6. Content rating (IARC) questionnaire completed — rating assigned
+7. App category, contact email, and target audience configured
+
+---
+
+### Phase 77: Internal Testing & Launch
+
+**Goal**: Upload signed AAB to internal testing track, validate on real devices, review pre-launch report, and promote to production — app is live on Google Play Store
+**Depends on**: Phase 75 (signed AAB), Phase 76 (listing complete)
+**Requirements**: PLAY-18, PLAY-19, PLAY-20, PLAY-21, PLAY-22
+**Success Criteria** (what must be TRUE):
+
+1. Signed AAB uploaded to internal testing track in Play Console
+2. App installed from Play Store (internal track) on at least 2 real Android devices
+3. Core flows verified on real devices: login, view training, complete a session, view Mi Camino
+4. Pre-launch report in Play Console reviewed — no critical crashes or accessibility blockers
+5. App promoted to production track
+6. App searchable and installable from Google Play Store
+
+---
+
+## v4.3 Progress
+
+**Execution Order:**
+Phase 74 (Pre-Release Prep) → Phase 75 (Signing & Release Build) → Phase 76 (Play Store Setup) → Phase 77 (Testing & Launch)
+
+| Phase                               | Plans Complete | Status  | Completed |
+| ----------------------------------- | -------------- | ------- | --------- |
+| 74. Pre-Release Prep                | 0/2            | Planned | —         |
+| 75. Android Signing & Release Build | —              | Planned | —         |
+| 76. Play Store Setup & Listing      | —              | Planned | —         |
+| 77. Internal Testing & Launch       | —              | Planned | —         |
+
+---
+
+_v4.3 phases added: 2026-03-21 — 4 phases (74-77), 22 requirements mapped (PLAY-01 through PLAY-22)_
