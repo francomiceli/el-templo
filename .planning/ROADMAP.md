@@ -1472,6 +1472,13 @@ Plans:
 **Goal**: Generate an upload keystore, configure Gradle signing for release builds, and create a GitHub Actions workflow that produces a signed AAB (Android App Bundle) ready for Play Store upload
 **Depends on**: Phase 74 (version alignment and app audit complete)
 **Requirements**: PLAY-05, PLAY-06, PLAY-07, PLAY-08, PLAY-09
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 75-01-PLAN.md — Gradle signing config, gitignore safety, and SECRETS.md documentation
+- [ ] 75-02-PLAN.md — Production build workflow (AAB + APK) with keystore verification
+
 **Success Criteria** (what must be TRUE):
 
 1. Upload keystore exists (NOT committed to repo) with backup strategy documented
@@ -1524,7 +1531,7 @@ Phase 74 (Pre-Release Prep) → Phase 75 (Signing & Release Build) → Phase 76 
 | Phase                               | Plans Complete | Status   | Completed  |
 | ----------------------------------- | -------------- | -------- | ---------- |
 | 74. Pre-Release Prep                | 2/2            | Complete | 2026-03-21 |
-| 75. Android Signing & Release Build | —              | Planned  | —          |
+| 75. Android Signing & Release Build | 0/2            | Planned  | —          |
 | 76. Play Store Setup & Listing      | —              | Planned  | —          |
 | 77. Internal Testing & Launch       | —              | Planned  | —          |
 
