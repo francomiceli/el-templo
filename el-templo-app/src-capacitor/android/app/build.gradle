@@ -16,6 +16,14 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            storeFile file("keystore.jks")
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias "upload"
+            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         release {
             minifyEnabled = false
@@ -41,6 +49,15 @@ android {
 androidComponents {
     onVariants(selector().withName("productionRelease")) { variant ->
         variant.optimization.minification.set(true)
+    }
+}
+
+// Apply release signing only to productionRelease variant.
+// Per user decision: signing applies to production release builds only (not stagingRelease).
+// signingConfigs.release reads credentials from env vars — harmless when absent.
+android.applicationVariants.configureEach { variant ->
+    if (variant.name == "productionRelease" && System.getenv("ANDROID_KEYSTORE_PASSWORD") != null) {
+        variant.signingConfig = android.signingConfigs.release
     }
 }
 
