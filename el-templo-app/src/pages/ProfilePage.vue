@@ -128,16 +128,93 @@
         <div v-else class="text-grey-5 text-italic">Sin suscripcion activa</div>
       </q-card-section>
     </q-card>
+
+    <!-- Change Password Card -->
+    <q-card class="q-mx-auto q-mt-md" style="max-width: 500px">
+      <q-card-section>
+        <div class="text-h6">Cambiar Contraseña</div>
+      </q-card-section>
+
+      <q-card-section>
+        <q-form @submit.prevent="onChangePassword" class="q-gutter-sm">
+          <q-input
+            v-model="currentPassword"
+            label="Contraseña actual"
+            type="password"
+            dense
+            outlined
+            :rules="[(v: string) => !!v || 'Requerido']"
+          />
+          <q-input
+            v-model="newPassword"
+            label="Nueva contraseña"
+            type="password"
+            dense
+            outlined
+            :rules="[
+              (v: string) => !!v || 'Requerido',
+              (v: string) => v.length >= 6 || 'Minimo 6 caracteres',
+            ]"
+          />
+          <q-input
+            v-model="confirmPassword"
+            label="Confirmar nueva contraseña"
+            type="password"
+            dense
+            outlined
+            :rules="[(v: string) => v === newPassword || 'Las contraseñas no coinciden']"
+          />
+          <q-btn
+            type="submit"
+            color="primary"
+            label="Cambiar contraseña"
+            :loading="changingPassword"
+            no-caps
+          />
+        </q-form>
+      </q-card-section>
+    </q-card>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
 import { useUserStore } from 'stores/useUserStore'
 import { formatDate } from 'src/utils/format-date'
+import { extractError } from 'src/utils/extract-error'
+import { api } from 'boot/axios'
+import { createLogger } from 'src/utils/logger'
 import FlameIcon from 'src/components/FlameIcon.vue'
 
+const log = createLogger('ProfilePage')
+const $q = useQuasar()
 const userStore = useUserStore()
+
+const currentPassword = ref('')
+const newPassword = ref('')
+const confirmPassword = ref('')
+const changingPassword = ref(false)
+
+async function onChangePassword() {
+  changingPassword.value = true
+  try {
+    await api.post('/auth/me/change-password', {
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    })
+    $q.notify({ type: 'positive', message: 'Contraseña actualizada' })
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error cambiando contraseña')
+    log.error('Error changing password', { error: message })
+    $q.notify({ type: 'negative', message })
+  } finally {
+    changingPassword.value = false
+  }
+}
 
 const levelColors: Record<string, string> = {
   alfa: 'blue',

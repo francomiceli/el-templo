@@ -264,4 +264,58 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       };
     },
   );
+
+  // POST /me/change-password
+  fastify.post<{ Body: { currentPassword: string; newPassword: string } }>(
+    "/me/change-password",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: "object",
+          required: ["currentPassword", "newPassword"],
+          properties: {
+            currentPassword: { type: "string" },
+            newPassword: { type: "string", minLength: 6 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+
+      const userResults = await fastify.db
+        .select({ passwordHash: users.passwordHash })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (userResults.length === 0) {
+        return reply
+          .code(404)
+          .send({ error: "Not Found", message: "Usuario no encontrado" });
+      }
+
+      const valid = await argon2.verify(
+        userResults[0].passwordHash,
+        request.body.currentPassword,
+      );
+      if (!valid) {
+        return reply
+          .code(400)
+          .send({
+            error: "Bad Request",
+            message: "Contraseña actual incorrecta",
+          });
+      }
+
+      const newHash = await argon2.hash(request.body.newPassword);
+      await fastify.db
+        .update(users)
+        .set({ passwordHash: newHash })
+        .where(eq(users.id, userId));
+
+      return { message: "Contraseña actualizada" };
+    },
+  );
 };
