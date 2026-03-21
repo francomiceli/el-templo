@@ -32,6 +32,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import { useUserStore } from 'src/stores/useUserStore'
 import { useWeekStore } from '../stores/weekStore'
 import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
@@ -39,6 +40,7 @@ import type { WeekDay } from '../types/session'
 import WeekCarousel from '../components/WeekCarousel.vue'
 
 const log = createLogger('WeeklyView')
+const userStore = useUserStore()
 
 /**
  * Main Weekly View page
@@ -160,10 +162,11 @@ const weekRangeLabel = computed(() => {
  * Navigate to Day Player when Start button clicked
  */
 function handleStartSession(date: string) {
-  router.push({
-    name: 'day-player',
-    params: { date },
-  })
+  if (userStore.hasActivePersonalizada) {
+    router.push({ name: 'personalizada-duration' })
+  } else {
+    router.push({ name: 'day-player', params: { date } })
+  }
 }
 
 // Load data on mount
