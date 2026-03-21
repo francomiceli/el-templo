@@ -26,10 +26,15 @@ android {
     }
     buildTypes {
         release {
-            // ProGuard/R8 enabled for release builds (production + staging).
-            // In practice only production uses release builds — staging CI runs assembleStagingDebug.
+            // ProGuard/R8 enabled for release builds.
+            // Staging CI runs assembleStagingDebug so staging is never minified.
             minifyEnabled = true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Apply signing config when env vars are present (CI production builds).
+            // Without env vars (local dev, staging CI), signing is skipped gracefully.
+            if (System.getenv("ANDROID_KEYSTORE_PASSWORD") != null) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     flavorDimensions = ["environment"]
@@ -46,14 +51,6 @@ android {
     }
 }
 
-// Apply release signing only to productionRelease variant.
-// Per user decision: signing applies to production release builds only (not stagingRelease).
-// signingConfigs.release reads credentials from env vars — harmless when absent.
-android.applicationVariants.configureEach { variant ->
-    if (variant.name == "productionRelease" && System.getenv("ANDROID_KEYSTORE_PASSWORD") != null) {
-        variant.signingConfig = android.signingConfigs.release
-    }
-}
 
 repositories {
     flatDir{
