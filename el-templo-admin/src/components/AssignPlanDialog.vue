@@ -832,8 +832,14 @@ async function selectPlan(plan: PlanListItem) {
       loadingPreview.value = false;
     }
 
-    // Skip directly to confirm step (proration determines the price)
-    step.value = confirmStep.value;
+    // For fixed plans, go to schedule picker (step 3) first
+    if (plan.bookingMode === 'fixed') {
+      step.value = 3;
+      loadBranchSchedules();
+    } else {
+      // Flexible plans skip directly to confirm step
+      step.value = confirmStep.value;
+    }
   } else {
     step.value = 2;
     loadPricingPreview();
