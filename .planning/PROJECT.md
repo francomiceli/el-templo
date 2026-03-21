@@ -4,24 +4,24 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v4.2 Clases Personalizadas Launch
+## Current Milestone: v4.3 Android Play Store Launch
 
-**Goal:** Ship the "Journeys" feature to production as "Clases Personalizadas" — full rename across DB/API/frontend, subscription gating via standalone Personalizadas plan type, AURA rewards on completion, and member app module activation.
+**Goal:** Publish the member app (el-templo-app) on Google Play Store — Capacitor version alignment, release signing with upload keystore, production AAB build workflow, Play Store listing with all compliance forms, and launch through testing tracks to production.
 
 **Target features:**
 
-- Full backend rename: DB migration (tables + columns), API module/routes/types/constants from journey → personalizada
-- Full frontend rename: Admin and member app types, composables, pages, components, routes from journey → personalizada
-- Subscription gate: `isPersonalizada` flag on plans, 403 enforcement in service layer
-- AURA rewards: 10 points on personalizada session completion (same as QR check-in)
-- Member app module enable: uncomment personalizada module registration
-- Cycle progress: week-based progress bars, duration breakdown, cycle completion wrap-up card
+- Capacitor version alignment (CLI v8 ↔ native plugins) and version management strategy
+- Upload keystore generation with secure storage (GitHub Secrets) and backup documentation
+- Production signed AAB build via GitHub Actions (`build-android-production.yml`)
+- Play Store listing: descriptions, screenshots, feature graphic, privacy policy
+- Compliance: data safety form, content rating (IARC), target audience declaration
+- Internal testing → production track promotion → live on Play Store
 
 ## Core Value
 
 Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels — transforming daily training into visible progression toward mastery.
 
-**v4.2 core value:** Members with a Personalizadas subscription can access personalized training sessions (body-zone focused programs), complete them for AURA rewards, and see their progress — fully branded as "Clases Personalizadas" throughout the platform.
+**v4.3 core value:** Members can install El Templo from Google Play Store like any real app — no sideloading, no APK files, just search and install.
 
 ## Requirements
 
@@ -42,14 +42,15 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ QR check-in, class booking, dashboard analytics (v4.0)
 - ✓ Registration flow fixes, codebase health, god object decomposition (v4.0)
 - ✓ Production deployment, data import, plan config, QR access, cash box, reports, roles (v4.1)
+- ✓ Clases Personalizadas: full rename, subscription gating, AURA rewards, cycle config, plan-driven assignment, unified training UX, plan catalog (v4.2)
 
 ### Active
 
-See: .planning/REQUIREMENTS-v4.2.md (v4.2 scope)
+See: .planning/REQUIREMENTS-v4.3.md (v4.3 scope)
 
 ### Out of Scope
 
-- **APK Signing / Play Store** — Deferred from v2.0 (Phase 21), pick up post-v4.0
+- ~~**APK Signing / Play Store**~~ — Now active as v4.3 (Phases 74-77)
 - **Lifestyle / Mi Camino** — v5.0 (habits, journal, challenges, philosophical tools)
 - **AURA Economy (milestones, store)** — v5.0 (foundation tables in v4.0, but economy features later)
 - **Social / Agora** — v5.0+ (feed, missions, reactions, career path)
@@ -111,4 +112,4 @@ See: .planning/REQUIREMENTS-v4.2.md (v4.2 scope)
 
 ---
 
-_Last updated: 2026-03-19 after Phase 73 (Planes — Plan Catalog for Members) completion — all v4.2 phases complete_
+_Last updated: 2026-03-21 — Phase 74 (Pre-Release Prep) complete: Capacitor v8, version management, production hardening_
