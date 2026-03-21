@@ -357,6 +357,7 @@
           <MemberSubscriptionTab
             :userId="userId"
             :memberBranchId="memberProfile.branchId"
+            :memberBranchName="memberProfile.branchName"
             :memberBoardingPassUsed="memberBoardingPassUsed"
             @subscription-changed="onSubscriptionChanged"
           />

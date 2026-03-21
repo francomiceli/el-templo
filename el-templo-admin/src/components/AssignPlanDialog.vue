@@ -212,7 +212,10 @@
         >
           <div class="q-mb-md">
             <div class="row items-center justify-between q-mb-sm">
-              <div class="text-subtitle2">Selecciona los horarios fijos para este plan</div>
+              <div>
+                <div class="text-subtitle2">Selecciona los horarios fijos para este plan</div>
+                <div class="text-caption text-grey-7">Sede: {{ memberBranchName }}</div>
+              </div>
               <q-badge
                 :color="selectedScheduleIds.length === requiredSlotCount ? 'positive' : 'grey'"
                 class="text-body2 q-pa-sm"
@@ -516,6 +519,7 @@ const props = withDefaults(
     modelValue: boolean;
     userId: number;
     memberBranchId: number;
+    memberBranchName: string;
     boardingPassUsed: boolean;
     mode?: 'assign' | 'change';
   }>(),

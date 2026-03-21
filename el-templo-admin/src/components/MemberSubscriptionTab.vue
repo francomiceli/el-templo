@@ -258,6 +258,7 @@
       v-model="showAssignDialog"
       :userId="userId"
       :memberBranchId="memberBranchId"
+      :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
       @assigned="onAssigned"
     />
@@ -267,6 +268,7 @@
       v-model="showChangeDialog"
       :userId="userId"
       :memberBranchId="memberBranchId"
+      :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
       mode="change"
       @assigned="onAssigned"
@@ -365,6 +367,7 @@ const subsApi = useSubscriptionsApi();
 const props = defineProps<{
   userId: number;
   memberBranchId: number;
+  memberBranchName: string;
   memberBoardingPassUsed: boolean;
 }>();
 
