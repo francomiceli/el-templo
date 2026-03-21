@@ -39,6 +39,11 @@ const routes: RouteRecordRaw[] = [
         name: 'reservas',
         component: () => import('pages/ReservasPage.vue'),
       },
+      {
+        path: 'change-password',
+        name: 'change-password',
+        component: () => import('pages/ChangePasswordPage.vue'),
+      },
     ],
   },
 
