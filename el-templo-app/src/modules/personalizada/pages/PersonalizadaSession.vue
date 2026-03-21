@@ -373,7 +373,7 @@ function onProgressContinue(): void {
 }
 
 function navigateBack(): void {
-  router.push({ name: 'personalizada-duration' })
+  router.push({ name: 'training' })
 }
 
 const exitDialogOpts = {
@@ -444,14 +444,14 @@ async function loadSession(): Promise<void> {
     await personalizadaStore.fetchActivePersonalizada()
     if (!personalizadaStore.hasActivePersonalizada) {
       log.warn('No active personalizada, redirecting to selection')
-      void router.replace({ name: 'personalizada-selection' })
+      void router.replace({ name: 'training' })
       return
     }
   }
 
   if (!selectedDuration.value) {
     log.warn('No duration selected, redirecting to duration picker')
-    void router.replace({ name: 'personalizada-duration' })
+    void router.replace({ name: 'training' })
     return
   }
 
