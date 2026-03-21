@@ -71,9 +71,12 @@ export async function sendTextMessage(
 
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneId}/messages`;
 
+  // Argentine numbers: webhook sends 549xxx, API needs 54xxx
+  const normalizedPhone = phone.replace(/^549(\d{10})$/, "54$1");
+
   const body = {
     messaging_product: "whatsapp",
-    to: phone,
+    to: normalizedPhone,
     type: "text",
     text: { body: text },
   };
@@ -145,9 +148,12 @@ export async function sendInteractiveMessage(
 
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneId}/messages`;
 
+  // Argentine numbers: webhook sends 549xxx, API needs 54xxx
+  const normalizedPhone = phone.replace(/^549(\d{10})$/, "54$1");
+
   const body = {
     messaging_product: "whatsapp",
-    to: phone,
+    to: normalizedPhone,
     type: "interactive",
     interactive: {
       type: "button",
@@ -240,9 +246,12 @@ export async function sendTemplateMessage(
     template.components = components;
   }
 
+  // Argentine numbers: webhook sends 549xxx, API needs 54xxx
+  const normalizedPhone = phone.replace(/^549(\d{10})$/, "54$1");
+
   const body = {
     messaging_product: "whatsapp",
-    to: phone,
+    to: normalizedPhone,
     type: "template",
     template,
   };
