@@ -62,6 +62,8 @@ jobs:
 
       - name: Build staging debug APK
         working-directory: el-templo-app/src-capacitor/android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
         run: ./gradlew assembleStagingDebug
 
       - name: Upload APK artifact
