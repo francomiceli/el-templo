@@ -7,7 +7,7 @@
 
       <q-separator />
 
-      <q-card-section class="q-pa-none" style="max-height: 400px; overflow-y: auto">
+      <q-card-section class="q-px-none q-py-sm" style="max-height: 400px; overflow-y: auto">
         <q-list separator>
           <q-item v-if="loadingActivities" class="flex flex-center q-pa-lg">
             <q-spinner-dots size="30px" color="primary" />

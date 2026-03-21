@@ -27,7 +27,7 @@
         Al agregar un feriado, las reservas existentes para ese dia se cancelan automaticamente
       </q-banner>
 
-      <q-card-section class="q-pa-none" style="max-height: 300px; overflow-y: auto">
+      <q-card-section class="q-px-none q-py-sm" style="max-height: 300px; overflow-y: auto">
         <q-list separator>
           <q-item v-if="loadingHolidays" class="flex flex-center q-pa-lg">
             <q-spinner-dots size="30px" color="primary" />

@@ -8,56 +8,58 @@
       <q-separator />
 
       <q-form ref="formRef" @submit.prevent="onSubmit">
-        <q-card-section class="q-gutter-sm" style="max-height: 70vh; overflow-y: auto">
+        <q-card-section style="max-height: 70vh; overflow-y: auto">
           <!-- General -->
-          <div class="text-subtitle2 text-weight-bold q-mt-sm">General</div>
+          <div class="text-subtitle2 text-weight-bold q-mb-sm">General</div>
 
-          <q-input
-            v-model="form.name"
-            label="Nombre *"
-            dense
-            outlined
-            :rules="[requiredRule('Nombre')]"
-          />
+          <div class="q-gutter-sm">
+            <q-input
+              v-model="form.name"
+              label="Nombre *"
+              dense
+              outlined
+              :rules="[requiredRule('Nombre')]"
+            />
 
-          <q-input
-            v-model="form.description"
-            label="Descripcion"
-            type="textarea"
-            :rows="2"
-            dense
-            outlined
-          />
+            <q-input
+              v-model="form.description"
+              label="Descripcion"
+              type="textarea"
+              :rows="2"
+              dense
+              outlined
+            />
 
-          <div class="row q-col-gutter-sm">
-            <div class="col-12 col-sm-6">
-              <q-select
-                v-model="form.planTier"
-                :options="tierOptions"
-                label="Tier *"
-                dense
-                outlined
-                emit-value
-                map-options
-                :rules="[requiredRule('Tier')]"
-              />
-            </div>
-            <div class="col-12 col-sm-6">
-              <q-select
-                v-model="form.bookingMode"
-                :options="bookingModeOptions"
-                label="Modo de Reserva *"
-                dense
-                outlined
-                emit-value
-                map-options
-                :rules="[requiredRule('Modo de reserva')]"
-              />
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.planTier"
+                  :options="tierOptions"
+                  label="Tier *"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  :rules="[requiredRule('Tier')]"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.bookingMode"
+                  :options="bookingModeOptions"
+                  label="Modo de Reserva *"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  :rules="[requiredRule('Modo de reserva')]"
+                />
+              </div>
             </div>
           </div>
 
           <!-- Precios -->
-          <div class="text-subtitle2 text-weight-bold q-mt-md">Precios</div>
+          <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-sm">Precios</div>
 
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-sm-4">
@@ -95,7 +97,7 @@
           </div>
 
           <!-- Duracion y Clases -->
-          <div class="text-subtitle2 text-weight-bold q-mt-md">Duracion y Clases</div>
+          <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-sm">Duracion y Clases</div>
 
           <div class="row q-col-gutter-sm">
             <div class="col-12 col-sm-6">
@@ -122,9 +124,9 @@
           </div>
 
           <!-- Opciones -->
-          <div class="text-subtitle2 text-weight-bold q-mt-md">Opciones</div>
+          <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-xs">Opciones</div>
 
-          <div class="q-gutter-sm">
+          <div>
             <q-toggle v-model="form.multiBranch" label="Multi-sucursal" />
             <q-toggle v-model="form.isTrial" label="Plan de prueba" />
             <q-toggle v-model="form.isGroup" label="Plan grupal" />
