@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 74 context gathered
-last_updated: "2026-03-21T21:26:56.266Z"
+stopped_at: Completed 74-01-PLAN.md
+last_updated: "2026-03-21T22:02:20.967Z"
 progress:
   total_phases: 75
   completed_phases: 60
-  total_plans: 257
-  completed_plans: 252
+  total_plans: 259
+  completed_plans: 253
 ---
 
 # Project State
@@ -19,11 +19,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 73 — mi-plan-catalog
+**Current focus:** Phase 74 — pre-release-prep
 
 ## Current Position
 
-Phase: 73 (mi-plan-catalog) — COMPLETE
+Phase: 74 (pre-release-prep) — EXECUTING
 Plan: 2 of 2
 
 ## Performance Metrics
@@ -80,6 +80,7 @@ _Updated after each plan completion_
 | Phase 72 P03 | 3min | 2 tasks | 2 files |
 | Phase 72 P02 | 5min | 2 tasks | 4 files |
 | Phase 73 P02 | 4min | 2 tasks | 5 files |
+| Phase 74 P01 | 2min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -154,6 +155,8 @@ Recent decisions affecting current work:
 - [Phase 72]: Three-mode Mi Camino layout: unified personalizada view (no tabs), archived tabs with renewal banner, and unchanged regular member view
 - [Phase 72]: Context-aware /training page branches on hasActivePersonalizada/hasActiveSubscription; post-session flows unified to /mi-camino
 - [Phase 73]: Inline MemberPlan interface in PlanesPage -- no shared type for single-use response shape
+- [Phase 74]: Capacitor v8 requires Node >=22; used nvm to switch during cap sync/doctor
+- [Phase 74]: minSdkVersion raised from 23 to 24 per Capacitor 8 requirements; versionName set to 1.0.0
 
 ### Pending Todos
 
@@ -165,6 +168,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T21:26:56.261Z
-Stopped at: Phase 74 context gathered
-Resume file: .planning/phases/74-pre-release-prep/74-CONTEXT.md
+Last session: 2026-03-21T22:02:20.962Z
+Stopped at: Completed 74-01-PLAN.md
+Resume file: None
