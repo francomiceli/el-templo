@@ -1,7 +1,5 @@
 <template>
   <q-page padding>
-    <div class="text-h5 text-weight-bold q-mb-lg">Planes</div>
-
     <!-- Loading state -->
     <q-inner-loading :showing="loading">
       <q-spinner-dots size="40px" color="primary" />
@@ -14,7 +12,6 @@
 
     <!-- Gym Plans Section -->
     <div v-if="gymPlans.length > 0">
-      <div class="text-h6 q-mb-md">Planes de Gimnasio</div>
       <div class="row q-col-gutter-md">
         <div v-for="plan in gymPlans" :key="plan.id" class="col-12 col-sm-6">
           <q-card class="full-height">
