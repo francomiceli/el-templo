@@ -18,6 +18,9 @@
           EL TEMPLO
         </q-toolbar-title>
 
+        <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
+          <q-tooltip>Mi Perfil</q-tooltip>
+        </q-btn>
         <q-btn v-if="authStore.isAuthenticated" flat round icon="logout" @click="onLogout">
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
