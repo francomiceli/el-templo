@@ -36,6 +36,14 @@ android {
     }
 }
 
+// Enable ProGuard/R8 only for production release builds.
+// Per user decision: staging stays unminified for readable stack traces.
+androidComponents {
+    onVariants(selector().withName("productionRelease")) { variant ->
+        variant.optimization.minification.set(true)
+    }
+}
+
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
