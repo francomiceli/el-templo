@@ -67,7 +67,15 @@ jobs:
 
       - name: Decode keystore
         working-directory: el-templo-app/src-capacitor/android/app
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+        run: |
+          printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
+          echo "Keystore file size: $(wc -c < keystore.jks) bytes"
+          keytool -list -keystore keystore.jks -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" -alias upload 2>&1 || {
+            echo "ERROR: Keystore verification failed. The base64 secret is likely corrupted."
+            echo "Re-encode locally: openssl base64 -A -in eltemplo-upload-key.keystore -out eltemplo-upload-key.base64.txt"
+            echo "Then update the ANDROID_KEYSTORE_BASE64 GitHub secret with the contents."
+            exit 1
+          }
 
       - name: Extract version name
         id: version
