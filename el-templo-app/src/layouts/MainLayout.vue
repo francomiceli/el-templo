@@ -221,6 +221,7 @@ async function onLogout() {
   height: 32px;
   width: 32px;
   border-radius: 6px;
+  background-color: #f5f0e8;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
