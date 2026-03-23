@@ -55,6 +55,10 @@ function actionToTraceDescription(action: FallbackAction): string {
       return `Widened levels from [${action.from.join(",")}] to [${action.to.join(",")}]`;
     case "CONTRACTION_SUBSTITUTED":
       return `Substituted contraction from ${action.needed} to ${action.used}`;
+    case "CATEGORY_MATCHED":
+      return `Matched category "${action.category}" across routes (original: ${action.originalRoute})`;
+    case "ROUTE_DROPPED":
+      return `Dropped route constraint (original: ${action.originalRoute})`;
   }
 }
 
