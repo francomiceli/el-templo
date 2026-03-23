@@ -179,6 +179,20 @@ onMounted(() => {
   &__level-badge {
     flex-shrink: 0;
     margin-left: 16px;
+
+    :deep(.level-display) {
+      padding: 0;
+    }
+
+    :deep(.level-display__letter) {
+      font-size: 28px;
+      margin-bottom: 2px;
+    }
+
+    :deep(.level-display__name) {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+    }
   }
 }
 </style>
