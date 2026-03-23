@@ -3,41 +3,49 @@
     <!-- Reserve Class CTA (non-virtual branch members only) -->
     <q-card
       v-if="showReservaCta"
-      class="general-content__reserva-card"
+      class="general-content__cta-card"
       flat
       bordered
       clickable
       @click="$router.push('/reservas')"
     >
-      <q-card-section class="general-content__reserva-content">
-        <div class="general-content__reserva-info">
-          <q-icon name="event_available" color="primary" size="36px" />
+      <q-card-section class="general-content__cta-content">
+        <div class="general-content__cta-info">
+          <q-icon name="event_available" color="primary" size="32px" />
           <div>
-            <p class="general-content__reserva-title">Reserva tu clase</p>
-            <p class="general-content__reserva-subtitle">
+            <p class="general-content__cta-title">Reserva tu clase presencial</p>
+            <p class="general-content__cta-subtitle">
               Asegura tu lugar en el horario que prefieras
             </p>
           </div>
         </div>
-        <q-icon name="chevron_right" color="primary" size="24px" />
+        <div class="general-content__cta-arrow">
+          <q-icon name="chevron_right" size="24px" />
+        </div>
       </q-card-section>
     </q-card>
 
     <!-- Today's Training CTA -->
-    <q-card class="general-content__today-card" flat bordered>
-      <q-card-section class="general-content__today-content">
-        <div class="general-content__today-info">
+    <q-card
+      class="general-content__cta-card"
+      flat
+      bordered
+      clickable
+      @click="$router.push('/training')"
+    >
+      <q-card-section class="general-content__cta-content">
+        <div class="general-content__cta-info">
           <q-icon
             :name="todayCompleted ? 'check_circle' : 'fitness_center'"
-            :color="todayCompleted ? 'positive' : 'secondary'"
-            size="40px"
+            :color="todayCompleted ? 'positive' : 'primary'"
+            size="32px"
           />
           <div class="general-content__today-text">
-            <p class="general-content__today-title">
-              {{ todayCompleted ? 'Sesion Completada' : 'Tu Sesion de Hoy' }}
+            <p class="general-content__cta-title">
+              {{ todayCompleted ? 'Sesion Completada' : 'Tu sesion de hoy' }}
             </p>
-            <p v-if="!todayCompleted" class="general-content__today-subtitle">
-              Lista para comenzar
+            <p v-if="!todayCompleted" class="general-content__cta-subtitle">
+              Podes entrenar desde donde quieras
             </p>
             <div v-else class="general-content__session-summary">
               <span v-if="todaySession?.durationMinutes" class="general-content__summary-item">
@@ -58,16 +66,9 @@
             </div>
           </div>
         </div>
-        <q-btn
-          v-if="!todayCompleted"
-          color="primary"
-          text-color="white"
-          unelevated
-          no-caps
-          label="Entrenar"
-          icon-right="arrow_forward"
-          to="/training"
-        />
+        <div class="general-content__cta-arrow">
+          <q-icon name="chevron_right" size="24px" />
+        </div>
       </q-card-section>
     </q-card>
 
@@ -134,7 +135,7 @@ const hasRpeData = computed(() => {
   flex-direction: column;
   gap: 16px;
 
-  &__reserva-card {
+  &__cta-card {
     background-color: white;
     border-color: rgba($primary, 0.2);
     border-radius: 12px;
@@ -146,19 +147,20 @@ const hasRpeData = computed(() => {
     }
   }
 
-  &__reserva-content {
+  &__cta-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
   }
 
-  &__reserva-info {
+  &__cta-info {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  &__reserva-title {
+  &__cta-title {
     font-family: 'Montserrat', sans-serif;
     font-size: 15px;
     font-weight: 600;
@@ -166,48 +168,27 @@ const hasRpeData = computed(() => {
     margin: 0;
   }
 
-  &__reserva-subtitle {
+  &__cta-subtitle {
     font-size: 12px;
     color: rgba($primary, 0.6);
     margin: 0;
   }
 
-  &__today-card {
-    background-color: white;
-    border-color: rgba($secondary, 0.3);
-    border-radius: 12px;
-  }
-
-  &__today-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-  }
-
-  &__today-info {
+  &__cta-arrow {
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, $primary, darken($primary, 12%));
+    color: white;
+    flex-shrink: 0;
   }
 
   &__today-text {
     display: flex;
     flex-direction: column;
-  }
-
-  &__today-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
-    font-weight: 600;
-    color: $primary;
-    margin: 0;
-  }
-
-  &__today-subtitle {
-    font-size: 13px;
-    color: rgba($primary, 0.6);
-    margin: 0;
   }
 
   &__session-summary {
