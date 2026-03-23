@@ -506,10 +506,9 @@ async function loadClassUsage() {
   try {
     classUsage.value = await subsApi.getClassUsage(props.userId);
   } catch (err: unknown) {
-    // Non-critical — if no active subscription, this may 404
     classUsage.value = null;
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading class usage', { error: message, userId: props.userId });
+    log.warn('Error loading class usage', { error: message, userId: props.userId });
   }
 }
 

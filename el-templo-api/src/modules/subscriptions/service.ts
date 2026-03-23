@@ -429,6 +429,7 @@ export class SubscriptionService {
     const [member] = await this.db
       .select({
         id: schema.users.id,
+        branchId: schema.users.branchId,
         boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
@@ -642,6 +643,26 @@ export class SubscriptionService {
           .update(schema.subscriptions)
           .set({ replacementCredits })
           .where(eq(schema.subscriptions.id, subscriptionId));
+      }
+    }
+
+    // Auto-migrate member from virtual branch to subscription's physical branch
+    if (member.branchId !== input.branchId) {
+      const [currentBranch] = await this.db
+        .select({ isVirtual: schema.branches.isVirtual })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, member.branchId));
+
+      if (currentBranch?.isVirtual) {
+        await this.db
+          .update(schema.users)
+          .set({ branchId: input.branchId })
+          .where(eq(schema.users.id, userId));
+
+        this.log.info(
+          { userId, fromBranchId: member.branchId, toBranchId: input.branchId },
+          "Auto-migrated member from virtual branch to subscription branch",
+        );
       }
     }
 

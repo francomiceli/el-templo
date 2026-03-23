@@ -272,7 +272,7 @@ export function useSubscriptionsApi() {
 
   // ─── Class Usage ─────────────────────────────────────────────────────
 
-  async function getClassUsage(userId: number): Promise<ClassUsageInfo> {
+  async function getClassUsage(userId: number): Promise<ClassUsageInfo | null> {
     loading.value = true;
     error.value = null;
     try {
@@ -281,6 +281,10 @@ export function useSubscriptionsApi() {
       );
       return data;
     } catch (err: unknown) {
+      // 404 means no active subscription — not an error
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        return null;
+      }
       error.value = extractError(err, 'Error cargando uso de clases');
       throw err;
     } finally {
