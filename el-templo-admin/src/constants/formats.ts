@@ -29,6 +29,10 @@ export const NO_PARAMS_FORMATS: string[] = [
   'buy_in_cash_out',
   'task_priority',
   'circuito_cooperativo',
+  'ladder',
+  'ladder_corta',
+  'ladder_block',
+  'broken_ladder',
 ];
 
 /**
@@ -58,6 +62,10 @@ export const NO_PARAMS_FORMAT_NAMES: string[] = [
   'buy-in_/_cash-out',
   'task_priority_vs_time_priority',
   'circuito_cooperativo',
+  'ladder',
+  'ladder_corta',
+  'ladder_block',
+  'broken_ladder',
 ];
 
 /**
