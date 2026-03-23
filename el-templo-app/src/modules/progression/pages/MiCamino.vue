@@ -19,19 +19,24 @@
 
     <!-- Content State -->
     <div v-else class="mi-camino__content">
-      <!-- Welcome Header (shared, always visible) -->
+      <!-- Welcome Header -->
       <div class="mi-camino__welcome">
-        <div class="mi-camino__welcome-text">
-          <p class="mi-camino__greeting">Bienvenido,</p>
-          <h1 class="mi-camino__name">{{ userName }}</h1>
-          <p class="mi-camino__date">{{ todayFormatted }}</p>
+        <div class="mi-camino__welcome-circles">
+          <div class="mi-camino__circle mi-camino__circle--sm" />
+          <div class="mi-camino__circle mi-camino__circle--md" />
+          <div class="mi-camino__circle mi-camino__circle--lg" />
         </div>
-        <LevelDisplay
-          v-if="progressionStore.level"
-          :greek-letter="progressionStore.level.greekLetter"
-          :level-name="progressionStore.level.displayName"
-          class="mi-camino__level-badge"
-        />
+        <div class="mi-camino__welcome-inner">
+          <div class="mi-camino__welcome-text">
+            <p class="mi-camino__greeting">Bienvenido,</p>
+            <p class="mi-camino__name">{{ userName }}</p>
+            <p class="mi-camino__date">{{ todayFormatted }}</p>
+          </div>
+          <div v-if="progressionStore.level" class="mi-camino__level-badge">
+            <span class="mi-camino__level-letter">{{ progressionStore.level.greekLetter }}</span>
+            <span class="mi-camino__level-name">{{ progressionStore.level.displayName }}</span>
+          </div>
+        </div>
       </div>
 
       <GeneralContent
@@ -58,7 +63,6 @@ import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useUserStore } from 'src/stores/useUserStore'
-import LevelDisplay from '../components/LevelDisplay.vue'
 import GeneralContent from '../components/GeneralContent.vue'
 
 const progressionStore = useProgressionStore()
@@ -146,10 +150,55 @@ onMounted(() => {
   }
 
   &__welcome {
+    background: linear-gradient(135deg, #5a3e28 0%, #7a5a3e 100%);
+    border-radius: 16px;
+    padding: 22px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  &__welcome-circles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  &__circle {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid;
+
+    &--sm {
+      width: 100px;
+      height: 100px;
+      top: -20px;
+      right: -20px;
+      border-color: rgba(210, 180, 140, 0.12);
+    }
+
+    &--md {
+      width: 140px;
+      height: 140px;
+      top: -40px;
+      right: -40px;
+      border-color: rgba(210, 180, 140, 0.06);
+    }
+
+    &--lg {
+      width: 180px;
+      height: 180px;
+      top: -60px;
+      right: -60px;
+      border-color: rgba(210, 180, 140, 0.03);
+    }
+  }
+
+  &__welcome-inner {
+    position: relative;
+    z-index: 1;
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
+    align-items: center;
   }
 
   &__welcome-text {
@@ -157,28 +206,55 @@ onMounted(() => {
   }
 
   &__greeting {
-    font-size: 14px;
-    color: rgba($primary, 0.6);
-    margin: 0 0 2px;
+    font-size: 13px;
+    color: rgba($cream, 0.6);
+    margin: 0 0 4px;
+    font-weight: 400;
   }
 
   &__name {
     font-family: 'Montserrat', sans-serif;
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 600;
-    color: $primary;
-    margin: 0 0 4px;
+    color: $cream;
+    margin: 0 0 8px;
+    line-height: 1.1;
   }
 
   &__date {
-    font-size: 13px;
-    color: rgba($primary, 0.7);
+    font-size: 12px;
+    color: rgba($cream, 0.45);
     margin: 0;
   }
 
   &__level-badge {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    background: rgba(210, 180, 140, 0.15);
+    border: 1px solid rgba(210, 180, 140, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     margin-left: 16px;
+  }
+
+  &__level-letter {
+    font-size: 22px;
+    font-weight: 300;
+    color: #d4b88c;
+    font-family: serif;
+    line-height: 1;
+  }
+
+  &__level-name {
+    font-size: 8px;
+    letter-spacing: 1.5px;
+    color: rgba(212, 184, 140, 0.7);
+    margin-top: 1px;
+    text-transform: uppercase;
   }
 }
 </style>
