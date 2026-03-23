@@ -72,12 +72,25 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     };
   });
 
-  // GET /plans — List all active, non-archived, non-trial plans for member catalog
-  fastify.get("/plans", async () => {
+  // GET /plans — List available plans for member catalog
+  // Includes active non-trial plans + the member's current plan if it's legacy (archived/inactive)
+  fastify.get("/plans", async (request) => {
     const allPlans = await subscriptionService.listPlans(true, false);
 
     // Exclude trial plans
     const plans = allPlans.filter((p) => !p.isTrial);
+    const planIds = new Set(plans.map((p) => p.id));
+
+    // If member has an active subscription on a plan not in the list, include it
+    const sub = await subscriptionService.getMemberSubscription(
+      request.user.userId,
+    );
+    if (sub && !planIds.has(sub.planId)) {
+      const legacyPlan = await subscriptionService.getPlanById(sub.planId);
+      if (legacyPlan) {
+        plans.push(legacyPlan);
+      }
+    }
 
     // Map to member-safe response (no prices) and enrich personalizada zones
     const mapped = plans.map((p) => {
