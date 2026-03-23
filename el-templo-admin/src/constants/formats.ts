@@ -74,10 +74,6 @@ export const FORMAT_DICTATED_TYPES = new Set([
   // Structure-dictated
   'death_by',
   'death_by_unbroken',
-  'ladder',
-  'ladder_block',
-  'ladder_corta',
-  'broken_ladder',
 ]);
 
 /**
@@ -93,7 +89,20 @@ export function isFormatDictatedByName(formatName: string): boolean {
     f.startsWith('on the') ||
     f.startsWith('death by') ||
     f === 'death_by' ||
-    f === 'death_by_unbroken' ||
-    f.includes('ladder')
+    f === 'death_by_unbroken'
   );
+}
+
+/** Check if a format is a ladder variant (per-exercise reps editing) */
+export function isLadderFormat(formatType: string | undefined, formatName: string): boolean {
+  if (formatType && formatType !== 'standard') {
+    return (
+      formatType === 'ladder' ||
+      formatType === 'ladder_corta' ||
+      formatType === 'ladder_block' ||
+      formatType === 'broken_ladder'
+    );
+  }
+  const f = formatName.toLowerCase().trim();
+  return f.includes('ladder');
 }

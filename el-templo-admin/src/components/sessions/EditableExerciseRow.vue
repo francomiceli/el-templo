@@ -237,6 +237,81 @@
           <span class="text-caption text-grey-6">{{ pyramidExercisePreview }}</span>
         </template>
 
+        <!-- Ladder: per-exercise start + step + rounds + preview -->
+        <template v-else-if="isLadder">
+          <template v-if="isIso">
+            <q-input
+              v-model.number="localSecondsMax"
+              type="number"
+              dense
+              outlined
+              label="Inicio (seg)"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Paso (seg)"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localSeconds"
+              type="number"
+              dense
+              outlined
+              label="Rondas"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+          <template v-else>
+            <q-input
+              v-model.number="localRepsMax"
+              type="number"
+              dense
+              outlined
+              label="Inicio"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localIncrement"
+              type="number"
+              dense
+              outlined
+              label="Paso"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+            <q-input
+              v-model.number="localReps"
+              type="number"
+              dense
+              outlined
+              label="Rondas"
+              class="editable-field"
+              input-class="text-center"
+              @blur="emitUpdate"
+              @keyup.enter="emitUpdate"
+            />
+          </template>
+          <span class="text-caption text-grey-6">{{ ladderExercisePreview }}</span>
+        </template>
+
         <!-- Param-driven formats (Tabata, HIIT): no per-exercise prescription -->
         <template v-else-if="isParamDrivenFormat">
           <q-badge outline color="grey" class="text-caption"
@@ -354,6 +429,7 @@ import {
   FORMAT_DICTATED_TYPES,
   normalizeFormatName,
   isFormatDictatedByName,
+  isLadderFormat,
 } from 'src/constants/formats';
 
 const props = defineProps<{
@@ -575,6 +651,23 @@ const pyramidExercisePreview = computed(() => {
   return `${first}...${peak}...${last}${suffix}`;
 });
 
+const isLadder = computed(() => isLadderFormat(props.formatType, props.blockFormatName));
+
+const ladderExercisePreview = computed(() => {
+  if (!isLadder.value) return '';
+  const start = Number(isIso.value ? localSecondsMax.value : localRepsMax.value) || 1;
+  const step = Number(localIncrement.value) || 1;
+  const rounds = Number(isIso.value ? localSeconds.value : localReps.value) || 5;
+  if (step <= 0 || rounds <= 0 || start <= 0) return '';
+  const values: number[] = [];
+  for (let i = 0; i < rounds; i++) values.push(start + i * step);
+  const suffix = isIso.value ? 's' : '';
+  if (values.length <= 7) return values.join('-') + suffix;
+  const first = values.slice(0, 3).join('-');
+  const last = values.slice(-2).join('-');
+  return `${first}...${last}${suffix}`;
+});
+
 const isIGoYouGo = computed(() => {
   if (props.formatType && props.formatType !== 'standard') {
     return props.formatType === 'i_go_you_go';
@@ -603,26 +696,55 @@ const isPausaSelected = computed(() => {
 const contractionLabel = computed(() => normalizeContraction(props.exercise.contraction) || '-');
 const contractionColor = computed(() => getContractionColor(props.exercise.contraction));
 
-// Initialize pyramid defaults when exercise has no step/start set
+// Initialize pyramid/ladder defaults when exercise has no step/start set
 onMounted(() => {
-  if (!isPyramid.value) return;
-  let changed = false;
-  if (!localIncrement.value) {
-    localIncrement.value = 2;
-    changed = true;
-  }
-  if (isIso.value) {
-    if (!localSecondsMax.value) {
-      localSecondsMax.value = 2;
+  if (isPyramid.value) {
+    let changed = false;
+    if (!localIncrement.value) {
+      localIncrement.value = 2;
       changed = true;
     }
-  } else {
-    if (!localRepsMax.value) {
-      localRepsMax.value = 2;
+    if (isIso.value) {
+      if (!localSecondsMax.value) {
+        localSecondsMax.value = 2;
+        changed = true;
+      }
+    } else {
+      if (!localRepsMax.value) {
+        localRepsMax.value = 2;
+        changed = true;
+      }
+    }
+    if (changed) emitUpdate();
+  }
+
+  if (isLadder.value) {
+    let changed = false;
+    if (!localIncrement.value) {
+      localIncrement.value = 1;
       changed = true;
     }
+    if (isIso.value) {
+      if (!localSecondsMax.value) {
+        localSecondsMax.value = 5;
+        changed = true;
+      }
+      if (!localSeconds.value) {
+        localSeconds.value = 5;
+        changed = true;
+      }
+    } else {
+      if (!localRepsMax.value) {
+        localRepsMax.value = 1;
+        changed = true;
+      }
+      if (!localReps.value) {
+        localReps.value = 5;
+        changed = true;
+      }
+    }
+    if (changed) emitUpdate();
   }
-  if (changed) emitUpdate();
 });
 </script>
 
