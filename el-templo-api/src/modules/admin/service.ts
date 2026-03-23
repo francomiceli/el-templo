@@ -625,12 +625,19 @@ export class AdminSessionService {
       levelGroups?: string[];
       regenerate?: boolean;
     },
-  ): Promise<{ generated: number; skipped: number }> {
+  ): Promise<{
+    generated: number;
+    skipped: number;
+    failed: number;
+    warnings: string[];
+  }> {
     const days = options.days || [...TRAINING_DAYS];
     const levelGroups = options.levelGroups || ["alfa_delta", "sigma", "omega"];
 
     let generated = 0;
     let skipped = 0;
+    let failed = 0;
+    const warnings: string[] = [];
 
     // Import SessionGeneratorService dynamically to avoid circular deps
     const { SessionGeneratorService } = await import("../sessions/service.js");
@@ -670,36 +677,67 @@ export class AdminSessionService {
               .where(eq(schema.sessions.dayId, dayId));
           }
 
-          // Generate new session (pass sharedFormats for cross-level consistency)
-          const session = await sessionService.generateDailySession({
-            week,
-            day,
-            levelGroup: levelGroup as LevelGroup,
-            memberLevel,
-            sharedFormats,
-          });
+          try {
+            // Generate new session (pass sharedFormats for cross-level consistency)
+            const session = await sessionService.generateDailySession({
+              week,
+              day,
+              levelGroup: levelGroup as LevelGroup,
+              memberLevel,
+              sharedFormats,
+            });
 
-          // Capture formats from the first generated session of the day
-          // INITIUM excluded (uses separate pipeline, always Interval Training)
-          if (!sharedFormats) {
-            sharedFormats = new Map();
-            for (const block of session.blocks) {
-              if (block.role !== "INITIUM") {
-                sharedFormats.set(block.role, {
-                  formatId: block.format.formatId,
-                  name: block.format.name,
-                });
+            // Capture formats from the first generated session of the day
+            // INITIUM excluded (uses separate pipeline, always Interval Training)
+            if (!sharedFormats) {
+              sharedFormats = new Map();
+              for (const block of session.blocks) {
+                if (block.role !== "INITIUM") {
+                  sharedFormats.set(block.role, {
+                    formatId: block.format.formatId,
+                    name: block.format.name,
+                  });
+                }
               }
             }
-          }
 
-          await sessionService.saveSession(session);
-          generated++;
+            // Detect blocks where category or any-route fallback was used (Tier 5+)
+            for (const block of session.blocks) {
+              const decision = (t: { code: string; decision?: unknown }) =>
+                t.decision as Record<string, unknown> | undefined;
+              const categoryFallback = block.trace.some(
+                (t) =>
+                  t.code === "EXERCISE_FALLBACK" &&
+                  decision(t)?.action === "CATEGORY_MATCHED",
+              );
+              const routeDropped = block.trace.some(
+                (t) =>
+                  t.code === "EXERCISE_FALLBACK" &&
+                  decision(t)?.action === "ROUTE_DROPPED",
+              );
+              if (routeDropped) {
+                warnings.push(
+                  `${dayId} bloque ${block.role}: ruta "${block.route}" no tiene ejercicios, se usaron ejercicios de otras rutas`,
+                );
+              } else if (categoryFallback) {
+                warnings.push(
+                  `${dayId} bloque ${block.role}: ruta "${block.route}" no tiene ejercicios, se usaron ejercicios de la misma categoria`,
+                );
+              }
+            }
+
+            await sessionService.saveSession(session);
+            generated++;
+          } catch (err: unknown) {
+            failed++;
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            warnings.push(`${dayId}: ${errorMsg}`);
+          }
         }
       }
     }
 
-    return { generated, skipped };
+    return { generated, skipped, failed, warnings };
   }
 
   /**

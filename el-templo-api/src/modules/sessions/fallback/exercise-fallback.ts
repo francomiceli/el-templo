@@ -8,12 +8,14 @@
  * - Alfa: 1-4, Delta: 4-7, Sigma: 7-8, Omega: 9-10, Spartan: 11-12
  *
  * Fallback Tiers:
- * 0: Exact match (route + contraction + linear difficulty + level)
- * 1: Relax difficulty (allow any dificultad_lineal)
- * 1.5: Include exercises with empty effort field
- * 2: Widen scope (search parent category — keeps same level)
- * 3: Widen level filter (graduated — nearby levels first)
- * 4: Substitute contraction (if no ISO, try EXC, then CON)
+ * 0: Exact match (route + contraction + difficulty + level)
+ * 1: Category match (same category across routes — strict difficulty + level)
+ * 2: Relax difficulty (category then route, any difficulty)
+ * 2.5: Include empty effort (category then route)
+ * 3: Widen scope (route prefix matching)
+ * 4: Widen level filter (graduated — nearby levels first, category then route)
+ * 5: Substitute contraction (category then route)
+ * 6: Any route (drop all route/category constraints — last resort)
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -184,6 +186,103 @@ async function queryExercisesIncludingEmptyEffort(
 }
 
 /**
+ * Query exercises by category (ignoring route).
+ * Finds exercises that train the same category across all routes.
+ */
+async function queryExercisesByCategory(
+  db: MySql2Database<typeof schema>,
+  category: string,
+  contraction: Contraction,
+  minDificultadLineal: number,
+  maxDificultadLineal: number,
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>,
+): Promise<ExerciseCandidate[]> {
+  const results = await db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      dificultadLineal: schema.exercises.dificultadLineal,
+      position: schema.exercises.position,
+    })
+    .from(schema.exercises)
+    .where(
+      and(
+        or(
+          eq(schema.exercises.category, category),
+          eq(schema.exercises.categorySecondary, category),
+        ),
+        or(
+          eq(schema.exercises.effort, contraction),
+          eq(schema.exercises.effort, ""),
+        ),
+        gte(schema.exercises.dificultadLineal, minDificultadLineal),
+        lte(schema.exercises.dificultadLineal, maxDificultadLineal),
+        inArray(schema.exercises.level, [...allowedLevels]),
+      ),
+    );
+
+  const filtered =
+    excludeNames && excludeNames.size > 0
+      ? results.filter((r) => !excludeNames.has(r.name))
+      : results;
+
+  return filtered.map((r) => ({
+    id: r.id,
+    name: r.name,
+    dificultadLineal: r.dificultadLineal,
+    contraction,
+    position: r.position,
+  }));
+}
+
+/**
+ * Query exercises ignoring route and category (true last-resort fallback).
+ * Matches on contraction, difficulty, and level only.
+ */
+async function queryExercisesAnyRoute(
+  db: MySql2Database<typeof schema>,
+  contraction: Contraction,
+  minDificultadLineal: number,
+  maxDificultadLineal: number,
+  allowedLevels: readonly ExerciseLevel[],
+  excludeNames?: Set<string>,
+): Promise<ExerciseCandidate[]> {
+  const results = await db
+    .select({
+      id: schema.exercises.id,
+      name: schema.exercises.exercise,
+      dificultadLineal: schema.exercises.dificultadLineal,
+      position: schema.exercises.position,
+    })
+    .from(schema.exercises)
+    .where(
+      and(
+        or(
+          eq(schema.exercises.effort, contraction),
+          eq(schema.exercises.effort, ""),
+        ),
+        gte(schema.exercises.dificultadLineal, minDificultadLineal),
+        lte(schema.exercises.dificultadLineal, maxDificultadLineal),
+        inArray(schema.exercises.level, [...allowedLevels]),
+      ),
+    );
+
+  const filtered =
+    excludeNames && excludeNames.size > 0
+      ? results.filter((r) => !excludeNames.has(r.name))
+      : results;
+
+  return filtered.map((r) => ({
+    id: r.id,
+    name: r.name,
+    dificultadLineal: r.dificultadLineal,
+    contraction,
+    position: r.position,
+  }));
+}
+
+/**
  * Query exercises with scope widening (category prefix matching)
  */
 async function queryExercisesWithScopeWidening(
@@ -251,8 +350,15 @@ export async function selectExercisesWithFallback(
   requirements: ExerciseRequirements,
   db: MySql2Database<typeof schema>,
   policy: FallbackPolicy = {
-    maxTier: 4,
-    relaxationOrder: ["difficulty", "level", "scope", "contraction"],
+    maxTier: 6,
+    relaxationOrder: [
+      "category",
+      "difficulty",
+      "scope",
+      "level",
+      "contraction",
+      "route",
+    ],
   },
 ): Promise<FallbackResult<ExerciseCandidate>> {
   const {
@@ -264,6 +370,7 @@ export async function selectExercisesWithFallback(
     count,
     levelGroup,
     memberLevel,
+    category,
     excludeNames,
   } = requirements;
 
@@ -274,7 +381,7 @@ export async function selectExercisesWithFallback(
   let currentContraction = contraction;
   let currentRoute = route;
 
-  // Tier 0: Exact match — use member's specific level only
+  // Tier 0: Exact match — route + contraction + difficulty + level
   let pool = await queryExercises(
     db,
     currentRoute,
@@ -286,7 +393,6 @@ export async function selectExercisesWithFallback(
   );
 
   if (pool.length >= count) {
-    // Sort deterministically by id ASC and take first N
     const sorted = [...pool].sort((a, b) => a.id - b.id);
     const selected = sorted.slice(0, count);
     return {
@@ -297,30 +403,31 @@ export async function selectExercisesWithFallback(
     };
   }
 
-  // Tier 1: Relax difficulty (remove both min and max bounds)
-  if (policy.maxTier >= 1 && policy.relaxationOrder.includes("difficulty")) {
-    const originalDificultadLineal = currentDificultadLineal;
-    currentMinDificultadLineal = 1;
-    currentDificultadLineal = 999; // Allow any difficulty
-
-    pool = await queryExercises(
+  // Tier 1: Category-based — same category across all routes, STRICT difficulty + level
+  // Preserves training intent (e.g., HIP DOMINANT from sibling routes) at correct difficulty
+  if (
+    policy.maxTier >= 1 &&
+    policy.relaxationOrder.includes("category") &&
+    category
+  ) {
+    pool = await queryExercisesByCategory(
       db,
-      currentRoute,
-      currentContraction,
+      category,
+      contraction,
       currentMinDificultadLineal,
       currentDificultadLineal,
       currentLevels,
       excludeNames,
     );
 
-    actions.push({
-      type: "DIFFICULTY_RELAXED",
-      tier: 1,
-      from: originalDificultadLineal,
-      to: currentDificultadLineal,
-    });
-
     if (pool.length >= count) {
+      actions.push({
+        type: "CATEGORY_MATCHED",
+        tier: 1,
+        category,
+        originalRoute: route,
+      });
+
       const sorted = [...pool].sort((a, b) => a.id - b.id);
       const selected = sorted.slice(0, count);
       return {
@@ -332,9 +439,108 @@ export async function selectExercisesWithFallback(
     }
   }
 
-  // Tier 1.5: Include exercises with empty effort (same level, before widening to other levels)
-  // This helps when exercises exist but lack contraction tags
+  // Tier 2: Relax difficulty — search category (if available) then route with any difficulty
+  if (policy.maxTier >= 2 && policy.relaxationOrder.includes("difficulty")) {
+    const originalDificultadLineal = currentDificultadLineal;
+    currentMinDificultadLineal = 1;
+    currentDificultadLineal = 999;
+
+    actions.push({
+      type: "DIFFICULTY_RELAXED",
+      tier: 2,
+      from: originalDificultadLineal,
+      to: currentDificultadLineal,
+    });
+
+    // Try category with relaxed difficulty first
+    if (category) {
+      pool = await queryExercisesByCategory(
+        db,
+        category,
+        contraction,
+        currentMinDificultadLineal,
+        currentDificultadLineal,
+        currentLevels,
+        excludeNames,
+      );
+
+      if (pool.length >= count) {
+        actions.push({
+          type: "CATEGORY_MATCHED",
+          tier: 2,
+          category,
+          originalRoute: route,
+        });
+
+        const sorted = [...pool].sort((a, b) => a.id - b.id);
+        const selected = sorted.slice(0, count);
+        return {
+          status: "fallback",
+          data: selected,
+          tier: 2,
+          actions,
+        };
+      }
+    }
+
+    // Also try route with relaxed difficulty
+    pool = await queryExercises(
+      db,
+      currentRoute,
+      currentContraction,
+      currentMinDificultadLineal,
+      currentDificultadLineal,
+      currentLevels,
+      excludeNames,
+    );
+
+    if (pool.length >= count) {
+      const sorted = [...pool].sort((a, b) => a.id - b.id);
+      const selected = sorted.slice(0, count);
+      return {
+        status: "fallback",
+        data: selected,
+        tier: 2,
+        actions,
+      };
+    }
+  }
+
+  // Tier 2.5: Include exercises with empty effort (category then route)
+  // Handles poorly-tagged exercises (common in lower body routes)
   {
+    // Try category with empty effort
+    if (category) {
+      pool = await queryExercisesByCategory(
+        db,
+        category,
+        contraction,
+        currentMinDificultadLineal,
+        currentDificultadLineal,
+        currentLevels,
+        excludeNames,
+      );
+
+      // queryExercisesByCategory already includes empty effort via OR clause
+      if (pool.length >= count) {
+        actions.push({
+          type: "EFFORT_RELAXED",
+          tier: 2.5,
+          contraction,
+        });
+
+        const sorted = [...pool].sort((a, b) => a.id - b.id);
+        const selected = sorted.slice(0, count);
+        return {
+          status: "fallback",
+          data: selected,
+          tier: 2.5,
+          actions,
+        };
+      }
+    }
+
+    // Try route with empty effort
     pool = await queryExercisesIncludingEmptyEffort(
       db,
       currentRoute,
@@ -348,23 +554,22 @@ export async function selectExercisesWithFallback(
     if (pool.length >= count) {
       actions.push({
         type: "EFFORT_RELAXED",
-        tier: 1.5,
+        tier: 2.5,
         contraction,
       });
 
-      // Already sorted by exact match first, then by id
       const selected = pool.slice(0, count);
       return {
         status: "fallback",
         data: selected,
-        tier: 1.5,
+        tier: 2.5,
         actions,
       };
     }
   }
 
-  // Tier 2: Widen scope (try related routes at same level before widening levels)
-  if (policy.maxTier >= 2 && policy.relaxationOrder.includes("scope")) {
+  // Tier 3: Widen scope (route prefix matching, e.g., "PRESS-H" -> "PRESS*")
+  if (policy.maxTier >= 3 && policy.relaxationOrder.includes("scope")) {
     const originalRoute = currentRoute;
 
     pool = await queryExercisesWithScopeWidening(
@@ -381,7 +586,7 @@ export async function selectExercisesWithFallback(
       const parentRoute = currentRoute.split("-")[0];
       actions.push({
         type: "SCOPE_WIDENED",
-        tier: 2,
+        tier: 3,
         from: originalRoute,
         to: `${parentRoute}*`,
       });
@@ -393,18 +598,50 @@ export async function selectExercisesWithFallback(
         return {
           status: "fallback",
           data: selected,
-          tier: 2,
+          tier: 3,
           actions,
         };
       }
     }
   }
 
-  // Tier 3: Widen level filter (graduated — nearby levels first)
-  if (policy.maxTier >= 3 && policy.relaxationOrder.includes("level")) {
+  // Tier 4: Widen level filter (graduated — nearby levels first)
+  if (policy.maxTier >= 4 && policy.relaxationOrder.includes("level")) {
     const originalLevels = currentLevels;
     currentLevels = getExpandedLevels(levelGroup, 2);
 
+    actions.push({
+      type: "LEVEL_WIDENED",
+      tier: 4,
+      from: originalLevels,
+      to: currentLevels,
+    });
+
+    // Try category with expanded levels first
+    if (category) {
+      pool = await queryExercisesByCategory(
+        db,
+        category,
+        contraction,
+        currentMinDificultadLineal,
+        currentDificultadLineal,
+        currentLevels,
+        excludeNames,
+      );
+
+      if (pool.length >= count) {
+        const sorted = [...pool].sort((a, b) => a.id - b.id);
+        const selected = sorted.slice(0, count);
+        return {
+          status: "fallback",
+          data: selected,
+          tier: 4,
+          actions,
+        };
+      }
+    }
+
+    // Fall back to route with expanded levels
     pool = await queryExercises(
       db,
       currentRoute,
@@ -415,30 +652,58 @@ export async function selectExercisesWithFallback(
       excludeNames,
     );
 
-    actions.push({
-      type: "LEVEL_WIDENED",
-      tier: 3,
-      from: originalLevels,
-      to: currentLevels,
-    });
-
     if (pool.length >= count) {
       const sorted = [...pool].sort((a, b) => a.id - b.id);
       const selected = sorted.slice(0, count);
       return {
         status: "fallback",
         data: selected,
-        tier: 3,
+        tier: 4,
         actions,
       };
     }
   }
 
-  // Tier 4: Substitute contraction
-  if (policy.maxTier >= 4 && policy.relaxationOrder.includes("contraction")) {
+  // Tier 5: Substitute contraction (within category, then route)
+  if (policy.maxTier >= 5 && policy.relaxationOrder.includes("contraction")) {
     const substitutes = CONTRACTION_SUBSTITUTION[contraction];
 
     for (const substitute of substitutes) {
+      // Try category with substituted contraction
+      if (category) {
+        const catPool = await queryExercisesByCategory(
+          db,
+          category,
+          substitute,
+          currentMinDificultadLineal,
+          currentDificultadLineal,
+          currentLevels,
+          excludeNames,
+        );
+
+        if (catPool.length >= count) {
+          actions.push({
+            type: "CONTRACTION_SUBSTITUTED",
+            tier: 5,
+            needed: contraction,
+            used: substitute,
+          });
+
+          const sorted = [...catPool].sort((a, b) => a.id - b.id);
+          const selected = sorted.slice(0, count).map((ex) => ({
+            ...ex,
+            contraction: substitute,
+          }));
+          return {
+            status: "fallback",
+            data: selected,
+            tier: 5,
+            actions,
+          };
+        }
+      }
+
+      // Try route with substituted contraction
       pool = await queryExercises(
         db,
         route,
@@ -452,7 +717,7 @@ export async function selectExercisesWithFallback(
       if (pool.length >= count) {
         actions.push({
           type: "CONTRACTION_SUBSTITUTED",
-          tier: 4,
+          tier: 5,
           needed: contraction,
           used: substitute,
         });
@@ -465,19 +730,80 @@ export async function selectExercisesWithFallback(
         return {
           status: "fallback",
           data: selected,
-          tier: 4,
+          tier: 5,
           actions,
         };
       }
     }
 
-    // Record attempted substitutions even if failed
     actions.push({
       type: "CONTRACTION_SUBSTITUTED",
-      tier: 4,
+      tier: 5,
       needed: contraction,
-      used: contraction, // Failed to substitute
+      used: contraction,
     });
+  }
+
+  // Tier 6: Drop route entirely — any route matching level/difficulty (last resort)
+  if (policy.maxTier >= 6 && policy.relaxationOrder.includes("route")) {
+    pool = await queryExercisesAnyRoute(
+      db,
+      contraction,
+      currentMinDificultadLineal,
+      currentDificultadLineal,
+      currentLevels,
+      excludeNames,
+    );
+
+    actions.push({
+      type: "ROUTE_DROPPED",
+      tier: 6,
+      originalRoute: route,
+    });
+
+    if (pool.length >= count) {
+      const sorted = [...pool].sort((a, b) => a.id - b.id);
+      const selected = sorted.slice(0, count);
+      return {
+        status: "fallback",
+        data: selected,
+        tier: 6,
+        actions,
+      };
+    }
+
+    const substitutes = CONTRACTION_SUBSTITUTION[contraction];
+    for (const substitute of substitutes) {
+      const subPool = await queryExercisesAnyRoute(
+        db,
+        substitute,
+        currentMinDificultadLineal,
+        currentDificultadLineal,
+        currentLevels,
+        excludeNames,
+      );
+
+      if (subPool.length >= count) {
+        actions.push({
+          type: "CONTRACTION_SUBSTITUTED",
+          tier: 6,
+          needed: contraction,
+          used: substitute,
+        });
+
+        const sorted = [...subPool].sort((a, b) => a.id - b.id);
+        const selected = sorted.slice(0, count).map((ex) => ({
+          ...ex,
+          contraction: substitute,
+        }));
+        return {
+          status: "fallback",
+          data: selected,
+          tier: 6,
+          actions,
+        };
+      }
+    }
   }
 
   // Failed: No exercises found after all fallback tiers

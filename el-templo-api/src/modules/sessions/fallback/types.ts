@@ -42,6 +42,17 @@ export type FallbackAction =
       tier: number;
       needed: Contraction;
       used: Contraction;
+    }
+  | {
+      type: "CATEGORY_MATCHED";
+      tier: number;
+      category: string;
+      originalRoute: string;
+    }
+  | {
+      type: "ROUTE_DROPPED";
+      tier: number;
+      originalRoute: string;
     };
 
 /**
@@ -56,6 +67,8 @@ export interface FallbackPolicy {
     | "level"
     | "scope"
     | "contraction"
+    | "category"
+    | "route"
   )[];
 }
 
@@ -70,8 +83,15 @@ export interface FallbackPolicy {
  * Tier 4: Substitute contraction type
  */
 export const DEFAULT_EXERCISE_POLICY: FallbackPolicy = {
-  maxTier: 4,
-  relaxationOrder: ["difficulty", "scope", "level", "contraction"],
+  maxTier: 6,
+  relaxationOrder: [
+    "category",
+    "difficulty",
+    "scope",
+    "level",
+    "contraction",
+    "route",
+  ],
 };
 
 /**
@@ -100,6 +120,8 @@ export interface ExerciseRequirements {
   readonly count: number;
   readonly levelGroup: LevelGroup;
   readonly memberLevel: ExerciseLevel;
+  /** SPOM category for category-based fallback (e.g., "Empuje", "Jalón") */
+  readonly category?: string;
   /** Exercise names to exclude (for deduplication across contractions) */
   readonly excludeNames?: Set<string>;
 }

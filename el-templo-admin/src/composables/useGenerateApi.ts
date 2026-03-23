@@ -16,6 +16,8 @@ export interface WeekSummary {
 export interface GenerateResult {
   generated: number;
   skipped: number;
+  failed?: number;
+  warnings?: string[];
 }
 
 export function useGenerateApi() {

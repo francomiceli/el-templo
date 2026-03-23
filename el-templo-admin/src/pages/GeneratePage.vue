@@ -130,14 +130,29 @@
         </q-card>
 
         <!-- Generate result -->
-        <q-banner v-if="lastResult" class="bg-positive text-white q-mt-md">
+        <q-banner v-if="lastResult" :class="lastResultBannerClass" class="q-mt-md">
           <template #avatar>
-            <q-icon name="check_circle" />
+            <q-icon :name="lastResultIcon" />
           </template>
           Generadas: {{ lastResult.generated }} sesiones.
           <span v-if="lastResult.skipped > 0">
             Omitidas: {{ lastResult.skipped }} (ya existian).
           </span>
+          <span v-if="lastResult.failed"> Fallaron: {{ lastResult.failed }}. </span>
+        </q-banner>
+
+        <!-- Warnings detail -->
+        <q-banner
+          v-if="lastResult && lastResult.warnings && lastResult.warnings.length > 0"
+          class="bg-warning text-white q-mt-sm"
+        >
+          <template #avatar>
+            <q-icon name="warning" />
+          </template>
+          <div class="text-weight-bold q-mb-xs">Sesiones con errores:</div>
+          <div v-for="(w, i) in lastResult.warnings" :key="i" class="text-caption">
+            {{ w }}
+          </div>
         </q-banner>
       </q-tab-panel>
 
@@ -371,6 +386,20 @@ const summaryRows = computed(() => {
   }));
 });
 
+const lastResultBannerClass = computed(() => {
+  if (!lastResult.value) return '';
+  if (lastResult.value.failed && lastResult.value.generated === 0) return 'bg-negative text-white';
+  if (lastResult.value.failed) return 'bg-warning text-white';
+  return 'bg-positive text-white';
+});
+
+const lastResultIcon = computed(() => {
+  if (!lastResult.value) return 'check_circle';
+  if (lastResult.value.failed && lastResult.value.generated === 0) return 'error';
+  if (lastResult.value.failed) return 'warning';
+  return 'check_circle';
+});
+
 const hasExistingSessionsInScope = computed(() => {
   if (!weekSummary.value) return false;
 
@@ -483,9 +512,15 @@ async function doGenerate() {
     }
 
     lastResult.value = await generateApi.generateWeek(options);
+    const hasWarnings = lastResult.value.warnings && lastResult.value.warnings.length > 0;
+    const hasFailed = lastResult.value.failed && lastResult.value.failed > 0;
     $q.notify({
-      type: 'positive',
-      message: `Generadas ${lastResult.value.generated} sesiones`,
+      type: hasFailed ? 'warning' : hasWarnings ? 'warning' : 'positive',
+      message: hasFailed
+        ? `Generadas ${lastResult.value.generated} sesiones. ${lastResult.value.failed} fallaron.`
+        : hasWarnings
+          ? `Generadas ${lastResult.value.generated} sesiones con advertencias.`
+          : `Generadas ${lastResult.value.generated} sesiones`,
     });
     loadWeekSummary();
   } catch {

@@ -235,87 +235,144 @@
 
     <!-- Create Exercise Dialog -->
     <q-dialog v-model="showCreateDialog">
-      <q-card style="min-width: 500px">
+      <q-card style="min-width: 540px; max-width: 600px">
         <q-card-section>
           <div class="text-h6">Crear Ejercicio</div>
         </q-card-section>
+        <q-separator />
 
-        <q-card-section class="column q-gutter-sm">
-          <q-input v-model="createForm.exercise" label="Nombre del ejercicio *" dense outlined />
-          <div class="row q-gutter-sm">
-            <q-select
-              v-model="createForm.category"
-              :options="createCategoryOptions"
-              label="Categoria *"
-              dense
-              outlined
-              emit-value
-              map-options
-              class="col"
-            />
-            <q-select
-              v-model="createForm.pattern"
-              :options="createPatternOptions"
-              label="Pattern *"
-              dense
-              outlined
-              emit-value
-              map-options
-              class="col"
-            />
+        <q-card-section class="q-pt-md">
+          <!-- Name -->
+          <q-input
+            v-model="createForm.exercise"
+            label="Nombre del ejercicio"
+            outlined
+            :rules="[(val) => !!val?.trim() || 'Requerido']"
+            class="q-mb-sm"
+          />
+
+          <!-- Classification -->
+          <div class="text-caption text-grey-7 q-mb-xs">Clasificacion</div>
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-6">
+              <q-select
+                v-model="createForm.category"
+                :options="createCategoryOptions"
+                label="Categoria"
+                outlined
+                emit-value
+                map-options
+              />
+            </div>
+            <div class="col-6">
+              <q-select
+                v-model="createForm.pattern"
+                :options="createPatternOptions"
+                label="Pattern"
+                outlined
+                emit-value
+                map-options
+              />
+            </div>
+            <div class="col-6">
+              <q-select
+                v-model="createForm.route"
+                :options="createRouteOptions"
+                label="Ruta"
+                outlined
+                emit-value
+                map-options
+              />
+            </div>
+            <div v-if="!createForm.createVariants" class="col-6">
+              <q-select
+                v-model="createForm.effort"
+                :options="createEffortOptions"
+                label="Contraccion"
+                outlined
+                emit-value
+                map-options
+              />
+            </div>
           </div>
-          <div class="row q-gutter-sm">
-            <q-select
-              v-model="createForm.route"
-              :options="createRouteOptions"
-              label="Ruta *"
-              dense
-              outlined
-              emit-value
-              map-options
-              class="col"
-            />
-            <q-select
-              v-model="createForm.effort"
-              :options="createEffortOptions"
-              label="Contraccion *"
-              dense
-              outlined
-              emit-value
-              map-options
-              class="col"
-            />
+
+          <!-- Contraction variants toggle -->
+          <q-toggle
+            v-model="createForm.createVariants"
+            label="Crear con las 3 contracciones (CON / EXC / ISO)"
+            class="q-mb-sm"
+          />
+
+          <!-- Level & Difficulty -->
+          <div class="text-caption text-grey-7 q-mb-xs">Nivel y Dificultad</div>
+          <div class="row q-col-gutter-sm q-mb-sm">
+            <div class="col-6">
+              <q-select
+                v-model="createForm.level"
+                :options="createLevelOptions"
+                label="Nivel"
+                outlined
+                emit-value
+                map-options
+                clearable
+                @update:model-value="onLevelChange"
+              />
+            </div>
+            <div class="col-6">
+              <q-select
+                v-model="createForm.dificultadLineal"
+                :options="difficultyOptions"
+                :label="
+                  createForm.createVariants ? 'Dificultad CON (la mas alta)' : 'Dificultad Lineal'
+                "
+                outlined
+                emit-value
+                map-options
+                :disable="!createForm.level"
+                :hint="!createForm.level ? 'Selecciona un nivel primero' : undefined"
+              />
+            </div>
           </div>
-          <div class="row q-gutter-sm">
-            <q-select
-              v-model="createForm.level"
-              :options="createLevelOptions"
-              label="Nivel"
-              dense
-              outlined
-              emit-value
-              map-options
-              clearable
-              class="col"
-            />
-            <q-input
-              v-model.number="createForm.dificultadLineal"
-              type="number"
-              label="Dificultad (1-12)"
-              dense
-              outlined
-              :min="1"
-              :max="12"
-              class="col"
-            />
+
+          <!-- Variant preview -->
+          <div
+            v-if="createForm.createVariants && createForm.level && createForm.dificultadLineal"
+            class="q-mb-md q-pa-sm bg-grey-2 rounded-borders"
+          >
+            <div class="text-caption text-grey-8 q-mb-xs">Se crearan 3 ejercicios:</div>
+            <div
+              v-for="v in variantPreview"
+              :key="v.effort"
+              class="row items-center q-gutter-xs text-body2"
+            >
+              <q-badge
+                :color="v.valid ? 'grey-7' : 'negative'"
+                text-color="white"
+                :label="v.effort"
+              />
+              <span>Dificultad {{ v.difficulty }}</span>
+              <span v-if="!v.valid" class="text-negative text-caption"
+                >(fuera de rango para {{ createForm.level }})</span
+              >
+            </div>
           </div>
-          <q-input v-model="createForm.position" label="Posicion (opcional)" dense outlined />
+
+          <!-- Position -->
+          <q-input
+            v-model="createForm.position"
+            label="Posicion"
+            placeholder="Ej: O.A, O.L, TUCK, STRADDLE..."
+            outlined
+          />
         </q-card-section>
 
-        <q-card-actions align="right">
+        <q-separator />
+
+        <q-card-actions align="right" class="q-pa-md">
           <q-btn flat label="Cancelar" color="grey" v-close-popup />
           <q-btn
-            label="Crear"
+            :label="createForm.createVariants ? 'Crear 3 Ejercicios' : 'Crear Ejercicio'"
+            icon="add"
             color="primary"
             :loading="creating"
             :disable="!createFormValid"
@@ -362,6 +419,49 @@ const createForm = reactive({
   level: null as string | null,
   dificultadLineal: 1,
   position: '',
+  createVariants: false,
+});
+
+const LEVEL_DIFFICULTY: Record<string, { min: number; max: number }> = {
+  alfa: { min: 1, max: 3 },
+  delta: { min: 4, max: 6 },
+  sigma: { min: 7, max: 8 },
+  omega: { min: 9, max: 10 },
+  spartan: { min: 11, max: 12 },
+};
+
+const difficultyOptions = computed(() => {
+  const level = createForm.level;
+  if (!level || !LEVEL_DIFFICULTY[level]) return [];
+  const { min, max } = LEVEL_DIFFICULTY[level];
+  return Array.from({ length: max - min + 1 }, (_, i) => {
+    const val = min + i;
+    return { label: String(val), value: val };
+  });
+});
+
+function onLevelChange() {
+  const level = createForm.level;
+  if (level && LEVEL_DIFFICULTY[level]) {
+    createForm.dificultadLineal = LEVEL_DIFFICULTY[level].min;
+  }
+}
+
+const variantPreview = computed(() => {
+  const base = createForm.dificultadLineal;
+  const level = createForm.level;
+  if (!level || !LEVEL_DIFFICULTY[level]) return [];
+  const { min, max } = LEVEL_DIFFICULTY[level];
+  return [
+    { effort: 'CON', difficulty: base, valid: base >= min && base <= max },
+    { effort: 'EXC', difficulty: base - 1, valid: base - 1 >= min && base - 1 <= max },
+    { effort: 'ISO', difficulty: base - 2, valid: base - 2 >= min && base - 2 <= max },
+  ];
+});
+
+const variantsValid = computed(() => {
+  if (!createForm.createVariants) return true;
+  return variantPreview.value.length === 3 && variantPreview.value.every((v) => v.valid);
 });
 
 const createFormValid = computed(
@@ -370,7 +470,10 @@ const createFormValid = computed(
     createForm.category !== '' &&
     createForm.pattern !== '' &&
     createForm.route !== '' &&
-    createForm.effort !== ''
+    (createForm.createVariants || createForm.effort !== '') &&
+    !!createForm.level &&
+    createForm.dificultadLineal >= 1 &&
+    variantsValid.value
 );
 
 const createCategoryOptions = [
@@ -625,23 +728,47 @@ function confirmDeleteVideo(exerciseId: number, exerciseName: string) {
 async function onCreateExercise() {
   creating.value = true;
   try {
-    await exercisesApi.createExercise({
+    const base = {
       exercise: createForm.exercise.trim(),
       category: createForm.category,
       pattern: createForm.pattern,
       route: createForm.route,
-      effort: createForm.effort,
       level: createForm.level ?? undefined,
-      dificultadLineal: createForm.dificultadLineal,
-      difficulty: createForm.dificultadLineal,
       position: createForm.position.trim() || undefined,
-    });
-    $q.notify({ type: 'positive', message: 'Ejercicio creado' });
+    };
+
+    if (createForm.createVariants) {
+      const conDiff = createForm.dificultadLineal;
+      const variants = [
+        { effort: 'CON', dificultadLineal: conDiff },
+        { effort: 'EXC', dificultadLineal: conDiff - 1 },
+        { effort: 'ISO', dificultadLineal: conDiff - 2 },
+      ];
+      for (const v of variants) {
+        await exercisesApi.createExercise({
+          ...base,
+          effort: v.effort,
+          dificultadLineal: v.dificultadLineal,
+          difficulty: v.dificultadLineal,
+        });
+      }
+      $q.notify({ type: 'positive', message: '3 ejercicios creados (CON / EXC / ISO)' });
+    } else {
+      await exercisesApi.createExercise({
+        ...base,
+        effort: createForm.effort,
+        dificultadLineal: createForm.dificultadLineal,
+        difficulty: createForm.dificultadLineal,
+      });
+      $q.notify({ type: 'positive', message: 'Ejercicio creado' });
+    }
+
     showCreateDialog.value = false;
     createForm.exercise = '';
     createForm.position = '';
     createForm.dificultadLineal = 1;
     createForm.level = null;
+    createForm.createVariants = false;
     loadExercises();
   } catch {
     // Error already handled by composable
