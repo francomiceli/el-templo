@@ -90,6 +90,7 @@ export interface PlanListItem {
   isPersonalizada: boolean;
   personalizadaType: string | null;
   groupMaxMembers: number | null;
+  isOnline: boolean;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -118,6 +119,7 @@ export interface CreatePlanInput {
   isPersonalizada?: boolean;
   personalizadaType?: string;
   groupMaxMembers?: number;
+  isOnline?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -136,6 +138,7 @@ export interface UpdatePlanInput {
   isPersonalizada?: boolean;
   personalizadaType?: string | null;
   groupMaxMembers?: number | null;
+  isOnline?: boolean;
 }
 
 import type { PaymentMethod } from './payment';

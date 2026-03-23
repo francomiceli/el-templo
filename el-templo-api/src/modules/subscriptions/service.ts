@@ -145,6 +145,7 @@ export class SubscriptionService {
         ? (input.personalizadaType ?? null)
         : null,
       groupMaxMembers: input.groupMaxMembers ?? null,
+      isOnline: input.isOnline ?? false,
     });
 
     const planId = Number(result[0].insertId);
@@ -191,6 +192,7 @@ export class SubscriptionService {
       updateData.personalizadaType = input.personalizadaType;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
+    if (input.isOnline !== undefined) updateData.isOnline = input.isOnline;
 
     // Validate: if resulting plan would be personalizada but without type, reject
     const resultIsPersonalizada =
@@ -1725,6 +1727,7 @@ export class SubscriptionService {
       isPersonalizada: row.isPersonalizada,
       personalizadaType: row.personalizadaType ?? null,
       groupMaxMembers: row.groupMaxMembers,
+      isOnline: row.isOnline,
       isActive: row.isActive,
       isArchived: row.isArchived,
       createdAt: row.createdAt.toISOString(),

@@ -35,6 +35,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   isPersonalizada: boolean("is_personalizada").default(false).notNull(),
   personalizadaType: varchar("personalizada_type", { length: 30 }),
   groupMaxMembers: int("group_max_members"),
+  isOnline: boolean("is_online").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

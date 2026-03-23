@@ -33,6 +33,7 @@ const planSchema = {
     isPersonalizada: { type: "boolean" },
     personalizadaType: { type: ["string", "null"] },
     groupMaxMembers: { type: ["integer", "null"] },
+    isOnline: { type: "boolean" },
     isActive: { type: "boolean" },
     isArchived: { type: "boolean" },
     createdAt: { type: "string" },
@@ -173,6 +174,7 @@ export const createPlanSchema = {
         ],
       },
       groupMaxMembers: { type: "integer", minimum: 1 },
+      isOnline: { type: "boolean" },
     },
   },
   response: {
@@ -220,6 +222,7 @@ export const updatePlanSchema = {
         ],
       },
       groupMaxMembers: { type: ["integer", "null"] },
+      isOnline: { type: "boolean" },
     },
   },
   response: {

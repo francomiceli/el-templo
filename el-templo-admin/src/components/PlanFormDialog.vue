@@ -133,6 +133,9 @@
             <q-toggle v-model="form.isPersonalizada" label="Personalizada">
               <q-tooltip>Otorga acceso a Clases Personalizadas</q-tooltip>
             </q-toggle>
+            <q-toggle v-model="form.isOnline" label="Plan Online">
+              <q-tooltip>Plan para miembros online (sin asistencia presencial)</q-tooltip>
+            </q-toggle>
           </div>
 
           <q-select
@@ -232,6 +235,7 @@ const form = ref({
   isPersonalizada: false,
   personalizadaType: null as string | null,
   groupMaxMembers: null as number | null,
+  isOnline: false,
 });
 
 // =========================================================================
@@ -296,6 +300,7 @@ watch(
         isPersonalizada: props.plan.isPersonalizada,
         personalizadaType: props.plan.personalizadaType ?? null,
         groupMaxMembers: props.plan.groupMaxMembers,
+        isOnline: props.plan.isOnline,
       };
     } else {
       form.value = {
@@ -314,6 +319,7 @@ watch(
         isPersonalizada: false,
         personalizadaType: null,
         groupMaxMembers: null,
+        isOnline: false,
       };
     }
   }
@@ -356,6 +362,7 @@ async function onSubmit() {
         ? (form.value.personalizadaType ?? undefined)
         : undefined,
       groupMaxMembers: form.value.isGroup ? (form.value.groupMaxMembers ?? undefined) : undefined,
+      isOnline: form.value.isOnline,
     };
 
     if (isEditMode.value && props.plan) {

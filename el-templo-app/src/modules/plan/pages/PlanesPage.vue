@@ -10,10 +10,63 @@
       No hay planes disponibles
     </div>
 
-    <!-- Gym Plans Section -->
-    <div v-if="gymPlans.length > 0">
+    <!-- Presencial Plans Section -->
+    <div v-if="presencialPlans.length > 0">
+      <div class="text-h6 q-mb-md">Planes Presenciales</div>
       <div class="row q-col-gutter-md">
-        <div v-for="plan in gymPlans" :key="plan.id" class="col-12 col-sm-6">
+        <div v-for="plan in presencialPlans" :key="plan.id" class="col-12 col-sm-6">
+          <q-card class="full-height">
+            <q-card-section>
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="text-subtitle1 text-weight-bold">
+                  {{ plan.name }}
+                </div>
+                <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
+              </div>
+              <q-badge
+                v-if="isCurrentPlan(plan)"
+                color="primary"
+                label="Tu plan actual"
+                class="q-mb-sm"
+              />
+              <div class="q-mt-sm q-gutter-xs">
+                <q-badge v-if="plan.durationDays" outline color="grey-7">
+                  {{ plan.durationDays }} dias
+                </q-badge>
+                <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
+                  {{ plan.classesPerWeek }} clases/semana
+                </q-badge>
+              </div>
+              <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
+                {{ plan.description }}
+              </div>
+            </q-card-section>
+            <q-separator />
+            <q-card-actions>
+              <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
+                <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+                Activo — vence {{ formatEndDate() }}
+              </div>
+              <q-btn
+                v-else
+                flat
+                no-caps
+                color="positive"
+                icon="chat"
+                :label="ctaText"
+                @click="openWhatsApp(plan)"
+              />
+            </q-card-actions>
+          </q-card>
+        </div>
+      </div>
+    </div>
+
+    <!-- Online Plans Section -->
+    <div v-if="onlinePlans.length > 0" class="q-mt-lg">
+      <div class="text-h6 q-mb-md">Planes Online</div>
+      <div class="row q-col-gutter-md">
+        <div v-for="plan in onlinePlans" :key="plan.id" class="col-12 col-sm-6">
           <q-card class="full-height">
             <q-card-section>
               <div class="row items-center justify-between q-mb-sm">
@@ -135,6 +188,7 @@ interface MemberPlan {
   durationDays: number
   classesPerWeek: number | null
   isPersonalizada: boolean
+  isOnline: boolean
   personalizadaType: string | null
   personalizadaZones: string[] | null
 }
@@ -159,7 +213,9 @@ const userStore = useUserStore()
 const plans = ref<MemberPlan[]>([])
 const loading = ref(false)
 
-const gymPlans = computed(() => plans.value.filter((p) => !p.isPersonalizada))
+const presencialPlans = computed(() => plans.value.filter((p) => !p.isPersonalizada && !p.isOnline))
+
+const onlinePlans = computed(() => plans.value.filter((p) => p.isOnline && !p.isPersonalizada))
 
 const personalizadaPlans = computed(() => plans.value.filter((p) => p.isPersonalizada))
 
