@@ -150,7 +150,7 @@ onMounted(() => {
   }
 
   &__welcome {
-    background: linear-gradient(135deg, #5a3e28 0%, #7a5a3e 100%);
+    background: linear-gradient(135deg, $dark-page 0%, $accent 100%);
     border-radius: 16px;
     padding: 22px 20px;
     position: relative;
@@ -173,7 +173,7 @@ onMounted(() => {
       height: 100px;
       top: -20px;
       right: -20px;
-      border-color: rgba(210, 180, 140, 0.12);
+      border-color: rgba($bronze-light, 0.12);
     }
 
     &--md {
@@ -181,7 +181,7 @@ onMounted(() => {
       height: 140px;
       top: -40px;
       right: -40px;
-      border-color: rgba(210, 180, 140, 0.06);
+      border-color: rgba($bronze-light, 0.06);
     }
 
     &--lg {
@@ -189,7 +189,7 @@ onMounted(() => {
       height: 180px;
       top: -60px;
       right: -60px;
-      border-color: rgba(210, 180, 140, 0.03);
+      border-color: rgba($bronze-light, 0.03);
     }
   }
 
@@ -231,8 +231,8 @@ onMounted(() => {
     width: 56px;
     height: 56px;
     border-radius: 12px;
-    background: rgba(210, 180, 140, 0.15);
-    border: 1px solid rgba(210, 180, 140, 0.25);
+    background: rgba($bronze-light, 0.15);
+    border: 1px solid rgba($bronze-light, 0.25);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -244,7 +244,7 @@ onMounted(() => {
   &__level-letter {
     font-size: 22px;
     font-weight: 300;
-    color: #d4b88c;
+    color: $bronze-light;
     font-family: serif;
     line-height: 1;
   }
@@ -252,7 +252,7 @@ onMounted(() => {
   &__level-name {
     font-size: 8px;
     letter-spacing: 1.5px;
-    color: rgba(212, 184, 140, 0.7);
+    color: rgba($bronze-light, 0.7);
     margin-top: 1px;
     text-transform: uppercase;
   }
