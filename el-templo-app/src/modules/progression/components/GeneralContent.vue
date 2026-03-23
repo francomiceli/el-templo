@@ -1,5 +1,28 @@
 <template>
   <div class="general-content">
+    <!-- Reserve Class CTA (non-virtual branch members only) -->
+    <q-card
+      v-if="showReservaCta"
+      class="general-content__reserva-card"
+      flat
+      bordered
+      clickable
+      @click="$router.push('/reservas')"
+    >
+      <q-card-section class="general-content__reserva-content">
+        <div class="general-content__reserva-info">
+          <q-icon name="event_available" color="primary" size="36px" />
+          <div>
+            <p class="general-content__reserva-title">Reserva tu clase</p>
+            <p class="general-content__reserva-subtitle">
+              Asegura tu lugar en el horario que prefieras
+            </p>
+          </div>
+        </div>
+        <q-icon name="chevron_right" color="primary" size="24px" />
+      </q-card-section>
+    </q-card>
+
     <!-- Today's Training CTA -->
     <q-card class="general-content__today-card" flat bordered>
       <q-card-section class="general-content__today-content">
@@ -89,6 +112,7 @@ const props = defineProps<{
   stats: ProgressionStats | null
   rpeTrend: RpeTrend | null
   evaluation: EvaluationStatus | null
+  showReservaCta: boolean
 }>()
 
 defineEmits<{
@@ -109,6 +133,44 @@ const hasRpeData = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+
+  &__reserva-card {
+    background-color: white;
+    border-color: rgba($primary, 0.2);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: box-shadow 150ms ease;
+
+    &:active {
+      box-shadow: 0 0 0 2px rgba($primary, 0.2);
+    }
+  }
+
+  &__reserva-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  &__reserva-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__reserva-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: $primary;
+    margin: 0;
+  }
+
+  &__reserva-subtitle {
+    font-size: 12px;
+    color: rgba($primary, 0.6);
+    margin: 0;
+  }
 
   &__today-card {
     background-color: white;

@@ -17,16 +17,6 @@
       <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
     </div>
 
-    <!-- Empty State (new user with no sessions) -->
-    <div v-else-if="isEmptyState" class="mi-camino__empty">
-      <FlameIcon size="md" />
-      <p class="mi-camino__empty-title">Comienza Tu Camino</p>
-      <p class="mi-camino__empty-text">
-        Completa tu primera sesion de entrenamiento para ver tu progreso aqui.
-      </p>
-      <q-btn color="primary" unelevated no-caps to="/training"> Ir a Entrenar </q-btn>
-    </div>
-
     <!-- Content State -->
     <div v-else class="mi-camino__content">
       <!-- Welcome Header (shared, always visible) -->
@@ -50,6 +40,7 @@
         :stats="progressionStore.stats"
         :rpe-trend="progressionStore.rpeTrend"
         :evaluation="progressionStore.evaluation"
+        :show-reserva-cta="showReservaCta"
         @request-evaluation="handleRequestEvaluation"
       />
     </div>
@@ -92,10 +83,8 @@ const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false
 })
 
-const isEmptyState = computed(() => {
-  if (progressionStore.stats && progressionStore.stats.totalSessions > 0) return false
-  if (progressionStore.stats && progressionStore.stats.totalSessions === 0) return true
-  return !progressionStore.level && !progressionStore.stats && !progressionStore.error
+const showReservaCta = computed(() => {
+  return !userStore.profile?.branchIsVirtual
 })
 
 async function handleRequestEvaluation() {
@@ -115,8 +104,7 @@ onMounted(() => {
   background-color: $cream;
 
   &__loading,
-  &__error,
-  &__empty {
+  &__error {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -149,22 +137,6 @@ onMounted(() => {
     font-size: 14px;
     color: rgba($primary, 0.8);
     margin-bottom: 16px;
-  }
-
-  &__empty-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 20px;
-    font-weight: 600;
-    color: $primary;
-    margin: 0 0 8px;
-  }
-
-  &__empty-text {
-    font-size: 14px;
-    color: rgba($primary, 0.7);
-    margin: 0 0 20px;
-    max-width: 280px;
-    line-height: 1.5;
   }
 
   &__content {
