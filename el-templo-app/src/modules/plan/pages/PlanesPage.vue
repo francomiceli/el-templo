@@ -12,7 +12,6 @@
 
     <!-- Presencial Plans Section -->
     <div v-if="presencialPlans.length > 0">
-      <div class="text-h6 q-mb-md">Planes Presenciales</div>
       <div class="row q-col-gutter-md">
         <div v-for="plan in presencialPlans" :key="plan.id" class="col-12 col-sm-6">
           <q-card class="full-height">
@@ -64,7 +63,6 @@
 
     <!-- Online Plans Section -->
     <div v-if="onlinePlans.length > 0" class="q-mt-lg">
-      <div class="text-h6 q-mb-md">Planes Online</div>
       <div class="row q-col-gutter-md">
         <div v-for="plan in onlinePlans" :key="plan.id" class="col-12 col-sm-6">
           <q-card class="full-height">
@@ -116,7 +114,6 @@
 
     <!-- Personalizada Plans Section -->
     <div v-if="personalizadaPlans.length > 0" class="q-mt-lg">
-      <div class="text-h6 q-mb-md">Clases Personalizadas</div>
       <div class="row q-col-gutter-md">
         <div v-for="plan in personalizadaPlans" :key="plan.id" class="col-12 col-sm-6">
           <q-card class="full-height">
