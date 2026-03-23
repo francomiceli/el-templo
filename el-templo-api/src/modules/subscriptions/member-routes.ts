@@ -48,11 +48,12 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     }
 
-    // Get plan personalizada info
+    // Get plan info
     const [plan] = await fastify.db
       .select({
         isPersonalizada: schema.subscriptionPlans.isPersonalizada,
         personalizadaType: schema.subscriptionPlans.personalizadaType,
+        multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
       .where(eq(schema.subscriptionPlans.id, sub.planId))
@@ -69,6 +70,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       pricePaid: sub.pricePaid,
       isPersonalizada: plan?.isPersonalizada ?? false,
       personalizadaType: plan?.personalizadaType ?? null,
+      multiBranch: plan?.multiBranch ?? false,
     };
   });
 

@@ -6,8 +6,23 @@
     </div>
 
     <template v-else>
-      <!-- Branch label -->
-      <div class="branch-label text-caption text-grey-7 q-mb-sm">
+      <!-- Branch selector (multi-branch) or label (single branch) -->
+      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-sm">
+        <q-select
+          v-model="selectedBranchId"
+          :options="branchOptions"
+          dense
+          outlined
+          emit-value
+          map-options
+          class="branch-select"
+        >
+          <template #prepend>
+            <q-icon name="location_on" size="16px" />
+          </template>
+        </q-select>
+      </div>
+      <div v-else class="branch-label text-caption text-grey-7 q-mb-sm">
         <q-icon name="location_on" size="16px" class="q-mr-xs" />
         {{ userStore.profile?.branchName ?? '' }}
       </div>
@@ -197,7 +212,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
@@ -215,7 +230,7 @@ import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/sc
 const $q = useQuasar()
 const log = createLogger('Reservas')
 const userStore = useUserStore()
-const { getWeeklyGrid, reserve, cancelBooking, cleanup } = useSchedulingApi()
+const { getWeeklyGrid, reserve, cancelBooking, getBranches, cleanup } = useSchedulingApi()
 
 // ─── State ───────────────────────────────────────────────────────────
 const loading = ref(true)
@@ -224,6 +239,14 @@ const holidays = ref<HolidayRecord[]>([])
 const myBookings = ref<BookingRecord[]>([])
 const myAttendance = ref<AttendanceWeekRecord[]>([])
 const weekStart = ref<Date>(getMonday(new Date()))
+
+// ─── Multi-branch ───────────────────────────────────────────────────
+const branches = ref<{ id: number; name: string }[]>([])
+const selectedBranchId = ref<number | null>(null)
+
+const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
+
+const branchOptions = computed(() => branches.value.map((b) => ({ label: b.name, value: b.id })))
 
 // ─── Reserve dialog ──────────────────────────────────────────────────
 const reserveDialog = ref({
@@ -709,7 +732,8 @@ async function confirmCancel() {
 
 async function loadGrid() {
   try {
-    const data = await getWeeklyGrid(formatWeekStart(weekStart.value))
+    const branchId = isMultiBranch.value ? (selectedBranchId.value ?? undefined) : undefined
+    const data = await getWeeklyGrid(formatWeekStart(weekStart.value), branchId)
     slots.value = data.slots
     holidays.value = data.holidays
     myBookings.value = data.myBookings
@@ -726,7 +750,20 @@ async function loadGrid() {
 
 // ─── Lifecycle ───────────────────────────────────────────────────────
 
-onMounted(() => {
+watch(selectedBranchId, () => {
+  loadGrid()
+})
+
+onMounted(async () => {
+  if (isMultiBranch.value) {
+    try {
+      branches.value = await getBranches()
+      // Default to user's own branch
+      selectedBranchId.value = userStore.profile?.branchId ?? null
+    } catch {
+      // Non-critical, fall through to loadGrid with no branchId
+    }
+  }
   loadGrid()
 })
 
@@ -754,6 +791,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   font-weight: 500;
+}
+
+.branch-select {
+  max-width: 250px;
 }
 
 // ─── Upcoming Reservations ───────────────────────────────────────────

@@ -36,6 +36,7 @@ export interface MemberSubscription {
   pricePaid: number
   isPersonalizada: boolean
   personalizadaType: string | null
+  multiBranch: boolean
 }
 
 const STATUS_LABELS: Record<SubscriptionStatus, string> = {

@@ -15,7 +15,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SchedulingService } from "./service";
 import { ActivityService } from "./activity-service";
@@ -439,5 +439,23 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
       request.query.weekStart,
     );
     return { bookings };
+  });
+
+  // GET /branches — list active non-virtual branches for multi-branch selector
+  fastify.get("/branches", async () => {
+    const rows = await fastify.db
+      .select({
+        id: schema.branches.id,
+        name: schema.branches.name,
+      })
+      .from(schema.branches)
+      .where(
+        and(
+          eq(schema.branches.isActive, true),
+          eq(schema.branches.isVirtual, false),
+        ),
+      )
+      .orderBy(schema.branches.name);
+    return { branches: rows };
   });
 };

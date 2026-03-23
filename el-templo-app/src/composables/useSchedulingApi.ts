@@ -22,6 +22,11 @@ interface MyBookingsResponse {
   bookings: BookingRecord[]
 }
 
+interface BranchOption {
+  id: number
+  name: string
+}
+
 export function useSchedulingApi() {
   let abortController: AbortController | null = null
 
@@ -30,12 +35,21 @@ export function useSchedulingApi() {
     return abortController.signal
   }
 
-  async function getWeeklyGrid(weekStart: string): Promise<WeeklyGridResponse> {
+  async function getWeeklyGrid(weekStart: string, branchId?: number): Promise<WeeklyGridResponse> {
+    const params: Record<string, unknown> = { weekStart }
+    if (branchId) params.branchId = branchId
     const response = await api.get<WeeklyGridResponse>('/members/scheduling/weekly', {
-      params: { weekStart },
+      params,
       signal: getSignal(),
     })
     return response.data
+  }
+
+  async function getBranches(): Promise<BranchOption[]> {
+    const response = await api.get<{ branches: BranchOption[] }>('/members/scheduling/branches', {
+      signal: getSignal(),
+    })
+    return response.data.branches
   }
 
   async function reserve(scheduleId: number, date: string): Promise<BookingRecord> {
@@ -69,5 +83,5 @@ export function useSchedulingApi() {
     }
   }
 
-  return { getWeeklyGrid, reserve, cancelBooking, getMyBookings, cleanup }
+  return { getWeeklyGrid, reserve, cancelBooking, getMyBookings, getBranches, cleanup }
 }

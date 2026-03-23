@@ -13,9 +13,7 @@
         <div class="general-content__cta-info">
           <q-icon name="event_available" color="primary" size="32px" />
           <div>
-            <p class="general-content__cta-title">
-              <span class="general-content__cta-accent">Reservá</span> tu clase presencial
-            </p>
+            <p class="general-content__cta-title">Reservá tu clase presencial</p>
             <p class="general-content__cta-subtitle">
               Asegurá tu lugar en el horario que prefieras
             </p>
@@ -44,10 +42,7 @@
           />
           <div class="general-content__today-text">
             <p class="general-content__cta-title">
-              <template v-if="todayCompleted">Sesión Completada</template>
-              <template v-else
-                >Tu <span class="general-content__cta-accent">sesión</span> de hoy</template
-              >
+              {{ todayCompleted ? 'Sesión Completada' : 'Tu sesión de hoy' }}
             </p>
             <p v-if="!todayCompleted" class="general-content__cta-subtitle">
               Podés entrenar desde donde quieras
@@ -172,13 +167,9 @@ const hasRpeData = computed(() => {
   &__cta-title {
     font-family: 'Montserrat', sans-serif;
     font-size: 15px;
-    font-weight: 500;
+    font-weight: 700;
     color: $primary;
     margin: 0;
-  }
-
-  &__cta-accent {
-    font-weight: 700;
   }
 
   &__cta-subtitle {
