@@ -11,11 +11,13 @@
     >
       <q-card-section class="general-content__cta-content">
         <div class="general-content__cta-info">
-          <q-icon name="event_available" color="primary" size="32px" />
+          <q-icon name="event_available" size="32px" class="general-content__cta-icon" />
           <div>
-            <p class="general-content__cta-title">Reserva tu clase presencial</p>
+            <p class="general-content__cta-title">
+              <span class="general-content__cta-accent">Reservá</span> tu clase presencial
+            </p>
             <p class="general-content__cta-subtitle">
-              Asegura tu lugar en el horario que prefieras
+              Asegurá tu lugar en el horario que prefieras
             </p>
           </div>
         </div>
@@ -37,15 +39,18 @@
         <div class="general-content__cta-info">
           <q-icon
             :name="todayCompleted ? 'check_circle' : 'fitness_center'"
-            :color="todayCompleted ? 'positive' : 'primary'"
             size="32px"
+            :class="todayCompleted ? 'text-positive' : 'general-content__cta-icon'"
           />
           <div class="general-content__today-text">
             <p class="general-content__cta-title">
-              {{ todayCompleted ? 'Sesion Completada' : 'Tu sesion de hoy' }}
+              <template v-if="todayCompleted">Sesión Completada</template>
+              <template v-else
+                >Tu <span class="general-content__cta-accent">sesión</span> de hoy</template
+              >
             </p>
             <p v-if="!todayCompleted" class="general-content__cta-subtitle">
-              Podes entrenar desde donde quieras
+              Podés entrenar desde donde quieras
             </p>
             <div v-else class="general-content__session-summary">
               <span v-if="todaySession?.durationMinutes" class="general-content__summary-item">
@@ -136,14 +141,14 @@ const hasRpeData = computed(() => {
   gap: 16px;
 
   &__cta-card {
-    background-color: white;
-    border-color: rgba($primary, 0.2);
+    background: linear-gradient(135deg, $primary 0%, $secondary 100%);
+    border: none;
     border-radius: 12px;
     cursor: pointer;
     transition: box-shadow 150ms ease;
 
     &:active {
-      box-shadow: 0 0 0 2px rgba($primary, 0.2);
+      box-shadow: 0 0 0 2px rgba($primary, 0.3);
     }
   }
 
@@ -160,17 +165,25 @@ const hasRpeData = computed(() => {
     gap: 12px;
   }
 
+  &__cta-icon {
+    color: $cream;
+  }
+
   &__cta-title {
     font-family: 'Montserrat', sans-serif;
     font-size: 15px;
-    font-weight: 600;
-    color: $primary;
+    font-weight: 500;
+    color: $cream;
     margin: 0;
+  }
+
+  &__cta-accent {
+    font-weight: 700;
   }
 
   &__cta-subtitle {
     font-size: 12px;
-    color: rgba($primary, 0.6);
+    color: rgba($cream, 0.65);
     margin: 0;
   }
 
@@ -181,8 +194,8 @@ const hasRpeData = computed(() => {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, $primary, darken($primary, 12%));
-    color: white;
+    background: rgba($cream, 0.2);
+    color: $cream;
     flex-shrink: 0;
   }
 
@@ -203,8 +216,8 @@ const hasRpeData = computed(() => {
     align-items: center;
     gap: 4px;
     font-size: 12px;
-    color: rgba($primary, 0.7);
-    background: rgba($secondary, 0.1);
+    color: $cream;
+    background: rgba($cream, 0.15);
     padding: 2px 8px;
     border-radius: 10px;
   }

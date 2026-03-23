@@ -150,7 +150,8 @@ onMounted(() => {
   }
 
   &__welcome {
-    background: linear-gradient(135deg, $primary 0%, $secondary 100%);
+    background-color: white;
+    border: 1px solid rgba($primary, 0.2);
     border-radius: 16px;
     padding: 22px 20px;
     position: relative;
@@ -173,7 +174,7 @@ onMounted(() => {
       height: 100px;
       top: -20px;
       right: -20px;
-      border-color: rgba($bronze-light, 0.12);
+      border-color: rgba($primary, 0.08);
     }
 
     &--md {
@@ -181,7 +182,7 @@ onMounted(() => {
       height: 140px;
       top: -40px;
       right: -40px;
-      border-color: rgba($bronze-light, 0.06);
+      border-color: rgba($primary, 0.04);
     }
 
     &--lg {
@@ -189,7 +190,7 @@ onMounted(() => {
       height: 180px;
       top: -60px;
       right: -60px;
-      border-color: rgba($bronze-light, 0.03);
+      border-color: rgba($primary, 0.02);
     }
   }
 
@@ -207,7 +208,7 @@ onMounted(() => {
 
   &__greeting {
     font-size: 13px;
-    color: rgba($cream, 0.6);
+    color: rgba($accent, 0.5);
     margin: 0 0 4px;
     font-weight: 400;
   }
@@ -216,14 +217,14 @@ onMounted(() => {
     font-family: 'Montserrat', sans-serif;
     font-size: 22px;
     font-weight: 600;
-    color: $cream;
+    color: $accent;
     margin: 0 0 8px;
     line-height: 1.1;
   }
 
   &__date {
     font-size: 12px;
-    color: rgba($cream, 0.45);
+    color: rgba($accent, 0.4);
     margin: 0;
   }
 
@@ -231,8 +232,8 @@ onMounted(() => {
     width: 56px;
     height: 56px;
     border-radius: 12px;
-    background: rgba($bronze-light, 0.15);
-    border: 1px solid rgba($bronze-light, 0.25);
+    background: rgba($primary, 0.08);
+    border: 1px solid rgba($primary, 0.15);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -244,7 +245,7 @@ onMounted(() => {
   &__level-letter {
     font-size: 22px;
     font-weight: 300;
-    color: $bronze-light;
+    color: $primary;
     font-family: serif;
     line-height: 1;
   }
@@ -252,7 +253,7 @@ onMounted(() => {
   &__level-name {
     font-size: 8px;
     letter-spacing: 1.5px;
-    color: rgba($bronze-light, 0.7);
+    color: rgba($secondary, 0.7);
     margin-top: 1px;
     text-transform: uppercase;
   }
