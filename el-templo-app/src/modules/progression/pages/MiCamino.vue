@@ -150,7 +150,7 @@ onMounted(() => {
   }
 
   &__welcome {
-    background: linear-gradient(135deg, $dark-page 0%, $accent 100%);
+    background: linear-gradient(135deg, $primary 0%, $secondary 100%);
     border-radius: 16px;
     padding: 22px 20px;
     position: relative;
