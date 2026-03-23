@@ -95,6 +95,22 @@ export function useExercisesApi() {
     }
   }
 
+  async function updateExercise(
+    exerciseId: number,
+    fields: { effort?: string }
+  ): Promise<Exercise> {
+    try {
+      const { data } = await api.patch<Exercise>(`/admin/exercises/${exerciseId}`, fields);
+      allExercisesCache = null;
+      return data;
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error actualizando ejercicio');
+      log.error('Failed to update exercise', { exerciseId, error: message });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
   async function deleteVideo(exerciseId: number): Promise<void> {
     try {
       await api.delete(`/admin/exercises/${exerciseId}/video`);
@@ -112,6 +128,7 @@ export function useExercisesApi() {
     fetchExercises,
     fetchAllExercises,
     createExercise,
+    updateExercise,
     deleteVideo,
   };
 }

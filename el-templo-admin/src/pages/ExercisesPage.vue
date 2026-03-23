@@ -133,6 +133,26 @@
       :rows-per-page-options="[25, 50, 100]"
       @request="onTableRequest"
     >
+      <!-- Effort column: inline select when empty -->
+      <template #body-cell-effort="props">
+        <q-td :props="props">
+          <q-select
+            v-if="!props.row.effort"
+            :model-value="null"
+            :options="inlineEffortOptions"
+            label="Sin asignar"
+            dense
+            outlined
+            emit-value
+            map-options
+            style="min-width: 110px"
+            color="warning"
+            @update:model-value="(val: string) => onInlineEffortChange(props.row.id, val)"
+          />
+          <span v-else>{{ props.row.effort }}</span>
+        </q-td>
+      </template>
+
       <!-- Video status column -->
       <template #body-cell-video="props">
         <q-td :props="props">
@@ -593,8 +613,15 @@ const levelOptions = [
 
 const routeOptions = [{ label: 'Todas', value: '' }, ...createRouteOptions];
 
+const inlineEffortOptions = [
+  { label: 'CON', value: 'CON' },
+  { label: 'EXC', value: 'EXC' },
+  { label: 'ISO', value: 'ISO' },
+];
+
 const effortOptions = [
   { label: 'Todos', value: '' },
+  { label: 'Sin asignar', value: 'empty' },
   { label: 'CON', value: 'CON' },
   { label: 'EXC', value: 'EXC' },
   { label: 'ISO', value: 'ISO' },
@@ -665,6 +692,16 @@ async function loadExercises() {
 // =========================================================================
 // Event handlers
 // =========================================================================
+
+async function onInlineEffortChange(exerciseId: number, effort: string) {
+  try {
+    await exercisesApi.updateExercise(exerciseId, { effort });
+    $q.notify({ type: 'positive', message: `Contraccion actualizada a ${effort}` });
+    loadExercises();
+  } catch {
+    // Error handled by composable
+  }
+}
 
 function onFilterChange() {
   tablePagination.value.page = 1;

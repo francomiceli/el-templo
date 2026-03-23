@@ -74,7 +74,9 @@ export class ExerciseService {
       conditions.push(eq(schema.exercises.route, filters.route));
     }
 
-    if (filters.effort) {
+    if (filters.effort === "empty") {
+      conditions.push(eq(schema.exercises.effort, ""));
+    } else if (filters.effort) {
       conditions.push(eq(schema.exercises.effort, filters.effort));
     }
 

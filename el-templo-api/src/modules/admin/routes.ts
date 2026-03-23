@@ -887,6 +887,59 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // PATCH /admin/exercises/:exerciseId - Update exercise fields
+  fastify.patch<{
+    Params: { exerciseId: number };
+    Body: { effort?: string };
+  }>(
+    "/exercises/:exerciseId",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["exerciseId"],
+          properties: { exerciseId: { type: "integer" } },
+        },
+        body: {
+          type: "object",
+          properties: {
+            effort: { type: "string", enum: ["CON", "EXC", "ISO", ""] },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { exerciseId } = request.params;
+      const updates: Record<string, unknown> = {};
+
+      if (request.body.effort !== undefined) {
+        updates.effort = request.body.effort;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return reply.code(400).send({ error: "No fields to update" });
+      }
+
+      await fastify.db
+        .update(schema.exercises)
+        .set(updates)
+        .where(eq(schema.exercises.id, exerciseId));
+
+      const [updated] = await fastify.db
+        .select()
+        .from(schema.exercises)
+        .where(eq(schema.exercises.id, exerciseId));
+
+      if (!updated) {
+        return reply.code(404).send({ error: "Exercise not found" });
+      }
+
+      request.log.info({ exerciseId, updates }, "Exercise updated");
+
+      return updated;
+    },
+  );
+
   // POST /admin/exercises/:exerciseId/upload-url - Generate presigned upload URL
   fastify.post<{ Params: { exerciseId: number } }>(
     "/exercises/:exerciseId/upload-url",
