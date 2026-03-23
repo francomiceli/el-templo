@@ -13,7 +13,12 @@
           @click="toggleLeftDrawer"
         />
 
-        <q-toolbar-title class="header-title">
+        <q-toolbar-title
+          class="header-title"
+          clickable
+          @click="$router.push('/mi-camino')"
+          style="cursor: pointer"
+        >
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           EL TEMPLO
         </q-toolbar-title>
