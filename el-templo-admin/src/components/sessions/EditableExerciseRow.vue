@@ -696,54 +696,26 @@ const isPausaSelected = computed(() => {
 const contractionLabel = computed(() => normalizeContraction(props.exercise.contraction) || '-');
 const contractionColor = computed(() => getContractionColor(props.exercise.contraction));
 
-// Initialize pyramid/ladder defaults when exercise has no step/start set
+// Set local display defaults for pyramid/ladder fields (display only, no API call)
 onMounted(() => {
   if (isPyramid.value) {
-    let changed = false;
-    if (!localIncrement.value) {
-      localIncrement.value = 2;
-      changed = true;
-    }
+    if (!localIncrement.value) localIncrement.value = 2;
     if (isIso.value) {
-      if (!localSecondsMax.value) {
-        localSecondsMax.value = 2;
-        changed = true;
-      }
+      if (!localSecondsMax.value) localSecondsMax.value = 2;
     } else {
-      if (!localRepsMax.value) {
-        localRepsMax.value = 2;
-        changed = true;
-      }
+      if (!localRepsMax.value) localRepsMax.value = 2;
     }
-    if (changed) emitUpdate();
   }
 
   if (isLadder.value) {
-    let changed = false;
-    if (!localIncrement.value) {
-      localIncrement.value = 1;
-      changed = true;
-    }
+    if (!localIncrement.value) localIncrement.value = 1;
     if (isIso.value) {
-      if (!localSecondsMax.value) {
-        localSecondsMax.value = 5;
-        changed = true;
-      }
-      if (!localSeconds.value) {
-        localSeconds.value = 5;
-        changed = true;
-      }
+      if (!localSecondsMax.value) localSecondsMax.value = 5;
+      if (!localSeconds.value) localSeconds.value = 5;
     } else {
-      if (!localRepsMax.value) {
-        localRepsMax.value = 1;
-        changed = true;
-      }
-      if (!localReps.value) {
-        localReps.value = 5;
-        changed = true;
-      }
+      if (!localRepsMax.value) localRepsMax.value = 1;
+      if (!localReps.value) localReps.value = 5;
     }
-    if (changed) emitUpdate();
   }
 });
 </script>
