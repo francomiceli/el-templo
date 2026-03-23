@@ -180,6 +180,13 @@ const mobileTabs = computed<MobileTab[]>(() => {
 })
 
 function isTabActive(tabTo: string): boolean {
+  // Exact match for /training to avoid matching /training/conceptos
+  if (tabTo === '/training') {
+    return (
+      route.path === '/training' ||
+      (route.path.startsWith('/training') && !route.path.startsWith('/training/conceptos'))
+    )
+  }
   return route.path.startsWith(tabTo)
 }
 
