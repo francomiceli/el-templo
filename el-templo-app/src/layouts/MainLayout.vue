@@ -225,7 +225,7 @@ async function onLogout() {
 }
 
 .header-title-img {
-  height: 20px;
+  height: 40px;
   width: auto;
 }
 

@@ -1,5 +1,5 @@
 <template>
-  <q-page class="profile-page" padding>
+  <q-page class="profile-page">
     <!-- Profile Header -->
     <div class="profile-header">
       <div class="profile-header__avatar">
@@ -118,6 +118,7 @@ onMounted(() => {
 .profile-page {
   max-width: 500px;
   margin: 0 auto;
+  padding: 16px;
 }
 
 .profile-header {
