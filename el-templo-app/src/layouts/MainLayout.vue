@@ -222,10 +222,10 @@ async function onLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 1.1rem;
-  letter-spacing: 0.1em;
-  font-weight: 600;
+  font-family: Impact, 'Arial Narrow Bold', sans-serif;
+  font-size: 1.2rem;
+  letter-spacing: 0.08em;
+  font-weight: normal;
   text-transform: uppercase;
 }
 
