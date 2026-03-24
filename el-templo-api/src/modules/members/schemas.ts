@@ -26,6 +26,21 @@ const memberListItemSchema = {
   },
 } as const;
 
+const onboardingProfileSchema = {
+  type: ["object", "null"],
+  properties: {
+    goalType: { type: "string" },
+    goalLabel: { type: "string" },
+    experienceLevel: { type: "string" },
+    experienceLabel: { type: "string" },
+    trainingFocus: { type: "string" },
+    focusLabel: { type: "string" },
+    motivationStyle: { type: "string" },
+    motivationLabel: { type: "string" },
+    completedAt: { type: ["string", "null"] },
+  },
+} as const;
+
 const memberProfileSchema = {
   type: "object",
   properties: {
@@ -50,6 +65,7 @@ const memberProfileSchema = {
     isActive: { type: "boolean" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
+    onboardingProfile: onboardingProfileSchema,
   },
 } as const;
 
