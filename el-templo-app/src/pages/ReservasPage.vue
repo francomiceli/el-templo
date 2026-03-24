@@ -2,7 +2,7 @@
   <q-page class="reservas-page" padding>
     <!-- Loading overlay -->
     <div v-if="loading" class="loading-container">
-      <q-spinner-orbit size="60px" color="primary" />
+      <q-spinner-dots size="50px" color="primary" />
     </div>
 
     <template v-else>

@@ -2,7 +2,7 @@
   <q-page class="mi-camino">
     <!-- Loading State -->
     <div v-if="progressionStore.loading" class="mi-camino__loading">
-      <q-spinner color="primary" size="60px" />
+      <q-spinner-dots color="primary" size="50px" />
       <p class="mi-camino__loading-text">Cargando tu progreso...</p>
     </div>
 
