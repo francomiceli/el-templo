@@ -146,6 +146,7 @@ First-open onboarding flow (4-question quiz with full-screen cards) that creates
 - AURA reward on completion introduces the economy to new users immediately
 - Existing `boardingPassUsed` field in users schema is unrelated — don't reuse it
 - Quiz is mandatory so every member has profile data — enables reliable segmentation in Phase 79
+- **CRITICAL: Onboarding quiz must visually match LoginPage.vue** — same atmospheric design: charcoal background, bg-texture/bg-glow/bg-vignette layers, dust particles, ember accents, glass-morphic card (rgba charcoal-mid 0.85, backdrop-filter blur, terracotta border-top), cream text, Montserrat headings, terracotta gradient CTAs. The quiz is a natural continuation of the login experience, not a separate visual world. Reuse the same brand tokens ($terracotta, $amber, $bronze, $cream, $charcoal, $charcoal-mid) and background treatment.
 
 </specifics>
 
