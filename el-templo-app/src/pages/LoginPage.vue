@@ -85,8 +85,6 @@
 
             <div class="card-links">
               <router-link to="/register" class="card-link"> Crear cuenta </router-link>
-              <span class="card-link-separator">·</span>
-              <a href="#" class="card-link" @click.prevent> ¿Olvidaste tu contraseña? </a>
             </div>
           </div>
         </div>
