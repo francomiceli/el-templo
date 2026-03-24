@@ -23,7 +23,6 @@ export interface UserProfile {
   branchId: number
   branchName: string
   branchIsVirtual: boolean
-  onboardingCompleted: boolean
 }
 
 export interface MemberSubscription {
@@ -101,10 +100,6 @@ export const useUserStore = defineStore('user', () => {
     return subscription.value?.status === 'active' || subscription.value?.status === 'paused'
   })
 
-  const onboardingCompleted = computed(() => {
-    return profile.value?.onboardingCompleted ?? false
-  })
-
   // Actions
   function setProfile(newProfile: UserProfile) {
     profile.value = newProfile
@@ -113,12 +108,6 @@ export const useUserStore = defineStore('user', () => {
   function clearProfile() {
     profile.value = null
     subscription.value = null
-  }
-
-  function markOnboardingComplete() {
-    if (profile.value) {
-      profile.value = { ...profile.value, onboardingCompleted: true }
-    }
   }
 
   function setLoading(state: boolean) {
@@ -156,12 +145,10 @@ export const useUserStore = defineStore('user', () => {
     subscriptionStatusColor,
     hasActivePersonalizada,
     hasActiveSubscription,
-    onboardingCompleted,
     // Actions
     setProfile,
     clearProfile,
     setLoading,
-    markOnboardingComplete,
     loadSubscription,
   }
 })

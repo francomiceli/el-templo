@@ -9,13 +9,6 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
-import { memberProfiles } from "../../db/schema/member-profiles";
-import {
-  GOAL_LABELS,
-  EXPERIENCE_LABELS,
-  TRAINING_FOCUS_LABELS,
-  MOTIVATION_LABELS,
-} from "../onboarding/types";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
@@ -244,34 +237,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .code(404)
           .send({ error: "Not Found", message: "Miembro no encontrado" });
       }
-
-      // Fetch onboarding profile (read-only for admin, per D-25)
-      const profileRows = await fastify.db
-        .select()
-        .from(memberProfiles)
-        .where(eq(memberProfiles.userId, request.params.userId))
-        .limit(1);
-
-      const onboardingProfile =
-        profileRows.length > 0
-          ? {
-              goalType: profileRows[0].goalType,
-              goalLabel: GOAL_LABELS[profileRows[0].goalType],
-              experienceLevel: profileRows[0].experienceLevel,
-              experienceLabel:
-                EXPERIENCE_LABELS[profileRows[0].experienceLevel],
-              trainingFocus: profileRows[0].trainingFocus,
-              focusLabel:
-                TRAINING_FOCUS_LABELS[profileRows[0].trainingFocus],
-              motivationStyle: profileRows[0].motivationStyle,
-              motivationLabel:
-                MOTIVATION_LABELS[profileRows[0].motivationStyle],
-              completedAt:
-                profileRows[0].onboardingCompletedAt?.toISOString() ?? null,
-            }
-          : null;
-
-      return { ...member, onboardingProfile };
+      return member;
     },
   );
 

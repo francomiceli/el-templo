@@ -106,39 +106,6 @@
         <!-- Perfil Tab -->
         <q-tab-panel name="perfil">
           <MemberProfileTab :member="memberProfile" />
-
-          <!-- Onboarding Profile (read-only, per D-25) -->
-          <q-card v-if="memberProfile.onboardingProfile" flat bordered class="q-mt-md">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold q-mb-sm">
-                Perfil de Onboarding
-              </div>
-              <div class="row q-col-gutter-md">
-                <div class="col-6">
-                  <div class="text-caption text-grey-7">Objetivo</div>
-                  <div>{{ memberProfile.onboardingProfile.goalLabel }}</div>
-                </div>
-                <div class="col-6">
-                  <div class="text-caption text-grey-7">Experiencia</div>
-                  <div>{{ memberProfile.onboardingProfile.experienceLabel }}</div>
-                </div>
-                <div class="col-6">
-                  <div class="text-caption text-grey-7">Enfoque</div>
-                  <div>{{ memberProfile.onboardingProfile.focusLabel }}</div>
-                </div>
-                <div class="col-6">
-                  <div class="text-caption text-grey-7">Motivacion</div>
-                  <div>{{ memberProfile.onboardingProfile.motivationLabel }}</div>
-                </div>
-              </div>
-              <div
-                v-if="memberProfile.onboardingProfile.completedAt"
-                class="text-caption text-grey-6 q-mt-sm"
-              >
-                Completado: {{ formatDate(memberProfile.onboardingProfile.completedAt) }}
-              </div>
-            </q-card-section>
-          </q-card>
         </q-tab-panel>
 
         <!-- Entrenamiento Tab -->

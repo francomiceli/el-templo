@@ -23,18 +23,6 @@ export interface MemberListItem {
   createdAt: string;
 }
 
-export interface OnboardingProfileSummary {
-  goalType: string;
-  goalLabel: string;
-  experienceLevel: string;
-  experienceLabel: string;
-  trainingFocus: string;
-  focusLabel: string;
-  motivationStyle: string;
-  motivationLabel: string;
-  completedAt: string | null;
-}
-
 export interface MemberProfile extends MemberListItem {
   address: string | null;
   dateOfBirth: string | null;
@@ -44,7 +32,6 @@ export interface MemberProfile extends MemberListItem {
   emergencyContactRelationship: string | null;
   role: string;
   updatedAt: string;
-  onboardingProfile: OnboardingProfileSummary | null;
 }
 
 export interface CreateMemberInput {

@@ -34,7 +34,6 @@ import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
 import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
-import { onboardingRoutes } from "./modules/onboarding";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -158,9 +157,6 @@ export async function buildApp() {
   await app.register(userRoutes, {
     prefix: "/api/admin/users",
   });
-
-  // Onboarding routes (member quiz completion + profile retrieval + analytics)
-  await app.register(onboardingRoutes, { prefix: "/api/onboarding" });
 
   // Health check endpoint
   app.get("/health", async () => {

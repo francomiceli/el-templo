@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
-import { memberProfiles } from "../../db/schema/member-profiles";
 import { registerSchema, loginSchema } from "./schemas";
 
 interface RegisterBody {
@@ -185,16 +184,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
-      // Check onboarding status
-      const profileRows = await fastify.db
-        .select({ completedAt: memberProfiles.onboardingCompletedAt })
-        .from(memberProfiles)
-        .where(eq(memberProfiles.userId, user.id))
-        .limit(1);
-
-      const onboardingCompleted =
-        profileRows.length > 0 && profileRows[0].completedAt !== null;
-
       // Sign JWT
       const token = fastify.jwt.sign({
         userId: user.id,
@@ -215,7 +204,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchName,
           branchIsVirtual,
           isActive: user.isActive,
-          onboardingCompleted,
         },
       };
     },
@@ -262,16 +250,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
-      // Check onboarding status
-      const profileRows = await fastify.db
-        .select({ completedAt: memberProfiles.onboardingCompletedAt })
-        .from(memberProfiles)
-        .where(eq(memberProfiles.userId, userId))
-        .limit(1);
-
-      const onboardingCompleted =
-        profileRows.length > 0 && profileRows[0].completedAt !== null;
-
       return {
         id: user.id,
         email: user.email,
@@ -283,7 +261,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchName,
         branchIsVirtual,
         isActive: user.isActive,
-        onboardingCompleted,
       };
     },
   );
@@ -324,12 +301,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         request.body.currentPassword,
       );
       if (!valid) {
-        return reply
-          .code(400)
-          .send({
-            error: "Bad Request",
-            message: "Contraseña actual incorrecta",
-          });
+        return reply.code(400).send({
+          error: "Bad Request",
+          message: "Contraseña actual incorrecta",
+        });
       }
 
       const newHash = await argon2.hash(request.body.newPassword);
