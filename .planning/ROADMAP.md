@@ -1577,8 +1577,8 @@ Transform the member app from a passive content library ("here are things you ca
 
 Plans:
 
-- [ ] 78-01-PLAN.md — Backend: member_profiles schema, onboarding service, API routes, AURA integration, /auth/me extension, integration tests
-- [ ] 78-02-PLAN.md — Member app: 6-screen quiz flow (welcome + 4 questions + result) with atmospheric design, router guard, store extension
+- [x] 78-01-PLAN.md — Backend: member_profiles schema, onboarding service, API routes, AURA integration, /auth/me extension, integration tests
+- [x] 78-02-PLAN.md — Member app: 6-screen quiz flow (welcome + 4 questions + result) with atmospheric design, router guard, store extension
 - [ ] 78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification
 
 ---
@@ -1681,7 +1681,7 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 
 | Phase                                 | Plans Complete | Status  | Completed |
 | ------------------------------------- | -------------- | ------- | --------- |
-| 78. Onboarding & User Profiling       | 0/3            | Planned | —         |
+| 78. Onboarding & User Profiling       | 2/3 | In Progress|  |
 | 79. Behavioral Segmentation           | —              | Planned | —         |
 | 80. "Tu Día" Daily Game Plan          | —              | Planned | —         |
 | 81. Streaks & Engagement Mechanics    | —              | Planned | —         |

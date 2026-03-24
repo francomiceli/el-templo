@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: phase-complete
-stopped_at: Phase 75 complete — build succeeded, AAB+APK artifacts produced
-last_updated: "2026-03-23"
+stopped_at: Completed 78-03-PLAN.md (Task 2 human-verify pending)
+last_updated: "2026-03-24T14:36:39.114Z"
 progress:
-  total_phases: 75
-  completed_phases: 63
-  total_plans: 261
-  completed_plans: 257
+  total_phases: 82
+  completed_phases: 62
+  total_plans: 264
+  completed_plans: 258
 ---
 
 # Project State
@@ -84,6 +84,9 @@ _Updated after each plan completion_
 | Phase 74 P02 | 2min | 2 tasks | 7 files |
 | Phase 75 P01 | 4min | 2 tasks | 3 files |
 | Phase 75 P02 | 2min | 2 tasks | 1 files |
+| Phase 78 P01 | 13min | 2 tasks | 17 files |
+| Phase 78 P02 | 7min | 2 tasks | 13 files |
+| Phase 78 P03 | 5min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -165,6 +168,12 @@ Recent decisions affecting current work:
 - [Phase 75]: Variant-scoped signing via applicationVariants.configureEach (not buildTypes.release conditional) to ensure only productionRelease gets signing
 - [Phase 75]: Key alias hardcoded as 'upload' in build.gradle (not secret, not configurable) for simplicity
 - [Phase 75]: Master branch guard as explicit shell check (not branch filter) so workflow_dispatch from non-master fails with clear error
+- [Phase 78]: onboarding_completion added to both aura_transactions and aura_config source type enums for consistency
+- [Phase 78]: GET /onboarding/profile returns 204 No Content (not 404) for not-yet-completed onboarding
+- [Phase 78]: AURA award failure gracefully degraded on onboarding -- profile creation succeeds regardless
+- [Phase 78]: Onboarding route registered as top-level (not under layout) for full-screen quiz without bottom tabs
+- [Phase 78]: Router guard checks role===member before redirecting to onboarding; coaches/admins/owners skip onboarding
+- [Phase 78]: Added OnboardingProfileSummary type to admin MemberProfile for TypeScript safety (plan said dynamic access, CLAUDE.md no-any rule requires proper typing)
 
 ### Pending Todos
 
@@ -176,6 +185,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T23:14:54.791Z
-Stopped at: Completed 75-02-PLAN.md
+Last session: 2026-03-24T14:36:39.108Z
+Stopped at: Completed 78-03-PLAN.md (Task 2 human-verify pending)
 Resume file: None
