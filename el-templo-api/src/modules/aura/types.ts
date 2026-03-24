@@ -9,7 +9,8 @@ export type AuraSourceType =
   | "manual_adjustment"
   | "challenge"
   | "social"
-  | "personalizada_completion";
+  | "personalizada_completion"
+  | "onboarding_completion";
 
 export interface AwardInput {
   userId: number;
