@@ -8,6 +8,7 @@
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 - **v4.2 Clases Personalizadas Launch** - Phases 67-73 (complete)
 - **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
+- **v4.4 App Engagement & Intelligent Companion** - Phases 78-84 (planned)
 
 ---
 
@@ -1538,3 +1539,158 @@ Phase 74 (Pre-Release Prep) → Phase 75 (Signing & Release Build) → Phase 76 
 ---
 
 _v4.3 phases added: 2026-03-21 — 4 phases (74-77), 22 requirements mapped (PLAY-01 through PLAY-22)_
+
+<details>
+<summary>v4.4 App Engagement & Intelligent Companion (Phases 78-84)</summary>
+
+## v4.4 Overview
+
+Transform the member app from a passive content library ("here are things you can do") into an intelligent companion ("here's what YOU should do today"). The app learns who you are through onboarding and behavior, gives daily guidance, tracks streaks and progress, and offers tailored paid micro-programs at high-intent moments.
+
+**Source:** Competitive research (BetterMe, Freeletics, Strava, MyFitnessPal) + team discussion. Full research in `.planning/research/app-engagement-upselling-research.md`
+
+**Key constraints:**
+
+- App remains free for gym members — upsells are optional add-ons, never hard paywalls
+- Rule-based personalization, not ML — sufficient for our scale
+- Short onboarding (3 questions, <2 min) — users are already paying gym members, not cold leads
+- Each phase needs GSD discuss before planning — not all ideas confirmed
+
+## v4.4 Phases
+
+### Phase 78: Onboarding & User Profiling
+
+**Goal**: Mandatory 4-question onboarding quiz (goal, experience, focus, motivation) with atmospheric full-screen card UI, member_profiles table, 50 AURA reward, Tu Camino summary card on Mi Camino, and admin profile visibility
+**Depends on**: v4.3 complete (app live on Play Store)
+**Requirements**: ENG-01, ENG-02, ENG-03
+**Plans:** 3 plans
+
+**Success Criteria** (what must be TRUE):
+
+1. First-time app users see a mandatory 4-question onboarding quiz before reaching the home screen
+2. member_profiles table stores goalType, experienceLevel, trainingFocus, motivationStyle with onboardingCompletedAt timestamp
+3. "Tu Camino" card at top of Mi Camino page shows member's stated goal
+4. Onboarding is mandatory — no skip, router guard redirects unonboarded members
+5. 50 AURA awarded on quiz completion
+6. Admin member detail shows read-only onboarding profile section
+7. Analytics tracking: quiz start, per-question duration, completion rate, drop-off point
+
+Plans:
+
+- [ ] 78-01-PLAN.md — Backend: member_profiles schema, onboarding service, API routes, AURA integration, /auth/me extension, integration tests
+- [ ] 78-02-PLAN.md — Member app: 6-screen quiz flow (welcome + 4 questions + result) with atmospheric design, router guard, store extension
+- [ ] 78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification
+
+---
+
+### Phase 79: Behavioral Segmentation
+
+**Goal**: Auto-calculate behavioral segments (Nuevo Guerrero, Espartano, Intermitente, En Riesgo, Digital Warrior, Ghost) from existing attendance and app usage data, with admin visibility
+**Depends on**: Phase 78 (profile schema exists)
+**Requirements**: ENG-05, ENG-06, ENG-07
+**Success Criteria** (what must be TRUE):
+
+1. Segment assignment logic calculates member segments from attendance frequency and app usage patterns
+2. Segments update periodically (on login or scheduled job) and persist on member records
+3. Admin member detail page shows current segment
+4. Admin member list is filterable by segment
+5. Segment thresholds are configurable (not hardcoded magic numbers)
+
+---
+
+### Phase 80: "Tu Día" Daily Game Plan
+
+**Goal**: Replace or enhance the Mi Camino home screen with a daily game plan that tells members what to do TODAY — today's session, class reminder, progress milestone approaching, active challenge status
+**Depends on**: Phase 78 (needs profile for personalization), Phase 79 (needs segments for targeting)
+**Requirements**: ENG-08, ENG-09, ENG-10
+**Success Criteria** (what must be TRUE):
+
+1. Home screen shows "Tu Día" with today's actionable items based on user profile and context
+2. Post-session flow enhanced — RPE rating feeds into a personalized next-step recommendation
+3. Weekly summary aggregates sessions, streak, and progress — visible in-app
+4. Each user input (RPE, goal, attendance) produces a visible change in recommendations
+5. Members without onboarding profile see a simplified version (not broken/empty)
+
+---
+
+### Phase 81: Streaks & Engagement Mechanics
+
+**Goal**: Add attendance streak tracking with prominent display, post-session celebration animations, and milestone celebrations — the highest-retention-ROI features for lowest effort
+**Depends on**: None (can run in parallel with 79-80 if needed)
+**Requirements**: ENG-11, ENG-12, ENG-13, ENG-14
+**Success Criteria** (what must be TRUE):
+
+1. Current attendance streak and longest streak stored per member and displayed prominently on Mi Camino / Tu Día
+2. Post-session or post-check-in celebration animation plays on completion
+3. Milestone achievements (streak thresholds, session count milestones, level progression) trigger full-screen celebration
+4. AURA awarded for streak milestones and challenge completions (extends existing AURA economy)
+5. Streak recovery logic handles reasonable gaps (e.g., rest days don't break streaks)
+
+---
+
+### Phase 82: Progressive Profiling & Check-ins
+
+**Goal**: Add contextual in-app check-in questions (energy, sleep, soreness, goal reassessment) that surface progressively over the first weeks and monthly thereafter, enriching the user profile and feeding the recommendation loop
+**Depends on**: Phase 78 (profile schema), Phase 80 (Tu Día displays check-in prompts)
+**Requirements**: ENG-04, ENG-15, ENG-16, ENG-17
+**Success Criteria** (what must be TRUE):
+
+1. Additional profiling questions surface contextually (after 1st session, 3rd session, 1 week) — not forced
+2. Monthly goal reassessment prompt asks if primary goal has changed
+3. Check-in answers stored in profile and feed into Tu Día recommendations
+4. User inputs produce visible changes (tired → easier suggestion, goal changed → path updated)
+5. Users can skip any check-in without penalty
+
+---
+
+### Phase 83: Micro-Program Upsells ("Experiencias a Medida")
+
+**Goal**: Create purchasable 4-8 week goal-based micro-programs (separate from Personalizadas) with contextual upsell CTAs placed at validated high-intent trigger points
+**Depends on**: Phase 78-80 (needs profile + segments + Tu Día for targeting), Phase 81 (milestone triggers for CTAs)
+**Requirements**: ENG-18, ENG-19, ENG-20, ENG-21
+**Success Criteria** (what must be TRUE):
+
+1. Micro-program data model supports purchasable programs with duration, goal, content, and pricing
+2. Program catalog browsable in-app with clear descriptions and value propositions
+3. Upsell CTAs appear at high-intent moments (post-session, post-milestone, after 3+ views of locked content)
+4. CTAs never appear on cold open or app launch
+5. Purchase flow functional (WhatsApp-mediated or in-app — decided in discuss phase)
+6. Admin can create, edit, and deactivate micro-programs
+
+---
+
+### Phase 84: Push Notifications Foundation
+
+**Goal**: Set up push notification infrastructure (Capacitor plugin + backend scheduler) with segment-driven notification strategies and user opt-in/out preferences
+**Depends on**: Phase 79 (segments drive notification strategy)
+**Requirements**: ENG-22, ENG-23, ENG-24
+**Success Criteria** (what must be TRUE):
+
+1. Push notifications delivered to Android (and iOS when applicable) via Capacitor push plugin
+2. Backend notification scheduler can send notifications to individual members or segments
+3. Different notification templates per segment (re-engagement for at-risk, progression for regulars, etc.)
+4. User notification preferences accessible in profile settings (opt-in/out per category)
+5. Notification delivery tracked (sent, received, opened — for future optimization)
+
+---
+
+## v4.4 Progress
+
+**Execution Order:**
+Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
+
+| Phase                                 | Plans Complete | Status  | Completed |
+| ------------------------------------- | -------------- | ------- | --------- |
+| 78. Onboarding & User Profiling       | 0/3            | Planned | —         |
+| 79. Behavioral Segmentation           | —              | Planned | —         |
+| 80. "Tu Día" Daily Game Plan          | —              | Planned | —         |
+| 81. Streaks & Engagement Mechanics    | —              | Planned | —         |
+| 82. Progressive Profiling & Check-ins | —              | Planned | —         |
+| 83. Micro-Program Upsells             | —              | Planned | —         |
+| 84. Push Notifications Foundation     | —              | Planned | —         |
+
+---
+
+_v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
+
+</details>
