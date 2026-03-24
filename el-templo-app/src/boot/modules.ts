@@ -12,6 +12,7 @@ import {
   registerModule as registerPersonalizada,
 } from 'src/modules/personalizada'
 import { manifest as planManifest, registerModule as registerPlan } from 'src/modules/plan'
+import { registerModule as registerOnboarding } from 'src/modules/onboarding'
 
 // Handle Vite chunk load failures (e.g., after deployment with cleared old chunks)
 if (typeof window !== 'undefined') {
@@ -38,6 +39,7 @@ export default boot(({ router }) => {
   registerProgression(router)
   registerPersonalizada(router)
   registerPlan(router)
+  registerOnboarding(router)
 
   // Future modules:
   // registerAcademy(router)
