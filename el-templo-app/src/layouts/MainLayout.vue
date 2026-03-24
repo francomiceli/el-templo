@@ -20,7 +20,7 @@
           style="cursor: pointer"
         >
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
-          EL TEMPLO
+          <img src="/icons/el-templo-title.png" alt="EL TEMPLO" class="header-title-img" />
         </q-toolbar-title>
 
         <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
@@ -222,9 +222,11 @@ async function onLogout() {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: Impact, 'Arial Narrow Bold', sans-serif;
-  font-weight: normal;
-  text-transform: uppercase;
+}
+
+.header-title-img {
+  height: 20px;
+  width: auto;
 }
 
 .header-logo {

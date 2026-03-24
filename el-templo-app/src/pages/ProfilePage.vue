@@ -3,63 +3,42 @@
     <!-- Profile Header -->
     <div class="profile-header">
       <div class="profile-header__avatar">
-        <q-icon name="person" size="40px" color="white" />
+        <q-icon name="person" size="36px" color="white" />
       </div>
       <div class="profile-header__info">
         <div class="profile-header__name">{{ userStore.fullName || 'Atleta' }}</div>
         <div class="profile-header__email">{{ userStore.profile?.email }}</div>
       </div>
-      <q-badge
-        v-if="userStore.profile?.level"
-        :color="levelColor"
-        :label="userStore.displayLevel"
-        class="profile-header__level"
-      />
     </div>
 
-    <!-- Details Card -->
+    <!-- Details -->
     <q-card class="profile-card" flat bordered>
-      <q-list separator>
+      <q-list>
         <q-item>
           <q-item-section avatar>
-            <q-icon name="location_on" color="secondary" />
+            <q-icon name="location_on" color="secondary" size="22px" />
           </q-item-section>
           <q-item-section>
-            <q-item-label caption>Sucursal</q-item-label>
-            <q-item-label>{{ userStore.profile?.branchName }}</q-item-label>
-          </q-item-section>
-        </q-item>
-
-        <q-item>
-          <q-item-section avatar>
-            <q-icon name="military_tech" color="secondary" />
-          </q-item-section>
-          <q-item-section>
-            <q-item-label caption>Nivel</q-item-label>
-            <q-item-label>
-              <q-badge :color="levelColor" :label="userStore.displayLevel" />
-            </q-item-label>
+            <q-item-label class="profile-label">Sucursal</q-item-label>
+            <q-item-label class="profile-value">{{ userStore.profile?.branchName }}</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>
     </q-card>
 
-    <!-- Subscription Card -->
+    <!-- Subscription -->
     <q-card class="profile-card" flat bordered>
       <q-card-section class="profile-card__header">
-        <q-icon name="card_membership" color="primary" size="20px" />
         <span class="profile-card__title">Mi Suscripción</span>
       </q-card-section>
 
       <q-separator />
 
       <q-card-section>
-        <!-- Loading -->
         <div v-if="userStore.subscriptionLoading" class="flex flex-center q-pa-md">
           <q-spinner-dots size="30px" color="primary" />
         </div>
 
-        <!-- Has subscription -->
         <template v-else-if="userStore.subscription">
           <div class="subscription-plan">
             <span class="subscription-plan__name">
@@ -98,7 +77,6 @@
           </div>
         </template>
 
-        <!-- No subscription -->
         <div v-else class="text-center q-pa-sm">
           <div class="text-grey-5 text-italic">Sin suscripción activa</div>
         </div>
@@ -110,9 +88,9 @@
       <q-list>
         <q-item clickable v-ripple to="/change-password">
           <q-item-section avatar>
-            <q-icon name="lock" color="secondary" />
+            <q-icon name="lock" color="secondary" size="22px" />
           </q-item-section>
-          <q-item-section>Cambiar contraseña</q-item-section>
+          <q-item-section class="profile-value">Cambiar contraseña</q-item-section>
           <q-item-section side>
             <q-icon name="chevron_right" color="grey-5" />
           </q-item-section>
@@ -123,25 +101,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useUserStore } from 'stores/useUserStore'
 import { formatDate } from 'src/utils/format-date'
 
 const userStore = useUserStore()
-
-const levelColors: Record<string, string> = {
-  alfa: 'blue',
-  delta: 'green',
-  sigma: 'orange',
-  omega: 'purple',
-  spartan: 'red-10',
-}
-
-const levelColor = computed(() => {
-  const level = userStore.profile?.level
-  if (!level) return 'grey'
-  return levelColors[level] || 'grey'
-})
 
 onMounted(() => {
   userStore.loadSubscription()
@@ -156,18 +120,16 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-// ─── Header ──────────────────────────────────────────────────────────
-
 .profile-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .profile-header__avatar {
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: linear-gradient(135deg, $primary, $secondary);
   display: flex;
@@ -183,10 +145,10 @@ onMounted(() => {
 
 .profile-header__name {
   font-family: 'Montserrat', sans-serif;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: $accent;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .profile-header__email {
@@ -197,43 +159,41 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.profile-header__level {
-  flex-shrink: 0;
-}
-
-// ─── Cards ───────────────────────────────────────────────────────────
-
 .profile-card {
   border-radius: 12px;
-  border-color: rgba($primary, 0.15);
-  margin-bottom: 12px;
+  border-color: rgba($primary, 0.12);
+  margin-bottom: 10px;
 
   &__header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 12px;
+    padding-bottom: 10px;
   }
 
   &__title {
     font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     color: $accent;
   }
 }
 
-// ─── Subscription ────────────────────────────────────────────────────
+.profile-label {
+  font-size: 12px;
+  color: rgba($accent, 0.5);
+}
+
+.profile-value {
+  font-size: 14px;
+  color: $accent;
+}
 
 .subscription-plan {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 
   &__name {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: $accent;
   }
@@ -242,7 +202,7 @@ onMounted(() => {
 .subscription-details {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .subscription-detail {
@@ -251,7 +211,7 @@ onMounted(() => {
   &__label {
     display: block;
     font-size: 11px;
-    color: rgba($accent, 0.5);
+    color: rgba($accent, 0.45);
     margin-bottom: 2px;
   }
 
