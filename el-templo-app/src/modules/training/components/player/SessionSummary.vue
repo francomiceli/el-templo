@@ -3,9 +3,8 @@
     <!-- Header -->
     <div class="session-summary__header q-pa-md">
       <div class="session-summary__title-row">
-        <FlameIcon size="sm" intensify />
-        <div class="text-h5 text-weight-bold">Resumen de Sesion</div>
-        <FlameIcon size="sm" intensify />
+        <q-icon name="check_circle" color="positive" size="28px" />
+        <div class="text-h5 text-weight-bold">Resumen de Sesión</div>
       </div>
       <div class="text-subtitle2 text-grey-3">{{ formattedDate }}</div>
     </div>
@@ -104,7 +103,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import FlameIcon from 'src/components/FlameIcon.vue'
 import RpeSlider from './RpeSlider.vue'
 
 interface BlockData {

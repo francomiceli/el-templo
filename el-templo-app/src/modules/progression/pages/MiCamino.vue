@@ -3,11 +3,7 @@
     <!-- Loading State -->
     <div v-if="progressionStore.loading" class="mi-camino__loading">
       <q-spinner color="primary" size="60px" />
-      <div class="mi-camino__loading-row">
-        <FlameIcon size="xs" />
-        <p class="mi-camino__loading-text">Cargando tu progreso...</p>
-        <FlameIcon size="xs" />
-      </div>
+      <p class="mi-camino__loading-text">Cargando tu progreso...</p>
     </div>
 
     <!-- Error State -->
@@ -54,7 +50,6 @@
  * regular and personalizada sessions.
  */
 import { computed, onMounted } from 'vue'
-import FlameIcon from 'src/components/FlameIcon.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useUserStore } from 'src/stores/useUserStore'
@@ -114,15 +109,8 @@ onMounted(() => {
     padding: 24px;
   }
 
-  &__loading-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 16px;
-  }
-
   &__loading-text {
-    margin: 0;
+    margin: 16px 0 0;
     font-size: 14px;
     color: rgba($primary, 0.7);
   }
