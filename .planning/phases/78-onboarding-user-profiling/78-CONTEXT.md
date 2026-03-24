@@ -17,7 +17,7 @@ First-open onboarding flow (4-question quiz with full-screen cards) that creates
 
 - **D-01:** 4-question quiz, not 3. Questions in order: Goal → Experience → Training Focus → Motivation.
 - **D-02:** Full-screen card layout — one question per screen, immersive, mobile-first. NOT a stepper or single-page form.
-- **D-03:** Slide-left transition between cards (slide right on back). Natural swipe-through-deck feel.
+- **D-03:** Slide-left transition between cards (slide right on back). Natural swipe-through-deck feel. **No "Siguiente" button** — selecting an option auto-advances to the next question after a brief highlight delay (400ms). Back arrow available for going back.
 - **D-04:** Welcome screen before Q1: logo, "Bienvenido, [Nombre]", "Respondé 4 preguntas para personalizar tu experiencia", "Empezar" CTA.
 - **D-05:** Result screen after Q4: profile summary + 50 AURA reward + CTA to enter app. Combines payoff and gamification intro.
 - **D-06:** Total flow: 6 screens (welcome → Q1 → Q2 → Q3 → Q4 → result). Target: under 90 seconds.
