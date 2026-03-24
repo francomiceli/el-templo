@@ -15,6 +15,13 @@
 
     <!-- Content State -->
     <div v-else class="mi-camino__content">
+      <!-- Tu Camino Card (onboarding profile summary) -->
+      <TuCaminoCard
+        v-if="onboardingProfile?.goalType"
+        :goal-type="onboardingProfile.goalType"
+        :goal-label="goalLabel"
+      />
+
       <!-- Welcome Header -->
       <div class="mi-camino__welcome">
         <div class="mi-camino__welcome-text">
@@ -53,12 +60,25 @@ import { computed, onMounted } from 'vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useUserStore } from 'src/stores/useUserStore'
+import { useProfileApi } from 'src/modules/onboarding/composables/useProfileApi'
+import { GOAL_LABELS } from 'src/modules/onboarding/types'
+import type { GoalType } from 'src/modules/onboarding/types'
 import LevelDisplay from '../components/LevelDisplay.vue'
 import GeneralContent from '../components/GeneralContent.vue'
+import TuCaminoCard from 'src/modules/onboarding/components/TuCaminoCard.vue'
 
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation } = useProgressionApi()
+const { profile: onboardingProfile, fetchProfile } = useProfileApi()
+
+const goalLabel = computed(() => {
+  if (!onboardingProfile.value?.goalType) return ''
+  return (
+    GOAL_LABELS[onboardingProfile.value.goalType as GoalType] ??
+    onboardingProfile.value.goalType
+  )
+})
 
 const userName = computed(() => {
   return userStore.fullName || 'Atleta'
@@ -88,6 +108,7 @@ async function handleRequestEvaluation() {
 
 onMounted(() => {
   fetchStats()
+  fetchProfile()
 })
 </script>
 
