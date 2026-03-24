@@ -97,7 +97,7 @@ export function useExercisesApi() {
 
   async function updateExercise(
     exerciseId: number,
-    fields: { effort?: string }
+    fields: { effort?: string; exercise?: string }
   ): Promise<Exercise> {
     try {
       const { data } = await api.patch<Exercise>(`/admin/exercises/${exerciseId}`, fields);

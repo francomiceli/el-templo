@@ -890,7 +890,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   // PATCH /admin/exercises/:exerciseId - Update exercise fields
   fastify.patch<{
     Params: { exerciseId: number };
-    Body: { effort?: string };
+    Body: { effort?: string; exercise?: string };
   }>(
     "/exercises/:exerciseId",
     {
@@ -904,6 +904,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           type: "object",
           properties: {
             effort: { type: "string", enum: ["CON", "EXC", "ISO", ""] },
+            exercise: { type: "string", minLength: 1, maxLength: 255 },
           },
         },
       },
@@ -914,6 +915,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (request.body.effort !== undefined) {
         updates.effort = request.body.effort;
+      }
+
+      if (request.body.exercise !== undefined) {
+        updates.exercise = request.body.exercise.trim();
       }
 
       if (Object.keys(updates).length === 0) {

@@ -61,8 +61,8 @@ const LEVEL_WIDENING: Record<LevelGroup, readonly ExerciseLevel[][]> = {
     ["alfa", "delta", "sigma", "omega", "spartan"],
   ],
   omega: [
-    ["omega", "spartan"],
     ["sigma", "omega", "spartan"],
+    ["alfa", "delta", "sigma", "omega", "spartan"],
     ["alfa", "delta", "sigma", "omega", "spartan"],
   ],
 };
@@ -381,6 +381,24 @@ export async function selectExercisesWithFallback(
   let currentContraction = contraction;
   let currentRoute = route;
 
+  // Compute target difficulty midpoint for proximity-based selection
+  const targetMidDifficulty = (minDificultadLineal + maxDificultadLineal) / 2;
+
+  /** Select top N exercises preferring closest to target difficulty, then by id */
+  function selectClosest(
+    candidates: ExerciseCandidate[],
+    n: number,
+  ): ExerciseCandidate[] {
+    return [...candidates]
+      .sort((a, b) => {
+        const aDist = Math.abs(a.dificultadLineal - targetMidDifficulty);
+        const bDist = Math.abs(b.dificultadLineal - targetMidDifficulty);
+        if (aDist !== bDist) return aDist - bDist;
+        return a.id - b.id;
+      })
+      .slice(0, n);
+  }
+
   // Tier 0: Exact match — route + contraction + difficulty + level
   let pool = await queryExercises(
     db,
@@ -393,8 +411,7 @@ export async function selectExercisesWithFallback(
   );
 
   if (pool.length >= count) {
-    const sorted = [...pool].sort((a, b) => a.id - b.id);
-    const selected = sorted.slice(0, count);
+    const selected = selectClosest(pool, count);
     return {
       status: "exact",
       data: selected,
@@ -428,8 +445,7 @@ export async function selectExercisesWithFallback(
         originalRoute: route,
       });
 
-      const sorted = [...pool].sort((a, b) => a.id - b.id);
-      const selected = sorted.slice(0, count);
+      const selected = selectClosest(pool, count);
       return {
         status: "fallback",
         data: selected,
@@ -472,8 +488,7 @@ export async function selectExercisesWithFallback(
           originalRoute: route,
         });
 
-        const sorted = [...pool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count);
+        const selected = selectClosest(pool, count);
         return {
           status: "fallback",
           data: selected,
@@ -495,8 +510,7 @@ export async function selectExercisesWithFallback(
     );
 
     if (pool.length >= count) {
-      const sorted = [...pool].sort((a, b) => a.id - b.id);
-      const selected = sorted.slice(0, count);
+      const selected = selectClosest(pool, count);
       return {
         status: "fallback",
         data: selected,
@@ -529,8 +543,7 @@ export async function selectExercisesWithFallback(
           contraction,
         });
 
-        const sorted = [...pool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count);
+        const selected = selectClosest(pool, count);
         return {
           status: "fallback",
           data: selected,
@@ -593,8 +606,7 @@ export async function selectExercisesWithFallback(
       currentRoute = parentRoute;
 
       if (pool.length >= count) {
-        const sorted = [...pool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count);
+        const selected = selectClosest(pool, count);
         return {
           status: "fallback",
           data: selected,
@@ -630,8 +642,7 @@ export async function selectExercisesWithFallback(
       );
 
       if (pool.length >= count) {
-        const sorted = [...pool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count);
+        const selected = selectClosest(pool, count);
         return {
           status: "fallback",
           data: selected,
@@ -653,8 +664,7 @@ export async function selectExercisesWithFallback(
     );
 
     if (pool.length >= count) {
-      const sorted = [...pool].sort((a, b) => a.id - b.id);
-      const selected = sorted.slice(0, count);
+      const selected = selectClosest(pool, count);
       return {
         status: "fallback",
         data: selected,
@@ -689,8 +699,7 @@ export async function selectExercisesWithFallback(
             used: substitute,
           });
 
-          const sorted = [...catPool].sort((a, b) => a.id - b.id);
-          const selected = sorted.slice(0, count).map((ex) => ({
+          const selected = selectClosest(catPool, count).map((ex) => ({
             ...ex,
             contraction: substitute,
           }));
@@ -722,8 +731,7 @@ export async function selectExercisesWithFallback(
           used: substitute,
         });
 
-        const sorted = [...pool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count).map((ex) => ({
+        const selected = selectClosest(pool, count).map((ex) => ({
           ...ex,
           contraction: substitute,
         }));
@@ -762,8 +770,7 @@ export async function selectExercisesWithFallback(
     });
 
     if (pool.length >= count) {
-      const sorted = [...pool].sort((a, b) => a.id - b.id);
-      const selected = sorted.slice(0, count);
+      const selected = selectClosest(pool, count);
       return {
         status: "fallback",
         data: selected,
@@ -791,8 +798,7 @@ export async function selectExercisesWithFallback(
           used: substitute,
         });
 
-        const sorted = [...subPool].sort((a, b) => a.id - b.id);
-        const selected = sorted.slice(0, count).map((ex) => ({
+        const selected = selectClosest(subPool, count).map((ex) => ({
           ...ex,
           contraction: substitute,
         }));

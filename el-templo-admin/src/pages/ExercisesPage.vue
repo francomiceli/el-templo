@@ -133,6 +133,44 @@
       :rows-per-page-options="[25, 50, 100]"
       @request="onTableRequest"
     >
+      <!-- Exercise name column: click to edit -->
+      <template #body-cell-exercise="props">
+        <q-td :props="props">
+          <div class="row items-center no-wrap">
+            <span
+              v-if="editingNameId !== props.row.id"
+              class="cursor-pointer"
+              @click="startEditName(props.row)"
+            >
+              {{ props.row.exercise }}
+              <q-icon name="edit" size="xs" color="grey-5" class="q-ml-xs" />
+            </span>
+            <q-input
+              v-else
+              v-model="editingNameValue"
+              dense
+              outlined
+              autofocus
+              class="q-mr-xs"
+              style="min-width: 200px"
+              @keyup.enter="saveEditName(props.row.id)"
+              @keyup.escape="cancelEditName"
+            >
+              <template #after>
+                <q-btn
+                  flat
+                  dense
+                  icon="check"
+                  color="positive"
+                  @click="saveEditName(props.row.id)"
+                />
+                <q-btn flat dense icon="close" color="grey" @click="cancelEditName" />
+              </template>
+            </q-input>
+          </div>
+        </q-td>
+      </template>
+
       <!-- Effort column: inline select when empty -->
       <template #body-cell-effort="props">
         <q-td :props="props">
@@ -366,14 +404,19 @@
               class="row items-center q-gutter-xs text-body2"
             >
               <q-badge
-                :color="v.valid ? 'grey-7' : 'negative'"
+                :color="v.valid ? (v.differentLevel ? 'orange' : 'grey-7') : 'negative'"
                 text-color="white"
                 :label="v.effort"
               />
               <span>Dificultad {{ v.difficulty }}</span>
-              <span v-if="!v.valid" class="text-negative text-caption"
-                >(fuera de rango para {{ createForm.level }})</span
-              >
+              <q-badge
+                v-if="v.differentLevel && v.targetLevel"
+                :label="v.targetLevel"
+                color="orange"
+                text-color="white"
+                class="text-caption"
+              />
+              <span v-if="!v.valid" class="text-negative text-caption">(dificultad invalida)</span>
             </div>
           </div>
 
@@ -429,6 +472,8 @@ const showBulkUpload = ref(false);
 const showCreateDialog = ref(false);
 const creating = ref(false);
 const allExercises = ref<Exercise[]>([]);
+const editingNameId = ref<number | null>(null);
+const editingNameValue = ref('');
 
 const createForm = reactive({
   exercise: '',
@@ -450,6 +495,14 @@ const LEVEL_DIFFICULTY: Record<string, { min: number; max: number }> = {
   spartan: { min: 11, max: 12 },
 };
 
+/** Given a linear difficulty (1-12), return the level it belongs to */
+function levelForDifficulty(d: number): string | null {
+  for (const [level, range] of Object.entries(LEVEL_DIFFICULTY)) {
+    if (d >= range.min && d <= range.max) return level;
+  }
+  return null;
+}
+
 const difficultyOptions = computed(() => {
   const level = createForm.level;
   if (!level || !LEVEL_DIFFICULTY[level]) return [];
@@ -469,14 +522,21 @@ function onLevelChange() {
 
 const variantPreview = computed(() => {
   const base = createForm.dificultadLineal;
-  const level = createForm.level;
-  if (!level || !LEVEL_DIFFICULTY[level]) return [];
-  const { min, max } = LEVEL_DIFFICULTY[level];
+  const selectedLevel = createForm.level;
+  if (!selectedLevel || !LEVEL_DIFFICULTY[selectedLevel]) return [];
   return [
-    { effort: 'CON', difficulty: base, valid: base >= min && base <= max },
-    { effort: 'EXC', difficulty: base - 1, valid: base - 1 >= min && base - 1 <= max },
-    { effort: 'ISO', difficulty: base - 2, valid: base - 2 >= min && base - 2 <= max },
-  ];
+    { effort: 'CON', difficulty: base },
+    { effort: 'EXC', difficulty: base - 1 },
+    { effort: 'ISO', difficulty: base - 2 },
+  ].map((v) => {
+    const targetLevel = levelForDifficulty(v.difficulty);
+    return {
+      ...v,
+      targetLevel,
+      valid: targetLevel !== null,
+      differentLevel: targetLevel !== null && targetLevel !== selectedLevel,
+    };
+  });
 });
 
 const variantsValid = computed(() => {
@@ -693,6 +753,29 @@ async function loadExercises() {
 // Event handlers
 // =========================================================================
 
+function startEditName(row: Exercise) {
+  editingNameId.value = row.id;
+  editingNameValue.value = row.exercise;
+}
+
+function cancelEditName() {
+  editingNameId.value = null;
+  editingNameValue.value = '';
+}
+
+async function saveEditName(exerciseId: number) {
+  const newName = editingNameValue.value.trim();
+  if (!newName) return;
+  try {
+    await exercisesApi.updateExercise(exerciseId, { exercise: newName });
+    $q.notify({ type: 'positive', message: 'Nombre actualizado' });
+    cancelEditName();
+    loadExercises();
+  } catch {
+    // Error handled by composable
+  }
+}
+
 async function onInlineEffortChange(exerciseId: number, effort: string) {
   try {
     await exercisesApi.updateExercise(exerciseId, { effort });
@@ -775,18 +858,13 @@ async function onCreateExercise() {
     };
 
     if (createForm.createVariants) {
-      const conDiff = createForm.dificultadLineal;
-      const variants = [
-        { effort: 'CON', dificultadLineal: conDiff },
-        { effort: 'EXC', dificultadLineal: conDiff - 1 },
-        { effort: 'ISO', dificultadLineal: conDiff - 2 },
-      ];
-      for (const v of variants) {
+      for (const v of variantPreview.value) {
         await exercisesApi.createExercise({
           ...base,
           effort: v.effort,
-          dificultadLineal: v.dificultadLineal,
-          difficulty: v.dificultadLineal,
+          level: v.targetLevel ?? base.level,
+          dificultadLineal: v.difficulty,
+          difficulty: v.difficulty,
         });
       }
       $q.notify({ type: 'positive', message: '3 ejercicios creados (CON / EXC / ISO)' });

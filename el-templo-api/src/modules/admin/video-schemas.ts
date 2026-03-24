@@ -15,7 +15,7 @@ export const listExercisesSchema = {
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
       route: { type: "string" },
-      effort: { type: "string", enum: ["CON", "EXC", "ISO"] },
+      effort: { type: "string", enum: ["CON", "EXC", "ISO", "empty"] },
       hasVideo: { type: "boolean" },
     },
     additionalProperties: false,
