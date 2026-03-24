@@ -223,8 +223,6 @@ async function onLogout() {
   align-items: center;
   gap: 10px;
   font-family: Impact, 'Arial Narrow Bold', sans-serif;
-  font-size: 1.2rem;
-  letter-spacing: 0.08em;
   font-weight: normal;
   text-transform: uppercase;
 }
