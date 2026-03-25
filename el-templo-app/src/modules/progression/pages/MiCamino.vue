@@ -166,14 +166,7 @@ const showReservaCta = computed(() => {
 type CardId = 'session' | 'booking'
 
 const cardOrder = computed((): CardId[] => {
-  const segment = userStore.segment
-  // Segments where booking comes first (lower barrier, re-engagement)
-  const bookingFirstSegments: (MemberSegment | null)[] = ['en_riesgo', 'nuevo_guerrero', 'ghost']
-  if (bookingFirstSegments.includes(segment)) {
-    return ['booking', 'session']
-  }
-  // Default and action-oriented segments: session first
-  return ['session', 'booking']
+  return ['booking', 'session']
 })
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
