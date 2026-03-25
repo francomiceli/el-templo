@@ -1595,6 +1595,12 @@ Plans:
 3. Admin member detail page shows current segment
 4. Admin member list is filterable by segment
 5. Segment thresholds are configurable (not hardcoded magic numbers)
+   **Plans:** 2 plans
+
+Plans:
+
+- [ ] 79-01-PLAN.md — Backend: schema, migration, SegmentationService, login tracking, /auth/me integration, settings API, member list segment filter, integration tests
+- [ ] 79-02-PLAN.md — Admin frontend: segment chips in member list/detail, segment filter dropdown, ConfiguracionPage with threshold config card
 
 ---
 
@@ -1610,6 +1616,13 @@ Plans:
 3. Weekly summary aggregates sessions, streak, and progress — visible in-app
 4. Each user input (RPE, goal, attendance) produces a visible change in recommendations
 5. Members without onboarding profile see a simplified version (not broken/empty)
+   **Plans:** 3 plans
+
+Plans:
+
+- [x] 80-01-PLAN.md — Backend weekly summary endpoint + frontend types/store extensions (segment, WeeklySummary)
+- [ ] 80-02-PLAN.md — Tu Dia card components (6 cards) + MiCamino.vue reorganization + GeneralContent refactor + TuCaminoCard removal
+- [x] 80-03-PLAN.md — Post-session RPE contextual message on SessionSummary
 
 ---
 
@@ -1626,20 +1639,34 @@ Plans:
 4. AURA awarded for streak milestones and challenge completions (extends existing AURA economy)
 5. Streak recovery logic handles reasonable gaps (e.g., rest days don't break streaks)
 
+   **Plans:** 2 plans
+
+Plans:
+
+- [x] 81-01-PLAN.md — Backend: schema migration, StreakService, session/attendance integration, AURA milestones, integration tests
+- [ ] 81-02-PLAN.md — Frontend: StreakRow component on MiCamino, progression types update
+
 ---
 
 ### Phase 82: Progressive Profiling & Check-ins
 
-**Goal**: Add contextual in-app check-in questions (energy, sleep, soreness, goal reassessment) that surface progressively over the first weeks and monthly thereafter, enriching the user profile and feeding the recommendation loop
+**Goal**: Add 3 daily check-in questions (energy, soreness, sleep) as a swipeable card row on Tu Día with progressive unlock, daily rotation, and visible feedback loop in session CTA messaging (goal reassessment deferred per D-18)
 **Depends on**: Phase 78 (profile schema), Phase 80 (Tu Día displays check-in prompts)
 **Requirements**: ENG-04, ENG-15, ENG-16, ENG-17
+**Plans:** 3 plans
 **Success Criteria** (what must be TRUE):
 
 1. Additional profiling questions surface contextually (after 1st session, 3rd session, 1 week) — not forced
-2. Monthly goal reassessment prompt asks if primary goal has changed
-3. Check-in answers stored in profile and feed into Tu Día recommendations
-4. User inputs produce visible changes (tired → easier suggestion, goal changed → path updated)
-5. Users can skip any check-in without penalty
+2. Monthly goal reassessment — DEFERRED per D-18 (no goal-driven content yet)
+3. Check-in answers stored in check_in_responses table and feed into Tu Día recommendations
+4. User inputs produce visible changes (tired → "Sesión liviana sugerida", sore → "Considerá movilidad hoy")
+5. Cards persist until answered — no skip, no dismiss (per D-15)
+
+Plans:
+
+- [x] 82-01-PLAN.md — Backend: check_in_responses schema, CheckInService, progressive unlock logic, API endpoints, integration tests
+- [x] 82-02-PLAN.md — Frontend: CheckInCard component, store/composable, swipeable row on MiCamino with daily rotation
+- [ ] 82-03-PLAN.md — Feedback loop: SessionCtaCard messaging adapts based on today's check-in answers
 
 ---
 
@@ -1671,6 +1698,22 @@ Plans:
 3. Different notification templates per segment (re-engagement for at-risk, progression for regulars, etc.)
 4. User notification preferences accessible in profile settings (opt-in/out per category)
 5. Notification delivery tracked (sent, received, opened — for future optimization)
+6. Check-in questions via push: post-training soreness question, morning energy question (from Phase 82 deferred ideas)
+
+---
+
+### Phase 85: Guía — Exercise & Mobility Library
+
+**Goal**: Rename "Conceptos" to "Guía" and transform it into a categorized exercise/mobility library with videos, filterable by type (fuerza, movilidad, técnica), effort (CON/EXC/ISO), and body area. Integrates with check-in soreness: selecting pain in a body area links directly to relevant mobility exercises.
+**Depends on**: Phase 82 (soreness check-in data feeds into recommendations)
+**Requirements**: TBD
+**Success Criteria** (what must be TRUE):
+
+1. "Conceptos" renamed to "Guía" throughout the app
+2. Exercises categorized by type (fuerza, movilidad, técnica), effort, and body area
+3. Each exercise has a video (reuses existing video infrastructure)
+4. Soreness check-in with body area → deep link to Guía → filtered mobility exercises for that area
+5. Content browsable independently (not only triggered by check-in)
 
 ---
 
@@ -1679,15 +1722,15 @@ Plans:
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                 | Plans Complete | Status  | Completed |
-| ------------------------------------- | -------------- | ------- | --------- |
-| 78. Onboarding & User Profiling       | 2/3 | In Progress|  |
-| 79. Behavioral Segmentation           | —              | Planned | —         |
-| 80. "Tu Día" Daily Game Plan          | —              | Planned | —         |
-| 81. Streaks & Engagement Mechanics    | —              | Planned | —         |
-| 82. Progressive Profiling & Check-ins | —              | Planned | —         |
-| 83. Micro-Program Upsells             | —              | Planned | —         |
-| 84. Push Notifications Foundation     | —              | Planned | —         |
+| Phase                                 | Plans Complete | Status      | Completed |
+| ------------------------------------- | -------------- | ----------- | --------- |
+| 78. Onboarding & User Profiling       | 2/3            | In Progress |           |
+| 79. Behavioral Segmentation           | —              | Planned     | —         |
+| 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |           |
+| 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |           |
+| 82. Progressive Profiling & Check-ins | 2/3 | In Progress|  |
+| 83. Micro-Program Upsells             | —              | Planned     | —         |
+| 84. Push Notifications Foundation     | —              | Planned     | —         |
 
 ---
 

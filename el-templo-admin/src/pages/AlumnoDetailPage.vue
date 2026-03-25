@@ -48,13 +48,26 @@
               </div>
             </div>
 
-            <!-- Status badge + action buttons -->
+            <!-- Status badge + segment badge + action buttons -->
             <div class="q-gutter-sm row items-center">
               <q-badge
                 :color="memberProfile.isActive ? 'positive' : 'grey'"
                 :label="memberProfile.isActive ? 'Activo' : 'Inactivo'"
                 class="text-body2"
               />
+              <q-badge
+                v-if="memberProfile.segment"
+                :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
+                :label="
+                  SEGMENT_LABELS[memberProfile.segment as MemberSegment] ?? memberProfile.segment
+                "
+                outline
+                class="text-body2"
+              >
+                <q-tooltip v-if="memberProfile.segmentUpdatedAt">
+                  Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
+                </q-tooltip>
+              </q-badge>
               <q-btn
                 flat
                 icon="edit"
@@ -106,6 +119,25 @@
         <!-- Perfil Tab -->
         <q-tab-panel name="perfil">
           <MemberProfileTab :member="memberProfile" />
+
+          <!-- Segmentacion card -->
+          <q-card v-if="memberProfile.segment" flat bordered class="q-mt-md">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold q-mb-sm">Segmentacion</div>
+              <div class="row items-center q-gutter-sm">
+                <q-badge
+                  :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
+                  :label="
+                    SEGMENT_LABELS[memberProfile.segment as MemberSegment] ?? memberProfile.segment
+                  "
+                  class="text-body2"
+                />
+                <span v-if="memberProfile.segmentUpdatedAt" class="text-caption text-grey-6">
+                  Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
+                </span>
+              </div>
+            </q-card-section>
+          </q-card>
         </q-tab-panel>
 
         <!-- Entrenamiento Tab -->
@@ -397,7 +429,8 @@ import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
-import type { MemberProfile, BranchOption } from 'src/types/member';
+import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
+import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import {
   PERSONALIZADA_TYPE_LABELS,
   PERSONALIZADA_TIER_MAP,

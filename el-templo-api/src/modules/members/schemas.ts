@@ -22,7 +22,23 @@ const memberListItemSchema = {
     branchName: { type: "string" },
     isActive: { type: "boolean" },
     planName: { type: ["string", "null"] },
+    segment: { type: ["string", "null"] },
     createdAt: { type: "string" },
+  },
+} as const;
+
+const onboardingProfileSchema = {
+  type: ["object", "null"],
+  properties: {
+    goalType: { type: "string" },
+    goalLabel: { type: "string" },
+    experienceLevel: { type: "string" },
+    experienceLabel: { type: "string" },
+    trainingFocus: { type: "string" },
+    focusLabel: { type: "string" },
+    motivationStyle: { type: "string" },
+    motivationLabel: { type: "string" },
+    completedAt: { type: ["string", "null"] },
   },
 } as const;
 
@@ -48,8 +64,11 @@ const memberProfileSchema = {
     branchId: { type: "integer" },
     branchName: { type: "string" },
     isActive: { type: "boolean" },
+    segment: { type: ["string", "null"] },
+    segmentUpdatedAt: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
+    onboardingProfile: onboardingProfileSchema,
   },
 } as const;
 
@@ -91,6 +110,17 @@ export const listMembersSchema = {
       },
       isActive: { type: "boolean" },
       planId: { type: "integer" },
+      segment: {
+        type: "string",
+        enum: [
+          "nuevo_guerrero",
+          "espartano",
+          "intermitente",
+          "en_riesgo",
+          "digital_warrior",
+          "ghost",
+        ],
+      },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },

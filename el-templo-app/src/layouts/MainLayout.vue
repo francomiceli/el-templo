@@ -196,7 +196,7 @@ function toggleLeftDrawer() {
 
 async function onLogout() {
   await authStore.logout()
-  $q.notify({ type: 'positive', message: 'Sesion cerrada' })
+  $q.notify({ type: 'positive', message: 'Sesión cerrada' })
   router.push('/login')
 }
 </script>

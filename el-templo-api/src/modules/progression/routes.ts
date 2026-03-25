@@ -1,8 +1,7 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, gte, and, sql, count, isNull } from "drizzle-orm";
+import { eq, gte, lte, and, sql, count, isNull } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import {
-  calculateStreak,
   checkEligibility,
   formatDateLabel,
   getLevelDisplayName,
@@ -11,6 +10,7 @@ import {
 import {
   progressionStatsResponseSchema,
   evaluationRequestResponseSchema,
+  weeklySummaryResponseSchema,
   errorResponseSchema,
 } from "./schemas";
 
@@ -61,7 +61,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
         weekResult,
         avgRpeResult,
         rpeDataResult,
-        allSessionsResult,
+        streakResult,
         pendingRequestResult,
         todaySessionResult,
       ] = await Promise.all([
@@ -116,12 +116,14 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
           )
           .orderBy(schema.completedSessions.date),
 
-        // All sessions for streak calculation (sorted by date desc)
+        // Persisted streak from member_profiles (replaces on-the-fly calculation)
         fastify.db
-          .select({ date: schema.completedSessions.date })
-          .from(schema.completedSessions)
-          .where(eq(schema.completedSessions.userId, userId))
-          .orderBy(sql`${schema.completedSessions.date} DESC`),
+          .select({
+            currentStreak: schema.memberProfiles.currentStreak,
+            longestStreak: schema.memberProfiles.longestStreak,
+          })
+          .from(schema.memberProfiles)
+          .where(eq(schema.memberProfiles.userId, userId)),
 
         // Check for pending evaluation request
         fastify.db
@@ -158,7 +160,8 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
       // Extract results
       const avgRpe = avgRpeResult[0]?.avgRpe ?? null;
       const eligible = checkEligibility(avgRpe);
-      const currentStreak = calculateStreak(allSessionsResult);
+      const currentStreak = streakResult[0]?.currentStreak ?? 0;
+      const longestStreak = streakResult[0]?.longestStreak ?? 0;
       const pendingRequest = pendingRequestResult[0] ?? null;
       const todaySession = todaySessionResult[0] ?? null;
 
@@ -174,6 +177,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
           totalDaysTrained: Number(totalResult[0]?.totalDays ?? 0),
           sessionsThisWeek: Number(weekResult[0]?.count ?? 0),
           currentStreak,
+          longestStreak,
         },
         rpeTrend: {
           labels: rpeDataResult.map((r) => formatDateLabel(r.date)),
@@ -201,6 +205,91 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
                   : null,
             }
           : null,
+      };
+    },
+  );
+
+  // GET /progression/weekly-summary - Weekly session aggregates for Tu Dia
+  fastify.get(
+    "/weekly-summary",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        response: {
+          200: weeklySummaryResponseSchema,
+          401: errorResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const { userId } = request.user;
+
+      // Calculate current Mon-Sun week boundaries
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+      const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() + diffToMonday);
+      const weekStartStr = monday.toISOString().split("T")[0];
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const weekEndStr = sunday.toISOString().split("T")[0];
+
+      // Parallel queries: session aggregates + subscription budget
+      const [aggregateResult, subscriptionResult] = await Promise.all([
+        // Sessions completed this week with aggregates
+        fastify.db
+          .select({
+            sessionsCompleted: count(),
+            totalMinutes: sql<number>`COALESCE(SUM(
+              TIMESTAMPDIFF(MINUTE, ${schema.completedSessions.startedAt}, ${schema.completedSessions.completedAt})
+            ), 0)`,
+            averageRpe: sql<
+              number | null
+            >`CAST(AVG(${schema.completedSessions.rpe}) AS DECIMAL(3,1))`,
+          })
+          .from(schema.completedSessions)
+          .where(
+            and(
+              eq(schema.completedSessions.userId, userId),
+              gte(schema.completedSessions.date, weekStartStr),
+              lte(schema.completedSessions.date, weekEndStr),
+            ),
+          ),
+
+        // Active subscription for session budget
+        fastify.db
+          .select({
+            classesPerWeek: schema.subscriptionPlans.classesPerWeek,
+          })
+          .from(schema.subscriptions)
+          .innerJoin(
+            schema.subscriptionPlans,
+            eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+          )
+          .where(
+            and(
+              eq(schema.subscriptions.userId, userId),
+              eq(schema.subscriptions.status, "active"),
+            ),
+          )
+          .limit(1),
+      ]);
+
+      const aggregate = aggregateResult[0];
+      const subscription = subscriptionResult[0];
+
+      return {
+        sessionsCompleted: Number(aggregate?.sessionsCompleted ?? 0),
+        totalMinutes: Number(aggregate?.totalMinutes ?? 0),
+        averageRpe:
+          aggregate?.averageRpe !== null && aggregate?.averageRpe !== undefined
+            ? Number(aggregate.averageRpe)
+            : null,
+        weekStart: weekStartStr,
+        weekEnd: weekEndStr,
+        sessionBudget: subscription?.classesPerWeek ?? null,
       };
     },
   );
@@ -259,12 +348,10 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
 
       const avgRpe = avgResult?.avgRpe;
       if (!checkEligibility(avgRpe ?? null)) {
-        return reply
-          .status(400)
-          .send({
-            error:
-              "No cumples los requisitos para solicitar evaluacion (RPE promedio debe ser <= 6)",
-          });
+        return reply.status(400).send({
+          error:
+            "No cumples los requisitos para solicitar evaluacion (RPE promedio debe ser <= 6)",
+        });
       }
 
       // Create evaluation request

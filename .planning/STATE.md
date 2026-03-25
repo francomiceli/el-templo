@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: phase-complete
-stopped_at: Phase 79 context gathered
-last_updated: "2026-03-24T16:07:15.529Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 82-03-PLAN.md
+last_updated: "2026-03-25T02:38:32.379Z"
 progress:
   total_phases: 82
-  completed_phases: 63
-  total_plans: 264
-  completed_plans: 259
+  completed_phases: 66
+  total_plans: 274
+  completed_plans: 268
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 76 — play-store-setup-listing
+**Current focus:** Phase 82 — progressive-profiling-check-ins
 
 ## Current Position
 
-Phase: 75 (android-signing-release-build) — COMPLETE
-Next: Phase 76 (play-store-setup-listing)
+Phase: 82 (progressive-profiling-check-ins) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -87,6 +87,14 @@ _Updated after each plan completion_
 | Phase 78 P01 | 13min | 2 tasks | 17 files |
 | Phase 78 P02 | 7min | 2 tasks | 13 files |
 | Phase 78 P03 | 5min | 1 tasks | 5 files |
+| Phase 80 P03 | 2min | 2 tasks | 2 files |
+| Phase 80 P01 | 6min | 2 tasks | 7 files |
+| Phase 80 P02 | 6min | 2 tasks | 11 files |
+| Phase 81 P01 | 14min | 2 tasks | 14 files |
+| Phase 81 P02 | 2min | 1 tasks | 3 files |
+| Phase 82 P01 | 16min | 2 tasks | 12 files |
+| Phase 82 P02 | 4min | 2 tasks | 5 files |
+| Phase 82 P03 | 2 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -174,6 +182,17 @@ Recent decisions affecting current work:
 - [Phase 78]: Onboarding route registered as top-level (not under layout) for full-screen quiz without bottom tabs
 - [Phase 78]: Router guard checks role===member before redirecting to onboarding; coaches/admins/owners skip onboarding
 - [Phase 78]: Added OnboardingProfileSummary type to admin MemberProfile for TypeScript safety (plan said dynamic access, CLAUDE.md no-any rule requires proper typing)
+- [Phase 80]: RPE contextual message uses hasInteracted ref + watcher pattern in SessionSummary for clean component boundary
+- [Phase 80]: TIMESTAMPDIFF for weekly summary duration calculation; MemberSegment type duplicated in member app (same as admin pattern)
+- [Phase 80]: useRouter() import instead of template $router for vue-tsc type safety in card components
+- [Phase 80]: Segment-driven card ordering via computed CardId array with template v-for for dynamic reordering
+- [Phase 81]: Created member_profiles table from scratch (Phase 78 reverted) with streak columns; future phases add onboarding/segmentation columns
+- [Phase 81]: StreakService owns milestone config reading (not SettingsService) to avoid cross-module dependency
+- [Phase 81]: Used $primary (terracotta) for StreakRow background tint, $accent (charcoal) for text — matches brand palette
+- [Phase 82]: Drizzle wraps MySQL errors in err.cause -- duplicate key detection must check cause.code/cause.sqlMessage
+- [Phase 82]: Body area forced to null for soreness='ninguna' regardless of client input
+- [Phase 82]: Check-in row placed between welcome header and GeneralContent (adapted from plan due to missing StreakRow/card-loop)
+- [Phase 82]: Check-in feedback loop: advisory messages above subtitle with priority order energy > soreness > sleep (D-10)
 
 ### Pending Todos
 
@@ -185,6 +204,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T16:07:15.524Z
-Stopped at: Phase 79 context gathered
-Resume file: .planning/phases/79-behavioral-segmentation/79-CONTEXT.md
+Last session: 2026-03-25T02:38:32.372Z
+Stopped at: Completed 82-03-PLAN.md
+Resume file: None

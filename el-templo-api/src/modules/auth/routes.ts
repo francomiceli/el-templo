@@ -3,7 +3,9 @@ import { eq } from "drizzle-orm";
 import argon2 from "argon2";
 import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
+import { memberProfiles } from "../../db/schema/member-profiles";
 import { registerSchema, loginSchema } from "./schemas";
+import { SegmentationService } from "../segmentation/service";
 
 interface RegisterBody {
   email: string;
@@ -184,6 +186,17 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
+      // Check onboarding status
+      const profileRows = await fastify.db
+        .select({
+          completedAt: memberProfiles.onboardingCompletedAt,
+        })
+        .from(memberProfiles)
+        .where(eq(memberProfiles.userId, user.id))
+        .limit(1);
+      const onboardingCompleted =
+        profileRows.length > 0 && profileRows[0].completedAt !== null;
+
       // Sign JWT
       const token = fastify.jwt.sign({
         userId: user.id,
@@ -204,6 +217,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchName,
           branchIsVirtual,
           isActive: user.isActive,
+          onboardingCompleted,
         },
       };
     },
@@ -215,6 +229,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
     { onRequest: [fastify.authenticate] },
     async (request, reply) => {
       const { userId } = request.user;
+      const segmentationService = new SegmentationService(
+        fastify.db,
+        request.log,
+      );
 
       // Get user from database
       const userResults = await fastify.db
@@ -250,6 +268,46 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
 
+      // Segment calculation + login tracking for members only (per D-05)
+      let segment: string | null = null;
+      if (user.role === "member") {
+        // Fire-and-forget: record login + recalculate segment (graceful degradation)
+        try {
+          await Promise.all([
+            segmentationService.recordLogin(userId),
+            segmentationService.calculateAndUpdate(userId),
+          ]);
+        } catch (err: unknown) {
+          request.log.error(
+            { err: err instanceof Error ? err.message : String(err) },
+            "Segment calculation/login tracking failed (graceful degradation)",
+          );
+        }
+
+        // Fetch current segment and onboarding status from member_profiles
+        const [profile] = await fastify.db
+          .select({
+            segment: memberProfiles.segment,
+            onboardingCompletedAt: memberProfiles.onboardingCompletedAt,
+          })
+          .from(memberProfiles)
+          .where(eq(memberProfiles.userId, userId))
+          .limit(1);
+
+        segment = profile?.segment ?? null;
+      }
+
+      // Check onboarding status
+      const profileRows = await fastify.db
+        .select({
+          completedAt: memberProfiles.onboardingCompletedAt,
+        })
+        .from(memberProfiles)
+        .where(eq(memberProfiles.userId, userId))
+        .limit(1);
+      const onboardingCompleted =
+        profileRows.length > 0 && profileRows[0].completedAt !== null;
+
       return {
         id: user.id,
         email: user.email,
@@ -261,6 +319,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchName,
         branchIsVirtual,
         isActive: user.isActive,
+        segment,
+        onboardingCompleted,
       };
     },
   );

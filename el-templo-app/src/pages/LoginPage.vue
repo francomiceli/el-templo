@@ -98,6 +98,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
+import { useUserStore } from 'stores/useUserStore'
 import { extractError } from 'src/utils/extract-error'
 
 const router = useRouter()
@@ -163,18 +164,27 @@ async function onSubmit() {
   try {
     await authStore.login(email.value, password.value)
 
-    // Flames intensify on success
-    flameState.value = 'intensify'
+    // Navigate directly to onboarding if not completed (avoids white flash from redirect chain)
+    const userStore = useUserStore()
+    const needsOnboarding = userStore.profile?.role === 'member' && !userStore.onboardingCompleted
 
-    $q.notify({
-      type: 'positive',
-      message: 'Bienvenido',
-    })
+    if (needsOnboarding) {
+      // Skip all transitions — go straight to onboarding (same dark bg)
+      router.push({ name: 'onboarding' })
+    } else {
+      // Flames intensify on success
+      flameState.value = 'intensify'
 
-    // "Enter the Temple" transition
-    isExiting.value = true
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    router.push('/')
+      $q.notify({
+        type: 'positive',
+        message: 'Bienvenido',
+      })
+
+      // "Enter the Temple" transition
+      isExiting.value = true
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      router.push('/')
+    }
   } catch (err: unknown) {
     // Flames dim on error
     flameState.value = 'dim'
@@ -185,7 +195,7 @@ async function onSubmit() {
 
     $q.notify({
       type: 'negative',
-      message: extractError(err, 'Error al iniciar sesion'),
+      message: extractError(err, 'Error al iniciar sesión'),
     })
   } finally {
     loading.value = false

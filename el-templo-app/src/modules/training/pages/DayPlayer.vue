@@ -44,7 +44,7 @@
     <!-- No Session State -->
     <div v-else-if="!session" class="day-player__empty flex flex-center column">
       <q-icon name="event_busy" size="80px" color="grey-4" />
-      <div class="text-h6 text-grey-6 q-mt-md">No hay sesion para este dia</div>
+      <div class="text-h6 text-grey-6 q-mt-md">No hay sesión para este día</div>
       <q-btn flat color="primary" label="Volver" class="q-mt-lg" @click="navigateBack" />
     </div>
 
@@ -302,7 +302,7 @@ async function onBlockComplete(): Promise<void> {
   } else {
     const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
     if (isLastBlock) {
-      actionLabel = 'Finalizar Sesion'
+      actionLabel = 'Finalizar Sesión'
     } else {
       const nb = p.playableBlocks.value[p.currentBlockIndex.value + 1]
       if (nb) {
@@ -345,7 +345,7 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
     if (dateParam.value) weekStore.markDayCompleted(dateParam.value)
     $q.notify({
       type: 'positive',
-      message: 'Sesion guardada!',
+      message: 'Sesión guardada!',
       icon: 'check_circle',
       position: 'top',
       timeout: 2000,
@@ -368,7 +368,7 @@ function navigateBack(): void {
 
 const exitDialogOpts = {
   title: 'Salir del entrenamiento?',
-  message: 'Tu progreso se guardara y podras continuar despues.',
+  message: 'Tu progreso se guardará y podrás continuar después.',
   cancel: { label: 'Cancelar', flat: true },
   ok: { label: 'Salir', color: 'negative', flat: true },
   persistent: true,
@@ -392,8 +392,8 @@ async function handleBackNavigation(): Promise<void> {
 
 async function restartSession(): Promise<void> {
   $q.dialog({
-    title: 'Reiniciar Sesion',
-    message: 'Se perdera todo el progreso actual. Estas seguro?',
+    title: 'Reiniciar Sesión',
+    message: 'Se perderá todo el progreso actual. Estás seguro?',
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Reiniciar', color: 'negative' },
     persistent: true,

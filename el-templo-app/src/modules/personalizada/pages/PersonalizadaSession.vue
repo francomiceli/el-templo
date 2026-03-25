@@ -57,9 +57,9 @@
     <!-- No Session State -->
     <div v-else-if="!session" class="personalizada-session__empty flex flex-center column">
       <q-icon name="event_busy" size="80px" color="grey-4" />
-      <div class="text-h6 text-grey-6 q-mt-md">No hay sesion disponible</div>
+      <div class="text-h6 text-grey-6 q-mt-md">No hay sesión disponible</div>
       <p class="text-grey-5 text-center q-px-lg">
-        Es posible que no se hayan generado sesiones para esta semana. Intenta mas tarde.
+        Es posible que no se hayan generado sesiones para esta semana. Intentá más tarde.
       </p>
       <q-btn flat color="primary" label="Volver" class="q-mt-lg" @click="navigateBack" />
     </div>
@@ -203,12 +203,10 @@ const splashInfo = computed(() => ({
 }))
 
 // Bridge player state to sub-components (null-safe accessors)
-const currentBlock = computed(() => player.value?.currentBlock.value ?? null)
 const playableBlocks = computed(() => player.value?.visibleBlocks.value ?? [])
 const activeBlockIndex = computed(() => player.value?.currentBlockIndex.value ?? 0)
 const completedBlocks = computed(() => player.value?.completedBlocks.value ?? [])
 const elapsedSeconds = computed(() => player.value?.elapsedSeconds.value ?? 0)
-const isSessionComplete = computed(() => player.value?.isSessionComplete.value ?? false)
 const allCompletedExercises = computed<Record<string, number[]>>(() => {
   if (!player.value) return {}
   return player.value.completedExercises.value
@@ -301,7 +299,7 @@ async function onBlockComplete(): Promise<void> {
   let actionLabel = 'Siguiente Bloque'
 
   if (isLastBlock) {
-    actionLabel = 'Finalizar Sesion'
+    actionLabel = 'Finalizar Sesión'
   } else {
     const nb = p.visibleBlocks.value[p.currentBlockIndex.value + 1]
     if (nb) {
@@ -314,12 +312,12 @@ async function onBlockComplete(): Promise<void> {
 
   // Check if session is now complete
   if (p.isSessionComplete.value) {
-    // Show transition with "Finalizar Sesion", then celebration
+    // Show transition with "Finalizar Sesión", then celebration
     pendingCelebration.value = true
     transitionCompletedBlock.value = completedName
     transitionMobilityName.value = mobilityName
     transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
-    transitionActionLabel.value = 'Finalizar Sesion'
+    transitionActionLabel.value = 'Finalizar Sesión'
     showBlockTransition.value = true
     await wakeLock.releaseWakeLock()
     return
@@ -377,8 +375,8 @@ function navigateBack(): void {
 }
 
 const exitDialogOpts = {
-  title: 'Salir de la sesion?',
-  message: 'Tu progreso se guardara y podras continuar despues.',
+  title: 'Salir de la sesión?',
+  message: 'Tu progreso se guardará y podrás continuar después.',
   cancel: { label: 'Cancelar', flat: true },
   ok: { label: 'Salir', color: 'negative', flat: true },
   persistent: true,
@@ -402,8 +400,8 @@ async function handleBackNavigation(): Promise<void> {
 
 async function restartSession(): Promise<void> {
   $q.dialog({
-    title: 'Reiniciar Sesion',
-    message: 'Se perdera todo el progreso actual. Estas seguro?',
+    title: 'Reiniciar Sesión',
+    message: 'Se perderá todo el progreso actual. Estás seguro?',
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Reiniciar', color: 'negative' },
     persistent: true,

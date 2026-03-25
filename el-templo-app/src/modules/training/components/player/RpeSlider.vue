@@ -67,7 +67,7 @@ const rpeDescriptions: Record<number, string> = {
   7: 'Duro a muy duro',
   8: 'Muy duro',
   9: 'Extremadamente duro',
-  10: 'Esfuerzo maximo',
+  10: 'Esfuerzo máximo',
 }
 
 // Watch for user interaction and emit

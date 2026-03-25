@@ -3,7 +3,7 @@ import { api } from 'src/boot/axios'
 import { Notify } from 'quasar'
 import { useProgressionStore } from '../stores/progressionStore'
 import { extractError } from 'src/utils/extract-error'
-import type { ProgressionResponse } from '../types'
+import type { ProgressionResponse, WeeklySummary } from '../types'
 
 /**
  * Composable for progression API calls
@@ -31,7 +31,7 @@ export function useProgressionApi() {
       const response = await api.get<ProgressionResponse>('/progression/stats')
       progressionStore.setProgressionData(response.data)
     } catch (err: unknown) {
-      const errorMessage = extractError(err, 'Error cargando progresion')
+      const errorMessage = extractError(err, 'Error cargando progresión')
       error.value = errorMessage
       progressionStore.setError(errorMessage)
 
@@ -62,7 +62,7 @@ export function useProgressionApi() {
 
       Notify.create({
         type: 'positive',
-        message: 'Solicitud de evaluacion enviada',
+        message: 'Solicitud de evaluación enviada',
         position: 'top',
       })
 
@@ -83,9 +83,31 @@ export function useProgressionApi() {
     }
   }
 
+  /**
+   * Fetch weekly summary data for Tu Dia
+   *
+   * Retrieves sessions completed, total minutes, average RPE, and session budget
+   * for the current Mon-Sun week. Updates the progression store.
+   * Does NOT show a Notify toast on error — card shows inline error instead.
+   */
+  async function fetchWeeklySummary(): Promise<void> {
+    progressionStore.setWeeklySummaryLoading(true)
+    progressionStore.setWeeklySummaryError(null)
+    try {
+      const response = await api.get<WeeklySummary>('/progression/weekly-summary')
+      progressionStore.setWeeklySummary(response.data)
+    } catch (err: unknown) {
+      const errorMessage = extractError(err, 'Error cargando resumen semanal')
+      progressionStore.setWeeklySummaryError(errorMessage)
+    } finally {
+      progressionStore.setWeeklySummaryLoading(false)
+    }
+  }
+
   return {
     fetchStats,
     requestEvaluation,
+    fetchWeeklySummary,
     loading,
     error,
   }

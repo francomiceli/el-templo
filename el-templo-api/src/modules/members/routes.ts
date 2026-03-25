@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
+import { memberProfiles } from "../../db/schema/member-profiles";
 import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -196,6 +197,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level?: string;
       isActive?: boolean;
       planId?: number;
+      segment?: string;
       page?: number;
       limit?: number;
     };
@@ -207,6 +209,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level,
       isActive,
       planId,
+      segment,
       page = 1,
       limit = 20,
     } = request.query;
@@ -218,6 +221,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level,
       isActive,
       planId,
+      segment,
       page,
       limit,
     };
@@ -237,7 +241,22 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .code(404)
           .send({ error: "Not Found", message: "Miembro no encontrado" });
       }
-      return member;
+
+      // Fetch segment data from member_profiles
+      const [profile] = await fastify.db
+        .select({
+          segment: memberProfiles.segment,
+          segmentUpdatedAt: memberProfiles.segmentUpdatedAt,
+        })
+        .from(memberProfiles)
+        .where(eq(memberProfiles.userId, request.params.userId))
+        .limit(1);
+
+      return {
+        ...member,
+        segment: profile?.segment ?? null,
+        segmentUpdatedAt: profile?.segmentUpdatedAt?.toISOString() ?? null,
+      };
     },
   );
 

@@ -35,7 +35,7 @@
         </q-card-section>
 
         <q-card-section v-if="weekEvents.length === 0" class="text-center text-grey-6 q-py-lg">
-          No tenes actividad esta semana
+          No tenés actividad esta semana
         </q-card-section>
 
         <q-list v-else separator>
@@ -617,7 +617,7 @@ function onCellTap(day: DayOfWeek, time: string) {
     reserveDialog.value = {
       show: true,
       title: 'Cambiar horario',
-      message: `Ya tenes una reserva el ${dayLabel} ${dateStr} a las ${existingTime}. Queres cambiarla por las ${timeStr}?`,
+      message: `Ya tenés una reserva el ${dayLabel} ${dateStr} a las ${existingTime}. Querés cambiarla por las ${timeStr}?`,
       confirmLabel: 'Cambiar',
       confirmColor: 'primary',
       loading: false,
@@ -630,7 +630,7 @@ function onCellTap(day: DayOfWeek, time: string) {
     reserveDialog.value = {
       show: true,
       title: 'Horario completo',
-      message: `Este horario esta completo (${slot.bookedCount}/${slot.maxCapacity}). Queres anotarte en la lista de espera?`,
+      message: `Este horario está completo (${slot.bookedCount}/${slot.maxCapacity}). Querés anotarte en la lista de espera?`,
       confirmLabel: 'Lista de espera',
       confirmColor: 'warning',
       loading: false,

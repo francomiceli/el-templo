@@ -4,6 +4,14 @@ import { api } from 'src/boot/axios'
 
 export type Level = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
+export type MemberSegment =
+  | 'nuevo_guerrero'
+  | 'espartano'
+  | 'intermitente'
+  | 'en_riesgo'
+  | 'digital_warrior'
+  | 'ghost'
+
 export type SubscriptionStatus =
   | 'active'
   | 'paused'
@@ -23,6 +31,8 @@ export interface UserProfile {
   branchId: number
   branchName: string
   branchIsVirtual: boolean
+  segment: MemberSegment | null
+  onboardingCompleted: boolean
 }
 
 export interface MemberSubscription {
@@ -92,6 +102,10 @@ export const useUserStore = defineStore('user', () => {
     return STATUS_COLORS[subscription.value.status] ?? 'grey'
   })
 
+  const segment = computed(() => profile.value?.segment ?? null)
+
+  const onboardingCompleted = computed(() => profile.value?.onboardingCompleted ?? false)
+
   const hasActivePersonalizada = computed(() => {
     return subscription.value?.status === 'active' && subscription.value?.isPersonalizada === true
   })
@@ -103,6 +117,12 @@ export const useUserStore = defineStore('user', () => {
   // Actions
   function setProfile(newProfile: UserProfile) {
     profile.value = newProfile
+  }
+
+  function markOnboardingComplete() {
+    if (profile.value) {
+      profile.value = { ...profile.value, onboardingCompleted: true }
+    }
   }
 
   function clearProfile() {
@@ -143,10 +163,13 @@ export const useUserStore = defineStore('user', () => {
     displayLevel,
     subscriptionStatusLabel,
     subscriptionStatusColor,
+    segment,
+    onboardingCompleted,
     hasActivePersonalizada,
     hasActiveSubscription,
     // Actions
     setProfile,
+    markOnboardingComplete,
     clearProfile,
     setLoading,
     loadSubscription,
