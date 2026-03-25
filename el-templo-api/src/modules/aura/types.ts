@@ -10,7 +10,9 @@ export type AuraSourceType =
   | "challenge"
   | "social"
   | "personalizada_completion"
-  | "onboarding_completion";
+  | "onboarding_completion"
+  | "program_week_completion"
+  | "program_completion";
 
 export interface AwardInput {
   userId: number;
