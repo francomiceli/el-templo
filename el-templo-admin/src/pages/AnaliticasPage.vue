@@ -131,6 +131,7 @@
       <q-tab name="miembros" label="Miembros" icon="people" />
       <q-tab name="asistencia" label="Asistencia" icon="how_to_reg" />
       <q-tab name="finanzas" label="Finanzas" icon="payments" />
+      <q-tab name="programas" label="Programas" icon="school" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -143,6 +144,58 @@
       <q-tab-panel name="finanzas">
         <FinanzasTab :data="financialData" :loading="loadingFinancial" />
       </q-tab-panel>
+
+      <!-- Programas Tab -->
+      <q-tab-panel name="programas">
+        <div class="text-h6 q-mb-md">Programas — Resumen de Inscripciones</div>
+
+        <div v-if="loadingProgramAnalytics" class="row q-col-gutter-md">
+          <div v-for="n in 3" :key="n" class="col-12 col-sm-4">
+            <q-card flat bordered>
+              <q-card-section>
+                <q-skeleton type="text" width="60%" />
+                <q-skeleton type="text" width="40%" class="q-mt-sm" />
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+
+        <div v-else class="row q-col-gutter-md">
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered>
+              <q-card-section>
+                <div class="row items-center no-wrap q-mb-xs">
+                  <q-icon name="people" size="24px" class="q-mr-sm" color="primary" />
+                  <span class="text-caption text-grey-7">Total Inscripciones</span>
+                </div>
+                <div class="text-h5">{{ programAnalytics?.totalEnrollments ?? 0 }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered>
+              <q-card-section>
+                <div class="row items-center no-wrap q-mb-xs">
+                  <q-icon name="play_circle" size="24px" class="q-mr-sm" color="positive" />
+                  <span class="text-caption text-grey-7">Inscripciones Activas</span>
+                </div>
+                <div class="text-h5">{{ programAnalytics?.activeEnrollments ?? 0 }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+          <div class="col-12 col-sm-4">
+            <q-card flat bordered>
+              <q-card-section>
+                <div class="row items-center no-wrap q-mb-xs">
+                  <q-icon name="check_circle" size="24px" class="q-mr-sm" color="info" />
+                  <span class="text-caption text-grey-7">Completados</span>
+                </div>
+                <div class="text-h5">{{ programAnalytics?.completedCount ?? 0 }}</div>
+              </q-card-section>
+            </q-card>
+          </div>
+        </div>
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -151,6 +204,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useProgramsApi } from 'src/composables/useProgramsApi';
 import { createLogger } from 'src/utils/logger';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
@@ -164,12 +218,14 @@ import type {
   TrendInfo,
 } from 'src/types/analytics';
 import type { BranchOption } from 'src/types/member';
+import type { ProgramAnalytics } from 'src/types/program';
 
 // -- Setup ---------------------------------------------------------------
 
 const log = createLogger('AnaliticasPage');
 const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
+const programsApi = useProgramsApi();
 
 // -- Branch filter -------------------------------------------------------
 
@@ -306,6 +362,8 @@ const loadingKpis = ref(false);
 const loadingMembers = ref(false);
 const loadingAttendance = ref(false);
 const loadingFinancial = ref(false);
+const programAnalytics = ref<ProgramAnalytics | null>(null);
+const loadingProgramAnalytics = ref(false);
 
 // -- KPI cards -----------------------------------------------------------
 
@@ -416,6 +474,18 @@ async function fetchFinancialData() {
   }
 }
 
+async function fetchProgramAnalytics() {
+  loadingProgramAnalytics.value = true;
+  try {
+    programAnalytics.value = await programsApi.getAnalytics();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching program analytics', { error: message });
+  } finally {
+    loadingProgramAnalytics.value = false;
+  }
+}
+
 async function fetchTabData() {
   switch (activeTab.value) {
     case 'miembros':
@@ -426,6 +496,9 @@ async function fetchTabData() {
       break;
     case 'finanzas':
       await fetchFinancialData();
+      break;
+    case 'programas':
+      await fetchProgramAnalytics();
       break;
   }
 }
