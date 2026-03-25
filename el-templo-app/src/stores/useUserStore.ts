@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from 'src/boot/axios'
+import { createLogger } from 'src/utils/logger'
 
 export type Level = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
@@ -70,11 +71,14 @@ const STATUS_COLORS: Record<SubscriptionStatus, string> = {
 }
 
 export const useUserStore = defineStore('user', () => {
+  const log = createLogger('useUserStore')
+
   // State
   const profile = ref<UserProfile | null>(null)
   const loading = ref(false)
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
+  const hasActiveProgramEnrollment = ref(false)
 
   // Getters
   const fullName = computed(() => {
@@ -107,7 +111,9 @@ export const useUserStore = defineStore('user', () => {
   const onboardingCompleted = computed(() => profile.value?.onboardingCompleted ?? false)
 
   const hasActivePersonalizada = computed(() => {
-    return subscription.value?.status === 'active' && subscription.value?.isPersonalizada === true
+    // Per D-08: program enrollment IS the Personalizadas gate
+    // Replaces previous subscription.isPersonalizada check
+    return hasActiveProgramEnrollment.value
   })
 
   const hasActiveSubscription = computed(() => {
@@ -150,6 +156,18 @@ export const useUserStore = defineStore('user', () => {
     } finally {
       subscriptionLoading.value = false
     }
+
+    // Fetch program enrollment status (per D-08: gates Personalizadas access)
+    await fetchProgramEnrollmentStatus()
+  }
+
+  async function fetchProgramEnrollmentStatus(): Promise<void> {
+    try {
+      const response = await api.get('/members/programs/my-progress')
+      hasActiveProgramEnrollment.value = response.status === 200 && !!response.data
+    } catch {
+      hasActiveProgramEnrollment.value = false
+    }
   }
 
   return {
@@ -173,5 +191,6 @@ export const useUserStore = defineStore('user', () => {
     clearProfile,
     setLoading,
     loadSubscription,
+    fetchProgramEnrollmentStatus,
   }
 })
