@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Phase complete — ready for verification
-stopped_at: Phase 83 context gathered
-last_updated: "2026-03-25T16:53:21.101Z"
+status: Ready to plan
+stopped_at: Completed 83-05-PLAN.md
+last_updated: "2026-03-25T18:38:20.527Z"
 progress:
   total_phases: 82
-  completed_phases: 67
-  total_plans: 274
-  completed_plans: 269
+  completed_phases: 68
+  total_plans: 279
+  completed_plans: 274
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 82 — progressive-profiling-check-ins
+**Current focus:** Phase 83 — micro-program-upsells
 
 ## Current Position
 
-Phase: 82 (progressive-profiling-check-ins) — EXECUTING
-Plan: 3 of 3
+Phase: 84
+Plan: Not started
 
 ## Performance Metrics
 
@@ -95,6 +95,11 @@ _Updated after each plan completion_
 | Phase 82 P01 | 16min | 2 tasks | 12 files |
 | Phase 82 P02 | 4min | 2 tasks | 5 files |
 | Phase 82 P03 | 2 | 1 tasks | 2 files |
+| Phase 83 P01 | 8min | 2 tasks | 8 files |
+| Phase 83 P02 | 4min | 2 tasks | 4 files |
+| Phase 83 P04 | 5min | 2 tasks | 7 files |
+| Phase 83 P03 | 7min | 2 tasks | 7 files |
+| Phase 83 P05 | 16min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -193,6 +198,14 @@ Recent decisions affecting current work:
 - [Phase 82]: Body area forced to null for soreness='ninguna' regardless of client input
 - [Phase 82]: Check-in row placed between welcome header and GeneralContent (adapted from plan due to missing StreakRow/card-loop)
 - [Phase 82]: Check-in feedback loop: advisory messages above subtitle with priority order energy > soreness > sleep (D-10)
+- [Phase 83]: Polymorphic content blocks via single table with block_type enum and nullable type-specific columns
+- [Phase 83]: Program enrollment tracks sessions_completed_this_week as counter with week_unlocked_at timestamp for session-gated weekly unlocks
+- [Phase 83]: Per-route auth instead of onRequest hook for mixed ADMIN_ROLES/COACH_ROLES permissions within programs plugin
+- [Phase 83]: hasActivePersonalizada migrated from subscription.isPersonalizada to hasActiveProgramEnrollment ref (per D-08)
+- [Phase 83]: WeeklySummaryCard gated to program-enrolled members only (per D-15)
+- [Phase 83]: Vertical QStepper wizard for multi-step program creation; payment confirmation checkbox as hard gate on enrollment per D-39; program analytics on AnaliticasPage per D-40
+- [Phase 83]: Calendar-week gating: nextWeekStartDate = enrolledAt + (currentWeek * 7 days), compared against current date for dual-condition advancement
+- [Phase 83]: AURA program bonuses use independent try/catch blocks -- weekly and completion awards fail independently with graceful degradation
 
 ### Pending Todos
 
@@ -204,6 +217,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T16:53:21.095Z
-Stopped at: Phase 83 context gathered
-Resume file: .planning/phases/83-micro-program-upsells/83-CONTEXT.md
+Last session: 2026-03-25T18:28:40.499Z
+Stopped at: Completed 83-05-PLAN.md
+Resume file: None

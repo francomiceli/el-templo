@@ -1679,10 +1679,10 @@ Plans:
 
 Plans:
 
-- [ ] 83-01-PLAN.md — Schema, types, migration (micro_programs, content_blocks, enrollments, AURA source types)
-- [ ] 83-02-PLAN.md — API service + routes (program CRUD, enrollment lifecycle, member endpoints)
-- [ ] 83-03-PLAN.md — Admin UI (program wizard, enrollment management, analytics)
-- [ ] 83-04-PLAN.md — Member app (CTA card, progress card, catalog page, WhatsApp deep links)
+- [x] 83-01-PLAN.md — Schema, types, migration (micro_programs, content_blocks, enrollments, AURA source types)
+- [x] 83-02-PLAN.md — API service + routes (program CRUD, enrollment lifecycle, member endpoints)
+- [x] 83-03-PLAN.md — Admin UI (program wizard, enrollment management, analytics)
+- [x] 83-04-PLAN.md — Member app (CTA card, progress card, catalog page, WhatsApp deep links)
 - [ ] 83-05-PLAN.md — Session counting, AURA integration, Personalizadas gating, integration tests
 
 **Success Criteria** (what must be TRUE):
@@ -1741,7 +1741,7 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |           |
 | 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |           |
 | 82. Progressive Profiling & Check-ins | 2/3            | In Progress |           |
-| 83. Micro-Program Upsells             | 0/5            | Planned     |           |
+| 83. Micro-Program Upsells             | 4/5 | Complete    | 2026-03-25 |
 | 84. Push Notifications Foundation     | —              | Planned     | —         |
 
 ---
