@@ -10,6 +10,7 @@ import {
   exercises,
 } from "../../db/schema";
 import { NotFoundError, ConflictError } from "../shared/errors";
+import type { AuraService } from "../aura/service";
 import type {
   CreateProgramInput,
   UpdateProgramInput,
@@ -704,5 +705,203 @@ export class ProgramsService {
       activeEnrollments: activeRows[0]?.count ?? 0,
       completedCount: completedRows[0]?.count ?? 0,
     };
+  }
+
+  // =========================================================================
+  // Session Completion Integration
+  // =========================================================================
+
+  /**
+   * Record a completed session for program progression.
+   * Called from session completion route. Increments weekly counter,
+   * checks advancement criteria, awards AURA on week/program completion.
+   *
+   * Per D-04: next week unlocks when BOTH conditions are met:
+   *   (a) sessions threshold met (sessionsCompletedThisWeek >= sessionsPerWeekToAdvance)
+   *   (b) calendar week has arrived (current date >= enrolledAt + (currentWeek * 7 days))
+   *
+   * Per D-05: catch-up allowed — if member completes required sessions later,
+   *   advancement happens retroactively once BOTH conditions are met.
+   */
+  async recordSessionForProgram(
+    userId: number,
+    auraService: AuraService,
+  ): Promise<void> {
+    // 1. Get active enrollment for userId
+    const enrollmentRows = await this.db
+      .select({
+        id: programEnrollments.id,
+        programId: programEnrollments.programId,
+        currentWeek: programEnrollments.currentWeek,
+        sessionsCompletedThisWeek:
+          programEnrollments.sessionsCompletedThisWeek,
+        enrolledAt: programEnrollments.enrolledAt,
+      })
+      .from(programEnrollments)
+      .where(
+        and(
+          eq(programEnrollments.userId, userId),
+          eq(programEnrollments.status, "active"),
+        ),
+      );
+
+    if (enrollmentRows.length === 0) return; // No active enrollment, nothing to do
+
+    const enrollment = enrollmentRows[0];
+
+    // 2. Load joined program to get thresholds and AURA config
+    const programRows = await this.db
+      .select({
+        durationWeeks: microPrograms.durationWeeks,
+        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
+        auraWeeklyBonus: microPrograms.auraWeeklyBonus,
+        auraCompletionBonus: microPrograms.auraCompletionBonus,
+      })
+      .from(microPrograms)
+      .where(eq(microPrograms.id, enrollment.programId));
+
+    if (programRows.length === 0) {
+      this.log?.warn(
+        { enrollmentId: enrollment.id, programId: enrollment.programId },
+        "Program not found for active enrollment",
+      );
+      return;
+    }
+
+    const program = programRows[0];
+    const auraWeeklyBonus = program.auraWeeklyBonus ?? 15;
+    const auraCompletionBonus = program.auraCompletionBonus ?? 100;
+
+    // 3. Increment sessionsCompletedThisWeek
+    const newSessionCount = enrollment.sessionsCompletedThisWeek + 1;
+
+    // 4. Check advancement conditions
+    const sessionsThresholdMet =
+      newSessionCount >= program.sessionsPerWeekToAdvance;
+
+    // Calendar week check: next week starts at enrolledAt + (currentWeek * 7 days)
+    const enrolledDate = new Date(enrollment.enrolledAt);
+    const nextWeekStartDate = new Date(
+      enrolledDate.getTime() +
+        enrollment.currentWeek * 7 * 24 * 60 * 60 * 1000,
+    );
+    const calendarWeekArrived = new Date() >= nextWeekStartDate;
+
+    // Use transaction for atomicity
+    await this.db.transaction(async (tx) => {
+      if (sessionsThresholdMet && calendarWeekArrived) {
+        if (enrollment.currentWeek >= program.durationWeeks) {
+          // Program completion! Award weekly + completion bonus, mark completed
+          try {
+            await auraService.award({
+              userId,
+              sourceType: "program_week_completion",
+              referenceType: "program_enrollment",
+              referenceId: enrollment.id,
+              amount: auraWeeklyBonus,
+              description: "Semana completada",
+            });
+          } catch (auraErr: unknown) {
+            this.log?.warn(
+              { err: auraErr, userId, enrollmentId: enrollment.id },
+              "AURA weekly bonus award failed on program completion",
+            );
+          }
+
+          try {
+            await auraService.award({
+              userId,
+              sourceType: "program_completion",
+              referenceType: "program_enrollment",
+              referenceId: enrollment.id,
+              amount: auraCompletionBonus,
+              description: "Experiencia completada",
+            });
+          } catch (auraErr: unknown) {
+            this.log?.warn(
+              { err: auraErr, userId, enrollmentId: enrollment.id },
+              "AURA completion bonus award failed",
+            );
+          }
+
+          await tx
+            .update(programEnrollments)
+            .set({
+              sessionsCompletedThisWeek: newSessionCount,
+              status: "completed",
+              completedAt: new Date(),
+            })
+            .where(eq(programEnrollments.id, enrollment.id));
+
+          this.log?.info(
+            { enrollmentId: enrollment.id, userId },
+            "Program enrollment completed via session progression",
+          );
+        } else {
+          // Week completion — advance to next week
+          try {
+            await auraService.award({
+              userId,
+              sourceType: "program_week_completion",
+              referenceType: "program_enrollment",
+              referenceId: enrollment.id,
+              amount: auraWeeklyBonus,
+              description: "Semana completada",
+            });
+          } catch (auraErr: unknown) {
+            this.log?.warn(
+              { err: auraErr, userId, enrollmentId: enrollment.id },
+              "AURA weekly bonus award failed",
+            );
+          }
+
+          await tx
+            .update(programEnrollments)
+            .set({
+              currentWeek: enrollment.currentWeek + 1,
+              sessionsCompletedThisWeek: 0,
+              weekUnlockedAt: new Date(),
+            })
+            .where(eq(programEnrollments.id, enrollment.id));
+
+          this.log?.info(
+            {
+              enrollmentId: enrollment.id,
+              newWeek: enrollment.currentWeek + 1,
+            },
+            "Enrollment advanced to next week via session progression",
+          );
+        }
+      } else {
+        // Either sessions threshold not met, or calendar week hasn't arrived yet
+        // Just save the incremented count
+        await tx
+          .update(programEnrollments)
+          .set({ sessionsCompletedThisWeek: newSessionCount })
+          .where(eq(programEnrollments.id, enrollment.id));
+      }
+    });
+  }
+
+  // =========================================================================
+  // Personalizadas Gate
+  // =========================================================================
+
+  /**
+   * Check if user has an active program enrollment.
+   * Used as Personalizadas access gate per D-08.
+   */
+  async hasActiveProgramEnrollment(userId: number): Promise<boolean> {
+    const rows = await this.db
+      .select({ count: count() })
+      .from(programEnrollments)
+      .where(
+        and(
+          eq(programEnrollments.userId, userId),
+          eq(programEnrollments.status, "active"),
+        ),
+      );
+
+    return (rows[0]?.count ?? 0) > 0;
   }
 }

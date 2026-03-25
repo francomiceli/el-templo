@@ -443,4 +443,30 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "getMemberProgress");
     }
   });
+
+  /**
+   * GET /api/members/programs/has-personalizada-access — Personalizadas gate check.
+   * Returns { hasAccess: boolean } — true if member has active program enrollment.
+   * Per D-08: program enrollment IS the Personalizadas gate.
+   */
+  fastify.get(
+    "/members/programs/has-personalizada-access",
+    async (request, reply) => {
+      await fastify.authenticate(request, reply);
+
+      try {
+        const hasAccess = await service.hasActiveProgramEnrollment(
+          request.user.userId,
+        );
+        return { hasAccess };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "hasActiveProgramEnrollment",
+        );
+      }
+    },
+  );
 };
