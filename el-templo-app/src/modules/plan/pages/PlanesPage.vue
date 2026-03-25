@@ -166,6 +166,56 @@
         </div>
       </div>
     </div>
+
+    <!-- Experiencias a Medida Section (per D-18) -->
+    <div v-if="experiencias.length > 0" class="q-mt-lg">
+      <div class="text-h6 q-mb-md">Experiencias a Medida</div>
+      <div class="row q-col-gutter-md">
+        <div v-for="exp in experiencias" :key="exp.id" class="col-12 col-sm-6">
+          <q-card class="full-height">
+            <q-card-section>
+              <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                {{ exp.name }}
+              </div>
+              <!-- "Proximamente" badge if no content per D-46 -->
+              <q-badge
+                v-if="!exp.hasContent"
+                color="grey"
+                label="Proximamente"
+                class="q-mb-sm"
+              />
+              <div v-if="exp.description" class="text-body2 text-grey-7 q-mb-sm">
+                {{ exp.description }}
+              </div>
+              <div class="q-gutter-xs">
+                <q-badge outline color="grey-7">{{ exp.durationWeeks }} semanas</q-badge>
+                <q-badge outline color="primary">${{ exp.price.toLocaleString() }}</q-badge>
+              </div>
+            </q-card-section>
+            <q-separator />
+            <q-card-actions>
+              <!-- Check if enrolled in THIS specific program per D-47 -->
+              <div
+                v-if="enrolledProgramId === exp.id"
+                class="text-positive text-caption q-pa-sm"
+              >
+                <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+                Ya estas inscripto
+              </div>
+              <q-btn
+                v-else
+                flat
+                no-caps
+                color="positive"
+                icon="chat"
+                label="Mas info"
+                @click="openExperienciaWhatsApp(exp)"
+              />
+            </q-card-actions>
+          </q-card>
+        </div>
+      </div>
+    </div>
   </q-page>
 </template>
 
@@ -174,6 +224,8 @@ import { ref, computed, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
+import type { MemberProgramCatalogItem } from 'src/modules/programs/types'
 
 const log = createLogger('PlanesPage')
 
@@ -209,6 +261,10 @@ const WHATSAPP_NUMBER = '5492235820521'
 const userStore = useUserStore()
 const plans = ref<MemberPlan[]>([])
 const loading = ref(false)
+
+const { getCatalog, getMyProgress } = useProgramsApi()
+const experiencias = ref<MemberProgramCatalogItem[]>([])
+const enrolledProgramId = ref<number | null>(null)
 
 const presencialPlans = computed(() => plans.value.filter((p) => !p.isPersonalizada && !p.isOnline))
 
@@ -250,6 +306,14 @@ function openWhatsApp(plan: MemberPlan): void {
   window.open(url, '_blank')
 }
 
+function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
+  const memberId = userStore.profile?.id ?? ''
+  const seg = userStore.segment ?? ''
+  const deepMessage = `Hola, me interesa la experiencia "${exp.name}" [ref:${memberId}|${seg}|planes_page]`
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(deepMessage)}`
+  window.open(url, '_blank')
+}
+
 onMounted(async () => {
   loading.value = true
   try {
@@ -260,6 +324,25 @@ onMounted(async () => {
     log.error('Failed to load plans', { error: message })
   } finally {
     loading.value = false
+  }
+
+  // Fetch Experiencias a Medida catalog
+  try {
+    const catalog = await getCatalog()
+    experiencias.value = catalog
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    log.error('Failed to load experiencias', { error: message })
+  }
+
+  // Check enrollment status for "Ya estas inscripto" per D-47
+  try {
+    const progress = await getMyProgress()
+    if (progress) {
+      enrolledProgramId.value = progress.programId
+    }
+  } catch {
+    /* ignore — non-critical for catalog display */
   }
 })
 </script>

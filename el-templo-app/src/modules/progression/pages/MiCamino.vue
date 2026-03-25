@@ -42,6 +42,10 @@
         </div>
       </div>
 
+      <!-- Program CTA or Progress Card (per D-14: below check-ins) -->
+      <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
+      <ProgramCtaCard v-else-if="showProgramCta" :segment="userStore.segment" />
+
       <!-- Tu Dia Cards — ordered by segment -->
       <template v-for="card in cardOrder" :key="card">
         <template v-if="card === 'session'">
@@ -62,8 +66,9 @@
         />
       </template>
 
-      <!-- Weekly Summary (progress bar + stats) -->
+      <!-- Weekly Summary: only for program-enrolled members (per D-15) -->
       <WeeklySummaryCard
+        v-if="!!programProgress"
         :loading="progressionStore.weeklySummaryLoading"
         :error="progressionStore.weeklySummaryError"
         :summary="progressionStore.weeklySummary"
@@ -88,7 +93,7 @@
  * booking status, weekly progress, weekly summary, and existing
  * stats/RPE trend/evaluation sections.
  */
-import { computed, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useCheckInApi } from '../composables/useCheckInApi'
@@ -108,12 +113,21 @@ import BookingStatusCard from '../components/BookingStatusCard.vue'
 import RestDayCard from '../components/RestDayCard.vue'
 import WeeklySummaryCard from '../components/WeeklySummaryCard.vue'
 import GeneralContent from '../components/GeneralContent.vue'
+import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
+import ProgramProgressCard from 'src/modules/programs/components/ProgramProgressCard.vue'
+import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
+import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
+import { createLogger } from 'src/utils/logger'
 
+const log = createLogger('MiCamino')
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
+const { getMyProgress, getCatalog } = useProgramsApi()
+const programProgress = ref<MemberEnrollmentProgress | null>(null)
+const hasProgramsAvailable = ref(false)
 
 const userName = computed(() => {
   return userStore.profile?.firstName || 'Atleta'
@@ -168,6 +182,10 @@ type CardId = 'session' | 'booking'
 const cardOrder = computed((): CardId[] => {
   return ['booking', 'session']
 })
+
+const showProgramCta = computed(
+  () => !programProgress.value && hasProgramsAvailable.value,
+)
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
   if (!progressionStore.checkInState) return []
@@ -226,10 +244,27 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchStats()
   fetchWeeklySummary()
   fetchTodayCheckIns()
+
+  // Fetch program enrollment status
+  try {
+    programProgress.value = await getMyProgress()
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    log.warn('Failed to load program progress', { error: message })
+  }
+  // Check if any programs exist (for CTA visibility per D-45)
+  if (!programProgress.value) {
+    try {
+      const catalog = await getCatalog()
+      hasProgramsAvailable.value = catalog.length > 0
+    } catch {
+      hasProgramsAvailable.value = false
+    }
+  }
 
   // Fetch week sessions for today's route
   const now = new Date()
