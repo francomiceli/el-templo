@@ -1672,17 +1672,29 @@ Plans:
 
 ### Phase 83: Micro-Program Upsells ("Experiencias a Medida")
 
-**Goal**: Create purchasable 4-8 week goal-based micro-programs (separate from Personalizadas) with contextual upsell CTAs placed at validated high-intent trigger points
-**Depends on**: Phase 78-80 (needs profile + segments + Tu Día for targeting), Phase 81 (milestone triggers for CTAs)
+**Goal**: Create admin-configurable purchasable micro-programs with structured weekly content, session-gated progression, WhatsApp-mediated purchase flow, segment-aware CTA on Tu Dia, and enrollment management
+**Depends on**: Phase 78-80 (needs profile + segments + Tu Dia for targeting), Phase 81 (milestone triggers for CTAs)
 **Requirements**: ENG-18, ENG-19, ENG-20, ENG-21
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 83-01-PLAN.md — Schema, types, migration (micro_programs, content_blocks, enrollments, AURA source types)
+- [ ] 83-02-PLAN.md — API service + routes (program CRUD, enrollment lifecycle, member endpoints)
+- [ ] 83-03-PLAN.md — Admin UI (program wizard, enrollment management, analytics)
+- [ ] 83-04-PLAN.md — Member app (CTA card, progress card, catalog page, WhatsApp deep links)
+- [ ] 83-05-PLAN.md — Session counting, AURA integration, Personalizadas gating, integration tests
+
 **Success Criteria** (what must be TRUE):
 
 1. Micro-program data model supports purchasable programs with duration, goal, content, and pricing
 2. Program catalog browsable in-app with clear descriptions and value propositions
-3. Upsell CTAs appear at high-intent moments (post-session, post-milestone, after 3+ views of locked content)
-4. CTAs never appear on cold open or app launch
-5. Purchase flow functional (WhatsApp-mediated or in-app — decided in discuss phase)
-6. Admin can create, edit, and deactivate micro-programs
+3. Segment-aware CTA card visible on Tu Dia for non-enrolled members with WhatsApp purchase flow
+4. Enrolled members see expandable progress card with weekly content blocks
+5. Purchase flow functional (WhatsApp-mediated with deep link params)
+6. Admin can create, edit, and deactivate micro-programs via wizard
+7. Admin can enroll members, cancel enrollments, and advance weeks
+8. Session completion drives program progression with AURA bonuses
 
 ---
 
@@ -1728,8 +1740,8 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 79. Behavioral Segmentation           | —              | Planned     | —         |
 | 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |           |
 | 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |           |
-| 82. Progressive Profiling & Check-ins | 2/3 | In Progress|  |
-| 83. Micro-Program Upsells             | —              | Planned     | —         |
+| 82. Progressive Profiling & Check-ins | 2/3            | In Progress |           |
+| 83. Micro-Program Upsells             | 0/5            | Planned     |           |
 | 84. Push Notifications Foundation     | —              | Planned     | —         |
 
 ---
