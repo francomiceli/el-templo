@@ -112,6 +112,7 @@
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
         <q-tab name="asistencia" label="Asistencia" />
+        <q-tab name="programas" label="Programas" />
       </q-tabs>
       <q-separator />
 
@@ -399,6 +400,11 @@
         <q-tab-panel name="asistencia">
           <MemberAttendanceTab :userId="userId" />
         </q-tab-panel>
+
+        <!-- Programas Tab -->
+        <q-tab-panel name="programas">
+          <ProgramEnrollmentSection :member-id="memberProfile.id" />
+        </q-tab-panel>
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -429,6 +435,7 @@ import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
+import ProgramEnrollmentSection from 'src/components/ProgramEnrollmentSection.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import {
