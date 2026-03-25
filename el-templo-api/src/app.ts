@@ -36,6 +36,7 @@ import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
 import { checkInRoutes } from "./modules/check-ins";
+import { programRoutes } from "./modules/programs";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -165,6 +166,9 @@ export async function buildApp() {
 
   // Check-in routes (daily energy/soreness/sleep check-ins)
   await app.register(checkInRoutes, { prefix: "/api/check-ins" });
+
+  // Program management routes (admin CRUD + member catalog/progress)
+  await app.register(programRoutes, { prefix: "/api" });
 
   // Health check endpoint
   app.get("/health", async () => {
