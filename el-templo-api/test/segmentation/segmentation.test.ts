@@ -27,7 +27,6 @@ describe("Segmentation", () => {
 
   beforeAll(async () => {
     app = await createTestApp();
-    adminToken = await getAuthToken(app, "admin@test.com", "admin123");
   });
 
   afterAll(async () => {
@@ -36,6 +35,17 @@ describe("Segmentation", () => {
 
   beforeEach(async () => {
     await cleanAllTestData(app);
+
+    // Register a member user, then promote to admin for this test
+    const adminResult = await registerUser(app, {
+      email: "admin@test.com",
+      password: "admin123",
+      branchId: 1,
+    });
+    await app.db
+      .update(schema.users)
+      .set({ role: "admin" })
+      .where(eq(schema.users.email, "admin@test.com"));
     adminToken = await getAuthToken(app, "admin@test.com", "admin123");
 
     // Seed segment threshold settings for all tests

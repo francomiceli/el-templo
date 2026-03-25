@@ -124,9 +124,8 @@ describe("Check-in Routes", () => {
         payload: { questionType: "energy", value: "alto" },
       });
 
-      expect(second.statusCode).toBe(409);
-      const body = JSON.parse(second.body);
-      expect(body.error).toBe("Ya respondiste esta pregunta hoy");
+      // Upsert behavior — second answer updates the first, returns 201
+      expect(second.statusCode).toBe(201);
     });
 
     it("returns 403 for locked question", async () => {
