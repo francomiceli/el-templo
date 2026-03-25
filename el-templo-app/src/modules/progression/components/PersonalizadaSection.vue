@@ -348,7 +348,7 @@ const cycleWeekLabel = computed(() => {
 const completionLabel = computed(() => {
   if (!props.cycleStats) return ''
   const n = props.cycleStats.totalCompletions
-  return `${n} ${n === 1 ? 'sesion completada' : 'sesiones completadas'}`
+  return `${n} ${n === 1 ? 'sesión completada' : 'sesiones completadas'}`
 })
 
 function getPersonalizadaName(personalizadaType: string): string {

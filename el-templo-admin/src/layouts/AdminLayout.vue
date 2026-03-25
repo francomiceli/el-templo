@@ -120,15 +120,21 @@
           </q-item>
         </template>
 
-        <!-- Administracion (owner only) -->
-        <template v-if="isOwnerRole">
+        <!-- Administracion (admin/owner) -->
+        <template v-if="isAdminRole">
           <q-separator />
           <q-item-label header>Administracion</q-item-label>
-          <q-item clickable v-ripple to="/usuarios">
+          <q-item v-if="isOwnerRole" clickable v-ripple to="/usuarios">
             <q-item-section avatar>
               <q-icon name="manage_accounts" />
             </q-item-section>
             <q-item-section>Usuarios</q-item-section>
+          </q-item>
+          <q-item clickable v-ripple to="/configuracion">
+            <q-item-section avatar>
+              <q-icon name="settings" />
+            </q-item-section>
+            <q-item-section>Configuracion</q-item-section>
           </q-item>
         </template>
       </q-list>

@@ -25,8 +25,8 @@
     </q-card>
 
     <!-- Duration picker header -->
-    <h2 class="duration-picker__title">Duracion de Sesion</h2>
-    <p class="duration-picker__subtitle">Cuanto tiempo tenes para entrenar hoy?</p>
+    <h2 class="duration-picker__title">Duración de Sesión</h2>
+    <p class="duration-picker__subtitle">Cuánto tiempo tenés para entrenar hoy?</p>
 
     <!-- Duration cards -->
     <div class="duration-grid">
@@ -83,7 +83,7 @@
     <div class="encouragement">
       <q-icon name="favorite" size="16px" class="encouragement-icon" />
       <span>
-        Si estas cansado o con poco tiempo, es mejor hacer una sesion corta que no hacer nada
+        Si estás cansado o con poco tiempo, es mejor hacer una sesión corta que no hacer nada
       </span>
     </div>
   </q-page>

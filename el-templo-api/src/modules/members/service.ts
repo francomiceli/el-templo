@@ -46,6 +46,7 @@ export class MemberService {
       level,
       isActive,
       planId,
+      segment,
       page,
       limit,
     } = params;
@@ -113,6 +114,16 @@ export class MemberService {
       }
     }
 
+    // Segment filter: filter by behavioral segment from member_profiles
+    if (segment !== undefined) {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM member_profiles mp
+          WHERE mp.user_id = users.id AND mp.member_segment = ${segment}
+        )`,
+      );
+    }
+
     const whereClause = and(...conditions);
 
     // Get total count
@@ -129,6 +140,12 @@ export class MemberService {
       JOIN subscription_plans sp ON sp.id = s.plan_id
       WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused')
       ORDER BY s.created_at DESC LIMIT 1
+    )`;
+
+    // Subquery: behavioral segment from member_profiles
+    const segmentSubquery = sql<string | null>`(
+      SELECT mp.member_segment FROM member_profiles mp
+      WHERE mp.user_id = users.id LIMIT 1
     )`;
 
     // Get paginated members with branch join and plan name
@@ -148,6 +165,7 @@ export class MemberService {
         isActive: schema.users.isActive,
         createdAt: schema.users.createdAt,
         planName: planNameSubquery,
+        segment: segmentSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -170,6 +188,7 @@ export class MemberService {
       branchName: r.branchName,
       isActive: r.isActive,
       planName: r.planName ?? null,
+      segment: r.segment ?? null,
       createdAt: r.createdAt.toISOString(),
     }));
 

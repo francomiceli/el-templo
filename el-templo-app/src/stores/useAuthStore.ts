@@ -53,7 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
       const userStore = useUserStore()
       userStore.setProfile(userData)
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error de inicio de sesion')
+      error.value = extractError(err, 'Error de inicio de sesión')
       throw err
     } finally {
       loading.value = false

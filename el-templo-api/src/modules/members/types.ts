@@ -14,6 +14,7 @@ export interface MemberListParams {
   level?: string;
   isActive?: boolean;
   planId?: number;
+  segment?: string;
   page: number;
   limit: number;
 }
@@ -32,6 +33,7 @@ export interface MemberListItem {
   branchName: string;
   isActive: boolean;
   planName: string | null;
+  segment: string | null;
   createdAt: string;
 }
 

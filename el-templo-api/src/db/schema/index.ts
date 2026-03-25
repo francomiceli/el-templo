@@ -40,3 +40,7 @@ export * from "./schedules";
 export * from "./bookings";
 export * from "./holidays";
 export * from "./system-settings";
+export * from "./member-profiles";
+export * from "./onboarding-analytics";
+export * from "./member-logins";
+export * from "./check-in-responses";

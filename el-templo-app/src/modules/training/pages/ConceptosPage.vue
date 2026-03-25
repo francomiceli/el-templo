@@ -19,7 +19,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Initium</div>
               <div class="conceptos-item__description">
-                Bloque de calentamiento. Prepara tu cuerpo para la sesion con movilidad y activacion
+                Bloque de calentamiento. Prepara tu cuerpo para la sesión con movilidad y activación
                 muscular progresiva.
               </div>
             </div>
@@ -29,8 +29,8 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Nucleus</div>
               <div class="conceptos-item__description">
-                Bloque principal de trabajo. Aqui se concentra el mayor volumen e intensidad de la
-                sesion segun tu ruta del dia.
+                Bloque principal de trabajo. Aquí se concentra el mayor volumen e intensidad de la
+                sesión según tu ruta del día.
               </div>
             </div>
 
@@ -40,7 +40,7 @@
               <div class="conceptos-item__title">Deuteros</div>
               <div class="conceptos-item__description">
                 Bloque complementario. Eliges entre dos opciones para trabajar aspectos adicionales
-                segun tus objetivos.
+                según tus objetivos.
               </div>
             </div>
 
@@ -49,7 +49,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Athlos / Epikos</div>
               <div class="conceptos-item__description">
-                Bloque de desafio final. Athlos es un reto corto e intenso. Epikos es un desafio mas
+                Bloque de desafío final. Athlos es un reto corto e intenso. Epikos es un desafío más
                 largo que aparece alternadamente.
               </div>
             </div>
@@ -69,7 +69,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Strength (Fuerza)</div>
               <div class="conceptos-item__description">
-                Desarrollo de fuerza maxima. Ejercicios con menor numero de repeticiones y mayor
+                Desarrollo de fuerza máxima. Ejercicios con menor número de repeticiones y mayor
                 intensidad.
               </div>
             </div>
@@ -98,7 +98,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Hypertrophy (Hipertrofia)</div>
               <div class="conceptos-item__description">
-                Crecimiento muscular. Rango medio de repeticiones con enfoque en tension muscular
+                Crecimiento muscular. Rango medio de repeticiones con enfoque en tensión muscular
                 sostenida.
               </div>
             </div>
@@ -108,7 +108,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">Skill (Habilidad)</div>
               <div class="conceptos-item__description">
-                Desarrollo tecnico. Practica de movimientos avanzados y progresiones de calistenia.
+                Desarrollo técnico. Práctica de movimientos avanzados y progresiones de calistenia.
               </div>
             </div>
           </q-card-section>
@@ -147,7 +147,7 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">30-50% (Baja)</div>
               <div class="conceptos-item__description">
-                Esfuerzo bajo. Ideal para calentamiento, tecnica y recuperacion activa.
+                Esfuerzo bajo. Ideal para calentamiento, técnica y recuperación activa.
               </div>
             </div>
 
@@ -157,7 +157,7 @@
               <div class="conceptos-item__title">50-70% (Moderada)</div>
               <div class="conceptos-item__description">
                 Esfuerzo moderado. Zona de trabajo para resistencia y volumen. Puedes mantener
-                conversacion.
+                conversación.
               </div>
             </div>
 
@@ -166,16 +166,16 @@
             <div class="conceptos-item">
               <div class="conceptos-item__title">70-85% (Alta)</div>
               <div class="conceptos-item__description">
-                Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentracion y buena tecnica.
+                Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentración y buena técnica.
               </div>
             </div>
 
             <q-separator class="q-my-md" />
 
             <div class="conceptos-item">
-              <div class="conceptos-item__title">85-100% (Maxima)</div>
+              <div class="conceptos-item__title">85-100% (Máxima)</div>
               <div class="conceptos-item__description">
-                Esfuerzo maximo. Para trabajo de fuerza maxima y potencia. Requiere descansos
+                Esfuerzo máximo. Para trabajo de fuerza máxima y potencia. Requiere descansos
                 largos.
               </div>
             </div>
@@ -209,11 +209,11 @@ const FORMATS = [
   },
   {
     name: 'For Time',
-    description: 'Completa todos los ejercicios lo mas rapido posible con buena tecnica.',
+    description: 'Completa todos los ejercicios lo más rápido posible con buena técnica.',
   },
   {
     name: 'Tabata',
-    description: '20 segundos de trabajo maximo, 10 de descanso. Repite 8 rondas por ejercicio.',
+    description: '20 segundos de trabajo máximo, 10 de descanso. Repite 8 rondas por ejercicio.',
   },
   {
     name: 'Series',

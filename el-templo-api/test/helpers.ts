@@ -91,6 +91,12 @@ export async function registerUser(
  * to guarantee a clean slate regardless of what previous test files wrote.
  */
 export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
+  // Layer 0: onboarding tables (depend on users)
+  // Layer 0: check-in and onboarding tables (depend on users)
+  await app.db.delete(schema.checkInResponses);
+  await app.db.delete(schema.onboardingAnalytics);
+  await app.db.delete(schema.memberProfiles);
+
   // Layer 1: junction tables and leaf tables (no dependents)
   await app.db.delete(schema.blogPostTags);
   await app.db.delete(schema.bookings);
@@ -104,8 +110,11 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.memberPersonalizadas);
   await app.db.delete(schema.evaluationRequests);
   await app.db.delete(schema.formatCompatibility);
+  await app.db.delete(schema.memberLogins);
+  await app.db.delete(schema.memberProfiles);
 
   // Layer 2: tables that reference layer-3 parents
+  await app.db.delete(schema.memberProfiles);
   await app.db.delete(schema.attendance);
   await app.db.delete(schema.payments);
   await app.db.delete(schema.auraTransactions);

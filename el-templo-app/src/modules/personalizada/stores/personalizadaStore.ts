@@ -129,7 +129,7 @@ export const usePersonalizadaStore = defineStore('personalizada', () => {
         dayId: currentSession.value?.dayId ?? 'none',
       })
     } catch (err: unknown) {
-      error.value = 'Error cargando sesion'
+      error.value = 'Error cargando sesión'
       log.error('Failed to fetch personalizada session', {
         error: err instanceof Error ? err.message : String(err),
         week,

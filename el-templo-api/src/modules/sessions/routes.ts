@@ -23,6 +23,8 @@ import {
   type CompleteSessionInput,
 } from "./schemas";
 import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
+import { AuraService } from "../aura/service";
+import { StreakService } from "../streaks";
 
 /**
  * Map individual level to level group for session generation
@@ -136,6 +138,8 @@ function sessionToResponse(
 
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
+  const auraService = new AuraService(fastify.db);
+  const streakService = new StreakService(fastify.db, auraService, fastify.log);
 
   // Load format descriptions once at startup (small, static table)
   const formatRows = await fastify.db
@@ -439,6 +443,31 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .select({ count: sql<number>`COUNT(DISTINCT date)` })
         .from(schema.completedSessions)
         .where(eq(schema.completedSessions.userId, userId));
+
+      // Award 10 AURA for session completion (D-11)
+      try {
+        await auraService.award({
+          userId,
+          sourceType: "training_completion",
+          referenceType: "completed_session",
+          referenceId: completedSessionId,
+        });
+      } catch (auraErr: unknown) {
+        request.log.warn(
+          { err: auraErr, userId, dayId },
+          "AURA award failed for session completion",
+        );
+      }
+
+      // Update streak (D-03)
+      try {
+        await streakService.updateStreak(userId);
+      } catch (streakErr: unknown) {
+        request.log.warn(
+          { err: streakErr, userId },
+          "Streak update failed after session completion",
+        );
+      }
 
       return {
         success: true,

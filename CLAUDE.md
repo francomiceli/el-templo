@@ -28,7 +28,12 @@ Monorepo with 3 apps:
 
 ### Database Changes
 
-- Always modify the database through **migrations** (Drizzle). Never modify SQL directly.
+- Schema changes go through Drizzle schema files (`el-templo-api/src/db/schema/`).
+- Generate migration SQL: `pnpm db:generate` (uses `drizzle-kit generate`, may require interactive prompts for ambiguous changes).
+- Apply migrations: `pnpm db:migrate` (runs `src/db/run-migrations.ts` — custom runner that tracks applied migrations in a `_migrations` table).
+- **Never use `drizzle-kit migrate`** — its `meta/_journal.json` is out of sync and not the source of truth. The `_migrations` DB table is the single source of truth for both local and production.
+- Same runner is used in CI/CD (`node dist/db/run-migrations.js`), so local and production behavior are identical.
+- `pnpm db:push` (drizzle-kit push) can be used for rapid prototyping but bypasses migration tracking — avoid in committed work.
 
 ### Environment Variables
 

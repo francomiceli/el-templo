@@ -8,7 +8,7 @@
       </div>
 
       <!-- Title -->
-      <div class="celebration-overlay__title">Sesion Completada!</div>
+      <div class="celebration-overlay__title">Sesión Completada!</div>
 
       <!-- Final quote -->
       <div class="celebration-overlay__quote">

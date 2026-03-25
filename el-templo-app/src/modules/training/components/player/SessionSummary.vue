@@ -70,6 +70,10 @@
       <!-- RPE Input -->
       <div class="rpe-section q-mb-lg">
         <RpeSlider v-model="rpeValue" />
+        <RpeContextualMessage
+          :rpe-value="rpeValue"
+          :has-interacted="hasInteracted"
+        />
       </div>
 
       <!-- Notes (optional) -->
@@ -91,7 +95,7 @@
       <q-btn
         color="primary"
         unelevated
-        label="Terminar Sesion"
+        label="Terminar Sesión"
         class="full-width"
         size="lg"
         :loading="isSubmitting"
@@ -102,8 +106,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import RpeSlider from './RpeSlider.vue'
+import RpeContextualMessage from './RpeContextualMessage.vue'
 
 interface BlockData {
   role: string
@@ -135,6 +140,14 @@ const emit = defineEmits<Emits>()
 // Form state
 const rpeValue = ref<number | null>(null)
 const notesValue = ref<string>('')
+const hasInteracted = ref(false)
+
+// Track when user first interacts with RPE slider
+watch(rpeValue, (newVal: number | null) => {
+  if (newVal !== null) {
+    hasInteracted.value = true
+  }
+})
 
 // Computed
 const formattedDate = computed(() => {

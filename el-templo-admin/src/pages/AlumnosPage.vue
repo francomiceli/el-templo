@@ -78,7 +78,19 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 text-right">
+      <div class="col-6 col-sm-2">
+        <q-select
+          v-model="filters.segment"
+          :options="segmentFilterOptions"
+          label="Segmento"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-1 text-right">
         <div class="q-gutter-sm">
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
             <q-tooltip>Exportar a Excel</q-tooltip>
@@ -170,6 +182,19 @@
         </q-td>
       </template>
 
+      <!-- Segment column -->
+      <template #body-cell-segmento="props">
+        <q-td :props="props">
+          <q-badge
+            v-if="props.row.segment"
+            :color="segmentColor(props.row.segment)"
+            :label="segmentLabel(props.row.segment)"
+            outline
+          />
+          <span v-else class="text-grey-5 text-italic">&mdash;</span>
+        </q-td>
+      </template>
+
       <!-- Nivel column with Greek letter -->
       <template #body-cell-nivel="props">
         <q-td :props="props">
@@ -218,7 +243,8 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import type { MemberListItem, BranchOption } from 'src/types/member';
+import type { MemberListItem, MemberSegment, BranchOption } from 'src/types/member';
+import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 
 const log = createLogger('AlumnosPage');
@@ -250,6 +276,7 @@ const filters = reactive({
   branchId: null as number | string | null,
   level: null as string | null,
   isActive: true as boolean | null,
+  segment: null as MemberSegment | null,
 });
 
 const tablePagination = ref({
@@ -292,6 +319,16 @@ const statusFilterOptions = [
   { label: 'Todos', value: null },
   { label: 'Activos', value: true },
   { label: 'Inactivos', value: false },
+];
+
+const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
+  { label: 'Todos', value: null },
+  { label: 'Nuevo Guerrero', value: 'nuevo_guerrero' },
+  { label: 'Espartano', value: 'espartano' },
+  { label: 'Intermitente', value: 'intermitente' },
+  { label: 'En Riesgo', value: 'en_riesgo' },
+  { label: 'Digital Warrior', value: 'digital_warrior' },
+  { label: 'Ghost', value: 'ghost' },
 ];
 
 // =========================================================================
@@ -345,6 +382,14 @@ const columns: QTableProps['columns'] = [
     field: 'planName',
     align: 'left',
     sortable: false,
+  },
+  {
+    name: 'segmento',
+    label: 'Segmento',
+    field: 'segment',
+    align: 'center',
+    sortable: false,
+    style: 'width: 130px',
   },
   {
     name: 'sucursal',
@@ -449,6 +494,14 @@ function isLegacyPlan(planName: string | null): boolean {
   return archivedPlanNames.value.has(planName);
 }
 
+function segmentLabel(segment: string): string {
+  return SEGMENT_LABELS[segment as MemberSegment] ?? segment;
+}
+
+function segmentColor(segment: string): string {
+  return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
+}
+
 // =========================================================================
 // Selection
 // =========================================================================
@@ -544,6 +597,7 @@ async function loadMembers() {
       multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
+      segment: filters.segment ?? undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });

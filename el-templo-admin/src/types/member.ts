@@ -5,6 +5,43 @@
 
 export type DocumentType = 'DNI' | 'Pasaporte' | 'NIE' | 'NIF' | 'Otro';
 
+// ─── Behavioral Segmentation (Phase 79) ─────────────────────────────────────
+
+export type MemberSegment =
+  | 'nuevo_guerrero'
+  | 'espartano'
+  | 'intermitente'
+  | 'en_riesgo'
+  | 'digital_warrior'
+  | 'ghost';
+
+export const SEGMENT_LABELS: Record<MemberSegment, string> = {
+  nuevo_guerrero: 'Nuevo Guerrero',
+  espartano: 'Espartano',
+  intermitente: 'Intermitente',
+  en_riesgo: 'En Riesgo',
+  digital_warrior: 'Digital Warrior',
+  ghost: 'Ghost',
+};
+
+export const SEGMENT_COLORS: Record<MemberSegment, string> = {
+  nuevo_guerrero: 'blue',
+  espartano: 'green',
+  intermitente: 'amber',
+  en_riesgo: 'orange',
+  digital_warrior: 'purple',
+  ghost: 'grey',
+};
+
+export interface SegmentThresholds {
+  espartanoPct: number;
+  intermitentePct: number;
+  enRiesgoWeeks: number;
+  ghostWeeks: number;
+  nuevoGuerreroDays: number;
+  windowDays: number;
+}
+
 export interface MemberListItem {
   id: number;
   email: string;
@@ -20,7 +57,20 @@ export interface MemberListItem {
   documentType: string | null;
   photoUrl: string | null;
   planName: string | null;
+  segment: MemberSegment | null;
   createdAt: string;
+}
+
+export interface OnboardingProfileSummary {
+  goalType: string;
+  goalLabel: string;
+  experienceLevel: string;
+  experienceLabel: string;
+  trainingFocus: string;
+  focusLabel: string;
+  motivationStyle: string;
+  motivationLabel: string;
+  completedAt: string | null;
 }
 
 export interface MemberProfile extends MemberListItem {
@@ -31,7 +81,9 @@ export interface MemberProfile extends MemberListItem {
   emergencyContactPhone: string | null;
   emergencyContactRelationship: string | null;
   role: string;
+  segmentUpdatedAt: string | null;
   updatedAt: string;
+  onboardingProfile: OnboardingProfileSummary | null;
 }
 
 export interface CreateMemberInput {
@@ -76,6 +128,7 @@ export interface MemberListParams {
   level?: string;
   isActive?: boolean;
   overdue?: boolean;
+  segment?: MemberSegment;
   page?: number;
   limit?: number;
 }

@@ -9,7 +9,7 @@
     <!-- Personalizada Name & Total -->
     <div class="indicator__personalizada-name">{{ personalizadaName }}</div>
     <div class="indicator__total">
-      {{ totalSessions }} {{ totalSessions === 1 ? 'sesion' : 'sesiones' }} completadas
+      {{ totalSessions }} {{ totalSessions === 1 ? 'sesión' : 'sesiones' }} completadas
     </div>
 
     <!-- Per-Duration Progress -->

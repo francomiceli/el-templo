@@ -239,6 +239,20 @@
       "when": 1774070400000,
       "tag": "0053_plan_descriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "5",
+      "when": 1774399700000,
+      "tag": "0056_member_profiles_streaks",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "5",
+      "when": 1774403500000,
+      "tag": "0059_check_in_responses",
+      "breakpoints": true
     }
   ]
 }
