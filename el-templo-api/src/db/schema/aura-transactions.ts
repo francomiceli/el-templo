@@ -21,6 +21,8 @@ export const sourceTypeEnum = mysqlEnum("source_type", [
   "social",
   "personalizada_completion",
   "onboarding_completion",
+  "program_week_completion",
+  "program_completion",
 ]);
 
 export const auraTransactions = mysqlTable(

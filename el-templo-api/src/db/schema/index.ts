@@ -44,3 +44,5 @@ export * from "./member-profiles";
 export * from "./onboarding-analytics";
 export * from "./member-logins";
 export * from "./check-in-responses";
+export * from "./micro-programs";
+export * from "./program-enrollments";

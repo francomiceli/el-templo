@@ -25,6 +25,7 @@ import {
 import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
+import { ProgramsService } from "../programs/service";
 
 /**
  * Map individual level to level group for session generation
@@ -140,6 +141,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
   const auraService = new AuraService(fastify.db);
   const streakService = new StreakService(fastify.db, auraService, fastify.log);
+  const programsService = new ProgramsService(fastify.db, fastify.log);
 
   // Load format descriptions once at startup (small, static table)
   const formatRows = await fastify.db
@@ -466,6 +468,16 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         request.log.warn(
           { err: streakErr, userId },
           "Streak update failed after session completion",
+        );
+      }
+
+      // Update program enrollment progress (per D-04)
+      try {
+        await programsService.recordSessionForProgram(userId, auraService);
+      } catch (progErr: unknown) {
+        request.log.warn(
+          { err: progErr, userId },
+          "Program session recording failed after session completion",
         );
       }
 
