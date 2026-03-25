@@ -14,8 +14,6 @@ import {
   createTestApp,
   registerUser,
   getAuthToken,
-  cleanAllTestData,
-  createStaffUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SegmentationService } from "../../src/modules/segmentation/service";
@@ -27,6 +25,7 @@ describe("Segmentation", () => {
 
   beforeAll(async () => {
     app = await createTestApp();
+    adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
   });
 
   afterAll(async () => {
@@ -34,23 +33,12 @@ describe("Segmentation", () => {
   });
 
   beforeEach(async () => {
-    await cleanAllTestData(app);
-
-    // Get admin token — try login first, register if not exists
-    try {
-      adminToken = await getAuthToken(app, "admin@test.com", "admin123");
-    } catch {
-      await registerUser(app, {
-        email: "admin@test.com",
-        password: "admin123",
-        branchId: 1,
-      });
-      await app.db
-        .update(schema.users)
-        .set({ role: "admin" })
-        .where(eq(schema.users.email, "admin@test.com"));
-      adminToken = await getAuthToken(app, "admin@test.com", "admin123");
-    }
+    // Clean only segmentation-related data, not all test data (preserves pre-seeded admin)
+    await app.db.delete(schema.memberLogins);
+    await app.db.delete(schema.checkInResponses);
+    await app.db.delete(schema.onboardingAnalytics);
+    await app.db.delete(schema.memberProfiles);
+    await app.db.execute(sql`DELETE FROM ${schema.systemSettings} WHERE setting_key LIKE 'segment.%'`);
 
     // Seed segment threshold settings for all tests
     await app.db.insert(schema.systemSettings).values([
