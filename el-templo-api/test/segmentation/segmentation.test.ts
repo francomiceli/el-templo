@@ -14,6 +14,7 @@ import {
   createTestApp,
   registerUser,
   getAuthToken,
+  createStaffUser,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SegmentationService } from "../../src/modules/segmentation/service";
