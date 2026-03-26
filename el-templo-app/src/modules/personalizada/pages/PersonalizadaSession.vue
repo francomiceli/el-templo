@@ -366,8 +366,8 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
 }
 
 function onProgressContinue(): void {
-  // Navigate to Mi Camino after viewing progress
-  router.push('/mi-camino')
+  // Navigate to Mi Templo after viewing progress
+  router.push('/mi-templo')
 }
 
 function navigateBack(): void {

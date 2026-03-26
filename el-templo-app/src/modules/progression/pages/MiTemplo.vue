@@ -1,46 +1,42 @@
 <template>
-  <q-page class="mi-camino">
+  <q-page class="mi-templo">
     <!-- Loading State -->
-    <div v-if="progressionStore.loading" class="mi-camino__loading">
+    <div v-if="progressionStore.loading" class="mi-templo__loading">
       <q-spinner-dots color="primary" size="50px" />
-      <p class="mi-camino__loading-text">Cargando tu progreso...</p>
+      <p class="mi-templo__loading-text">Cargando tu progreso...</p>
     </div>
 
     <!-- Error State -->
-    <div v-else-if="progressionStore.error" class="mi-camino__error">
-      <q-icon name="error_outline" class="mi-camino__error-icon" />
-      <p class="mi-camino__error-text">{{ progressionStore.error }}</p>
+    <div v-else-if="progressionStore.error" class="mi-templo__error">
+      <q-icon name="error_outline" class="mi-templo__error-icon" />
+      <p class="mi-templo__error-text">{{ progressionStore.error }}</p>
       <q-btn color="primary" unelevated no-caps @click="fetchStats"> Reintentar </q-btn>
     </div>
 
     <!-- Content State -->
-    <div v-else class="mi-camino__content">
-      <!-- Segment-Driven Greeting -->
-      <SegmentGreeting
-        :member-name="userName"
-        :segment="userStore.segment"
-        :level="greetingLevel"
-      />
-
+    <div v-else class="mi-templo__content">
       <!-- Streak Row (only visible when streak > 0) -->
       <StreakRow v-if="currentStreak > 0" :streak="currentStreak" />
 
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
-      <div v-if="orderedCheckIns.length > 0" class="mi-camino__check-ins">
-        <div class="mi-camino__check-ins-row">
-          <CheckInCard
-            v-for="config in orderedCheckIns"
-            :key="config.type"
-            :config="config"
-            :answer="progressionStore.checkInState?.answers[config.type] ?? null"
-            class="mi-camino__check-in-item"
-            @submit="
-              (value: string, bodyArea?: string) =>
-                handleCheckInSubmit(config.type, value, bodyArea)
-            "
-          />
+      <template v-if="orderedCheckIns.length > 0">
+        <p class="mi-templo__section-title">Registro del día</p>
+        <div class="mi-templo__check-ins">
+          <div class="mi-templo__check-ins-row">
+            <CheckInCard
+              v-for="config in orderedCheckIns"
+              :key="config.type"
+              :config="config"
+              :answer="progressionStore.checkInState?.answers[config.type] ?? null"
+              class="mi-templo__check-in-item"
+              @submit="
+                (value: string, bodyArea?: string) =>
+                  handleCheckInSubmit(config.type, value, bodyArea)
+              "
+            />
+          </div>
         </div>
-      </div>
+      </template>
 
       <!-- Program CTA or Progress Card (per D-14: below check-ins) -->
       <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
@@ -66,9 +62,8 @@
         />
       </template>
 
-      <!-- Weekly Summary: only for program-enrolled members (per D-15) -->
+      <!-- Weekly Summary -->
       <WeeklySummaryCard
-        v-if="!!programProgress"
         :loading="progressionStore.weeklySummaryLoading"
         :error="progressionStore.weeklySummaryError"
         :summary="progressionStore.weeklySummary"
@@ -87,7 +82,7 @@
 
 <script setup lang="ts">
 /**
- * MiCamino page — personalized daily briefing ("Tu Dia").
+ * MiTemplo page — personalized daily briefing ("Tu Dia").
  *
  * Shows segment-driven greeting, session CTA with today's route,
  * booking status, weekly progress, weekly summary, and existing
@@ -98,15 +93,10 @@ import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useCheckInApi } from '../composables/useCheckInApi'
 import CheckInCard from '../components/CheckInCard.vue'
-import {
-  CHECK_IN_QUESTIONS,
-  type CheckInQuestionConfig,
-  type CheckInQuestionType,
-} from '../types'
-import { useUserStore, type MemberSegment } from 'src/stores/useUserStore'
+import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionType } from '../types'
+import { useUserStore } from 'src/stores/useUserStore'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
-import SegmentGreeting from '../components/SegmentGreeting.vue'
 import StreakRow from '../components/StreakRow.vue'
 import SessionCtaCard from '../components/SessionCtaCard.vue'
 import BookingStatusCard from '../components/BookingStatusCard.vue'
@@ -119,7 +109,7 @@ import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import { createLogger } from 'src/utils/logger'
 
-const log = createLogger('MiCamino')
+const log = createLogger('MiTemplo')
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
@@ -129,19 +119,7 @@ const { getMyProgress, getCatalog } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
 const hasProgramsAvailable = ref(false)
 
-const userName = computed(() => {
-  return userStore.profile?.firstName || 'Atleta'
-})
-
 const currentStreak = computed(() => progressionStore.stats?.currentStreak ?? 0)
-
-const greetingLevel = computed(() => {
-  if (!progressionStore.level) return null
-  return {
-    greekLetter: progressionStore.level.greekLetter,
-    levelName: progressionStore.level.displayName,
-  }
-})
 
 const todayStr = computed(() => {
   const d = new Date()
@@ -183,9 +161,7 @@ const cardOrder = computed((): CardId[] => {
   return ['booking', 'session']
 })
 
-const showProgramCta = computed(
-  () => !programProgress.value && hasProgramsAvailable.value,
-)
+const showProgramCta = computed(() => !programProgress.value && hasProgramsAvailable.value)
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
   if (!progressionStore.checkInState) return []
@@ -287,7 +263,7 @@ onMounted(async () => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.mi-camino {
+.mi-templo {
   padding: 16px;
   background-color: $cream;
 
@@ -324,6 +300,16 @@ onMounted(async () => {
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  &__section-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba($primary, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: -4px 0 -8px;
   }
 
   &__check-ins {

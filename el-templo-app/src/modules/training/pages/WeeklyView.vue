@@ -133,18 +133,18 @@ const weekRangeLabel = computed(() => {
   const lastDate = new Date(dates[dates.length - 1].date + 'T00:00:00')
 
   const monthNames = [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
   ]
 
   const firstDay = firstDate.getDate()
@@ -153,9 +153,9 @@ const weekRangeLabel = computed(() => {
   const lastMonth = monthNames[lastDate.getMonth()]
 
   if (firstMonth === lastMonth) {
-    return `${firstDay} - ${lastDay} ${firstMonth}`
+    return `Semana del ${firstDay} al ${lastDay} de ${firstMonth}`
   }
-  return `${firstDay} ${firstMonth} - ${lastDay} ${lastMonth}`
+  return `Semana del ${firstDay} de ${firstMonth} al ${lastDay} de ${lastMonth}`
 })
 
 /**
@@ -183,7 +183,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   // Calculate height minus the header (50px) and mobile tab bar
-  height: calc(100vh - 50px - var(--mobile-tabs-height));
+  height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
   overflow: hidden;
 
   &__header {
@@ -198,9 +198,11 @@ onMounted(() => {
 
   &__title {
     font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 700;
-    color: $primary;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba($primary, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
   &__carousel {

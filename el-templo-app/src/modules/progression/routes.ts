@@ -1,17 +1,17 @@
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router'
 
 /**
  * Progression module route configuration
  *
- * Provides the /mi-camino route for member progression tracking.
+ * Provides the /mi-templo route for member progression tracking.
  */
 export const progressionRoutes: RouteRecordRaw[] = [
   {
-    path: 'mi-camino',
-    name: 'mi-camino',
-    component: () => import('./pages/MiCamino.vue'),
+    path: 'mi-templo',
+    name: 'mi-templo',
+    component: () => import('./pages/MiTemplo.vue'),
     meta: { requiresAuth: true },
   },
-];
+]
 
-export default progressionRoutes;
+export default progressionRoutes

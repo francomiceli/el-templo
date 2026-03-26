@@ -22,15 +22,15 @@
           </template>
         </q-select>
       </div>
-      <div v-else class="branch-label text-caption text-grey-7 q-mb-sm">
-        <q-icon name="location_on" size="16px" class="q-mr-xs" />
-        {{ userStore.profile?.branchName ?? '' }}
-      </div>
+      <p v-else class="branch-label">
+        <q-icon name="location_on" size="14px" class="q-mr-xs" />
+        {{ userStore.branchDisplayName }}
+      </p>
 
       <!-- Section 1: My Week (past attendance + future bookings) -->
       <q-card class="upcoming-card q-mb-md" flat bordered>
         <q-card-section class="upcoming-header">
-          <div class="text-subtitle1 text-weight-bold">Tus clases</div>
+          <div class="reservas-card-title">Tus clases</div>
           <div class="weekly-limit text-caption">Semana del {{ weekLabel }}</div>
         </q-card-section>
 
@@ -246,7 +246,12 @@ const selectedBranchId = ref<number | null>(null)
 
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
 
-const branchOptions = computed(() => branches.value.map((b) => ({ label: b.name, value: b.id })))
+const branchOptions = computed(() =>
+  branches.value.map((b) => ({
+    label: b.name.replace(/^El Templo\s+/i, 'Sede '),
+    value: b.id,
+  })),
+)
 
 // ─── Reserve dialog ──────────────────────────────────────────────────
 const reserveDialog = ref({
@@ -787,14 +792,36 @@ onBeforeUnmount(() => {
   min-height: 60vh;
 }
 
+.reservas-card-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
+}
+
 .branch-label {
   display: flex;
   align-items: center;
-  font-weight: 500;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 6px 8px 12px;
 }
 
 .branch-select {
   max-width: 250px;
+
+  :deep(.q-field__native) {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba($primary, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
 }
 
 // ─── Upcoming Reservations ───────────────────────────────────────────
@@ -875,13 +902,13 @@ onBeforeUnmount(() => {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: $accent;
+  color: rgba($primary, 0.6);
 }
 
 .day-date {
   font-size: 16px;
   font-weight: 700;
-  color: $accent;
+  color: $primary;
   line-height: 1.2;
 }
 
@@ -911,14 +938,14 @@ onBeforeUnmount(() => {
 
 .cell-time {
   font-size: 11px;
-  color: rgba($accent, 0.5);
+  color: rgba($primary, 0.5);
   line-height: 1;
 }
 
 .cell-occupancy {
   font-size: 14px;
   font-weight: 700;
-  color: $accent;
+  color: $primary;
   line-height: 1.2;
 
   &--full {

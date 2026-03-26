@@ -10,180 +10,23 @@
       No hay planes disponibles
     </div>
 
-    <!-- Presencial Plans Section -->
-    <div v-if="presencialPlans.length > 0">
-      <div class="row q-col-gutter-md">
-        <div v-for="plan in presencialPlans" :key="plan.id" class="col-12 col-sm-6">
-          <q-card class="full-height">
-            <q-card-section>
-              <div class="row items-center justify-between q-mb-sm">
-                <div class="text-subtitle1 text-weight-bold">
-                  {{ plan.name }}
-                </div>
-                <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
-              </div>
-              <q-badge
-                v-if="isCurrentPlan(plan)"
-                color="primary"
-                label="Tu plan actual"
-                class="q-mb-sm"
-              />
-              <div class="q-mt-sm q-gutter-xs">
-                <q-badge v-if="plan.durationDays" outline color="grey-7">
-                  {{ plan.durationDays }} dias
-                </q-badge>
-                <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
-                  {{ plan.classesPerWeek }} clases/semana
-                </q-badge>
-              </div>
-              <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
-                {{ plan.description }}
-              </div>
-            </q-card-section>
-            <q-separator />
-            <q-card-actions>
-              <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
-                <q-icon name="check_circle" size="16px" class="q-mr-xs" />
-                Activo — vence {{ formatEndDate() }}
-              </div>
-              <q-btn
-                v-else
-                flat
-                no-caps
-                color="positive"
-                icon="chat"
-                :label="ctaText"
-                @click="openWhatsApp(plan)"
-              />
-            </q-card-actions>
-          </q-card>
-        </div>
+    <!-- Experiencias a Medida Section (per D-18) — shown first -->
+    <div v-if="experiencias.length > 0">
+      <p class="planes-section-title">Experiencias a Medida</p>
+      <div class="text-body2 text-grey-7 q-mb-md">
+        Programas personalizados que se suman a tu plan regular para potenciar tu entrenamiento.
       </div>
-    </div>
-
-    <!-- Online Plans Section -->
-    <div v-if="onlinePlans.length > 0" class="q-mt-lg">
-      <div class="row q-col-gutter-md">
-        <div v-for="plan in onlinePlans" :key="plan.id" class="col-12 col-sm-6">
-          <q-card class="full-height">
-            <q-card-section>
-              <div class="row items-center justify-between q-mb-sm">
-                <div class="text-subtitle1 text-weight-bold">
-                  {{ plan.name }}
-                </div>
-                <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
-              </div>
-              <q-badge
-                v-if="isCurrentPlan(plan)"
-                color="primary"
-                label="Tu plan actual"
-                class="q-mb-sm"
-              />
-              <div class="q-mt-sm q-gutter-xs">
-                <q-badge v-if="plan.durationDays" outline color="grey-7">
-                  {{ plan.durationDays }} dias
-                </q-badge>
-                <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
-                  {{ plan.classesPerWeek }} clases/semana
-                </q-badge>
-              </div>
-              <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
-                {{ plan.description }}
-              </div>
-            </q-card-section>
-            <q-separator />
-            <q-card-actions>
-              <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
-                <q-icon name="check_circle" size="16px" class="q-mr-xs" />
-                Activo — vence {{ formatEndDate() }}
-              </div>
-              <q-btn
-                v-else
-                flat
-                no-caps
-                color="positive"
-                icon="chat"
-                :label="ctaText"
-                @click="openWhatsApp(plan)"
-              />
-            </q-card-actions>
-          </q-card>
-        </div>
-      </div>
-    </div>
-
-    <!-- Personalizada Plans Section -->
-    <div v-if="personalizadaPlans.length > 0" class="q-mt-lg">
-      <div class="row q-col-gutter-md">
-        <div v-for="plan in personalizadaPlans" :key="plan.id" class="col-12 col-sm-6">
-          <q-card class="full-height">
-            <q-card-section>
-              <div class="text-subtitle1 text-weight-bold q-mb-sm">
-                {{ plan.name }}
-              </div>
-              <q-badge
-                v-if="isCurrentPlan(plan)"
-                color="primary"
-                label="Tu plan actual"
-                class="q-mb-sm"
-              />
-              <div v-if="plan.description" class="text-body2 text-grey-7">
-                {{ plan.description }}
-              </div>
-              <div v-if="plan.durationDays" class="q-mt-sm">
-                <q-badge outline color="grey-7"> {{ plan.durationDays }} dias </q-badge>
-              </div>
-              <div v-if="plan.personalizadaZones?.length" class="q-mt-sm">
-                <div class="text-caption text-grey-6">Zonas</div>
-                <div class="q-gutter-xs q-mt-xs">
-                  <q-badge
-                    v-for="zone in plan.personalizadaZones"
-                    :key="zone"
-                    outline
-                    color="primary"
-                    :label="zone"
-                  />
-                </div>
-              </div>
-            </q-card-section>
-            <q-separator />
-            <q-card-actions>
-              <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
-                <q-icon name="check_circle" size="16px" class="q-mr-xs" />
-                Activo — vence {{ formatEndDate() }}
-              </div>
-              <q-btn
-                v-else
-                flat
-                no-caps
-                color="positive"
-                icon="chat"
-                :label="ctaText"
-                @click="openWhatsApp(plan)"
-              />
-            </q-card-actions>
-          </q-card>
-        </div>
-      </div>
-    </div>
-
-    <!-- Experiencias a Medida Section (per D-18) -->
-    <div v-if="experiencias.length > 0" class="q-mt-lg">
-      <div class="text-h6 q-mb-md">Experiencias a Medida</div>
       <div class="row q-col-gutter-md">
         <div v-for="exp in experiencias" :key="exp.id" class="col-12 col-sm-6">
           <q-card class="full-height">
             <q-card-section>
-              <div class="text-subtitle1 text-weight-bold q-mb-sm">
-                {{ exp.name }}
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="planes-card-name">
+                  {{ exp.name }}
+                </div>
+                <q-badge color="amber-8" label="EXCLUSIVO" />
               </div>
-              <!-- "Proximamente" badge if no content per D-46 -->
-              <q-badge
-                v-if="!exp.hasContent"
-                color="grey"
-                label="Proximamente"
-                class="q-mb-sm"
-              />
+              <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" class="q-mb-sm" />
               <div v-if="exp.description" class="text-body2 text-grey-7 q-mb-sm">
                 {{ exp.description }}
               </div>
@@ -194,11 +37,7 @@
             </q-card-section>
             <q-separator />
             <q-card-actions>
-              <!-- Check if enrolled in THIS specific program per D-47 -->
-              <div
-                v-if="enrolledProgramId === exp.id"
-                class="text-positive text-caption q-pa-sm"
-              >
+              <div v-if="enrolledProgramId === exp.id" class="text-positive text-caption q-pa-sm">
                 <q-icon name="check_circle" size="16px" class="q-mr-xs" />
                 Ya estas inscripto
               </div>
@@ -207,12 +46,177 @@
                 flat
                 no-caps
                 color="positive"
-                icon="chat"
-                label="Mas info"
+                label="Escribinos"
                 @click="openExperienciaWhatsApp(exp)"
-              />
+              >
+                <template #prepend>
+                  <q-icon name="img:/icons/whatsapp.svg" size="20px" />
+                </template>
+              </q-btn>
             </q-card-actions>
           </q-card>
+        </div>
+      </div>
+    </div>
+
+    <!-- Planes Regulares -->
+    <div v-if="plans.length > 0" :class="experiencias.length > 0 ? 'q-mt-lg' : ''">
+      <p class="planes-section-title">Planes Regulares</p>
+
+      <!-- Presencial Plans -->
+      <div v-if="presencialPlans.length > 0">
+        <div class="row q-col-gutter-md">
+          <div v-for="plan in presencialPlans" :key="plan.id" class="col-12 col-sm-6">
+            <q-card class="full-height">
+              <q-card-section>
+                <div class="row items-center justify-between q-mb-sm">
+                  <div class="planes-card-name">
+                    {{ plan.name }}
+                  </div>
+                  <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
+                </div>
+                <q-badge
+                  v-if="isCurrentPlan(plan)"
+                  color="primary"
+                  label="Tu plan actual"
+                  class="q-mb-sm"
+                />
+                <div class="q-mt-sm q-gutter-xs">
+                  <q-badge v-if="plan.durationDays" outline color="grey-7">
+                    {{ plan.durationDays }} dias
+                  </q-badge>
+                  <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
+                    {{ plan.classesPerWeek }} clases/semana
+                  </q-badge>
+                </div>
+                <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
+                  {{ plan.description }}
+                </div>
+              </q-card-section>
+              <q-separator />
+              <q-card-actions>
+                <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
+                  <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+                  Activo — vence {{ formatEndDate() }}
+                </div>
+                <q-btn
+                  v-else
+                  flat
+                  no-caps
+                  color="positive"
+                  icon="chat"
+                  :label="ctaText"
+                  @click="openWhatsApp(plan)"
+                />
+              </q-card-actions>
+            </q-card>
+          </div>
+        </div>
+      </div>
+
+      <!-- Online Plans -->
+      <div v-if="onlinePlans.length > 0" class="q-mt-md">
+        <div class="row q-col-gutter-md">
+          <div v-for="plan in onlinePlans" :key="plan.id" class="col-12 col-sm-6">
+            <q-card class="full-height">
+              <q-card-section>
+                <div class="row items-center justify-between q-mb-sm">
+                  <div class="planes-card-name">
+                    {{ plan.name }}
+                  </div>
+                  <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
+                </div>
+                <q-badge
+                  v-if="isCurrentPlan(plan)"
+                  color="primary"
+                  label="Tu plan actual"
+                  class="q-mb-sm"
+                />
+                <div class="q-mt-sm q-gutter-xs">
+                  <q-badge v-if="plan.durationDays" outline color="grey-7">
+                    {{ plan.durationDays }} dias
+                  </q-badge>
+                  <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
+                    {{ plan.classesPerWeek }} clases/semana
+                  </q-badge>
+                </div>
+                <div v-if="plan.description" class="text-body2 text-grey-7 q-mt-sm">
+                  {{ plan.description }}
+                </div>
+              </q-card-section>
+              <q-separator />
+              <q-card-actions>
+                <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
+                  <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+                  Activo — vence {{ formatEndDate() }}
+                </div>
+                <q-btn
+                  v-else
+                  flat
+                  no-caps
+                  color="positive"
+                  icon="chat"
+                  :label="ctaText"
+                  @click="openWhatsApp(plan)"
+                />
+              </q-card-actions>
+            </q-card>
+          </div>
+        </div>
+      </div>
+
+      <!-- Personalizada Plans -->
+      <div v-if="personalizadaPlans.length > 0" class="q-mt-md">
+        <div class="row q-col-gutter-md">
+          <div v-for="plan in personalizadaPlans" :key="plan.id" class="col-12 col-sm-6">
+            <q-card class="full-height">
+              <q-card-section>
+                <div class="planes-card-name q-mb-sm">
+                  {{ plan.name }}
+                </div>
+                <q-badge
+                  v-if="isCurrentPlan(plan)"
+                  color="primary"
+                  label="Tu plan actual"
+                  class="q-mb-sm"
+                />
+                <div v-if="plan.description" class="text-body2 text-grey-7">
+                  {{ plan.description }}
+                </div>
+                <div v-if="plan.durationDays" class="q-mt-sm">
+                  <q-badge outline color="grey-7"> {{ plan.durationDays }} dias </q-badge>
+                </div>
+                <div v-if="plan.personalizadaZones?.length" class="q-mt-sm">
+                  <div class="text-caption text-grey-6">Zonas</div>
+                  <div class="q-gutter-xs q-mt-xs">
+                    <q-badge
+                      v-for="zone in plan.personalizadaZones"
+                      :key="zone"
+                      outline
+                      color="primary"
+                      :label="zone"
+                    />
+                  </div>
+                </div>
+              </q-card-section>
+              <q-separator />
+              <q-card-actions>
+                <div v-if="isCurrentPlan(plan)" class="text-positive text-caption q-pa-sm">
+                  <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+                  Activo — vence {{ formatEndDate() }}
+                </div>
+                <q-btn
+                  v-else
+                  flat
+                  no-caps
+                  color="positive"
+                  icon="chat"
+                  :label="ctaText"
+                  @click="openWhatsApp(plan)"
+                />
+              </q-card-actions>
+            </q-card>
+          </div>
         </div>
       </div>
     </div>
@@ -307,10 +311,8 @@ function openWhatsApp(plan: MemberPlan): void {
 }
 
 function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
-  const memberId = userStore.profile?.id ?? ''
-  const seg = userStore.segment ?? ''
-  const deepMessage = `Hola, me interesa la experiencia "${exp.name}" [ref:${memberId}|${seg}|planes_page]`
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(deepMessage)}`
+  const message = `Hola, me interesa la experiencia "${exp.name}"`
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
 
@@ -346,3 +348,24 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped lang="scss">
+@import 'src/css/quasar.variables.scss';
+
+.planes-card-name {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
+}
+
+.planes-section-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 4px 0 12px;
+}
+</style>

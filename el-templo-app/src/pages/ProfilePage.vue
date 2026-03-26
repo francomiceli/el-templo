@@ -20,7 +20,7 @@
           </q-item-section>
           <q-item-section>
             <q-item-label class="profile-label">Sucursal</q-item-label>
-            <q-item-label class="profile-value">{{ userStore.profile?.branchName }}</q-item-label>
+            <q-item-label class="profile-value">{{ userStore.branchDisplayName }}</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>

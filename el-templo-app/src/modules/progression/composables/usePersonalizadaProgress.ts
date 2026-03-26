@@ -11,7 +11,7 @@ import type {
 const log = createLogger('PersonalizadaProgress')
 
 /**
- * Personalizada progress data for Mi Camino display.
+ * Personalizada progress data for Mi Templo display.
  * Combines active personalizada + metadata for rich display.
  */
 export interface PersonalizadaProgressDisplay {
@@ -22,7 +22,7 @@ export interface PersonalizadaProgressDisplay {
 }
 
 /**
- * Composable for fetching personalizada progress data for Mi Camino.
+ * Composable for fetching personalizada progress data for Mi Templo.
  *
  * Fetches active personalizada, archived personalizadas, and metadata in parallel.
  * Exposes cleanup() per composable convention (no onUnmounted inside).
@@ -38,7 +38,7 @@ export function usePersonalizadaProgress() {
   let apiInstance: ReturnType<typeof usePersonalizadaApi> | null = null
 
   /**
-   * Fetch all personalizada data needed for Mi Camino display.
+   * Fetch all personalizada data needed for Mi Templo display.
    * Loads active personalizada, archived personalizadas, and metadata in parallel.
    */
   async function fetchPersonalizadaData(): Promise<void> {

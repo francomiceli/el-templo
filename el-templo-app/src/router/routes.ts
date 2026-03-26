@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'home',
-        redirect: '/mi-camino',
+        redirect: '/mi-templo',
       },
       {
         path: 'profile',

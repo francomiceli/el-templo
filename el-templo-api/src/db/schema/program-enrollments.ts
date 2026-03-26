@@ -12,10 +12,12 @@ import { relations } from "drizzle-orm";
 import { users } from "./users";
 import { microPrograms } from "./micro-programs";
 
-export const programEnrollmentStatusEnum = mysqlEnum(
-  "program_enrollment_status",
-  ["active", "completed", "expired", "cancelled"],
-);
+export const programEnrollmentStatusEnum = mysqlEnum("status", [
+  "active",
+  "completed",
+  "expired",
+  "cancelled",
+]);
 
 export const programEnrollments = mysqlTable(
   "program_enrollments",

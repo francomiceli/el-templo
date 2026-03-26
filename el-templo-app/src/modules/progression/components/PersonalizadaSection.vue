@@ -283,7 +283,7 @@
 
 <script setup lang="ts">
 /**
- * PersonalizadaSection component for Mi Camino Personalizadas tab.
+ * PersonalizadaSection component for Mi Templo Personalizadas tab.
  *
  * Displays:
  * - Train CTA card with action button

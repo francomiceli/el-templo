@@ -1,19 +1,19 @@
-import type { Router } from 'vue-router';
-import type { ModuleManifest } from '../types';
-import routes from './routes';
+import type { Router } from 'vue-router'
+import type { ModuleManifest } from '../types'
+import routes from './routes'
 
 /**
  * Progression module manifest
  *
- * Provides the Mi Camino feature for tracking member progression.
+ * Provides the Mi Templo feature for tracking member progression.
  */
 export const manifest: ModuleManifest = {
   name: 'progression',
-  label: 'Mi Camino',
-  icon: 'trending_up',
-  basePath: '/mi-camino',
+  label: 'Mi Templo',
+  icon: 'account_balance',
+  basePath: '/mi-templo',
   routes,
-};
+}
 
 /**
  * Register progression module routes
@@ -22,8 +22,8 @@ export const manifest: ModuleManifest = {
  */
 export function registerModule(router: Router): void {
   routes.forEach((route) => {
-    router.addRoute('layout', route);
-  });
+    router.addRoute('layout', route)
+  })
 }
 
-export default manifest;
+export default manifest

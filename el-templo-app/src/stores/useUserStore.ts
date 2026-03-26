@@ -116,6 +116,11 @@ export const useUserStore = defineStore('user', () => {
     return hasActiveProgramEnrollment.value
   })
 
+  const branchDisplayName = computed(() => {
+    const name = profile.value?.branchName ?? ''
+    return name.replace(/^El Templo\s+/i, 'Sede ')
+  })
+
   const hasActiveSubscription = computed(() => {
     return subscription.value?.status === 'active' || subscription.value?.status === 'paused'
   })
@@ -185,6 +190,7 @@ export const useUserStore = defineStore('user', () => {
     onboardingCompleted,
     hasActivePersonalizada,
     hasActiveSubscription,
+    branchDisplayName,
     // Actions
     setProfile,
     markOnboardingComplete,

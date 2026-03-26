@@ -91,7 +91,6 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import type { MemberEnrollmentProgress, ContentBlockDetail, ContentBlockType } from '../types'
 
@@ -101,7 +100,6 @@ const props = defineProps<{
   progress: MemberEnrollmentProgress
 }>()
 
-const userStore = useUserStore()
 const expanded = ref(false)
 const textDialogVisible = ref(false)
 const textDialogTitle = ref('')
@@ -173,10 +171,8 @@ function handleBlockClick(block: ContentBlockDetail) {
 }
 
 function openRenewalWhatsApp() {
-  const memberId = userStore.profile?.id ?? ''
-  const seg = userStore.segment ?? ''
-  const deepMessage = `Hola, quiero renovar mi experiencia "${props.progress.programName}" [ref:${memberId}|${seg}|renewal]`
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(deepMessage)}`
+  const message = `Hola, quiero renovar mi experiencia "${props.progress.programName}"`
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
 </script>

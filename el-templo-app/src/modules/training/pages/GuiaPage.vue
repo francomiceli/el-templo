@@ -1,24 +1,24 @@
 <template>
-  <q-page class="conceptos-page">
-    <div class="conceptos-page__header">
+  <q-page class="guia-page">
+    <div class="guia-page__header">
       <!--       <q-btn flat round dense icon="arrow_back" color="grey-8" @click="$router.back()" /> -->
     </div>
 
-    <div class="conceptos-page__subtitle text-subtitle1 text-grey-7">Guia de Conceptos</div>
+    <p class="guia-page__subtitle">Guía de Entrenamiento</p>
 
-    <q-list class="conceptos-page__content">
+    <q-list class="guia-page__content">
       <!-- Bloques Section -->
       <q-expansion-item
-        group="conceptos"
+        group="guia"
         icon="view_module"
         label="Bloques"
-        header-class="conceptos-section-header"
+        header-class="guia-section-header"
       >
         <q-card>
           <q-card-section>
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Initium</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Initium</div>
+              <div class="guia-item__description">
                 Bloque de calentamiento. Prepara tu cuerpo para la sesión con movilidad y activación
                 muscular progresiva.
               </div>
@@ -26,9 +26,9 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Nucleus</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Nucleus</div>
+              <div class="guia-item__description">
                 Bloque principal de trabajo. Aquí se concentra el mayor volumen e intensidad de la
                 sesión según tu ruta del día.
               </div>
@@ -36,9 +36,9 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Deuteros</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Deuteros</div>
+              <div class="guia-item__description">
                 Bloque complementario. Eliges entre dos opciones para trabajar aspectos adicionales
                 según tus objetivos.
               </div>
@@ -46,9 +46,9 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Athlos / Epikos</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Athlos / Epikos</div>
+              <div class="guia-item__description">
                 Bloque de desafío final. Athlos es un reto corto e intenso. Epikos es un desafío más
                 largo que aparece alternadamente.
               </div>
@@ -58,17 +58,12 @@
       </q-expansion-item>
 
       <!-- Rutas Section -->
-      <q-expansion-item
-        group="conceptos"
-        icon="route"
-        label="Rutas"
-        header-class="conceptos-section-header"
-      >
+      <q-expansion-item group="guia" icon="route" label="Rutas" header-class="guia-section-header">
         <q-card>
           <q-card-section>
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Strength (Fuerza)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Strength (Fuerza)</div>
+              <div class="guia-item__description">
                 Desarrollo de fuerza máxima. Ejercicios con menor número de repeticiones y mayor
                 intensidad.
               </div>
@@ -76,18 +71,18 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Power (Potencia)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Power (Potencia)</div>
+              <div class="guia-item__description">
                 Trabajo explosivo. Combina fuerza y velocidad para desarrollar potencia muscular.
               </div>
             </div>
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Endurance (Resistencia)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Endurance (Resistencia)</div>
+              <div class="guia-item__description">
                 Resistencia muscular. Mayor volumen con intensidad moderada para mejorar capacidad
                 de trabajo.
               </div>
@@ -95,9 +90,9 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Hypertrophy (Hipertrofia)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Hypertrophy (Hipertrofia)</div>
+              <div class="guia-item__description">
                 Crecimiento muscular. Rango medio de repeticiones con enfoque en tensión muscular
                 sostenida.
               </div>
@@ -105,9 +100,9 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">Skill (Habilidad)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">Skill (Habilidad)</div>
+              <div class="guia-item__description">
                 Desarrollo técnico. Práctica de movimientos avanzados y progresiones de calistenia.
               </div>
             </div>
@@ -117,18 +112,18 @@
 
       <!-- Formatos Section -->
       <q-expansion-item
-        group="conceptos"
+        group="guia"
         icon="timer"
         label="Formatos"
-        header-class="conceptos-section-header"
+        header-class="guia-section-header"
       >
         <q-card>
           <q-card-section>
             <template v-for="(fmt, idx) in FORMATS" :key="fmt.name">
               <q-separator v-if="idx > 0" class="q-my-md" />
-              <div class="conceptos-item">
-                <div class="conceptos-item__title">{{ fmt.name }}</div>
-                <div class="conceptos-item__description">{{ fmt.description }}</div>
+              <div class="guia-item">
+                <div class="guia-item__title">{{ fmt.name }}</div>
+                <div class="guia-item__description">{{ fmt.description }}</div>
               </div>
             </template>
           </q-card-section>
@@ -137,25 +132,25 @@
 
       <!-- Intensidad Section -->
       <q-expansion-item
-        group="conceptos"
+        group="guia"
         icon="speed"
         label="Intensidad"
-        header-class="conceptos-section-header"
+        header-class="guia-section-header"
       >
         <q-card>
           <q-card-section>
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">30-50% (Baja)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">30-50% (Baja)</div>
+              <div class="guia-item__description">
                 Esfuerzo bajo. Ideal para calentamiento, técnica y recuperación activa.
               </div>
             </div>
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">50-70% (Moderada)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">50-70% (Moderada)</div>
+              <div class="guia-item__description">
                 Esfuerzo moderado. Zona de trabajo para resistencia y volumen. Puedes mantener
                 conversación.
               </div>
@@ -163,18 +158,18 @@
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">70-85% (Alta)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">70-85% (Alta)</div>
+              <div class="guia-item__description">
                 Esfuerzo alto. Zona de hipertrofia y fuerza. Requiere concentración y buena técnica.
               </div>
             </div>
 
             <q-separator class="q-my-md" />
 
-            <div class="conceptos-item">
-              <div class="conceptos-item__title">85-100% (Máxima)</div>
-              <div class="conceptos-item__description">
+            <div class="guia-item">
+              <div class="guia-item__title">85-100% (Máxima)</div>
+              <div class="guia-item__description">
                 Esfuerzo máximo. Para trabajo de fuerza máxima y potencia. Requiere descansos
                 largos.
               </div>
@@ -188,7 +183,7 @@
 
 <script setup lang="ts">
 /**
- * Conceptos Page
+ * Guía Page
  *
  * Educational guide explaining key training concepts:
  * - Bloques: Block types and their purpose
@@ -267,35 +262,41 @@ const FORMATS = [
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.conceptos-page {
+.guia-page {
   background: $cream;
-  min-height: 100vh;
+  min-height: var(--app-vh);
   padding-bottom: 24px;
 }
 
-.conceptos-page__header {
+.guia-page__header {
   display: flex;
   align-items: center;
   padding: 8px 16px;
   gap: 8px;
 }
 
-.conceptos-page__title {
+.guia-page__title {
   font-family: 'Montserrat', sans-serif;
   color: $primary;
   letter-spacing: 0.1em;
 }
 
-.conceptos-page__subtitle {
-  padding: 0 16px 16px;
-  font-style: italic;
+.guia-page__subtitle {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  padding: 0 16px 12px;
 }
 
-.conceptos-page__content {
+.guia-page__content {
   padding: 0 16px;
 }
 
-:deep(.conceptos-section-header) {
+:deep(.guia-section-header) {
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   color: $primary;
@@ -304,17 +305,17 @@ const FORMATS = [
   margin-bottom: 8px;
 }
 
-.conceptos-item {
+.guia-item {
   padding: 4px 0;
 }
 
-.conceptos-item__title {
+.guia-item__title {
   font-weight: 600;
   color: $primary;
   margin-bottom: 4px;
 }
 
-.conceptos-item__description {
+.guia-item__description {
   color: #666;
   line-height: 1.5;
 }

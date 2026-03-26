@@ -1,6 +1,10 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated class="main-header">
+    <q-header
+      :elevated="!isMiTemplo"
+      class="main-header"
+      :class="{ 'main-header--unified': isMiTemplo }"
+    >
       <q-toolbar>
         <!-- Desktop: hamburger for drawer -->
         <q-btn
@@ -16,7 +20,7 @@
         <q-toolbar-title
           class="header-title"
           clickable
-          @click="$router.push('/mi-camino')"
+          @click="$router.push('/mi-templo')"
           style="cursor: pointer"
         >
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
@@ -30,6 +34,18 @@
           <q-tooltip>Cerrar sesion</q-tooltip>
         </q-btn>
       </q-toolbar>
+
+      <!-- Greeting row — only on Mi Templo -->
+      <div v-if="isMiTemplo && authStore.isAuthenticated" class="header-greeting">
+        <div class="header-greeting__text">
+          <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
+          <p class="header-greeting__date">{{ formattedDate }}</p>
+        </div>
+        <div v-if="greetingLevel" class="header-greeting__badge">
+          <span class="header-greeting__symbol">{{ greetingLevel.greekLetter }}</span>
+          <span class="header-greeting__level">{{ greetingLevel.levelName }}</span>
+        </div>
+      </div>
     </q-header>
 
     <!-- Desktop drawer (hidden on mobile) -->
@@ -43,9 +59,9 @@
       <q-list>
         <q-item-label header class="drawer-header">Menu</q-item-label>
 
-        <q-item clickable to="/mi-camino" @click="leftDrawerOpen = false">
+        <q-item clickable to="/mi-templo" @click="leftDrawerOpen = false">
           <q-item-section avatar>
-            <q-icon name="trending_up">
+            <q-icon name="account_balance">
               <q-badge
                 v-if="progressionStore.evaluationEligible"
                 floating
@@ -54,7 +70,7 @@
               />
             </q-icon>
           </q-item-section>
-          <q-item-section>Mi Camino</q-item-section>
+          <q-item-section>Mi Templo</q-item-section>
         </q-item>
 
         <q-item clickable to="/training" @click="leftDrawerOpen = false">
@@ -76,11 +92,11 @@
           <q-item-section>Reservas</q-item-section>
         </q-item>
 
-        <q-item clickable to="/training/conceptos" @click="leftDrawerOpen = false">
+        <q-item clickable to="/training/guia" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="menu_book" />
           </q-item-section>
-          <q-item-section>Conceptos</q-item-section>
+          <q-item-section>Guía</q-item-section>
         </q-item>
 
         <q-item clickable to="/planes" @click="leftDrawerOpen = false">
@@ -151,6 +167,31 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const progressionStore = useProgressionStore()
 
+const isMiTemplo = computed(() => route.path === '/mi-templo')
+
+const memberName = computed(() => {
+  const profile = userStore.profile
+  if (!profile) return 'Atleta'
+  return profile.firstName ?? profile.displayName ?? 'Atleta'
+})
+
+const formattedDate = computed(() => {
+  const date = new Date().toLocaleDateString('es-ES', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
+})
+
+const greetingLevel = computed(() => {
+  if (!progressionStore.level) return null
+  return {
+    greekLetter: progressionStore.level.greekLetter,
+    levelName: progressionStore.level.displayName,
+  }
+})
+
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
@@ -168,23 +209,23 @@ interface MobileTab {
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
-    { to: '/mi-camino', icon: 'trending_up', label: 'Mi Camino', badge: true },
+    { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
     { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
   ]
   if (!userStore.profile?.branchIsVirtual) {
     tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
   }
-  tabs.push({ to: '/training/conceptos', icon: 'menu_book', label: 'Conceptos' })
+  tabs.push({ to: '/training/guia', icon: 'menu_book', label: 'Guía' })
   tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
   return tabs
 })
 
 function isTabActive(tabTo: string): boolean {
-  // Exact match for /training to avoid matching /training/conceptos
+  // Exact match for /training to avoid matching /training/guia
   if (tabTo === '/training') {
     return (
       route.path === '/training' ||
-      (route.path.startsWith('/training') && !route.path.startsWith('/training/conceptos'))
+      (route.path.startsWith('/training') && !route.path.startsWith('/training/guia'))
     )
   }
   return route.path.startsWith(tabTo)
@@ -216,6 +257,10 @@ async function onLogout() {
 
 .main-header {
   background: linear-gradient(135deg, #c07a56 0%, #a0755a 100%);
+
+  &--unified {
+    background: linear-gradient(135deg, #c07a56 0%, #a0755a 100%);
+  }
 }
 
 .header-title {
@@ -235,6 +280,55 @@ async function onLogout() {
   border-radius: 6px;
   background-color: #f5f0e8;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.header-greeting {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 8px 16px 14px;
+
+  &__text {
+    flex: 1;
+  }
+
+  &__name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  &__date {
+    font-family: 'Geologica', sans-serif;
+    font-size: 12px;
+    color: rgba(white, 0.7);
+    margin: 2px 0 0;
+  }
+
+  &__badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0.6;
+    padding-bottom: 2px;
+    margin-right: 6px;
+  }
+
+  &__symbol {
+    font-size: 32px;
+    color: #fff;
+    line-height: 1;
+  }
+
+  &__level {
+    font-size: 8px;
+    color: #fff;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
 }
 
 .main-drawer {
