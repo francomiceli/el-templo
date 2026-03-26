@@ -11,6 +11,7 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ProgramsService } from "./service";
+import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { ADMIN_ROLES, COACH_ROLES } from "../shared/permissions";
 import type {
@@ -143,6 +144,7 @@ const userIdParamsSchema = {
 
 export const programRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ProgramsService(fastify.db, fastify.log);
+  const notificationService = new NotificationService(fastify.db, fastify.log);
 
   // =========================================================================
   // Admin Routes — Program CRUD (ADMIN_ROLES)
@@ -224,6 +226,20 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         const enrollmentId = await service.enrollMember(request.body);
+
+        // Queue enrollment confirmation notification (per D-08)
+        try {
+          await notificationService.queueNotification({
+            userId: request.body.userId,
+            templateKey: "program_enrollment",
+          });
+        } catch (notifErr: unknown) {
+          request.log.warn(
+            { err: notifErr, userId: request.body.userId },
+            "Program enrollment notification failed (graceful degradation)",
+          );
+        }
+
         return reply.code(201).send({ enrollmentId });
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "enrollMember");

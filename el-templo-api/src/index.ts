@@ -16,6 +16,7 @@ import "./instrument";
 import { buildApp } from "./app";
 import { startAutoApproveJob } from "./jobs/auto-approve";
 import { startMarkNoShowsJob } from "./jobs/mark-no-shows";
+import { startNotificationJobs } from "./jobs/notification-cron";
 
 async function start() {
   const app = await buildApp();
@@ -32,6 +33,7 @@ async function start() {
     // Start cron jobs after server is ready
     startAutoApproveJob(app.db);
     startMarkNoShowsJob(app.db);
+    startNotificationJobs(app.db);
   } catch (err: unknown) {
     app.log.error(err);
     process.exit(1);
