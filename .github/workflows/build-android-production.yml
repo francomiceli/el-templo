@@ -69,6 +69,10 @@ jobs:
         working-directory: el-templo-app/src-capacitor/android/app
         run: printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > keystore.jks
 
+      - name: Decode google-services.json
+        working-directory: el-templo-app/src-capacitor/android/app
+        run: printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > google-services.json
+
       - name: Extract version name
         id: version
         working-directory: el-templo-app/src-capacitor/android/app
