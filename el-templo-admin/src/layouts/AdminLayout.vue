@@ -136,6 +136,12 @@
             </q-item-section>
             <q-item-section>Configuracion</q-item-section>
           </q-item>
+          <q-item clickable v-ripple to="/notificaciones">
+            <q-item-section avatar>
+              <q-icon name="notifications" />
+            </q-item-section>
+            <q-item-section>Notificaciones</q-item-section>
+          </q-item>
         </template>
       </q-list>
     </q-drawer>
