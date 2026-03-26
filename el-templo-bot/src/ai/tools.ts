@@ -36,11 +36,38 @@ const DAY_NAMES: Record<number, string> = {
  * Hardcoded address lookup for known branches.
  * TODO: Move to DB when address columns are added to the branches table.
  */
-const BRANCH_ADDRESSES: Record<string, string> = {
-  alem: "Av. Leandro N. Alem 896, San Miguel de Tucumán",
-  constitucion: "Av. Constitución 1050, San Miguel de Tucumán",
-  jujuy: "Av. Jujuy 300, San Miguel de Tucumán",
+export const BRANCH_ADDRESSES: Record<string, string> = {
+  constitucion: "Av. Constitucion 6745, Mar del Plata",
+  jujuy: "Jujuy 3761, Mar del Plata",
+  alem: "Alem 3958, Mar del Plata",
+  moreno: "Moreno 3751, Mar del Plata",
+  "mario bravo": "Mario Bravo 618, Mar del Plata",
 };
+
+/**
+ * Real Google Maps short links for each branch.
+ */
+export const BRANCH_MAPS_LINKS: Record<string, string> = {
+  constitucion: "https://maps.app.goo.gl/vi9c8ErtHr7RpQxD6",
+  jujuy: "https://maps.app.goo.gl/EFEVhYhphKKaZqF5A",
+  alem: "https://maps.app.goo.gl/KiyqJQJYG1LbUsAL6",
+  moreno: "https://maps.app.goo.gl/EFEVhYhphKKaZqF5A",
+  "mario bravo": "https://maps.app.goo.gl/DciqhK6yc3dhpmTn6",
+};
+
+/**
+ * Normalize branch code variations to canonical keys used in BRANCH_ADDRESSES
+ * and BRANCH_MAPS_LINKS. Database codes may differ from our display keys.
+ */
+function normalizeBranchCode(code: string): string {
+  const normalized = code.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    mario_bravo: "mario bravo",
+    mariobravo: "mario bravo",
+    "mario-bravo": "mario bravo",
+  };
+  return aliases[normalized] ?? normalized;
+}
 
 // ─── Tool Definitions ────────────────────────────────────────────────────────
 
@@ -458,10 +485,19 @@ async function getLocation(
 
 function formatBranchLocations(rows: BranchRow[], prefix?: string): string {
   const lines = rows.map((row) => {
-    const codeKey = row.code.toLowerCase();
-    const address = BRANCH_ADDRESSES[codeKey] ?? null;
-    const mapsQuery = encodeURIComponent(`El Templo ${row.name} ${row.code}`);
-    const mapsLink = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+    const codeKey = normalizeBranchCode(row.code);
+    // Also try matching by name if code doesn't match
+    const nameKey = Object.keys(BRANCH_ADDRESSES).find((key) =>
+      row.name.toLowerCase().includes(key),
+    );
+    const lookupKey =
+      codeKey in BRANCH_ADDRESSES ? codeKey : (nameKey ?? codeKey);
+
+    const address = BRANCH_ADDRESSES[lookupKey] ?? null;
+    const realMapsLink = BRANCH_MAPS_LINKS[lookupKey] ?? null;
+    const mapsLink =
+      realMapsLink ??
+      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`El Templo ${row.name} Mar del Plata`)}`;
 
     if (address) {
       return `- *${row.name}*: ${address}\n  Maps: ${mapsLink}`;
