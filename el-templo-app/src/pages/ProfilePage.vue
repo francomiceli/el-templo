@@ -184,7 +184,7 @@ async function loadPreferences() {
   try {
     const { data } = await api.get<{
       preferences: Record<NotificationCategory, boolean>
-    }>('/api/notifications/preferences')
+    }>('/notifications/preferences')
     Object.assign(preferences, data.preferences)
   } catch (err: unknown) {
     log.error('Failed to load notification preferences', {
@@ -199,7 +199,7 @@ async function togglePreference(category: NotificationCategory, enabled: boolean
   // Optimistic update
   preferences[category] = enabled
   try {
-    await api.put('/api/notifications/preferences', { category, enabled })
+    await api.put('/notifications/preferences', { category, enabled })
   } catch (err: unknown) {
     // Revert on failure
     preferences[category] = !enabled

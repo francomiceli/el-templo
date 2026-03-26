@@ -20,7 +20,7 @@ export default boot(async ({ router }) => {
     log.info('FCM token received')
     store.setFcmToken(token.value)
     try {
-      await api.post('/api/notifications/token', {
+      await api.post('/notifications/token', {
         token: token.value,
         platform: Capacitor.getPlatform(), // 'android' or 'ios'
       })
@@ -47,36 +47,33 @@ export default boot(async ({ router }) => {
   })
 
   // Listener: Notification tapped (background or cold start) (per D-28, D-30, D-32)
-  await PushNotifications.addListener(
-    'pushNotificationActionPerformed',
-    async (action) => {
-      const data = action.notification.data as Record<string, string> | undefined
-      const route = data?.route || '/mi-templo'
-      const notificationId = data?.notificationId
+  await PushNotifications.addListener('pushNotificationActionPerformed', async (action) => {
+    const data = action.notification.data as Record<string, string> | undefined
+    const route = data?.route || '/mi-templo'
+    const notificationId = data?.notificationId
 
-      log.info('Notification tapped', { route, notificationId })
+    log.info('Notification tapped', { route, notificationId })
 
-      // Report opened to backend (per D-32)
-      if (notificationId) {
-        try {
-          await api.post(`/api/notifications/${notificationId}/opened`)
-        } catch (err: unknown) {
-          log.error(
-            'Failed to report notification opened',
-            err instanceof Error ? { message: err.message } : { message: String(err) },
-          )
-        }
-      }
-
-      // Navigate to target route (per D-28)
-      // If router is ready, navigate immediately. Otherwise store as pending.
+    // Report opened to backend (per D-32)
+    if (notificationId) {
       try {
-        router.push(route)
-      } catch {
-        store.setPendingRoute(route)
+        await api.post(`/notifications/${notificationId}/opened`)
+      } catch (err: unknown) {
+        log.error(
+          'Failed to report notification opened',
+          err instanceof Error ? { message: err.message } : { message: String(err) },
+        )
       }
-    },
-  )
+    }
+
+    // Navigate to target route (per D-28)
+    // If router is ready, navigate immediately. Otherwise store as pending.
+    try {
+      router.push(route)
+    } catch {
+      store.setPendingRoute(route)
+    }
+  })
 
   // Check current permission status
   const permResult = await PushNotifications.checkPermissions()
