@@ -9,6 +9,7 @@
  */
 
 import type { ClientState } from "../state/machine.js";
+import { getBusinessKnowledge } from "./knowledge.js";
 
 interface SystemPromptOptions {
   clientState?: ClientState;
@@ -107,7 +108,13 @@ Después de escalar, no respondas más mensajes -- el equipo humano toma el cont
 
 - No manejás pagos, mensajes de voz ni imágenes.
 - Si no sabés algo, admitilo: "No estoy seguro de eso. ¿Te puedo ayudar con horarios, membresías o ubicación?"
-- Cuando tengas dudas reales, escalá a un humano en vez de inventar información.`;
+- Cuando tengas dudas reales, escalá a un humano en vez de inventar información.
+
+## Conocimiento del negocio
+
+A continuacion tenes la informacion actualizada de El Templo. Usa estos datos para responder consultas de precios, horarios, sedes, planes, clases de prueba y uso de la app. No inventes datos -- si la informacion no esta aca, admitilo y ofrecé escalar a un humano.
+
+${getBusinessKnowledge()}`;
 
   const sections: string[] = [base];
 
