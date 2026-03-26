@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: null
-milestone_name: null
-status: between_milestones
+milestone: v5.1
+milestone_name: Production Readiness & Business Data
+status: defining_requirements
 stopped_at: null
 last_updated: "2026-03-26T00:00:00.000Z"
-last_activity: 2026-03-26 -- Completed v5.0 WhatsApp AI Chatbot milestone
+last_activity: 2026-03-26 -- Milestone v5.1 started
 progress:
   total_phases: 0
   completed_phases: 0
@@ -20,8 +20,8 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-26)
 
-**Core value:** Members know exactly what to train today, complete guided sessions, see progress, and advance through levels. Prospective members get instant WhatsApp answers and can book classes without human intervention.
-**Current focus:** Planning next milestone
+**Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
+**Current focus:** Defining requirements for v5.1 Production Readiness & Business Data
 
 ## Current Position
 
