@@ -179,7 +179,7 @@ const adminStore = useAdminStore();
 const userRole = computed(() => authStore.user?.role ?? '');
 
 // coach, admin, owner can see training pages (sesiones, generar, ejercicios, horarios)
-const isCoachRole = computed(() => ['coach', 'admin', 'owner'].includes(userRole.value));
+const isCoachRole = computed(() => ['coach', 'owner'].includes(userRole.value));
 
 // admin, owner can see admin pages (planes, analiticas)
 const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));

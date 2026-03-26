@@ -43,7 +43,7 @@ import {
 } from "./video-schemas";
 
 import { handleServiceError } from "../shared/error-handler";
-import { COACH_ROLES } from "../shared/permissions";
+import { TRAINING_ROLES } from "../shared/permissions";
 
 export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   const adminService = new AdminSessionService(fastify.db);
@@ -52,7 +52,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   // Role check hook for all routes
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
-    if (!(COACH_ROLES as readonly string[]).includes(request.user.role)) {
+    if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
       return reply
         .status(403)
         .send({ error: "Acceso de administrador requerido" });

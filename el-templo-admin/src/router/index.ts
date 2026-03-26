@@ -42,7 +42,7 @@ export default defineRouter(function () {
       const role = authStore.user?.role as AdminRole;
       const defaultPages: Record<string, string> = {
         owner: '/sessions',
-        admin: '/sessions',
+        admin: '/alumnos',
         coach: '/sessions',
         recepcionista: '/alumnos',
       };
