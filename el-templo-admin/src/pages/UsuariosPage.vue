@@ -115,6 +115,7 @@
             :rules="[(v: string) => !!v || 'Requerido']"
           />
           <q-select
+            v-if="needsBranch"
             v-model="form.branchId"
             label="Sede"
             :options="branches"
@@ -147,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -185,6 +186,9 @@ const roleOptions = [
   { label: 'Owner', value: 'owner' },
   { label: 'Recepcionista', value: 'recepcionista' },
 ];
+
+const BRANCH_ROLES = new Set(['coach', 'recepcionista']);
+const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 const ROLE_COLORS: Record<string, string> = {
   owner: 'deep-purple',
@@ -348,17 +352,23 @@ async function handleSave() {
     }
   } else {
     // Create mode: validate required fields
+    const branchRequired = BRANCH_ROLES.has(form.value.role);
     if (
       !form.value.firstName ||
       !form.value.lastName ||
       !form.value.email ||
       !form.value.password ||
       !form.value.role ||
-      form.value.branchId === null
+      (branchRequired && form.value.branchId === null)
     ) {
       $q.notify({ type: 'warning', message: 'Completa todos los campos requeridos' });
       return;
     }
+
+    // Admin/owner don't need a branch, but DB requires one — assign first branch
+    const branchId = branchRequired
+      ? form.value.branchId!
+      : (form.value.branchId ?? branches.value[0]?.id ?? 1);
 
     try {
       await usersApi.createUser({
@@ -367,7 +377,7 @@ async function handleSave() {
         email: form.value.email,
         password: form.value.password,
         role: form.value.role as 'coach' | 'admin' | 'owner' | 'recepcionista',
-        branchId: form.value.branchId,
+        branchId,
       });
       dialogOpen.value = false;
       $q.notify({ type: 'positive', message: 'Usuario creado' });
