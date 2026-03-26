@@ -345,8 +345,8 @@ async function onLogout() {
    Mobile Bottom Tab Bar
    ------------------------------------------------------------------ */
 .mobile-footer {
-  background: $cream;
-  border-top: 1px solid rgba($accent, 0.12);
+  background: linear-gradient(135deg, #a0755a 0%, #c07a56 100%);
+  border-top: none;
 }
 
 .mobile-tabs {
@@ -369,12 +369,12 @@ async function onLogout() {
   flex: 1;
   height: 100%;
   text-decoration: none;
-  color: rgba($accent, 0.5);
+  color: rgba(white, 0.6);
   transition: color 200ms ease;
   -webkit-tap-highlight-color: transparent;
 
   &--active {
-    color: $primary;
+    color: white;
   }
 
   &__label {
