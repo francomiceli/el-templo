@@ -1326,7 +1326,11 @@ Plans:
 2. AI conversations with tool calls do not produce OpenAI "tool context" validation errors even when message history contains incomplete tool call/result pairs
 3. Argentine phone numbers are normalized consistently across all WhatsApp send functions (sendTextMessage, sendInteractiveMessage, sendTemplateMessage)
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] 76-01-PLAN.md — Fix scheduler column names, OpenAI tool_calls mapping, verify phone normalization
 
 ---
 
