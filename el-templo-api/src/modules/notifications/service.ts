@@ -87,9 +87,7 @@ export class NotificationService {
           ? admin.apps[0]
           : admin.initializeApp({
               credential: admin.credential.cert(
-                serviceAccount as Parameters<
-                  typeof admin.credential.cert
-                >[0],
+                serviceAccount as Parameters<typeof admin.credential.cert>[0],
               ),
             });
 
@@ -136,7 +134,10 @@ export class NotificationService {
       .delete(schema.deviceTokens)
       .where(eq(schema.deviceTokens.token, token));
 
-    this.log.info({ token: token.slice(0, 20) + "..." }, "Device token removed");
+    this.log.info(
+      { token: token.slice(0, 20) + "..." },
+      "Device token removed",
+    );
   }
 
   // ── Notification Preferences ────────────────────────────────────────────
@@ -204,8 +205,14 @@ export class NotificationService {
    * @returns The pending notification ID, or -1 if skipped
    */
   async queueNotification(input: QueueNotificationInput): Promise<number> {
-    const { userId, templateKey, scheduledAt, titleOverride, bodyOverride, routeOverride } =
-      input;
+    const {
+      userId,
+      templateKey,
+      scheduledAt,
+      titleOverride,
+      bodyOverride,
+      routeOverride,
+    } = input;
 
     // Look up template
     const [template] = await this.db
@@ -215,7 +222,10 @@ export class NotificationService {
       .limit(1);
 
     if (!template) {
-      this.log.warn({ templateKey }, "Notification template not found — skipping");
+      this.log.warn(
+        { templateKey },
+        "Notification template not found — skipping",
+      );
       return -1;
     }
 
@@ -303,7 +313,8 @@ export class NotificationService {
    * Selects pending notifications where scheduledAt <= now, sends via FCM.
    */
   async processQueue(): Promise<{ sent: number; failed: number }> {
-    const now = new Date();
+    // Add 1s buffer to account for MySQL timestamp second-level truncation
+    const now = new Date(Date.now() + 1000);
     let sent = 0;
     let failed = 0;
 
@@ -451,7 +462,10 @@ export class NotificationService {
 
       // Single retry (per D-38)
       this.log.warn(
-        { token: token.slice(0, 20) + "...", err: err instanceof Error ? err.message : "Unknown" },
+        {
+          token: token.slice(0, 20) + "...",
+          err: err instanceof Error ? err.message : "Unknown",
+        },
         "FCM send failed — retrying",
       );
 
@@ -532,10 +546,7 @@ export class NotificationService {
     const deletedCount = result[0].affectedRows ?? 0;
 
     if (deletedCount > 0) {
-      this.log.info(
-        { deletedCount },
-        "Purged old notifications from queue",
-      );
+      this.log.info({ deletedCount }, "Purged old notifications from queue");
     }
 
     return deletedCount;
