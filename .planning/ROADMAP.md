@@ -1284,7 +1284,12 @@ See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 4. Bot explains Zero pricing rules, Boarding Pass, ROM, and plan upgrade paths accurately when asked
 5. Bot guides users through trial class booking (free first class, what to bring, how to book) and app troubleshooting (download, login) when asked
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 74-01-PLAN.md — Structured knowledge file with business data + system prompt integration
+- [ ] 74-02-PLAN.md — Fix get_location tool with real addresses/Maps links + accuracy tests
 
 ---
 
@@ -1362,7 +1367,7 @@ Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 
 
 | Phase                         | Plans Complete | Status      | Completed |
 | ----------------------------- | -------------- | ----------- | --------- |
-| 74. Business Data Integration | 0/?            | Not started | -         |
+| 74. Business Data Integration | 0/2            | Planned     | -         |
 | 75. Database Seeding          | 0/?            | Not started | -         |
 | 76. Known Issues Fix          | 0/?            | Not started | -         |
 | 77. GitHub Actions Deployment | 0/?            | Not started | -         |
