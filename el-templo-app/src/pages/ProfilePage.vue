@@ -29,7 +29,7 @@
     <!-- Subscription -->
     <q-card class="profile-card" flat bordered>
       <q-card-section class="profile-card__header">
-        <span class="profile-card__title">Mi Suscripción</span>
+        <span class="profile-card__title">Mi Suscripcion</span>
       </q-card-section>
 
       <q-separator />
@@ -64,7 +64,7 @@
               }}</span>
             </div>
             <div class="subscription-detail">
-              <span class="subscription-detail__label">Días restantes</span>
+              <span class="subscription-detail__label">Dias restantes</span>
               <span
                 class="subscription-detail__value"
                 :class="{
@@ -78,19 +78,55 @@
         </template>
 
         <div v-else class="text-center q-pa-sm">
-          <div class="text-grey-5 text-italic">Sin suscripción activa</div>
+          <div class="text-grey-5 text-italic">Sin suscripcion activa</div>
         </div>
       </q-card-section>
     </q-card>
 
-    <!-- Actions -->
+    <!-- Notificaciones (per D-18, D-21) -->
     <q-card class="profile-card" flat bordered>
+      <q-card-section class="profile-card__header">
+        <span class="profile-card__title">Notificaciones</span>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section>
+        <div v-if="preferencesLoading" class="flex flex-center q-pa-sm">
+          <q-spinner-dots size="24px" color="primary" />
+        </div>
+        <q-list v-else>
+          <q-item v-for="cat in notificationCategories" :key="cat.key" tag="label">
+            <q-item-section>
+              <q-item-label class="profile-value">{{ cat.label }}</q-item-label>
+              <q-item-label caption class="profile-label">{{ cat.description }}</q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-toggle
+                :model-value="preferences[cat.key]"
+                color="primary"
+                @update:model-value="(val: boolean) => togglePreference(cat.key, val)"
+              />
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card-section>
+    </q-card>
+
+    <!-- Ajustes (per D-21: Cambiar contrasena grouped with settings) -->
+    <q-card class="profile-card" flat bordered>
+      <q-card-section class="profile-card__header">
+        <span class="profile-card__title">Ajustes</span>
+      </q-card-section>
+
+      <q-separator />
+
       <q-list>
         <q-item clickable v-ripple to="/change-password">
           <q-item-section avatar>
             <q-icon name="lock" color="secondary" size="22px" />
           </q-item-section>
-          <q-item-section class="profile-value">Cambiar contraseña</q-item-section>
+          <q-item-section class="profile-value">Cambiar contrasena</q-item-section>
           <q-item-section side>
             <q-icon name="chevron_right" color="grey-5" />
           </q-item-section>
@@ -101,14 +137,82 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useUserStore } from 'stores/useUserStore'
 import { formatDate } from 'src/utils/format-date'
+import { api } from 'src/boot/axios'
+import { createLogger } from 'src/utils/logger'
 
+const log = createLogger('ProfilePage')
 const userStore = useUserStore()
+
+// Notification categories (per D-18)
+const notificationCategories = [
+  {
+    key: 'entrenamiento',
+    label: 'Entrenamiento',
+    description: 'Recordatorios de check-in, resumen semanal',
+  },
+  {
+    key: 'programas',
+    label: 'Programas',
+    description: 'Confirmacion de inscripcion, avance semanal',
+  },
+  {
+    key: 'motivacion',
+    label: 'Motivacion',
+    description: 'Mensajes de re-engagement, celebraciones',
+  },
+  {
+    key: 'anuncios',
+    label: 'Anuncios',
+    description: 'Comunicados del gimnasio',
+  },
+] as const
+
+type NotificationCategory = 'entrenamiento' | 'programas' | 'motivacion' | 'anuncios'
+
+const preferencesLoading = ref(true)
+const preferences = reactive<Record<NotificationCategory, boolean>>({
+  entrenamiento: true,
+  programas: true,
+  motivacion: true,
+  anuncios: true,
+})
+
+async function loadPreferences() {
+  try {
+    const { data } = await api.get<{
+      preferences: Record<NotificationCategory, boolean>
+    }>('/api/notifications/preferences')
+    Object.assign(preferences, data.preferences)
+  } catch (err: unknown) {
+    log.error('Failed to load notification preferences', {
+      error: err instanceof Error ? err.message : String(err),
+    })
+  } finally {
+    preferencesLoading.value = false
+  }
+}
+
+async function togglePreference(category: NotificationCategory, enabled: boolean) {
+  // Optimistic update
+  preferences[category] = enabled
+  try {
+    await api.put('/api/notifications/preferences', { category, enabled })
+  } catch (err: unknown) {
+    // Revert on failure
+    preferences[category] = !enabled
+    log.error('Failed to update preference', {
+      error: err instanceof Error ? err.message : String(err),
+      category,
+    })
+  }
+}
 
 onMounted(() => {
   userStore.loadSubscription()
+  loadPreferences()
 })
 </script>
 
