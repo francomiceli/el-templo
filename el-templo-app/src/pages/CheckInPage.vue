@@ -85,8 +85,10 @@ async function startScanner() {
       { facingMode: 'environment' },
       {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1,
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.7
+          return { width: size, height: size }
+        },
       },
       onScanSuccess,
       // ignore scan failures (no QR detected in frame)
@@ -125,7 +127,7 @@ async function onScanSuccess(decodedText: string) {
 
   try {
     const record = await checkIn(decodedText)
-    resultBranchName.value = record.branchName
+    resultBranchName.value = record.branchName.replace(/^El Templo\s+/i, 'Sede ')
     state.value = 'success'
     log.info('Check-in successful', { branchName: record.branchName })
   } catch (err: unknown) {
@@ -159,7 +161,7 @@ onBeforeUnmount(() => {
 
 .check-in-page {
   background: #1a1a1a;
-  min-height: 100vh;
+  min-height: var(--app-vh);
   color: white;
 }
 
@@ -200,14 +202,34 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-// Deep selector to style html5-qrcode internal elements
+// Deep selectors to style html5-qrcode internal elements on all devices
+:deep(#qr-reader) {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+}
+
 :deep(#qr-reader video) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
   border-radius: 16px;
-  object-fit: cover;
 }
 
 :deep(#qr-reader__scan_region) {
-  min-height: 250px;
+  position: relative;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: hidden;
+}
+
+:deep(#qr-reader__scan_region img) {
+  display: none; // hide library's built-in scan region outline
+}
+
+// Hide camera-selection dashboard the library injects
+:deep(#qr-reader__dashboard_section) {
+  display: none !important;
 }
 
 .scanner-overlay {
@@ -221,8 +243,8 @@ onBeforeUnmount(() => {
 
 .scanner-frame {
   position: relative;
-  width: 250px;
-  height: 250px;
+  width: 70%;
+  aspect-ratio: 1;
 }
 
 .corner {

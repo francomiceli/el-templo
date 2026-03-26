@@ -219,12 +219,15 @@ $charcoal-mid: #3d3732;
 // =========================================================================
 .login-page {
   background-color: $charcoal !important;
-  min-height: 100vh;
+  min-height: var(--app-vh);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   transition: opacity 0.8s ease;
 
   &--exiting {

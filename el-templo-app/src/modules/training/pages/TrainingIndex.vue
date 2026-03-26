@@ -42,7 +42,7 @@ onMounted(async () => {
 
 .training-index {
   background-color: $cream;
-  min-height: 100vh;
+  min-height: var(--app-vh);
 }
 
 /* Loading state */

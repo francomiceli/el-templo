@@ -14,13 +14,7 @@
         </q-banner>
 
         <div class="q-gutter-md">
-          <q-btn
-            color="primary"
-            label="Login"
-            to="/login"
-            :disable="true"
-            class="q-px-xl"
-          />
+          <q-btn color="primary" label="Login" to="/login" :disable="true" class="q-px-xl" />
           <q-btn
             color="secondary"
             label="Register"
@@ -31,9 +25,7 @@
           />
         </div>
 
-        <p class="text-caption text-grey q-mt-md">
-          Authentication coming in Phase 2
-        </p>
+        <p class="text-caption text-grey q-mt-md">Authentication coming in Phase 2</p>
       </div>
 
       <q-separator class="q-my-xl" />
@@ -72,33 +64,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useAuthStore } from 'stores/useAuthStore';
-import axios from 'axios';
-import { storeToRefs } from 'pinia';
+import { ref, onMounted } from 'vue'
+import { useAuthStore } from 'stores/useAuthStore'
+import axios from 'axios'
+import { storeToRefs } from 'pinia'
 
-const authStore = useAuthStore();
-const { isAuthenticated } = storeToRefs(authStore);
+const authStore = useAuthStore()
+const { isAuthenticated } = storeToRefs(authStore)
 
-const apiStatus = ref('checking...');
+const apiStatus = ref('checking...')
 
 // Health endpoint is at root level, not under /api
-const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace('/api', '');
+const apiBaseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:3000/api').replace('/api', '')
 
 onMounted(async () => {
   try {
-    const response = await axios.get(`${apiBaseUrl}/health`);
+    const response = await axios.get(`${apiBaseUrl}/health`)
     if (response.data.status === 'ok') {
-      apiStatus.value = 'connected';
+      apiStatus.value = 'connected'
     }
   } catch {
-    apiStatus.value = 'offline (start backend with pnpm dev)';
+    apiStatus.value = 'offline (start backend with pnpm dev)'
   }
-});
+})
 </script>
 
 <style scoped>
 .q-page {
-  min-height: calc(100vh - 50px);
+  min-height: calc(var(--app-vh) - 50px);
 }
 </style>
