@@ -30,7 +30,7 @@ Phase: 74-business-data-integration (2/2 plans complete)
 Status: Phase 74 complete, ready for next phase
 Last activity: 2026-03-26 - Completed 74-02 (location data + knowledge tests)
 
-**Progress:** [█---------] 10%
+**Progress:** [██████████] 98%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Last activity: 2026-03-26 - Completed 74-02 (location data + knowledge tests)
 | 73           | 2/2   | 22 min  | 11 min   |
 | Phase 74 P01 | 2min  | 2 tasks | 2 files  |
 | Phase 74 P02 | 2min  | 2 tasks | 2 files  |
+| Phase 75 P01 | 3min  | 2 tasks | 4 files  |
 
 ## Accumulated Context
 
@@ -117,6 +118,8 @@ Recent decisions affecting current work:
 - [74-02] Exported BRANCH_ADDRESSES and BRANCH_MAPS_LINKS from tools.ts for direct test import
 - [74-02] normalizeBranchCode alias map for robust DB code matching (mario_bravo -> mario bravo)
 - [74-02] Name-based fallback lookup when normalized branch code not found in address maps
+- [Phase 75]: Manual migration file when drizzle-kit generate has interactive prompts
+- [Phase 75]: Per-branch schedule config map keyed by branch code for explicit schedule differences
 
 ### Pending Todos
 

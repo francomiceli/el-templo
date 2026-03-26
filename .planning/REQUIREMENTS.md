@@ -20,11 +20,11 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ### Database Seeding
 
-- [ ] **SEED-01**: Branches table populated with 5 real El Templo locations (addresses, coordinates, phone)
-- [ ] **SEED-02**: Activities table populated with real activity types (Calistenia, ROM)
-- [ ] **SEED-03**: Schedules table populated with real class times per branch
-- [ ] **SEED-04**: Subscription plans table populated with real plan data (Flex, Foundation, Performance)
-- [ ] **SEED-05**: Seed script is idempotent (can be re-run safely without duplicates)
+- [x] **SEED-01**: Branches table populated with 5 real El Templo locations (addresses, coordinates, phone)
+- [x] **SEED-02**: Activities table populated with real activity types (Calistenia, ROM)
+- [x] **SEED-03**: Schedules table populated with real class times per branch
+- [x] **SEED-04**: Subscription plans table populated with real plan data (Flex, Foundation, Performance)
+- [x] **SEED-05**: Seed script is idempotent (can be re-run safely without duplicates)
 
 ### Bug Fixes
 
@@ -84,11 +84,11 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 | BIZ-06      | Phase 74 | Complete |
 | BIZ-07      | Phase 74 | Complete |
 | BIZ-08      | Phase 74 | Complete |
-| SEED-01     | Phase 75 | Pending  |
-| SEED-02     | Phase 75 | Pending  |
-| SEED-03     | Phase 75 | Pending  |
-| SEED-04     | Phase 75 | Pending  |
-| SEED-05     | Phase 75 | Pending  |
+| SEED-01     | Phase 75 | Complete |
+| SEED-02     | Phase 75 | Complete |
+| SEED-03     | Phase 75 | Complete |
+| SEED-04     | Phase 75 | Complete |
+| SEED-05     | Phase 75 | Complete |
 | FIX-01      | Phase 76 | Pending  |
 | FIX-02      | Phase 76 | Pending  |
 | FIX-03      | Phase 76 | Pending  |
