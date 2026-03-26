@@ -21,8 +21,11 @@ export const OWNER_ROLES = ["owner"] as const;
 /** Roles that can access admin-level features (planes, analiticas, configuracion, blog, gladius, academy, etc). */
 export const ADMIN_ROLES = ["admin", "owner"] as const;
 
-/** Roles that can access coach-level features (sesiones, generar, ejercicios, horarios, alumnos). */
-export const COACH_ROLES = ["coach", "owner"] as const;
+/** Roles that can access coach-level features (programs enrollment, alumnos). */
+export const COACH_ROLES = ["coach", "admin", "owner"] as const;
+
+/** Roles that can access training features (sesiones, generar, ejercicios, horarios). */
+export const TRAINING_ROLES = ["coach", "owner"] as const;
 
 /** Roles that can access caja and reportes (recepcionista, admin, owner). */
 export const CAJA_ROLES = ["recepcionista", "admin", "owner"] as const;
