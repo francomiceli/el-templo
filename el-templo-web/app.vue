@@ -17,6 +17,12 @@ useHead({
     {
       rel: "icon",
       type: "image/png",
+      sizes: "192x192",
+      href: "/favicon-192x192.png",
+    },
+    {
+      rel: "icon",
+      type: "image/png",
       sizes: "32x32",
       href: "/favicon-32x32.png",
     },
@@ -29,7 +35,7 @@ useHead({
     {
       rel: "apple-touch-icon",
       sizes: "180x180",
-      href: "/apple-touch-icon.png",
+      href: "/apple-touch-icon-180x180.png",
     },
   ],
 });
