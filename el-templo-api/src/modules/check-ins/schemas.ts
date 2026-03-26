@@ -43,13 +43,6 @@ export const todayCheckInResponseSchema = {
         sleep: answerSchema,
       },
     },
-    unlocked: {
-      type: "array",
-      items: {
-        type: "string",
-        enum: ["energy", "soreness", "sleep"],
-      },
-    },
   },
 };
 

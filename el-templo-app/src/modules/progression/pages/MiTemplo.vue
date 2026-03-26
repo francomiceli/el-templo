@@ -165,19 +165,13 @@ const showProgramCta = computed(() => !programProgress.value && hasProgramsAvail
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
   if (!progressionStore.checkInState) return []
-  const unlocked = progressionStore.checkInState.unlocked
-  if (unlocked.length === 0) return []
-  const available = CHECK_IN_QUESTIONS.filter((q) => unlocked.includes(q.type))
   // Soreness always first, rest rotate daily
-  const soreness = available.filter((q) => q.type === 'soreness')
-  const rest = available.filter((q) => q.type !== 'soreness')
-  if (rest.length > 1) {
-    const dayOfEpoch = Math.floor(Date.now() / 86400000)
-    const rotateBy = dayOfEpoch % rest.length
-    const rotated = [...rest.slice(rotateBy), ...rest.slice(0, rotateBy)]
-    return [...soreness, ...rotated]
-  }
-  return [...soreness, ...rest]
+  const soreness = CHECK_IN_QUESTIONS.filter((q) => q.type === 'soreness')
+  const rest = CHECK_IN_QUESTIONS.filter((q) => q.type !== 'soreness')
+  const dayOfEpoch = Math.floor(Date.now() / 86400000)
+  const rotateBy = dayOfEpoch % rest.length
+  const rotated = [...rest.slice(rotateBy), ...rest.slice(0, rotateBy)]
+  return [...soreness, ...rotated]
 })
 
 /**

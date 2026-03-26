@@ -1,6 +1,6 @@
-import { eq, and, count } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import { checkInResponses, completedSessions, users } from "../../db/schema";
+import { checkInResponses } from "../../db/schema";
 import type * as schema from "../../db/schema";
 import {
   VALID_VALUES,
@@ -44,12 +44,6 @@ export class CheckInService {
       // For 'ninguna', bodyArea is always null regardless of what's sent
     }
 
-    // Check if question is unlocked for this user
-    const unlocked = await this.getUnlockedQuestions(userId);
-    if (!unlocked.includes(questionType)) {
-      throw new Error("Pregunta no disponible todavia");
-    }
-
     // Insert with today's date
     const todayStr = new Date().toISOString().split("T")[0];
 
@@ -83,7 +77,6 @@ export class CheckInService {
   }
 
   async getTodayState(userId: number): Promise<TodayCheckInState> {
-    const unlocked = await this.getUnlockedQuestions(userId);
     const todayStr = new Date().toISOString().split("T")[0];
 
     const rows = await this.db
@@ -115,50 +108,6 @@ export class CheckInService {
       };
     }
 
-    return { answers, unlocked };
-  }
-
-  async getUnlockedQuestions(
-    userId: number,
-  ): Promise<CheckInQuestionType[]> {
-    // Count completed sessions for this user
-    const [sessionCountResult] = await this.db
-      .select({ total: count() })
-      .from(completedSessions)
-      .where(eq(completedSessions.userId, userId));
-
-    const completedSessionCount = sessionCountResult?.total ?? 0;
-
-    // Get user's createdAt for membership duration
-    const [userRow] = await this.db
-      .select({ createdAt: users.createdAt })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    const unlocked: CheckInQuestionType[] = [];
-
-    // Energy: unlocked after 1 completed session
-    if (completedSessionCount >= 1) {
-      unlocked.push("energy");
-    }
-
-    // Soreness: unlocked after 3 completed sessions
-    if (completedSessionCount >= 3) {
-      unlocked.push("soreness");
-    }
-
-    // Sleep: unlocked after 1 week of membership
-    if (userRow) {
-      const now = new Date();
-      const createdAt = new Date(userRow.createdAt);
-      const diffMs = now.getTime() - createdAt.getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      if (diffDays >= 7) {
-        unlocked.push("sleep");
-      }
-    }
-
-    return unlocked;
+    return { answers };
   }
 }

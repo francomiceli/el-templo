@@ -4,12 +4,7 @@ export type EnergyValue = "bajo" | "normal" | "alto";
 export type SorenessValue = "ninguna" | "leve" | "moderada";
 export type SleepValue = "mal" | "ok" | "bien";
 
-export type BodyArea =
-  | "hombros"
-  | "espalda"
-  | "piernas"
-  | "core"
-  | "general";
+export type BodyArea = "hombros" | "espalda" | "piernas" | "core" | "general";
 
 export interface CheckInAnswer {
   questionType: CheckInQuestionType;
@@ -22,7 +17,6 @@ export interface TodayCheckInState {
     CheckInQuestionType,
     { value: string; bodyArea: string | null } | null
   >;
-  unlocked: CheckInQuestionType[];
 }
 
 export const VALID_VALUES: Record<CheckInQuestionType, readonly string[]> = {

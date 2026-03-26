@@ -66,7 +66,6 @@ export interface CheckInAnswerValue {
 
 export interface TodayCheckInState {
   answers: Record<CheckInQuestionType, CheckInAnswerValue | null>
-  unlocked: CheckInQuestionType[]
 }
 
 export interface CheckInQuestionConfig {

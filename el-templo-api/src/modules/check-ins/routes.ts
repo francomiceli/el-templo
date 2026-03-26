@@ -15,8 +15,7 @@ export const checkInRoutes: FastifyPluginAsync = async (fastify) => {
    * POST /api/check-ins
    *
    * Submit a daily check-in answer (energy, soreness, or sleep).
-   * Returns 201 on success, 400 for validation errors, 403 if question
-   * is not yet unlocked, 409 if already answered today.
+   * Returns 201 on success, 400 for validation errors.
    */
   fastify.post<{ Body: CheckInAnswer }>(
     "/",
@@ -59,8 +58,7 @@ export const checkInRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /api/check-ins/today
    *
-   * Returns today's check-in state: which questions are unlocked
-   * and any answers already submitted today.
+   * Returns today's check-in state with any answers already submitted today.
    */
   fastify.get(
     "/today",
