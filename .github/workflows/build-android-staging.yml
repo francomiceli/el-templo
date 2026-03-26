@@ -60,6 +60,10 @@ jobs:
           cp -r ../dist/spa/* www/
           npx cap sync android
 
+      - name: Decode google-services.json
+        working-directory: el-templo-app/src-capacitor/android/app
+        run: printf '%s' "${{ secrets.GOOGLE_SERVICES_JSON_STAGING_BASE64 }}" | base64 --decode > google-services.json
+
       - name: Build staging debug APK
         working-directory: el-templo-app/src-capacitor/android
         env:

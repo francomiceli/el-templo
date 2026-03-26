@@ -308,7 +308,7 @@ async function loadTemplates() {
   loading.value = true;
   try {
     const { data } = await api.get<{ templates: TemplateRow[] }>(
-      '/api/notifications/admin/templates',
+      '/notifications/admin/templates',
     );
     templates.value = data.templates;
   } catch (err: unknown) {
@@ -322,7 +322,7 @@ async function loadTemplates() {
 
 async function toggleEnabled(template: TemplateRow, enabled: boolean) {
   try {
-    await api.put(`/api/notifications/admin/templates/${template.id}`, {
+    await api.put(`/notifications/admin/templates/${template.id}`, {
       isEnabled: enabled,
     });
     template.isEnabled = enabled;
@@ -344,7 +344,7 @@ function openEdit(template: TemplateRow) {
 async function saveTemplate() {
   saving.value = true;
   try {
-    await api.put(`/api/notifications/admin/templates/${editForm.id}`, {
+    await api.put(`/notifications/admin/templates/${editForm.id}`, {
       title: editForm.title,
       body: editForm.body,
       route: editForm.route,
@@ -382,7 +382,7 @@ async function handleSendSegment() {
     }
 
     const { data } = await api.post<{ queued: number }>(
-      '/api/notifications/admin/send-segment',
+      '/notifications/admin/send-segment',
       payload,
     );
 

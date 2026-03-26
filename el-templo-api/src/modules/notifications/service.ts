@@ -547,18 +547,27 @@ export class NotificationService {
    * Called during migration/startup.
    */
   async seedTemplates(): Promise<void> {
+    let inserted = 0;
     for (const seed of TEMPLATE_SEEDS) {
-      await this.db.execute(
+      const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
             (template_key, notification_category, title, body, route)
             VALUES (${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.route})`,
       );
+      if ((result as { affectedRows?: number }).affectedRows === 1) {
+        inserted++;
+      }
     }
 
-    this.log.info(
-      { count: TEMPLATE_SEEDS.length },
-      "Notification templates seeded",
-    );
+    const skipped = TEMPLATE_SEEDS.length - inserted;
+    if (inserted > 0) {
+      this.log.info({ inserted, skipped }, "Notification templates seeded");
+    } else {
+      this.log.info(
+        { total: TEMPLATE_SEEDS.length },
+        "Notification templates already exist — skipped seeding",
+      );
+    }
   }
 
   // ── Private Helpers ─────────────────────────────────────────────────────
