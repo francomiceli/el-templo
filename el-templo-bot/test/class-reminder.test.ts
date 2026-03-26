@@ -187,6 +187,23 @@ describe("runClassReminder", () => {
     expect(mockReleaseLock).toHaveBeenCalledWith("wa:lock:class-reminder");
   });
 
+  it("SQL query uses booking_status column (not bare status)", async () => {
+    const runClassReminder = await getRunClassReminder();
+    const db = createMockDb([]);
+
+    await runClassReminder(db as never);
+
+    // The sql template literal mock captures the strings array
+    const sqlArg = db.execute.mock.calls[0][0] as {
+      strings: TemplateStringsArray;
+    };
+    const fullSql = sqlArg.strings.join("?");
+
+    // Must use booking_status, not bare b.status
+    expect(fullSql).toContain("booking_status");
+    expect(fullSql).not.toMatch(/b\.status\s/);
+  });
+
   it("releases lock even when query throws an error", async () => {
     const runClassReminder = await getRunClassReminder();
     const db = {

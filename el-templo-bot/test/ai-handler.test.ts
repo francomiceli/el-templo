@@ -251,12 +251,12 @@ describe("AnthropicProvider.mapMessages - tool_use reconstruction", () => {
 
 // ─── Test Group 3: OpenAI provider unaffected by toolCalls ──────────────────
 
-describe("OpenAiProvider - toolCalls field ignored gracefully", () => {
+describe("OpenAiProvider - tool_calls mapping", () => {
   beforeEach(() => {
     vi.resetModules();
   });
 
-  it("ignores ChatMessage.toolCalls when mapping messages", async () => {
+  async function createMockedOpenAiProvider() {
     const mockCreate = vi.fn().mockResolvedValue({
       choices: [
         {
@@ -296,6 +296,12 @@ describe("OpenAiProvider - toolCalls field ignored gracefully", () => {
     const { OpenAiProvider } = await import("../src/ai/openai");
     const provider = new OpenAiProvider("test-model");
 
+    return { provider, mockCreate };
+  }
+
+  it("includes tool_calls on assistant messages that have toolCalls", async () => {
+    const { provider, mockCreate } = await createMockedOpenAiProvider();
+
     const messages: ChatMessage[] = [
       { role: "user", content: "What classes?" },
       {
@@ -305,7 +311,7 @@ describe("OpenAiProvider - toolCalls field ignored gracefully", () => {
           {
             id: "call_123",
             name: "check_schedule",
-            arguments: {},
+            arguments: { branch: "palermo" },
           },
         ],
       },
@@ -323,10 +329,20 @@ describe("OpenAiProvider - toolCalls field ignored gracefully", () => {
       Record<string, unknown>
     >;
 
-    // OpenAI maps assistant as plain content -- toolCalls field is not used
+    // Assistant message should include tool_calls array
     expect(capturedMessages[1]).toEqual({
       role: "assistant",
       content: "Checking schedule...",
+      tool_calls: [
+        {
+          id: "call_123",
+          type: "function",
+          function: {
+            name: "check_schedule",
+            arguments: '{"branch":"palermo"}',
+          },
+        },
+      ],
     });
 
     // Tool message mapped correctly
@@ -335,6 +351,31 @@ describe("OpenAiProvider - toolCalls field ignored gracefully", () => {
       content: "CrossFit - Mon 8am",
       tool_call_id: "call_123",
     });
+  });
+
+  it("does not include tool_calls on plain assistant messages", async () => {
+    const { provider, mockCreate } = await createMockedOpenAiProvider();
+
+    const messages: ChatMessage[] = [
+      { role: "user", content: "Hola" },
+      {
+        role: "assistant",
+        content: "Hola! Como puedo ayudarte?",
+      },
+    ];
+
+    await provider.chat(messages);
+
+    const capturedMessages = mockCreate.mock.calls[0][0].messages as Array<
+      Record<string, unknown>
+    >;
+
+    // Plain assistant message should NOT have tool_calls
+    expect(capturedMessages[1]).toEqual({
+      role: "assistant",
+      content: "Hola! Como puedo ayudarte?",
+    });
+    expect(capturedMessages[1]).not.toHaveProperty("tool_calls");
   });
 });
 

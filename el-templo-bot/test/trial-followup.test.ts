@@ -260,6 +260,30 @@ describe("runTrialFollowup", () => {
     expect(mockReleaseLock).toHaveBeenCalledWith("wa:lock:trial-followup");
   });
 
+  it("SQL query uses subscription_status column (not bare status)", async () => {
+    mockArgentinaHour(14);
+
+    const runTrialFollowup = await getRunTrialFollowup();
+    const db = createMockDb([]);
+
+    await runTrialFollowup(db as never);
+
+    // The sql template literal mock captures the strings array
+    const sqlArg = db.execute.mock.calls[0][0] as {
+      strings: TemplateStringsArray;
+    };
+    const fullSql = sqlArg.strings.join("?");
+
+    // Must use subscription_status in both main WHERE and NOT EXISTS subquery
+    const matches = fullSql.match(/subscription_status/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
+
+    // Must NOT use bare s.status or s2.status
+    expect(fullSql).not.toMatch(/s\.status\s/);
+    expect(fullSql).not.toMatch(/s2\.status\s/);
+  });
+
   it("releases lock even when query throws an error", async () => {
     mockArgentinaHour(14);
 
