@@ -1262,7 +1262,7 @@ See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 
 - [x] **Phase 74: Business Data Integration** - Structured knowledge file with real pricing, locations, schedules; system prompt wired to it (completed 2026-03-26)
 - [x] **Phase 75: Database Seeding** - Real branches, activities, schedules, subscription plans in DB via idempotent seed script (completed 2026-03-26)
-- [ ] **Phase 76: Known Issues Fix** - Scheduler column refs, OpenAI tool context corruption, phone normalization gaps
+- [x] **Phase 76: Known Issues Fix** - Scheduler column refs, OpenAI tool context corruption, phone normalization gaps (completed 2026-03-26)
 - [ ] **Phase 77: GitHub Actions Deployment** - Bot build/deploy/restart in CI pipeline alongside API, PM2 config, env secrets
 - [ ] **Phase 78: WhatsApp Production Setup** - Meta template docs, phone registration, permanent token, MySQL timezone tables
 
@@ -1326,7 +1326,7 @@ Plans:
 2. AI conversations with tool calls do not produce OpenAI "tool context" validation errors even when message history contains incomplete tool call/result pairs
 3. Argentine phone numbers are normalized consistently across all WhatsApp send functions (sendTextMessage, sendInteractiveMessage, sendTemplateMessage)
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 
@@ -1377,7 +1377,7 @@ Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 
 | ----------------------------- | -------------- | ----------- | ---------- |
 | 74. Business Data Integration | 2/2            | Complete    | 2026-03-26 |
 | 75. Database Seeding          | 1/1            | Complete    | 2026-03-26 |
-| 76. Known Issues Fix          | 0/?            | Not started | -          |
+| 76. Known Issues Fix          | 1/1            | Complete    | 2026-03-26 |
 | 77. GitHub Actions Deployment | 0/?            | Not started | -          |
 | 78. WhatsApp Production Setup | 0/?            | Not started | -          |
 

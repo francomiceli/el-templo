@@ -28,9 +28,9 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ### Bug Fixes
 
-- [ ] **FIX-01**: Scheduler queries use correct column names matching actual DB schema
-- [ ] **FIX-02**: Session message history validated before sending to AI (prevents OpenAI tool context corruption)
-- [ ] **FIX-03**: Argentine phone normalization applied in sendInteractiveMessage and sendTemplateMessage (not just sendTextMessage)
+- [x] **FIX-01**: Scheduler queries use correct column names matching actual DB schema
+- [x] **FIX-02**: Session message history validated before sending to AI (prevents OpenAI tool context corruption)
+- [x] **FIX-03**: Argentine phone normalization applied in sendInteractiveMessage and sendTemplateMessage (not just sendTextMessage)
 
 ### Deployment
 
@@ -89,9 +89,9 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 | SEED-03     | Phase 75 | Complete |
 | SEED-04     | Phase 75 | Complete |
 | SEED-05     | Phase 75 | Complete |
-| FIX-01      | Phase 76 | Pending  |
-| FIX-02      | Phase 76 | Pending  |
-| FIX-03      | Phase 76 | Pending  |
+| FIX-01      | Phase 76 | Complete |
+| FIX-02      | Phase 76 | Complete |
+| FIX-03      | Phase 76 | Complete |
 | DEPLOY-01   | Phase 77 | Pending  |
 | DEPLOY-02   | Phase 77 | Pending  |
 | DEPLOY-03   | Phase 77 | Pending  |
