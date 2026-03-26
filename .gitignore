@@ -3,6 +3,10 @@ node_modules/
 pnpm-lock.yaml
 
 .planning/intel/
+.planning/quick/
+
+# Environment files
+.env
 
 # AWS infrastructure variables (contains IPs, instance IDs)
 deploy/.aws-vars
