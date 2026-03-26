@@ -15,6 +15,7 @@
     "db:studio": "drizzle-kit studio",
     "db:run-migrations": "tsx src/db/run-migrations.ts",
     "db:seed": "tsx src/db/seed.ts",
+    "seed:production": "CONFIRM_PRODUCTION_SEED=yes tsx src/db/seed-production.ts",
     "seed:spom": "tsx src/db/seed-spom.ts",
     "db:reset": "pnpm db:push && pnpm db:seed"
   },
