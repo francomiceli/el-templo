@@ -147,3 +147,70 @@ _Last phase: 12_
 ---
 
 _Last phase: 28_
+
+## v5.0 — WhatsApp AI Chatbot
+
+**Completed:** 2026-03-26
+**Phases:** 67-73 (7 phases, 15 plans)
+**Requirements:** 23/23 complete
+**Timeline:** 2026-03-17 → 2026-03-26 (9 days)
+**Stats:** 98 files changed, ~16,000 lines added (3,600 LOC bot, 1,100 LOC admin UI, 1,100 LOC API service, 2,300 LOC tests)
+
+### What Shipped
+
+**WhatsApp Cloud API Integration (Phase 67)**
+
+- el-templo-bot: separate Fastify process on port 3001 with PM2
+- Meta Cloud API webhook (GET verify + POST handler)
+- DB schema: whatsapp_conversations + whatsapp_messages tables with dedup
+
+**AI-Powered Conversations (Phase 68)**
+
+- Model-agnostic AiProvider (OpenAI GPT-4o mini / Anthropic Haiku)
+- System prompt with business context (schedules, pricing, locations, FAQ)
+- Function calling tools: check_schedule, check_membership, get_location, request_human
+- Message splitting at 800 chars, max 5 tool loop iterations
+
+**Memory & State Management (Phase 69)**
+
+- Redis session context: last 20 messages, 6h TTL, graceful degradation
+- Customer profiles: 90d TTL, injury notes, preferences
+- Client state machine: LEAD → TRIAL → ACTIVE_MEMBER → INACTIVE_MEMBER → EXPIRED_MEMBER
+
+**Action Tools (Phase 70)**
+
+- book_class: reserves class spot via localhost API call with WhatsApp button confirmation
+- register_trial: creates trial user with button confirmation
+- Interactive button reply handling in webhook pipeline
+
+**Proactive Schedulers (Phase 71)**
+
+- Class reminder: WhatsApp template N hours before booked class (node-cron + Redis distributed lock)
+- Trial follow-up: 24-48h after attendance, offers membership info
+- Redis dedup keys prevent duplicate sends on process restart
+
+**Admin Panel (Phases 72-73)**
+
+- ConversacionesPage: paginated list with search, status/state filters, unread badge
+- ConversacionDetailPage: chat bubble UI, message history, member link
+- Human takeover: "Tomar control" pauses bot, admin sends messages, "Devolver al bot" resumes
+- 5-second polling for real-time message updates
+
+### Requirements Completed
+
+- HOOK-01 through HOOK-04 (webhook & infrastructure)
+- AI-01 through AI-08 (AI processing & tools)
+- MEM-01 through MEM-04 (memory & state)
+- SCHED-01, SCHED-02 (proactive schedulers)
+- ADMIN-01 through ADMIN-05 (admin panel)
+
+**Total:** 23 requirements
+
+### Future (v5.1+)
+
+- SCHED-03 through SCHED-06 (renewal nudge, re-engagement, review request, birthday messages)
+- ADV-01 through ADV-04 (media messages, WebSocket, scheduler UI, auto-prompt generation)
+
+---
+
+_Last phase: 73_
