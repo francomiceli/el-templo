@@ -1246,7 +1246,7 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 - [x] **Phase 70: Action Tools** - Book class and register trial via WhatsApp with confirmation steps (completed 2026-03-19)
 - [x] **Phase 71: Proactive Schedulers** - Class reminders and trial follow-ups via template messages with distributed locks (completed 2026-03-19)
 - [x] **Phase 72: Admin Panel -- Conversations UI** - Conversation list, chat detail, and sidebar integration in el-templo-admin (completed 2026-03-19)
-- [ ] **Phase 73: Admin Panel -- Human Takeover** - Admin takes over conversation, sends messages, resumes bot
+- [x] **Phase 73: Admin Panel -- Human Takeover** - Admin takes over conversation, sends messages, resumes bot (completed 2026-03-26)
 
 ### v5.0 Phase Details
 
@@ -1364,7 +1364,7 @@ Plans:
 1. Admin clicks "Tomar control" and the bot immediately stops responding to that conversation
 2. Admin types and sends messages from the conversation detail page -- messages arrive on the user's WhatsApp
 3. Admin clicks "Devolver al bot" and the bot resumes AI processing for that conversation on the next incoming message
-   **Plans:** 1/2 plans executed
+   **Plans:** 2/2 plans complete
    Plans:
 
 - [ ] 73-01-PLAN.md — API: implement takeover, resumeBot, sendMessage service methods + integration tests
@@ -1377,15 +1377,15 @@ Plans:
 **Execution Order:**
 Phase 67 (Webhook) -> Phase 68 (AI) -> Phase 69 (Memory) -> Phase 70 (Actions) -> Phase 71 (Schedulers) -> Phase 72 (Admin UI) -> Phase 73 (Takeover)
 
-| Phase                                         | Plans Complete | Status      | Completed  |
-| --------------------------------------------- | -------------- | ----------- | ---------- |
-| 67. WhatsApp Cloud API Webhook + Echo Bot     | 2/2            | Complete    | 2026-03-17 |
-| 68. AI Integration + Info Tools               | 3/3            | Complete    | 2026-03-18 |
-| 69. Redis Memory Layer + Client State Machine | 2/2            | Complete    | 2026-03-18 |
-| 70. Action Tools                              | 2/2            | Complete    | 2026-03-19 |
-| 71. Proactive Schedulers                      | 2/2            | Complete    | 2026-03-19 |
-| 72. Admin Panel -- Conversations UI           | 2/2            | Complete    | 2026-03-19 |
-| 73. Admin Panel -- Human Takeover             | 1/2            | In Progress |            |
+| Phase                                         | Plans Complete | Status   | Completed  |
+| --------------------------------------------- | -------------- | -------- | ---------- |
+| 67. WhatsApp Cloud API Webhook + Echo Bot     | 2/2            | Complete | 2026-03-17 |
+| 68. AI Integration + Info Tools               | 3/3            | Complete | 2026-03-18 |
+| 69. Redis Memory Layer + Client State Machine | 2/2            | Complete | 2026-03-18 |
+| 70. Action Tools                              | 2/2            | Complete | 2026-03-19 |
+| 71. Proactive Schedulers                      | 2/2            | Complete | 2026-03-19 |
+| 72. Admin Panel -- Conversations UI           | 2/2            | Complete | 2026-03-19 |
+| 73. Admin Panel -- Human Takeover             | 2/2            | Complete | 2026-03-26 |
 
 ---
 
