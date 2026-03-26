@@ -1,4 +1,5 @@
 export { NotificationService } from "./service";
+export { notificationRoutes } from "./routes";
 export type {
   NotificationCategory,
   NotificationStatus,
