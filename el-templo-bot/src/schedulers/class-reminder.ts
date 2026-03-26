@@ -90,7 +90,7 @@ export async function runClassReminder(
       JOIN users u ON b.member_id = u.id
       JOIN activities a ON s.activity_id = a.id
       JOIN whatsapp_conversations wc ON wc.linked_member_id = u.id
-      WHERE b.status = 'reservado'
+      WHERE b.booking_status = 'reservado'
         AND b.booking_date = CURDATE()
         AND s.start_time <= DATE_FORMAT(
           DATE_ADD(CONVERT_TZ(NOW(), 'UTC', 'America/Argentina/Buenos_Aires'), INTERVAL ${reminderHours} HOUR),

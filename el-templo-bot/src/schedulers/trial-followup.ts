@@ -103,7 +103,7 @@ export async function runTrialFollowup(
       JOIN subscriptions s ON s.user_id = u.id
       JOIN whatsapp_conversations wc ON wc.linked_member_id = u.id
       WHERE u.role = 'member'
-        AND s.status = 'active'
+        AND s.subscription_status = 'active'
         AND s.price_paid = 0
         AND s.price_type_applied = 'zero'
         AND att.checked_in_at BETWEEN DATE_SUB(NOW(), INTERVAL 48 HOUR)
@@ -113,7 +113,7 @@ export async function runTrialFollowup(
           SELECT 1 FROM subscriptions s2
           WHERE s2.user_id = u.id
             AND s2.price_paid > 0
-            AND s2.status IN ('active', 'paused')
+            AND s2.subscription_status IN ('active', 'paused')
         )
     `);
 

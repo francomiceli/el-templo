@@ -103,8 +103,23 @@ export class OpenAiProvider implements AiProvider {
         return { role: "system", content: msg.content };
       case "user":
         return { role: "user", content: msg.content };
-      case "assistant":
+      case "assistant": {
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          return {
+            role: "assistant" as const,
+            content: msg.content,
+            tool_calls: msg.toolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function" as const,
+              function: {
+                name: tc.name,
+                arguments: JSON.stringify(tc.arguments),
+              },
+            })),
+          };
+        }
         return { role: "assistant", content: msg.content };
+      }
       case "tool":
         return {
           role: "tool",
