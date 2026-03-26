@@ -1703,7 +1703,18 @@ Plans:
 **Goal**: Set up push notification infrastructure (Capacitor plugin + backend scheduler) with segment-driven notification strategies and user opt-in/out preferences
 **Depends on**: Phase 79 (segments drive notification strategy)
 **Requirements**: ENG-22, ENG-23, ENG-24
-**Success Criteria** (what must be TRUE):
+**Plans:** 7 plans
+
+Plans:
+
+- [ ] 84-01-PLAN.md — Database schema + NotificationService core
+- [ ] 84-02-PLAN.md — Capacitor push plugin + FCM token lifecycle
+- [ ] 84-03-PLAN.md — Notification API routes + Fastify wiring
+- [ ] 84-04-PLAN.md — Cron jobs + event-driven notification triggers
+- [ ] 84-05-PLAN.md — Member notification preferences UI + permission banner
+- [ ] 84-06-PLAN.md — Admin Notificaciones page + sidebar
+- [ ] 84-07-PLAN.md — Integration tests + CI/CD workflow updates
+      **Success Criteria** (what must be TRUE):
 
 1. Push notifications delivered to Android (and iOS when applicable) via Capacitor push plugin
 2. Backend notification scheduler can send notifications to individual members or segments
@@ -1734,15 +1745,15 @@ Plans:
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                 | Plans Complete | Status      | Completed |
-| ------------------------------------- | -------------- | ----------- | --------- |
-| 78. Onboarding & User Profiling       | 2/3            | In Progress |           |
-| 79. Behavioral Segmentation           | —              | Planned     | —         |
-| 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |           |
-| 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |           |
-| 82. Progressive Profiling & Check-ins | 2/3            | In Progress |           |
-| 83. Micro-Program Upsells             | 4/5 | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation     | —              | Planned     | —         |
+| Phase                                 | Plans Complete | Status      | Completed  |
+| ------------------------------------- | -------------- | ----------- | ---------- |
+| 78. Onboarding & User Profiling       | 2/3            | In Progress |            |
+| 79. Behavioral Segmentation           | —              | Planned     | —          |
+| 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |            |
+| 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |            |
+| 82. Progressive Profiling & Check-ins | 2/3            | In Progress |            |
+| 83. Micro-Program Upsells             | 4/5            | Complete    | 2026-03-25 |
+| 84. Push Notifications Foundation     | 0/7            | In Progress |            |
 
 ---
 
