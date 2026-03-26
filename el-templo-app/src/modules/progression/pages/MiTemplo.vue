@@ -18,6 +18,9 @@
       <!-- Streak Row (only visible when streak > 0) -->
       <StreakRow v-if="currentStreak > 0" :streak="currentStreak" />
 
+      <!-- Notification Permission Banner (per D-24) -->
+      <PermissionBanner />
+
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
       <template v-if="orderedCheckIns.length > 0">
         <p class="mi-templo__section-title">Registro del día</p>
@@ -107,9 +110,14 @@ import ProgramCtaCard from 'src/modules/programs/components/ProgramCtaCard.vue'
 import ProgramProgressCard from 'src/modules/programs/components/ProgramProgressCard.vue'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
+import PermissionBanner from '../components/PermissionBanner.vue'
+import { useNotificationStore } from 'src/stores/useNotificationStore'
+import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
 
 const log = createLogger('MiTemplo')
+const notificationStore = useNotificationStore()
+const router = useRouter()
 const progressionStore = useProgressionStore()
 const userStore = useUserStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
@@ -251,6 +259,12 @@ onMounted(async () => {
     )
   }
   fetchWeekSessions(dates)
+
+  // Handle pending deep link from notification tap (per D-30)
+  const pendingRoute = notificationStore.consumePendingRoute()
+  if (pendingRoute && pendingRoute !== '/mi-templo') {
+    router.push(pendingRoute)
+  }
 })
 </script>
 
