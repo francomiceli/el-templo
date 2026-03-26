@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.1
 milestone_name: Production Readiness & Business Data
-status: roadmap_complete
-stopped_at: null
-last_updated: "2026-03-26T00:00:00.000Z"
-last_activity: 2026-03-26 -- Roadmap created for v5.1 (5 phases, 23 requirements)
+status: executing
+stopped_at: "Completed 74-02-PLAN.md"
+last_updated: "2026-03-26T16:28:23Z"
+last_activity: 2026-03-26 -- Completed phase 74 plan 02 (location data + knowledge tests)
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 2
+  percent: 10
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 ## Current Position
 
 Milestone: v5.1 Production Readiness & Business Data
-Phase: None started
-Status: Roadmap complete, ready for `/gsd:plan-phase 74`
-Last activity: 2026-03-26 - Roadmap created (5 phases, 23 requirements mapped)
+Phase: 74-business-data-integration (2/2 plans complete)
+Status: Phase 74 complete, ready for next phase
+Last activity: 2026-03-26 - Completed 74-02 (location data + knowledge tests)
 
-**Progress:** [██████████] 97%
+**Progress:** [█---------] 10%
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Last activity: 2026-03-26 - Roadmap created (5 phases, 23 requirements mapped)
 | 72           | 2/2   | 7 min   | 4 min    |
 | 73           | 2/2   | 22 min  | 11 min   |
 | Phase 74 P01 | 2min  | 2 tasks | 2 files  |
+| Phase 74 P02 | 2min  | 2 tasks | 2 files  |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Recent decisions affecting current work:
 - [73-02] Message input only visible in human_takeover mode to enforce takeover-first workflow
 - [Phase 74]: Business data in separate knowledge.ts file (not inline in prompt) for maintainability
 - [Phase 74]: Knowledge always present in base prompt (not conditional like state/profile sections)
+- [74-02] Exported BRANCH_ADDRESSES and BRANCH_MAPS_LINKS from tools.ts for direct test import
+- [74-02] normalizeBranchCode alias map for robust DB code matching (mario_bravo -> mario bravo)
+- [74-02] Name-based fallback lookup when normalized branch code not found in address maps
 
 ### Pending Todos
 
@@ -134,5 +138,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-26
-Stopped at: Roadmap created for v5.1
+Stopped at: Completed 74-02-PLAN.md
 Resume file: .planning/ROADMAP.md (v5.1 section)

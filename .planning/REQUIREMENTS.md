@@ -10,7 +10,7 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 ### Business Data
 
 - [x] **BIZ-01**: Bot answers accurately about pricing for all plan types (Flex, Foundation, Performance, credit card)
-- [ ] **BIZ-02**: Bot answers accurately about all branch locations with addresses and Google Maps links
+- [x] **BIZ-02**: Bot answers accurately about all branch locations with addresses and Google Maps links
 - [x] **BIZ-03**: Bot answers accurately about class schedules per branch
 - [x] **BIZ-04**: Bot answers about Zero pricing rules, Boarding Pass, and plan upgrade paths
 - [x] **BIZ-05**: Bot answers about ROM (Rango Orgánico de Movilidad) and what it includes
@@ -77,7 +77,7 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 | Requirement | Phase    | Status   |
 | ----------- | -------- | -------- |
 | BIZ-01      | Phase 74 | Complete |
-| BIZ-02      | Phase 74 | Pending  |
+| BIZ-02      | Phase 74 | Complete |
 | BIZ-03      | Phase 74 | Complete |
 | BIZ-04      | Phase 74 | Complete |
 | BIZ-05      | Phase 74 | Complete |
