@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Ready to plan
-stopped_at: Completed 83-05-PLAN.md
-last_updated: "2026-03-25T18:38:20.527Z"
+stopped_at: Phase 84 context gathered
+last_updated: "2026-03-26T18:22:00.617Z"
 progress:
   total_phases: 82
   completed_phases: 68
@@ -204,7 +204,7 @@ Recent decisions affecting current work:
 - [Phase 83]: hasActivePersonalizada migrated from subscription.isPersonalizada to hasActiveProgramEnrollment ref (per D-08)
 - [Phase 83]: WeeklySummaryCard gated to program-enrolled members only (per D-15)
 - [Phase 83]: Vertical QStepper wizard for multi-step program creation; payment confirmation checkbox as hard gate on enrollment per D-39; program analytics on AnaliticasPage per D-40
-- [Phase 83]: Calendar-week gating: nextWeekStartDate = enrolledAt + (currentWeek * 7 days), compared against current date for dual-condition advancement
+- [Phase 83]: Calendar-week gating: nextWeekStartDate = enrolledAt + (currentWeek \* 7 days), compared against current date for dual-condition advancement
 - [Phase 83]: AURA program bonuses use independent try/catch blocks -- weekly and completion awards fail independently with graceful degradation
 
 ### Pending Todos
@@ -217,6 +217,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-25T18:28:40.499Z
-Stopped at: Completed 83-05-PLAN.md
-Resume file: None
+Last session: 2026-03-26T18:22:00.611Z
+Stopped at: Phase 84 context gathered
+Resume file: .planning/phases/84-push-notifications/84-CONTEXT.md
