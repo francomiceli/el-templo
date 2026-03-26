@@ -1306,7 +1306,11 @@ Plans:
 3. Subscription plans table contains real plan data (Flex, Foundation, Performance) with correct pricing
 4. Running the seed script twice produces no duplicates and no errors (idempotent)
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] 75-01-PLAN.md — Schema migration (address/phone/maps columns) + production seed with real per-branch data
 
 ---
 
