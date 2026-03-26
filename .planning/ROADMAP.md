@@ -7,6 +7,7 @@
 - **v4.0 Ecosystem Foundation** - Phases 45-52 (planned)
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 - ✅ **v5.0 WhatsApp AI Chatbot** — Phases 67-73 (shipped 2026-03-26)
+- **v5.1 Production Readiness & Business Data** — Phases 74-78 (in progress)
 
 ---
 
@@ -1248,3 +1249,125 @@ _v4.1 phases added: 2026-03-14 — 9 phases (58-66), 37 requirements mapped_
 See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 
 </details>
+
+## v5.1 Production Readiness & Business Data
+
+**Goal:** Make the WhatsApp bot production-ready with real El Templo business data, fix known issues, and prepare deployment pipeline.
+**Phases:** 74-78 (5 phases)
+**Requirements:** 23 total
+**Depth:** Fine (granularity from config)
+**Source docs:** `contexto/el-templo-business-data.md`, `contexto/whatsapp-bot-developer-handoff.md`, `.planning/quick/3-analyze-env-setup-across-monorepo-and-do/ENV-ANALYSIS.md`
+
+### v5.1 Phases
+
+- [ ] **Phase 74: Business Data Integration** - Structured knowledge file with real pricing, locations, schedules; system prompt wired to it
+- [ ] **Phase 75: Database Seeding** - Real branches, activities, schedules, subscription plans in DB via idempotent seed script
+- [ ] **Phase 76: Known Issues Fix** - Scheduler column refs, OpenAI tool context corruption, phone normalization gaps
+- [ ] **Phase 77: GitHub Actions Deployment** - Bot build/deploy/restart in CI pipeline alongside API, PM2 config, env secrets
+- [ ] **Phase 78: WhatsApp Production Setup** - Meta template docs, phone registration, permanent token, MySQL timezone tables
+
+### v5.1 Phase Details
+
+---
+
+### Phase 74: Business Data Integration
+
+**Goal**: The bot answers accurately about all El Templo business topics using a structured, maintainable knowledge file rather than hardcoded prompt data
+**Depends on**: Nothing (first phase, no dependencies)
+**Requirements**: BIZ-01, BIZ-02, BIZ-03, BIZ-04, BIZ-05, BIZ-06, BIZ-07, BIZ-08
+**Source**: `contexto/el-templo-business-data.md`
+**Success Criteria** (what must be TRUE):
+
+1. Bot answers pricing questions for Flex, Foundation, Performance plans and credit card surcharges with correct numbers matching the business data doc
+2. Bot provides accurate branch addresses and working Google Maps links for all 5 locations when asked about any branch
+3. Bot gives correct class schedules per branch (days, times, activity types) when asked "when are classes at [branch]?"
+4. Bot explains Zero pricing rules, Boarding Pass, ROM, and plan upgrade paths accurately when asked
+5. Bot guides users through trial class booking (free first class, what to bring, how to book) and app troubleshooting (download, login) when asked
+
+**Plans:** TBD
+
+---
+
+### Phase 75: Database Seeding
+
+**Goal**: The production database contains real El Templo business data so that bot tools (check_schedule, check_membership) and admin features work with actual branch/schedule/plan information
+**Depends on**: Nothing (can run in parallel with Phase 74)
+**Requirements**: SEED-01, SEED-02, SEED-03, SEED-04, SEED-05
+**Source**: `contexto/el-templo-business-data.md`
+**Success Criteria** (what must be TRUE):
+
+1. Branches table contains 5 real El Templo locations with correct addresses, coordinates, and phone numbers
+2. Activities and schedules tables reflect real class offerings per branch (days, times, activity types)
+3. Subscription plans table contains real plan data (Flex, Foundation, Performance) with correct pricing
+4. Running the seed script twice produces no duplicates and no errors (idempotent)
+
+**Plans:** TBD
+
+---
+
+### Phase 76: Known Issues Fix
+
+**Goal**: Three known bugs from v5.0 testing are resolved so the bot runs without errors in production
+**Depends on**: Nothing (can run in parallel with Phases 74, 75)
+**Requirements**: FIX-01, FIX-02, FIX-03
+**Source**: `contexto/whatsapp-bot-developer-handoff.md` (known issues section)
+**Success Criteria** (what must be TRUE):
+
+1. Scheduler cron jobs (class reminder, trial follow-up) execute without SQL column reference errors
+2. AI conversations with tool calls do not produce OpenAI "tool context" validation errors even when message history contains incomplete tool call/result pairs
+3. Argentine phone numbers are normalized consistently across all WhatsApp send functions (sendTextMessage, sendInteractiveMessage, sendTemplateMessage)
+
+**Plans:** TBD
+
+---
+
+### Phase 77: GitHub Actions Deployment
+
+**Goal**: The bot deploys automatically alongside the API via GitHub Actions, with proper PM2 process management and documented environment configuration
+**Depends on**: Phase 74, Phase 75, Phase 76 (deploy after business data and fixes are in)
+**Requirements**: DEPLOY-01, DEPLOY-02, DEPLOY-03, DEPLOY-04
+**Source**: `.planning/quick/3-analyze-env-setup-across-monorepo-and-do/ENV-ANALYSIS.md`
+**Success Criteria** (what must be TRUE):
+
+1. Pushing to master triggers a GitHub Actions workflow that builds and deploys el-templo-bot alongside el-templo-api to the EC2 server
+2. PM2 ecosystem file manages the bot process in production (auto-restart on crash, log rotation)
+3. All bot-related environment variables are documented and configured as GitHub Secrets
+4. Permanent WhatsApp System User token generation process is documented with step-by-step instructions
+
+**Plans:** TBD
+
+---
+
+### Phase 78: WhatsApp Production Setup
+
+**Goal**: All WhatsApp production prerequisites are documented and ready so the bot can go live with Meta-approved templates and a registered phone number
+**Depends on**: Nothing (documentation phase, can run in parallel)
+**Requirements**: WA-01, WA-02, WA-03
+**Success Criteria** (what must be TRUE):
+
+1. Meta template messages (class_reminder, trial_followup) are documented with exact structure, variables, and submission instructions
+2. WhatsApp Business phone number registration process is documented with step-by-step instructions
+3. MySQL timezone tables are populated so CONVERT_TZ works correctly in scheduler queries
+
+**Plans:** TBD
+
+---
+
+### v5.1 Progress
+
+**Execution Order:**
+Phase 74 (Business Data) | Phase 75 (Seeding) | Phase 76 (Fixes) | Phase 78 (WA Setup) → Phase 77 (Deployment)
+
+Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 completing first.
+
+| Phase                         | Plans Complete | Status      | Completed |
+| ----------------------------- | -------------- | ----------- | --------- |
+| 74. Business Data Integration | 0/?            | Not started | -         |
+| 75. Database Seeding          | 0/?            | Not started | -         |
+| 76. Known Issues Fix          | 0/?            | Not started | -         |
+| 77. GitHub Actions Deployment | 0/?            | Not started | -         |
+| 78. WhatsApp Production Setup | 0/?            | Not started | -         |
+
+---
+
+_v5.1 phases added: 2026-03-26 -- 5 phases (74-78), 23 requirements mapped_
