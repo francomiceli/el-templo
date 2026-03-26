@@ -17,6 +17,12 @@ useHead({
     {
       rel: "icon",
       type: "image/png",
+      sizes: "192x192",
+      href: "/favicon-192x192.png",
+    },
+    {
+      rel: "icon",
+      type: "image/png",
       sizes: "32x32",
       href: "/favicon-32x32.png",
     },

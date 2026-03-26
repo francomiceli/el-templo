@@ -63,6 +63,8 @@ export const memberProfiles = mysqlTable(
     currentStreak: int("current_streak").default(0),
     longestStreak: int("longest_streak").default(0),
     streakUpdatedAt: timestamp("streak_updated_at"),
+    ghostReattemptCount: int("ghost_reattempt_count").default(0),
+    lastGhostReattemptAt: timestamp("last_ghost_reattempt_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
