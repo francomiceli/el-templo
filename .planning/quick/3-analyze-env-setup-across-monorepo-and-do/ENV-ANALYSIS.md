@@ -1,7 +1,7 @@
 # Environment Variable Setup Analysis
 
-**Date:** 2026-03-25
-**Scope:** el-templo-api, el-templo-bot, deploy scripts
+**Date:** 2026-03-25 (updated 2026-03-26)
+**Scope:** el-templo-api, el-templo-bot, GitHub Actions workflows, deploy scripts
 **Purpose:** Audit current env var management, identify gaps, recommend production strategy
 
 ---
@@ -66,16 +66,85 @@
 
 ---
 
-## 2. Recommendation: Separate .env per Package
+## 2. Production Deployment: GitHub Actions + Secrets
 
-**Recommended approach: Each package maintains its own .env file.** This is already the current setup and is the right choice.
+Production deployment is fully automated via GitHub Actions. There are **no manually-created .env files on the server**. The workflow generates .env.production files from GitHub Secrets during CI/CD and deploys them via rsync.
+
+### How It Works
+
+1. **Trigger:** Push to `master` branch (or manual `workflow_dispatch`)
+2. **Detect changes:** `dorny/paths-filter` determines which packages changed
+3. **Build:** Each changed package builds in its own CI job
+4. **Create .env.production:** The deploy job writes `.env.production` files using GitHub Secrets values
+5. **Deploy:** `rsync --delete` syncs build artifacts + .env.production to the EC2 server
+6. **Post-deploy:** Install prod dependencies, run migrations, restart PM2 processes
+7. **Smoke test:** Hit `/health` endpoint; auto-rollback on failure
+
+### Current GitHub Secrets (API)
+
+The "Create .env.production for API" step in `deploy.yml` currently writes these secrets:
+
+| Secret               | Used in .env.production | Notes                           |
+| -------------------- | :---------------------: | ------------------------------- |
+| DB_HOST              |           Yes           |                                 |
+| DB_PORT              |           Yes           | Default 3306                    |
+| DB_USER              |           Yes           |                                 |
+| DB_PASSWORD          |           Yes           |                                 |
+| DB_NAME              |           Yes           |                                 |
+| JWT_SECRET           |           Yes           |                                 |
+| JWT_EXPIRES_IN       |           Yes           | Default 7d                      |
+| FRONTEND_URL         |           Yes           |                                 |
+| ADMIN_URL            |           Yes           |                                 |
+| SENTRY_DSN           |           Yes           |                                 |
+| R2_ACCOUNT_ID        |           Yes           |                                 |
+| R2_ACCESS_KEY_ID     |           Yes           |                                 |
+| R2_SECRET_ACCESS_KEY |           Yes           |                                 |
+| R2_BUCKET_NAME       |           Yes           |                                 |
+| R2_PUBLIC_URL        |           Yes           |                                 |
+| API_PORT             |           Yes           | Default 3000                    |
+| API_DEPLOY_PATH      |          Infra          | rsync destination path          |
+| APP_DEPLOY_PATH      |          Infra          | rsync destination path          |
+| ADMIN_DEPLOY_PATH    |          Infra          | rsync destination path          |
+| WEB_DEPLOY_PATH      |          Infra          | rsync destination path          |
+| SSH_PRIVATE_KEY      |          Infra          | SSH key for server access       |
+| SSH_USER             |          Infra          | SSH user for server access      |
+| SERVER_HOST          |          Infra          | Server hostname/IP              |
+| VITE_API_URL         |       Build-time        | Injected during frontend builds |
+| VITE_SENTRY_DSN      |       Build-time        | Injected during frontend builds |
+
+### Missing from Current API .env.production
+
+The workflow's "Create .env.production for API" step is **missing several secrets** that the API needs in production:
+
+- `WHATSAPP_TOKEN` -- needed for admin takeover message sends
+- `WHATSAPP_PHONE_ID` -- needed for admin takeover message sends
+- `REDIS_URL` -- needed for session/cache
+- `BOT_API_KEY` -- needed to validate bot requests
+- `RESEND_API_KEY` -- needed for email notifications
+- `FRANCHISE_NOTIFICATION_EMAIL`, `GLADIUS_NOTIFICATION_EMAIL`, `ACADEMY_NOTIFICATION_EMAIL`, `APP_NOTIFICATION_EMAIL` -- needed for email routing
+- `ANTHROPIC_API_KEY` -- needed for franchise AI agent
+
+These must be added as GitHub Secrets and included in the workflow's "Create .env.production for API" step.
+
+### Staging Uses the Same Pattern
+
+`deploy-staging.yml` follows the identical pattern but with `STAGING_` prefixed secrets (e.g., `STAGING_DB_HOST`, `STAGING_DB_USER`). Staging deploys on push to the `staging` branch.
+
+### Key Implication
+
+When rotating a secret (e.g., `WHATSAPP_TOKEN`), you update it **once** in GitHub Secrets. The next deploy automatically propagates it to the server. There is no need to SSH into the server to edit files. For shared secrets (used by both API and bot), the same GitHub Secret value is referenced in both .env.production file creation steps.
+
+---
+
+## 3. Local Development: Separate .env per Package
+
+**For local development, each package maintains its own .env file.** This is already the current setup and is the right choice.
 
 ### Why This Works
 
 - Each process loads its own `.env` via dotenv at startup (already implemented)
-- PM2 ecosystem.config.cjs only passes `NODE_ENV: 'production'` (correct -- no secrets in committed files)
 - Shared vars (DB, Redis, WhatsApp, BOT_API_KEY) are duplicated across both .env files
-- For 2 processes on a single EC2, this duplication is acceptable and simpler than alternatives
+- For 2 processes on a single machine, this duplication is acceptable and simpler than alternatives
 
 ### Alternatives Considered (Not Recommended)
 
@@ -86,45 +155,23 @@
 | Secrets manager (AWS SSM, etc.) | Over-engineering for a single EC2 deployment, adds latency and a dependency                                              |
 | `.env` symlinks                 | Fragile, confusing debugging, no real benefit over copy                                                                  |
 
-### Practical Implication
+---
 
-When updating a shared var (e.g., rotating WHATSAPP_TOKEN), you must update it in **both** `.env` files on the server. This is a 2-file operation, not ideal, but acceptable for 2 processes. If the monorepo grows to 3+ backend processes sharing credentials, revisit a shared `.env` loader.
+## 4. .env.example Audit
+
+| File                           | Status   | Notes                                                                                 |
+| ------------------------------ | -------- | ------------------------------------------------------------------------------------- |
+| `el-templo-api/.env.example`   | Complete | 62 lines, includes all API vars + bot-related vars (WhatsApp, Redis, AI, BOT_API_KEY) |
+| `el-templo-bot/.env.example`   | Complete | 35 lines, all bot vars present, cross-references API BOT_API_KEY                      |
+| `el-templo-admin/.env.example` | Exists   | Frontend app                                                                          |
+| `el-templo-app/.env.example`   | Exists   | Frontend app                                                                          |
+| `el-templo-web/.env.example`   | Exists   | Frontend app                                                                          |
+
+Note: `deploy/.env.production.template` is **obsolete**. Production .env files are generated by the GitHub Actions workflow from GitHub Secrets. This template file is not used by the deploy pipeline and should not be relied upon.
 
 ---
 
-## 3. .env.example Audit
-
-| File                              | Status       | Notes                                                                                 |
-| --------------------------------- | ------------ | ------------------------------------------------------------------------------------- |
-| `el-templo-api/.env.example`      | Complete     | 62 lines, includes all API vars + bot-related vars (WhatsApp, Redis, AI, BOT_API_KEY) |
-| `el-templo-bot/.env.example`      | Complete     | 35 lines, all bot vars present, cross-references API BOT_API_KEY                      |
-| `el-templo-admin/.env.example`    | Exists       | Frontend app                                                                          |
-| `el-templo-app/.env.example`      | Exists       | Frontend app                                                                          |
-| `el-templo-web/.env.example`      | Exists       | Frontend app                                                                          |
-| `deploy/.env.production.template` | **OUTDATED** | Only covers 7 API vars. Missing 20+ vars (see Section 6)                              |
-
-### deploy/.env.production.template Gap
-
-Currently includes only:
-
-- PORT, NODE_ENV, DB_HOST/PORT/USER/PASSWORD/NAME, FRONTEND_URL, ADMIN_URL, JWT_SECRET, LOG_LEVEL
-
-Missing from template:
-
-- JWT_EXPIRES_IN
-- R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_URL
-- RESEND_API_KEY, notification emails (x4)
-- ANTHROPIC_API_KEY
-- WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, WHATSAPP_VERIFY_TOKEN
-- REDIS_URL
-- AI_PROVIDER, AI_MODEL, OPENAI_API_KEY
-- BOT_API_KEY
-- SENTRY_DSN
-- All bot-specific vars (API_BASE_URL, CLASS_REMINDER_HOURS, WHATSAPP_BUSINESS_ACCOUNT_ID)
-
----
-
-## 4. Shared Variables Analysis
+## 5. Shared Variables Analysis
 
 | Variable          | el-templo-api Usage                               | el-templo-bot Usage                | Must Match? |
 | ----------------- | ------------------------------------------------- | ---------------------------------- | :---------: |
@@ -138,13 +185,13 @@ Missing from template:
 | WHATSAPP_PHONE_ID | Admin takeover sends (whatsapp/service.ts)        | Webhook responses (client.ts)      |     Yes     |
 | BOT_API_KEY       | Validates bot requests (scheduling/bot-routes.ts) | Authenticates API calls (tools.ts) |     Yes     |
 
-**Recommendation:** Keep duplicated in each `.env` file. The bot's `.env.example` already has the comment `# Bot-to-API authentication (must match el-templo-api BOT_API_KEY)` which is good practice. No changes needed here.
+**For local development:** Keep duplicated in each `.env` file. The bot's `.env.example` already has the comment `# Bot-to-API authentication (must match el-templo-api BOT_API_KEY)` which is good practice.
 
-**Risk:** If BOT_API_KEY or WHATSAPP_TOKEN values diverge between the two `.env` files in production, bot-to-API calls or WhatsApp sends will silently fail. When rotating these values, always update both files and restart both PM2 processes.
+**For production:** Shared values use the same GitHub Secret referenced in both .env.production creation steps. Updating the secret once propagates to both processes on next deploy.
 
 ---
 
-## 5. WhatsApp Token Management
+## 6. WhatsApp Token Management
 
 ### Current State (Development)
 
@@ -179,59 +226,144 @@ For production, you need a **permanent access token** via a System User in Meta 
 
 ### Where to Store
 
-- `/var/www/el-templo/el-templo-api/.env` -- for admin takeover message sends
-- `/var/www/el-templo/el-templo-bot/.env` -- for bot webhook responses
-- Both files must have the **same token value**
+Add as GitHub Secret `WHATSAPP_TOKEN`. The deploy workflow injects it into both the API and bot `.env.production` files during deploy. For local development, add to both `el-templo-api/.env` and `el-templo-bot/.env`.
 
 ### Security Notes
 
 - Do not commit the token to git (already handled: `.env` is gitignored)
-- Rotate the token if the server is compromised: revoke in Business Manager, generate new one, update both `.env` files
+- Rotate the token if the server is compromised: revoke in Business Manager, generate new one, update the GitHub Secret -- next deploy propagates the change
 - The `WHATSAPP_VERIFY_TOKEN` is a separate, self-chosen string for webhook verification and does not need Meta generation
 
 ---
 
-## 6. Production Deployment Gaps
+## 7. Production Deployment: Bot Requirements
 
-### deploy/update-server.sh
+### New GitHub Secrets to Add
 
-**Current script only handles el-templo-api.** It needs to also build and restart el-templo-bot.
+These secrets must be added in GitHub repository settings for bot deployment:
 
-Missing steps:
+| Secret                | Value                                   | Also Used By | Notes                            |
+| --------------------- | --------------------------------------- | ------------ | -------------------------------- |
+| WHATSAPP_TOKEN        | Permanent System User token             | API          | Shared -- same secret for both   |
+| WHATSAPP_PHONE_ID     | Meta Business phone number ID           | API          | Shared -- same secret for both   |
+| WHATSAPP_VERIFY_TOKEN | Self-chosen webhook string              | -            | Bot only                         |
+| AI_PROVIDER           | `openai` or `anthropic`                 | -            | Bot only                         |
+| AI_MODEL              | e.g. `gpt-4o-mini`                      | -            | Bot only                         |
+| OPENAI_API_KEY        | OpenAI API key                          | -            | Bot only (if using OpenAI)       |
+| ANTHROPIC_API_KEY     | Anthropic API key                       | API          | Shared -- API uses for franchise |
+| BOT_API_KEY           | Shared auth key                         | API          | Shared -- same secret for both   |
+| REDIS_URL             | `redis://localhost:6379`                | API          | Shared -- same Redis instance    |
+| BOT_PORT              | `3001`                                  | -            | Bot only                         |
+| API_BASE_URL          | `http://localhost:3000/api`             | -            | Bot only (local API calls)       |
+| CLASS_REMINDER_HOURS  | `2`                                     | -            | Bot only (default 2)             |
+| BOT_DEPLOY_PATH       | e.g. `/var/www/el-templo/el-templo-bot` | -            | Infra -- rsync destination       |
 
-- `cd /var/www/el-templo/el-templo-bot && pnpm install && pnpm build`
-- `pm2 restart eltemplo-bot`
+### Workflow Changes Needed (deploy.yml)
 
-The bot has no database migrations (uses the same schema as API), so no `db:push` needed for the bot.
+The following changes are needed to add bot build/deploy to the production workflow:
 
-### deploy/.env.production.template
+**a. Add `bot` to detect-changes paths-filter:**
 
-**Severely outdated.** Should be split into two templates or expanded to cover both processes. Recommended approach: create two templates:
+```yaml
+bot:
+  - "el-templo-bot/**"
+```
 
-- `deploy/.env.production.api.template` -- all el-templo-api vars
-- `deploy/.env.production.bot.template` -- all el-templo-bot vars
+**b. Add `build-bot` job** (similar to `build-api` but without tests/migrations):
 
-### Production .env File Locations
+- Checkout, setup pnpm/node
+- `pnpm install --frozen-lockfile`
+- `pnpm exec tsc --noEmit` (type check)
+- `pnpm run build`
+- Upload `bot-dist` artifact (dist/, package.json, pnpm-lock.yaml)
 
-On EC2, each app needs its own `.env` file:
+**c. Add "Create .env.production for bot" step in deploy job:**
 
-- `/var/www/el-templo/el-templo-api/.env` -- all API environment variables
-- `/var/www/el-templo/el-templo-bot/.env` -- all bot environment variables
+```yaml
+- name: Create .env.production for bot
+  if: needs.build-bot.result == 'success'
+  run: |
+    cat > bot-build/.env.production << 'EOF'
+    NODE_ENV=production
+    PORT=${{ secrets.BOT_PORT || '3001' }}
+    DB_HOST=${{ secrets.DB_HOST }}
+    DB_PORT=${{ secrets.DB_PORT || '3306' }}
+    DB_USER=${{ secrets.DB_USER }}
+    DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+    DB_NAME=${{ secrets.DB_NAME }}
+    REDIS_URL=${{ secrets.REDIS_URL }}
+    WHATSAPP_TOKEN=${{ secrets.WHATSAPP_TOKEN }}
+    WHATSAPP_PHONE_ID=${{ secrets.WHATSAPP_PHONE_ID }}
+    WHATSAPP_VERIFY_TOKEN=${{ secrets.WHATSAPP_VERIFY_TOKEN }}
+    AI_PROVIDER=${{ secrets.AI_PROVIDER }}
+    AI_MODEL=${{ secrets.AI_MODEL }}
+    OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+    ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+    BOT_API_KEY=${{ secrets.BOT_API_KEY }}
+    API_BASE_URL=${{ secrets.API_BASE_URL }}
+    CLASS_REMINDER_HOURS=${{ secrets.CLASS_REMINDER_HOURS || '2' }}
+    EOF
+```
 
-These files are created manually on the server (never committed to git). The `.env.example` files in each package serve as the template.
+**d. Add rsync step for bot:**
 
-### deploy/setup-ec2.sh
+```yaml
+- name: Deploy bot to server
+  if: needs.build-bot.result == 'success'
+  run: |
+    rsync -avz --delete --exclude node_modules \
+      bot-build/ \
+      ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.BOT_DEPLOY_PATH }}
+```
 
-Missing:
+**e. Add "Install bot dependencies on server" step:**
 
-- Redis installation (`apt install -y redis-server`)
-- Redis service start/enable
-- PM2 startup configuration (`pm2 startup systemd`)
-- Instructions for creating both `.env` files (currently only mentions API)
+```yaml
+- name: Install bot dependencies on server
+  if: needs.build-bot.result == 'success'
+  run: |
+    ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+      cd ${{ secrets.BOT_DEPLOY_PATH }}
+      pnpm install --prod --frozen-lockfile
+    ENDSSH
+```
+
+**f. Add "Restart bot" step:**
+
+```yaml
+- name: Restart bot
+  if: needs.build-bot.result == 'success'
+  run: |
+    ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_HOST }} << 'ENDSSH'
+      cd ${{ secrets.BOT_DEPLOY_PATH }}
+      NODE_ENV=production pm2 restart eltemplo-bot --update-env || NODE_ENV=production pm2 start dist/index.js --name eltemplo-bot
+    ENDSSH
+```
+
+**g. Add bot backup/rollback steps:**
+
+Add bot path to the backup and rollback steps (alongside API, App, Admin, Web).
+
+**h. Update deploy job `needs` and `if` conditions** to include `build-bot`.
+
+### Staging Workflow (deploy-staging.yml)
+
+Apply the same changes with `STAGING_` prefixed secrets (e.g., `STAGING_WHATSAPP_TOKEN`, `STAGING_BOT_DEPLOY_PATH`).
+
+### Also Missing from API .env.production
+
+The current "Create .env.production for API" step needs these additional secrets added:
+
+- `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` -- admin takeover sends
+- `REDIS_URL` -- session/cache
+- `BOT_API_KEY` -- validate bot requests
+- `RESEND_API_KEY` -- email notifications
+- `FRANCHISE_NOTIFICATION_EMAIL`, `GLADIUS_NOTIFICATION_EMAIL`, `ACADEMY_NOTIFICATION_EMAIL`, `APP_NOTIFICATION_EMAIL` -- email routing
+- `ANTHROPIC_API_KEY` -- franchise AI agent
 
 ---
 
-## 7. PM2 Ecosystem File
+## 8. PM2 Ecosystem File
 
 ### Current State: Correct
 
@@ -247,8 +379,26 @@ The `el-templo-api/ecosystem.config.cjs` is properly configured:
 
 - **Do NOT put secrets in ecosystem.config.cjs** -- this file is committed to git
 - PM2's `env_production` block is for non-secret runtime config only (NODE_ENV)
-- All secrets must stay in the per-app `.env` files loaded by dotenv at process startup
-- The `cwd` paths (`/var/www/el-templo/el-templo-api` and `/var/www/el-templo/el-templo-bot`) mean each process loads `.env` from its own directory
+- All secrets are in `.env.production` files deployed by the GitHub Actions workflow
+- PM2 process management (restart, start) is executed via SSH commands in the workflow
+- The ecosystem.config.cjs is used as a reference for initial PM2 setup and for `cwd` path configuration; the workflow restart commands reference process names defined in this file
+
+---
+
+## 9. Server Setup (One-Time)
+
+### deploy/setup-ec2.sh
+
+This script handles **one-time initial server setup**, not per-deploy configuration. It is run manually when provisioning a new server.
+
+Still needed updates:
+
+- Add Redis installation (`apt install -y redis-server`)
+- Add Redis service start/enable
+- Add PM2 startup configuration (`pm2 startup systemd`)
+- Ensure bot directory structure exists (e.g., `mkdir -p /var/www/el-templo/el-templo-bot`)
+
+Note: This script does NOT need to create `.env` files. The GitHub Actions workflow creates and deploys `.env.production` files on every deploy.
 
 ---
 
@@ -258,18 +408,22 @@ The `el-templo-api/ecosystem.config.cjs` is properly configured:
 
 1. `.env.example` files for both API and bot are complete and committed
 2. PM2 ecosystem.config.cjs is correctly configured
-3. Separate `.env` per package strategy is already in place
+3. Separate `.env` per package strategy is already in place for local development
 
-### TODO (Before Production Deploy)
+### TODO (Before Production Bot Deploy)
 
-1. **[HIGH] Update `deploy/.env.production.template`** -- Split into two templates (API + bot) covering all current vars. Use each package's `.env.example` as the source of truth.
+1. **[HIGH] Add missing GitHub Secrets for API** -- The current "Create .env.production for API" step is missing WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, REDIS_URL, BOT_API_KEY, RESEND_API_KEY, notification emails, and ANTHROPIC_API_KEY. Add these as GitHub Secrets and update the workflow step.
 
-2. **[HIGH] Update `deploy/update-server.sh`** -- Add bot install, build, and restart steps after the API section.
+2. **[HIGH] Add new GitHub Secrets for bot** -- Add all bot-specific secrets listed in Section 7 (WHATSAPP*VERIFY_TOKEN, AI_PROVIDER, AI_MODEL, OPENAI_API_KEY, BOT_PORT, API_BASE_URL, CLASS_REMINDER_HOURS, BOT_DEPLOY_PATH). Shared secrets (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID, DB*\*, REDIS_URL, BOT_API_KEY, ANTHROPIC_API_KEY) are already needed for the API fix above.
 
-3. **[HIGH] Set up permanent WhatsApp System User token** -- Follow steps in Section 5 above. Must be done before production bot deployment.
+3. **[HIGH] Update deploy.yml** -- Add bot to detect-changes, build-bot job, .env.production for bot, rsync, install deps, restart, backup/rollback. See Section 7 for detailed steps.
 
-4. **[HIGH] Create `.env` files on EC2** -- Both `/var/www/el-templo/el-templo-api/.env` and `/var/www/el-templo/el-templo-bot/.env` with production values.
+4. **[HIGH] Update deploy-staging.yml** -- Same changes as deploy.yml with STAGING\_ prefixed secrets.
 
-5. **[MEDIUM] Update `deploy/setup-ec2.sh`** -- Add Redis installation, PM2 startup config, and instructions for both `.env` files.
+5. **[HIGH] Set up permanent WhatsApp System User token** -- Follow steps in Section 6. Store as GitHub Secret `WHATSAPP_TOKEN`. Must be done before production bot deployment.
 
-6. **[LOW] Clean up `WHATSAPP_BUSINESS_ACCOUNT_ID`** -- Present in bot `.env.example` but not referenced in any code. Either use it or remove it from the template.
+6. **[MEDIUM] Update deploy/setup-ec2.sh** -- Add Redis installation, PM2 startup config, and bot directory creation for one-time server provisioning.
+
+7. **[LOW] Clean up deploy/.env.production.template** -- This file is obsolete (deployment uses GitHub Secrets, not templates). Consider removing it to avoid confusion.
+
+8. **[LOW] Clean up WHATSAPP_BUSINESS_ACCOUNT_ID** -- Present in bot `.env.example` but not referenced in any code. Either use it or remove it from the template.
