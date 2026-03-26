@@ -17,6 +17,9 @@ export const branches = mysqlTable("branches", {
     .default("America/Argentina/Buenos_Aires")
     .notNull(),
   country: varchar("country", { length: 2 }).default("AR").notNull(),
+  address: varchar("address", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  googleMapsUrl: varchar("google_maps_url", { length: 500 }),
   maxCapacity: int("max_capacity").default(22).notNull(),
   romEnabled: boolean("rom_enabled").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
