@@ -26,6 +26,7 @@ import type { LevelGroup, DaySession, ExerciseLevel } from "./types";
 import { AuraService } from "../aura/service";
 import { StreakService } from "../streaks";
 import { ProgramsService } from "../programs/service";
+import { NotificationService } from "../notifications/service";
 
 /**
  * Map individual level to level group for session generation
@@ -142,6 +143,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
   const streakService = new StreakService(fastify.db, auraService, fastify.log);
   const programsService = new ProgramsService(fastify.db, fastify.log);
+  const notificationService = new NotificationService(fastify.db, fastify.log);
 
   // Load format descriptions once at startup (small, static table)
   const formatRows = await fastify.db
@@ -478,6 +480,21 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         request.log.warn(
           { err: progErr, userId },
           "Program session recording failed after session completion",
+        );
+      }
+
+      // Queue post-session soreness reminder (per D-05: 2h after session completion)
+      try {
+        const twoHoursLater = new Date(Date.now() + 2 * 60 * 60 * 1000);
+        await notificationService.queueNotification({
+          userId,
+          templateKey: "post_session_soreness",
+          scheduledAt: twoHoursLater,
+        });
+      } catch (notifErr: unknown) {
+        request.log.warn(
+          { err: notifErr, userId },
+          "Post-session soreness notification queueing failed (graceful degradation)",
         );
       }
 
