@@ -37,6 +37,7 @@ import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
 import { checkInRoutes } from "./modules/check-ins";
 import { programRoutes } from "./modules/programs";
+import { notificationRoutes } from "./modules/notifications";
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -169,6 +170,9 @@ export async function buildApp() {
 
   // Program management routes (admin CRUD + member catalog/progress)
   await app.register(programRoutes, { prefix: "/api" });
+
+  // Notification routes (push notifications, preferences, admin templates)
+  await app.register(notificationRoutes, { prefix: "/api/notifications" });
 
   // Health check endpoint
   app.get("/health", async () => {

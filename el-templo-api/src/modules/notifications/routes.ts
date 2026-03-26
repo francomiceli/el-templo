@@ -19,6 +19,15 @@ import {
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
 import * as schema from "../../db/schema";
 
+/** Valid member segment values matching memberSegmentEnum */
+type MemberSegment =
+  | "nuevo_guerrero"
+  | "espartano"
+  | "intermitente"
+  | "en_riesgo"
+  | "digital_warrior"
+  | "ghost";
+
 // ---- Fastify JSON Schemas for request validation ----
 
 const registerTokenSchema = {
@@ -384,7 +393,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     Body: {
       title: string;
       body: string;
-      segmentIds: string[];
+      segmentIds: MemberSegment[];
       route?: string;
     };
   }>(
