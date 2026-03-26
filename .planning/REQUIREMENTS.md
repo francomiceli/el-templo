@@ -9,14 +9,14 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ### Business Data
 
-- [ ] **BIZ-01**: Bot answers accurately about pricing for all plan types (Flex, Foundation, Performance, credit card)
+- [x] **BIZ-01**: Bot answers accurately about pricing for all plan types (Flex, Foundation, Performance, credit card)
 - [ ] **BIZ-02**: Bot answers accurately about all branch locations with addresses and Google Maps links
-- [ ] **BIZ-03**: Bot answers accurately about class schedules per branch
-- [ ] **BIZ-04**: Bot answers about Zero pricing rules, Boarding Pass, and plan upgrade paths
-- [ ] **BIZ-05**: Bot answers about ROM (Rango Orgánico de Movilidad) and what it includes
-- [ ] **BIZ-06**: Bot answers about trial class rules (free first class, booking flow, what to bring)
-- [ ] **BIZ-07**: Bot answers about app troubleshooting (download, login, session access)
-- [ ] **BIZ-08**: System prompt references structured business knowledge file instead of hardcoded data
+- [x] **BIZ-03**: Bot answers accurately about class schedules per branch
+- [x] **BIZ-04**: Bot answers about Zero pricing rules, Boarding Pass, and plan upgrade paths
+- [x] **BIZ-05**: Bot answers about ROM (Rango Orgánico de Movilidad) and what it includes
+- [x] **BIZ-06**: Bot answers about trial class rules (free first class, booking flow, what to bring)
+- [x] **BIZ-07**: Bot answers about app troubleshooting (download, login, session access)
+- [x] **BIZ-08**: System prompt references structured business knowledge file instead of hardcoded data
 
 ### Database Seeding
 
@@ -74,31 +74,31 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ## Traceability
 
-| Requirement | Phase    | Status  |
-| ----------- | -------- | ------- |
-| BIZ-01      | Phase 74 | Pending |
-| BIZ-02      | Phase 74 | Pending |
-| BIZ-03      | Phase 74 | Pending |
-| BIZ-04      | Phase 74 | Pending |
-| BIZ-05      | Phase 74 | Pending |
-| BIZ-06      | Phase 74 | Pending |
-| BIZ-07      | Phase 74 | Pending |
-| BIZ-08      | Phase 74 | Pending |
-| SEED-01     | Phase 75 | Pending |
-| SEED-02     | Phase 75 | Pending |
-| SEED-03     | Phase 75 | Pending |
-| SEED-04     | Phase 75 | Pending |
-| SEED-05     | Phase 75 | Pending |
-| FIX-01      | Phase 76 | Pending |
-| FIX-02      | Phase 76 | Pending |
-| FIX-03      | Phase 76 | Pending |
-| DEPLOY-01   | Phase 77 | Pending |
-| DEPLOY-02   | Phase 77 | Pending |
-| DEPLOY-03   | Phase 77 | Pending |
-| DEPLOY-04   | Phase 77 | Pending |
-| WA-01       | Phase 78 | Pending |
-| WA-02       | Phase 78 | Pending |
-| WA-03       | Phase 78 | Pending |
+| Requirement | Phase    | Status   |
+| ----------- | -------- | -------- |
+| BIZ-01      | Phase 74 | Complete |
+| BIZ-02      | Phase 74 | Pending  |
+| BIZ-03      | Phase 74 | Complete |
+| BIZ-04      | Phase 74 | Complete |
+| BIZ-05      | Phase 74 | Complete |
+| BIZ-06      | Phase 74 | Complete |
+| BIZ-07      | Phase 74 | Complete |
+| BIZ-08      | Phase 74 | Complete |
+| SEED-01     | Phase 75 | Pending  |
+| SEED-02     | Phase 75 | Pending  |
+| SEED-03     | Phase 75 | Pending  |
+| SEED-04     | Phase 75 | Pending  |
+| SEED-05     | Phase 75 | Pending  |
+| FIX-01      | Phase 76 | Pending  |
+| FIX-02      | Phase 76 | Pending  |
+| FIX-03      | Phase 76 | Pending  |
+| DEPLOY-01   | Phase 77 | Pending  |
+| DEPLOY-02   | Phase 77 | Pending  |
+| DEPLOY-03   | Phase 77 | Pending  |
+| DEPLOY-04   | Phase 77 | Pending  |
+| WA-01       | Phase 78 | Pending  |
+| WA-02       | Phase 78 | Pending  |
+| WA-03       | Phase 78 | Pending  |
 
 **Coverage:**
 
