@@ -29,6 +29,9 @@ importers:
       '@capacitor/preferences':
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
+      '@capacitor/push-notifications':
+        specifier: ^8.0.3
+        version: 8.0.3(@capacitor/core@8.0.1)
       '@fontsource/cinzel':
         specifier: ^5.2.8
         version: 5.2.8
@@ -172,6 +175,11 @@ packages:
 
   '@capacitor/preferences@8.0.0':
     resolution: {integrity: sha512-NsE7Srk9Zr0SxiVelHGiAJR7M238eyCD6dI/sDhu3ckKwFrXn8/GRyGr+SZcnGLlQKy948li8Pfcfr0dqxNf1g==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
+  '@capacitor/push-notifications@8.0.3':
+    resolution: {integrity: sha512-jmBBoJvOzmzem8YoO9dQJBPFiM1bksTNAoV7yksCBN10BybAOtmBF19vFPt/jr2KGAirnPZz0ne2X0OH/rRGtg==}
     peerDependencies:
       '@capacitor/core': '>=8.0.0'
 
@@ -3243,6 +3251,10 @@ snapshots:
       '@capacitor/core': 8.0.1
 
   '@capacitor/preferences@8.0.0(@capacitor/core@8.0.1)':
+    dependencies:
+      '@capacitor/core': 8.0.1
+
+  '@capacitor/push-notifications@8.0.3(@capacitor/core@8.0.1)':
     dependencies:
       '@capacitor/core': 8.0.1
 
