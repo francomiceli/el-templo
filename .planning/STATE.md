@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Ready to plan
-stopped_at: Phase 84 context gathered
-last_updated: "2026-03-26T18:22:00.617Z"
+status: Milestone complete
+stopped_at: Completed 84-07-PLAN.md
+last_updated: "2026-03-26T19:19:02.159Z"
 progress:
   total_phases: 82
-  completed_phases: 68
-  total_plans: 279
-  completed_plans: 274
+  completed_phases: 69
+  total_plans: 286
+  completed_plans: 281
 ---
 
 # Project State
@@ -19,7 +19,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 83 — micro-program-upsells
+**Current focus:** Phase 84 — push-notifications
 
 ## Current Position
 
@@ -100,6 +100,13 @@ _Updated after each plan completion_
 | Phase 83 P04 | 5min | 2 tasks | 7 files |
 | Phase 83 P03 | 7min | 2 tasks | 7 files |
 | Phase 83 P05 | 16min | 2 tasks | 5 files |
+| Phase 84 P02 | 2min | 2 tasks | 6 files |
+| Phase 84 P01 | 5min | 2 tasks | 8 files |
+| Phase 84 P03 | 4min | 2 tasks | 3 files |
+| Phase 84 P04 | 4min | 2 tasks | 4 files |
+| Phase 84 P06 | 2min | 2 tasks | 3 files |
+| Phase 84 P05 | 3min | 2 tasks | 3 files |
+| Phase 84 P07 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -206,6 +213,13 @@ Recent decisions affecting current work:
 - [Phase 83]: Vertical QStepper wizard for multi-step program creation; payment confirmation checkbox as hard gate on enrollment per D-39; program analytics on AnaliticasPage per D-40
 - [Phase 83]: Calendar-week gating: nextWeekStartDate = enrolledAt + (currentWeek \* 7 days), compared against current date for dual-condition advancement
 - [Phase 83]: AURA program bonuses use independent try/catch blocks -- weekly and completion awards fail independently with graceful degradation
+- [Phase 84]: Logger error() second arg must be LogData object not plain string; boot order: push-notifications after modules in quasar.config.js
+- [Phase 84]: FcmMessaging interface + dynamic import for compile-time safety without firebase-admin dependency
+- [Phase 84]: Queue-based notification delivery: all notifications flow through pending_notifications table with 15-min cron polling
+- [Phase 84]: Inline JSON schemas in notification routes.ts for module self-containment; MemberSegment type cast for drizzle enum inArray queries
+- [Phase 84]: Direct calculateSegment() call in batch cron bypasses 1-hour cooldown; program renewal warning in daily batch cron
+- [Phase 84]: Logger error() uses LogData object as second arg per Phase 84 convention
+- [Phase 84]: DRY_RUN=true in test file and CI env for FCM mocking; FIREBASE_SERVICE_ACCOUNT_BASE64 in .env.production for production FCM sends
 
 ### Pending Todos
 
@@ -217,6 +231,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T18:22:00.611Z
-Stopped at: Phase 84 context gathered
-Resume file: .planning/phases/84-push-notifications/84-CONTEXT.md
+Last session: 2026-03-26T19:13:00.406Z
+Stopped at: Completed 84-07-PLAN.md
+Resume file: None

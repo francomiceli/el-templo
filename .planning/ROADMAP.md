@@ -1707,12 +1707,12 @@ Plans:
 
 Plans:
 
-- [ ] 84-01-PLAN.md — Database schema + NotificationService core
-- [ ] 84-02-PLAN.md — Capacitor push plugin + FCM token lifecycle
-- [ ] 84-03-PLAN.md — Notification API routes + Fastify wiring
-- [ ] 84-04-PLAN.md — Cron jobs + event-driven notification triggers
-- [ ] 84-05-PLAN.md — Member notification preferences UI + permission banner
-- [ ] 84-06-PLAN.md — Admin Notificaciones page + sidebar
+- [x] 84-01-PLAN.md — Database schema + NotificationService core
+- [x] 84-02-PLAN.md — Capacitor push plugin + FCM token lifecycle
+- [x] 84-03-PLAN.md — Notification API routes + Fastify wiring
+- [x] 84-04-PLAN.md — Cron jobs + event-driven notification triggers
+- [x] 84-05-PLAN.md — Member notification preferences UI + permission banner
+- [x] 84-06-PLAN.md — Admin Notificaciones page + sidebar
 - [ ] 84-07-PLAN.md — Integration tests + CI/CD workflow updates
       **Success Criteria** (what must be TRUE):
 
@@ -1753,7 +1753,7 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |            |
 | 82. Progressive Profiling & Check-ins | 2/3            | In Progress |            |
 | 83. Micro-Program Upsells             | 4/5            | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation     | 0/7            | In Progress |            |
+| 84. Push Notifications Foundation     | 6/7            | Complete    | 2026-03-26 |
 
 ---
 
