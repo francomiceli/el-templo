@@ -5,7 +5,7 @@
 
     <!-- Filter bar -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-12 col-sm-2">
+      <div class="col-12 col-sm-6 col-md-3">
         <q-input
           v-model="filters.search"
           label="Buscar por nombre, email o DNI"
@@ -20,7 +20,7 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.planId"
           :options="planFilterOptions"
@@ -42,7 +42,7 @@
           </template>
         </q-select>
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm-3 col-md-1">
         <q-select
           v-model="filters.branchId"
           :options="branchFilterOptions"
@@ -54,7 +54,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm-3 col-md-1">
         <q-select
           v-model="filters.level"
           :options="levelFilterOptions"
@@ -66,7 +66,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-1">
+      <div class="col-6 col-sm-3 col-md-1">
         <q-select
           v-model="filters.isActive"
           :options="statusFilterOptions"
@@ -78,7 +78,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
@@ -90,15 +90,18 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-1 text-right">
-        <div class="q-gutter-sm">
+      <div class="col-12 col-sm-3 col-md-2">
+        <div class="row no-wrap q-gutter-x-sm justify-end items-center">
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
             <q-tooltip>Exportar a Excel</q-tooltip>
           </q-btn>
           <q-btn
+            label="Nuevo"
             icon="person_add"
-            label="Crear Alumno"
             color="primary"
+            dense
+            no-caps
+            class="q-px-md"
             @click="showCreateDialog = true"
           />
         </div>

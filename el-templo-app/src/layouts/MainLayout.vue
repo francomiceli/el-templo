@@ -347,6 +347,11 @@ async function onLogout() {
 .mobile-footer {
   background: linear-gradient(135deg, #a0755a 0%, #c07a56 100%);
   border-top: none;
+  // Safe area for phones with home indicator — gradient fills below the tabs
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  // iOS Safari: force compositor layer to prevent fixed-position detach during scroll
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .mobile-tabs {
@@ -355,8 +360,6 @@ async function onLogout() {
   align-items: center;
   height: 56px;
   padding: 0 4px;
-  // Safe area for phones with home indicator
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .mobile-tab {
