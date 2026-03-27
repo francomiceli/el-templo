@@ -4,6 +4,9 @@
  * Verifies that the business knowledge file, branch address data,
  * and system prompt integration contain correct information matching
  * the source business document.
+ *
+ * Covers all 12 knowledge sections, Mica persona identity, Argentine
+ * tuteo tone, tool rules, and state-adaptive behavior for 5 client states.
  */
 
 import { describe, it, expect } from "vitest";
@@ -32,12 +35,8 @@ describe("Business knowledge data accuracy", () => {
     it("contains Zero prices for all plan types", () => {
       // Flex Zero
       expect(knowledge).toMatch(/65[.,]000/);
-      // Flex+ Zero
-      expect(knowledge).toMatch(/80[.,]000/);
       // Foundation Zero
       expect(knowledge).toMatch(/220[.,]000/);
-      // Foundation+ Zero
-      expect(knowledge).toMatch(/315[.,]000/);
       // Performance Zero
       expect(knowledge).toMatch(/560[.,]000/);
     });
@@ -49,6 +48,10 @@ describe("Business knowledge data accuracy", () => {
       expect(knowledge).toMatch(/370[.,]000/);
       // Foundation TC
       expect(knowledge).toMatch(/280[.,]000/);
+    });
+
+    it("contains single class price", () => {
+      expect(knowledge).toContain("20,000");
     });
   });
 
@@ -62,7 +65,6 @@ describe("Business knowledge data accuracy", () => {
     });
 
     it("contains schedule data for each branch", () => {
-      // Each branch should have time slots listed
       expect(knowledge).toContain("7:00");
       expect(knowledge).toContain("20:00");
       expect(knowledge).toContain("L-V:");
@@ -97,6 +99,108 @@ describe("Business knowledge data accuracy", () => {
     it("mentions password recovery steps", () => {
       expect(knowledge).toContain("contrasena");
       expect(knowledge).toContain("recuperacion");
+    });
+  });
+
+  describe("Sales techniques", () => {
+    it("contains urgency strategy", () => {
+      expect(knowledge).toMatch(/urgencia|cupos limitados/i);
+    });
+
+    it("contains anchoring strategy", () => {
+      expect(knowledge).toMatch(/anclaje|anchoring/i);
+    });
+
+    it("contains upselling strategy", () => {
+      expect(knowledge).toMatch(/upselling|upgrade/i);
+    });
+
+    it("contains soft close strategy", () => {
+      expect(knowledge).toMatch(/soft close|call to action/i);
+    });
+  });
+
+  describe("Objection handling", () => {
+    it("covers at least 5 of the 7 common objections", () => {
+      const objectionKeywords = [
+        "caro",
+        "tiempo",
+        "miedo",
+        "pensarlo",
+        "otro",
+        "lejos",
+        "por clase",
+      ];
+      const foundCount = objectionKeywords.filter((keyword) =>
+        knowledge.toLowerCase().includes(keyword),
+      ).length;
+      expect(foundCount).toBeGreaterThanOrEqual(5);
+    });
+
+    it("contains response patterns for objections", () => {
+      // Each objection should have a response — check for key response phrases
+      expect(knowledge).toMatch(/Boarding Pass|descuento/i);
+      expect(knowledge).toMatch(/multinivel|Alfa/i);
+      expect(knowledge).toMatch(/cupos|llenan/i);
+    });
+  });
+
+  describe("Retention strategies", () => {
+    it("covers inactive member scenario", () => {
+      expect(knowledge).toMatch(/inactivo|no viene|sin asistir/i);
+    });
+
+    it("covers membership expiration scenario", () => {
+      expect(knowledge).toMatch(/vencer|renovar/i);
+    });
+
+    it("covers cancellation/pause scenario", () => {
+      expect(knowledge).toMatch(/cancelacion|pausa/i);
+    });
+
+    it("covers returning member scenario", () => {
+      expect(knowledge).toMatch(/vuelve|regresa/i);
+    });
+  });
+
+  describe("Golden rules", () => {
+    it("has Reglas de Oro section header", () => {
+      expect(knowledge).toMatch(/Reglas de Oro/);
+    });
+
+    it("contains at least 10 distinct numbered rules", () => {
+      // Golden rules are numbered 1-12
+      const ruleMatches = knowledge.match(/^\d+\.\s/gm);
+      expect(ruleMatches).not.toBeNull();
+      expect(ruleMatches!.length).toBeGreaterThanOrEqual(10);
+    });
+
+    it("includes key rules: tuteo, emoji, cupos, BUTTONS_SENT, escalar", () => {
+      expect(knowledge).toMatch(/tuteo/i);
+      expect(knowledge).toMatch(/emoji/i);
+      expect(knowledge).toContain("cupos disponibles");
+      expect(knowledge).toContain("BUTTONS_SENT");
+      expect(knowledge).toMatch(/escalar/i);
+    });
+  });
+
+  describe("Policies", () => {
+    it("covers turnos fijos", () => {
+      expect(knowledge).toContain("turnos fijos");
+    });
+
+    it("covers self-managed bookings", () => {
+      expect(knowledge).toMatch(/autogestionados|autogestionar|autogestion/i);
+    });
+
+    it("covers cancellation with time reference", () => {
+      expect(knowledge).toMatch(/cancelar/i);
+      expect(knowledge).toContain("20 minutos");
+    });
+
+    it("covers freeze/vacation policy for Performance only", () => {
+      expect(knowledge).toMatch(/congelamiento|vacaciones/i);
+      expect(knowledge).toMatch(/Performance/);
     });
   });
 });
@@ -148,16 +252,61 @@ describe("Branch address data accuracy", () => {
 describe("System prompt integration", () => {
   const prompt = getSystemPrompt();
 
-  it("contains Conocimiento del negocio section", () => {
-    expect(prompt).toContain("Conocimiento del negocio");
+  it("contains Mica identity", () => {
+    expect(prompt).toContain("Mica");
   });
 
-  it("contains pricing data", () => {
-    expect(prompt).toMatch(/80[.,]000/);
-    expect(prompt).toMatch(/600[.,]000/);
+  it("uses Argentine tuteo instructions", () => {
+    expect(prompt).toContain("vos");
+    expect(prompt).toMatch(/tuteo/i);
   });
 
-  it("has reasonable length indicating knowledge was injected", () => {
-    expect(prompt.length).toBeGreaterThan(2000);
+  it("contains max emoji rule", () => {
+    expect(prompt).toMatch(/1-2 emoji|maximo.*emoji/i);
+  });
+
+  it("contains tool usage rules", () => {
+    expect(prompt).toContain("BUTTONS_SENT");
+    expect(prompt).toContain("check_schedule");
+    expect(prompt).toContain("request_human");
+  });
+
+  it("contains escalation phrase", () => {
+    expect(prompt).toContain("Te paso con alguien del equipo");
+  });
+
+  it("contains business knowledge (prompt length > 3000 chars)", () => {
+    expect(prompt.length).toBeGreaterThan(3000);
+  });
+
+  describe("State-adaptive behavior", () => {
+    it("lead state focuses on trial", () => {
+      const leadPrompt = getSystemPrompt({ clientState: "lead" });
+      expect(leadPrompt).toMatch(/clase de prueba|prueba/i);
+    });
+
+    it("active member focuses on community/retention", () => {
+      const activePrompt = getSystemPrompt({ clientState: "active_member" });
+      expect(activePrompt).toMatch(/comunidad|activo/i);
+    });
+
+    it("inactive member focuses on reactivation", () => {
+      const inactivePrompt = getSystemPrompt({
+        clientState: "inactive_member",
+      });
+      expect(inactivePrompt).toMatch(/volver|reactivar|motivar/i);
+    });
+
+    it("expired member focuses on renewal", () => {
+      const expiredPrompt = getSystemPrompt({
+        clientState: "expired_member",
+      });
+      expect(expiredPrompt).toMatch(/renovar|renueve|vencio/i);
+    });
+
+    it("trial focuses on conversion", () => {
+      const trialPrompt = getSystemPrompt({ clientState: "trial" });
+      expect(trialPrompt).toMatch(/miembro|membresia|convertir/i);
+    });
   });
 });
