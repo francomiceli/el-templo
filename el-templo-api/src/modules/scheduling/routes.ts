@@ -46,7 +46,7 @@ import {
 } from "./schemas";
 import type { DayOfWeek } from "./types";
 
-import { TRAINING_ROLES, ALL_STAFF_ROLES } from "../shared/permissions";
+import { ALL_STAFF_ROLES } from "../shared/permissions";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/scheduling)

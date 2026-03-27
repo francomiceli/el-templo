@@ -22,7 +22,12 @@ export const OWNER_ROLES = ["owner"] as const;
 export const ADMIN_ROLES = ["admin", "owner"] as const;
 
 /** Roles that can access coach-level features (programs enrollment, alumnos). */
-export const COACH_ROLES = ["coach", "admin", "owner"] as const;
+export const COACH_ROLES = [
+  "coach",
+  "admin",
+  "owner",
+  "recepcionista",
+] as const;
 
 /** Roles that can access training features (sesiones, generar, ejercicios, horarios). */
 export const TRAINING_ROLES = ["coach", "owner"] as const;
@@ -55,6 +60,11 @@ export const PAYMENT_ROLES = [
 ] as const;
 
 /** Roles that can access subscription management. */
-export const SUBSCRIPTION_ROLES = ["coach", "admin", "owner"] as const;
+export const SUBSCRIPTION_ROLES = [
+  "coach",
+  "admin",
+  "owner",
+  "recepcionista",
+] as const;
 
 export type AdminRole = (typeof ALL_STAFF_ROLES)[number];
