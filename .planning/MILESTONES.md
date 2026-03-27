@@ -214,3 +214,69 @@ _Last phase: 28_
 ---
 
 _Last phase: 73_
+
+## v5.1 — Production Readiness & Business Data
+
+**Completed:** 2026-03-27
+**Phases:** 74-78 (5 phases, 7 plans)
+**Requirements:** 23/23 complete
+**Timeline:** 2026-03-26 → 2026-03-27 (1 day)
+**Stats:** 43 files changed, ~4,100 lines added
+
+### What Shipped
+
+**Business Data Integration (Phase 74)**
+
+- Structured knowledge file (`knowledge.ts`, 348 lines) with 7 sections: pricing, Zero rules, schedules, ROM, trial flow, app help, upgrade paths
+- System prompt wired to inject business knowledge into every AI response
+- Fixed `get_location` tool with real Mar del Plata addresses and Google Maps links for all 5 branches
+- 19 knowledge accuracy tests
+
+**Database Seeding (Phase 75)**
+
+- Schema migration: address, phone, googleMapsUrl columns on branches table
+- Production seed rewrite (453 lines): 5 real MDP branches, per-branch schedules, 2 activity types (Sesion Grupal + ROM), 6 subscription plans with real pricing
+- Idempotent via ON DUPLICATE KEY UPDATE + check-then-insert patterns
+
+**Known Issues Fix (Phase 76)**
+
+- Scheduler SQL: `booking_status`/`subscription_status` (was bare `status`)
+- OpenAI provider: `tool_calls` array on assistant messages (prevents validation errors)
+- Phone normalization: confirmed in all 3 send functions (already fixed in v5.0)
+
+**GitHub Actions Deployment (Phase 77)**
+
+- Bot added to full CI/CD pipeline: detect-changes, build-bot, .env.production (17 vars), rsync, PM2 restart, backup/rollback
+- PM2 script path fixed to `dist/el-templo-bot/src/index.js`
+- API .env.production expanded with 11 missing production vars
+- Docs: GitHub Secrets checklist + WhatsApp permanent System User token setup guide
+
+**WhatsApp Production Setup (Phase 78)**
+
+- Meta template message docs: class_reminder (3 params), trial_followup (1 param) with submission instructions
+- Phone number registration guide
+- MySQL timezone migration for CONVERT_TZ support
+
+### Requirements Completed
+
+- BIZ-01 through BIZ-08 (business data)
+- SEED-01 through SEED-05 (database seeding)
+- FIX-01 through FIX-03 (bug fixes)
+- DEPLOY-01 through DEPLOY-04 (deployment)
+- WA-01 through WA-03 (WhatsApp production)
+
+**Total:** 23 requirements
+
+### Production Launch Checklist
+
+1. Add GitHub Secrets per `docs/deployment/github-secrets-checklist.md`
+2. Generate permanent WA token per `docs/deployment/whatsapp-token-setup.md`
+3. Submit Meta templates per `docs/deployment/whatsapp-templates.md`
+4. Register phone number per `docs/deployment/whatsapp-phone-registration.md`
+5. Run migrations 0042 + 0043 on production DB
+6. Run `pnpm seed:production` on production
+7. Push to master — CI deploys bot automatically
+
+---
+
+_Last phase: 78_

@@ -4,17 +4,7 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), a public-facing marketing site (el-templo-web), and a WhatsApp AI chatbot (el-templo-bot). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 began ecosystem integration (admin consolidation, attendance/scheduling, data migration), and v5 adds the WhatsApp AI chatbot for automated customer service and class booking.
 
-## Current Milestone: v5.1 Production Readiness & Business Data
-
-**Goal:** Make the WhatsApp bot production-ready with real El Templo business data, fix known issues from testing, and prepare deployment pipeline.
-
-**Target features:**
-
-- Business data integration: structured knowledge file with real pricing, locations, schedules, plans
-- Database seeding: real branches, activities, schedules, subscription plans
-- Known issues fix: scheduler column refs, OpenAI tool context, phone normalization
-- GitHub Actions deployment: bot build/deploy/restart alongside API
-- WhatsApp production setup: Meta templates, phone registration, permanent token, MySQL timezone tables
+## Current Milestone: Planning next milestone
 
 ## Core Value
 
@@ -43,10 +33,11 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ Production deployment of v4.0 staging work (v4.1)
 - ✓ Schema extensions (documentType, address), CSV data import for 5 branches (v4.1)
 - ✓ WhatsApp Cloud API webhook + echo bot, AI with function calling tools, Redis memory, action tools, proactive schedulers, admin conversations UI, human takeover (v5.0)
+- ✓ Business data integration, production seed, bug fixes, CI/CD pipeline, WhatsApp production setup docs (v5.1)
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v5.1 scope)
+(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
 
 ### Out of Scope
 
@@ -127,4 +118,4 @@ See: .planning/REQUIREMENTS.md (v5.1 scope)
 
 ---
 
-_Last updated: 2026-03-26 after v5.1 milestone initialization_
+_Last updated: 2026-03-27 after v5.1 milestone completion_
