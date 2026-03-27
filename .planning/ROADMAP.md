@@ -1294,11 +1294,10 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 5. Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close), objection handling for 7 common objections, retention strategies (inactive, expiring, cancellation, returning), and 12 golden rules
 
 **Plans:** 2/2 plans complete
-
 Plans:
 
-- [ ] 79-01-PLAN.md — Rewrite system-prompt.ts (Mica persona) and knowledge.ts (12 business sections)
-- [ ] 79-02-PLAN.md — Update knowledge and system prompt tests for new content
+- [x] 79-01-PLAN.md — Rewrite system-prompt.ts (Mica persona) and knowledge.ts (12 business sections)
+- [x] 79-02-PLAN.md — Update knowledge and system prompt tests for new content
 
 ---
 
@@ -1320,7 +1319,12 @@ Plans:
 4. After book_class returns [BUTTONS_SENT], bot sends zero additional text messages; after escalation, bot sends the exact handoff phrase then stays silent
 5. Trial registration flow collects only name and class preference (phone number is already known from WhatsApp)
 
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 80-01-PLAN.md — Fix tools.ts, system-prompt.ts, and handler.ts quality issues (QUAL-01 through QUAL-07)
+- [ ] 80-02-PLAN.md — Add QUAL requirement test coverage to knowledge.test.ts
 
 ---
 
@@ -1340,7 +1344,7 @@ Plans:
 2. Key conversation flows produce correct outcomes when tested: lead asking about pricing -> trial booking, membership renewal inquiry, common objections (price, time, fear), escalation to human, inactive member reactivation
 3. Mica's tone is verified across all test scenarios: short messages, warm but not excessive, one question at a time, matches the real El Templo team's WhatsApp communication style
 
-**Plans**: TBD
+**Plans:** TBD
 
 ---
 
@@ -1355,7 +1359,7 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 | Phase                                      | Plans Complete | Status      | Completed  |
 | ------------------------------------------ | -------------- | ----------- | ---------- |
 | 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
-| 80. Response Quality & Data Fixes          | 0/?            | Not started | -          |
+| 80. Response Quality & Data Fixes          | 0/2            | In progress | -          |
 | 81. Conversation Flow Testing              | 0/?            | Not started | -          |
 
 ---
