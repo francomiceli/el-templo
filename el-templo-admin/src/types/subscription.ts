@@ -246,3 +246,32 @@ export interface ClassUsageInfo {
   scheduleSlots: ScheduleSlotInfo[];
   bookingMode: BookingMode;
 }
+
+// ─── Promo Plan Types ────────────────────────────────────────────────────────
+
+export type PromoType = 'qr_auto' | 'admin_assignable';
+
+export interface PromoListItem {
+  id: number;
+  name: string;
+  promoCode: string;
+  planDurationDays: number;
+  startDate: string;
+  expiryDate: string;
+  promoType: PromoType;
+  subscriptionPlanId: number;
+  isActive: boolean;
+  redemptionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromoInput {
+  name: string;
+  promoCode: string;
+  planDurationDays: number;
+  startDate: string;
+  expiryDate: string;
+  promoType: PromoType;
+  subscriptionPlanId: number;
+}

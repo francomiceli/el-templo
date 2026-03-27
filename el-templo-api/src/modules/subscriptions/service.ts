@@ -34,6 +34,8 @@ import type {
   SubscriptionStatus,
   ProrationResult,
   ChangePlanPreview,
+  PromoListItem,
+  CreatePromoInput,
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
@@ -1914,5 +1916,86 @@ export class SubscriptionService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  // ─── Promo Plans ──────────────────────────────────────────────────────────
+
+  /**
+   * List all promo plans ordered by most recent first.
+   */
+  async listPromoPlans(): Promise<PromoListItem[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.promoPlans)
+      .orderBy(desc(schema.promoPlans.createdAt));
+    return rows.map((r) => ({
+      ...r,
+      startDate: r.startDate.toISOString(),
+      expiryDate: r.expiryDate.toISOString(),
+      createdAt: r.createdAt.toISOString(),
+      updatedAt: r.updatedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Create a new promo plan. Validates the referenced subscription plan
+   * exists and the promo code is unique.
+   */
+  async createPromo(input: CreatePromoInput): Promise<PromoListItem> {
+    // Validate subscription plan exists
+    const plan = await this.getPlanById(input.subscriptionPlanId);
+    if (!plan) {
+      throw new NotFoundError("Plan de suscripcion no encontrado");
+    }
+
+    // Check unique promo code
+    const [existing] = await this.db
+      .select({ id: schema.promoPlans.id })
+      .from(schema.promoPlans)
+      .where(eq(schema.promoPlans.promoCode, input.promoCode))
+      .limit(1);
+    if (existing) {
+      throw new ConflictError("El codigo promo ya existe");
+    }
+
+    const result = await this.db.insert(schema.promoPlans).values({
+      name: input.name,
+      promoCode: input.promoCode,
+      planDurationDays: input.planDurationDays,
+      startDate: new Date(input.startDate),
+      expiryDate: new Date(input.expiryDate),
+      promoType: input.promoType,
+      subscriptionPlanId: input.subscriptionPlanId,
+    });
+
+    const promoId = Number(result[0].insertId);
+    const [promo] = await this.db
+      .select()
+      .from(schema.promoPlans)
+      .where(eq(schema.promoPlans.id, promoId));
+    return {
+      ...promo,
+      startDate: promo.startDate.toISOString(),
+      expiryDate: promo.expiryDate.toISOString(),
+      createdAt: promo.createdAt.toISOString(),
+      updatedAt: promo.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Deactivate a promo plan by setting isActive to false.
+   */
+  async deactivatePromo(promoId: number): Promise<void> {
+    const [promo] = await this.db
+      .select({ id: schema.promoPlans.id })
+      .from(schema.promoPlans)
+      .where(eq(schema.promoPlans.id, promoId));
+    if (!promo) {
+      throw new NotFoundError("Promo no encontrada");
+    }
+    await this.db
+      .update(schema.promoPlans)
+      .set({ isActive: false })
+      .where(eq(schema.promoPlans.id, promoId));
   }
 }

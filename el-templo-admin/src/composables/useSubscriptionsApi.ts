@@ -19,6 +19,8 @@ import type {
   ChangePlanPreview,
   PriceType,
   ClassUsageInfo,
+  PromoListItem,
+  CreatePromoInput,
 } from 'src/types/subscription';
 
 export function useSubscriptionsApi() {
@@ -314,6 +316,22 @@ export function useSubscriptionsApi() {
     }
   }
 
+  // ─── Promo Plans ────────────────────────────────────────────────────
+
+  async function listPromos(): Promise<PromoListItem[]> {
+    const { data } = await api.get<PromoListItem[]>('/admin/subscriptions/promo-plans');
+    return data;
+  }
+
+  async function createPromo(input: CreatePromoInput): Promise<PromoListItem> {
+    const { data } = await api.post<PromoListItem>('/admin/subscriptions/promo-plans', input);
+    return data;
+  }
+
+  async function deactivatePromo(promoId: number): Promise<void> {
+    await api.patch(`/admin/subscriptions/promo-plans/${promoId}/deactivate`);
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -340,6 +358,9 @@ export function useSubscriptionsApi() {
     getPricingPreview,
     getChangePlanPreview,
     getClassUsage,
+    listPromos,
+    createPromo,
+    deactivatePromo,
     cleanup,
   };
 }
