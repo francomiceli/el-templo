@@ -193,6 +193,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         user: {
           id: userId,
           email,
+          firstName,
+          lastName,
           role: "member",
           level: "alfa",
           branchId,
