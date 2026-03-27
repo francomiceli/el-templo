@@ -1344,7 +1344,11 @@ Plans:
 2. Key conversation flows produce correct outcomes when tested: lead asking about pricing -> trial booking, membership renewal inquiry, common objections (price, time, fear), escalation to human, inactive member reactivation
 3. Mica's tone is verified across all test scenarios: short messages, warm but not excessive, one question at a time, matches the real El Templo team's WhatsApp communication style
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] 81-01-PLAN.md — QA questions, conversation flows, and tone verification tests
 
 ---
 
@@ -1360,7 +1364,7 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 | ------------------------------------------ | -------------- | ----------- | ---------- |
 | 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
 | 80. Response Quality & Data Fixes          | 2/2            | Complete    | 2026-03-27 |
-| 81. Conversation Flow Testing              | 0/?            | Not started | -          |
+| 81. Conversation Flow Testing              | 0/1            | Not started | -          |
 
 ---
 
