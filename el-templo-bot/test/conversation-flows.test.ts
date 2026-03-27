@@ -168,7 +168,7 @@ describe("Conversation flow correctness", () => {
     expect(expiredPrompt).toMatch(/planes actuales|opciones/i);
   });
 
-  it("Objection handling covers all 7 objections", () => {
+  it("Objection handling covers all 8 objections", () => {
     const objectionKeywords = [
       "caro",
       "tiempo",
@@ -177,6 +177,7 @@ describe("Conversation flow correctness", () => {
       "otro lado",
       "lejos",
       "por clase",
+      "convencio",
     ];
     const missing = objectionKeywords.filter(
       (keyword) => !knowledge.toLowerCase().includes(keyword),

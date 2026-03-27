@@ -121,7 +121,7 @@ describe("Business knowledge data accuracy", () => {
   });
 
   describe("Objection handling", () => {
-    it("covers at least 5 of the 7 common objections", () => {
+    it("covers at least 5 of the 8 common objections", () => {
       const objectionKeywords = [
         "caro",
         "tiempo",
@@ -130,6 +130,7 @@ describe("Business knowledge data accuracy", () => {
         "otro",
         "lejos",
         "por clase",
+        "convencio",
       ];
       const foundCount = objectionKeywords.filter((keyword) =>
         knowledge.toLowerCase().includes(keyword),
@@ -141,7 +142,8 @@ describe("Business knowledge data accuracy", () => {
       // Each objection should have a response — check for key response phrases
       expect(knowledge).toMatch(/Boarding Pass|descuento/i);
       expect(knowledge).toMatch(/multinivel|Alfa/i);
-      expect(knowledge).toMatch(/cupos|llenan/i);
+      // Pensarlo objection uses warmth language instead of pressure
+      expect(knowledge).toMatch(/sin apuro|cuando estes/i);
     });
   });
 
@@ -402,6 +404,44 @@ describe("Response quality (QUAL-01 through QUAL-07)", () => {
 
     it("system prompt instructs silence after escalation", () => {
       expect(systemPrompt).toMatch(/te escriben enseguida.*[Ss]ilencio/is);
+    });
+  });
+
+  // QUAL-08: Pensarlo without pressure
+  describe("QUAL-08: Pensarlo without pressure", () => {
+    it("pensarlo objection does NOT contain 'cupos se llenan'", () => {
+      expect(knowledge).not.toMatch(/pensarlo[\s\S]*?cupos se llenan/i);
+    });
+    it("pensarlo objection contains warmth language", () => {
+      expect(knowledge).toMatch(/pensarlo[\s\S]*?sin apuro/i);
+    });
+  });
+
+  // QUAL-09: Doubt gets gentle question first
+  describe("QUAL-09: Doubt gets gentle question first", () => {
+    it("knowledge has 'no me convencio' objection", () => {
+      expect(knowledge).toMatch(/no me convencio|tengo dudas/i);
+    });
+    it("doubt objection asks a question before accepting", () => {
+      expect(knowledge).toMatch(/genera dudas/i);
+    });
+  });
+
+  // QUAL-10: Levels not activities
+  describe("QUAL-10: Levels not activities", () => {
+    it("knowledge clarifies Alfa/Delta/Omega/Spartan are levels", () => {
+      expect(knowledge).toMatch(/Sesion Grupal/);
+      expect(knowledge).toMatch(/niveles de progresion/i);
+    });
+    it("system prompt has level disambiguation rule", () => {
+      expect(systemPrompt).toMatch(/niveles.*no clases separadas/i);
+    });
+  });
+
+  // QUAL-11: Plans summary format
+  describe("QUAL-11: Plans summary format", () => {
+    it("system prompt instructs brief plan summary", () => {
+      expect(systemPrompt).toMatch(/resumen breve.*nombre.*precio/i);
     });
   });
 });
