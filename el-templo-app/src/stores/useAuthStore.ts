@@ -68,13 +68,14 @@ export const useAuthStore = defineStore('auth', () => {
     dni: string
     phone: string
     branchId?: number
+    promoCode?: string
   }) {
     loading.value = true
     error.value = null
 
     try {
       const response = await api.post('/auth/register', data)
-      const { token: newToken, user: userData } = response.data
+      const { token: newToken, user: userData, promoApplied: _promoApplied } = response.data
 
       await setToken(newToken)
       token.value = newToken
