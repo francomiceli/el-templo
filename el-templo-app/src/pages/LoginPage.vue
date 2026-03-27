@@ -224,9 +224,7 @@ $charcoal-mid: #3d3732;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   transition: opacity 0.8s ease;
 

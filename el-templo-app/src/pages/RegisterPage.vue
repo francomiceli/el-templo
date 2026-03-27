@@ -1,7 +1,7 @@
 <template>
   <q-layout>
     <q-page-container>
-      <q-page class="register-page">
+      <q-page class="register-page" :style-fn="() => ({ minHeight: '100vh' })">
         <!-- Background layers -->
         <div class="bg-texture"></div>
         <div class="bg-glow"></div>
@@ -292,9 +292,7 @@ $charcoal-mid: #3d3732;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -954,11 +952,7 @@ $charcoal-mid: #3d3732;
   display: flex;
   align-items: center;
   gap: 10px;
-  background: linear-gradient(
-    135deg,
-    rgba($amber, 0.15) 0%,
-    rgba($terracotta, 0.1) 100%
-  );
+  background: linear-gradient(135deg, rgba($amber, 0.15) 0%, rgba($terracotta, 0.1) 100%);
   border: 1px solid rgba($amber, 0.4);
   border-radius: 8px;
   padding: 10px 16px;
