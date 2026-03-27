@@ -222,3 +222,30 @@ export interface PricingPreview {
   boardingPassEligible: boolean;
   availableTiers: AuraDiscountTier[];
 }
+
+// ─── Promo Plan Types ────────────────────────────────────────────────────────
+
+export interface PromoListItem {
+  id: number;
+  name: string;
+  promoCode: string;
+  planDurationDays: number;
+  startDate: string;
+  expiryDate: string;
+  promoType: PromoType;
+  subscriptionPlanId: number;
+  isActive: boolean;
+  redemptionCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatePromoInput {
+  name: string;
+  promoCode: string;
+  planDurationDays: number;
+  startDate: string;
+  expiryDate: string;
+  promoType: PromoType;
+  subscriptionPlanId: number;
+}

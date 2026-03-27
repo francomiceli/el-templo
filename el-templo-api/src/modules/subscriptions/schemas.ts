@@ -567,6 +567,49 @@ export const changePlanPreviewSchema = {
   },
 };
 
+// =============================================================================
+// Promo Plan Endpoints
+// =============================================================================
+
+export const listPromosSchema = {
+  tags: ["subscriptions"],
+  response: { 200: { type: "array" } },
+};
+
+export const createPromoSchema = {
+  tags: ["subscriptions"],
+  body: {
+    type: "object",
+    required: [
+      "name",
+      "promoCode",
+      "planDurationDays",
+      "startDate",
+      "expiryDate",
+      "promoType",
+      "subscriptionPlanId",
+    ],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 150 },
+      promoCode: { type: "string", minLength: 1, maxLength: 50 },
+      planDurationDays: { type: "integer", minimum: 1 },
+      startDate: { type: "string" },
+      expiryDate: { type: "string" },
+      promoType: { type: "string", enum: ["qr_auto", "admin_assignable"] },
+      subscriptionPlanId: { type: "integer" },
+    },
+  },
+};
+
+export const deactivatePromoSchema = {
+  tags: ["subscriptions"],
+  params: {
+    type: "object",
+    properties: { promoId: { type: "integer" } },
+    required: ["promoId"],
+  },
+};
+
 export const pricingPreviewSchema = {
   params: {
     type: "object",

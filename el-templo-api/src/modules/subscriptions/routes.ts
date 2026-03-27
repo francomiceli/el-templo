@@ -21,6 +21,7 @@ import type {
   CreatePlanInput,
   UpdatePlanInput,
   PriceType,
+  CreatePromoInput,
 } from "./types";
 import {
   listPlansSchema,
@@ -40,6 +41,9 @@ import {
   cancelSubscriptionSchema,
   classUsageSchema,
   pricingPreviewSchema,
+  listPromosSchema,
+  createPromoSchema,
+  deactivatePromoSchema,
 } from "./schemas";
 
 import { SUBSCRIPTION_ROLES } from "../shared/permissions";
@@ -373,6 +377,47 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return preview;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "pricing preview");
+      }
+    },
+  );
+
+  // =========================================================================
+  // Promo Plans CRUD
+  // =========================================================================
+
+  // GET /promo-plans — List all promo plans
+  fastify.get(
+    "/promo-plans",
+    { schema: listPromosSchema },
+    async () => {
+      return subscriptionService.listPromoPlans();
+    },
+  );
+
+  // POST /promo-plans — Create a promo plan
+  fastify.post<{ Body: CreatePromoInput }>(
+    "/promo-plans",
+    { schema: createPromoSchema },
+    async (request, reply) => {
+      try {
+        const promo = await subscriptionService.createPromo(request.body);
+        return reply.code(201).send(promo);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create promo");
+      }
+    },
+  );
+
+  // PATCH /promo-plans/:promoId/deactivate — Deactivate a promo plan
+  fastify.patch<{ Params: { promoId: number } }>(
+    "/promo-plans/:promoId/deactivate",
+    { schema: deactivatePromoSchema },
+    async (request, reply) => {
+      try {
+        await subscriptionService.deactivatePromo(request.params.promoId);
+        return { message: "Promo desactivada" };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "deactivate promo");
       }
     },
   );
