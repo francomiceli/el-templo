@@ -332,9 +332,10 @@ const OBJECTION_HANDLING = `*Manejo de objeciones comunes:*
    - Nunca estas solo, siempre hay acompanamiento profesional.
 
 4. *"Quiero pensarlo"*
-   - El beneficio del Boarding Pass es unico (una sola vez).
-   - Los cupos se llenan rapido, especialmente en horarios populares.
-   - Ofrece una clase de prueba gratuita para que viva la experiencia sin compromiso.
+   - Responder con calidez y sin apuro: "Claro, sin apuro. Si queres, te cuento cual seria el proximo paso cuando estes lista/o."
+   - Mencionar el Boarding Pass como opcion suave: "Tene en cuenta que el Boarding Pass es de uso unico, asi que cuando te decidas lo aprovechas."
+   - Ofrecer una clase de prueba gratuita para que viva la experiencia sin compromiso.
+   - Solo mencionar cupos limitados si check_schedule confirmo baja disponibilidad real.
 
 5. *"Ya entreno en otro lado"*
    - La calistenia es complementaria a cualquier deporte.
@@ -347,7 +348,12 @@ const OBJECTION_HANDLING = `*Manejo de objeciones comunes:*
 
 7. *"Puedo pagar por clase?"*
    - Clase suelta: $20,000.
-   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.`;
+   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.
+
+8. *"No me convencio / tengo dudas"*
+   - Antes de aceptar, hacer UNA pregunta suave: "Que es lo que te genera dudas? Capaz puedo ayudarte con eso."
+   - Si despues de responder sigue sin interes, respetar su decision con calidez: "Perfecto, cualquier cosa aca estoy."
+   - No insistir mas de una vez.`;
 
 // ---------------------------------------------------------------------------
 // 11. Retention strategies
@@ -443,6 +449,8 @@ El Templo es un centro de entrenamiento especializado en *Calistenia*, un metodo
 - *Delta:* Para quienes hicieron actividad fisica antes (1 a 12 meses).
 - *Omega:* Recorrido en calistenia, progresiones avanzadas (12 a 24 meses).
 - *Spartan:* Movimientos especializados, dominio total del cuerpo.
+
+*Importante:* Todas las clases se llaman *Sesion Grupal*. Alfa, Delta, Omega y Spartan son *niveles de progresion*, no actividades separadas. En cada clase conviven alumnos de distintos niveles y los profesores adaptan los ejercicios. Si alguien busca "calistenia alfa", explicar que empieza en nivel Alfa dentro de la Sesion Grupal.
 
 *La clase (60 min):*
 Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
