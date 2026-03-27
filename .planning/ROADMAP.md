@@ -1745,7 +1745,7 @@ Plans:
 **Goal**: Build a QR-based promo code system for time-limited free month campaigns. Two initial codes for BCN inauguration and Aura Club first event auto-assign an online-only free subscription on registration.
 **Depends on**: Phase 84 (push notifications for promo follow-up)
 **Requirements**: QR-01, QR-02, QR-03, QR-04, QR-05, QR-06, QR-07, QR-08, QR-09, QR-10, QR-11
-**Plans:** 5 plans
+**Plans:** 6 plans
 
 Plans:
 
@@ -1754,6 +1754,7 @@ Plans:
 - [ ] 86-03-PLAN.md — Member app UI adjustments (tabs, RestDayCard, upsell badge)
 - [ ] 86-04-PLAN.md — Registration page promo support (badge, title, existing user handling)
 - [ ] 86-05-PLAN.md — Admin promo CRUD API + Promos tab in PlanesPage
+- [ ] 86-06-PLAN.md — Integration tests for promo registration + admin promo CRUD
 
 **Success Criteria** (what must be TRUE):
 
