@@ -9,19 +9,19 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 
 ### Persona & Prompt
 
-- [ ] **MICA-01**: System prompt implements Mica identity with Argentine tuteo, warm concise tone, and 1-2 emoji max per message
-- [ ] **MICA-02**: System prompt defines state-adaptive objectives (lead→trial, active→retain, inactive→reactivate)
-- [ ] **MICA-03**: System prompt includes tool usage rules (schedule max 5, book_class silence after buttons, trial asks only name+preference, escalation message)
+- [x] **MICA-01**: System prompt implements Mica identity with Argentine tuteo, warm concise tone, and 1-2 emoji max per message
+- [x] **MICA-02**: System prompt defines state-adaptive objectives (lead→trial, active→retain, inactive→reactivate)
+- [x] **MICA-03**: System prompt includes tool usage rules (schedule max 5, book_class silence after buttons, trial asks only name+preference, escalation message)
 
 ### Knowledge
 
-- [ ] **KNOW-01**: Knowledge file contains complete plan/pricing data (Flex, Foundation, Performance, credit card, single class) with Zero rules
-- [ ] **KNOW-02**: Knowledge file contains schedules per branch with correct addresses (including Mogotes/Mario Bravo fix)
-- [ ] **KNOW-03**: Knowledge file contains ROM description, trial class rules, app instructions, and business policies (pause, transfer, shift changes)
-- [ ] **KNOW-04**: Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close)
-- [ ] **KNOW-05**: Knowledge file contains objection handling for 7 common objections
-- [ ] **KNOW-06**: Knowledge file contains retention strategies (inactive, expiring, cancellation, returning)
-- [ ] **KNOW-07**: Knowledge file contains 12 golden rules for Mica behavior
+- [x] **KNOW-01**: Knowledge file contains complete plan/pricing data (Flex, Foundation, Performance, credit card, single class) with Zero rules
+- [x] **KNOW-02**: Knowledge file contains schedules per branch with correct addresses (including Mogotes/Mario Bravo fix)
+- [x] **KNOW-03**: Knowledge file contains ROM description, trial class rules, app instructions, and business policies (pause, transfer, shift changes)
+- [x] **KNOW-04**: Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close)
+- [x] **KNOW-05**: Knowledge file contains objection handling for 7 common objections
+- [x] **KNOW-06**: Knowledge file contains retention strategies (inactive, expiring, cancellation, returning)
+- [x] **KNOW-07**: Knowledge file contains 12 golden rules for Mica behavior
 
 ### Response Quality
 
@@ -69,28 +69,28 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 
 ## Traceability
 
-| Requirement | Phase    | Status  |
-| ----------- | -------- | ------- |
-| MICA-01     | Phase 79 | Pending |
-| MICA-02     | Phase 79 | Pending |
-| MICA-03     | Phase 79 | Pending |
-| KNOW-01     | Phase 79 | Pending |
-| KNOW-02     | Phase 79 | Pending |
-| KNOW-03     | Phase 79 | Pending |
-| KNOW-04     | Phase 79 | Pending |
-| KNOW-05     | Phase 79 | Pending |
-| KNOW-06     | Phase 79 | Pending |
-| KNOW-07     | Phase 79 | Pending |
-| QUAL-01     | Phase 80 | Pending |
-| QUAL-02     | Phase 80 | Pending |
-| QUAL-03     | Phase 80 | Pending |
-| QUAL-04     | Phase 80 | Pending |
-| QUAL-05     | Phase 80 | Pending |
-| QUAL-06     | Phase 80 | Pending |
-| QUAL-07     | Phase 80 | Pending |
-| TEST-01     | Phase 81 | Pending |
-| TEST-02     | Phase 81 | Pending |
-| TEST-03     | Phase 81 | Pending |
+| Requirement | Phase    | Status   |
+| ----------- | -------- | -------- |
+| MICA-01     | Phase 79 | Complete |
+| MICA-02     | Phase 79 | Complete |
+| MICA-03     | Phase 79 | Complete |
+| KNOW-01     | Phase 79 | Complete |
+| KNOW-02     | Phase 79 | Complete |
+| KNOW-03     | Phase 79 | Complete |
+| KNOW-04     | Phase 79 | Complete |
+| KNOW-05     | Phase 79 | Complete |
+| KNOW-06     | Phase 79 | Complete |
+| KNOW-07     | Phase 79 | Complete |
+| QUAL-01     | Phase 80 | Pending  |
+| QUAL-02     | Phase 80 | Pending  |
+| QUAL-03     | Phase 80 | Pending  |
+| QUAL-04     | Phase 80 | Pending  |
+| QUAL-05     | Phase 80 | Pending  |
+| QUAL-06     | Phase 80 | Pending  |
+| QUAL-07     | Phase 80 | Pending  |
+| TEST-01     | Phase 81 | Pending  |
+| TEST-02     | Phase 81 | Pending  |
+| TEST-03     | Phase 81 | Pending  |
 
 **Coverage:**
 
