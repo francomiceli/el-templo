@@ -26,7 +26,7 @@ module.exports = {
     },
     {
       name: 'eltemplo-bot',
-      script: 'dist/index.js',
+      script: 'dist/el-templo-bot/src/index.js',
       cwd: '/var/www/el-templo/el-templo-bot',
       instances: 1,
       autorestart: true,
