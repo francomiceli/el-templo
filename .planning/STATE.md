@@ -30,7 +30,7 @@ Phase: 76-known-issues-fix (1/1 plans complete)
 Status: Phase 76 complete
 Last activity: 2026-03-26 - Completed 76-01 (known issues fix)
 
-**Progress:** [██████████] 98%
+**Progress:** [██████████] 97%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Last activity: 2026-03-26 - Completed 76-01 (known issues fix)
 | Phase 74 P02 | 2min  | 2 tasks | 2 files  |
 | Phase 75 P01 | 3min  | 2 tasks | 4 files  |
 | Phase 76 P01 | 2min  | 2 tasks | 6 files  |
+| Phase 77 P02 | 2min  | 2 tasks | 2 files  |
 
 ## Accumulated Context
 
@@ -122,6 +123,7 @@ Recent decisions affecting current work:
 - [Phase 75]: Manual migration file when drizzle-kit generate has interactive prompts
 - [Phase 75]: Per-branch schedule config map keyed by branch code for explicit schedule differences
 - [Phase 76]: No code changes for FIX-03 (phone normalization) -- already fixed in commit e542036e
+- [Phase 77]: Organized secrets into three sections: new bot-specific, missing API, already configured
 
 ### Pending Todos
 
