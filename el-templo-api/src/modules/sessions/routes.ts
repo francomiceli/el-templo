@@ -58,7 +58,7 @@ function dateToDayName(date: string): string {
  * Derive SPOM week number from a date relative to Week 1 Monday (2026-02-16).
  * Clamped to 1-52.
  */
-const WEEK_ONE_MONDAY = new Date("2026-02-16T00:00:00");
+const WEEK_ONE_MONDAY = new Date("2026-02-23T00:00:00");
 
 function dateToWeekNumber(date: string): number {
   const d = new Date(date + "T00:00:00");

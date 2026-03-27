@@ -1,4 +1,4 @@
-const WEEK_ONE_MONDAY = new Date('2026-02-16T00:00:00');
+const WEEK_ONE_MONDAY = new Date('2026-02-23T00:00:00');
 const MONTH_NAMES = [
   'Ene',
   'Feb',
