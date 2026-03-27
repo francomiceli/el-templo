@@ -62,8 +62,13 @@ export async function registerUser(
     branchId: number;
     dni?: string;
     phone?: string;
+    promoCode?: string;
   },
-): Promise<{ token: string; user: Record<string, unknown> }> {
+): Promise<{
+  token: string;
+  user: Record<string, unknown>;
+  promoApplied?: boolean;
+}> {
   const response = await app.inject({
     method: "POST",
     url: "/api/auth/register",
@@ -130,6 +135,7 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.holidays);
 
   // Layer 3: core entity tables
+  await app.db.delete(schema.promoPlans);
   await app.db.delete(schema.subscriptions);
   await app.db.delete(schema.schedules);
   await app.db.delete(schema.subscriptionPlans);
