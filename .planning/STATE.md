@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Mica Persona & Bot Refinement
 status: in_progress
-stopped_at: "Completed 80-02-PLAN.md"
-last_updated: "2026-03-27T18:24:00Z"
-last_activity: 2026-03-27 -- Completed 80-02 (Response quality tests)
+stopped_at: "Completed 81-01-PLAN.md"
+last_updated: "2026-03-27T22:46:00Z"
+last_activity: 2026-03-27 -- Completed 81-01 (Conversation flow tests)
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
-  completed_plans: 4
+  completed_plans: 5
   percent: 100
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
-**Current focus:** v5.2 Mica Persona & Bot Refinement — Phase 80 (Response Quality Data Fixes)
+**Current focus:** v5.2 Mica Persona & Bot Refinement — Phase 81 (Conversation Flow Testing)
 
 ## Current Position
 
 Milestone: v5.2 Mica Persona & Bot Refinement
-Phase: 80 — Response Quality Data Fixes
-Plan: 2 of 2 complete
+Phase: 81 — Conversation Flow Testing
+Plan: 1 of 1 complete
 Status: phase_complete
 Progress: ██████████ 100%
 
@@ -35,7 +35,7 @@ Progress: ██████████ 100%
 
 **Velocity:**
 
-- Total plans completed: 16 (v5.0) + 7 (v5.1) + 3 (v5.2) = 26
+- Total plans completed: 16 (v5.0) + 7 (v5.1) + 4 (v5.2) = 27
 
 **By Phase (v5.1):**
 
@@ -57,6 +57,7 @@ Progress: ██████████ 100%
 | Phase 79 P02 | 3min  | 2 tasks | 1 files  |
 | Phase 80 P01 | 2min  | 2 tasks | 3 files  |
 | Phase 80 P02 | 2min  | 1 tasks | 1 files  |
+| Phase 81 P01 | 2min  | 2 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 79]: Knowledge tests use flexible thresholds (5/7 objections, 10+ rules) for resilience
 - [Phase 80]: Defense-in-depth: post-process AI output to strip markdown headers even when prompt instructs against them
 - [Phase 80]: Test stripMarkdownHeaders regex inline rather than exporting private function from handler.ts
+- [Phase 81]: Conversation flow tests use strict 7/7 objection keyword matching (not 5/7 threshold)
+- [Phase 81]: Escalation phrase tested with exact Unicode emoji match
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 80-02-PLAN.md
-Resume file: .planning/phases/80-response-quality-data-fixes/80-02-SUMMARY.md
-Next step: Phase 80 complete. Ready for next phase.
+Stopped at: Completed 81-01-PLAN.md
+Resume file: .planning/phases/81-conversation-flow-testing/81-01-SUMMARY.md
+Next step: Phase 81 complete. Ready for next phase.

@@ -1270,7 +1270,7 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 
 - [x] **Phase 79: Mica System Prompt & Knowledge Rewrite** - Replace generic bot personality with Mica persona and rewrite complete knowledge base (completed 2026-03-27)
 - [x] **Phase 80: Response Quality & Data Fixes** - Fix WhatsApp formatting, pricing order, schedule limits, and escalation behavior (completed 2026-03-27)
-- [ ] **Phase 81: Conversation Flow Testing** - Validate all QA questions, real conversation flows, and Mica tone
+- [x] **Phase 81: Conversation Flow Testing** - Validate all QA questions, real conversation flows, and Mica tone (completed 2026-03-27)
 
 ### Phase Details
 
@@ -1344,7 +1344,7 @@ Plans:
 2. Key conversation flows produce correct outcomes when tested: lead asking about pricing -> trial booking, membership renewal inquiry, common objections (price, time, fear), escalation to human, inactive member reactivation
 3. Mica's tone is verified across all test scenarios: short messages, warm but not excessive, one question at a time, matches the real El Templo team's WhatsApp communication style
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 
@@ -1360,11 +1360,11 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 
 ### Progress
 
-| Phase                                      | Plans Complete | Status      | Completed  |
-| ------------------------------------------ | -------------- | ----------- | ---------- |
-| 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
-| 80. Response Quality & Data Fixes          | 2/2            | Complete    | 2026-03-27 |
-| 81. Conversation Flow Testing              | 0/1            | Not started | -          |
+| Phase                                      | Plans Complete | Status   | Completed  |
+| ------------------------------------------ | -------------- | -------- | ---------- |
+| 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete | 2026-03-27 |
+| 80. Response Quality & Data Fixes          | 2/2            | Complete | 2026-03-27 |
+| 81. Conversation Flow Testing              | 1/1            | Complete | 2026-03-27 |
 
 ---
 

@@ -35,9 +35,9 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 
 ### Testing
 
-- [ ] **TEST-01**: All 14 QA questions answered correctly by the bot
-- [ ] **TEST-02**: Key conversation flows tested against real examples (lead→trial, renewal, objections, escalation, reactivation)
-- [ ] **TEST-03**: Mica's tone verified: short, warm, one question at a time, matches real team style
+- [x] **TEST-01**: All 14 QA questions answered correctly by the bot
+- [x] **TEST-02**: Key conversation flows tested against real examples (lead→trial, renewal, objections, escalation, reactivation)
+- [x] **TEST-03**: Mica's tone verified: short, warm, one question at a time, matches real team style
 
 ## Future Requirements (v5.3+)
 
@@ -88,9 +88,9 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 | QUAL-05     | Phase 80 | Complete |
 | QUAL-06     | Phase 80 | Complete |
 | QUAL-07     | Phase 80 | Complete |
-| TEST-01     | Phase 81 | Pending  |
-| TEST-02     | Phase 81 | Pending  |
-| TEST-03     | Phase 81 | Pending  |
+| TEST-01     | Phase 81 | Complete |
+| TEST-02     | Phase 81 | Complete |
+| TEST-03     | Phase 81 | Complete |
 
 **Coverage:**
 
