@@ -310,3 +310,98 @@ describe("System prompt integration", () => {
     });
   });
 });
+
+// ─── 4. Response quality (QUAL-01 through QUAL-07) ──────────────────────────
+
+describe("Response quality (QUAL-01 through QUAL-07)", () => {
+  const systemPrompt = getSystemPrompt();
+  const knowledge = getBusinessKnowledge();
+
+  // QUAL-01: WhatsApp formatting only
+  describe("QUAL-01: WhatsApp-only formatting", () => {
+    it("system prompt prohibits markdown headers", () => {
+      expect(systemPrompt).toContain("NUNCA usar ### ni headers markdown");
+    });
+
+    it("knowledge file uses no ### headers", () => {
+      expect(knowledge).not.toMatch(/^#{1,3}\s/m);
+    });
+
+    it("stripMarkdownHeaders converts headers to bold", () => {
+      // Test the regex pattern used in handler.ts
+      const strip = (text: string) => text.replace(/^#{1,3}\s+(.+)$/gm, "*$1*");
+      expect(strip("### Horarios")).toBe("*Horarios*");
+      expect(strip("## Precios\n### Flex")).toBe("*Precios*\n*Flex*");
+      expect(strip("Normal text")).toBe("Normal text");
+      expect(strip("# One hash")).toBe("*One hash*");
+    });
+  });
+
+  // QUAL-02: Flex plans first in pricing
+  describe("QUAL-02: Flex plans first", () => {
+    it("system prompt instructs Flex first", () => {
+      expect(systemPrompt).toMatch(/Flex primero/i);
+    });
+
+    it("knowledge lists Flex plans before Foundation", () => {
+      const flexIndex = knowledge.indexOf("Planes Flex");
+      const foundationIndex = knowledge.indexOf("Planes Foundation");
+      expect(flexIndex).toBeGreaterThan(-1);
+      expect(foundationIndex).toBeGreaterThan(-1);
+      expect(flexIndex).toBeLessThan(foundationIndex);
+    });
+
+    it("system prompt says offer Foundation/Performance only on request", () => {
+      expect(systemPrompt).toMatch(/Foundation.*Performance.*si preguntan/i);
+    });
+  });
+
+  // QUAL-03: Max 5 schedule results
+  describe("QUAL-03: Schedule max 5 results", () => {
+    it("system prompt specifies max 5 classes", () => {
+      expect(systemPrompt).toMatch(/[Mm]aximo 5 clases/);
+    });
+  });
+
+  // QUAL-04: "cupos disponibles" terminology
+  describe("QUAL-04: cupos disponibles terminology", () => {
+    it("system prompt uses 'cupos disponibles'", () => {
+      expect(systemPrompt).toContain("cupos disponibles");
+    });
+
+    it("knowledge golden rules mention 'cupos disponibles'", () => {
+      expect(knowledge).toContain("cupos disponibles");
+    });
+  });
+
+  // QUAL-05: Silence after [BUTTONS_SENT]
+  describe("QUAL-05: Silence after buttons", () => {
+    it("system prompt instructs no text after BUTTONS_SENT", () => {
+      expect(systemPrompt).toMatch(/BUTTONS_SENT.*NO enviar/);
+    });
+  });
+
+  // QUAL-06: Trial registration minimal data
+  describe("QUAL-06: Trial registration minimal data", () => {
+    it("system prompt specifies only name and preference", () => {
+      expect(systemPrompt).toMatch(/[Ss]olo.*nombre.*preferencia/);
+    });
+
+    it("system prompt notes phone is already known", () => {
+      expect(systemPrompt).toMatch(/telefono ya lo ten/);
+    });
+  });
+
+  // QUAL-07: Exact escalation phrase with emoji
+  describe("QUAL-07: Escalation phrase and silence", () => {
+    it("system prompt contains exact escalation phrase with emoji", () => {
+      expect(systemPrompt).toContain(
+        "Te paso con alguien del equipo, te escriben enseguida \u{1F64C}",
+      );
+    });
+
+    it("system prompt instructs silence after escalation", () => {
+      expect(systemPrompt).toMatch(/te escriben enseguida.*[Ss]ilencio/is);
+    });
+  });
+});
