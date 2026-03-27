@@ -1753,7 +1753,7 @@ Plans:
 - [x] 86-02-PLAN.md — QR redirects in Nuxt + QR PNG generation
 - [x] 86-03-PLAN.md — Member app UI adjustments (tabs, RestDayCard, upsell badge)
 - [x] 86-04-PLAN.md — Registration page promo support (badge, title, existing user handling)
-- [ ] 86-05-PLAN.md — Admin promo CRUD API + Promos tab in PlanesPage
+- [x] 86-05-PLAN.md — Admin promo CRUD API + Promos tab in PlanesPage
 - [ ] 86-06-PLAN.md — Integration tests for promo registration + admin promo CRUD
 
 **Success Criteria** (what must be TRUE):

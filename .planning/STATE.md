@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Ready to execute
-stopped_at: Completed 86-04-PLAN.md
-last_updated: "2026-03-27T17:33:10.724Z"
+stopped_at: Completed 86-05-PLAN.md
+last_updated: "2026-03-27T17:38:13.655Z"
 progress:
   total_phases: 83
   completed_phases: 69
   total_plans: 292
-  completed_plans: 285
+  completed_plans: 286
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 86 (qr-promo-free-month-campaign) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 
 ## Performance Metrics
 
@@ -111,6 +111,7 @@ _Updated after each plan completion_
 | Phase 86 P02 | 2min | 2 tasks | 4 files |
 | Phase 86 P01 | 5min | 2 tasks | 7 files |
 | Phase 86 P04 | 2min | 2 tasks | 2 files |
+| Phase 86 P05 | 6min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -231,6 +232,7 @@ Recent decisions affecting current work:
 - [Phase 86]: AssignPlan called with branchId from user's resolved branch (ONLINE) and paymentMethod='cash' since pricePaid=0 skips payment recording
 - [Phase 86]: Manual migration SQL instead of drizzle-kit generate to avoid interactive prompts in non-interactive execution
 - [Phase 86]: Used underscore prefix (_promoApplied) for unused destructured response field to avoid lint warnings
+- [Phase 86]: Promo routes registered inside existing subscriptionRoutes plugin, sharing the SUBSCRIPTION_ROLES auth guard hook
 
 ### Pending Todos
 
@@ -242,6 +244,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T17:33:10.718Z
-Stopped at: Completed 86-04-PLAN.md
+Last session: 2026-03-27T17:38:13.651Z
+Stopped at: Completed 86-05-PLAN.md
 Resume file: None
