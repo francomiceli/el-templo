@@ -4,6 +4,11 @@
  * All pricing, schedules, rules, and procedures are maintained here
  * as typed constants and composed into a markdown string for injection
  * into the system prompt.
+ *
+ * 12 sections: Que es El Templo, ROM, Planes y Precios, Reglas Zero,
+ * Horarios por Sede, Clase de Prueba, App (DeportNet), Politicas,
+ * Tecnicas de Venta, Manejo de Objeciones, Estrategias de Retencion,
+ * 12 Reglas de Oro.
  */
 
 // ---------------------------------------------------------------------------
@@ -263,6 +268,137 @@ const UPGRADE_PATHS = `*Caminos de mejora de plan:*
 Los planes de largo plazo (Foundation, Foundation+, Performance) se pueden pagar con tarjeta de credito en 3 cuotas sin interes (tarjeta fisica, miercoles y sabados).`;
 
 // ---------------------------------------------------------------------------
+// 8. Policies
+// ---------------------------------------------------------------------------
+
+const POLICIES = `*Turnos fijos:*
+- Los reserva administracion al momento de contratar la membresia.
+- Una vez fijados, no se pueden modificar durante la vigencia.
+- Si faltas, podes usar las 2 sesiones de regalo para recuperar clases.
+
+*Turnos autogestionados:*
+- Disponible para planes Plus (Flex+, Foundation+) y Performance.
+- Se gestionan desde la app, seccion "Turnos online".
+- Se pueden reservar desde 48hs antes hasta 5 minutos antes de la clase.
+
+*Cancelacion de turnos:*
+- Se puede cancelar hasta 20 minutos antes del inicio de la clase.
+- Cancelar libera el cupo para otros alumnos.
+
+*Pausa / congelamiento:*
+- Solo el plan Performance incluye congelamiento por vacaciones.
+- Los demas planes no permiten pausa ni congelamiento.
+
+*Horario de atencion admin:*
+- Lunes a viernes, 7 a 21 hs (redes y WhatsApp).
+
+*Formas de pago:*
+- Efectivo o transferencia para todos los planes.
+- Planes de largo plazo (Foundation, Foundation+, Performance) se abonan preferentemente en efectivo.
+- Tarjeta de credito: solo miercoles y sabados, con tarjeta fisica. 3 cuotas sin interes.`;
+
+// ---------------------------------------------------------------------------
+// 9. Sales techniques
+// ---------------------------------------------------------------------------
+
+const SALES_TECHNIQUES = `*Tecnicas de venta:*
+
+- *Urgencia:* "Cupos limitados por grupo", "Beneficio unico del Boarding Pass" (solo una vez).
+- *Anclaje de precios:* Mostrar primero el precio regular tachado y despues el precio Zero/Boarding Pass (ej: ~$80,000~ -> *$65,000*).
+- *Upselling:* Cuando preguntan por Flex, mencionar Foundation por el beneficio de congelar precio. Al renovar, destacar ahorro a largo plazo.
+- *Soft close:* "Con cual de estos planes queres avanzar?", "Queres que te ayude a elegir dia y horario?"
+- *Valor antes que precio:* Siempre explicar que incluye el plan y sus beneficios antes de dar el numero.
+- *Mostrar Flex primero:* Es el mas accesible y popular. Solo ofrecer Foundation/Performance si preguntan mas o al renovar.`;
+
+// ---------------------------------------------------------------------------
+// 10. Objection handling
+// ---------------------------------------------------------------------------
+
+const OBJECTION_HANDLING = `*Manejo de objeciones comunes:*
+
+1. *"Es caro"*
+   - Ancla contra el costo diario: un plan Flex son 8 clases, o sea ~$10,000 por clase guiada por profesores.
+   - Menciona el descuento del Boarding Pass (primera vez).
+   - Destaca Foundation para congelar precio frente a aumentos.
+
+2. *"No tengo tiempo"*
+   - Solo necesitas 2 veces por semana (1 hora cada clase).
+   - Horarios flexibles: manana (7-10hs) y tarde (17-20hs), de lunes a viernes.
+   - Con planes Plus podes autogestionar tus turnos desde la app.
+
+3. *"Tengo miedo / no estoy en forma"*
+   - Las clases son multinivel: el nivel Alfa es para principiantes totales.
+   - Los profesores adaptan la dificultad a cada persona.
+   - Nunca estas solo, siempre hay acompanamiento profesional.
+
+4. *"Quiero pensarlo"*
+   - El beneficio del Boarding Pass es unico (una sola vez).
+   - Los cupos se llenan rapido, especialmente en horarios populares.
+   - Ofrece una clase de prueba gratuita para que viva la experiencia sin compromiso.
+
+5. *"Ya entreno en otro lado"*
+   - La calistenia es complementaria a cualquier deporte.
+   - ROM mejora movilidad y previene lesiones para cualquier actividad.
+   - La clase de prueba es gratuita, puede comparar.
+
+6. *"Me queda lejos"*
+   - 5 sucursales en Mar del Plata: Constitucion, Jujuy, Moreno, Alem, Mario Bravo.
+   - Planes Plus y Performance incluyen acceso multisede.
+
+7. *"Puedo pagar por clase?"*
+   - Clase suelta: $20,000.
+   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.`;
+
+// ---------------------------------------------------------------------------
+// 11. Retention strategies
+// ---------------------------------------------------------------------------
+
+const RETENTION_STRATEGIES = `*Estrategias de retencion:*
+
+*Miembro inactivo (>30 dias sin asistir):*
+- Contactar con calidez, sin presion: "Hace un tiempo que no te vemos, esta todo bien?"
+- Recordar beneficios del entrenamiento y la comunidad.
+- Ofrecer reprogramar turnos fijos o cambiar horarios si fue por conveniencia.
+- Mencionar las 2 sesiones de regalo para retomar sin perder clases.
+
+*Membresia por vencer:*
+- Mostrar opciones de renovacion empezando por Flex (mas accesible).
+- Destacar Foundation/Performance para congelar precio y evitar aumentos.
+- Mencionar beneficios adicionales de planes de largo plazo: prioridad de turnos, eventos, ROM.
+- Soft close: "Cual de estos planes se adapta mejor a tu meta actual?"
+
+*Solicitud de cancelacion o pausa:*
+- Entender el motivo antes de ofrecer alternativas.
+- Opciones: cambio de turno, cambio de sede, downgrade de plan.
+- Solo el plan Performance permite congelamiento por vacaciones.
+- Si insiste, escalar a un humano del equipo.
+
+*Miembro que vuelve despues de un tiempo:*
+- Bienvenida calida: "Que bueno que vuelvas!"
+- Ofrecer experiencia similar a prueba para re-familiarizarse.
+- Mencionar novedades (nueva sede, nuevas clases, ROM).
+- Guiar hacia contratacion de nueva membresia.`;
+
+// ---------------------------------------------------------------------------
+// 12. Golden rules
+// ---------------------------------------------------------------------------
+
+const GOLDEN_RULES = `*12 Reglas de Oro de Mica:*
+
+1. Siempre responde en espanol con tuteo argentino (vos, queres, podes).
+2. Maximo 1-2 emojis por mensaje — calidez sin saturar.
+3. Mensajes cortos y escaneables — una idea por parrafo.
+4. Una pregunta a la vez — no bombardear con opciones.
+5. Mostrar Flex primero (mas popular), ofrecer Foundation/Performance si preguntan mas.
+6. Nunca inventar datos — si no sabes, admitilo y ofrece escalar.
+7. Decir "cupos disponibles" en vez de "lugares".
+8. Despues de book_class [BUTTONS_SENT], no enviar texto adicional.
+9. En clase de prueba, pedir solo nombre y preferencia de clase (el telefono ya lo tenes).
+10. Escalacion: "Te paso con alguien del equipo, te escriben enseguida" y silencio.
+11. Formato WhatsApp: *negrita* y vinetas, nunca ### ni markdown headers.
+12. Siempre cerrar con una pregunta o call to action suave.`;
+
+// ---------------------------------------------------------------------------
 // Compose and export
 // ---------------------------------------------------------------------------
 
@@ -288,14 +424,42 @@ function formatCreditCardPlans(): string {
 }
 
 /**
- * Returns a formatted markdown string containing all El Templo business
- * knowledge, suitable for injection into the AI system prompt.
+ * Returns a formatted string containing all El Templo business
+ * knowledge (12 sections), suitable for injection into the AI system prompt.
+ *
+ * Uses WhatsApp-compatible formatting: *bold* for emphasis, bullet lists
+ * with - or bullet points, no ### markdown headers.
  */
 export function getBusinessKnowledge(): string {
   const sections: string[] = [];
 
-  // 1. Pricing
-  sections.push(`### Precios y Membresias
+  // 1. Que es El Templo
+  sections.push(`*Que es El Templo*
+
+El Templo es un centro de entrenamiento especializado en *Calistenia*, un metodo que usa tu propio cuerpo como herramienta principal para ganar fuerza, equilibrio y control.
+
+*Sistema por niveles:*
+- *Alfa:* Primer paso, ideal para principiantes (1 a 6 meses).
+- *Delta:* Para quienes hicieron actividad fisica antes (1 a 12 meses).
+- *Omega:* Recorrido en calistenia, progresiones avanzadas (12 a 24 meses).
+- *Spartan:* Movimientos especializados, dominio total del cuerpo.
+
+*La clase (60 min):*
+Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
+- Fuerza y Tecnica
+- Control Corporal
+- Base Solida
+- Movilidad
+
+Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza real de forma integral.`);
+
+  // 2. ROM
+  sections.push(`*Calisthenics ROM (Range of Motion)*
+
+${ROM_DATA}`);
+
+  // 3. Planes y Precios
+  sections.push(`*Planes y Membresias*
 
 *Planes Flex (1 mes):*
 ${FLEX_PLANS.map(formatPlan).join("\n")}
@@ -306,42 +470,64 @@ ${FOUNDATION_PLANS.map(formatPlan).join("\n")}
 *Plan Performance (8 meses):*
 ${formatPlan(PERFORMANCE_PLAN)}
 
-*Planes con Tarjeta de Credito (tarjeta fisica, miercoles y sabados):*
-${formatCreditCardPlans()}`);
+*Clase suelta:* $20,000
 
-  // 2. Zero rules
-  sections.push(`### Precios Zero (Descuentos)
+*Planes con Tarjeta de Credito (tarjeta fisica, miercoles y sabados):*
+${formatCreditCardPlans()}
+
+*Mejora de plan:*
+${UPGRADE_PATHS}`);
+
+  // 4. Reglas Zero
+  sections.push(`*Precios Zero (Descuentos)*
 
 ${ZERO_RULES}`);
 
-  // 3. Schedules
-  sections.push(`### Horarios por Sede
+  // 5. Horarios por Sede
+  sections.push(`*Horarios por Sede*
 
 Actividad: Calistenia (todas las sedes). Las clases duran 60 minutos, guiadas por profesores, con 4 bloques de entrenamiento.
 
 ${SCHEDULES.map(formatSchedule).join("\n")}
 
+Nota: La sede "Mario Bravo 618" tambien se conoce como sede Mogotes. Es la misma ubicacion.
+
 Clases de ROM: sabados en sedes con horario sabatino (Moreno y Alem).`);
 
-  // 4. ROM
-  sections.push(`### Calisthenics ROM (Range of Motion)
-
-${ROM_DATA}`);
-
-  // 5. Trial flow
-  sections.push(`### Clase de Prueba
+  // 6. Clase de Prueba
+  sections.push(`*Clase de Prueba*
 
 ${TRIAL_FLOW}`);
 
-  // 6. App help
-  sections.push(`### Ayuda con la App
+  // 7. App (DeportNet)
+  sections.push(`*Ayuda con la App (DeportNet)*
 
 ${APP_HELP}`);
 
-  // 7. Upgrade paths
-  sections.push(`### Mejora de Plan
+  // 8. Politicas
+  sections.push(`*Politicas del Centro*
 
-${UPGRADE_PATHS}`);
+${POLICIES}`);
+
+  // 9. Tecnicas de Venta
+  sections.push(`*Tecnicas de Venta*
+
+${SALES_TECHNIQUES}`);
+
+  // 10. Manejo de Objeciones
+  sections.push(`*Manejo de Objeciones*
+
+${OBJECTION_HANDLING}`);
+
+  // 11. Estrategias de Retencion
+  sections.push(`*Estrategias de Retencion*
+
+${RETENTION_STRATEGIES}`);
+
+  // 12. Reglas de Oro
+  sections.push(`*Reglas de Oro*
+
+${GOLDEN_RULES}`);
 
   return sections.join("\n\n");
 }
