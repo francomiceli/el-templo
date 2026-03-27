@@ -1,11 +1,15 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import argon2 from "argon2";
 import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
 import { memberProfiles } from "../../db/schema/member-profiles";
+import { promoPlans } from "../../db/schema/promo-plans";
 import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
+import { SubscriptionService } from "../subscriptions/service";
+import { AuraService } from "../aura/service";
+import { PaymentService } from "../payments/service";
 
 interface RegisterBody {
   email: string;
@@ -15,6 +19,7 @@ interface RegisterBody {
   lastName: string;
   dni: string;
   phone: string;
+  promoCode?: string;
 }
 
 interface LoginBody {
@@ -36,6 +41,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         lastName,
         dni,
         phone,
+        promoCode,
       } = request.body;
 
       // Check if email already exists
@@ -112,6 +118,73 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const userId = Number(result[0].insertId);
 
+      // Promo code auto-assignment (per D-09, D-10)
+      let promoApplied = false;
+      if (promoCode) {
+        try {
+          // Look up promo plan
+          const [promo] = await fastify.db
+            .select()
+            .from(promoPlans)
+            .where(eq(promoPlans.promoCode, promoCode))
+            .limit(1);
+
+          if (promo && promo.isActive) {
+            const now = new Date();
+            // Check validity window
+            if (now >= promo.startDate && now <= promo.expiryDate) {
+              // Auto-assign the subscription plan linked to this promo
+              // NOTE: Cross-module service instantiation is consistent with existing
+              // pattern in this file (SegmentationService is already instantiated
+              // the same way in /me). All three services export their classes.
+              const auraService = new AuraService(fastify.db);
+              const paymentService = new PaymentService(
+                fastify.db,
+                fastify.log,
+              );
+              const subscriptionService = new SubscriptionService(
+                fastify.db,
+                request.log,
+                auraService,
+                paymentService,
+              );
+
+              const today = new Date().toISOString().split("T")[0];
+              await subscriptionService.assignPlan(
+                userId,
+                {
+                  planId: promo.subscriptionPlanId,
+                  branchId,
+                  startDate: today,
+                  priceTypeApplied: "zero",
+                  paymentMethod: "cash", // neutral value; pricePaid=0 skips payment recording
+                },
+                userId, // self-assignment
+              );
+
+              // Increment redemption count
+              await fastify.db
+                .update(promoPlans)
+                .set({
+                  redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
+                })
+                .where(eq(promoPlans.id, promo.id));
+
+              promoApplied = true;
+            }
+          }
+        } catch (err: unknown) {
+          // Graceful degradation: registration succeeds even if promo fails
+          request.log.error(
+            {
+              err: err instanceof Error ? err.message : String(err),
+              promoCode,
+            },
+            "Promo code assignment failed (graceful degradation)",
+          );
+        }
+      }
+
       // Sign JWT
       const token = fastify.jwt.sign({ userId, email, role: "member" });
 
@@ -124,6 +197,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: "alfa",
           branchId,
         },
+        promoApplied,
       };
     },
   );
