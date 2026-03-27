@@ -80,11 +80,7 @@
           <q-item-section>Entrenamiento</q-item-section>
         </q-item>
 
-        <q-item
-          clickable
-          to="/reservas"
-          @click="leftDrawerOpen = false"
-        >
+        <q-item clickable to="/reservas" @click="leftDrawerOpen = false">
           <q-item-section avatar>
             <q-icon name="event_available" />
           </q-item-section>
@@ -194,7 +190,8 @@ const greetingLevel = computed(() => {
 const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
-  return !userStore.profile.branchIsVirtual
+  if (userStore.profile.branchIsVirtual) return false
+  return route.path === '/mi-templo'
 })
 
 const leftDrawerOpen = ref(false)

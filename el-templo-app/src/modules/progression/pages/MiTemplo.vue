@@ -15,9 +15,6 @@
 
     <!-- Content State -->
     <div v-else class="mi-templo__content">
-      <!-- Streak Row (only visible when streak > 0) -->
-      <StreakRow v-if="currentStreak > 0" :streak="currentStreak" />
-
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
@@ -103,7 +100,6 @@ import { CHECK_IN_QUESTIONS, type CheckInQuestionConfig, type CheckInQuestionTyp
 import { useUserStore } from 'src/stores/useUserStore'
 import { useWeekData } from 'src/modules/training/composables/useWeekData'
 import { getRouteName } from 'src/modules/training/utils/routeNames'
-import StreakRow from '../components/StreakRow.vue'
 import SessionCtaCard from '../components/SessionCtaCard.vue'
 import BookingStatusCard from '../components/BookingStatusCard.vue'
 import RestDayCard from '../components/RestDayCard.vue'
@@ -130,8 +126,6 @@ const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
 const { getMyProgress, getCatalog } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
 const hasProgramsAvailable = ref(false)
-
-const currentStreak = computed(() => progressionStore.stats?.currentStreak ?? 0)
 
 const todayStr = computed(() => {
   const d = new Date()

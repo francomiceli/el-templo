@@ -71,6 +71,7 @@
         @restart="restartSession"
         @complete-block="onBlockComplete"
         @toggle-exercise-complete="onToggleExerciseComplete"
+        @change-deuteros="onChangeDeuteros"
       />
     </template>
   </q-page>
@@ -257,6 +258,13 @@ function onDeuterosSelect(choiceId: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   }
 }
 
+function onChangeDeuteros(): void {
+  if (player.value) {
+    player.value.deuterosChoice.value = null
+    player.value.currentBlockIndex.value = 2
+  }
+}
+
 function onTransitionContinue(): void {
   showBlockTransition.value = false
 
@@ -298,7 +306,7 @@ async function onBlockComplete(): Promise<void> {
 
   if (role === 'NUCLEUS' && !p.deuterosChoice.value) {
     // Deuteros not chosen yet — playableBlocks only has INITIUM+NUCLEUS
-    actionLabel = 'Elige Deuteros'
+    actionLabel = 'Siguiente bloque'
   } else {
     const isLastBlock = p.currentBlockIndex.value >= p.playableBlocks.value.length - 1
     if (isLastBlock) {

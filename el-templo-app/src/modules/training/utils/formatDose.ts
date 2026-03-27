@@ -44,7 +44,7 @@ export function formatDose(exercise: DoseFields): string {
     return `${secsText}s`
   }
 
-  return '-'
+  return ''
 }
 
 /**
@@ -54,7 +54,7 @@ export function formatDose(exercise: DoseFields): string {
 export function formatQuickDose(exercise: Prescription): string {
   if (exercise.notes === 'PAUSA') return 'PAUSA'
 
-  if (exercise.reps !== null) {
+  if (exercise.reps !== null && exercise.reps > 0) {
     if (exercise.increment) {
       return `${exercise.reps} - ${exercise.reps + exercise.increment} - ...`
     }
@@ -64,7 +64,7 @@ export function formatQuickDose(exercise: Prescription): string {
     return `${repsText} reps`
   }
 
-  if (exercise.seconds !== null) {
+  if (exercise.seconds !== null && exercise.seconds > 0) {
     if (exercise.increment) {
       return `${exercise.seconds} - ${exercise.seconds + exercise.increment} - ...`
     }
@@ -74,5 +74,5 @@ export function formatQuickDose(exercise: Prescription): string {
     return `${secsText}s`
   }
 
-  return '-'
+  return ''
 }

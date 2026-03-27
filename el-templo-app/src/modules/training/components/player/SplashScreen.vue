@@ -31,7 +31,7 @@
         <q-btn
           color="primary"
           unelevated
-          label="Comenzar"
+          label="ENTRADA EN CALOR"
           class="full-width"
           size="lg"
           @click="emit('start')"
@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getLevelGreek, formatLevelName } from '../../utils/levelDisplay'
+import { formatLevelName } from '../../utils/levelDisplay'
 import { QUOTES } from '../../data/quotes'
 
 interface Props {
@@ -62,9 +62,8 @@ const emit = defineEmits<Emits>()
 
 const formattedDayLevel = computed(() => {
   const dayCapitalized = props.day.charAt(0).toUpperCase() + props.day.slice(1)
-  const greek = getLevelGreek(props.level)
   const levelName = formatLevelName(props.level)
-  return `${dayCapitalized} - ${greek} ${levelName}`
+  return `${dayCapitalized} - Nivel ${levelName}`
 })
 
 /**
@@ -131,6 +130,12 @@ const welcomeQuote = computed(() => {
   font-weight: 800;
   color: white;
   line-height: 1.2;
+}
+
+.splash-overlay__subtitle {
+  font-family: 'Geologica', sans-serif;
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.65);
 }
 
 .splash-overlay__quote {

@@ -46,15 +46,10 @@
         :mobility-exercise="viewingBlock.mobilityExercise"
         :is-mobility-slide="isMobilitySlide"
         :block-role="viewingBlock.role"
-        :format="viewingBlock.format"
-        :format-description="viewingBlock.formatDescription"
-        :is-completed="isCurrentSlideCompleted"
-        :total-exercises-in-block="viewingBlock.exercises.length"
         :all-exercises-completed="allExercisesCompleted"
         :read-only="isReviewingPrevious"
         @tap-next="storyNav.next()"
         @tap-prev="storyNav.prev()"
-        @complete="onSlideComplete"
         @complete-block="emit('complete-block')"
         @undo-last="onUndoLast"
       />
@@ -62,6 +57,40 @@
 
     <!-- Content area — below story, cream background -->
     <div class="block-progression__content">
+      <!-- Exercise detail panel -->
+      <div v-if="viewingBlock" class="block-progression__detail">
+        <!-- Format info -->
+        <div v-if="viewingBlock.format" class="block-progression__detail-format">
+          <div class="block-progression__detail-format-name">
+            Formato: {{ detailFormatName
+            }}<span
+              v-if="detailFormatParamsSummary"
+              class="block-progression__detail-format-params"
+            >
+              · {{ detailFormatParamsSummary }}</span
+            >
+          </div>
+          <div v-if="viewingBlock.formatDescription" class="block-progression__detail-format-desc">
+            {{ viewingBlock.formatDescription }}
+          </div>
+        </div>
+
+        <!-- Exercise name + Completar -->
+        <div class="block-progression__detail-action-row">
+          <div class="block-progression__detail-name">{{ detailActiveName }}</div>
+          <q-btn
+            v-if="!isMobilitySlide && !isReviewingPrevious"
+            unelevated
+            dense
+            class="block-progression__detail-complete-btn"
+            :color="isCurrentSlideCompleted ? 'positive' : 'primary'"
+            :label="isCurrentSlideCompleted ? 'Completado' : 'Completar'"
+            :icon="isCurrentSlideCompleted ? 'check_circle' : undefined"
+            @click="onSlideComplete"
+          />
+        </div>
+      </div>
+
       <!-- Compact exercise list — always visible -->
       <CompactExerciseList
         v-if="viewingBlock"
@@ -70,6 +99,16 @@
         :completed-ids="viewingCompletedIdsSet"
         @navigate="storyNav.goTo($event)"
       />
+
+      <!-- Change Deuteros option -->
+      <div
+        v-if="isViewingDeuteros && !isReviewingPrevious"
+        class="block-progression__change-deuteros"
+        @click="emit('change-deuteros')"
+      >
+        <q-icon name="swap_horiz" size="16px" class="q-mr-xs" />
+        Cambiar bloque Deuteros
+      </div>
 
       <!-- Previous blocks navigation — only show when there are completed blocks -->
       <div v-if="completedBlocks.length > 0" class="block-progression__block-nav">
@@ -120,7 +159,7 @@ import { getRouteName } from '../utils/routeNames'
 import { formatDose, formatQuickDose } from '../utils/formatDose'
 
 const BLOCK_NAMES: Record<string, string> = {
-  INITIUM: 'Initium',
+  INITIUM: 'Pyros',
   NUCLEUS: 'Nucleus',
   DEUTEROS_1: 'Deuteros',
   DEUTEROS_2: 'Deuteros',
@@ -142,6 +181,7 @@ interface Emits {
   (e: 'restart'): void
   (e: 'complete-block'): void
   (e: 'toggle-exercise-complete', payload: { prescriptionId: number }): void
+  (e: 'change-deuteros'): void
 }
 
 const props = defineProps<Props>()
@@ -164,6 +204,11 @@ const viewingBlock = computed<Block | null>(() => {
 
 const isReviewingPrevious = computed(() => {
   return viewingBlockIndex.value !== props.activeBlockIndex
+})
+
+const isViewingDeuteros = computed(() => {
+  const role = viewingBlock.value?.role
+  return role === 'DEUTEROS_1' || role === 'DEUTEROS_2'
 })
 
 function viewBlock(idx: number): void {
@@ -246,6 +291,50 @@ const currentSlideExercise = computed<Prescription | null>(() => {
   return viewingBlock.value.exercises[storyNav.currentIndex.value] ?? null
 })
 
+// Detail panel computeds
+const detailActiveName = computed(() => {
+  if (isMobilitySlide.value && viewingBlock.value?.mobilityExercise) {
+    return viewingBlock.value.mobilityExercise.exerciseName
+  }
+  return currentSlideExercise.value?.exerciseName ?? ''
+})
+
+const detailFormatName = computed(() => {
+  const format = viewingBlock.value?.format ?? ''
+  const dash = format.indexOf('-')
+  return dash > 0 ? format.slice(0, dash) : format
+})
+
+const detailFormatParamsSummary = computed(() => {
+  const p = viewingBlock.value?.formatParams
+  if (!p || !('type' in p) || p.type === 'standard') {
+    // Fallback: parse from format string (e.g. "amrap-series" → "series")
+    const format = viewingBlock.value?.format ?? ''
+    const dash = format.indexOf('-')
+    return dash > 0 ? format.slice(dash + 1) : ''
+  }
+  const parts: string[] = []
+  if ('minutes' in p && typeof p.minutes === 'number') parts.push(`${p.minutes} min`)
+  if ('rounds' in p && typeof p.rounds === 'number') parts.push(`${p.rounds} rondas`)
+  if ('totalMinutes' in p && typeof p.totalMinutes === 'number') parts.push(`${p.totalMinutes} min`)
+  if ('intervalSeconds' in p && typeof p.intervalSeconds === 'number')
+    parts.push(`cada ${p.intervalSeconds}s`)
+  if (
+    'workSeconds' in p &&
+    typeof p.workSeconds === 'number' &&
+    'restSeconds' in p &&
+    typeof p.restSeconds === 'number'
+  )
+    parts.push(`${p.workSeconds}s/${p.restSeconds}s`)
+  if ('totalRounds' in p && typeof p.totalRounds === 'number') parts.push(`${p.totalRounds} rondas`)
+  if ('tempo' in p && typeof p.tempo === 'string') parts.push(p.tempo as string)
+  if ('timeCapMinutes' in p && typeof p.timeCapMinutes === 'number')
+    parts.push(`cap ${p.timeCapMinutes} min`)
+  if ('target' in p && typeof p.target === 'number' && 'unit' in p)
+    parts.push(`${p.target} ${p.unit}`)
+  return parts.join(' · ')
+})
+
 // Whether the current slide's exercise is completed
 const isCurrentSlideCompleted = computed(() => {
   if (isMobilitySlide.value) return false
@@ -286,6 +375,8 @@ const compactListData = computed(() => {
     id: ex.exerciseId,
     name: ex.exerciseName,
     quickDose: formatQuickDose(ex),
+    contraction: ex.contraction,
+    notes: ex.notes ?? '',
     isMobility: false,
   }))
 
@@ -295,6 +386,8 @@ const compactListData = computed(() => {
       id: mob.exerciseId,
       name: mob.exerciseName,
       quickDose: formatDose(mob),
+      contraction: mob.contraction,
+      notes: mob.notes ?? '',
       isMobility: true,
     })
   }
@@ -347,8 +440,8 @@ function onSlideComplete(): void {
 // Story area — contains video, progress bar, header overlay
 .block-progression__story-area {
   position: relative;
-  height: 60vh;
-  min-height: 300px;
+  height: 45vh;
+  min-height: 240px;
   flex-shrink: 0;
   background: #2e2a26;
 }
@@ -423,6 +516,70 @@ function onSlideComplete(): void {
   margin-right: 4px;
 }
 
+// Detail panel
+.block-progression__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba($secondary, 0.15);
+  flex-shrink: 0;
+}
+
+.block-progression__detail-format {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba($secondary, 0.12);
+}
+
+.block-progression__detail-format-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: $secondary;
+}
+
+.block-progression__detail-format-params {
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.5);
+  text-transform: none;
+}
+
+.block-progression__detail-format-desc {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  line-height: 1.3;
+}
+
+.block-progression__detail-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 36px;
+}
+
+.block-progression__detail-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #3d3732;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.block-progression__detail-complete-btn {
+  border-radius: 8px;
+  flex-shrink: 0;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
 // Block navigation at bottom
 .block-progression__block-nav {
   padding: 16px 12px;
@@ -475,12 +632,25 @@ function onSlideComplete(): void {
   }
 }
 
+// Change Deuteros
+.block-progression__change-deuteros {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: $secondary;
+  cursor: pointer;
+  border-bottom: 1px solid rgba($secondary, 0.12);
+}
+
 // Review banner
 .block-progression__review-banner {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px 16px;
+  padding: 14px 16px;
   background: $primary;
   color: white;
   font-size: 13px;
@@ -493,6 +663,5 @@ function onSlideComplete(): void {
 .block-progression__content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 16px;
 }
 </style>

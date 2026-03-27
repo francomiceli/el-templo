@@ -1,6 +1,6 @@
 <template>
   <div class="story-card">
-    <!-- Top ~70% — Story area (video or name hero or block-complete prompt) -->
+    <!-- Story area (video or name hero or block-complete prompt) -->
     <div class="story-card__video-area">
       <!-- All exercises completed — prompt to advance -->
       <div v-if="allExercisesCompleted && !readOnly" class="story-card__block-done">
@@ -51,45 +51,6 @@
         <div class="story-card__tap-right" @click="emit('tap-next')" />
       </template>
     </div>
-
-    <!-- Bottom — Exercise detail panel -->
-    <div class="story-card__detail">
-      <!-- Mobility slide subtitle -->
-      <div v-if="isMobilitySlide" class="story-card__mobility-label">DESCANSO ACTIVO</div>
-
-      <!-- Format info -->
-      <div v-if="format && !isMobilitySlide" class="story-card__format-row">
-        <span class="story-card__format-name">{{ format }}</span>
-        <span v-if="formatDescription" class="story-card__format-desc">{{
-          formatDescription
-        }}</span>
-      </div>
-
-      <!-- Exercise name -->
-      <div class="story-card__exercise-name">{{ activeName }}</div>
-
-      <!-- Dose + contraction on left, Completar on right -->
-      <div class="story-card__info-action-row">
-        <div class="story-card__info-left">
-          <span class="story-card__info-value">{{ formattedDose }}</span>
-          <span class="story-card__info-separator">&middot;</span>
-          <span class="story-card__info-value">{{ formattedContraction }}</span>
-        </div>
-        <q-btn
-          v-if="!isMobilitySlide && !readOnly"
-          unelevated
-          dense
-          class="story-card__complete-btn"
-          :color="isCompleted ? 'positive' : 'primary'"
-          :label="isCompleted ? 'Completado' : 'Completar'"
-          :icon="isCompleted ? 'check_circle' : undefined"
-          @click="emit('complete')"
-        />
-      </div>
-
-      <!-- Notes -->
-      <div v-if="activeNotes" class="story-card__notes">{{ activeNotes }}</div>
-    </div>
   </div>
 </template>
 
@@ -97,7 +58,6 @@
 import { computed } from 'vue'
 import type { Prescription, Block, BlockRole } from '../../types/session'
 import { getBlockAccentColor } from '../../utils/blockColors'
-import { formatDose } from '../../utils/formatDose'
 import VideoPlaceholder from './VideoPlaceholder.vue'
 
 interface Props {
@@ -105,10 +65,6 @@ interface Props {
   mobilityExercise: Block['mobilityExercise']
   isMobilitySlide: boolean
   blockRole: BlockRole
-  format: string
-  formatDescription: string | null
-  isCompleted: boolean
-  totalExercisesInBlock: number
   allExercisesCompleted: boolean
   readOnly?: boolean
 }
@@ -116,7 +72,6 @@ interface Props {
 interface Emits {
   (e: 'tap-next'): void
   (e: 'tap-prev'): void
-  (e: 'complete'): void
   (e: 'complete-block'): void
   (e: 'undo-last'): void
 }
@@ -145,30 +100,6 @@ const activeContraction = computed(() => {
   }
   return props.exercise?.contraction ?? ''
 })
-
-const activeNotes = computed(() => {
-  if (props.isMobilitySlide && props.mobilityExercise) {
-    return props.mobilityExercise.notes
-  }
-  return props.exercise?.notes ?? null
-})
-
-const CONTRACTION_NAMES: Record<string, string> = {
-  CON: 'Concentrica',
-  EXC: 'Excentrica',
-  ISO: 'Isometrica',
-}
-
-const formattedContraction = computed(() => {
-  return CONTRACTION_NAMES[activeContraction.value] ?? activeContraction.value
-})
-
-const formattedDose = computed(() => {
-  if (props.isMobilitySlide && props.mobilityExercise) {
-    return formatDose(props.mobilityExercise)
-  }
-  return props.exercise ? formatDose(props.exercise) : '-'
-})
 </script>
 
 <style scoped lang="scss">
@@ -182,7 +113,7 @@ const formattedDose = computed(() => {
 
 .story-card__video-area {
   position: relative;
-  flex: 8;
+  flex: 1;
   min-height: 0;
   background: #2e2a26;
 }
@@ -281,93 +212,5 @@ const formattedDose = computed(() => {
 .story-card__tap-right {
   right: 0;
   width: 70%;
-}
-
-// Detail panel
-.story-card__detail {
-  background: $cream;
-  padding: 16px;
-  border-top: 1px solid rgba($secondary, 0.15);
-  flex: 2;
-  overflow: hidden;
-}
-
-.story-card__mobility-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: rgba(0, 0, 0, 0.45);
-  margin-bottom: 4px;
-}
-
-.story-card__format-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.story-card__format-name {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: $secondary;
-  flex-shrink: 0;
-}
-
-.story-card__format-desc {
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.45);
-  line-height: 1.3;
-}
-
-.story-card__exercise-name {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #3d3732;
-  line-height: 1.3;
-  margin-bottom: 8px;
-}
-
-.story-card__info-action-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.story-card__info-left {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.story-card__info-value {
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #3d3732;
-}
-
-.story-card__info-separator {
-  color: rgba(0, 0, 0, 0.3);
-}
-
-.story-card__notes {
-  font-size: 13px;
-  font-style: italic;
-  color: #5a5550;
-  padding: 8px 0;
-  border-top: 1px solid rgba($secondary, 0.1);
-  margin-top: 8px;
-}
-
-.story-card__complete-btn {
-  border-radius: 8px;
-  flex-shrink: 0;
-  padding-left: 20px;
-  padding-right: 20px;
 }
 </style>

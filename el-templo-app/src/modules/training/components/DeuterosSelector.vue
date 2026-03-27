@@ -1,6 +1,6 @@
 <template>
   <BlockChoice
-    title="Elige tu bloque Deuteros"
+    title="Elegí tu bloque Deuteros"
     :options="deuterosOptions"
     confirm-button-prefix="Comenzar"
     @select="onSelect"

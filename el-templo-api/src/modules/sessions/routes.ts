@@ -99,6 +99,7 @@ function sessionToResponse(
         intensity: block.intensity,
         repsBudget: block.repsBudget,
         format: block.format?.name || block.format,
+        formatParams: block.formatParams ?? null,
         formatDescription:
           formatDescriptions.get(
             (block.format?.name || block.format) as string,

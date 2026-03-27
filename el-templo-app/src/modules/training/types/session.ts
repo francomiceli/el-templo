@@ -85,6 +85,9 @@ export interface Block {
   /** Format identifier (e.g., 'straight-3x8', 'emom-10min') */
   format: string
 
+  /** Format-specific parameters (AMRAP minutes, EMOM interval, etc.) */
+  formatParams: Record<string, unknown> | null
+
   /** Human-readable description of the format (from DB) */
   formatDescription: string | null
 

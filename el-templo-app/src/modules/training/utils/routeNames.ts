@@ -37,17 +37,18 @@ export const ROUTE_NAMES: Record<string, string> = {
   'REVERSE HYPER': 'Reverse Hyper',
 
   // Other routes
+  INITIUM: 'Initium',
   AF: 'Active Flexibility',
   BRIDGE: 'Bridge',
   PIKE: 'Pike',
   SPAGAT: 'Spagat',
   'SIDE PCK': 'Side Pick',
-};
+}
 
 /**
  * Get the full name for a route code
  * Returns the code itself if no mapping exists
  */
 export function getRouteName(code: string): string {
-  return ROUTE_NAMES[code?.toUpperCase()] || code;
+  return ROUTE_NAMES[code?.toUpperCase()] || code
 }

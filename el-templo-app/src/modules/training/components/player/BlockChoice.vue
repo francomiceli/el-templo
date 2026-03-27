@@ -1,9 +1,10 @@
 <template>
   <div class="block-choice">
     <!-- Header section -->
-    <div class="choice-header q-pa-md text-center">
-      <div class="text-h5 text-weight-bold">
-        {{ title }}
+    <div class="choice-header q-pa-md">
+      <div class="choice-header__title">{{ title }}</div>
+      <div class="choice-header__desc">
+        Elegí según si querés dedicar más tiempo al tren superior o al tren inferior (piernas).
       </div>
     </div>
 
@@ -15,7 +16,7 @@
         class="choice-card"
         :class="{
           'choice-card--selected': selected === option.id,
-          [getBlockColorClass(option.block.role)]: true
+          [getBlockColorClass(option.block.role)]: true,
         }"
         @click="selectOption(option.id)"
       >
@@ -68,46 +69,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import type { Block, BlockRole } from '../../types/session';
-import { getBlockColorClass, getBlockCSSColor } from '../../utils/blockColors';
-import { getRouteName } from '../../utils/routeNames';
+import { ref, computed } from 'vue'
+import type { Block, BlockRole } from '../../types/session'
+import { getBlockColorClass, getBlockCSSColor } from '../../utils/blockColors'
+import { getRouteName } from '../../utils/routeNames'
 
 export interface BlockOption {
   /** Unique identifier for this option */
-  id: string;
+  id: string
   /** Display label for this option */
-  label: string;
+  label: string
   /** Block data to display */
-  block: Block;
+  block: Block
 }
 
 interface Props {
   /** Header title */
-  title: string;
+  title: string
   /** Available options to choose from */
-  options: BlockOption[];
+  options: BlockOption[]
   /** Prefix for confirm button (e.g., "Comenzar" → "Comenzar Deuteros 1") */
-  confirmButtonPrefix?: string;
+  confirmButtonPrefix?: string
 }
 
 interface Emits {
-  (e: 'select', choiceId: string): void;
+  (e: 'select', choiceId: string): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   confirmButtonPrefix: 'Comenzar',
-});
-const emit = defineEmits<Emits>();
+})
+const emit = defineEmits<Emits>()
 
 /** Currently selected option id */
-const selected = ref<string | null>(null);
+const selected = ref<string | null>(null)
 
 /**
  * Select an option
  */
 function selectOption(id: string): void {
-  selected.value = id;
+  selected.value = id
 }
 
 /**
@@ -115,7 +116,7 @@ function selectOption(id: string): void {
  */
 function confirm(): void {
   if (selected.value) {
-    emit('select', selected.value);
+    emit('select', selected.value)
   }
 }
 
@@ -125,25 +126,25 @@ function confirm(): void {
 function getHeaderStyle(role: BlockRole): Record<string, string> {
   return {
     backgroundColor: getBlockCSSColor(role),
-  };
+  }
 }
 
 /**
  * Get the selected option's label
  */
 const selectedOption = computed(() => {
-  return props.options.find(o => o.id === selected.value);
-});
+  return props.options.find((o) => o.id === selected.value)
+})
 
 /**
  * Computed button label
  */
 const buttonLabel = computed(() => {
   if (!selectedOption.value) {
-    return 'Selecciona una opcion';
+    return 'Selecciona una opcion'
   }
-  return `${props.confirmButtonPrefix} ${selectedOption.value.label}`;
-});
+  return `${props.confirmButtonPrefix} ${selectedOption.value.label}`
+})
 </script>
 
 <style scoped lang="scss">
@@ -159,6 +160,22 @@ const buttonLabel = computed(() => {
 .choice-header {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+
+  &__title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba($primary, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &__desc {
+    font-size: 13px;
+    color: rgba(0, 0, 0, 0.5);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
 }
 
 .cards-container {
@@ -175,7 +192,9 @@ const buttonLabel = computed(() => {
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   cursor: pointer;
   position: relative;
 
