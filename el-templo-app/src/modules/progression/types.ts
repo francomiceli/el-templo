@@ -93,7 +93,7 @@ export const CHECK_IN_QUESTIONS: CheckInQuestionConfig[] = [
     question: '¿Tenés alguna molestia?',
     icon: 'accessibility_new',
     options: [
-      { label: 'Ninguna', value: 'ninguna' },
+      { label: 'No', value: 'ninguna' },
       { label: 'Leve', value: 'leve' },
       { label: 'Moderada', value: 'moderada' },
     ],

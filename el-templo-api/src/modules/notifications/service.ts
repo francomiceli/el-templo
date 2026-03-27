@@ -75,8 +75,10 @@ export class NotificationService {
     }
 
     try {
-      // Dynamic import so the module compiles even without firebase-admin installed
-      const admin = await import("firebase-admin");
+      // Dynamic import so the module compiles even without firebase-admin installed.
+      // firebase-admin is CJS — dynamic import wraps it in { default: ... }
+      const adminModule = await import("firebase-admin");
+      const admin = adminModule.default ?? adminModule;
       const serviceAccount = JSON.parse(
         Buffer.from(base64Key, "base64").toString("utf-8"),
       ) as Record<string, unknown>;
@@ -430,18 +432,25 @@ export class NotificationService {
     route: string,
     notificationId: number,
   ): Promise<boolean> {
-    if (this.dryRun || !this.messaging) {
+    if (this.dryRun) {
       this.log.info(
         {
           token: token.slice(0, 20) + "...",
           title,
           route,
           notificationId,
-          dryRun: true,
         },
         "DRY_RUN: Would send notification",
       );
       return true;
+    }
+
+    if (!this.messaging) {
+      this.log.warn(
+        { notificationId },
+        "FCM not initialized — cannot send notification",
+      );
+      return false;
     }
 
     const message = {
