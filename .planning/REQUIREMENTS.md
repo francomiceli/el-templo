@@ -41,9 +41,9 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ### WhatsApp Production
 
-- [ ] **WA-01**: Meta template messages documented and ready for submission (class_reminder, trial_followup)
-- [ ] **WA-02**: WhatsApp phone number registration process documented
-- [ ] **WA-03**: MySQL timezone tables populated for CONVERT_TZ in scheduler queries
+- [x] **WA-01**: Meta template messages documented and ready for submission (class_reminder, trial_followup)
+- [x] **WA-02**: WhatsApp phone number registration process documented
+- [x] **WA-03**: MySQL timezone tables populated for CONVERT_TZ in scheduler queries
 
 ## Future Requirements (v5.2+)
 
@@ -96,9 +96,9 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 | DEPLOY-02   | Phase 77 | Complete |
 | DEPLOY-03   | Phase 77 | Complete |
 | DEPLOY-04   | Phase 77 | Complete |
-| WA-01       | Phase 78 | Pending  |
-| WA-02       | Phase 78 | Pending  |
-| WA-03       | Phase 78 | Pending  |
+| WA-01       | Phase 78 | Complete |
+| WA-02       | Phase 78 | Complete |
+| WA-03       | Phase 78 | Complete |
 
 **Coverage:**
 

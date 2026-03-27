@@ -55,6 +55,7 @@ Last activity: 2026-03-26 - Completed 76-01 (known issues fix)
 | Phase 76 P01 | 2min  | 2 tasks | 6 files  |
 | Phase 77 P02 | 2min  | 2 tasks | 2 files  |
 | Phase 77 P01 | 2min  | 2 tasks | 2 files  |
+| Phase 78 P01 | 4min  | 2 tasks | 3 files  |
 
 ## Accumulated Context
 
@@ -126,6 +127,8 @@ Recent decisions affecting current work:
 - [Phase 76]: No code changes for FIX-03 (phone normalization) -- already fixed in commit e542036e
 - [Phase 77]: Organized secrets into three sections: new bot-specific, missing API, already configured
 - [Phase 77]: Bot deploy follows identical CI/CD pattern as api/app/admin/web in GitHub Actions
+- [Phase 78]: INSERT IGNORE for timezone migration idempotency (safe with existing mysql_tzinfo_to_sql data)
+- [Phase 78]: Minimal timezone data (only Argentina/UTC) rather than full OS timezone dump
 
 ### Pending Todos
 

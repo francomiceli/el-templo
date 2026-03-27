@@ -1264,7 +1264,7 @@ See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 - [x] **Phase 75: Database Seeding** - Real branches, activities, schedules, subscription plans in DB via idempotent seed script (completed 2026-03-26)
 - [x] **Phase 76: Known Issues Fix** - Scheduler column refs, OpenAI tool context corruption, phone normalization gaps (completed 2026-03-26)
 - [x] **Phase 77: GitHub Actions Deployment** - Bot build/deploy/restart in CI pipeline alongside API, PM2 config, env secrets (completed 2026-03-27)
-- [ ] **Phase 78: WhatsApp Production Setup** - Meta template docs, phone registration, permanent token, MySQL timezone tables
+- [x] **Phase 78: WhatsApp Production Setup** - Meta template docs, phone registration, permanent token, MySQL timezone tables (completed 2026-03-27)
 
 ### v5.1 Phase Details
 
@@ -1367,7 +1367,7 @@ Plans:
 2. WhatsApp Business phone number registration process is documented with step-by-step instructions
 3. MySQL timezone tables are populated so CONVERT_TZ works correctly in scheduler queries
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 
@@ -1382,13 +1382,13 @@ Phase 74 (Business Data) | Phase 75 (Seeding) | Phase 76 (Fixes) | Phase 78 (WA 
 
 Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 completing first.
 
-| Phase                         | Plans Complete | Status      | Completed  |
-| ----------------------------- | -------------- | ----------- | ---------- |
-| 74. Business Data Integration | 2/2            | Complete    | 2026-03-26 |
-| 75. Database Seeding          | 1/1            | Complete    | 2026-03-26 |
-| 76. Known Issues Fix          | 1/1            | Complete    | 2026-03-26 |
-| 77. GitHub Actions Deployment | 2/2            | Complete    | 2026-03-27 |
-| 78. WhatsApp Production Setup | 0/1            | Not started | -          |
+| Phase                         | Plans Complete | Status   | Completed  |
+| ----------------------------- | -------------- | -------- | ---------- |
+| 74. Business Data Integration | 2/2            | Complete | 2026-03-26 |
+| 75. Database Seeding          | 1/1            | Complete | 2026-03-26 |
+| 76. Known Issues Fix          | 1/1            | Complete | 2026-03-26 |
+| 77. GitHub Actions Deployment | 2/2            | Complete | 2026-03-27 |
+| 78. WhatsApp Production Setup | 1/1            | Complete | 2026-03-27 |
 
 ---
 
