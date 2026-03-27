@@ -241,7 +241,10 @@ async function onLogout() {
 
 .app-bg {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100lvh;
   background: url('/bars-open.webp') left center / cover no-repeat;
   filter: saturate(0.3) sepia(0.4) contrast(1.05);
   opacity: 0.08;
