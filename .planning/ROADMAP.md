@@ -1269,7 +1269,7 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 ### Phases
 
 - [x] **Phase 79: Mica System Prompt & Knowledge Rewrite** - Replace generic bot personality with Mica persona and rewrite complete knowledge base (completed 2026-03-27)
-- [ ] **Phase 80: Response Quality & Data Fixes** - Fix WhatsApp formatting, pricing order, schedule limits, and escalation behavior
+- [x] **Phase 80: Response Quality & Data Fixes** - Fix WhatsApp formatting, pricing order, schedule limits, and escalation behavior (completed 2026-03-27)
 - [ ] **Phase 81: Conversation Flow Testing** - Validate all QA questions, real conversation flows, and Mica tone
 
 ### Phase Details
@@ -1319,7 +1319,7 @@ Plans:
 4. After book_class returns [BUTTONS_SENT], bot sends zero additional text messages; after escalation, bot sends the exact handoff phrase then stays silent
 5. Trial registration flow collects only name and class preference (phone number is already known from WhatsApp)
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1359,7 +1359,7 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 | Phase                                      | Plans Complete | Status      | Completed  |
 | ------------------------------------------ | -------------- | ----------- | ---------- |
 | 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
-| 80. Response Quality & Data Fixes          | 1/2            | In Progress |            |
+| 80. Response Quality & Data Fixes          | 2/2            | Complete    | 2026-03-27 |
 | 81. Conversation Flow Testing              | 0/?            | Not started | -          |
 
 ---
