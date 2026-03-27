@@ -1367,7 +1367,11 @@ Plans:
 2. WhatsApp Business phone number registration process is documented with step-by-step instructions
 3. MySQL timezone tables are populated so CONVERT_TZ works correctly in scheduler queries
 
-**Plans:** TBD
+**Plans:** 1 plan
+
+Plans:
+
+- [ ] 78-01-PLAN.md — Document Meta templates, phone registration, and populate MySQL timezone tables
 
 ---
 
@@ -1384,7 +1388,7 @@ Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 
 | 75. Database Seeding          | 1/1            | Complete    | 2026-03-26 |
 | 76. Known Issues Fix          | 1/1            | Complete    | 2026-03-26 |
 | 77. GitHub Actions Deployment | 2/2            | Complete    | 2026-03-27 |
-| 78. WhatsApp Production Setup | 0/?            | Not started | -          |
+| 78. WhatsApp Production Setup | 0/1            | Not started | -          |
 
 ---
 
