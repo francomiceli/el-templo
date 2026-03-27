@@ -313,7 +313,7 @@ async function checkSchedule(
   const lines = displayRows.map((row) => {
     const spotsRemaining = row.max_capacity - Number(row.booking_count);
     const spotsText =
-      spotsRemaining <= 0 ? "lleno" : `${spotsRemaining} lugares`;
+      spotsRemaining <= 0 ? "sin cupos" : `${spotsRemaining} cupos disponibles`;
     const dayName = DAY_NAMES[row.day_of_week] ?? `Día ${row.day_of_week}`;
     return `- ${row.activity_name} (${row.branch_name}) — ${dayName} ${row.start_time}-${row.end_time} — ${spotsText}`;
   });
