@@ -18,6 +18,7 @@
     >
       <q-tab name="planes" label="Planes de Suscripcion" />
       <q-tab name="experiencias" label="Experiencias a Medida" />
+      <q-tab name="promos" label="Promos" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -192,21 +193,94 @@
           @saved="onProgramSaved"
         />
       </q-tab-panel>
+
+      <!-- ============================================================== -->
+      <!-- Promos Tab -->
+      <!-- ============================================================== -->
+      <q-tab-panel name="promos">
+        <!-- Header -->
+        <div class="row items-center q-mb-md">
+          <div class="text-h6 col">Promos</div>
+          <q-btn icon="add" label="Nueva Promo" color="primary" @click="openCreatePromoDialog" />
+        </div>
+
+        <!-- Promos QTable -->
+        <q-table
+          :rows="promos"
+          :columns="promoColumns"
+          row-key="id"
+          :loading="loadingPromos"
+          :pagination="{ rowsPerPage: 50 }"
+          flat
+          bordered
+        >
+          <!-- Promo Type column -->
+          <template #body-cell-promoTipo="props">
+            <q-td :props="props">
+              <q-badge
+                :color="props.row.promoType === 'qr_auto' ? 'primary' : 'secondary'"
+                :label="props.row.promoType === 'qr_auto' ? 'QR Auto' : 'Admin'"
+              />
+            </q-td>
+          </template>
+
+          <!-- Dates column -->
+          <template #body-cell-promoPeriodo="props">
+            <q-td :props="props">
+              {{ formatDate(props.row.startDate) }} - {{ formatDate(props.row.expiryDate) }}
+            </q-td>
+          </template>
+
+          <!-- Redemptions column -->
+          <template #body-cell-promoRedenciones="props">
+            <q-td :props="props">
+              <q-badge color="info" :label="String(props.row.redemptionCount)" />
+            </q-td>
+          </template>
+
+          <!-- Status column -->
+          <template #body-cell-promoEstado="props">
+            <q-td :props="props">
+              <q-badge
+                :color="props.row.isActive ? 'positive' : 'grey'"
+                :label="props.row.isActive ? 'Activa' : 'Inactiva'"
+              />
+            </q-td>
+          </template>
+
+          <!-- Actions column -->
+          <template #body-cell-promoAcciones="props">
+            <q-td :props="props">
+              <q-btn
+                v-if="props.row.isActive"
+                flat dense round icon="block" color="negative"
+                @click="confirmDeactivatePromo(props.row)"
+              >
+                <q-tooltip>Desactivar</q-tooltip>
+              </q-btn>
+            </q-td>
+          </template>
+        </q-table>
+
+        <PromoFormDialog v-model="showPromoDialog" :promo="editingPromo" @saved="onPromoSaved" />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
 import { PLAN_TIER_LABELS, type PlanListItem, type PlanTier } from 'src/types/subscription';
+import type { PromoListItem } from 'src/types/subscription';
 import type { MicroProgram, MicroProgramDetail } from 'src/types/program';
 import PlanFormDialog from 'src/components/PlanFormDialog.vue';
 import ProgramWizardDialog from 'src/components/ProgramWizardDialog.vue';
+import PromoFormDialog from 'src/components/PromoFormDialog.vue';
 
 const log = createLogger('PlanesPage');
 const $q = useQuasar();
@@ -236,6 +310,15 @@ const programs = ref<MicroProgram[]>([]);
 const loadingPrograms = ref(false);
 const showProgramDialog = ref(false);
 const editingProgram = ref<MicroProgramDetail | null>(null);
+
+// =========================================================================
+// Promos State
+// =========================================================================
+
+const promos = ref<PromoListItem[]>([]);
+const loadingPromos = ref(false);
+const showPromoDialog = ref(false);
+const editingPromo = ref<PromoListItem | null>(null);
 
 // =========================================================================
 // Plan Table columns
@@ -351,6 +434,44 @@ const programColumns: QTableProps['columns'] = [
     sortable: false,
     style: 'width: 100px',
   },
+];
+
+// =========================================================================
+// Promo Table columns
+// =========================================================================
+
+const promoColumns: QTableProps['columns'] = [
+  {
+    name: 'nombre',
+    label: 'Nombre',
+    field: 'name',
+    align: 'left',
+    sortable: true,
+  },
+  { name: 'codigo', label: 'Codigo', field: 'promoCode', align: 'left' },
+  {
+    name: 'duracion',
+    label: 'Duracion',
+    field: 'planDurationDays',
+    align: 'center',
+    format: (v: number) => `${v} dias`,
+  },
+  { name: 'promoTipo', label: 'Tipo', field: 'promoType', align: 'center' },
+  {
+    name: 'promoPeriodo',
+    label: 'Periodo',
+    field: 'startDate',
+    align: 'center',
+  },
+  {
+    name: 'promoRedenciones',
+    label: 'Usos',
+    field: 'redemptionCount',
+    align: 'center',
+    sortable: true,
+  },
+  { name: 'promoEstado', label: 'Estado', field: 'isActive', align: 'center' },
+  { name: 'promoAcciones', label: 'Acciones', field: 'id', align: 'center' },
 ];
 
 // =========================================================================
@@ -487,6 +608,73 @@ function confirmDeactivateProgram(program: MicroProgram) {
 function onProgramSaved() {
   loadPrograms();
 }
+
+// =========================================================================
+// Promos Data loading
+// =========================================================================
+
+async function loadPromos() {
+  loadingPromos.value = true;
+  try {
+    promos.value = await subscriptionsApi.listPromos();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading promos', { error: message });
+  } finally {
+    loadingPromos.value = false;
+  }
+}
+
+// =========================================================================
+// Promo Dialog actions
+// =========================================================================
+
+function openCreatePromoDialog() {
+  editingPromo.value = null;
+  showPromoDialog.value = true;
+}
+
+async function confirmDeactivatePromo(promo: PromoListItem) {
+  $q.dialog({
+    title: 'Desactivar Promo',
+    message: `Desactivar "${promo.name}" (${promo.promoCode})?`,
+    cancel: true,
+  }).onOk(async () => {
+    try {
+      await subscriptionsApi.deactivatePromo(promo.id);
+      $q.notify({ type: 'positive', message: 'Promo desactivada' });
+      await loadPromos();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.error('Error deactivating promo', { error: message });
+      $q.notify({ type: 'negative', message: 'Error al desactivar' });
+    }
+  });
+}
+
+function onPromoSaved() {
+  loadPromos();
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+// =========================================================================
+// Tab lazy loading
+// =========================================================================
+
+watch(activeTab, (tab) => {
+  if (tab === 'promos' && promos.value.length === 0 && !loadingPromos.value) {
+    loadPromos();
+  }
+});
 
 // =========================================================================
 // Lifecycle
