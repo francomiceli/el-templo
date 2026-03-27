@@ -8,7 +8,7 @@
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 - **v4.2 Clases Personalizadas Launch** - Phases 67-73 (complete)
 - **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
-- **v4.4 App Engagement & Intelligent Companion** - Phases 78-84 (planned)
+- **v4.4 App Engagement & Intelligent Companion** - Phases 78-86 (planned)
 
 ---
 
@@ -1740,6 +1740,32 @@ Plans:
 
 ---
 
+### Phase 86: QR Promo — Free Month Campaign
+
+**Goal**: Build a QR-based promo code system for time-limited free month campaigns. Two initial codes for BCN inauguration and Aura Club first event auto-assign an online-only free subscription on registration.
+**Depends on**: Phase 84 (push notifications for promo follow-up)
+**Requirements**: QR-01, QR-02, QR-03, QR-04, QR-05, QR-06, QR-07, QR-08, QR-09, QR-10, QR-11
+**Plans:** 5 plans
+
+Plans:
+
+- [ ] 86-01-PLAN.md — Promo schema + migration + seed + registration promo flow
+- [ ] 86-02-PLAN.md — QR redirects in Nuxt + QR PNG generation
+- [ ] 86-03-PLAN.md — Member app UI adjustments (tabs, RestDayCard, upsell badge)
+- [ ] 86-04-PLAN.md — Registration page promo support (badge, title, existing user handling)
+- [ ] 86-05-PLAN.md — Admin promo CRUD API + Promos tab in PlanesPage
+
+**Success Criteria** (what must be TRUE):
+
+1. QR code generated pointing to stable redirect URLs (eltemplo.org/qr/bcn, eltemplo.org/qr/aura-club)
+2. Redirects resolve to member app registration with promo code in URL
+3. New users registering with promo code receive free 30-day online subscription automatically
+4. Existing users scanning QR see "Ya tenes cuenta" with login link
+5. Admin can view, create, and disable promo plans with redemption counts
+6. Online users see Reservas tab with empty state and upsell badge on Mi Templo
+
+---
+
 ## v4.4 Progress
 
 **Execution Order:**
@@ -1754,8 +1780,6 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 82. Progressive Profiling & Check-ins | 2/3            | In Progress |            |
 | 83. Micro-Program Upsells             | 4/5            | Complete    | 2026-03-25 |
 | 84. Push Notifications Foundation     | 6/7            | Complete    | 2026-03-26 |
-
----
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 
