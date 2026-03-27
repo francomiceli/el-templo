@@ -1293,7 +1293,12 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 4. Knowledge file contains complete plan/pricing data (Flex 3x/4x/5x, Foundation, Performance, single class, credit card surcharges) with Zero discount rules
 5. Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close), objection handling for 7 common objections, retention strategies (inactive, expiring, cancellation, returning), and 12 golden rules
 
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 79-01-PLAN.md — Rewrite system-prompt.ts (Mica persona) and knowledge.ts (12 business sections)
+- [ ] 79-02-PLAN.md — Update knowledge and system prompt tests for new content
 
 ---
 
