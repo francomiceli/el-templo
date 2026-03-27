@@ -4,7 +4,16 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), a public-facing marketing site (el-templo-web), and a WhatsApp AI chatbot (el-templo-bot). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 began ecosystem integration (admin consolidation, attendance/scheduling, data migration), and v5 adds the WhatsApp AI chatbot for automated customer service and class booking.
 
-## Current Milestone: Planning next milestone
+## Current Milestone: v5.2 Mica Persona & Bot Refinement
+
+**Goal:** Replace the generic bot personality with "Mica" — a warm, concise, sales-aware assistant that matches how the real El Templo team communicates on WhatsApp. Includes sales techniques, objection handling, retention strategies, response quality fixes, and conversation flow testing.
+
+**Target features:**
+
+- Mica persona: warm Argentine tuteo, concise WhatsApp-native responses, state-adaptive sales behavior
+- Complete knowledge rewrite: plans, pricing, schedules, ROM, policies, sales techniques, objection handling, retention playbook
+- Response quality fixes: WhatsApp formatting, pricing presentation order, schedule limits, escalation behavior
+- Conversation flow testing: 14 QA questions + real conversation example flows
 
 ## Core Value
 
@@ -37,7 +46,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-(None — next milestone not yet defined. Run `/gsd:new-milestone` to start.)
+See: .planning/REQUIREMENTS.md (v5.2 scope)
 
 ### Out of Scope
 
@@ -118,4 +127,4 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ---
 
-_Last updated: 2026-03-27 after v5.1 milestone completion_
+_Last updated: 2026-03-27 after v5.2 milestone initialization_
