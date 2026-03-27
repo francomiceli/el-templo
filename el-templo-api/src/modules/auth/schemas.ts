@@ -10,6 +10,7 @@ export const registerSchema = {
       lastName: { type: "string", minLength: 1 },
       dni: { type: "string", minLength: 1 },
       phone: { type: "string", minLength: 1 },
+      promoCode: { type: "string", maxLength: 50 },
     },
   },
 };
