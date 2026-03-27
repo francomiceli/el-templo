@@ -36,6 +36,18 @@ export default defineNuxtConfig({
     "/curso-entrenadores": {
       redirect: { to: "/academy", statusCode: 301 },
     },
+    "/qr/bcn": {
+      redirect: {
+        to: "https://app.eltemplo.org/register?promo=TEMPLOPASSBCN",
+        statusCode: 302,
+      },
+    },
+    "/qr/aura-club": {
+      redirect: {
+        to: "https://app.eltemplo.org/register?promo=AURACLUB1",
+        statusCode: 302,
+      },
+    },
   },
 
   nitro: {
