@@ -64,7 +64,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'horarios',
         component: () => import('pages/HorariosPage.vue'),
-        meta: { allowedRoles: ['coach', 'owner'] as AdminRole[] },
+        meta: {
+          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+        },
       },
       {
         path: 'analiticas',

@@ -47,7 +47,7 @@
           </q-item-section>
           <q-item-section>Alumnos</q-item-section>
         </q-item>
-        <q-item v-if="isCoachRole" clickable v-ripple to="/horarios">
+        <q-item clickable v-ripple to="/horarios">
           <q-item-section avatar>
             <q-icon name="calendar_month" />
           </q-item-section>
