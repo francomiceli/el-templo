@@ -8,6 +8,7 @@
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 - ✅ **v5.0 WhatsApp AI Chatbot** — Phases 67-73 (shipped 2026-03-26)
 - ✅ **v5.1 Production Readiness & Business Data** — Phases 74-78 (shipped 2026-03-27)
+- **v5.2 Mica Persona & Bot Refinement** — Phases 79-81 (in progress)
 
 ---
 
@@ -1262,3 +1263,96 @@ See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 
 </details>
+
+## v5.2 Mica Persona & Bot Refinement (Phases 79-81)
+
+### Phases
+
+- [ ] **Phase 79: Mica System Prompt & Knowledge Rewrite** - Replace generic bot personality with Mica persona and rewrite complete knowledge base
+- [ ] **Phase 80: Response Quality & Data Fixes** - Fix WhatsApp formatting, pricing order, schedule limits, and escalation behavior
+- [ ] **Phase 81: Conversation Flow Testing** - Validate all QA questions, real conversation flows, and Mica tone
+
+### Phase Details
+
+#### Phase 79: Mica System Prompt & Knowledge Rewrite
+
+**Goal**: The bot responds as Mica -- a warm, concise, sales-aware Argentine assistant -- with complete, accurate business knowledge covering plans, pricing, schedules, sales techniques, objection handling, and retention strategies
+**Depends on**: Nothing (first phase of v5.2)
+**Requirements**: MICA-01, MICA-02, MICA-03, KNOW-01, KNOW-02, KNOW-03, KNOW-04, KNOW-05, KNOW-06, KNOW-07
+**Source documents**:
+
+- `contexto/el-templo-business-data.md` (Mica persona spec + all business data)
+- `el-templo-bot/src/ai/system-prompt.ts` (current prompt to replace)
+- `el-templo-bot/src/ai/knowledge.ts` (current knowledge to replace)
+
+**Success Criteria** (what must be TRUE):
+
+1. Bot introduces itself as Mica and uses Argentine tuteo ("vos", "querés", "podés") with warm concise tone and max 1-2 emojis per message
+2. Bot adapts its objective based on client state: leads get guided toward trial booking, active members get retention-focused responses, inactive members get reactivation nudges
+3. Bot follows tool usage rules: schedule shows max 5 results, book_class sends buttons then stays silent, trial registration asks only name + class preference, escalation uses the exact handoff phrase
+4. Knowledge file contains complete plan/pricing data (Flex 3x/4x/5x, Foundation, Performance, single class, credit card surcharges) with Zero discount rules
+5. Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close), objection handling for 7 common objections, retention strategies (inactive, expiring, cancellation, returning), and 12 golden rules
+
+**Plans**: TBD
+
+---
+
+#### Phase 80: Response Quality & Data Fixes
+
+**Goal**: Bot responses match WhatsApp conventions and real team communication patterns -- correct formatting, smart pricing presentation, controlled schedule output, and proper escalation behavior
+**Depends on**: Phase 79 (quality rules build on new prompt and knowledge)
+**Requirements**: QUAL-01, QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07
+**Source documents**:
+
+- `contexto/el-templo-business-data.md` (formatting and response rules)
+- `contexto/conversaciones-reales-referencia.md` (real conversation style reference)
+
+**Success Criteria** (what must be TRUE):
+
+1. Bot never uses markdown headers (###) or other non-WhatsApp formatting -- only bold (_text_) and bullet points
+2. When asked about pricing, bot presents Flex plans first (most popular) and only mentions Foundation/Performance if the user asks for more options
+3. When asked about schedules, bot shows max 5 results and offers to filter by day/time if more exist; uses "cupos disponibles" (not "lugares") for availability
+4. After book_class returns [BUTTONS_SENT], bot sends zero additional text messages; after escalation, bot sends the exact handoff phrase then stays silent
+5. Trial registration flow collects only name and class preference (phone number is already known from WhatsApp)
+
+**Plans**: TBD
+
+---
+
+#### Phase 81: Conversation Flow Testing
+
+**Goal**: Mica handles the full range of real-world conversation scenarios correctly -- from lead inquiries through trial booking, renewals, objection handling, escalation, and reactivation
+**Depends on**: Phase 79, Phase 80 (test after all prompt/knowledge/quality changes are in place)
+**Requirements**: TEST-01, TEST-02, TEST-03
+**Source documents**:
+
+- `contexto/conversaciones-reales-referencia.md` (real conversation examples for test cases)
+- `contexto/el-templo-business-data.md` (14 QA questions reference)
+
+**Success Criteria** (what must be TRUE):
+
+1. All 14 QA questions from the business data spec are answered correctly by the bot (pricing, schedules, trial info, ROM, app help, etc.)
+2. Key conversation flows produce correct outcomes when tested: lead asking about pricing -> trial booking, membership renewal inquiry, common objections (price, time, fear), escalation to human, inactive member reactivation
+3. Mica's tone is verified across all test scenarios: short messages, warm but not excessive, one question at a time, matches the real El Templo team's WhatsApp communication style
+
+**Plans**: TBD
+
+---
+
+### Dependencies
+
+```
+Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing)
+```
+
+### Progress
+
+| Phase                                      | Plans Complete | Status      | Completed |
+| ------------------------------------------ | -------------- | ----------- | --------- |
+| 79. Mica System Prompt & Knowledge Rewrite | 0/?            | Not started | -         |
+| 80. Response Quality & Data Fixes          | 0/?            | Not started | -         |
+| 81. Conversation Flow Testing              | 0/?            | Not started | -         |
+
+---
+
+_v5.2 phases added: 2026-03-27 -- 3 phases (79-81), 20 requirements mapped_
