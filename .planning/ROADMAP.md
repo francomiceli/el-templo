@@ -1268,7 +1268,7 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 
 ### Phases
 
-- [ ] **Phase 79: Mica System Prompt & Knowledge Rewrite** - Replace generic bot personality with Mica persona and rewrite complete knowledge base
+- [x] **Phase 79: Mica System Prompt & Knowledge Rewrite** - Replace generic bot personality with Mica persona and rewrite complete knowledge base (completed 2026-03-27)
 - [ ] **Phase 80: Response Quality & Data Fixes** - Fix WhatsApp formatting, pricing order, schedule limits, and escalation behavior
 - [ ] **Phase 81: Conversation Flow Testing** - Validate all QA questions, real conversation flows, and Mica tone
 
@@ -1293,7 +1293,7 @@ See: `.planning/milestones/v5.1-ROADMAP.md` for full details.
 4. Knowledge file contains complete plan/pricing data (Flex 3x/4x/5x, Foundation, Performance, single class, credit card surcharges) with Zero discount rules
 5. Knowledge file contains sales techniques (urgency, anchoring, upselling, soft close), objection handling for 7 common objections, retention strategies (inactive, expiring, cancellation, returning), and 12 golden rules
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1352,11 +1352,11 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 
 ### Progress
 
-| Phase                                      | Plans Complete | Status      | Completed |
-| ------------------------------------------ | -------------- | ----------- | --------- |
-| 79. Mica System Prompt & Knowledge Rewrite | 1/2            | In Progress |           |
-| 80. Response Quality & Data Fixes          | 0/?            | Not started | -         |
-| 81. Conversation Flow Testing              | 0/?            | Not started | -         |
+| Phase                                      | Plans Complete | Status      | Completed  |
+| ------------------------------------------ | -------------- | ----------- | ---------- |
+| 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
+| 80. Response Quality & Data Fixes          | 0/?            | Not started | -          |
+| 81. Conversation Flow Testing              | 0/?            | Not started | -          |
 
 ---
 
