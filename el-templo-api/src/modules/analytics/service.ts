@@ -125,16 +125,32 @@ export class AnalyticsService {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const branchId = filters.branchId;
 
-    const [revenueTrend, revenueByMethod, revenueByBranch] = await Promise.all([
+    const [
+      revenueTrend,
+      revenueByMethod,
+      revenueByBranch,
+      expectedRevenue,
+      collectedRevenue,
+    ] = await Promise.all([
       this.getRevenueTrend(branchId, dateFrom, dateTo),
       this.getRevenueByMethod(branchId, dateFrom, dateTo),
       this.getRevenueByBranch(branchId, dateFrom, dateTo),
+      this.getExpectedRevenue(branchId, dateFrom, dateTo),
+      this.sumRevenue(branchId, dateFrom, dateTo),
     ]);
+
+    const totalOutstanding = Math.max(0, expectedRevenue - collectedRevenue);
+    const collectionRate =
+      expectedRevenue > 0
+        ? Math.round((collectedRevenue / expectedRevenue) * 1000) / 10
+        : 100;
 
     return {
       revenueTrend,
       revenueByMethod,
       revenueByBranch,
+      totalOutstanding,
+      collectionRate,
     };
   }
 
@@ -723,6 +739,36 @@ export class AnalyticsService {
       branchName: r.branchName,
       revenue: Number(r.total),
     }));
+  }
+
+  /**
+   * Sum pricePaid from subscriptions whose period overlaps the date range.
+   * Excludes zero-price subscriptions (free/complimentary).
+   */
+  private async getExpectedRevenue(
+    branchId: number | undefined,
+    dateFrom: string,
+    dateTo: string,
+  ): Promise<number> {
+    const conditions: ReturnType<typeof eq>[] = [
+      sql`${schema.subscriptions.startDate} <= ${dateTo}`,
+      sql`(${schema.subscriptions.endDate} >= ${dateFrom} OR ${schema.subscriptions.endDate} IS NULL)`,
+      sql`${schema.subscriptions.status} IN ('active', 'paused', 'expired', 'completed', 'changed')`,
+      sql`${schema.subscriptions.pricePaid} > 0`,
+    ];
+
+    if (branchId !== undefined) {
+      conditions.push(eq(schema.subscriptions.branchId, branchId));
+    }
+
+    const [result] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.subscriptions.pricePaid}), 0)`,
+      })
+      .from(schema.subscriptions)
+      .where(and(...conditions));
+
+    return Number(result?.total ?? 0);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

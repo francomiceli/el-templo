@@ -74,6 +74,8 @@ export interface FinancialAnalytics {
     branchName: string;
     revenue: number;
   }>;
+  totalOutstanding: number;
+  collectionRate: number;
 }
 
 // -- Filters -------------------------------------------------------------
