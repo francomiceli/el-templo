@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Milestone complete
-stopped_at: Completed 84-07-PLAN.md
-last_updated: "2026-03-26T19:19:02.159Z"
+stopped_at: Phase 86 context gathered
+last_updated: "2026-03-27T16:48:14.209Z"
 progress:
-  total_phases: 82
+  total_phases: 83
   completed_phases: 69
   total_plans: 286
   completed_plans: 281
@@ -113,6 +113,7 @@ _Updated after each plan completion_
 ### Roadmap Evolution
 
 - Phase 70 added: Personalizadas Cycle Config — configurable cycle length per plan, progress bars in member app
+- Phase 86 added: QR Promo — Free Month Campaign
 
 ### Decisions
 
@@ -231,6 +232,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-26T19:13:00.406Z
-Stopped at: Completed 84-07-PLAN.md
-Resume file: None
+Last session: 2026-03-27T16:48:14.203Z
+Stopped at: Phase 86 context gathered
+Resume file: .planning/phases/86-qr-promo-free-month-campaign/86-CONTEXT.md
