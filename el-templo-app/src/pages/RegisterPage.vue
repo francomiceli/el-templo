@@ -29,6 +29,15 @@
           </div>
           <p class="brand-subtitle text-elegance">Tu camino empieza hoy.</p>
 
+          <!-- Promo badge (per D-14) -->
+          <div v-if="promoCode" class="promo-badge">
+            <q-icon name="card_giftcard" size="20px" />
+            <div class="promo-badge__text">
+              <span class="promo-badge__code">{{ promoCode }}</span>
+              <span class="promo-badge__offer">1 Mes Gratis</span>
+            </div>
+          </div>
+
           <!-- Register Card -->
           <div class="register-card">
             <q-form @submit="onSubmit" class="q-gutter-y-md">
@@ -175,7 +184,15 @@ const showPassword = ref(false)
 const loading = ref(false)
 const eyeBounce = ref(false)
 
-const headerText = computed(() => (route.query.branchId ? 'Registrarse en Park' : 'Registrarse'))
+const headerText = computed(() => {
+  if (route.query.branchId) return 'Registrarse en Park'
+  return 'Bienvenido al Templo'
+})
+
+const promoCode = computed(() => {
+  const code = route.query.promo
+  return typeof code === 'string' ? code : null
+})
 
 const requiredRule = (val: string) => !!val || 'Este campo es requerido'
 
@@ -218,17 +235,36 @@ async function onSubmit() {
       dni: dni.value,
       phone: phone.value,
       branchId: branchIdParam,
+      promoCode: promoCode.value ?? undefined,
     })
     $q.notify({
       type: 'positive',
-      message: 'Cuenta creada exitosamente',
+      message: promoCode.value
+        ? 'Cuenta creada. Tu mes gratis ya esta activo!'
+        : 'Cuenta creada exitosamente',
     })
     router.push('/')
   } catch (err: unknown) {
-    $q.notify({
-      type: 'negative',
-      message: extractError(err, 'Error al crear cuenta'),
-    })
+    const errorMsg = extractError(err, 'Error al crear cuenta')
+    if (promoCode.value && errorMsg.includes('already registered')) {
+      $q.notify({
+        type: 'warning',
+        message: 'Ya tenes cuenta. Inicia sesion para continuar.',
+        actions: [
+          {
+            label: 'Iniciar Sesion',
+            color: 'white',
+            handler: () => router.push('/login'),
+          },
+        ],
+        timeout: 8000,
+      })
+    } else {
+      $q.notify({
+        type: 'negative',
+        message: errorMsg,
+      })
+    }
   } finally {
     loading.value = false
   }
@@ -908,6 +944,50 @@ $charcoal-mid: #3d3732;
 
   &:hover {
     color: $terracotta;
+  }
+}
+
+// =========================================================================
+// Promo badge
+// =========================================================================
+.promo-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(
+    135deg,
+    rgba($amber, 0.15) 0%,
+    rgba($terracotta, 0.1) 100%
+  );
+  border: 1px solid rgba($amber, 0.4);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  width: 100%;
+
+  .q-icon {
+    color: $amber;
+    flex-shrink: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__code {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: rgba($cream, 0.6);
+  }
+
+  &__offer {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    color: $amber;
   }
 }
 </style>
