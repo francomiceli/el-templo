@@ -1263,7 +1263,7 @@ See: `.planning/milestones/v5.0-ROADMAP.md` for full details.
 - [x] **Phase 74: Business Data Integration** - Structured knowledge file with real pricing, locations, schedules; system prompt wired to it (completed 2026-03-26)
 - [x] **Phase 75: Database Seeding** - Real branches, activities, schedules, subscription plans in DB via idempotent seed script (completed 2026-03-26)
 - [x] **Phase 76: Known Issues Fix** - Scheduler column refs, OpenAI tool context corruption, phone normalization gaps (completed 2026-03-26)
-- [ ] **Phase 77: GitHub Actions Deployment** - Bot build/deploy/restart in CI pipeline alongside API, PM2 config, env secrets
+- [x] **Phase 77: GitHub Actions Deployment** - Bot build/deploy/restart in CI pipeline alongside API, PM2 config, env secrets (completed 2026-03-27)
 - [ ] **Phase 78: WhatsApp Production Setup** - Meta template docs, phone registration, permanent token, MySQL timezone tables
 
 ### v5.1 Phase Details
@@ -1347,7 +1347,7 @@ Plans:
 3. All bot-related environment variables are documented and configured as GitHub Secrets
 4. Permanent WhatsApp System User token generation process is documented with step-by-step instructions
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
@@ -1383,7 +1383,7 @@ Note: Phases 74, 75, 76, 78 can run in parallel. Phase 77 depends on 74, 75, 76 
 | 74. Business Data Integration | 2/2            | Complete    | 2026-03-26 |
 | 75. Database Seeding          | 1/1            | Complete    | 2026-03-26 |
 | 76. Known Issues Fix          | 1/1            | Complete    | 2026-03-26 |
-| 77. GitHub Actions Deployment | 1/2            | In Progress |            |
+| 77. GitHub Actions Deployment | 2/2            | Complete    | 2026-03-27 |
 | 78. WhatsApp Production Setup | 0/?            | Not started | -          |
 
 ---

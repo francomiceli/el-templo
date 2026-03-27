@@ -34,8 +34,8 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 
 ### Deployment
 
-- [ ] **DEPLOY-01**: GitHub Actions workflow builds, deploys, and restarts el-templo-bot alongside el-templo-api
-- [ ] **DEPLOY-02**: PM2 ecosystem file configured for bot process in production
+- [x] **DEPLOY-01**: GitHub Actions workflow builds, deploys, and restarts el-templo-bot alongside el-templo-api
+- [x] **DEPLOY-02**: PM2 ecosystem file configured for bot process in production
 - [x] **DEPLOY-03**: All bot-related env vars documented as GitHub Secrets
 - [x] **DEPLOY-04**: Permanent WhatsApp System User token generation documented
 
@@ -92,8 +92,8 @@ Requirements for production readiness milestone. Each maps to roadmap phases.
 | FIX-01      | Phase 76 | Complete |
 | FIX-02      | Phase 76 | Complete |
 | FIX-03      | Phase 76 | Complete |
-| DEPLOY-01   | Phase 77 | Pending  |
-| DEPLOY-02   | Phase 77 | Pending  |
+| DEPLOY-01   | Phase 77 | Complete |
+| DEPLOY-02   | Phase 77 | Complete |
 | DEPLOY-03   | Phase 77 | Complete |
 | DEPLOY-04   | Phase 77 | Complete |
 | WA-01       | Phase 78 | Pending  |
