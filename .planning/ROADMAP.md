@@ -1319,7 +1319,7 @@ Plans:
 4. After book_class returns [BUTTONS_SENT], bot sends zero additional text messages; after escalation, bot sends the exact handoff phrase then stays silent
 5. Trial registration flow collects only name and class preference (phone number is already known from WhatsApp)
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
@@ -1359,7 +1359,7 @@ Phase 79 (Prompt & Knowledge) → Phase 80 (Quality Fixes) → Phase 81 (Testing
 | Phase                                      | Plans Complete | Status      | Completed  |
 | ------------------------------------------ | -------------- | ----------- | ---------- |
 | 79. Mica System Prompt & Knowledge Rewrite | 2/2            | Complete    | 2026-03-27 |
-| 80. Response Quality & Data Fixes          | 0/2            | In progress | -          |
+| 80. Response Quality & Data Fixes          | 1/2            | In Progress |            |
 | 81. Conversation Flow Testing              | 0/?            | Not started | -          |
 
 ---

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Mica Persona & Bot Refinement
 status: in_progress
-stopped_at: "Completed 79-02-PLAN.md"
-last_updated: "2026-03-27T17:09:21Z"
-last_activity: 2026-03-27 -- Completed 79-02 (Knowledge & system prompt test suite)
+stopped_at: "Completed 80-01-PLAN.md"
+last_updated: "2026-03-27T18:19:41Z"
+last_activity: 2026-03-27 -- Completed 80-01 (Response quality data fixes)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
-  percent: 100
+  total_plans: 3
+  completed_plans: 3
+  percent: 50
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
-**Current focus:** v5.2 Mica Persona & Bot Refinement — Phase 79 (Mica System Prompt & Knowledge Rewrite)
+**Current focus:** v5.2 Mica Persona & Bot Refinement — Phase 80 (Response Quality Data Fixes)
 
 ## Current Position
 
 Milestone: v5.2 Mica Persona & Bot Refinement
-Phase: 79 — Mica System Prompt & Knowledge Rewrite
-Plan: 2 of 2 complete
-Status: Phase 79 complete
-Progress: ██████████ 100%
+Phase: 80 — Response Quality Data Fixes
+Plan: 1 of 2 complete
+Status: in_progress
+Progress: █████░░░░░ 50%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 16 (v5.0) + 7 (v5.1) + 2 (v5.2) = 25
+- Total plans completed: 16 (v5.0) + 7 (v5.1) + 3 (v5.2) = 26
 
 **By Phase (v5.1):**
 
@@ -55,6 +55,7 @@ Progress: ██████████ 100%
 | ------------ | ----- | ------- | -------- |
 | Phase 79 P01 | 16min | 2 tasks | 2 files  |
 | Phase 79 P02 | 3min  | 2 tasks | 1 files  |
+| Phase 80 P01 | 2min  | 2 tasks | 3 files  |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 79]: Knowledge expanded to 12 sections with sales, objections, retention, golden rules
 - [Phase 79]: State sections now include sales-specific objectives per client state
 - [Phase 79]: Knowledge tests use flexible thresholds (5/7 objections, 10+ rules) for resilience
+- [Phase 80]: Defense-in-depth: post-process AI output to strip markdown headers even when prompt instructs against them
 
 ### Pending Todos
 
@@ -95,6 +97,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-27
-Stopped at: Completed 79-02-PLAN.md (Phase 79 complete)
-Resume file: .planning/phases/79-mica-system-prompt-knowledge-rewrite/79-02-SUMMARY.md
-Next step: Next phase in v5.2 milestone
+Stopped at: Completed 80-01-PLAN.md
+Resume file: .planning/phases/80-response-quality-data-fixes/80-01-SUMMARY.md
+Next step: Execute 80-02-PLAN.md

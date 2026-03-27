@@ -25,13 +25,13 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 
 ### Response Quality
 
-- [ ] **QUAL-01**: Bot uses WhatsApp formatting only (bold, bullets) — no markdown headers (###)
-- [ ] **QUAL-02**: Pricing responses show Flex plans first, offer Foundation/Performance on request
-- [ ] **QUAL-03**: Schedule responses show max 5 results, then offer to filter
-- [ ] **QUAL-04**: Bot says "cupos disponibles" instead of "lugares" for availability
-- [ ] **QUAL-05**: After book_class returns [BUTTONS_SENT], bot sends no additional text
-- [ ] **QUAL-06**: Trial registration only asks for name and class preference (phone already known)
-- [ ] **QUAL-07**: Escalation uses "Te paso con alguien del equipo, te escriben enseguida 🙌" then silence
+- [x] **QUAL-01**: Bot uses WhatsApp formatting only (bold, bullets) — no markdown headers (###)
+- [x] **QUAL-02**: Pricing responses show Flex plans first, offer Foundation/Performance on request
+- [x] **QUAL-03**: Schedule responses show max 5 results, then offer to filter
+- [x] **QUAL-04**: Bot says "cupos disponibles" instead of "lugares" for availability
+- [x] **QUAL-05**: After book_class returns [BUTTONS_SENT], bot sends no additional text
+- [x] **QUAL-06**: Trial registration only asks for name and class preference (phone already known)
+- [x] **QUAL-07**: Escalation uses "Te paso con alguien del equipo, te escriben enseguida 🙌" then silence
 
 ### Testing
 
@@ -81,13 +81,13 @@ Requirements for Mica persona and bot refinement milestone. Each maps to roadmap
 | KNOW-05     | Phase 79 | Complete |
 | KNOW-06     | Phase 79 | Complete |
 | KNOW-07     | Phase 79 | Complete |
-| QUAL-01     | Phase 80 | Pending  |
-| QUAL-02     | Phase 80 | Pending  |
-| QUAL-03     | Phase 80 | Pending  |
-| QUAL-04     | Phase 80 | Pending  |
-| QUAL-05     | Phase 80 | Pending  |
-| QUAL-06     | Phase 80 | Pending  |
-| QUAL-07     | Phase 80 | Pending  |
+| QUAL-01     | Phase 80 | Complete |
+| QUAL-02     | Phase 80 | Complete |
+| QUAL-03     | Phase 80 | Complete |
+| QUAL-04     | Phase 80 | Complete |
+| QUAL-05     | Phase 80 | Complete |
+| QUAL-06     | Phase 80 | Complete |
+| QUAL-07     | Phase 80 | Complete |
 | TEST-01     | Phase 81 | Pending  |
 | TEST-02     | Phase 81 | Pending  |
 | TEST-03     | Phase 81 | Pending  |
