@@ -23,8 +23,8 @@ BRAND_DARK = (46, 42, 38)
 WHITE = (255, 255, 255)
 
 CODES = [
-    {"url": "https://eltemplo.org/qr/bcn", "filename": "TEMPLOPASSBCN.png"},
-    {"url": "https://eltemplo.org/qr/aura-club", "filename": "AURACLUB1.png"},
+    {"url": "https://app.eltemplo.org/register?promo=TEMPLOPASSBCN", "filename": "TEMPLOPASSBCN.png"},
+    {"url": "https://app.eltemplo.org/register?promo=AURACLUB1", "filename": "AURACLUB1.png"},
 ]
 
 
