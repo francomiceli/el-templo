@@ -81,7 +81,6 @@
         </q-item>
 
         <q-item
-          v-if="!userStore.profile?.branchIsVirtual"
           clickable
           to="/reservas"
           @click="leftDrawerOpen = false"
@@ -212,9 +211,7 @@ const mobileTabs = computed<MobileTab[]>(() => {
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
     { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
   ]
-  if (!userStore.profile?.branchIsVirtual) {
-    tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
-  }
+  tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
   tabs.push({ to: '/training/guia', icon: 'menu_book', label: 'Guía' })
   tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
   return tabs

@@ -5,6 +5,17 @@
       <q-spinner-dots size="50px" color="primary" />
     </div>
 
+    <!-- Online user empty state (per D-15) -->
+    <div v-else-if="isOnlineUser" class="reservas-empty-state">
+      <div class="reservas-empty-state__content">
+        <q-icon name="event_available" size="64px" color="grey-5" />
+        <h2 class="reservas-empty-state__title">Activa Tu Plan</h2>
+        <p class="reservas-empty-state__text">
+          Visita una de nuestras sedes para reservar tus clases presenciales
+        </p>
+      </div>
+    </div>
+
     <template v-else>
       <!-- Branch selector (multi-branch) or label (single branch) -->
       <div v-if="isMultiBranch && branches.length > 1" class="q-mb-sm">
@@ -243,6 +254,8 @@ const weekStart = ref<Date>(getMonday(new Date()))
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
+
+const isOnlineUser = computed(() => userStore.profile?.branchIsVirtual ?? false)
 
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
 
@@ -1032,5 +1045,35 @@ onBeforeUnmount(() => {
 
 .cell--empty {
   cursor: default;
+}
+
+/* Empty state for online users */
+.reservas-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+
+  &__content {
+    text-align: center;
+    padding: 32px;
+  }
+
+  &__title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: $primary;
+    margin: 16px 0 8px;
+  }
+
+  &__text {
+    font-family: 'Geologica', sans-serif;
+    font-size: 14px;
+    color: #666;
+    margin: 0;
+    max-width: 280px;
+    margin-inline: auto;
+  }
 }
 </style>

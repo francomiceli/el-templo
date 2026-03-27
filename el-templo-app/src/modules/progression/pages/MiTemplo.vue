@@ -48,7 +48,7 @@
       <!-- Tu Dia Cards — ordered by segment -->
       <template v-for="card in cardOrder" :key="card">
         <template v-if="card === 'session'">
-          <RestDayCard v-if="isRestDay" />
+          <RestDayCard v-if="showRestDay" />
           <SessionCtaCard
             v-else
             :today-completed="todayCompleted"
@@ -64,6 +64,9 @@
           :next-class-time="null"
         />
       </template>
+
+      <!-- Upsell Badge for online/promo users (per D-18) -->
+      <UpsellBadge v-if="showUpsellBadge" />
 
       <!-- Weekly Summary -->
       <WeeklySummaryCard
@@ -111,6 +114,7 @@ import ProgramProgressCard from 'src/modules/programs/components/ProgramProgress
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberEnrollmentProgress } from 'src/modules/programs/types'
 import PermissionBanner from '../components/PermissionBanner.vue'
+import UpsellBadge from '../components/UpsellBadge.vue'
 import { useNotificationStore } from 'src/stores/useNotificationStore'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
@@ -149,6 +153,17 @@ const isRestDay = computed(() => {
   // If weekly data loaded and today has no session
   if (weekSessions.value.size > 0 && !weekSessions.value.get(todayStr.value)) return true
   return false
+})
+
+const showRestDay = computed(() => {
+  if (userStore.profile?.branchIsVirtual && !userStore.hasActiveSubscription) {
+    return false
+  }
+  return isRestDay.value
+})
+
+const showUpsellBadge = computed(() => {
+  return userStore.profile?.branchIsVirtual ?? false
 })
 
 const todayCompleted = computed(() => {
