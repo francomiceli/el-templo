@@ -1749,10 +1749,10 @@ Plans:
 
 Plans:
 
-- [ ] 86-01-PLAN.md — Promo schema + migration + seed + registration promo flow
-- [ ] 86-02-PLAN.md — QR redirects in Nuxt + QR PNG generation
-- [ ] 86-03-PLAN.md — Member app UI adjustments (tabs, RestDayCard, upsell badge)
-- [ ] 86-04-PLAN.md — Registration page promo support (badge, title, existing user handling)
+- [x] 86-01-PLAN.md — Promo schema + migration + seed + registration promo flow
+- [x] 86-02-PLAN.md — QR redirects in Nuxt + QR PNG generation
+- [x] 86-03-PLAN.md — Member app UI adjustments (tabs, RestDayCard, upsell badge)
+- [x] 86-04-PLAN.md — Registration page promo support (badge, title, existing user handling)
 - [ ] 86-05-PLAN.md — Admin promo CRUD API + Promos tab in PlanesPage
 - [ ] 86-06-PLAN.md — Integration tests for promo registration + admin promo CRUD
 

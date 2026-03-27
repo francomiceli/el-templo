@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Milestone complete
-stopped_at: Phase 86 context gathered
-last_updated: "2026-03-27T16:48:14.209Z"
+status: Ready to execute
+stopped_at: Completed 86-04-PLAN.md
+last_updated: "2026-03-27T17:33:10.724Z"
 progress:
   total_phases: 83
   completed_phases: 69
-  total_plans: 286
-  completed_plans: 281
+  total_plans: 292
+  completed_plans: 285
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 84 — push-notifications
+**Current focus:** Phase 86 — qr-promo-free-month-campaign
 
 ## Current Position
 
-Phase: 84
-Plan: Not started
+Phase: 86 (qr-promo-free-month-campaign) — EXECUTING
+Plan: 5 of 6
 
 ## Performance Metrics
 
@@ -107,6 +107,10 @@ _Updated after each plan completion_
 | Phase 84 P06 | 2min | 2 tasks | 3 files |
 | Phase 84 P05 | 3min | 2 tasks | 3 files |
 | Phase 84 P07 | 6min | 2 tasks | 7 files |
+| Phase 86 P03 | 2min | 2 tasks | 4 files |
+| Phase 86 P02 | 2min | 2 tasks | 4 files |
+| Phase 86 P01 | 5min | 2 tasks | 7 files |
+| Phase 86 P04 | 2min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -221,6 +225,12 @@ Recent decisions affecting current work:
 - [Phase 84]: Direct calculateSegment() call in batch cron bypasses 1-hour cooldown; program renewal warning in daily batch cron
 - [Phase 84]: Logger error() uses LogData object as second arg per Phase 84 convention
 - [Phase 84]: DRY_RUN=true in test file and CI env for FCM mocking; FIREBASE_SERVICE_ACCOUNT_BASE64 in .env.production for production FCM sends
+- [Phase 86]: Reservas tab always visible for all users; online users see empty state instead of booking grid
+- [Phase 86]: 302 (temporary) redirects for promo QR URLs since campaigns are time-limited
+- [Phase 86]: QR codes encode eltemplo.org redirect URLs (not final destination) for future-proof redirect changes
+- [Phase 86]: AssignPlan called with branchId from user's resolved branch (ONLINE) and paymentMethod='cash' since pricePaid=0 skips payment recording
+- [Phase 86]: Manual migration SQL instead of drizzle-kit generate to avoid interactive prompts in non-interactive execution
+- [Phase 86]: Used underscore prefix (_promoApplied) for unused destructured response field to avoid lint warnings
 
 ### Pending Todos
 
@@ -232,6 +242,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T16:48:14.203Z
-Stopped at: Phase 86 context gathered
-Resume file: .planning/phases/86-qr-promo-free-month-campaign/86-CONTEXT.md
+Last session: 2026-03-27T17:33:10.718Z
+Stopped at: Completed 86-04-PLAN.md
+Resume file: None
