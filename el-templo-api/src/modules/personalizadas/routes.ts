@@ -30,7 +30,7 @@ import {
   type GetAdminPersonalizadaMembersInput,
 } from "./schemas";
 
-import { TRAINING_ROLES } from "../shared/permissions";
+import { TRAINING_ROLES, MEMBER_ROLES } from "../shared/permissions";
 
 /**
  * Convert a personalizada DaySession to API response format.
@@ -534,7 +534,7 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getAdminPersonalizadaMemberDetailSchema,
     },
     async (request, reply) => {
-      if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
+      if (!(MEMBER_ROLES as readonly string[]).includes(request.user.role)) {
         return reply
           .status(403)
           .send({ error: "Acceso de administrador requerido" });

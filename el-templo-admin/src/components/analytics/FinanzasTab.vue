@@ -67,7 +67,7 @@
           <q-card-section class="text-center">
             <div class="text-caption text-grey-7">Deuda pendiente</div>
             <div class="text-h4 text-negative">
-              {{ formatCurrency(props.data.totalOutstanding) }}
+              {{ formatCurrency(props.data.totalOutstanding ?? 0) }}
             </div>
           </q-card-section>
         </q-card>
@@ -79,14 +79,14 @@
             <div
               class="text-h4"
               :class="
-                props.data.collectionRate >= 80
+                (props.data.collectionRate ?? 0) >= 80
                   ? 'text-positive'
-                  : props.data.collectionRate >= 50
+                  : (props.data.collectionRate ?? 0) >= 50
                     ? 'text-warning'
                     : 'text-negative'
               "
             >
-              {{ props.data.collectionRate.toFixed(1) }}%
+              {{ (props.data.collectionRate ?? 0).toFixed(1) }}%
             </div>
           </q-card-section>
         </q-card>
