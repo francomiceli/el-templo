@@ -387,6 +387,9 @@ async function processWithAi(
     replyText = response.content ?? FALLBACK_MESSAGE;
   }
 
+  // Post-process: strip markdown headers (defense-in-depth for QUAL-01)
+  replyText = stripMarkdownHeaders(replyText);
+
   // Store assistant reply in Redis session
   await updateSession(phone, "assistant", replyText);
 
@@ -457,6 +460,18 @@ async function processWithAi(
       );
     }
   }
+}
+
+/**
+ * Strip markdown headers (###, ##, #) from AI output.
+ * WhatsApp doesn't render them — they look broken to users.
+ * The system prompt instructs the AI not to use them, but this
+ * is defense-in-depth for when the AI ignores the instruction.
+ */
+function stripMarkdownHeaders(text: string): string {
+  // Replace lines starting with # (1-3 hashes) followed by space and text
+  // with just the text in *bold* (WhatsApp formatting)
+  return text.replace(/^#{1,3}\s+(.+)$/gm, "*$1*");
 }
 
 /**
