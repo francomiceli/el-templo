@@ -11,13 +11,13 @@
 import pdfMake from 'pdfmake/build/pdfmake';
 import { TDocumentDefinitions, Content } from 'pdfmake/interfaces';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import JSZip from 'jszip';
 import { PdfDaySession } from './pdf-types';
 import { formatWeekForFilename } from '../weekDates';
 
-// Set up pdf.js worker (once)
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+// Disable worker — runs on main thread (fine for occasional admin use).
+// Avoids .mjs MIME type issues on production servers.
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'disabled';
 
 export type ProgressCallback = (message: string, percent: number) => void;
 
