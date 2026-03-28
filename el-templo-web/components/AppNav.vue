@@ -114,7 +114,8 @@ if (import.meta.client) {
     <div class="nav__inner">
       <!-- Logo -->
       <NuxtLink to="/" class="nav__logo" @click="handleLinkClick">
-        El Templo
+        <img src="/icons/icon-48.webp" alt="" class="nav__logo-icon" >
+        <span class="nav__logo-title" />
       </NuxtLink>
 
       <!-- Desktop links -->
@@ -229,14 +230,32 @@ if (import.meta.client) {
    ------------------------------------------------------------------ */
 
 .nav__logo {
-  font-family: var(--font-authority);
-  font-weight: 700;
-  font-size: 18px;
-  color: var(--color-deep-charcoal);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-decoration: none;
   flex-shrink: 0;
+}
+
+.nav__logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+}
+
+.nav__logo-title {
+  display: inline-block;
+  height: 44px;
+  width: 240px;
+  background: var(--color-deep-charcoal);
+  mask-image: url("/icons/el-templo-title.png");
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: left center;
+  -webkit-mask-image: url("/icons/el-templo-title.png");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: left center;
 }
 
 /* ------------------------------------------------------------------
