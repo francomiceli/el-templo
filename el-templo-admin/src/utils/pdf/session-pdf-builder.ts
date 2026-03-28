@@ -188,7 +188,7 @@ const QUOTES = [
 // ============================================================
 let fontsReady = false;
 
-function ensureFonts() {
+export function ensureFonts() {
   if (fontsReady) return;
   pdfMake.vfs = {
     'Cinzel-Regular.ttf': CINZEL_REGULAR_BASE64,
@@ -337,6 +337,7 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
     ...(block.simpleExercises || []).map((ex) => ({
       text: `•  ${ex}`,
       fontSize: 90,
+      bold: true,
       color: NAVY,
       margin: [260, exerciseGap, 0, 0] as [number, number, number, number],
       font: 'NunitoSans',
@@ -346,10 +347,10 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       ? {
           text: block.formatParams,
           fontSize: 140,
+          bold: true,
           color: GOLD,
           alignment: 'right' as const,
           margin: [0, -320, 400, 0],
-          opacity: 0.7,
           font: 'NunitoSans',
         }
       : { text: '' },
@@ -385,6 +386,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
         {
           text: `•  ${ex.name} ${contraction}`,
           fontSize: 64,
+          bold: true,
           color: NAVY,
           width: '*',
           font: 'NunitoSans',
@@ -423,6 +425,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
           {
             text: `  |  ${routeName} ${lb.intensity}%`,
             fontSize: 84,
+            bold: true,
             color: GOLD,
             font: 'NunitoSans',
           },
@@ -520,7 +523,6 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
     text: `MOVILIDAD  ·  ${mobilityText}`,
     fontSize: mobilityFontSize,
     bold: true,
-    italics: true,
     color: GOLD,
     alignment: 'center' as const,
     margin: [0, 16, 0, 0],
@@ -568,11 +570,14 @@ function buildFullBlockPage(block: PdfBlockPage): Content[] {
 /**
  * Build a single level column for the DEUTEROS 4-column layout.
  * Compact: Greek symbol header + plain exercise list (no border box).
+ * @param exFontSize - dynamic font size for exercises (computed by parent)
  */
-function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
+function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
-  const symbolSize = 76;
+  const symbolSize = Math.round(exFontSize * 1.35);
+  const routeFontSize = Math.round(exFontSize * 1.05);
   const isPyramidBlock = lb.exercises.some((ex) => ex.formatType === 'pyramid');
+  const lineGap = Math.round(exFontSize * 0.22);
 
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
     const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
@@ -582,14 +587,15 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
       columns: [
         {
           text: `• ${ex.name} ${contraction}`,
-          fontSize: 52,
+          fontSize: exFontSize,
+          bold: true,
           color: NAVY,
           width: '*',
           font: 'NunitoSans',
         },
         {
           text: volume,
-          fontSize: 52,
+          fontSize: exFontSize,
           color: GOLD,
           width: isPyramidBlock ? 432 : 200,
           alignment: 'right' as const,
@@ -597,7 +603,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
           font: 'NunitoSans',
         },
       ],
-      margin: [0, 12, 20, 0],
+      margin: [0, lineGap, 20, 0],
     };
   });
 
@@ -608,13 +614,14 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
         text: [
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
           {
-            text: `  |  ${getRouteName(lb.route)} ${lb.intensity}%`,
-            fontSize: 58,
+            text: `  |  ${getRouteName(lb.route).length > 10 ? lb.route : getRouteName(lb.route)} ${lb.intensity}%`,
+            fontSize: routeFontSize,
+            bold: true,
             color: GOLD,
             font: 'NunitoSans',
           },
         ],
-        margin: [0, 0, 0, 36],
+        margin: [0, 0, 0, Math.round(exFontSize * 0.5)],
       },
       ...exercises,
     ],
@@ -623,19 +630,21 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock): ContentStack {
 
 /**
  * Build one DEUTEROS half (4 columns across: α Δ Σ Ω)
+ * @param exFontSize - dynamic font size for exercises (computed by parent)
  */
-function buildDeuterosHalf(block: PdfBlockPage): Content[] {
+function buildDeuterosHalf(block: PdfBlockPage, exFontSize: number): Content[] {
   const levelBlocks = (block.levelBlocks || [])
     .slice()
     .sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level));
 
   const content: Content[] = [];
 
-  // Block header with shadow
+  // Block header with shadow — scale proportionally
+  const headerSize = Math.round(exFontSize * 1.55);
   const headerText = `${block.role}  ·  ${block.formatName}`;
   content.push({
     text: headerText,
-    fontSize: 88,
+    fontSize: headerSize,
     bold: true,
     color: SAND,
     alignment: 'center' as const,
@@ -646,34 +655,34 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
   });
   content.push({
     text: headerText,
-    fontSize: 88,
+    fontSize: headerSize,
     bold: true,
     color: NAVY,
     alignment: 'center' as const,
     characterSpacing: 6,
     font: 'Cinzel',
-    margin: [0, -96, 0, 0],
+    margin: [0, -(headerSize + 8), 0, 0],
   });
 
   // Mobility
+  const mobilitySize = Math.round(exFontSize * 0.85);
   const mobilityText = block.mobility || 'ASSISTED SPAGAT DELTA 20"';
   content.push({
     text: `MOVILIDAD  ·  ${mobilityText}`,
-    fontSize: 52,
+    fontSize: mobilitySize,
     bold: true,
-    italics: true,
     color: GOLD,
     alignment: 'center' as const,
-    margin: [0, 12, 0, 20],
+    margin: [0, 8, 0, 12],
     font: 'NunitoSans',
   });
 
-  content.push({ text: '', margin: [0, 32, 0, 0] });
+  content.push({ text: '', margin: [0, 16, 0, 0] });
 
   // 4 columns with vertical separator lines between levels
   if (levelBlocks.length > 0) {
     const cells = levelBlocks.map((lb) => ({
-      ...buildDeuterosLevelCol(lb),
+      ...buildDeuterosLevelCol(lb, exFontSize),
       margin: [30, 0, 30, 0],
     }));
 
@@ -698,13 +707,41 @@ function buildDeuterosHalf(block: PdfBlockPage): Content[] {
   return content;
 }
 
+// Font size limits for DEUTEROS dynamic scaling
+const DEUT_FONT_MIN = 44;
+const DEUT_FONT_MAX = 64;
+
 /**
- * DEUTEROS page: Two blocks stacked on one page, each with 4-column layout
+ * Compute the largest exercise font size that fits a DEUTEROS half-page.
+ *
+ * Budget per half: 1063pt total.
+ * Chrome (header + mobility + spacers) ≈ headerSize + mobilitySize + ~40pt gaps.
+ * Each exercise line ≈ fontSize × 1.22 (font + line gap).
+ * Level header ≈ fontSize × 1.85 (symbol + margin).
+ */
+function computeDeuterosFontSize(block: PdfBlockPage): number {
+  const maxExercises = Math.max(...(block.levelBlocks || []).map((lb) => lb.exercises.length), 1);
+  // Available height per half-page
+  const halfHeight = 1063;
+  // Chrome overhead scales with font size: header(1.55f) + mobility(0.85f) + gaps(~60pt)
+  // Level header per column: symbolSize(1.35f) + margin(0.5f) = 1.85f
+  // Exercise line: f + lineGap(0.22f) = 1.22f
+  // Total: 60 + f*(1.55 + 0.85 + 1.85) + maxExercises * f * 1.22
+  // 60 + f*(4.25 + maxExercises*1.22) = halfHeight
+  // f = (halfHeight - 60) / (4.25 + maxExercises*1.22)
+  const fontSize = Math.floor((halfHeight - 60) / (4.25 + maxExercises * 1.22));
+  return Math.max(DEUT_FONT_MIN, Math.min(DEUT_FONT_MAX, fontSize));
+}
+
+/**
+ * DEUTEROS page: Two blocks stacked on one page, each with 4-column layout.
+ * Font size is dynamically computed to maximize readability.
  */
 function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
-  // Usable height: 2160 - 16 top - 16 bottom = 2128. Divider line = 2pt.
-  // Each half = (2128 - 2) / 2 ≈ 1063.
   const halfHeight = 1063;
+
+  // Use the smaller font size of the two halves so the page looks consistent
+  const fontSize = Math.min(computeDeuterosFontSize(deut1), computeDeuterosFontSize(deut2));
 
   return [
     { text: '', pageBreak: 'before' as const },
@@ -713,8 +750,8 @@ function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] 
         heights: [halfHeight, halfHeight],
         widths: ['*'],
         body: [
-          [{ stack: buildDeuterosHalf(deut1) as Content[] }],
-          [{ stack: buildDeuterosHalf(deut2) as Content[] }],
+          [{ stack: buildDeuterosHalf(deut1, fontSize) as Content[] }],
+          [{ stack: buildDeuterosHalf(deut2, fontSize) as Content[] }],
         ],
       },
       layout: {
@@ -733,7 +770,7 @@ function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] 
 /**
  * Build document content for a single day (6 pages)
  */
-function buildDayContent(day: PdfDaySession): Content[] {
+export function buildDayContent(day: PdfDaySession): Content[] {
   const content: Content[] = [];
 
   // 1. Cover page — use fit to constrain both width and height within the page
@@ -769,7 +806,7 @@ function buildDayContent(day: PdfDaySession): Content[] {
 /**
  * Build document definition with brand settings
  */
-function buildDocDefinition(content: Content[]): TDocumentDefinitions {
+export function buildDocDefinition(content: Content[]): TDocumentDefinitions {
   return {
     content,
     pageSize: { width: 3840, height: 2160 },

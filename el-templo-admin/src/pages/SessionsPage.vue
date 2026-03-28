@@ -46,13 +46,15 @@
           </q-btn>
           <q-space />
           <q-btn
-            icon="collections_bookmark"
-            label="PDF Semana"
+            icon="download"
             color="accent"
             outline
+            round
             :loading="pdfWeekLoading"
-            @click="onDownloadWeekPdf"
-          />
+            @click="onDownloadWeekPngZip"
+          >
+            <q-tooltip>Descargar imágenes de la semana</q-tooltip>
+          </q-btn>
         </div>
 
         <!-- Loading -->
@@ -75,13 +77,13 @@
                     flat
                     dense
                     round
-                    icon="picture_as_pdf"
+                    icon="download"
                     color="accent"
                     size="md"
                     :loading="pdfDayLoading === dayGroup.day"
-                    @click="onDownloadDayPdf(dayGroup)"
+                    @click="onDownloadDayPngZip(dayGroup)"
                   >
-                    <q-tooltip>PDF del dia</q-tooltip>
+                    <q-tooltip>Descargar imágenes del dia</q-tooltip>
                   </q-btn>
                   <q-btn
                     flat
@@ -288,6 +290,22 @@
       </q-tab-panel>
     </q-tab-panels>
 
+    <!-- PNG generation progress dialog -->
+    <q-dialog v-model="pngProgress.active" persistent no-backdrop-dismiss>
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-subtitle2 q-mb-sm">{{ pngProgress.message }}</div>
+          <q-linear-progress :value="pngProgress.percent / 100" color="accent" size="20px" rounded>
+            <div class="absolute-full flex flex-center">
+              <span class="text-caption text-white text-weight-bold">
+                {{ pngProgress.percent }}%
+              </span>
+            </div>
+          </q-linear-progress>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
     <!-- Member preview dialog -->
     <member-preview-dialog
       v-model="previewOpen"
@@ -467,34 +485,44 @@ async function handleBulkApproveDay(dayGroup: DayGroup) {
   });
 }
 
-async function onDownloadDayPdf(dayGroup: DayGroup) {
+const pngProgress = ref({ active: false, message: '', percent: 0 });
+
+function onPngProgress(message: string, percent: number) {
+  pngProgress.value.message = message;
+  pngProgress.value.percent = percent;
+}
+
+async function onDownloadDayPngZip(dayGroup: DayGroup) {
   const daySessionIds = dayGroup.sessions
     .filter((s) => PDF_LEVELS.includes(s.memberLevel))
     .map((s) => s.id);
 
   if (daySessionIds.length === 0) {
-    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar PDF' });
+    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar imágenes' });
     return;
   }
 
   pdfDayLoading.value = dayGroup.day;
+  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
   try {
     const details = await Promise.all(
       daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
     );
     const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
-    const { buildDayPdf } = await import('src/utils/pdf/session-pdf-builder');
+    const { buildDayPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDay = sessionsToPdfDay(details);
-    buildDayPdf(pdfDay);
+    await buildDayPngZip(pdfDay, onPngProgress);
+    $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
   } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando PDF' });
-    log.error('PDF generation error', { error: err instanceof Error ? err.message : String(err) });
+    $q.notify({ type: 'negative', message: 'Error generando imágenes' });
+    log.error('PNG generation error', { error: err instanceof Error ? err.message : String(err) });
   } finally {
+    pngProgress.value.active = false;
     pdfDayLoading.value = null;
   }
 }
 
-async function onDownloadWeekPdf() {
+async function onDownloadWeekPngZip() {
   const weekSessionIds = sessions.value
     .filter((s) => PDF_LEVELS.includes(s.memberLevel))
     .map((s) => s.id);
@@ -502,26 +530,29 @@ async function onDownloadWeekPdf() {
   if (weekSessionIds.length === 0) {
     $q.notify({
       type: 'warning',
-      message: 'No hay sesiones de nivel para generar PDF de la semana',
+      message: 'No hay sesiones de nivel para generar imágenes de la semana',
     });
     return;
   }
 
   pdfWeekLoading.value = true;
+  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
   try {
     const details = await Promise.all(
       weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
     );
     const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
-    const { buildWeekPdf } = await import('src/utils/pdf/session-pdf-builder');
+    const { buildWeekPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDays = sessionsToWeekPdf(details);
-    buildWeekPdf(pdfDays);
+    await buildWeekPngZip(pdfDays, onPngProgress);
+    $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
   } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando PDF de la semana' });
-    log.error('Week PDF generation error', {
+    $q.notify({ type: 'negative', message: 'Error generando imágenes de la semana' });
+    log.error('Week PNG generation error', {
       error: err instanceof Error ? err.message : String(err),
     });
   } finally {
+    pngProgress.value.active = false;
     pdfWeekLoading.value = false;
   }
 }
