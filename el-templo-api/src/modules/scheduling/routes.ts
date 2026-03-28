@@ -85,7 +85,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     if (!(ALL_STAFF_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Acceso de administrador requerido",
       });
     }
@@ -364,7 +364,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (!member) {
           return reply.code(400).send({
-            error: "Bad Request",
+            error: "Solicitud invalida",
             message: "Miembro no encontrado",
           });
         }

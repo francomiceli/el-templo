@@ -377,7 +377,7 @@ function generateInitiumPrescriptions(exercises: InitiumExercise[]): {
       reps: isIsometric ? 0 : INITIUM_REPS_PER_EXERCISE,
       seconds: isIsometric ? ISO_SECONDS.DEFAULT : 0,
       rest: REST_TIMES.WARMUP,
-      notes: "Warmup - focus on form and activation",
+      notes: "Entrada en calor - enfocate en la tecnica y activacion",
       dificultadLineal: ex.difficulty,
     };
   });

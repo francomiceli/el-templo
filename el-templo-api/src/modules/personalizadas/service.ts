@@ -352,7 +352,9 @@ export class PersonalizadasService {
       );
 
     if (!personalizada) {
-      throw new Error("No active personalizada found for user");
+      throw new Error(
+        "No se encontro una personalizada activa para el usuario",
+      );
     }
 
     const newValue = personalizada[column] + 1;

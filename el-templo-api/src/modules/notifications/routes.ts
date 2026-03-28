@@ -12,10 +12,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { eq, sql, inArray } from "drizzle-orm";
 import { NotificationService } from "./service";
-import {
-  NOTIFICATION_CATEGORIES,
-  type NotificationCategory,
-} from "./types";
+import { NOTIFICATION_CATEGORIES, type NotificationCategory } from "./types";
 import { ADMIN_ROLES, OWNER_ROLES } from "../shared/permissions";
 import * as schema from "../../db/schema";
 
@@ -272,7 +269,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
     if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Forbidden" });
+      return reply.code(403).send({ error: "Acceso denegado" });
     }
 
     const rows = await fastify.db
@@ -323,7 +320,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       const { id } = request.params;
@@ -338,7 +335,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       if (Object.keys(updates).length === 0) {
         return reply
           .code(400)
-          .send({ error: "Bad Request", message: "No fields to update" });
+          .send({
+            error: "Solicitud invalida",
+            message: "No hay campos para actualizar",
+          });
       }
 
       const [existing] = await fastify.db
@@ -350,7 +350,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       if (!existing) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Template no encontrado" });
+          .send({ error: "No encontrado", message: "Template no encontrado" });
       }
 
       await fastify.db
@@ -377,9 +377,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         openedCount: updated.openedCount,
         openRate:
           updated.sentCount > 0
-            ? Math.round(
-                (updated.openedCount / updated.sentCount) * 10000,
-              ) / 100
+            ? Math.round((updated.openedCount / updated.sentCount) * 10000) /
+              100
             : 0,
       };
     },
@@ -405,7 +404,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       const { title, body, segmentIds, route } = request.body;
@@ -414,9 +413,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       const members = await fastify.db
         .select({ userId: schema.memberProfiles.userId })
         .from(schema.memberProfiles)
-        .where(
-          inArray(schema.memberProfiles.segment, segmentIds),
-        );
+        .where(inArray(schema.memberProfiles.segment, segmentIds));
 
       let queued = 0;
 
@@ -451,7 +448,7 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
     if (!(OWNER_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Forbidden" });
+      return reply.code(403).send({ error: "Acceso denegado" });
     }
 
     await service.seedTemplates();

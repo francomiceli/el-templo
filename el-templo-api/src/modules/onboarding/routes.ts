@@ -126,8 +126,8 @@ export const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (err: unknown) {
         if (err instanceof DuplicateOnboardingError) {
           return reply.code(409).send({
-            error: "Conflict",
-            message: "Onboarding already completed",
+            error: "Conflicto",
+            message: "El onboarding ya fue completado",
           });
         }
         throw err;

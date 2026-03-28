@@ -42,7 +42,10 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       } catch (err: unknown) {
         reply
           .code(401)
-          .send({ error: "Unauthorized", message: "Invalid or missing token" });
+          .send({
+            error: "No autorizado",
+            message: "Token invalido o ausente",
+          });
       }
     },
   );

@@ -56,7 +56,9 @@ export const spomRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       // Check admin role
       if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
-        return reply.status(403).send({ error: "Admin access required" });
+        return reply
+          .status(403)
+          .send({ error: "Acceso de administrador requerido" });
       }
 
       const result = await service.updateCurrentWeek(request.body.week);
@@ -96,7 +98,9 @@ export const spomRoutes: FastifyPluginAsync = async (fastify) => {
       if (!rule) {
         return reply
           .status(404)
-          .send({ error: "SPOM rule not found for week/route combination" });
+          .send({
+            error: "Regla SPOM no encontrada para la combinacion semana/ruta",
+          });
       }
       return {
         intensity: rule.intensity,

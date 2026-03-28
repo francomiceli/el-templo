@@ -27,7 +27,7 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     if (!(OWNER_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Solo el propietario puede gestionar usuarios",
       });
     }

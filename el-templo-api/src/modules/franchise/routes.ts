@@ -249,7 +249,7 @@ export const franchiseRoutes: FastifyPluginAsync = async (fastify) => {
       // Check ANTHROPIC_API_KEY is configured
       if (!process.env.ANTHROPIC_API_KEY) {
         return reply.status(503).send({
-          error: "AI service not configured (ANTHROPIC_API_KEY missing)",
+          error: "Servicio de IA no configurado (falta ANTHROPIC_API_KEY)",
         });
       }
 

@@ -922,7 +922,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (Object.keys(updates).length === 0) {
-        return reply.code(400).send({ error: "No fields to update" });
+        return reply.code(400).send({ error: "No hay campos para actualizar" });
       }
 
       await fastify.db
@@ -936,7 +936,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(schema.exercises.id, exerciseId));
 
       if (!updated) {
-        return reply.code(404).send({ error: "Exercise not found" });
+        return reply.code(404).send({ error: "Ejercicio no encontrado" });
       }
 
       request.log.info({ exerciseId, updates }, "Exercise updated");
@@ -953,7 +953,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.r2) {
         return reply
           .status(503)
-          .send({ error: "Video storage not configured" });
+          .send({ error: "Almacenamiento de video no configurado" });
       }
 
       // Validate exercise exists
@@ -983,7 +983,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.r2) {
         return reply
           .status(503)
-          .send({ error: "Video storage not configured" });
+          .send({ error: "Almacenamiento de video no configurado" });
       }
 
       // Validate exercise exists
@@ -1022,7 +1022,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.r2) {
         return reply
           .status(503)
-          .send({ error: "Video storage not configured" });
+          .send({ error: "Almacenamiento de video no configurado" });
       }
 
       // Validate exercise exists
@@ -1054,7 +1054,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.r2) {
         return reply
           .status(503)
-          .send({ error: "Video storage not configured" });
+          .send({ error: "Almacenamiento de video no configurado" });
       }
 
       const { exercises } = request.body;

@@ -9,10 +9,10 @@ import type { FastifyReply, FastifyBaseLogger } from "fastify";
 import { AppError } from "./errors";
 
 const STATUS_LABELS: Record<number, string> = {
-  400: "Bad Request",
-  404: "Not Found",
-  409: "Conflict",
-  422: "Unprocessable Entity",
+  400: "Solicitud invalida",
+  404: "No encontrado",
+  409: "Conflicto",
+  422: "Datos no procesables",
 };
 
 /**
@@ -29,12 +29,15 @@ export function handleServiceError(
   context: string,
 ): void {
   if (err instanceof AppError) {
-    const label = STATUS_LABELS[err.statusCode] ?? "Error";
+    const label = STATUS_LABELS[err.statusCode] ?? "Error desconocido";
     reply.code(err.statusCode).send({ error: label, message: err.message });
     return;
   }
   log.error({ err }, `Error in ${context}`);
   reply
     .code(500)
-    .send({ error: "Server Error", message: "Error interno del servidor" });
+    .send({
+      error: "Error del servidor",
+      message: "Error interno del servidor",
+    });
 }

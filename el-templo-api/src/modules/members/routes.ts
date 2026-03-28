@@ -85,7 +85,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     if (!(MEMBER_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Acceso de administrador requerido",
       });
     }
@@ -245,7 +245,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       if (!member) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Miembro no encontrado" });
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
       // Fetch segment + onboarding data from member_profiles
@@ -348,25 +348,28 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         if (isDuplicate) {
           if (detail.includes("email")) {
             return reply.code(409).send({
-              error: "Conflict",
+              error: "Conflicto",
               message: "El email ya esta registrado",
             });
           }
           if (detail.includes("dni")) {
             return reply.code(409).send({
-              error: "Conflict",
+              error: "Conflicto",
               message: "El DNI ya esta registrado",
             });
           }
           return reply
             .code(409)
-            .send({ error: "Conflict", message: "Registro duplicado" });
+            .send({ error: "Conflicto", message: "Registro duplicado" });
         }
 
         request.log.error({ err }, "Error creating member");
         return reply
           .code(500)
-          .send({ error: "Server Error", message: "Error al crear miembro" });
+          .send({
+            error: "Error del servidor",
+            message: "Error al crear miembro",
+          });
       }
     },
   );
@@ -384,7 +387,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         if (!member) {
           return reply
             .code(404)
-            .send({ error: "Not Found", message: "Miembro no encontrado" });
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
         }
         return member;
       } catch (err: unknown) {
@@ -393,18 +396,18 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         if (isDuplicate) {
           if (detail.includes("dni")) {
             return reply.code(409).send({
-              error: "Conflict",
+              error: "Conflicto",
               message: "El DNI ya esta registrado",
             });
           }
           return reply
             .code(409)
-            .send({ error: "Conflict", message: "Registro duplicado" });
+            .send({ error: "Conflicto", message: "Registro duplicado" });
         }
 
         request.log.error({ err }, "Error updating member");
         return reply.code(500).send({
-          error: "Server Error",
+          error: "Error del servidor",
           message: "Error al actualizar miembro",
         });
       }
@@ -423,7 +426,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       if (!member) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Miembro no encontrado" });
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
       return member;
     },
@@ -440,8 +443,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       if (!fastify.r2) {
         return reply.code(503).send({
-          error: "Service Unavailable",
-          message: "Image storage not configured",
+          error: "Servicio no disponible",
+          message: "Almacenamiento de imagenes no configurado",
         });
       }
 
@@ -525,7 +528,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       if (!existingNote) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Nota no encontrada" });
+          .send({ error: "No encontrado", message: "Nota no encontrada" });
       }
 
       if (
@@ -536,7 +539,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         )
       ) {
         return reply.code(403).send({
-          error: "Forbidden",
+          error: "Acceso denegado",
           message: "No tienes permiso para editar esta nota",
         });
       }
@@ -547,7 +550,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       if (!updated) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Nota no encontrada" });
+          .send({ error: "No encontrado", message: "Nota no encontrada" });
       }
       return updated;
     },
@@ -567,7 +570,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       if (!existingNote) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Nota no encontrada" });
+          .send({ error: "No encontrado", message: "Nota no encontrada" });
       }
 
       if (
@@ -578,7 +581,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         )
       ) {
         return reply.code(403).send({
-          error: "Forbidden",
+          error: "Acceso denegado",
           message: "No tienes permiso para eliminar esta nota",
         });
       }

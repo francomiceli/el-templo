@@ -72,10 +72,10 @@ export const DAY_LABELS: Record<DayOfWeek, string> = {
 export const DAY_LABELS_FULL: Record<DayOfWeek, string> = {
   1: 'Lunes',
   2: 'Martes',
-  3: 'Miercoles',
+  3: 'Miércoles',
   4: 'Jueves',
   5: 'Viernes',
-  6: 'Sabado',
+  6: 'Sábado',
 }
 
 export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {

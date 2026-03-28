@@ -29,7 +29,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Acceso de administrador requerido",
       });
     }

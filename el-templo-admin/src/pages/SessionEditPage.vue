@@ -517,10 +517,10 @@ function dayLabel(d: string): string {
   const labels: Record<string, string> = {
     lunes: 'Lunes',
     martes: 'Martes',
-    miercoles: 'Miercoles',
+    miercoles: 'Miércoles',
     jueves: 'Jueves',
     viernes: 'Viernes',
-    sabado: 'Sabado',
+    sabado: 'Sábado',
   };
   return labels[d] || d;
 }

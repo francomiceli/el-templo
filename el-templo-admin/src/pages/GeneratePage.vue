@@ -371,10 +371,10 @@ const summaryRows = computed(() => {
   const dayLabels: Record<string, string> = {
     lunes: 'Lunes',
     martes: 'Martes',
-    miercoles: 'Miercoles',
+    miercoles: 'Miércoles',
     jueves: 'Jueves',
     viernes: 'Viernes',
-    sabado: 'Sabado',
+    sabado: 'Sábado',
   };
 
   return weekSummary.value.days.map((d) => ({

@@ -263,7 +263,7 @@ export class VideoService {
 
     const videoStream = data.streams?.find((s) => s.codec_type === "video");
     if (!videoStream) {
-      throw new Error("No video stream found in file");
+      throw new Error("No se encontro stream de video en el archivo");
     }
 
     const bitrate =

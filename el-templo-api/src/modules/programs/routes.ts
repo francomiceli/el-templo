@@ -160,7 +160,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -179,7 +179,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
     if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Forbidden" });
+      return reply.code(403).send({ error: "Acceso denegado" });
     }
 
     try {
@@ -199,7 +199,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
     if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-      return reply.code(403).send({ error: "Forbidden" });
+      return reply.code(403).send({ error: "Acceso denegado" });
     }
 
     try {
@@ -221,7 +221,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -258,7 +258,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -282,17 +282,18 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
-        const detail = await service.getProgramDetail(
-          request.params.programId,
-        );
+        const detail = await service.getProgramDetail(request.params.programId);
         if (!detail) {
           return reply
             .code(404)
-            .send({ error: "Not Found", message: "Programa no encontrado" });
+            .send({
+              error: "No encontrado",
+              message: "Programa no encontrado",
+            });
         }
         return detail;
       } catch (err: unknown) {
@@ -311,14 +312,11 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
-        await service.updateProgram(
-          request.params.programId,
-          request.body,
-        );
+        await service.updateProgram(request.params.programId, request.body);
         return { success: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "updateProgram");
@@ -339,7 +337,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -364,7 +362,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -387,7 +385,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {
@@ -410,7 +408,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
       if (!(COACH_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Acceso denegado" });
       }
 
       try {

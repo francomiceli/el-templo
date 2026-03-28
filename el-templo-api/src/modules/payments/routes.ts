@@ -35,7 +35,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
     await fastify.authenticate(request, reply);
     if (!(PAYMENT_ROLES as readonly string[]).includes(request.user.role)) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Acceso de administrador requerido",
       });
     }

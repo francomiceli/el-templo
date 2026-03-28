@@ -61,7 +61,7 @@ export class UserService {
       .limit(1);
 
     if (existing) {
-      const error = new Error("Email already registered");
+      const error = new Error("El email ya esta registrado");
       (error as Error & { statusCode: number }).statusCode = 409;
       throw error;
     }
@@ -122,7 +122,7 @@ export class UserService {
         .limit(1);
 
       if (existing) {
-        const error = new Error("Email already registered");
+        const error = new Error("El email ya esta registrado");
         (error as Error & { statusCode: number }).statusCode = 409;
         throw error;
       }

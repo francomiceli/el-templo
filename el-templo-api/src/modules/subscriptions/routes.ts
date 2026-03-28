@@ -74,7 +74,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       !(SUBSCRIPTION_ROLES as readonly string[]).includes(request.user.role)
     ) {
       return reply.code(403).send({
-        error: "Forbidden",
+        error: "Acceso denegado",
         message: "Acceso de administrador requerido",
       });
     }
@@ -104,7 +104,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!plan) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Plan no encontrado" });
+          .send({ error: "No encontrado", message: "Plan no encontrado" });
       }
       return plan;
     },
@@ -132,7 +132,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!plan) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Plan no encontrado" });
+          .send({ error: "No encontrado", message: "Plan no encontrado" });
       }
       return plan;
     },
@@ -149,7 +149,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       if (!plan) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Plan no encontrado" });
+          .send({ error: "No encontrado", message: "Plan no encontrado" });
       }
       return plan;
     },
@@ -186,7 +186,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       );
       if (!sub) {
         return reply.code(404).send({
-          error: "Not Found",
+          error: "No encontrado",
           message: "No se encontro suscripcion activa",
         });
       }
@@ -223,7 +223,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         if (err instanceof InsufficientBalanceError) {
           return reply
             .code(400)
-            .send({ error: "Bad Request", message: err.message });
+            .send({ error: "Solicitud invalida", message: err.message });
         }
         handleServiceError(err, reply, request.log, "assign subscription");
       }
@@ -266,7 +266,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         if (err instanceof InsufficientBalanceError) {
           return reply
             .code(400)
-            .send({ error: "Bad Request", message: err.message });
+            .send({ error: "Solicitud invalida", message: err.message });
         }
         handleServiceError(err, reply, request.log, "change plan");
       }
@@ -386,13 +386,9 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
 
   // GET /promo-plans — List all promo plans
-  fastify.get(
-    "/promo-plans",
-    { schema: listPromosSchema },
-    async () => {
-      return subscriptionService.listPromoPlans();
-    },
-  );
+  fastify.get("/promo-plans", { schema: listPromosSchema }, async () => {
+    return subscriptionService.listPromoPlans();
+  });
 
   // POST /promo-plans — Create a promo plan
   fastify.post<{ Body: CreatePromoInput }>(

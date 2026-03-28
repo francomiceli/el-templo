@@ -54,7 +54,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (existingUser.length > 0) {
         return reply
           .code(409)
-          .send({ error: "Conflict", message: "Email already registered" });
+          .send({ error: "Conflicto", message: "El email ya esta registrado" });
       }
 
       // Check if DNI already exists
@@ -67,7 +67,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (existingDni.length > 0) {
         return reply
           .code(409)
-          .send({ error: "Conflict", message: "DNI already registered" });
+          .send({ error: "Conflicto", message: "El DNI ya esta registrado" });
       }
 
       // Resolve branch: use provided branchId or default to ONLINE
@@ -82,7 +82,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (branch.length === 0) {
           return reply
             .code(400)
-            .send({ error: "Bad Request", message: "Invalid branch ID" });
+            .send({
+              error: "Solicitud invalida",
+              message: "Sucursal invalida",
+            });
         }
         branchId = requestedBranchId;
       } else {
@@ -94,8 +97,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (defaultBranch.length === 0) {
           return reply.code(500).send({
-            error: "Server Error",
-            message: "Default branch not configured",
+            error: "Error del servidor",
+            message: "Sucursal predeterminada no configurada",
           });
         }
         branchId = defaultBranch[0].id;
@@ -231,7 +234,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (userResults.length === 0) {
         return reply
           .code(401)
-          .send({ error: "Unauthorized", message: "Invalid credentials" });
+          .send({ error: "No autorizado", message: "Credenciales invalidas" });
       }
 
       const user = userResults[0];
@@ -239,7 +242,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Block deactivated users from logging in
       if (!user.isActive) {
         return reply.code(401).send({
-          error: "Unauthorized",
+          error: "No autorizado",
           message: "Cuenta desactivada. Contacta a tu coach.",
         });
       }
@@ -249,7 +252,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (!validPassword) {
         return reply
           .code(401)
-          .send({ error: "Unauthorized", message: "Invalid credentials" });
+          .send({ error: "No autorizado", message: "Credenciales invalidas" });
       }
 
       // Get branch name and virtual status
@@ -329,7 +332,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (userResults.length === 0) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "User not found" });
+          .send({ error: "No encontrado", message: "Usuario no encontrado" });
       }
 
       const user = userResults[0];
@@ -429,7 +432,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (userResults.length === 0) {
         return reply
           .code(404)
-          .send({ error: "Not Found", message: "Usuario no encontrado" });
+          .send({ error: "No encontrado", message: "Usuario no encontrado" });
       }
 
       const valid = await argon2.verify(
@@ -438,7 +441,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       );
       if (!valid) {
         return reply.code(400).send({
-          error: "Bad Request",
+          error: "Solicitud invalida",
           message: "Contraseña actual incorrecta",
         });
       }

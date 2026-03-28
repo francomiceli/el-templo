@@ -146,7 +146,7 @@ function prescribeComplex(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       repsPerExercise,
       i === exercises.length - 1 ? restTime : 0, // Only rest after last exercise
-      i === 0 ? "Complex - no rest between exercises" : undefined,
+      i === 0 ? "Complex - sin descanso entre ejercicios" : undefined,
     ),
   );
 }
@@ -174,7 +174,7 @@ function prescribeAMRAP(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       baseReps,
       0, // No rest in AMRAP rounds
-      i === 0 ? "AMRAP - complete max rounds" : undefined,
+      i === 0 ? "AMRAP - completar la mayor cantidad de rondas" : undefined,
       baseSeconds,
       // Range: +5 reps or +10 seconds for flexibility
       isISO
@@ -220,7 +220,7 @@ function prescribeEMOM(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       ex.contraction === "ISO" ? 0 : baseReps,
       0, // Rest is built into the minute
-      i === 0 ? "EMOM - rotate each minute" : undefined,
+      i === 0 ? "EMOM - rotar cada minuto" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     ),
   );
@@ -243,7 +243,9 @@ function prescribeChipper(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? "Chipper - complete each exercise before moving on" : undefined,
+      i === 0
+        ? "Chipper - completar cada ejercicio antes de avanzar"
+        : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.CHIPPER : 0,
     );
   });
@@ -268,7 +270,7 @@ function prescribeForTime(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       ex.contraction === "ISO" ? 0 : repsAllocation[i],
       0, // No prescribed rest - athlete moves continuously
-      i === 0 ? "For Time - complete ASAP" : undefined,
+      i === 0 ? "For Time - completar lo mas rapido posible" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
@@ -289,7 +291,7 @@ function prescribeTabata(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       0, // Tabata uses time, not fixed reps
       REST_TIMES.TABATA, // 10s rest between rounds
-      i === 0 ? "Tabata: 20s work / 10s rest x 8 rounds" : undefined,
+      i === 0 ? "Tabata: 20s trabajo / 10s descanso x 8 rondas" : undefined,
       ISO_SECONDS.TABATA_WORK, // 20 seconds work
     ),
   );
@@ -343,7 +345,7 @@ function prescribeTimeCap(ctx: PrescriptionContext): ExercisePrescription[] {
     const first = prescriptions[0];
     prescriptions[0] = {
       ...first,
-      notes: "Time Cap - complete within limit",
+      notes: "Time Cap - completar dentro del tiempo limite",
     };
   }
   return prescriptions;
@@ -403,7 +405,7 @@ function prescribeUnbrokenReps(
       ex,
       ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? "Unbroken - no rest during set" : undefined,
+      i === 0 ? "Unbroken - sin descanso durante la serie" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
@@ -424,7 +426,7 @@ function prescribeForMaxReps(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       ex.contraction === "ISO" ? 0 : repsAllocation[i],
       restTime,
-      i === 0 ? "For Max Reps - max effort" : undefined,
+      i === 0 ? "For Max Reps - esfuerzo maximo" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.MAX_EFFORT : 0,
     );
   });
@@ -455,7 +457,7 @@ function prescribeCouplet(
       ex,
       ex.contraction === "ISO" ? 0 : repsPerExercise,
       0, // Alternate without rest
-      i === 0 ? "Couplet - alternate between exercises" : undefined,
+      i === 0 ? "Couplet - alternar entre ejercicios" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     ),
   );
@@ -482,7 +484,7 @@ function prescribeTriplet(
       ex,
       ex.contraction === "ISO" ? 0 : repsPerExercise,
       0,
-      i === 0 ? "Triplet - rotate through 3 exercises" : undefined,
+      i === 0 ? "Triplet - rotar entre 3 ejercicios" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     ),
   );
@@ -577,7 +579,7 @@ function prescribeIGoYouGo(ctx: PrescriptionContext): ExercisePrescription[] {
       ex,
       ex.contraction === "ISO" ? 0 : repsAllocation[i],
       0, // No rest - partner's work is your rest
-      i === 0 ? "I Go, You Go - alternate with partner" : undefined,
+      i === 0 ? "I Go, You Go - alternar con compañero" : undefined,
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });

@@ -425,7 +425,7 @@ export const blogRoutes: FastifyPluginAsync = async (fastify) => {
       if (!fastify.r2) {
         return reply
           .status(503)
-          .send({ error: "Image storage not configured" });
+          .send({ error: "Almacenamiento de imagenes no configurado" });
       }
       const imageService = new BlogImageService(
         fastify.r2,
