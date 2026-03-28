@@ -4,14 +4,12 @@ import type { BlockRole } from '../types/session'
  * El Templo Brand Colors for blocks
  *
  * Uses brand palette with opacity variations:
- * - Terracotta (#c07a56) - primary brand color
+ * - Terracotta (#96593a) - primary brand color
  * - Aged Gold (#b89b5e) - secondary/accent color
  * - Deep Charcoal (#3d3732) - text color
  */
 
-// Brand color constants
-const BRAND_TERRACOTTA = '#c07a56'
-const BRAND_AGED_GOLD = '#a0755a'
+import { BRAND_TERRACOTTA, BRAND_AGED_GOLD } from 'src/utils/brandColors'
 
 /**
  * Get background color class based on block role
@@ -88,7 +86,7 @@ export function getBlockCSSColor(role: BlockRole): string {
 export function getBlockHeaderGradient(role: BlockRole): string {
   const isTerracotta = role === 'NUCLEUS' || role === 'DEUTEROS_1'
   if (isTerracotta) {
-    return 'linear-gradient(135deg, #c07a56 0%, #d08b67 100%)'
+    return `linear-gradient(135deg, ${BRAND_TERRACOTTA} 0%, #946b52 100%)`
   }
-  return 'linear-gradient(135deg, #a0755a 0%, #b8896b 100%)'
+  return `linear-gradient(135deg, ${BRAND_AGED_GOLD} 0%, #8f6b53 100%)`
 }

@@ -10,7 +10,7 @@
  *
  * Displays a line chart showing RPE (Rate of Perceived Exertion) trend over time.
  * Uses Chart.js with tree-shaken imports for optimal bundle size.
- * Brand colors: aged gold line (#b89b5e), terracotta points (#c07a56).
+ * Brand colors: aged gold line (#b89b5e), terracotta points (#96593a).
  */
 import { computed } from 'vue'
 import { LineChart } from 'vue-chart-3'
@@ -48,9 +48,7 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Brand colors
-const AGED_GOLD = '#a0755a'
-const TERRACOTTA = '#c07a56'
+import { BRAND_TERRACOTTA as TERRACOTTA, BRAND_AGED_GOLD as AGED_GOLD } from 'src/utils/brandColors'
 
 /**
  * Chart data configuration

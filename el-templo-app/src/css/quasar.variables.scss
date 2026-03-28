@@ -2,16 +2,16 @@
 // --------------------------------------------------
 // El Templo Brand Theme — aligned with el-templo-web design system (Phase 39)
 
-// El Templo Brand Colors
-$primary: #c07a56; // Terracotta — primary actions, links, active indicators
-$secondary: #a0755a; // Clay — accents, icons, badges, highlights
-$accent: #3d3732; // Deep Charcoal — text, subtle accents
+// El Templo Brand Colors (WCAG AA contrast-safe on cream #f2ede5)
+$primary: #96593a; // Terracotta — primary actions, links, active indicators (4.75:1)
+$secondary: #7d5d42; // Clay — accents, icons, badges, highlights (5.12:1)
+$accent: #3d3732; // Deep Charcoal — text, subtle accents (10.0:1)
 
 // Warm semantic feedback colors (no cold tones — per brand guidelines, no blue anywhere)
-$positive: #5a9a6b; // Warm green (olive-tinted)
-$negative: #b34a4a; // Warm red (brick-tinted)
-$info: #8a8472; // Olive Stone (replaces cold blue — no blue in brand)
-$warning: #d4a843; // Warm amber
+$positive: #3b7249; // Warm green — success states (4.88:1)
+$negative: #b34a4a; // Warm red — errors (4.51:1)
+$info: #6b6459; // Olive Stone — info badges (5.01:1)
+$warning: #7d6520; // Dark gold — warning states (4.79:1)
 
 // Dark mode theming (charcoal-based, NOT navy-based)
 $dark: #3d3732; // Deep Charcoal

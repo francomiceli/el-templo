@@ -28,7 +28,8 @@ withDefaults(
 </script>
 
 <style lang="scss" scoped>
-$terracotta: #c07a56;
+@import 'src/css/brand';
+$terracotta: $brand-terracotta;
 $amber: #d4a843;
 $bronze: #d4b896;
 $cream: #f2ede5;

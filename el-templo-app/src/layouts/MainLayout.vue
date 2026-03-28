@@ -237,6 +237,7 @@ async function onLogout() {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/brand';
 @import 'src/css/quasar.variables.scss';
 
 .app-bg {
@@ -253,10 +254,10 @@ async function onLogout() {
 }
 
 .main-header {
-  background: linear-gradient(135deg, #c07a56 0%, #a0755a 100%);
+  background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
 
   &--unified {
-    background: linear-gradient(135deg, #c07a56 0%, #a0755a 100%);
+    background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
   }
 }
 
@@ -342,7 +343,7 @@ async function onLogout() {
    Mobile Bottom Tab Bar
    ------------------------------------------------------------------ */
 .mobile-footer {
-  background: linear-gradient(135deg, #a0755a 0%, #c07a56 100%);
+  background: linear-gradient(135deg, $brand-aged-gold 0%, $brand-terracotta 100%);
   border-top: none;
   // Safe area for phones with home indicator — gradient fills below the tabs
   padding-bottom: env(safe-area-inset-bottom, 0px);

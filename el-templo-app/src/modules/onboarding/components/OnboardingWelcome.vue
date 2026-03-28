@@ -29,7 +29,8 @@ const firstName = computed(() => userStore.profile?.firstName ?? 'Atleta')
 </script>
 
 <style lang="scss" scoped>
-$terracotta: #c07a56;
+@import 'src/css/brand';
+$terracotta: $brand-terracotta;
 $cream: #f2ede5;
 $charcoal-mid: #3d3732;
 

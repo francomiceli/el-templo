@@ -106,10 +106,8 @@ h1, h2, h3, h4, h5, h6,
 // El Templo Global White Elimination
 // =============================================================================
 
-// Brand colors
-$brand-terracotta: #c07a56;
-$brand-aged-gold: #a0755a;
-$brand-cream: #f2ede5;
+// Brand colors (single source of truth)
+@import 'brand';
 
 // Override white backgrounds globally
 body {

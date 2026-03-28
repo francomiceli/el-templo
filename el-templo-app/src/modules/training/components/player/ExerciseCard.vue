@@ -123,6 +123,7 @@ const deathBySequence = computed(() => {
 </script>
 
 <style scoped lang="scss">
+@import 'src/css/brand';
 .exercise-card {
   padding: 0;
   margin-bottom: 8px;
@@ -217,12 +218,12 @@ const deathBySequence = computed(() => {
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
-  color: #a0755a;
+  color: $brand-aged-gold;
 }
 
 .exercise-card__metric-label {
   font-size: 12px;
-  color: #a0755a;
+  color: $brand-aged-gold;
   text-transform: uppercase;
   font-weight: 500;
   letter-spacing: 0.05em;
