@@ -27,7 +27,7 @@ import {
   MARBLE_BG_BASE64,
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
-import { formatWeekLabel } from '../weekDates';
+import { formatWeekLabel, formatWeekForFilename } from '../weekDates';
 
 // ============================================================
 // BRAND DESIGN TOKENS (from visual guidelines)
@@ -852,7 +852,9 @@ export function buildDayPdf(day: PdfDaySession): void {
   const doc = buildDocDefinition(content);
   pdfMake
     .createPdf(doc)
-    .download(`El-Templo-${formatWeekLabel(day.week).replace(/ /g, '')}-${day.dayName}.pdf`);
+    .download(
+      `El-Templo-Planis-${formatWeekForFilename(day.week).dates}-${day.dayName}-${formatWeekForFilename(day.week).year}.pdf`
+    );
 }
 
 /**
@@ -872,7 +874,8 @@ export function buildWeekPdf(days: PdfDaySession[]): void {
 
   const doc = buildDocDefinition(content);
   const weekNum = days[0]?.week || 0;
-  pdfMake.createPdf(doc).download(`El-Templo-${formatWeekLabel(weekNum).replace(/ /g, '')}.pdf`);
+  const { dates, year } = formatWeekForFilename(weekNum);
+  pdfMake.createPdf(doc).download(`El-Templo-Planis-${dates}-${year}.pdf`);
 }
 
 /**

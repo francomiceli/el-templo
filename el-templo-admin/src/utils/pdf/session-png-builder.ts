@@ -14,7 +14,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import JSZip from 'jszip';
 import { PdfDaySession } from './pdf-types';
-import { formatWeekLabel } from '../weekDates';
+import { formatWeekForFilename } from '../weekDates';
 
 // Set up pdf.js worker (once)
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
@@ -45,7 +45,7 @@ function pdfToBuffer(doc: TDocumentDefinitions): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     try {
       const pdfDoc = pdfMake.createPdf(doc);
-       
+
       (pdfDoc as any).getBuffer((buffer: Uint8Array) => {
         resolve(buffer.buffer as ArrayBuffer);
       });
@@ -138,7 +138,8 @@ export async function buildDayPngZip(
   const buffer = await pdfToBuffer(doc);
   const images = await renderPdfToImages(buffer, onProgress);
 
-  const prefix = `El-Templo-${formatWeekLabel(day.week).replace(/ /g, '')}-${day.dayName}`;
+  const { dates, year } = formatWeekForFilename(day.week);
+  const prefix = `El-Templo-Planis-${dates}-${day.dayName}-${year}`;
   await downloadImageZip(images, prefix, onProgress);
 }
 
@@ -168,6 +169,7 @@ export async function buildWeekPngZip(
   const images = await renderPdfToImages(buffer, onProgress);
 
   const weekNum = days[0]?.week || 0;
-  const prefix = `El-Templo-${formatWeekLabel(weekNum).replace(/ /g, '')}`;
+  const { dates, year } = formatWeekForFilename(weekNum);
+  const prefix = `El-Templo-Planis-${dates}-${year}`;
   await downloadImageZip(images, prefix, onProgress);
 }

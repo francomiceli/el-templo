@@ -43,6 +43,22 @@ export function formatWeekLabel(week: number): string {
   return `${startDay} ${startMonth} - ${endDay} ${endMonth} ${endYear}`;
 }
 
+/** Returns { dates: '16-22Feb', year: '2026' } for filenames */
+export function formatWeekForFilename(week: number): { dates: string; year: string } {
+  const { start, end } = weekToDateRange(week);
+  const startDay = start.getDate();
+  const startMonth = MONTH_NAMES[start.getMonth()];
+  const endDay = end.getDate();
+  const endMonth = MONTH_NAMES[end.getMonth()];
+  const year = String(end.getFullYear());
+
+  const dates =
+    startMonth === endMonth
+      ? `${startDay}-${endDay}${endMonth}`
+      : `${startDay}${startMonth}-${endDay}${endMonth}`;
+  return { dates, year };
+}
+
 /** Returns 'YYYY-MM-DD' Monday of week (for URL params) */
 export function weekToUrlParam(week: number): string {
   const { start } = weekToDateRange(week);
