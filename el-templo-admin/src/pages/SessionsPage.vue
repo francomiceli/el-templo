@@ -47,13 +47,23 @@
           <q-space />
           <q-btn
             icon="download"
+            label="Descargar Imágenes"
+            color="accent"
+            outline
+            :loading="pdfWeekLoading"
+            class="gt-xs"
+            @click="onDownloadWeekPngZip"
+          />
+          <q-btn
+            icon="download"
             color="accent"
             outline
             round
             :loading="pdfWeekLoading"
+            class="xs"
             @click="onDownloadWeekPngZip"
           >
-            <q-tooltip>Descargar imágenes de la semana</q-tooltip>
+            <q-tooltip>Descargar Imágenes</q-tooltip>
           </q-btn>
         </div>
 
@@ -303,6 +313,9 @@
             </div>
           </q-linear-progress>
         </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" color="negative" @click="cancelPngGeneration" />
+        </q-card-actions>
       </q-card>
     </q-dialog>
 
@@ -486,10 +499,15 @@ async function handleBulkApproveDay(dayGroup: DayGroup) {
 }
 
 const pngProgress = ref({ active: false, message: '', percent: 0 });
+let pngAbort: AbortController | null = null;
 
 function onPngProgress(message: string, percent: number) {
   pngProgress.value.message = message;
   pngProgress.value.percent = percent;
+}
+
+function cancelPngGeneration() {
+  pngAbort?.abort();
 }
 
 async function onDownloadDayPngZip(dayGroup: DayGroup) {
@@ -503,6 +521,7 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
   }
 
   pdfDayLoading.value = dayGroup.day;
+  pngAbort = new AbortController();
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
   try {
     const details = await Promise.all(
@@ -511,12 +530,19 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
     const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
     const { buildDayPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDay = sessionsToPdfDay(details);
-    await buildDayPngZip(pdfDay, onPngProgress);
+    await buildDayPngZip(pdfDay, onPngProgress, pngAbort.signal);
     $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
   } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando imágenes' });
-    log.error('PNG generation error', { error: err instanceof Error ? err.message : String(err) });
+    if (pngAbort.signal.aborted) {
+      $q.notify({ type: 'info', message: 'Descarga cancelada' });
+    } else {
+      $q.notify({ type: 'negative', message: 'Error generando imágenes' });
+      log.error('PNG generation error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   } finally {
+    pngAbort = null;
     pngProgress.value.active = false;
     pdfDayLoading.value = null;
   }
@@ -536,6 +562,7 @@ async function onDownloadWeekPngZip() {
   }
 
   pdfWeekLoading.value = true;
+  pngAbort = new AbortController();
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
   try {
     const details = await Promise.all(
@@ -544,14 +571,19 @@ async function onDownloadWeekPngZip() {
     const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
     const { buildWeekPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDays = sessionsToWeekPdf(details);
-    await buildWeekPngZip(pdfDays, onPngProgress);
+    await buildWeekPngZip(pdfDays, onPngProgress, pngAbort.signal);
     $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
   } catch (err) {
-    $q.notify({ type: 'negative', message: 'Error generando imágenes de la semana' });
-    log.error('Week PNG generation error', {
-      error: err instanceof Error ? err.message : String(err),
-    });
+    if (pngAbort.signal.aborted) {
+      $q.notify({ type: 'info', message: 'Descarga cancelada' });
+    } else {
+      $q.notify({ type: 'negative', message: 'Error generando imágenes de la semana' });
+      log.error('Week PNG generation error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   } finally {
+    pngAbort = null;
     pngProgress.value.active = false;
     pdfWeekLoading.value = false;
   }
@@ -750,5 +782,9 @@ onMounted(() => {
 <style scoped>
 .level-row + .level-row {
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.q-btn--round {
+  min-width: 2.5em;
+  min-height: 2.5em;
 }
 </style>

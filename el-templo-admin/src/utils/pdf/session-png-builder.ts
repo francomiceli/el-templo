@@ -15,9 +15,11 @@ import JSZip from 'jszip';
 import { PdfDaySession } from './pdf-types';
 import { formatWeekForFilename } from '../weekDates';
 
-// Disable worker — runs on main thread (fine for occasional admin use).
-// Avoids .mjs MIME type issues on production servers.
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'disabled';
+// Inline worker as blob URL to avoid .mjs MIME type issues on production servers.
+// Only loaded when this module is lazy-imported (on PNG download click).
+import pdfjsWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
+const workerBlob = new Blob([pdfjsWorkerSrc], { type: 'text/javascript' });
+pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
 
 export type ProgressCallback = (message: string, percent: number) => void;
 
@@ -26,6 +28,10 @@ const WEIGHT_PREP = 5;
 const WEIGHT_PDF = 15;
 const WEIGHT_RENDER = 70;
 const WEIGHT_ZIP = 10;
+
+function checkAbort(signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+}
 
 async function getBuilderFns() {
   const mod = await import('./session-pdf-builder');
@@ -61,12 +67,14 @@ function pdfToBuffer(doc: TDocumentDefinitions): Promise<ArrayBuffer> {
  */
 async function renderPdfToImages(
   pdfBuffer: ArrayBuffer,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  signal?: AbortSignal
 ): Promise<Blob[]> {
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfBuffer) }).promise;
   const images: Blob[] = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
+    checkAbort(signal);
     const pagePercent = WEIGHT_PREP + WEIGHT_PDF + Math.round((i / pdf.numPages) * WEIGHT_RENDER);
     onProgress?.(`Renderizando página ${i} de ${pdf.numPages}...`, pagePercent);
 
@@ -97,8 +105,10 @@ async function renderPdfToImages(
 async function downloadImageZip(
   images: Blob[],
   filenamePrefix: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  signal?: AbortSignal
 ): Promise<void> {
+  checkAbort(signal);
   onProgress?.('Comprimiendo imágenes...', WEIGHT_PREP + WEIGHT_PDF + WEIGHT_RENDER);
   const zip = new JSZip();
   const padLen = String(images.length).length;
@@ -109,6 +119,7 @@ async function downloadImageZip(
   }
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });
+  checkAbort(signal);
   onProgress?.('Descargando...', WEIGHT_PREP + WEIGHT_PDF + WEIGHT_RENDER + WEIGHT_ZIP);
   const url = URL.createObjectURL(zipBlob);
   const a = document.createElement('a');
@@ -125,7 +136,8 @@ async function downloadImageZip(
  */
 export async function buildDayPngZip(
   day: PdfDaySession,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  signal?: AbortSignal
 ): Promise<void> {
   onProgress?.('Preparando documento...', WEIGHT_PREP);
   const { buildDayContent, buildDocDefinition, ensureFonts } = await getBuilderFns();
@@ -134,13 +146,14 @@ export async function buildDayPngZip(
   const content = buildDayContent(day);
   const doc = buildDocDefinition(content);
 
+  checkAbort(signal);
   onProgress?.('Generando PDF interno...', WEIGHT_PREP + WEIGHT_PDF);
   const buffer = await pdfToBuffer(doc);
-  const images = await renderPdfToImages(buffer, onProgress);
+  const images = await renderPdfToImages(buffer, onProgress, signal);
 
   const { dates, year } = formatWeekForFilename(day.week);
   const prefix = `El-Templo-Planis-${dates}-${day.dayName}-${year}`;
-  await downloadImageZip(images, prefix, onProgress);
+  await downloadImageZip(images, prefix, onProgress, signal);
 }
 
 /**
@@ -148,7 +161,8 @@ export async function buildDayPngZip(
  */
 export async function buildWeekPngZip(
   days: PdfDaySession[],
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  signal?: AbortSignal
 ): Promise<void> {
   onProgress?.('Preparando documento...', WEIGHT_PREP);
   const { buildDayContent, buildDocDefinition, ensureFonts } = await getBuilderFns();
@@ -164,12 +178,13 @@ export async function buildWeekPngZip(
 
   const doc = buildDocDefinition(content);
 
+  checkAbort(signal);
   onProgress?.('Generando PDF interno...', WEIGHT_PREP + WEIGHT_PDF);
   const buffer = await pdfToBuffer(doc);
-  const images = await renderPdfToImages(buffer, onProgress);
+  const images = await renderPdfToImages(buffer, onProgress, signal);
 
   const weekNum = days[0]?.week || 0;
   const { dates, year } = formatWeekForFilename(weekNum);
   const prefix = `El-Templo-Planis-${dates}-${year}`;
-  await downloadImageZip(images, prefix, onProgress);
+  await downloadImageZip(images, prefix, onProgress, signal);
 }
