@@ -1,16 +1,62 @@
 <template>
-  <div class="session-summary fixed-full column">
-    <!-- Header -->
-    <div class="session-summary__header q-pa-md">
-      <div class="session-summary__title-row">
-        <q-icon name="check_circle" color="positive" size="28px" />
-        <div class="text-h5 text-weight-bold">Resumen de Sesión</div>
+  <div class="session-summary" :class="{ 'fixed-full column': !readOnly }">
+    <!-- Read-only header: light, matches Mi Templo / Planes section style -->
+    <div v-if="readOnly" class="session-summary__header q-pa-md q-pb-none">
+      <q-btn
+        flat
+        round
+        dense
+        icon="arrow_back"
+        color="primary"
+        class="session-summary__back-btn"
+        @click="emit('back')"
+      />
+      <div class="session-summary__header-text">
+        <p class="session-summary__section-title">Resumen de sesión</p>
+        <p class="session-summary__date-label">{{ formattedDate }}</p>
       </div>
-      <div class="text-subtitle2 text-grey-3">{{ formattedDate }}</div>
+    </div>
+
+    <!-- In-session header: same layout, check icon instead of back arrow -->
+    <div v-else class="session-summary__header q-pa-md q-pb-none">
+      <q-icon name="check_circle" color="positive" size="36px" />
+      <div class="session-summary__header-text">
+        <p class="session-summary__section-title">Resumen de sesión</p>
+        <p class="session-summary__date-label">{{ formattedDate }}</p>
+      </div>
     </div>
 
     <!-- Scrollable Content -->
     <div class="session-summary__content col q-pa-md">
+      <!-- Blocks Completed — reuses BlockCard from DayCard -->
+      <div v-if="blocks.length > 0" class="blocks-section q-mb-lg">
+        <BlockCard
+          v-for="block in blocks"
+          :key="block.blockId"
+          :block="block"
+          :color-class="getBlockColorClass(block.role)"
+        />
+      </div>
+
+      <!-- Read-only: Session completion card -->
+      <div v-if="readOnly" class="completion-card q-mb-lg">
+        <div class="completion-card__row">
+          <q-icon name="timer" size="20px" color="primary" />
+          <span v-if="durationMinutes" class="completion-card__text">
+            Sesión completada en {{ durationMinutes }} minutos
+          </span>
+          <span v-else class="completion-card__text">Sesión completada</span>
+        </div>
+        <div v-if="savedRpe" class="completion-card__row">
+          <q-icon name="speed" size="20px" color="primary" />
+          <span class="completion-card__text">RPE {{ savedRpe }}</span>
+        </div>
+        <div v-if="savedNotes" class="completion-card__row">
+          <q-icon name="notes" size="20px" color="primary" />
+          <span class="completion-card__notes">{{ savedNotes }}</span>
+        </div>
+      </div>
+
       <!-- Days Stats Row: This Week / Total -->
       <div class="days-stats-row q-mb-lg">
         <div class="days-stat">
@@ -24,120 +70,105 @@
         </div>
       </div>
 
-      <!-- Blocks Completed (Expandable) -->
-      <div class="blocks-section q-mb-lg">
-        <div class="text-subtitle2 text-grey-7 q-mb-sm">Bloques completados</div>
-        <q-list class="blocks-expansion-list">
-          <q-expansion-item
-            v-for="block in blocksData"
-            :key="block.role"
-            :header-class="'block-header bg-' + getBlockColor(block.role)"
-            expand-icon-class="text-white"
-            dense
-          >
-            <template #header>
-              <q-item-section avatar>
-                <q-icon :name="getBlockIcon(block.role)" color="white" />
-              </q-item-section>
-              <q-item-section>
-                <q-item-label class="text-white text-weight-medium">
-                  {{ getBlockName(block.role) }}
-                </q-item-label>
-                <q-item-label caption class="text-white-70">
-                  {{ block.exercises.length }} ejercicios
-                </q-item-label>
-              </q-item-section>
-            </template>
+      <!-- In-session: RPE Input + Notes -->
+      <template v-if="!readOnly">
+        <div class="rpe-section q-mb-lg">
+          <RpeSlider v-model="rpeValue" />
+          <RpeContextualMessage :rpe-value="rpeValue" :has-interacted="hasInteracted" />
+        </div>
 
-            <q-card class="block-exercises-card">
-              <q-card-section class="q-pa-sm">
-                <q-list dense separator>
-                  <q-item v-for="(exercise, idx) in block.exercises" :key="idx" class="q-px-sm">
-                    <q-item-section avatar class="exercise-number">
-                      <span class="text-grey-6">{{ idx + 1 }}</span>
-                    </q-item-section>
-                    <q-item-section>
-                      <q-item-label class="text-body2">{{ exercise.name }}</q-item-label>
-                    </q-item-section>
-                  </q-item>
-                </q-list>
-              </q-card-section>
-            </q-card>
-          </q-expansion-item>
-        </q-list>
-      </div>
-
-      <!-- RPE Input -->
-      <div class="rpe-section q-mb-lg">
-        <RpeSlider v-model="rpeValue" />
-        <RpeContextualMessage
-          :rpe-value="rpeValue"
-          :has-interacted="hasInteracted"
-        />
-      </div>
-
-      <!-- Notes (optional) -->
-      <div class="notes-section">
-        <q-input
-          v-model="notesValue"
-          type="textarea"
-          label="Notas (opcional)"
-          outlined
-          :rows="2"
-          maxlength="500"
-          counter
-        />
-      </div>
+        <div class="notes-section">
+          <q-input
+            v-model="notesValue"
+            type="textarea"
+            label="Notas (opcional)"
+            outlined
+            :rows="2"
+            maxlength="500"
+            counter
+          />
+        </div>
+      </template>
     </div>
 
-    <!-- Fixed Footer -->
-    <div class="session-summary__footer q-pa-md">
+    <!-- Fixed Footer (only in non-read-only / in-session mode) -->
+    <div v-if="!readOnly" class="session-summary__footer q-pa-md">
       <q-btn
-        color="primary"
         unelevated
-        label="Terminar Sesión"
-        class="full-width"
+        class="start-button start-button--primary q-mb-sm"
         size="lg"
         :loading="isSubmitting"
         @click="onFinish"
+      >
+        <q-icon name="check" size="24px" class="q-mr-sm" />
+        <span class="text-weight-bold">Terminar Sesión</span>
+      </q-btn>
+      <q-btn
+        flat
+        color="grey-7"
+        label="Repetir Sesión"
+        icon="replay"
+        class="full-width"
+        size="md"
+        @click="emit('restart')"
       />
+    </div>
+
+    <!-- Read-only footer: in-flow, uses DayCard start-button style -->
+    <div v-if="readOnly" class="session-summary__readonly-footer q-px-md q-pb-md">
+      <q-btn unelevated class="start-button" size="lg" @click="emit('restart')">
+        <q-icon name="replay" size="24px" class="q-mr-sm" />
+        <span class="text-weight-bold">Repetir Sesión</span>
+      </q-btn>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import type { Block } from '../../types/session'
+import { getBlockColorClass } from '../../utils/blockColors'
+import BlockCard from '../BlockCard.vue'
 import RpeSlider from './RpeSlider.vue'
 import RpeContextualMessage from './RpeContextualMessage.vue'
-
-interface BlockData {
-  role: string
-  exercises: Array<{ name: string }>
-}
 
 interface Props {
   /** Date of the session (YYYY-MM-DD) */
   date: string
-  /** Block data with exercises for expandable display */
-  blocksData: BlockData[]
+  /** Full Block objects for display (filtered to completed blocks only) */
+  blocks: Block[]
   /** Days completed this week */
   daysCompletedThisWeek: number
   /** Cumulative days trained (from API response or 0 initially) */
   totalDaysTrained: number
   /** Whether submission is in progress */
   isSubmitting?: boolean
+  /** Read-only mode (viewing completed session) */
+  readOnly?: boolean
+  /** Duration in minutes (read-only mode) */
+  durationMinutes?: number | null
+  /** Saved RPE value (read-only mode) */
+  savedRpe?: number | null
+  /** Saved notes (read-only mode) */
+  savedNotes?: string | null
 }
 
 interface Emits {
   (e: 'finish', data: { rpe: number | null; notes: string | null }): void
+  (e: 'restart'): void
+  (e: 'back'): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isSubmitting: false,
+  readOnly: false,
+  durationMinutes: null,
+  savedRpe: null,
+  savedNotes: null,
 })
 const emit = defineEmits<Emits>()
 
-// Form state
+// Form state (only used in editable mode)
 const rpeValue = ref<number | null>(null)
 const notesValue = ref<string>('')
 const hasInteracted = ref(false)
@@ -159,36 +190,6 @@ const formattedDate = computed(() => {
   })
 })
 
-// Block display helpers
-function getBlockName(role: string): string {
-  const names: Record<string, string> = {
-    INITIUM: 'Initium',
-    NUCLEUS: 'Nucleus',
-    DEUTEROS_1: 'Deuteros 1',
-    DEUTEROS_2: 'Deuteros 2',
-    ATHLOS: 'Athlos',
-    EPIKOS: 'Epikos',
-  }
-  return names[role] || role
-}
-
-function getBlockColor(_role: string): string {
-  // All blocks use bronze in session summary
-  return 'secondary'
-}
-
-function getBlockIcon(role: string): string {
-  const icons: Record<string, string> = {
-    INITIUM: 'wb_sunny',
-    NUCLEUS: 'star',
-    DEUTEROS_1: 'layers',
-    DEUTEROS_2: 'layers',
-    ATHLOS: 'local_fire_department',
-    EPIKOS: 'local_fire_department',
-  }
-  return icons[role] || 'view_module'
-}
-
 // Actions
 function onFinish(): void {
   emit('finish', {
@@ -199,32 +200,68 @@ function onFinish(): void {
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @import 'src/css/quasar.variables.scss';
 
 .session-summary {
-  background: $cream;
-  z-index: 9998;
-}
+  background: transparent;
 
-.session-summary__header {
-  background: linear-gradient(135deg, #2e2a26 0%, #3d3732 100%);
-  color: white;
+  &.fixed-full {
+    z-index: 9998;
+    background-color: $cream;
+    position: relative;
 
-  .text-h5 {
-    font-family: 'Montserrat', sans-serif;
-    letter-spacing: 0.05em;
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      opacity: 0.3;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
   }
 }
 
-.session-summary__title-row {
+// Read-only header — light, matches Planes section style
+.session-summary__header {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+}
+
+.session-summary__header-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.session-summary__section-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.session-summary__date-label {
+  font-size: 14px;
+  color: $grey-7;
+  margin: 4px 0 0;
+  text-transform: capitalize;
 }
 
 .session-summary__content {
   overflow-y: auto;
-  padding-bottom: 100px;
+}
+
+.fixed-full .session-summary__content {
+  padding-bottom: 140px;
 }
 
 .session-summary__footer {
@@ -232,9 +269,53 @@ function onFinish(): void {
   bottom: 0;
   left: 0;
   right: 0;
-  background: $cream;
+  background: rgba($cream, 0.95);
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 9999;
+}
+
+.session-summary__readonly-footer {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+// Same button style as DayCard's start-button
+.start-button {
+  width: 100%;
+  height: 52px;
+  border-radius: 26px;
+  font-size: 16px;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.08em;
+  color: white;
+  background: linear-gradient(
+    135deg,
+    $secondary 0%,
+    color.adjust($secondary, $lightness: 8%) 50%,
+    mix($secondary, $primary, 70%) 100%
+  ) !important;
+  box-shadow: 0 4px 12px rgba($secondary, 0.3);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 6px 16px rgba($secondary, 0.4);
+    transform: translateY(-1px);
+  }
+
+  // Primary variant — for "Terminar Sesión"
+  &--primary {
+    background: linear-gradient(
+      135deg,
+      $primary 0%,
+      color.adjust($primary, $lightness: 8%) 50%,
+      mix($primary, $secondary, 70%) 100%
+    ) !important;
+    box-shadow: 0 4px 12px rgba($primary, 0.3);
+
+    &:hover {
+      box-shadow: 0 6px 16px rgba($primary, 0.4);
+    }
+  }
 }
 
 .days-stats-row {
@@ -259,50 +340,35 @@ function onFinish(): void {
 }
 
 .blocks-section {
-  background: #f2ede5;
+  padding: 0;
+}
+
+.completion-card {
+  background: white;
   border-radius: 12px;
+  border: 1px solid rgba($secondary, 0.2);
   padding: 16px;
-}
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 
-.blocks-expansion-list {
-  border-radius: 8px;
-  overflow: hidden;
-
-  :deep(.q-expansion-item) {
-    margin-bottom: 8px;
-
-    &:last-child {
-      margin-bottom: 0;
-    }
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
-  :deep(.block-header) {
-    border-radius: 8px;
-    min-height: 56px;
+  &__text {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: $primary;
   }
 
-  :deep(.q-expansion-item--expanded .block-header) {
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+  &__notes {
+    font-size: 13px;
+    color: $grey-7;
+    font-style: italic;
   }
-}
-
-.block-exercises-card {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
-  box-shadow: none;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-top: none;
-}
-
-.exercise-number {
-  min-width: 24px;
-  font-size: 0.875rem;
-}
-
-.text-white-70 {
-  color: rgba(255, 255, 255, 0.7);
 }
 </style>

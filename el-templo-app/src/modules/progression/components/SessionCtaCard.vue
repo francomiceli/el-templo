@@ -1,11 +1,5 @@
 <template>
-  <q-card
-    class="session-cta-card"
-    flat
-    bordered
-    clickable
-    @click="router.push('/training')"
-  >
+  <q-card class="session-cta-card" flat bordered clickable @click="handleClick">
     <q-card-section class="session-cta-card__content">
       <div class="session-cta-card__info">
         <q-icon
@@ -14,10 +8,8 @@
           :color="todayCompleted ? 'positive' : 'primary'"
         />
         <div class="session-cta-card__text">
-          <p class="session-cta-card__title" :class="{ 'session-cta-card__title--completed': todayCompleted }">
-            {{ todayCompleted ? 'Sesión Completada' : 'Tu sesión de hoy' }}
-          </p>
           <template v-if="!todayCompleted">
+            <p class="session-cta-card__title">Tu sesión de hoy</p>
             <p v-if="checkInMessage" class="session-cta-card__check-in-message">
               {{ checkInMessage }}
             </p>
@@ -34,16 +26,22 @@
               Personalizada
             </q-chip>
           </template>
-          <div v-else class="session-cta-card__summary">
-            <span v-if="todaySession?.durationMinutes" class="session-cta-card__summary-item">
-              <q-icon name="timer" size="14px" />
-              {{ todaySession.durationMinutes }} min
-            </span>
-            <span v-if="todaySession?.rpe" class="session-cta-card__summary-item">
-              <q-icon name="speed" size="14px" />
-              RPE {{ todaySession.rpe }}
-            </span>
-          </div>
+          <template v-else>
+            <div class="session-cta-card__completed-row">
+              <p class="session-cta-card__title session-cta-card__title--completed">
+                Sesión Completada
+              </p>
+              <span v-if="todaySession?.durationMinutes" class="session-cta-card__summary-item">
+                <q-icon name="timer" size="14px" />
+                {{ todaySession.durationMinutes }} min
+              </span>
+              <span v-if="todaySession?.rpe" class="session-cta-card__summary-item">
+                <q-icon name="speed" size="14px" />
+                RPE {{ todaySession.rpe }}
+              </span>
+            </div>
+            <p class="session-cta-card__subtitle">Mirá tu resumen de sesión</p>
+          </template>
         </div>
       </div>
       <div class="session-cta-card__arrow">
@@ -59,13 +57,21 @@ import type { TodaySession } from '../types'
 
 const router = useRouter()
 
-defineProps<{
+const props = defineProps<{
   todayCompleted: boolean
   todaySession: TodaySession | null
   routeName: string | null
   isPersonalizada: boolean
   checkInMessage: string | null
 }>()
+
+function handleClick() {
+  if (props.todayCompleted) {
+    router.push({ name: 'session-summary' })
+  } else {
+    router.push('/training')
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -132,11 +138,11 @@ defineProps<{
     font-size: 10px;
   }
 
-  &__summary {
+  &__completed-row {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin-top: 4px;
   }
 
   &__summary-item {

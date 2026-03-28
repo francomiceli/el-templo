@@ -46,18 +46,22 @@
     <!-- Start button (only for today with session) -->
     <div v-if="showStartButton" class="day-card__footer">
       <q-btn
-        color="primary"
+        :color="day.state === 'completed' ? 'secondary' : 'primary'"
         size="lg"
         class="start-button"
+        :class="{ 'start-button--completed': day.state === 'completed' }"
         unelevated
-        :disable="day.state === 'completed'"
         @click="handleStart"
       >
-        <q-icon name="play_arrow" size="24px" class="q-mr-sm" />
+        <q-icon
+          :name="day.state === 'completed' ? 'replay' : 'play_arrow'"
+          size="24px"
+          class="q-mr-sm"
+        />
         <span class="text-weight-bold">
           {{
             day.state === 'completed'
-              ? 'Sesión Completada'
+              ? 'Repetir Sesión'
               : hasActiveProgress
                 ? 'Continuar'
                 : 'Comenzar'
@@ -70,6 +74,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
 import type { WeekDay, Block } from '../types/session'
 import { formatShortDate, isToday } from '../composables/useDateNavigation'
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore'
@@ -91,6 +96,7 @@ const emit = defineEmits<{
   start: [date: string]
 }>()
 
+const $q = useQuasar()
 const sessionPlayerStore = useSessionPlayerStore()
 const hasActiveProgress = ref(false)
 
@@ -219,10 +225,22 @@ function getSessionRouteName(session: typeof props.day.session): string {
 }
 
 /**
- * Handle start button click
+ * Handle start button click — confirm restart if session already completed
  */
 function handleStart() {
-  emit('start', props.day.date)
+  if (props.day.state === 'completed') {
+    $q.dialog({
+      title: 'Repetir sesión',
+      message: 'Vas a reiniciar la sesión de hoy. El progreso registrado anteriormente se perderá.',
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Repetir', color: 'primary' },
+      persistent: true,
+    }).onOk(() => {
+      emit('start', props.day.date)
+    })
+  } else {
+    emit('start', props.day.date)
+  }
 }
 </script>
 
@@ -341,11 +359,7 @@ function handleStart() {
 
   &--completed {
     .day-card__header {
-      background: linear-gradient(135deg, rgba(var(--q-positive-rgb), 0.1) 0%, $cream 100%);
-    }
-
-    .day-card__day-name {
-      color: var(--q-positive);
+      background: linear-gradient(135deg, rgba($secondary, 0.1) 0%, $cream 100%);
     }
   }
 

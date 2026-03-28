@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte, lte } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
@@ -180,7 +180,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(schema.users.id, userId));
 
       if (!user) {
-        return reply.status(404).send({ error: "User not found" });
+        return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
       // 2. Extract memberLevel and compute levelGroup
@@ -194,7 +194,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Skip Sundays (domingo) - no sessions
       if (dayName === "domingo") {
-        return reply.status(400).send({ error: "No sessions on Sunday" });
+        return reply
+          .status(400)
+          .send({ error: "No hay sesiones los domingos" });
       }
 
       // 5. Build dayId with memberLevel
@@ -234,7 +236,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(schema.users.id, userId));
 
       if (!user) {
-        return reply.status(404).send({ error: "User not found" });
+        return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
       // 2. Extract memberLevel
@@ -286,7 +288,21 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           : null;
       }
 
-      return { sessions: sessionsMap };
+      // 6. Fetch completed dates for this week
+      const lastDate = weekDates[weekDates.length - 1];
+      const completedRows = await fastify.db
+        .select({ date: schema.completedSessions.date })
+        .from(schema.completedSessions)
+        .where(
+          and(
+            eq(schema.completedSessions.userId, userId),
+            gte(schema.completedSessions.date, weekStart),
+            lte(schema.completedSessions.date, lastDate),
+          ),
+        );
+      const completedDates = completedRows.map((r) => r.date);
+
+      return { sessions: sessionsMap, completedDates };
     },
   );
 
@@ -303,7 +319,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       // Check admin role
       if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
-        return reply.status(403).send({ error: "Admin access required" });
+        return reply
+          .status(403)
+          .send({ error: "Acceso de administrador requerido" });
       }
 
       const { week, day, levelGroup } = request.body;
@@ -357,7 +375,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       const session = await sessionService.getSessionWithDetails(id);
       if (!session) {
-        return reply.status(404).send({ error: "Session not found" });
+        return reply.status(404).send({ error: "Sesion no encontrada" });
       }
 
       return sessionToResponse(session, formatDescriptions);
@@ -393,7 +411,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(schema.users.id, userId));
 
       if (!user) {
-        return reply.status(404).send({ error: "User not found" });
+        return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
       // Check if completion already exists for this user+dayId (upsert)

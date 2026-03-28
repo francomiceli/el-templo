@@ -131,6 +131,10 @@ export const weeklySessionsResponse = {
           oneOf: [{ type: "null" }, sessionResponseSchema],
         },
       },
+      completedDates: {
+        type: "array",
+        items: { type: "string" },
+      },
     },
   },
 };

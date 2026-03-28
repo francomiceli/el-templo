@@ -29,7 +29,7 @@
     <SessionSummary
       v-else-if="showSummary && session"
       :date="todayDate"
-      :blocks-data="blocksDataForSummary"
+      :blocks="completedBlocksForSummary"
       :days-completed-this-week="0"
       :total-days-trained="0"
       :is-submitting="isSubmitting"
@@ -213,15 +213,10 @@ const allCompletedExercises = computed<Record<string, number[]>>(() => {
 })
 
 // Summary data
-const blocksDataForSummary = computed(() => {
+const completedBlocksForSummary = computed(() => {
   if (!player.value) return []
   const roles = player.value.completedBlocks.value
-  return player.value.visibleBlocks.value
-    .filter((b) => roles.includes(b.role))
-    .map((b) => ({
-      role: b.role,
-      exercises: (b.exercises ?? []).map((ex) => ({ name: ex.exerciseName })),
-    }))
+  return player.value.visibleBlocks.value.filter((b) => roles.includes(b.role))
 })
 
 // Navigation guard

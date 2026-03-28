@@ -62,7 +62,7 @@ const userStore = useUserStore()
 
 const router = useRouter()
 const weekStore = useWeekStore()
-const { sessions, loading, error, fetchWeekSessions } = useWeekData()
+const { sessions, completedDates, loading, error, fetchWeekSessions } = useWeekData()
 
 /**
  * Load week data from API and populate store
@@ -81,15 +81,11 @@ async function loadWeekData() {
       const dayOfWeek = dateObj.getDay()
       const session = sessions.value.get(date) || null
 
-      // TODO: Get completed dates from user activity store
-      // For now, assume no days are completed
-      const completedDates: string[] = []
-
       return {
         date,
         dayName: formatDayName(date),
         dayOfWeek,
-        state: getDateState(date, completedDates),
+        state: getDateState(date, completedDates.value),
         session,
       }
     })

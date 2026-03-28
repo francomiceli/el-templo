@@ -37,7 +37,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(schema.users.id, userId));
 
       if (!user) {
-        return reply.status(404).send({ error: "User not found" });
+        return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
       // Calculate date boundaries
@@ -146,6 +146,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             notes: schema.completedSessions.notes,
             startedAt: schema.completedSessions.startedAt,
             completedAt: schema.completedSessions.completedAt,
+            blocksCompleted: schema.completedSessions.blocksCompleted,
           })
           .from(schema.completedSessions)
           .where(
@@ -203,6 +204,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
                         60000,
                     )
                   : null,
+              blocksCompleted: todaySession.blocksCompleted ?? [],
             }
           : null,
       };

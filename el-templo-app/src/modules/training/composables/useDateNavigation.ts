@@ -1,10 +1,10 @@
-import type { DayState } from '../types/session';
+import type { DayState } from '../types/session'
 
 /**
  * Spanish day names for calendar display
  * Index 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches JavaScript Date.getDay())
  */
-const SPANISH_DAYS = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+const SPANISH_DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 /**
  * Date navigation utilities for Weekly View
@@ -29,33 +29,33 @@ const SPANISH_DAYS = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Vier
  * // => ['2026-01-20', '2026-01-21', ..., '2026-01-26']
  */
 export function getWeekDates(referenceDate?: Date): string[] {
-  const date = referenceDate ? new Date(referenceDate) : new Date();
+  const date = referenceDate ? new Date(referenceDate) : new Date()
 
   // Get day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  const dayOfWeek = date.getDay();
+  const dayOfWeek = date.getDay()
 
   // Calculate days to subtract to get to Monday
   // If Sunday (0), go back 6 days; otherwise go back (dayOfWeek - 1) days
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
 
   // Get Monday of this week
-  const monday = new Date(date);
-  monday.setDate(date.getDate() - daysToMonday);
+  const monday = new Date(date)
+  monday.setDate(date.getDate() - daysToMonday)
 
   // Generate array of 7 dates starting from Monday
-  const weekDates: string[] = [];
+  const weekDates: string[] = []
   for (let i = 0; i < 7; i++) {
-    const currentDate = new Date(monday);
-    currentDate.setDate(monday.getDate() + i);
+    const currentDate = new Date(monday)
+    currentDate.setDate(monday.getDate() + i)
 
     // Format as YYYY-MM-DD
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getDate()).padStart(2, '0');
-    weekDates.push(`${year}-${month}-${day}`);
+    const year = currentDate.getFullYear()
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+    const day = String(currentDate.getDate()).padStart(2, '0')
+    weekDates.push(`${year}-${month}-${day}`)
   }
 
-  return weekDates;
+  return weekDates
 }
 
 /**
@@ -69,8 +69,8 @@ export function getWeekDates(referenceDate?: Date): string[] {
  * formatDayName(new Date(2026, 0, 26)) // => 'Lunes'
  */
 export function formatDayName(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date;
-  return SPANISH_DAYS[d.getDay()];
+  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+  return SPANISH_DAYS[d.getDay()]
 }
 
 /**
@@ -83,10 +83,10 @@ export function formatDayName(date: string | Date): string {
  * formatShortDate('2026-01-26') // => '26/01'
  */
 export function formatShortDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date;
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  return `${day}/${month}`;
+  const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  return `${day}/${month}`
 }
 
 /**
@@ -102,15 +102,15 @@ export function formatShortDate(date: string | Date): string {
  * Get today's date in YYYY-MM-DD format using local timezone
  */
 function getTodayLocal(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export function isToday(date: string): boolean {
-  return date === getTodayLocal();
+  return date === getTodayLocal()
 }
 
 /**
@@ -126,8 +126,8 @@ export function isToday(date: string): boolean {
  * isSunday('2026-01-25') // => true (Sunday)
  */
 export function isSunday(date: string): boolean {
-  const d = new Date(date + 'T00:00:00');
-  return d.getDay() === 0;
+  const d = new Date(date + 'T00:00:00')
+  return d.getDay() === 0
 }
 
 /**
@@ -152,24 +152,24 @@ export function isSunday(date: string): boolean {
 export function getDateState(date: string, completedDates: string[]): DayState {
   // Sunday is always rest day
   if (isSunday(date)) {
-    return 'rest';
+    return 'rest'
   }
 
   // Check if date is in completed dates
   if (completedDates.includes(date)) {
-    return 'completed';
+    return 'completed'
   }
 
   // Compare with today (using local timezone)
-  const today = getTodayLocal();
+  const today = getTodayLocal()
 
   if (date === today) {
-    return 'today';
+    return 'today'
   }
 
   if (date < today) {
-    return 'past';
+    return 'past'
   }
 
-  return 'future';
+  return 'future'
 }

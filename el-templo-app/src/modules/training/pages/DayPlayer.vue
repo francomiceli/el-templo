@@ -29,11 +29,12 @@
     <SessionSummary
       v-else-if="showSummary && session"
       :date="dateParam"
-      :blocks-data="blocksDataForSummary"
+      :blocks="completedBlocksForSummary"
       :days-completed-this-week="daysCompletedThisWeek"
       :total-days-trained="displayTotalDaysTrained"
       :is-submitting="isSubmitting"
       @finish="onSummaryFinish"
+      @restart="restartSession"
     />
 
     <!-- Loading State -->
@@ -115,7 +116,12 @@ const $q = useQuasar()
 const weekStore = useWeekStore()
 const userStore = useUserStore()
 const wakeLock = useWakeLock()
-const { sessions: weekSessions, loading: weekLoading, fetchWeekSessions } = useWeekData()
+const {
+  sessions: weekSessions,
+  completedDates: weekCompletedDates,
+  loading: weekLoading,
+  fetchWeekSessions,
+} = useWeekData()
 
 // Session completion composable
 const { isSubmitting, totalDaysTrained, completeSession } = useSessionCompletion()
@@ -211,15 +217,10 @@ const daysCompletedThisWeek = computed(() => {
   return todayCounted ? done : done + 1
 })
 const displayTotalDaysTrained = computed(() => totalDaysTrained.value || 1)
-const blocksDataForSummary = computed(() => {
+const completedBlocksForSummary = computed(() => {
   if (!player.value) return []
   const roles = player.value.completedBlocks.value
-  return player.value.playableBlocks.value
-    .filter((b) => roles.includes(b.role))
-    .map((b) => ({
-      role: b.role,
-      exercises: (b.exercises ?? []).map((ex) => ({ name: ex.exerciseName })),
-    }))
+  return player.value.playableBlocks.value.filter((b) => roles.includes(b.role))
 })
 
 // Navigation guard state
@@ -443,7 +444,7 @@ async function loadWeekDataIfEmpty() {
         date,
         dayName: formatDayName(date),
         dayOfWeek: new Date(date + 'T00:00:00').getDay(),
-        state: getDateState(date, []),
+        state: getDateState(date, weekCompletedDates.value),
         session: weekSessions.value.get(date) || null,
       })),
     )
@@ -460,10 +461,17 @@ watch(
     if (s && !isInitialized.value) {
       await new Promise((r) => setTimeout(r, 0))
       if (player.value) {
+        // If the day is already completed (re-entry via "Repetir Sesión"),
+        // clear any stale local progress so the session starts fresh
+        const isCompleted = weekDay.value?.state === 'completed'
+        if (isCompleted) {
+          await player.value.clearProgress()
+        }
+
         await player.value.initialize()
         if (
-          player.value.elapsedSeconds.value > 0 ||
-          player.value.completedBlocks.value.length > 0
+          !isCompleted &&
+          (player.value.elapsedSeconds.value > 0 || player.value.completedBlocks.value.length > 0)
         ) {
           splashDismissed.value = true
           player.value.startTimer()

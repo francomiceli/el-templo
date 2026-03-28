@@ -1,11 +1,5 @@
 <template>
-  <q-card
-    class="booking-status-card"
-    flat
-    bordered
-    clickable
-    @click="router.push('/reservas')"
-  >
+  <q-card class="booking-status-card" flat bordered clickable @click="router.push('/reservas')">
     <q-card-section class="booking-status-card__content">
       <div class="booking-status-card__info">
         <q-icon
@@ -18,7 +12,7 @@
             {{ hasBooking ? `Próxima clase: ${formattedTime}` : 'Reserva tu próxima clase' }}
           </p>
           <p class="booking-status-card__subtitle">
-            {{ hasBooking ? countdownText : 'Asegura tu lugar en el horario que prefieras' }}
+            {{ hasBooking ? countdownText : 'Asegurá tu lugar en el horario que prefieras' }}
           </p>
         </div>
       </div>

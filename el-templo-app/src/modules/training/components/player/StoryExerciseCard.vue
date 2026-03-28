@@ -5,13 +5,13 @@
       <!-- All exercises completed — prompt to advance -->
       <div v-if="allExercisesCompleted && !readOnly" class="story-card__block-done">
         <q-icon name="check_circle" size="48px" color="positive" class="q-mb-md" />
-        <div class="story-card__block-done-title">Bloque completo</div>
-        <div class="story-card__block-done-subtitle">Listo para pasar al siguiente?</div>
+        <div class="story-card__block-done-title">{{ blockDoneTitle }}</div>
+        <div class="story-card__block-done-subtitle">{{ blockDoneSubtitle }}</div>
         <div class="story-card__block-done-actions">
           <q-btn
             unelevated
             color="primary"
-            label="Siguiente bloque"
+            :label="blockDoneButtonLabel"
             class="story-card__block-done-btn"
             @click="emit('complete-block')"
           />
@@ -99,6 +99,24 @@ const activeContraction = computed(() => {
     return props.mobilityExercise.contraction
   }
   return props.exercise?.contraction ?? ''
+})
+
+const isLastBlock = computed(() => {
+  return props.blockRole === 'ATHLOS' || props.blockRole === 'EPIKOS'
+})
+
+const blockDoneTitle = computed(() => {
+  return isLastBlock.value ? 'Sesión completa' : 'Bloque completo'
+})
+
+const blockDoneSubtitle = computed(() => {
+  return isLastBlock.value
+    ? 'Hacé una elongación final antes de terminar'
+    : 'Listo para pasar al siguiente?'
+})
+
+const blockDoneButtonLabel = computed(() => {
+  return isLastBlock.value ? 'Ver resumen de sesión' : 'Siguiente bloque'
 })
 </script>
 

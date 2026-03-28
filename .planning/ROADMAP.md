@@ -1767,20 +1767,41 @@ Plans:
 
 ---
 
+### Phase 87: Localization — Spain vs Argentina Copywriting
+
+**Goal**: Introduce a localization layer so UI text adapts to the user's region (voseo/tuteo, vocabulary differences). Argentina users see voseo ("mirá", "asegurá", "elegí"), Spain users see tuteo ("mira", "asegura", "elige"). Covers all user-facing strings in the member app.
+**Depends on**: None (can run in parallel with other phases)
+**Requirements**: L10N-01, L10N-02, L10N-03, L10N-04
+**Plans:** TBD
+
+**Success Criteria** (what must be TRUE):
+
+1. A locale/region setting exists per user (defaulting to Argentina for existing users)
+2. All user-facing strings in el-templo-app go through a localization layer (vue-i18n or lightweight equivalent)
+3. Argentina locale uses voseo conjugation and rioplatense vocabulary throughout
+4. Spain locale uses tuteo conjugation and peninsular vocabulary throughout
+5. Admin app is unaffected (internal tool, single locale)
+6. New strings added by future features automatically require both locale variants
+
+---
+
 ## v4.4 Progress
 
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                 | Plans Complete | Status      | Completed  |
-| ------------------------------------- | -------------- | ----------- | ---------- |
-| 78. Onboarding & User Profiling       | 2/3            | In Progress |            |
-| 79. Behavioral Segmentation           | —              | Planned     | —          |
-| 80. "Tu Día" Daily Game Plan          | 2/3            | In Progress |            |
-| 81. Streaks & Engagement Mechanics    | 1/2            | In Progress |            |
-| 82. Progressive Profiling & Check-ins | 2/3            | In Progress |            |
-| 83. Micro-Program Upsells             | 4/5            | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation     | 6/7            | Complete    | 2026-03-26 |
+| Phase                                  | Plans Complete | Status      | Completed  |
+| -------------------------------------- | -------------- | ----------- | ---------- |
+| 78. Onboarding & User Profiling        | 2/3            | In Progress |            |
+| 79. Behavioral Segmentation            | —              | Planned     | —          |
+| 80. "Tu Día" Daily Game Plan           | 2/3            | In Progress |            |
+| 81. Streaks & Engagement Mechanics     | 1/2            | In Progress |            |
+| 82. Progressive Profiling & Check-ins  | 2/3            | In Progress |            |
+| 83. Micro-Program Upsells              | 4/5            | Complete    | 2026-03-25 |
+| 84. Push Notifications Foundation      | 6/7            | Complete    | 2026-03-26 |
+| 85. Guía — Exercise & Mobility Library | —              | Planned     | —          |
+| 86. QR Promo — Free Month Campaign     | 6/6            | Complete    | 2026-03-28 |
+| 87. Localization — ES-AR vs ES-ES      | —              | Planned     | —          |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 

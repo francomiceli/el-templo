@@ -14,6 +14,7 @@ const log = createLogger('WeekData')
 
 interface UseWeekDataReturn {
   sessions: Ref<Map<string, Session | null>>
+  completedDates: Ref<string[]>
   loading: Ref<boolean>
   error: Ref<string | null>
   fetchWeekSessions: (dates: string[]) => Promise<void>
@@ -21,6 +22,7 @@ interface UseWeekDataReturn {
 
 interface WeeklyResponse {
   sessions: Record<string, Session | null>
+  completedDates?: string[]
 }
 
 /**
@@ -39,6 +41,7 @@ interface WeeklyResponse {
  */
 export function useWeekData(): UseWeekDataReturn {
   const sessions = ref(new Map<string, Session | null>())
+  const completedDates = ref<string[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
@@ -67,6 +70,7 @@ export function useWeekData(): UseWeekDataReturn {
       }
 
       sessions.value = newSessions
+      completedDates.value = response.data.completedDates ?? []
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando semana')
       log.error('Failed to fetch week sessions', {
@@ -79,6 +83,7 @@ export function useWeekData(): UseWeekDataReturn {
 
   return {
     sessions,
+    completedDates,
     loading,
     error,
     fetchWeekSessions,

@@ -43,6 +43,7 @@ export const progressionStatsResponseSchema = {
         rpe: { type: ["number", "null"] },
         notes: { type: ["string", "null"] },
         durationMinutes: { type: ["number", "null"] },
+        blocksCompleted: { type: "array", items: { type: "string" } },
       },
     },
   },

@@ -36,6 +36,7 @@ export interface TodaySession {
   rpe: number | null
   notes: string | null
   durationMinutes: number | null
+  blocksCompleted: string[]
 }
 
 export interface ProgressionResponse {
