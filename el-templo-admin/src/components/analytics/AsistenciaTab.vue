@@ -67,8 +67,8 @@
         <!-- Legend -->
         <div class="row items-center q-mt-sm q-gutter-sm text-caption text-grey-7">
           <span>Ocupacion:</span>
-          <span class="heatmap-legend" style="background-color: #5a9a6b">&lt;50%</span>
-          <span class="heatmap-legend" style="background-color: #d4a843">50-70%</span>
+          <span class="heatmap-legend" style="background-color: #3b7249">&lt;50%</span>
+          <span class="heatmap-legend" style="background-color: #7d6520">50-70%</span>
           <span class="heatmap-legend" style="background-color: #e08a3a">70-90%</span>
           <span class="heatmap-legend" style="background-color: #b34a4a">&gt;90%</span>
         </div>
@@ -220,8 +220,8 @@ function heatmapCellColor(hour: number, day: number): string {
   if (occ === null) return '#f5f5f5';
   if (occ > 90) return '#b34a4a';
   if (occ > 70) return '#e08a3a';
-  if (occ > 50) return '#d4a843';
-  return '#5a9a6b';
+  if (occ > 50) return '#7d6520';
+  return '#3b7249';
 }
 
 function heatmapCellValue(hour: number, day: number): string {

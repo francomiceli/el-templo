@@ -4,13 +4,13 @@
  */
 
 export const COLORS = {
-  primary: '#c07a56',
-  secondary: '#b89b5e',
-  positive: '#5a9a6b',
+  primary: '#96593a',
+  secondary: '#7d5d42',
+  positive: '#3b7249',
   negative: '#b34a4a',
-  warning: '#d4a843',
+  warning: '#7d6520',
   accent: '#3d3732',
-  info: '#8a8472',
+  info: '#6b6459',
 } as const;
 
 export const chartColors = [
