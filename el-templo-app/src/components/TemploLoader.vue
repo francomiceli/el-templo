@@ -1,7 +1,6 @@
 <template>
   <div class="templo-loader" :class="`templo-loader--${size}`">
-    <div class="templo-loader__ring"></div>
-    <img src="/icons/favicon-128x128.png" alt="" class="templo-loader__icon" />
+    <div class="templo-loader__spinner"></div>
   </div>
 </template>
 
@@ -17,90 +16,44 @@ withDefaults(
 <style lang="scss" scoped>
 @import 'src/css/quasar.variables.scss';
 
-@keyframes breathe {
+@keyframes spin {
   0% {
-    transform: scale(0.7);
-    opacity: 0.2;
-  }
-  50% {
-    transform: scale(1);
-    opacity: 0.4;
+    transform: rotate(0deg);
   }
   100% {
-    transform: scale(0.7);
-    opacity: 0.2;
+    transform: rotate(360deg);
   }
 }
 
 .templo-loader {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.templo-loader__ring {
-  position: absolute;
+.templo-loader__spinner {
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba($primary, 0.15) 0%,
-    rgba($secondary, 0.1) 50%,
-    transparent 70%
-  );
-  animation: breathe 2.4s ease-in-out infinite;
+  border-style: solid;
+  border-color: rgba($primary, 0.15);
+  border-top-color: $primary;
+  animation: spin 0.9s linear infinite;
 }
 
-.templo-loader__icon {
-  position: relative;
-  opacity: 0.5;
+.templo-loader--sm .templo-loader__spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
 }
 
-// --- sm ---
-.templo-loader--sm {
-  width: 60px;
-  height: 60px;
-
-  .templo-loader__ring {
-    width: 60px;
-    height: 60px;
-  }
-
-  .templo-loader__icon {
-    width: 38px;
-    height: 38px;
-  }
+.templo-loader--md .templo-loader__spinner {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
 }
 
-// --- md ---
-.templo-loader--md {
-  width: 90px;
-  height: 90px;
-
-  .templo-loader__ring {
-    width: 90px;
-    height: 90px;
-  }
-
-  .templo-loader__icon {
-    width: 60px;
-    height: 60px;
-  }
-}
-
-// --- lg ---
-.templo-loader--lg {
-  width: 135px;
-  height: 135px;
-
-  .templo-loader__ring {
-    width: 135px;
-    height: 135px;
-  }
-
-  .templo-loader__icon {
-    width: 90px;
-    height: 90px;
-  }
+.templo-loader--lg .templo-loader__spinner {
+  width: 56px;
+  height: 56px;
+  border-width: 4px;
 }
 </style>
