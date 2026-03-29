@@ -1,31 +1,32 @@
-import { defineStore } from 'pinia';
-import { ref } from 'vue';
-import { Preferences } from '@capacitor/preferences';
-import { createLogger } from 'src/utils/logger';
-import type { BlockRole } from '../types/session';
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { Preferences } from '@capacitor/preferences'
+import { createLogger } from 'src/utils/logger'
+import { useAuthStore } from 'src/stores/useAuthStore'
+import type { BlockRole } from '../types/session'
 
-const log = createLogger('SessionPlayerStore');
+const log = createLogger('SessionPlayerStore')
 
 /**
  * Session progress state persisted per dayId
  */
 export interface SessionProgress {
   /** Current block index in the playable blocks array (0-3 for 4 blocks) */
-  currentBlockIndex: number;
+  currentBlockIndex: number
   /** Array of block roles that have been completed */
-  completedBlocks: BlockRole[];
+  completedBlocks: BlockRole[]
   /** User's choice between DEUTEROS_1 and DEUTEROS_2 (null until chosen) */
-  deuterosChoice: 'DEUTEROS_1' | 'DEUTEROS_2' | null;
+  deuterosChoice: 'DEUTEROS_1' | 'DEUTEROS_2' | null
   /** Accumulated elapsed seconds (from previous start/pause cycles) */
-  elapsedSeconds: number;
+  elapsedSeconds: number
   /** Timestamp (Date.now()) when the session timer was last started, null if paused */
-  sessionTimerStartedAt: number | null;
+  sessionTimerStartedAt: number | null
   /** Per-exercise completion tracking. Key: block role, Value: array of prescription IDs completed */
-  completedExercises: Record<string, number[]>;
+  completedExercises: Record<string, number[]>
 }
 
-/** Storage key prefix for session progress */
-const STORAGE_PREFIX = 'session_progress_';
+/** Storage key prefix for session progress (scoped by userId) */
+const STORAGE_PREFIX = 'session_progress_'
 
 /**
  * Pinia store for Session Player state management
@@ -37,8 +38,16 @@ const STORAGE_PREFIX = 'session_progress_';
  * Uses Composition API pattern for consistency with weekStore.
  */
 export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
+  const authStore = useAuthStore()
+
+  /** Build user-scoped storage key */
+  function storageKey(dayId: string): string {
+    const userId = authStore.user?.id ?? 0
+    return `${STORAGE_PREFIX}${userId}_${dayId}`
+  }
+
   // In-memory cache for quick access to loaded progress
-  const progressCache = ref<Map<string, SessionProgress>>(new Map());
+  const progressCache = ref<Map<string, SessionProgress>>(new Map())
 
   /**
    * Create a fresh progress state with defaults
@@ -51,7 +60,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
       elapsedSeconds: 0,
       sessionTimerStartedAt: null,
       completedExercises: {},
-    };
+    }
   }
 
   /**
@@ -62,33 +71,33 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    */
   async function loadProgress(dayId: string): Promise<SessionProgress> {
     // Check cache first
-    const cached = progressCache.value.get(dayId);
+    const cached = progressCache.value.get(dayId)
     if (cached) {
-      return cached;
+      return cached
     }
 
     // Load from persistent storage
-    const { value } = await Preferences.get({ key: `${STORAGE_PREFIX}${dayId}` });
+    const { value } = await Preferences.get({ key: storageKey(dayId) })
 
     if (value) {
       try {
-        const progress = JSON.parse(value) as SessionProgress;
+        const progress = JSON.parse(value) as SessionProgress
         // Backward compatibility: if old format without completedExercises, default to {}
         if (!progress.completedExercises) {
-          progress.completedExercises = {};
+          progress.completedExercises = {}
         }
-        progressCache.value.set(dayId, progress);
-        return progress;
+        progressCache.value.set(dayId, progress)
+        return progress
       } catch {
         // Invalid JSON, return defaults
-        log.warn('Invalid session progress data, using defaults', { dayId });
+        log.warn('Invalid session progress data, using defaults', { dayId })
       }
     }
 
     // Return defaults for new sessions
-    const defaultProgress = createDefaultProgress();
-    progressCache.value.set(dayId, defaultProgress);
-    return defaultProgress;
+    const defaultProgress = createDefaultProgress()
+    progressCache.value.set(dayId, defaultProgress)
+    return defaultProgress
   }
 
   /**
@@ -97,27 +106,24 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param dayId - Session identifier
    * @param data - Partial progress data to merge with existing
    */
-  async function saveProgress(
-    dayId: string,
-    data: Partial<SessionProgress>
-  ): Promise<void> {
+  async function saveProgress(dayId: string, data: Partial<SessionProgress>): Promise<void> {
     // Get current progress (from cache or storage)
-    const current = await loadProgress(dayId);
+    const current = await loadProgress(dayId)
 
     // Merge with new data
     const updated: SessionProgress = {
       ...current,
       ...data,
-    };
+    }
 
     // Update cache
-    progressCache.value.set(dayId, updated);
+    progressCache.value.set(dayId, updated)
 
     // Persist to storage
     await Preferences.set({
-      key: `${STORAGE_PREFIX}${dayId}`,
+      key: storageKey(dayId),
       value: JSON.stringify(updated),
-    });
+    })
   }
 
   /**
@@ -127,10 +133,10 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    */
   async function clearProgress(dayId: string): Promise<void> {
     // Remove from cache
-    progressCache.value.delete(dayId);
+    progressCache.value.delete(dayId)
 
     // Remove from persistent storage
-    await Preferences.remove({ key: `${STORAGE_PREFIX}${dayId}` });
+    await Preferences.remove({ key: storageKey(dayId) })
   }
 
   // Convenience getters
@@ -142,8 +148,8 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @returns Current block index (0-3)
    */
   async function getCurrentBlockIndex(dayId: string): Promise<number> {
-    const progress = await loadProgress(dayId);
-    return progress.currentBlockIndex;
+    const progress = await loadProgress(dayId)
+    return progress.currentBlockIndex
   }
 
   /**
@@ -153,8 +159,8 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @returns Array of completed block roles
    */
   async function getCompletedBlocks(dayId: string): Promise<BlockRole[]> {
-    const progress = await loadProgress(dayId);
-    return progress.completedBlocks;
+    const progress = await loadProgress(dayId)
+    return progress.completedBlocks
   }
 
   /**
@@ -163,11 +169,9 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param dayId - Session identifier
    * @returns The chosen Deuteros block or null if not yet chosen
    */
-  async function getDeuterosChoice(
-    dayId: string
-  ): Promise<'DEUTEROS_1' | 'DEUTEROS_2' | null> {
-    const progress = await loadProgress(dayId);
-    return progress.deuterosChoice;
+  async function getDeuterosChoice(dayId: string): Promise<'DEUTEROS_1' | 'DEUTEROS_2' | null> {
+    const progress = await loadProgress(dayId)
+    return progress.deuterosChoice
   }
 
   /**
@@ -177,8 +181,8 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @returns Total elapsed seconds
    */
   async function getElapsedSeconds(dayId: string): Promise<number> {
-    const progress = await loadProgress(dayId);
-    return progress.elapsedSeconds;
+    const progress = await loadProgress(dayId)
+    return progress.elapsedSeconds
   }
 
   // Convenience setters
@@ -190,7 +194,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param index - Block index to save
    */
   async function saveCurrentBlockIndex(dayId: string, index: number): Promise<void> {
-    await saveProgress(dayId, { currentBlockIndex: index });
+    await saveProgress(dayId, { currentBlockIndex: index })
   }
 
   /**
@@ -200,11 +204,11 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param block - Block role that was completed
    */
   async function saveCompletedBlock(dayId: string, block: BlockRole): Promise<void> {
-    const progress = await loadProgress(dayId);
+    const progress = await loadProgress(dayId)
     if (!progress.completedBlocks.includes(block)) {
       await saveProgress(dayId, {
         completedBlocks: [...progress.completedBlocks, block],
-      });
+      })
     }
   }
 
@@ -216,9 +220,9 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    */
   async function saveDeuterosChoice(
     dayId: string,
-    choice: 'DEUTEROS_1' | 'DEUTEROS_2'
+    choice: 'DEUTEROS_1' | 'DEUTEROS_2',
   ): Promise<void> {
-    await saveProgress(dayId, { deuterosChoice: choice });
+    await saveProgress(dayId, { deuterosChoice: choice })
   }
 
   /**
@@ -228,7 +232,7 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param seconds - Total elapsed seconds
    */
   async function saveElapsedSeconds(dayId: string, seconds: number): Promise<void> {
-    await saveProgress(dayId, { elapsedSeconds: seconds });
+    await saveProgress(dayId, { elapsedSeconds: seconds })
   }
 
   /**
@@ -241,17 +245,17 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
   async function saveCompletedExercise(
     dayId: string,
     blockRole: string,
-    prescriptionId: number
+    prescriptionId: number,
   ): Promise<void> {
-    const progress = await loadProgress(dayId);
-    const current = progress.completedExercises[blockRole] ?? [];
+    const progress = await loadProgress(dayId)
+    const current = progress.completedExercises[blockRole] ?? []
     if (!current.includes(prescriptionId)) {
       await saveProgress(dayId, {
         completedExercises: {
           ...progress.completedExercises,
           [blockRole]: [...current, prescriptionId],
         },
-      });
+      })
     }
   }
 
@@ -265,16 +269,16 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
   async function removeCompletedExercise(
     dayId: string,
     blockRole: string,
-    prescriptionId: number
+    prescriptionId: number,
   ): Promise<void> {
-    const progress = await loadProgress(dayId);
-    const current = progress.completedExercises[blockRole] ?? [];
+    const progress = await loadProgress(dayId)
+    const current = progress.completedExercises[blockRole] ?? []
     await saveProgress(dayId, {
       completedExercises: {
         ...progress.completedExercises,
-        [blockRole]: current.filter(id => id !== prescriptionId),
+        [blockRole]: current.filter((id) => id !== prescriptionId),
       },
-    });
+    })
   }
 
   /**
@@ -284,19 +288,16 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
    * @param blockRole - Block role identifier
    * @returns Array of completed prescription IDs
    */
-  async function getCompletedExercises(
-    dayId: string,
-    blockRole: string
-  ): Promise<number[]> {
-    const progress = await loadProgress(dayId);
-    return progress.completedExercises[blockRole] ?? [];
+  async function getCompletedExercises(dayId: string, blockRole: string): Promise<number[]> {
+    const progress = await loadProgress(dayId)
+    return progress.completedExercises[blockRole] ?? []
   }
 
   /**
    * Reset store state (for testing or logout)
    */
   function reset(): void {
-    progressCache.value.clear();
+    progressCache.value.clear()
   }
 
   return {
@@ -325,5 +326,5 @@ export const useSessionPlayerStore = defineStore('sessionPlayer', () => {
 
     // Utilities
     reset,
-  };
-});
+  }
+})

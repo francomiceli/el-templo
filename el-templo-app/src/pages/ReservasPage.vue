@@ -226,6 +226,11 @@
         </div>
       </div>
 
+      <p class="reservas-v2__policy">
+        Podés reservar hasta 5 minutos antes del inicio de la clase. Las cancelaciones deben hacerse
+        con al menos 20 minutos de anticipación.
+      </p>
+
       <!-- Week activity summary (collapsible) -->
       <q-expansion-item
         class="week-summary q-mt-md"
@@ -1088,6 +1093,14 @@ onBeforeUnmount(() => cleanup())
   color: $grey-6;
   font-size: 14px;
   gap: 8px;
+}
+
+.reservas-v2__policy {
+  font-size: 12px;
+  color: $grey-6;
+  text-align: center;
+  margin: 16px 0 0;
+  line-height: 1.5;
 }
 
 .slot-card {
