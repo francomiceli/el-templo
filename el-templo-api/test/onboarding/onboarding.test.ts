@@ -83,7 +83,7 @@ describe("Onboarding Routes", () => {
       });
       expect(second.statusCode).toBe(409);
       const body = JSON.parse(second.body);
-      expect(body.message).toBe("Onboarding already completed");
+      expect(body.message).toBe("El onboarding ya fue completado");
     });
 
     it("returns 400 for invalid enum value", async () => {

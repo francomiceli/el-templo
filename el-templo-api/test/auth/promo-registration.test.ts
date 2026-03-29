@@ -54,8 +54,7 @@ describe("Promo Registration Flow", () => {
       planDurationDays: 30,
       subscriptionPlanId: promoSubPlanId,
       startDate: overrides.startDate ?? new Date(now.getTime() - 86400000), // yesterday
-      expiryDate:
-        overrides.expiryDate ?? new Date(now.getTime() + 86400000), // tomorrow
+      expiryDate: overrides.expiryDate ?? new Date(now.getTime() + 86400000), // tomorrow
       promoType: "qr_auto" as const,
       isActive: overrides.isActive ?? true,
     };
@@ -194,6 +193,6 @@ describe("Promo Registration Flow", () => {
 
     expect(res.statusCode).toBe(409);
     const body = JSON.parse(res.body);
-    expect(body.message).toContain("already registered");
+    expect(body.message).toContain("El email ya esta registrado");
   });
 });

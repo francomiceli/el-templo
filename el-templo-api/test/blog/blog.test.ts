@@ -355,7 +355,7 @@ describe("Blog Routes", () => {
       if (res.statusCode === 503) {
         // R2 not configured in test environment
         const body = JSON.parse(res.body);
-        expect(body.error).toBe("Image storage not configured");
+        expect(body.error).toBe("Almacenamiento de imagenes no configurado");
       } else {
         // R2 is configured — should return upload URL
         expect(res.statusCode).toBe(200);

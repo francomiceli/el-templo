@@ -1002,7 +1002,7 @@ describe("Members Management Routes", () => {
 
       expect(res.statusCode).toBe(503);
       const body = JSON.parse(res.body);
-      expect(body.message).toBe("Image storage not configured");
+      expect(body.message).toBe("Almacenamiento de imagenes no configurado");
     });
 
     it("returns photoUrl field in member profile (null by default)", async () => {

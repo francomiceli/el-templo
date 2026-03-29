@@ -109,7 +109,7 @@ describe("Auth Routes", () => {
 
       expect(res.statusCode).toBe(409);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("already registered");
+      expect(body.message).toContain("El email ya esta registrado");
     });
 
     it("returns 400 for invalid branch ID", async () => {
@@ -129,7 +129,7 @@ describe("Auth Routes", () => {
 
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("Invalid branch");
+      expect(body.message).toContain("Sucursal invalida");
     });
 
     it("returns 400 when DNI is missing", async () => {
@@ -201,7 +201,7 @@ describe("Auth Routes", () => {
 
       expect(res.statusCode).toBe(409);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("DNI already registered");
+      expect(body.message).toContain("El DNI ya esta registrado");
     });
   });
 
@@ -246,7 +246,7 @@ describe("Auth Routes", () => {
 
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("Invalid credentials");
+      expect(body.message).toContain("Credenciales invalidas");
     });
 
     it("returns 401 for nonexistent email", async () => {
@@ -261,7 +261,7 @@ describe("Auth Routes", () => {
 
       expect(res.statusCode).toBe(401);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("Invalid credentials");
+      expect(body.message).toContain("Credenciales invalidas");
     });
   });
 
