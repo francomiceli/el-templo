@@ -454,11 +454,33 @@ const visibleDays = computed<DayOfWeek[]>(() => {
 })
 
 const weekLabel = computed(() => {
+  const monthNames = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ]
   const start = weekStart.value
   const end = new Date(start)
   end.setDate(end.getDate() + (visibleDays.value.includes(6 as DayOfWeek) ? 5 : 4))
-  const fmt = (d: Date) => `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
-  return `${fmt(start)} - ${fmt(end)}`
+
+  const firstDay = start.getDate()
+  const firstMonth = monthNames[start.getMonth()]
+  const lastDay = end.getDate()
+  const lastMonth = monthNames[end.getMonth()]
+
+  if (firstMonth === lastMonth) {
+    return `${firstDay} al ${lastDay} de ${firstMonth}`
+  }
+  return `${firstDay} de ${firstMonth} al ${lastDay} de ${lastMonth}`
 })
 
 /** Lookup maps */
@@ -962,9 +984,11 @@ onBeforeUnmount(() => cleanup())
 
 .day-strip__week-label {
   font-family: 'Montserrat', sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: $primary;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .day-strip__days {
@@ -1221,6 +1245,19 @@ onBeforeUnmount(() => cleanup())
 }
 
 .week-summary__list {
-  background: white;
+  background: transparent;
+  padding: 4px 8px;
+
+  :deep(.q-item) {
+    padding: 10px 8px;
+  }
+
+  :deep(.q-item__label) {
+    color: rgba($primary, 0.8);
+  }
+
+  :deep(.q-item__label--caption) {
+    color: $grey-7;
+  }
 }
 </style>

@@ -149,9 +149,9 @@ const weekRangeLabel = computed(() => {
   const lastMonth = monthNames[lastDate.getMonth()]
 
   if (firstMonth === lastMonth) {
-    return `Semana del ${firstDay} al ${lastDay} de ${firstMonth}`
+    return `${firstDay} al ${lastDay} de ${firstMonth}`
   }
-  return `Semana del ${firstDay} de ${firstMonth} al ${lastDay} de ${lastMonth}`
+  return `${firstDay} de ${firstMonth} al ${lastDay} de ${lastMonth}`
 })
 
 /**
