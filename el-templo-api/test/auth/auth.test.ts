@@ -76,7 +76,7 @@ describe("Auth Routes", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 409 when registering a duplicate email", async () => {
+    it("auto-logs in when registering a duplicate email", async () => {
       // First registration
       await app.inject({
         method: "POST",
@@ -107,9 +107,62 @@ describe("Auth Routes", () => {
         },
       });
 
-      expect(res.statusCode).toBe(409);
+      expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("El email ya esta registrado");
+      expect(body.existingAccount).toBe(true);
+      expect(body.token).toBeDefined();
+    });
+
+    it("auto-logs in duplicate email and updates password", async () => {
+      // Register first
+      await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: "pwdupdate@test.com",
+          password: "oldpassword",
+          branchId: 1,
+          firstName: "Pwd",
+          lastName: "Update",
+          dni: "AUTH-PWDUPD-001",
+          phone: "+5491100000099",
+        },
+      });
+
+      // Register again with different password
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: "pwdupdate@test.com",
+          password: "newpassword",
+          branchId: 1,
+          firstName: "Pwd",
+          lastName: "Update",
+          dni: "AUTH-PWDUPD-002",
+          phone: "+5491100000098",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.existingAccount).toBe(true);
+
+      // Verify new password works for login
+      const loginRes = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: { email: "pwdupdate@test.com", password: "newpassword" },
+      });
+      expect(loginRes.statusCode).toBe(200);
+
+      // Verify old password no longer works
+      const oldLoginRes = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: { email: "pwdupdate@test.com", password: "oldpassword" },
+      });
+      expect(oldLoginRes.statusCode).toBe(401);
     });
 
     it("returns 400 for invalid branch ID", async () => {
@@ -166,7 +219,7 @@ describe("Auth Routes", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("returns 409 when registering a duplicate DNI", async () => {
+    it("auto-logs in when registering a duplicate DNI", async () => {
       const sharedDni = "AUTH-DUPDNI-001";
 
       // First registration
@@ -199,9 +252,10 @@ describe("Auth Routes", () => {
         },
       });
 
-      expect(res.statusCode).toBe(409);
+      expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("El DNI ya esta registrado");
+      expect(body.existingAccount).toBe(true);
+      expect(body.token).toBeDefined();
     });
   });
 
