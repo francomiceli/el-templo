@@ -42,6 +42,14 @@
       <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
       <ProgramCtaCard v-else-if="showProgramCta" :segment="userStore.segment" />
 
+      <!-- Weekly Summary -->
+      <WeeklySummaryCard
+        :loading="progressionStore.weeklySummaryLoading"
+        :error="progressionStore.weeklySummaryError"
+        :summary="progressionStore.weeklySummary"
+        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+      />
+
       <!-- Tu Dia Cards — ordered by segment -->
       <template v-for="card in cardOrder" :key="card">
         <template v-if="card === 'session'">
@@ -65,20 +73,15 @@
       <!-- Upsell Badge for online/promo users (per D-18) -->
       <UpsellBadge v-if="showUpsellBadge" />
 
-      <!-- Weekly Summary -->
-      <WeeklySummaryCard
-        :loading="progressionStore.weeklySummaryLoading"
-        :error="progressionStore.weeklySummaryError"
-        :summary="progressionStore.weeklySummary"
-        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
-      />
-
       <!-- Existing stats, RPE trend, and evaluation sections -->
       <GeneralContent
         :rpe-trend="progressionStore.rpeTrend"
         :evaluation="progressionStore.evaluation"
         @request-evaluation="handleRequestEvaluation"
       />
+
+      <!-- Daily quote — scroll closure -->
+      <DailyQuote />
     </div>
   </q-page>
 </template>
@@ -93,6 +96,7 @@
  */
 import { computed, ref, onMounted } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
+import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useCheckInApi } from '../composables/useCheckInApi'

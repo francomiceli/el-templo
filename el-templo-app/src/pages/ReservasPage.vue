@@ -8,9 +8,9 @@
     <!-- Online user empty state -->
     <div v-else-if="isOnlineUser" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
-      <h2 class="reservas__empty-title">Activa Tu Plan</h2>
+      <h2 class="reservas__empty-title">Activá Tu Plan</h2>
       <p class="reservas__empty-text">
-        Visita una de nuestras sedes para reservar tus clases presenciales
+        Visitá una de nuestras sedes para reservar tus clases presenciales
       </p>
     </div>
 

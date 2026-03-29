@@ -17,7 +17,7 @@
       indicator-color="primary"
     >
       <q-tab name="planes" label="Planes de Suscripcion" />
-      <q-tab name="experiencias" label="Experiencias a Medida" />
+      <q-tab name="experiencias" label="Planes Personalizados" />
       <q-tab name="promos" label="Promos" />
     </q-tabs>
 
@@ -118,7 +118,7 @@
       <q-tab-panel name="experiencias">
         <!-- Header -->
         <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Experiencias a Medida</div>
+          <div class="text-h6 col">Planes Personalizados</div>
           <q-btn
             icon="add"
             label="Nuevo Programa"
@@ -253,7 +253,11 @@
             <q-td :props="props">
               <q-btn
                 v-if="props.row.isActive"
-                flat dense round icon="block" color="negative"
+                flat
+                dense
+                round
+                icon="block"
+                color="negative"
                 @click="confirmDeactivatePromo(props.row)"
               >
                 <q-tooltip>Desactivar</q-tooltip>

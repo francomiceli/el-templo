@@ -9,7 +9,7 @@
     <div v-else-if="!hasActiveSubscription" class="training-index__blocked">
       <div class="training-index__blocked-content">
         <q-icon name="fitness_center" size="64px" class="training-index__blocked-icon" />
-        <h2 class="training-index__blocked-title">Activa Tu Plan</h2>
+        <h2 class="training-index__blocked-title">Activá Tu Plan</h2>
         <p class="training-index__blocked-text">
           Consulta en recepcion para elegir tu plan y comenzar a entrenar
         </p>

@@ -33,11 +33,11 @@
       </q-card>
     </div>
 
-    <!-- Experiencias a Medida Section (per D-18) — shown first -->
+    <!-- Planes Personalizados Section (per D-18) — shown first -->
     <div v-if="experiencias.length > 0">
-      <p class="planes-section-title">Experiencias a Medida</p>
+      <p class="planes-section-title">Planes Personalizados</p>
       <div class="text-body2 text-grey-7 q-mb-md">
-        Programas personalizados que se suman a tu plan regular para potenciar tu entrenamiento.
+        Planes diseñados a tu medida para potenciar tu entrenamiento.
       </div>
       <div class="row q-col-gutter-md">
         <div v-for="exp in experiencias" :key="exp.id" class="col-12 col-sm-6">
@@ -47,7 +47,7 @@
                 <div class="planes-card-name">
                   {{ exp.name }}
                 </div>
-                <q-badge color="amber-8" label="EXCLUSIVO" />
+                <q-badge color="amber-8" label="PERSONALIZADO" />
               </div>
               <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" class="q-mb-sm" />
               <div v-if="exp.description" class="text-body2 text-grey-7 q-mb-sm">
@@ -69,7 +69,7 @@
                 flat
                 no-caps
                 color="positive"
-                label="Escribinos"
+                label="Más info"
                 @click="openExperienciaWhatsApp(exp)"
               >
                 <template #prepend>
@@ -339,7 +339,7 @@ function openWhatsApp(plan: MemberPlan): void {
 }
 
 function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
-  const message = `Hola, me interesa la experiencia "${exp.name}"`
+  const message = `Hola, me interesa el plan personalizado "${exp.name}"`
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
@@ -356,7 +356,7 @@ onMounted(async () => {
     loading.value = false
   }
 
-  // Fetch Experiencias a Medida catalog
+  // Fetch Planes Personalizados catalog
   try {
     const catalog = await getCatalog()
     experiencias.value = catalog
