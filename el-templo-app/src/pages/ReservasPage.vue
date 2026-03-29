@@ -891,9 +891,9 @@ onBeforeUnmount(() => cleanup())
   align-items: center;
   justify-content: center;
   font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba($primary, 0.6);
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0 0 12px;

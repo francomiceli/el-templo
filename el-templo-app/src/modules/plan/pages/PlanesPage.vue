@@ -37,7 +37,7 @@
     <!-- Planes Personalizados -->
     <div v-if="experiencias.length > 0" class="q-mb-lg">
       <p class="planes-section-title">Planes Personalizados</p>
-      <div class="text-body2 text-grey-7 q-mb-md">
+      <div class="text-body2 text-grey-7 q-mb-md" style="padding-left: 4px">
         Planes diseñados a tu medida para potenciar tu entrenamiento.
       </div>
       <div
@@ -271,9 +271,9 @@ onMounted(async () => {
 
 .planes-section-title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba($primary, 0.6);
+  font-size: 15px;
+  font-weight: 700;
+  color: $primary;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 12px;
