@@ -1,24 +1,22 @@
 <template>
-  <q-page class="reservas-page" padding>
-    <!-- Loading overlay -->
-    <div v-if="loading" class="loading-container">
+  <q-page class="reservas-v2" padding>
+    <!-- Loading -->
+    <div v-if="loading" class="reservas-v2__loading">
       <q-spinner-dots size="50px" color="primary" />
     </div>
 
-    <!-- Online user empty state (per D-15) -->
-    <div v-else-if="isOnlineUser" class="reservas-empty-state">
-      <div class="reservas-empty-state__content">
-        <q-icon name="event_available" size="64px" color="grey-5" />
-        <h2 class="reservas-empty-state__title">Activa Tu Plan</h2>
-        <p class="reservas-empty-state__text">
-          Visita una de nuestras sedes para reservar tus clases presenciales
-        </p>
-      </div>
+    <!-- Online user empty state -->
+    <div v-else-if="isOnlineUser" class="reservas-v2__empty">
+      <q-icon name="event_available" size="64px" color="grey-5" />
+      <h2 class="reservas-v2__empty-title">Activa Tu Plan</h2>
+      <p class="reservas-v2__empty-text">
+        Visita una de nuestras sedes para reservar tus clases presenciales
+      </p>
     </div>
 
     <template v-else>
-      <!-- Branch selector (multi-branch) or label (single branch) -->
-      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-sm">
+      <!-- Branch selector -->
+      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-md">
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -38,142 +36,221 @@
         {{ userStore.branchDisplayName }}
       </p>
 
-      <!-- Section 1: My Week (past attendance + future bookings) -->
-      <q-card class="upcoming-card q-mb-md" flat bordered>
-        <q-card-section class="upcoming-header">
-          <div class="reservas-card-title">Tus clases</div>
-          <div class="weekly-limit text-caption">Semana del {{ weekLabel }}</div>
-        </q-card-section>
+      <!-- Next class hero card -->
+      <div class="next-class-card q-mb-md">
+        <div class="next-class-card__icon">
+          <q-icon :name="nextBooking ? 'event' : 'event_available'" size="28px" color="primary" />
+        </div>
+        <div v-if="nextBooking" class="next-class-card__info">
+          <p class="next-class-card__label">Próxima clase</p>
+          <p class="next-class-card__activity">{{ nextBooking.activityName }}</p>
+          <p class="next-class-card__time">
+            {{ formatBookingDay(nextBooking) }} · {{ formatTime(nextBooking.startTime) }}
+          </p>
+        </div>
+        <div v-else class="next-class-card__info">
+          <p class="next-class-card__label">Próxima clase</p>
+          <p class="next-class-card__activity-empty">Elegí un horario para reservar</p>
+        </div>
+        <q-btn
+          v-if="nextBooking"
+          flat
+          round
+          dense
+          icon="close"
+          color="negative"
+          size="sm"
+          @click="promptCancelBooking(nextBooking)"
+        >
+          <q-tooltip>Cancelar</q-tooltip>
+        </q-btn>
+      </div>
 
-        <q-card-section v-if="weekEvents.length === 0" class="text-center text-grey-6 q-py-lg">
-          No tenés actividad esta semana
-        </q-card-section>
+      <!-- Day selector strip -->
+      <div class="day-strip q-mb-md">
+        <div class="day-strip__nav">
+          <q-btn flat dense round icon="chevron_left" size="sm" @click="changeWeek(-1)" />
+          <q-btn flat dense no-caps class="day-strip__week-label" @click="goToCurrentWeek">
+            {{ weekLabel }}
+          </q-btn>
+          <q-btn flat dense round icon="chevron_right" size="sm" @click="changeWeek(1)" />
+        </div>
+        <div class="day-strip__days">
+          <button
+            v-for="day in visibleDays"
+            :key="day"
+            class="day-pill"
+            :class="{
+              'day-pill--selected': selectedDay === day,
+              'day-pill--today': isToday(day),
+              'day-pill--has-booking': dayHasBooking(day),
+              'day-pill--past': isDayPast(day),
+            }"
+            @click="selectedDay = day"
+          >
+            <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
+            <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
+            <span v-if="dayAvailableCount(day) > 0 && !isDayPast(day)" class="day-pill__avail">
+              {{ dayAvailableCount(day) }}
+            </span>
+            <span v-if="dayHasBooking(day)" class="day-pill__dot"></span>
+          </button>
+        </div>
+      </div>
 
-        <q-list v-else separator>
-          <!-- Past attendance records -->
-          <q-item v-for="event in weekEvents" :key="event.key" class="booking-item">
-            <q-item-section>
-              <q-item-label class="text-weight-medium">
-                {{ event.activityName }}
-              </q-item-label>
-              <q-item-label caption>
-                {{ event.label }}
-              </q-item-label>
-            </q-item-section>
+      <!-- Selected day's slots -->
+      <div class="day-slots">
+        <!-- Holiday banner -->
+        <div v-if="selectedDayHoliday" class="day-slots__holiday">
+          <q-icon name="celebration" size="20px" />
+          <span>{{ selectedDayHoliday }}</span>
+        </div>
 
-            <q-item-section side>
-              <div class="row items-center no-wrap q-gutter-x-sm">
-                <q-badge :color="event.badgeColor" :label="event.badgeLabel" />
+        <!-- Morning section -->
+        <template v-if="morningSlots.length > 0">
+          <p v-if="afternoonSlots.length > 0" class="day-slots__period">Mañana</p>
+          <div
+            v-for="slot in morningSlots"
+            :key="slot.id"
+            class="slot-card"
+            :class="slotCardClass(slot)"
+            @click="onSlotTap(slot)"
+          >
+            <div class="slot-card__time">
+              <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+              <span class="slot-card__activity">{{ slot.activityName }}</span>
+            </div>
+            <div class="slot-card__right">
+              <template v-if="isSlotHoliday(slot)">
+                <q-badge color="accent" label="Feriado" />
+              </template>
+              <template v-else-if="isSlotAttended(slot)">
+                <q-icon name="verified" size="20px" color="positive" />
+                <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
+              </template>
+              <template v-else-if="isSlotBooked(slot)">
+                <q-icon name="check_circle" size="20px" color="primary" />
+                <span class="slot-card__badge slot-card__badge--primary">Reservado</span>
+              </template>
+              <template v-else-if="slot.isFull">
+                <span class="slot-card__occupancy slot-card__occupancy--full">
+                  {{ slot.bookedCount }}/{{ slot.maxCapacity }}
+                </span>
+                <span class="slot-card__badge slot-card__badge--full">Completo</span>
+              </template>
+              <template v-else-if="isSlotPast(slot)">
+                <span class="slot-card__occupancy"
+                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                >
+              </template>
+              <template v-else>
+                <span class="slot-card__occupancy"
+                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                >
                 <q-btn
-                  v-if="event.booking"
                   flat
-                  round
                   dense
-                  icon="close"
-                  color="negative"
-                  size="sm"
-                  @click="promptCancelBooking(event.booking!)"
-                >
-                  <q-tooltip>Cancelar reserva</q-tooltip>
-                </q-btn>
-              </div>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
-
-      <!-- Section 2: Weekly Calendar Grid -->
-      <q-card flat bordered>
-        <q-card-section class="week-nav">
-          <q-btn flat dense round icon="chevron_left" @click="changeWeek(-1)" />
-          <div class="week-label">
-            <q-btn flat dense no-caps class="week-label-btn" @click="goToCurrentWeek">
-              {{ weekLabel }}
-            </q-btn>
-          </div>
-          <q-btn flat dense round icon="chevron_right" @click="changeWeek(1)" />
-        </q-card-section>
-
-        <q-card-section class="grid-section q-pa-none">
-          <div class="grid-scroll">
-            <div class="schedule-grid" :style="gridStyle">
-              <!-- Day headers -->
-              <div v-for="day in visibleDays" :key="'h-' + day" class="grid-header">
-                <div class="day-abbrev">{{ DAY_LABELS[day] }}</div>
-                <div class="day-date">{{ dayDateNumber(day) }}</div>
-              </div>
-
-              <!-- Time slot rows -->
-              <template v-for="time in uniqueTimes" :key="time">
-                <!-- Mañana / Tarde section labels -->
-                <div
-                  v-if="time === morningStartTime && hasAfternoonTimes"
-                  class="grid-period-label"
-                  :style="{ gridColumn: '1 / -1' }"
-                >
-                  Mañana
-                </div>
-                <div
-                  v-if="time === afternoonStartTime && hasMorningTimes"
-                  class="grid-period-label"
-                  :style="{ gridColumn: '1 / -1' }"
-                >
-                  Tarde
-                </div>
-
-                <div
-                  v-for="day in visibleDays"
-                  :key="time + '-' + day"
-                  class="grid-cell"
-                  :class="cellClass(day, time)"
-                  @click="onCellTap(day, time)"
-                >
-                  <span class="cell-time">{{ formatTime(time) }}</span>
-                  <template v-if="getCellSlot(day, time)">
-                    <template v-if="isCellHoliday(day, time)">
-                      <span class="cell-status">FERIADO</span>
-                    </template>
-                    <template v-else-if="isCellAttended(day, time)">
-                      <q-icon name="verified" size="18px" color="positive" />
-                    </template>
-                    <template v-else-if="isCellBooked(day, time)">
-                      <span class="cell-occupancy">
-                        {{ getCellSlot(day, time)!.bookedCount }}/{{
-                          getCellSlot(day, time)!.maxCapacity
-                        }}
-                      </span>
-                      <q-icon
-                        name="check_circle"
-                        size="14px"
-                        color="primary"
-                        class="cell-booked-icon"
-                      />
-                    </template>
-                    <template v-else-if="getCellSlot(day, time)!.isFull">
-                      <span class="cell-status cell-status--full">COMPLETO</span>
-                      <span class="cell-occupancy cell-occupancy--full">
-                        {{ getCellSlot(day, time)!.bookedCount }}/{{
-                          getCellSlot(day, time)!.maxCapacity
-                        }}
-                      </span>
-                    </template>
-                    <template v-else>
-                      <span class="cell-occupancy">
-                        {{ getCellSlot(day, time)!.bookedCount }}/{{
-                          getCellSlot(day, time)!.maxCapacity
-                        }}
-                      </span>
-                    </template>
-                  </template>
-                  <template v-else>
-                    <span class="cell-empty">&mdash;</span>
-                  </template>
-                </div>
+                  no-caps
+                  color="primary"
+                  label="Reservar"
+                  class="slot-card__action"
+                  @click.stop="onSlotTap(slot)"
+                />
               </template>
             </div>
           </div>
-        </q-card-section>
-      </q-card>
+        </template>
+
+        <!-- Afternoon section -->
+        <template v-if="afternoonSlots.length > 0">
+          <p v-if="morningSlots.length > 0" class="day-slots__period">Tarde</p>
+          <div
+            v-for="slot in afternoonSlots"
+            :key="slot.id"
+            class="slot-card"
+            :class="slotCardClass(slot)"
+            @click="onSlotTap(slot)"
+          >
+            <div class="slot-card__time">
+              <span class="slot-card__hour">{{ formatTime(slot.startTime) }}</span>
+              <span class="slot-card__activity">{{ slot.activityName }}</span>
+            </div>
+            <div class="slot-card__right">
+              <template v-if="isSlotHoliday(slot)">
+                <q-badge color="accent" label="Feriado" />
+              </template>
+              <template v-else-if="isSlotAttended(slot)">
+                <q-icon name="verified" size="20px" color="positive" />
+                <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
+              </template>
+              <template v-else-if="isSlotBooked(slot)">
+                <q-icon name="check_circle" size="20px" color="primary" />
+                <span class="slot-card__badge slot-card__badge--primary">Reservado</span>
+              </template>
+              <template v-else-if="slot.isFull">
+                <span class="slot-card__occupancy slot-card__occupancy--full">
+                  {{ slot.bookedCount }}/{{ slot.maxCapacity }}
+                </span>
+                <span class="slot-card__badge slot-card__badge--full">Completo</span>
+              </template>
+              <template v-else-if="isSlotPast(slot)">
+                <span class="slot-card__occupancy"
+                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                >
+              </template>
+              <template v-else>
+                <span class="slot-card__occupancy"
+                  >{{ slot.bookedCount }}/{{ slot.maxCapacity }}</span
+                >
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="primary"
+                  label="Reservar"
+                  class="slot-card__action"
+                  @click.stop="onSlotTap(slot)"
+                />
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- No slots -->
+        <div
+          v-if="morningSlots.length === 0 && afternoonSlots.length === 0"
+          class="day-slots__empty"
+        >
+          <q-icon name="event_busy" size="40px" color="grey-4" />
+          <p>No hay horarios este día</p>
+        </div>
+      </div>
+
+      <!-- Week activity summary (collapsible) -->
+      <q-expansion-item
+        class="week-summary q-mt-md"
+        icon="history"
+        label="Tu actividad esta semana"
+        header-class="week-summary__header"
+        dense
+      >
+        <q-list v-if="weekEvents.length > 0" separator class="week-summary__list">
+          <q-item v-for="event in weekEvents" :key="event.key" dense>
+            <q-item-section>
+              <q-item-label class="text-weight-medium text-body2">
+                {{ event.activityName }}
+              </q-item-label>
+              <q-item-label caption>{{ event.label }}</q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-badge :color="event.badgeColor" :label="event.badgeLabel" />
+            </q-item-section>
+          </q-item>
+        </q-list>
+        <div v-else class="q-pa-md text-center text-grey-6 text-body2">
+          No tenés actividad esta semana
+        </div>
+      </q-expansion-item>
     </template>
 
     <!-- Reserve confirmation dialog -->
@@ -239,7 +316,7 @@ import type {
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 
 const $q = useQuasar()
-const log = createLogger('Reservas')
+const log = createLogger('ReservasV2')
 const userStore = useUserStore()
 const { getWeeklyGrid, reserve, cancelBooking, getBranches, cleanup } = useSchedulingApi()
 
@@ -250,15 +327,13 @@ const holidays = ref<HolidayRecord[]>([])
 const myBookings = ref<BookingRecord[]>([])
 const myAttendance = ref<AttendanceWeekRecord[]>([])
 const weekStart = ref<Date>(getMonday(new Date()))
+const selectedDay = ref<DayOfWeek>(getTodayDow())
 
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
-
 const isOnlineUser = computed(() => userStore.profile?.branchIsVirtual ?? false)
-
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
-
 const branchOptions = computed(() =>
   branches.value.map((b) => ({
     label: b.name.replace(/^El Templo\s+/i, 'Sede '),
@@ -266,7 +341,7 @@ const branchOptions = computed(() =>
   })),
 )
 
-// ─── Reserve dialog ──────────────────────────────────────────────────
+// ─── Dialogs ────────────────────────────────────────────────────────
 const reserveDialog = ref({
   show: false,
   title: '',
@@ -276,11 +351,9 @@ const reserveDialog = ref({
   loading: false,
   scheduleId: 0,
   date: '',
-  /** Booking ID to cancel before reserving (swap flow) */
   cancelFirst: null as number | null,
 })
 
-// ─── Cancel dialog ───────────────────────────────────────────────────
 const cancelDialog = ref({
   show: false,
   message: '',
@@ -288,145 +361,7 @@ const cancelDialog = ref({
   bookingId: 0,
 })
 
-// ─── Computed ────────────────────────────────────────────────────────
-
-interface WeekEvent {
-  key: string
-  type: 'attendance' | 'booking'
-  activityName: string
-  dayOfWeek: number
-  startTime: string
-  date: string
-  label: string
-  badgeColor: string
-  badgeLabel: string
-  booking: BookingRecord | null
-}
-
-/** Unified week events: past attendance + future bookings, sorted chronologically */
-const weekEvents = computed<WeekEvent[]>(() => {
-  const now = new Date()
-  const events: WeekEvent[] = []
-
-  // Past attendance records
-  for (const att of myAttendance.value) {
-    const checkedIn = new Date(att.checkedInAt)
-    const dateStr = checkedIn.toISOString().slice(0, 10)
-    const dayLabel = DAY_LABELS_FULL[att.dayOfWeek as DayOfWeek] ?? ''
-    const d = new Date(dateStr + 'T00:00:00')
-    const dateLabel = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
-
-    events.push({
-      key: `att-${att.id}`,
-      type: 'attendance',
-      activityName: att.activityName,
-      dayOfWeek: att.dayOfWeek,
-      startTime: att.startTime,
-      date: dateStr,
-      label: `${dayLabel} ${dateLabel} - ${formatTime(att.startTime)}`,
-      badgeColor: att.status === 'confirmado' ? 'positive' : 'info',
-      badgeLabel: att.status === 'confirmado' ? 'Asististe' : 'Check-in',
-      booking: null,
-    })
-  }
-
-  // All bookings (future active + past confirmed/no_show)
-  for (const b of myBookings.value) {
-    if (b.status === 'cancelado') continue
-
-    // Skip if already have an attendance record for this schedule+date
-    const hasAttendance = myAttendance.value.some((att) => {
-      const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
-      return att.scheduleId === b.scheduleId && attDate === b.bookingDate
-    })
-    if (hasAttendance) continue
-
-    const isPast = new Date(`${b.bookingDate}T${b.startTime}`) <= now
-    // Skip past bookings that are still just "reservado" (not yet processed by cron)
-    if (isPast && b.status !== 'confirmado' && b.status !== 'no_show') continue
-
-    let badgeColor: string
-    let badgeLabel: string
-    if (b.status === 'no_show') {
-      badgeColor = 'negative'
-      badgeLabel = BOOKING_STATUS_LABELS.no_show
-    } else if (b.status === 'confirmado') {
-      badgeColor = 'positive'
-      badgeLabel = 'Asististe'
-    } else {
-      badgeColor = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'primary' : 'warning'
-      badgeLabel = bookingStatusLabel(b)
-    }
-
-    events.push({
-      key: `bk-${b.id}`,
-      type: 'booking',
-      activityName: b.activityName,
-      dayOfWeek: b.dayOfWeek,
-      startTime: b.startTime,
-      date: b.bookingDate,
-      label: formatBookingLabel(b),
-      badgeColor,
-      badgeLabel,
-      booking: isPast ? null : b,
-    })
-  }
-
-  // Sort by date then time
-  return events.sort((a, b) => {
-    const dateCmp = a.date.localeCompare(b.date)
-    if (dateCmp !== 0) return dateCmp
-    return a.startTime.localeCompare(b.startTime)
-  })
-})
-
-/** Which days (1-6) have at least one slot */
-const visibleDays = computed<DayOfWeek[]>(() => {
-  const days = new Set<DayOfWeek>()
-  for (const slot of slots.value) {
-    days.add(slot.dayOfWeek as DayOfWeek)
-  }
-  const sorted = Array.from(days).sort((a, b) => a - b)
-  // Always include Mon-Fri at minimum if we have any slots
-  if (sorted.length > 0) {
-    const result = new Set(sorted)
-    for (let d = 1; d <= 5; d++) {
-      result.add(d as DayOfWeek)
-    }
-    return Array.from(result).sort((a, b) => a - b) as DayOfWeek[]
-  }
-  // Default Mon-Fri if no slots loaded yet
-  return [1, 2, 3, 4, 5] as DayOfWeek[]
-})
-
-/** Unique start times across all slots, sorted */
-const uniqueTimes = computed(() => {
-  const times = new Set<string>()
-  for (const slot of slots.value) {
-    times.add(slot.startTime)
-  }
-  return Array.from(times).sort()
-})
-
-/** Morning/afternoon split for visual separation */
-const morningStartTime = computed(() => uniqueTimes.value.find((t) => t < '12:00:00') ?? null)
-const afternoonStartTime = computed(() => uniqueTimes.value.find((t) => t >= '12:00:00') ?? null)
-const hasMorningTimes = computed(() => morningStartTime.value !== null)
-const hasAfternoonTimes = computed(() => afternoonStartTime.value !== null)
-
-/** CSS grid columns based on visible days */
-const gridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${visibleDays.value.length}, 1fr)`,
-}))
-
-/** Week label like "10 Mar - 15 Mar" */
-const weekLabel = computed(() => {
-  const start = weekStart.value
-  const end = new Date(start)
-  end.setDate(end.getDate() + (visibleDays.value.includes(6 as DayOfWeek) ? 5 : 4))
-  const fmt = (d: Date) => `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
-  return `${fmt(start)} - ${fmt(end)}`
-})
+// ─── Helpers ────────────────────────────────────────────────────────
 
 const MONTH_ABBREV = [
   'Ene',
@@ -443,126 +378,19 @@ const MONTH_ABBREV = [
   'Dic',
 ]
 
-// ─── Slot lookup helpers ─────────────────────────────────────────────
-
-/** Map of "dayOfWeek-startTime" -> slot for O(1) lookup */
-const slotMap = computed(() => {
-  const map = new Map<string, WeeklySlotView>()
-  for (const slot of slots.value) {
-    map.set(`${slot.dayOfWeek}-${slot.startTime}`, slot)
-  }
-  return map
-})
-
-/** Set of "scheduleId" for booked slots */
-const bookedScheduleIds = computed(() => {
-  const ids = new Set<number>()
-  for (const b of myBookings.value) {
-    if (
-      b.status === 'reservado' ||
-      b.status === 'qr_escaneado' ||
-      b.status === 'confirmado' ||
-      b.status === 'lista_espera'
-    ) {
-      ids.add(b.scheduleId)
-    }
-  }
-  return ids
-})
-
-/** Set of holiday dates (YYYY-MM-DD) */
-const holidayDates = computed(() => {
-  const dates = new Set<string>()
-  for (const h of holidays.value) {
-    dates.add(h.date)
-  }
-  return dates
-})
-
-function getCellSlot(day: DayOfWeek, time: string): WeeklySlotView | undefined {
-  return slotMap.value.get(`${day}-${time}`)
-}
-
-/** Set of "scheduleId-date" for attended slots */
-const attendedSlotKeys = computed(() => {
-  const keys = new Set<string>()
-  for (const att of myAttendance.value) {
-    const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
-    keys.add(`${att.scheduleId}-${attDate}`)
-  }
-  return keys
-})
-
-function isCellAttended(day: DayOfWeek, time: string): boolean {
-  const slot = getCellSlot(day, time)
-  if (!slot) return false
-  const date = dateForDay(day)
-  return attendedSlotKeys.value.has(`${slot.id}-${date}`)
-}
-
-function isCellBooked(day: DayOfWeek, time: string): boolean {
-  const slot = getCellSlot(day, time)
-  return slot ? bookedScheduleIds.value.has(slot.id) : false
-}
-
-function isCellHoliday(day: DayOfWeek, time: string): boolean {
-  const slot = getCellSlot(day, time)
-  if (!slot) return false
-  if (slot.isHoliday) return true
-  const date = dateForDay(day)
-  return holidayDates.value.has(date)
-}
-
-function isCellPast(day: DayOfWeek, time: string): boolean {
-  const dateStr = dateForDay(day)
-  const now = new Date()
-  const slotDateTime = new Date(`${dateStr}T${time}`)
-  return slotDateTime < now
-}
-
-function cellClass(day: DayOfWeek, time: string): Record<string, boolean> {
-  const slot = getCellSlot(day, time)
-  const isHoliday = isCellHoliday(day, time)
-  const isAttended = isCellAttended(day, time)
-  const isBooked = isCellBooked(day, time)
-  const isPast = isCellPast(day, time)
-  const isFull = slot?.isFull ?? false
-  const hasSlot = !!slot
-
-  return {
-    'cell--holiday': isHoliday,
-    'cell--attended': isAttended && !isHoliday,
-    'cell--booked': isBooked && !isAttended && !isHoliday,
-    'cell--full': isFull && !isBooked && !isAttended && !isHoliday,
-    'cell--past': isPast && !isBooked && !isAttended,
-    'cell--available': hasSlot && !isFull && !isBooked && !isAttended && !isHoliday && !isPast,
-    'cell--empty': !hasSlot,
-    'cell--tappable': hasSlot && !isBooked && !isAttended && !isHoliday && !isPast,
-  }
-}
-
-// ─── Week navigation ─────────────────────────────────────────────────
-
 function getMonday(d: Date): Date {
   const date = new Date(d)
   const day = date.getDay()
-  // getDay(): 0=Sun, 1=Mon, ..., 6=Sat
   const diff = day === 0 ? -6 : 1 - day
   date.setDate(date.getDate() + diff)
   date.setHours(0, 0, 0, 0)
   return date
 }
 
-function changeWeek(delta: number) {
-  const d = new Date(weekStart.value)
-  d.setDate(d.getDate() + delta * 7)
-  weekStart.value = d
-  loadGrid()
-}
-
-function goToCurrentWeek() {
-  weekStart.value = getMonday(new Date())
-  loadGrid()
+function getTodayDow(): DayOfWeek {
+  const d = new Date().getDay()
+  // Sunday = 0 → default to Monday
+  return (d === 0 ? 1 : d) as DayOfWeek
 }
 
 function formatWeekStart(d: Date): string {
@@ -581,56 +409,275 @@ function dayDateNumber(day: DayOfWeek): string {
   return String(d.getDate())
 }
 
-// ─── Formatting ──────────────────────────────────────────────────────
-
 function formatTime(time: string): string {
-  // "07:00:00" -> "7:00", "08:00:00" -> "8:00"
   const parts = time.split(':')
   const hour = parseInt(parts[0], 10)
   return `${hour}:${parts[1]}`
 }
 
-function formatBookingLabel(booking: BookingRecord): string {
+function isToday(day: DayOfWeek): boolean {
+  const today = new Date()
+  const dayDate = new Date(weekStart.value)
+  dayDate.setDate(dayDate.getDate() + (day - 1))
+  return (
+    dayDate.getFullYear() === today.getFullYear() &&
+    dayDate.getMonth() === today.getMonth() &&
+    dayDate.getDate() === today.getDate()
+  )
+}
+
+function isDayPast(day: DayOfWeek): boolean {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dayDate = new Date(weekStart.value)
+  dayDate.setDate(dayDate.getDate() + (day - 1))
+  return dayDate < today
+}
+
+// ─── Computed ───────────────────────────────────────────────────────
+
+const visibleDays = computed<DayOfWeek[]>(() => {
+  const days = new Set<DayOfWeek>()
+  for (const slot of slots.value) {
+    days.add(slot.dayOfWeek as DayOfWeek)
+  }
+  if (days.size > 0) {
+    for (let d = 1; d <= 5; d++) days.add(d as DayOfWeek)
+    return Array.from(days).sort((a, b) => a - b) as DayOfWeek[]
+  }
+  return [1, 2, 3, 4, 5] as DayOfWeek[]
+})
+
+const weekLabel = computed(() => {
+  const start = weekStart.value
+  const end = new Date(start)
+  end.setDate(end.getDate() + (visibleDays.value.includes(6 as DayOfWeek) ? 5 : 4))
+  const fmt = (d: Date) => `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+  return `${fmt(start)} - ${fmt(end)}`
+})
+
+/** Lookup maps */
+const bookedScheduleIds = computed(() => {
+  const ids = new Set<number>()
+  for (const b of myBookings.value) {
+    if (['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status)) {
+      ids.add(b.scheduleId)
+    }
+  }
+  return ids
+})
+
+const holidayDates = computed(() => {
+  const dates = new Set<string>()
+  for (const h of holidays.value) dates.add(h.date)
+  return dates
+})
+
+const attendedSlotKeys = computed(() => {
+  const keys = new Set<string>()
+  for (const att of myAttendance.value) {
+    const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
+    keys.add(`${att.scheduleId}-${attDate}`)
+  }
+  return keys
+})
+
+/** Slots for selected day, sorted by time */
+const selectedDaySlots = computed(() =>
+  slots.value
+    .filter((s) => s.dayOfWeek === selectedDay.value)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+)
+
+const morningSlots = computed(() => selectedDaySlots.value.filter((s) => s.startTime < '12:00:00'))
+const afternoonSlots = computed(() =>
+  selectedDaySlots.value.filter((s) => s.startTime >= '12:00:00'),
+)
+
+const selectedDayHoliday = computed(() => {
+  const date = dateForDay(selectedDay.value)
+  const h = holidays.value.find((hol) => hol.date === date)
+  return h?.name ?? null
+})
+
+/** Next upcoming active booking */
+const nextBooking = computed<BookingRecord | null>(() => {
+  const now = new Date()
+  return (
+    myBookings.value
+      .filter((b) => {
+        if (b.status !== 'reservado' && b.status !== 'qr_escaneado' && b.status !== 'lista_espera')
+          return false
+        return new Date(`${b.bookingDate}T${b.startTime}`) > now
+      })
+      .sort((a, b) => {
+        const da = `${a.bookingDate}T${a.startTime}`
+        const db = `${b.bookingDate}T${b.startTime}`
+        return da.localeCompare(db)
+      })[0] ?? null
+  )
+})
+
+// ─── Day pill helpers ───────────────────────────────────────────────
+
+function dayHasBooking(day: DayOfWeek): boolean {
+  const date = dateForDay(day)
+  return myBookings.value.some(
+    (b) =>
+      b.bookingDate === date &&
+      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
+  )
+}
+
+function dayAvailableCount(day: DayOfWeek): number {
+  return slots.value.filter((s) => {
+    if (s.dayOfWeek !== day) return false
+    if (s.isFull) return false
+    if (s.isHoliday) return false
+    if (bookedScheduleIds.value.has(s.id)) return false
+    const date = dateForDay(day)
+    if (new Date(`${date}T${s.startTime}`) < new Date()) return false
+    return true
+  }).length
+}
+
+// ─── Slot state helpers ─────────────────────────────────────────────
+
+function isSlotBooked(slot: WeeklySlotView): boolean {
+  return bookedScheduleIds.value.has(slot.id)
+}
+
+function isSlotAttended(slot: WeeklySlotView): boolean {
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  return attendedSlotKeys.value.has(`${slot.id}-${date}`)
+}
+
+function isSlotHoliday(slot: WeeklySlotView): boolean {
+  if (slot.isHoliday) return true
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  return holidayDates.value.has(date)
+}
+
+function isSlotPast(slot: WeeklySlotView): boolean {
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  return new Date(`${date}T${slot.startTime}`) < new Date()
+}
+
+function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
+  return {
+    'slot-card--booked': isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--attended': isSlotAttended(slot),
+    'slot-card--full': slot.isFull && !isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--holiday': isSlotHoliday(slot),
+    'slot-card--past': isSlotPast(slot) && !isSlotBooked(slot) && !isSlotAttended(slot),
+    'slot-card--available':
+      !slot.isFull &&
+      !isSlotBooked(slot) &&
+      !isSlotAttended(slot) &&
+      !isSlotHoliday(slot) &&
+      !isSlotPast(slot),
+  }
+}
+
+// ─── Week events (for collapsible summary) ──────────────────────────
+
+interface WeekEvent {
+  key: string
+  activityName: string
+  label: string
+  badgeColor: string
+  badgeLabel: string
+}
+
+const weekEvents = computed<WeekEvent[]>(() => {
+  const now = new Date()
+  const events: WeekEvent[] = []
+
+  for (const att of myAttendance.value) {
+    const checkedIn = new Date(att.checkedInAt)
+    const dateStr = checkedIn.toISOString().slice(0, 10)
+    const dayLabel = DAY_LABELS_FULL[att.dayOfWeek as DayOfWeek] ?? ''
+    const d = new Date(dateStr + 'T00:00:00')
+    const dateLabel = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+    events.push({
+      key: `att-${att.id}`,
+      activityName: att.activityName,
+      label: `${dayLabel} ${dateLabel} - ${formatTime(att.startTime)}`,
+      badgeColor: att.status === 'confirmado' ? 'positive' : 'info',
+      badgeLabel: att.status === 'confirmado' ? 'Asististe' : 'Check-in',
+    })
+  }
+
+  for (const b of myBookings.value) {
+    if (b.status === 'cancelado') continue
+    const hasAtt = myAttendance.value.some((att) => {
+      const attDate = new Date(att.checkedInAt).toISOString().slice(0, 10)
+      return att.scheduleId === b.scheduleId && attDate === b.bookingDate
+    })
+    if (hasAtt) continue
+
+    const isPast = new Date(`${b.bookingDate}T${b.startTime}`) <= now
+    if (isPast && b.status !== 'confirmado' && b.status !== 'no_show') continue
+
+    const dayLabel = DAY_LABELS_FULL[b.dayOfWeek as DayOfWeek] ?? ''
+    const d = new Date(b.bookingDate + 'T00:00:00')
+    const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
+
+    let badgeColor: string
+    let badgeLabel: string
+    if (b.status === 'no_show') {
+      badgeColor = 'negative'
+      badgeLabel = BOOKING_STATUS_LABELS.no_show
+    } else if (b.status === 'confirmado') {
+      badgeColor = 'positive'
+      badgeLabel = 'Asististe'
+    } else {
+      badgeColor = b.status === 'reservado' || b.status === 'qr_escaneado' ? 'primary' : 'warning'
+      badgeLabel =
+        b.status === 'lista_espera' && b.waitlistPosition !== null
+          ? `${BOOKING_STATUS_LABELS.lista_espera} (#${b.waitlistPosition})`
+          : (BOOKING_STATUS_LABELS[b.status] ?? b.status)
+    }
+
+    events.push({
+      key: `bk-${b.id}`,
+      activityName: b.activityName,
+      label: `${dayLabel} ${dateStr} - ${formatTime(b.startTime)}`,
+      badgeColor,
+      badgeLabel,
+    })
+  }
+
+  return events
+})
+
+// ─── Booking flow ───────────────────────────────────────────────────
+
+function formatBookingDay(booking: BookingRecord): string {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
   const d = new Date(booking.bookingDate + 'T00:00:00')
-  const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
-  return `${dayLabel} ${dateStr} - ${formatTime(booking.startTime)}`
+  return `${dayLabel} ${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
 }
 
-function bookingStatusLabel(booking: BookingRecord): string {
-  if (booking.status === 'lista_espera' && booking.waitlistPosition !== null) {
-    return `${BOOKING_STATUS_LABELS.lista_espera} (#${booking.waitlistPosition})`
-  }
-  return BOOKING_STATUS_LABELS[booking.status] ?? booking.status
-}
+function onSlotTap(slot: WeeklySlotView) {
+  if (isSlotHoliday(slot)) return
+  if (isSlotBooked(slot)) return
+  if (isSlotAttended(slot)) return
+  if (isSlotPast(slot)) return
 
-// ─── Booking flow ────────────────────────────────────────────────────
-
-function onCellTap(day: DayOfWeek, time: string) {
-  const slot = getCellSlot(day, time)
-  if (!slot) return
-  if (isCellHoliday(day, time)) return
-  if (isCellBooked(day, time)) return
-  if (isCellPast(day, time)) return
-
-  const date = dateForDay(day)
-  const dayLabel = DAY_LABELS_FULL[day]
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  const dayLabel = DAY_LABELS_FULL[slot.dayOfWeek as DayOfWeek]
   const d = new Date(date + 'T00:00:00')
   const dateStr = `${d.getDate()} ${MONTH_ABBREV[d.getMonth()]}`
-  const timeStr = formatTime(time)
+  const timeStr = formatTime(slot.startTime)
 
-  // Check if there's already a booking on this day
   const existingBooking = myBookings.value.find(
     (b) =>
       b.bookingDate === date &&
-      (b.status === 'reservado' ||
-        b.status === 'qr_escaneado' ||
-        b.status === 'confirmado' ||
-        b.status === 'lista_espera'),
+      ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
   )
 
   if (existingBooking) {
-    // Swap flow: offer to replace existing booking
     const existingTime = formatTime(existingBooking.startTime)
     reserveDialog.value = {
       show: true,
@@ -644,7 +691,6 @@ function onCellTap(day: DayOfWeek, time: string) {
       cancelFirst: existingBooking.id,
     }
   } else if (slot.isFull) {
-    // Waitlist flow
     reserveDialog.value = {
       show: true,
       title: 'Horario completo',
@@ -657,7 +703,6 @@ function onCellTap(day: DayOfWeek, time: string) {
       cancelFirst: null,
     }
   } else {
-    // Normal reserve flow
     reserveDialog.value = {
       show: true,
       title: 'Reservar',
@@ -675,14 +720,9 @@ function onCellTap(day: DayOfWeek, time: string) {
 async function confirmReserve() {
   reserveDialog.value.loading = true
   try {
-    // Swap flow: cancel existing booking first
     if (reserveDialog.value.cancelFirst) {
       await cancelBooking(reserveDialog.value.cancelFirst)
-      log.info('Swapped: cancelled old booking', {
-        bookingId: reserveDialog.value.cancelFirst,
-      })
     }
-
     const booking = await reserve(reserveDialog.value.scheduleId, reserveDialog.value.date)
     reserveDialog.value.show = false
 
@@ -692,14 +732,11 @@ async function confirmReserve() {
         message: `Te anotaste en la lista de espera (posicion #${booking.waitlistPosition})`,
       })
     } else {
-      const wasSwap = reserveDialog.value.cancelFirst !== null
       $q.notify({
         type: 'positive',
-        message: wasSwap ? 'Horario cambiado' : 'Reserva confirmada',
+        message: reserveDialog.value.cancelFirst ? 'Horario cambiado' : 'Reserva confirmada',
       })
     }
-
-    log.info('Booking created', { bookingId: booking.id, status: booking.status })
     await loadGrid()
   } catch (err: unknown) {
     const message = extractError(err, 'Error al reservar')
@@ -710,15 +747,11 @@ async function confirmReserve() {
   }
 }
 
-// ─── Cancel flow ─────────────────────────────────────────────────────
-
 function promptCancelBooking(booking: BookingRecord) {
   const dayLabel = DAY_LABELS_FULL[booking.dayOfWeek as DayOfWeek] ?? ''
-  const timeStr = formatTime(booking.startTime)
-
   cancelDialog.value = {
     show: true,
-    message: `Cancelar reserva de ${dayLabel} ${timeStr}?`,
+    message: `Cancelar reserva de ${dayLabel} ${formatTime(booking.startTime)}?`,
     loading: false,
     bookingId: booking.id,
   }
@@ -729,24 +762,33 @@ async function confirmCancel() {
   try {
     await cancelBooking(cancelDialog.value.bookingId)
     cancelDialog.value.show = false
-
-    $q.notify({
-      type: 'positive',
-      message: 'Reserva cancelada',
-    })
-
-    log.info('Booking cancelled', { bookingId: cancelDialog.value.bookingId })
+    $q.notify({ type: 'positive', message: 'Reserva cancelada' })
     await loadGrid()
   } catch (err: unknown) {
     const message = extractError(err, 'Error al cancelar')
     $q.notify({ type: 'negative', message })
-    log.warn('Cancel failed', { error: message })
   } finally {
     cancelDialog.value.loading = false
   }
 }
 
-// ─── Data loading ────────────────────────────────────────────────────
+// ─── Week navigation ────────────────────────────────────────────────
+
+function changeWeek(delta: number) {
+  const d = new Date(weekStart.value)
+  d.setDate(d.getDate() + delta * 7)
+  weekStart.value = d
+  selectedDay.value = delta > 0 ? (1 as DayOfWeek) : getTodayDow()
+  loadGrid()
+}
+
+function goToCurrentWeek() {
+  weekStart.value = getMonday(new Date())
+  selectedDay.value = getTodayDow()
+  loadGrid()
+}
+
+// ─── Data loading ───────────────────────────────────────────────────
 
 async function loadGrid() {
   try {
@@ -766,51 +808,65 @@ async function loadGrid() {
   }
 }
 
-// ─── Lifecycle ───────────────────────────────────────────────────────
-
-watch(selectedBranchId, () => {
-  loadGrid()
-})
+watch(selectedBranchId, () => loadGrid())
 
 onMounted(async () => {
+  if (!userStore.subscription && !userStore.subscriptionLoading) {
+    await userStore.loadSubscription()
+  }
   if (isMultiBranch.value) {
     try {
       branches.value = await getBranches()
-      // Default to user's own branch
       selectedBranchId.value = userStore.profile?.branchId ?? null
     } catch {
-      // Non-critical, fall through to loadGrid with no branchId
+      // fall through
     }
   }
   loadGrid()
 })
 
-onBeforeUnmount(() => {
-  cleanup()
-})
+onBeforeUnmount(() => cleanup())
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @import 'src/css/quasar.variables.scss';
 
-.reservas-page {
+.reservas-v2 {
   max-width: 600px;
   margin: 0 auto;
 }
 
-.loading-container {
+.reservas-v2__loading {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 60vh;
 }
 
-.reservas-card-title {
+.reservas-v2__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  text-align: center;
+}
+
+.reservas-v2__empty-title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 700;
   color: $primary;
+  margin: 16px 0 8px;
 }
+
+.reservas-v2__empty-text {
+  font-size: 14px;
+  color: $grey-7;
+}
+
+// ─── Branch ─────────────────────────────────────────────────────────
 
 .branch-label {
   display: flex;
@@ -821,11 +877,12 @@ onBeforeUnmount(() => {
   color: rgba($primary, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin: 6px 8px 12px;
+  margin: 0 0 12px;
+  padding-top: 8px;
 }
 
 .branch-select {
-  max-width: 250px;
+  max-width: 280px;
 
   :deep(.q-field__native) {
     font-family: 'Montserrat', sans-serif;
@@ -837,243 +894,321 @@ onBeforeUnmount(() => {
   }
 }
 
-// ─── Upcoming Reservations ───────────────────────────────────────────
+// ─── Next class hero ────────────────────────────────────────────────
 
-.upcoming-card {
-  border-color: rgba($primary, 0.2);
-}
-
-.upcoming-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.weekly-limit {
-  color: $secondary;
-  font-weight: 500;
-}
-
-.booking-item {
-  min-height: 52px;
-}
-
-// ─── Week Navigation ─────────────────────────────────────────────────
-
-.week-nav {
+.next-class-card {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid rgba($primary, 0.15);
+  border-radius: 12px;
+  border-left: 4px solid $primary;
 }
 
-.week-label {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-align: center;
+.next-class-card__icon {
+  flex-shrink: 0;
 }
 
-.week-label-btn {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: $primary;
+.next-class-card__info {
+  flex: 1;
+  min-width: 0;
 }
 
-// ─── Schedule Grid ───────────────────────────────────────────────────
-
-.grid-section {
-  overflow: hidden;
-}
-
-.grid-scroll {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.schedule-grid {
-  display: grid;
-  gap: 2px;
-  padding: 0 8px 12px;
-  min-width: 320px;
-}
-
-.grid-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 6px 2px;
-  border-bottom: 2px solid rgba($primary, 0.3);
-}
-
-.day-abbrev {
-  font-family: 'Montserrat', sans-serif;
+.next-class-card__label {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: rgba($primary, 0.6);
+  letter-spacing: 0.05em;
+  color: rgba($primary, 0.5);
+  margin: 0;
 }
 
-.day-date {
+.next-class-card__activity {
+  font-family: 'Montserrat', sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: $primary;
-  line-height: 1.2;
+  margin: 2px 0;
 }
 
-.grid-period-label {
+.next-class-card__time {
+  font-size: 13px;
+  color: $grey-7;
+  margin: 0;
+}
+
+.next-class-card__activity-empty {
+  font-size: 14px;
+  color: $grey-6;
+  margin: 2px 0 0;
+}
+
+// ─── Day strip ──────────────────────────────────────────────────────
+
+.day-strip__nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.day-strip__week-label {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: $primary;
+}
+
+.day-strip__days {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.day-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 48px;
+  padding: 8px 4px;
+  border: 1px solid rgba($primary, 0.12);
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+
+  &--selected {
+    background: $primary;
+    border-color: $primary;
+
+    .day-pill__abbrev,
+    .day-pill__date {
+      color: white;
+    }
+
+    .day-pill__avail {
+      background: rgba(white, 0.25);
+      color: white;
+    }
+  }
+
+  &--today:not(&--selected) {
+    border-color: $primary;
+  }
+
+  &--past:not(&--selected) {
+    opacity: 0.5;
+  }
+
+  &__abbrev {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgba($primary, 0.5);
+    letter-spacing: 0.03em;
+  }
+
+  &__date {
+    font-size: 18px;
+    font-weight: 700;
+    color: $primary;
+    line-height: 1.2;
+  }
+
+  &__avail {
+    font-size: 10px;
+    font-weight: 600;
+    color: $positive;
+    background: rgba($positive, 0.1);
+    border-radius: 8px;
+    padding: 1px 6px;
+    margin-top: 2px;
+  }
+
+  &__dot {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: $primary;
+  }
+
+  &--selected &__dot {
+    background: white;
+  }
+}
+
+// ─── Day slots ──────────────────────────────────────────────────────
+
+.day-slots__holiday {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba($accent, 0.08);
+  border-radius: 10px;
+  font-size: 14px;
+  color: $accent;
+  margin-bottom: 12px;
+}
+
+.day-slots__period {
   font-family: 'Montserrat', sans-serif;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: rgba($accent, 0.45);
-  padding: 10px 4px 2px;
-  border-bottom: 1px solid rgba($accent, 0.1);
+  color: rgba($accent, 0.4);
+  margin: 16px 0 6px;
+
+  &:first-child {
+    margin-top: 0;
+  }
 }
 
-.grid-cell {
+.day-slots__empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 52px;
-  padding: 4px 2px;
-  border-radius: 6px;
-  gap: 1px;
-  transition: background-color 150ms ease;
-  user-select: none;
-}
-
-.cell-time {
-  font-size: 11px;
-  color: rgba($primary, 0.5);
-  line-height: 1;
-}
-
-.cell-occupancy {
+  padding: 32px 0;
+  color: $grey-6;
   font-size: 14px;
-  font-weight: 700;
-  color: $primary;
-  line-height: 1.2;
-
-  &--full {
-    font-size: 11px;
-    color: $negative;
-  }
+  gap: 8px;
 }
 
-.cell-status {
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  line-height: 1;
-
-  &--full {
-    color: $negative;
-  }
-}
-
-.cell-booked-icon {
-  margin-top: 1px;
-}
-
-.cell-empty {
-  font-size: 14px;
-  color: rgba($accent, 0.15);
-}
-
-// ─── Cell states ─────────────────────────────────────────────────────
-
-.cell--available {
-  background: rgba($primary, 0.06);
-  cursor: pointer;
-
-  &:active {
-    background: rgba($primary, 0.15);
-  }
-}
-
-.cell--tappable {
-  cursor: pointer;
-}
-
-.cell--full {
-  background: rgba($negative, 0.08);
-  cursor: pointer;
-
-  &:active {
-    background: rgba($negative, 0.15);
-  }
-}
-
-.cell--attended {
-  background: rgba($positive, 0.12);
-  border: 2px solid $positive;
-  cursor: default;
-}
-
-.cell--booked {
-  background: rgba($primary, 0.12);
-  border: 2px solid $primary;
-  cursor: default;
-}
-
-.cell--holiday {
-  background: rgba($accent, 0.06);
-  cursor: default;
-
-  .cell-time {
-    color: rgba($accent, 0.3);
-  }
-
-  .cell-status {
-    color: rgba($accent, 0.4);
-    font-size: 8px;
-  }
-}
-
-.cell--past {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.cell--empty {
-  cursor: default;
-}
-
-/* Empty state for online users */
-.reservas-empty-state {
+.slot-card {
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 60vh;
+  justify-content: space-between;
+  padding: 12px 16px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: all 0.15s ease;
 
-  &__content {
-    text-align: center;
-    padding: 32px;
+  &--available {
+    cursor: pointer;
+
+    &:active {
+      background: rgba($primary, 0.04);
+    }
   }
 
-  &__title {
+  &--booked {
+    border-color: rgba($primary, 0.3);
+    background: rgba($primary, 0.04);
+  }
+
+  &--attended {
+    border-color: rgba($positive, 0.3);
+    background: rgba($positive, 0.04);
+  }
+
+  &--full {
+    cursor: pointer;
+
+    &:active {
+      background: rgba($negative, 0.04);
+    }
+  }
+
+  &--holiday {
+    opacity: 0.5;
+  }
+
+  &--past {
+    opacity: 0.4;
+  }
+
+  &__time {
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__hour {
     font-family: 'Montserrat', sans-serif;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 700;
     color: $primary;
-    margin: 16px 0 8px;
   }
 
-  &__text {
-    font-family: 'Geologica', sans-serif;
-    font-size: 14px;
-    color: #666;
-    margin: 0;
-    max-width: 280px;
-    margin-inline: auto;
+  &__activity {
+    font-size: 12px;
+    color: $grey-7;
   }
+
+  &__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__occupancy {
+    font-size: 12px;
+    color: $grey-6;
+
+    &--full {
+      color: $negative;
+      font-weight: 600;
+    }
+  }
+
+  &__badge {
+    font-size: 12px;
+    font-weight: 600;
+
+    &--primary {
+      color: $primary;
+    }
+
+    &--positive {
+      color: $positive;
+    }
+
+    &--full {
+      color: $negative;
+    }
+  }
+
+  &__action {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+}
+
+// ─── Week summary ───────────────────────────────────────────────────
+
+.week-summary {
+  border: 1px solid rgba($primary, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.week-summary__header) {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: $primary;
+}
+
+.week-summary__list {
+  background: white;
 }
 </style>
