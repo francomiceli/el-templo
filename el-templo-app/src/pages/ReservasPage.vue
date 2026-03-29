@@ -21,13 +21,17 @@
           v-model="selectedBranchId"
           :options="branchOptions"
           dense
+          rounded
           outlined
           emit-value
           map-options
           class="branch-select"
         >
           <template #prepend>
-            <q-icon name="location_on" size="16px" />
+            <q-icon name="location_on" size="18px" color="primary" />
+          </template>
+          <template #append>
+            <q-icon name="unfold_more" size="16px" color="grey-6" />
           </template>
         </q-select>
       </div>
@@ -909,15 +913,36 @@ onBeforeUnmount(() => cleanup())
 }
 
 .branch-select {
-  max-width: 280px;
+  max-width: 300px;
+  margin-top: 4px;
+
+  :deep(.q-field__control) {
+    background: white;
+    border-color: rgba($primary, 0.15);
+    padding: 0 12px;
+
+    &:hover {
+      border-color: rgba($primary, 0.35);
+    }
+  }
+
+  :deep(.q-field__control--focused) {
+    border-color: $primary;
+    box-shadow: 0 0 0 2px rgba($primary, 0.12);
+  }
 
   :deep(.q-field__native) {
     font-family: 'Montserrat', sans-serif;
     font-size: 14px;
     font-weight: 600;
-    color: rgba($primary, 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    color: $primary;
+    letter-spacing: 0.02em;
+  }
+
+  :deep(.q-field__append) {
+    .q-icon {
+      opacity: 0.5;
+    }
   }
 }
 

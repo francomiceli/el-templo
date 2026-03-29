@@ -10,6 +10,29 @@
       No hay planes disponibles
     </div>
 
+    <!-- Tu plan actual — hero card at top -->
+    <div v-if="currentPlan" class="q-mb-lg">
+      <p class="planes-section-title">Tu plan actual</p>
+      <q-card flat bordered class="current-plan-card">
+        <q-card-section>
+          <div class="row items-center justify-between q-mb-xs">
+            <div class="planes-card-name">{{ currentPlan.name }}</div>
+            <q-badge
+              :color="tierColor(currentPlan.planTier)"
+              :label="tierLabel(currentPlan.planTier)"
+            />
+          </div>
+          <div class="text-positive text-caption">
+            <q-icon name="check_circle" size="16px" class="q-mr-xs" />
+            Activo — vence {{ formatEndDate() }}
+          </div>
+          <div v-if="currentPlan.classesPerWeek" class="q-mt-sm">
+            <q-badge outline color="grey-7">{{ currentPlan.classesPerWeek }} clases/semana</q-badge>
+          </div>
+        </q-card-section>
+      </q-card>
+    </div>
+
     <!-- Experiencias a Medida Section (per D-18) — shown first -->
     <div v-if="experiencias.length > 0">
       <p class="planes-section-title">Experiencias a Medida</p>
@@ -282,6 +305,10 @@ const ctaText = computed(() =>
   hasSubscription.value ? 'Contacta para cambiar de plan' : 'Contacta para elegir tu plan',
 )
 
+const currentPlan = computed(
+  () => plans.value.find((p) => userStore.subscription?.planName === p.name) ?? null,
+)
+
 function isCurrentPlan(plan: MemberPlan): boolean {
   return userStore.subscription?.planName === plan.name
 }
@@ -367,5 +394,11 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 12px;
+}
+
+.current-plan-card {
+  border-color: rgba($primary, 0.2);
+  border-left: 4px solid $primary;
+  border-radius: 12px;
 }
 </style>
