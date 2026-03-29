@@ -6,8 +6,8 @@
         <div>
           <p class="upsell-badge__title">Llevalo al siguiente nivel</p>
           <p class="upsell-badge__text">
-            Visita una de nuestras sedes y entrena junto a nuestros entrenadores. Tu cuerpo te lo va
-            a agradecer.
+            Visitá nuestras sedes y entrená junto a nuestros entrenadores. Tu cuerpo te lo va a
+            agradecer.
           </p>
         </div>
       </div>

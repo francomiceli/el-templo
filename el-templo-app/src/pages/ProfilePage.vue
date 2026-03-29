@@ -113,7 +113,7 @@
       </q-card-section>
     </q-card>
 
-    <!-- Ajustes (per D-21: Cambiar contrasena grouped with settings) -->
+    <!-- Ajustes (per D-21: Cambiar contraseña grouped with settings) -->
     <q-card class="profile-card" flat bordered>
       <q-card-section class="profile-card__header">
         <span class="profile-card__title">Ajustes</span>
@@ -126,7 +126,7 @@
           <q-item-section avatar>
             <q-icon name="lock" color="secondary" size="22px" />
           </q-item-section>
-          <q-item-section class="profile-value">Cambiar contrasena</q-item-section>
+          <q-item-section class="profile-value">Cambiar contraseña</q-item-section>
           <q-item-section side>
             <q-icon name="chevron_right" color="grey-5" />
           </q-item-section>
