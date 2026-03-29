@@ -416,13 +416,13 @@ onMounted(async () => {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: rgba($primary, 0.2);
+    background: rgba(#2c2318, 0.25);
     transition: all 0.2s ease;
 
     &--active {
       width: 18px;
       border-radius: 3px;
-      background: $primary;
+      background: #2c2318;
     }
   }
 

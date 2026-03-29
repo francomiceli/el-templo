@@ -17,14 +17,15 @@
           @click="toggleLeftDrawer"
         />
 
-        <q-toolbar-title
-          class="header-title"
-          clickable
-          @click="$router.push('/mi-templo')"
-          style="cursor: pointer"
-        >
+        <q-toolbar-title class="header-title">
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
-          <img src="/icons/el-templo-title.png" alt="EL TEMPLO" class="header-title-img" />
+          <img
+            src="/icons/el-templo-title.png"
+            alt="EL TEMPLO"
+            class="header-title-img"
+            style="cursor: pointer"
+            @click="router.push('/mi-templo')"
+          />
         </q-toolbar-title>
 
         <q-btn v-if="authStore.isAuthenticated" flat round icon="person" to="/profile">
