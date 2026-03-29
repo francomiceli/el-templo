@@ -69,13 +69,13 @@ export const useAuthStore = defineStore('auth', () => {
     phone: string
     branchId?: number
     promoCode?: string
-  }) {
+  }): Promise<{ existingAccount?: boolean; promoApplied?: boolean } | undefined> {
     loading.value = true
     error.value = null
 
     try {
       const response = await api.post('/auth/register', data)
-      const { token: newToken, user: userData, promoApplied: _promoApplied } = response.data
+      const { token: newToken, user: userData, promoApplied, existingAccount } = response.data
 
       await setToken(newToken)
       token.value = newToken
@@ -87,6 +87,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userStore = useUserStore()
       userStore.setProfile(userData)
+
+      return { existingAccount, promoApplied }
     } catch (err: unknown) {
       error.value = extractError(err, 'Error de registro')
       throw err

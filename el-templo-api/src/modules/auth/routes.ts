@@ -44,30 +44,165 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         promoCode,
       } = request.body;
 
-      // Check if email already exists
-      const existingUser = await fastify.db
-        .select({ id: users.id })
+      // Check if email or DNI already exists — auto-login instead of rejecting
+      const [existingByEmail] = await fastify.db
+        .select({
+          id: users.id,
+          email: users.email,
+          passwordHash: users.passwordHash,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          level: users.level,
+          branchId: users.branchId,
+          isActive: users.isActive,
+        })
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
 
-      if (existingUser.length > 0) {
-        return reply
-          .code(409)
-          .send({ error: "Conflicto", message: "El email ya esta registrado" });
-      }
+      const existingUser =
+        existingByEmail ??
+        (
+          await fastify.db
+            .select({
+              id: users.id,
+              email: users.email,
+              passwordHash: users.passwordHash,
+              firstName: users.firstName,
+              lastName: users.lastName,
+              role: users.role,
+              level: users.level,
+              branchId: users.branchId,
+              isActive: users.isActive,
+            })
+            .from(users)
+            .where(eq(users.dni, dni))
+            .limit(1)
+        )[0] ??
+        null;
 
-      // Check if DNI already exists
-      const existingDni = await fastify.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.dni, dni))
-        .limit(1);
+      if (existingUser) {
+        // Update password to the one they just submitted
+        const validPassword = await argon2.verify(
+          existingUser.passwordHash,
+          password,
+        );
+        if (!validPassword) {
+          const newHash = await argon2.hash(password);
+          await fastify.db
+            .update(users)
+            .set({ passwordHash: newHash })
+            .where(eq(users.id, existingUser.id));
+        }
 
-      if (existingDni.length > 0) {
-        return reply
-          .code(409)
-          .send({ error: "Conflicto", message: "El DNI ya esta registrado" });
+        // Apply promo to existing account if applicable
+        let promoApplied = false;
+        if (promoCode) {
+          try {
+            const [promo] = await fastify.db
+              .select()
+              .from(promoPlans)
+              .where(eq(promoPlans.promoCode, promoCode))
+              .limit(1);
+
+            if (promo && promo.isActive) {
+              const now = new Date();
+              if (now >= promo.startDate && now <= promo.expiryDate) {
+                const auraService = new AuraService(fastify.db);
+                const paymentService = new PaymentService(
+                  fastify.db,
+                  fastify.log,
+                );
+                const subscriptionService = new SubscriptionService(
+                  fastify.db,
+                  request.log,
+                  auraService,
+                  paymentService,
+                );
+
+                const today = new Date().toISOString().split("T")[0];
+                await subscriptionService.assignPlan(
+                  existingUser.id,
+                  {
+                    planId: promo.subscriptionPlanId,
+                    branchId: existingUser.branchId,
+                    startDate: today,
+                    priceTypeApplied: "zero",
+                    paymentMethod: "cash",
+                  },
+                  existingUser.id,
+                );
+
+                await fastify.db
+                  .update(promoPlans)
+                  .set({
+                    redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
+                  })
+                  .where(eq(promoPlans.id, promo.id));
+
+                promoApplied = true;
+              }
+            }
+          } catch (err: unknown) {
+            request.log.error(
+              {
+                err: err instanceof Error ? err.message : String(err),
+                promoCode,
+                userId: existingUser.id,
+              },
+              "Promo code assignment to existing user failed (graceful degradation)",
+            );
+          }
+        }
+
+        // Get branch info
+        const [branchRow] = await fastify.db
+          .select({ name: branches.name, isVirtual: branches.isVirtual })
+          .from(branches)
+          .where(eq(branches.id, existingUser.branchId))
+          .limit(1);
+
+        // Check onboarding status
+        const [profile] = await fastify.db
+          .select({
+            completedAt: memberProfiles.onboardingCompletedAt,
+          })
+          .from(memberProfiles)
+          .where(eq(memberProfiles.userId, existingUser.id))
+          .limit(1);
+        const onboardingCompleted = !!profile?.completedAt;
+
+        // Sign JWT and return login response
+        const token = fastify.jwt.sign({
+          userId: existingUser.id,
+          email: existingUser.email,
+          role: existingUser.role,
+        });
+
+        request.log.info(
+          { userId: existingUser.id, promoCode, promoApplied },
+          "Existing user auto-logged in via register endpoint",
+        );
+
+        return {
+          token,
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            firstName: existingUser.firstName,
+            lastName: existingUser.lastName,
+            role: existingUser.role,
+            level: existingUser.level,
+            branchId: existingUser.branchId,
+            branchName: branchRow?.name ?? "",
+            branchIsVirtual: branchRow?.isVirtual ?? false,
+            isActive: existingUser.isActive,
+            onboardingCompleted,
+          },
+          promoApplied,
+          existingAccount: true,
+        };
       }
 
       // Resolve branch: use provided branchId or default to ONLINE

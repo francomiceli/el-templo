@@ -227,7 +227,7 @@ async function onSubmit() {
   loading.value = true
   try {
     const branchIdParam = route.query.branchId ? Number(route.query.branchId) : undefined
-    await authStore.register({
+    const result = await authStore.register({
       email: email.value,
       password: password.value,
       firstName: firstName.value,
@@ -237,34 +237,28 @@ async function onSubmit() {
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,
     })
-    $q.notify({
-      type: 'positive',
-      message: promoCode.value
-        ? 'Cuenta creada. Tu mes gratis ya esta activo!'
-        : 'Cuenta creada exitosamente',
-    })
-    router.push('/')
-  } catch (err: unknown) {
-    const errorMsg = extractError(err, 'Error al crear cuenta')
-    if (promoCode.value && errorMsg.includes('already registered')) {
+    if (result?.existingAccount) {
       $q.notify({
-        type: 'warning',
-        message: 'Ya tenes cuenta. Inicia sesion para continuar.',
-        actions: [
-          {
-            label: 'Iniciar Sesion',
-            color: 'white',
-            handler: () => router.push('/login'),
-          },
-        ],
-        timeout: 8000,
+        type: 'positive',
+        message: result.promoApplied
+          ? 'Bienvenido de vuelta! Tu promo ya esta activa.'
+          : 'Bienvenido de vuelta!',
       })
     } else {
       $q.notify({
-        type: 'negative',
-        message: errorMsg,
+        type: 'positive',
+        message: promoCode.value
+          ? 'Cuenta creada. Tu mes gratis ya esta activo!'
+          : 'Cuenta creada exitosamente',
       })
     }
+    router.push('/')
+  } catch (err: unknown) {
+    const errorMsg = extractError(err, 'Error al crear cuenta')
+    $q.notify({
+      type: 'negative',
+      message: errorMsg,
+    })
   } finally {
     loading.value = false
   }
