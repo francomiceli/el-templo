@@ -2,6 +2,7 @@
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
 import { defineConfig } from '#q-app/wrappers'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 export default defineConfig((/* ctx */) => {
   return {
@@ -56,6 +57,8 @@ export default defineConfig((/* ctx */) => {
       // extendViteConf (viteConf) {},
       // viteVuePluginOptions: {},
 
+      sourcemap: true,
+
       vitePlugins: [
         [
           'vite-plugin-checker',
@@ -68,6 +71,22 @@ export default defineConfig((/* ctx */) => {
           { server: false },
         ],
       ],
+
+      extendViteConf(viteConf) {
+        if (process.env.SENTRY_AUTH_TOKEN) {
+          viteConf.plugins = viteConf.plugins || []
+          viteConf.plugins.push(
+            sentryVitePlugin({
+              authToken: process.env.SENTRY_AUTH_TOKEN,
+              org: process.env.SENTRY_ORG,
+              project: process.env.SENTRY_PROJECT,
+              sourcemaps: {
+                filesToDeleteAfterUpload: ['**/*.map'],
+              },
+            }),
+          )
+        }
+      },
     },
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
