@@ -1,15 +1,15 @@
 <template>
-  <q-page class="reservas-v2" padding>
+  <q-page class="reservas" padding>
     <!-- Loading -->
-    <div v-if="loading" class="reservas-v2__loading">
+    <div v-if="loading" class="reservas__loading">
       <q-spinner-dots size="50px" color="primary" />
     </div>
 
     <!-- Online user empty state -->
-    <div v-else-if="isOnlineUser" class="reservas-v2__empty">
+    <div v-else-if="isOnlineUser" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
-      <h2 class="reservas-v2__empty-title">Activa Tu Plan</h2>
-      <p class="reservas-v2__empty-text">
+      <h2 class="reservas__empty-title">Activa Tu Plan</h2>
+      <p class="reservas__empty-text">
         Visita una de nuestras sedes para reservar tus clases presenciales
       </p>
     </div>
@@ -108,7 +108,7 @@
 
         <!-- Morning section -->
         <template v-if="morningSlots.length > 0">
-          <p v-if="afternoonSlots.length > 0" class="day-slots__period">Mañana</p>
+          <p v-if="afternoonSlots.length > 0" class="day-slots__period">Turno Mañana</p>
           <div
             v-for="slot in morningSlots"
             :key="slot.id"
@@ -163,7 +163,7 @@
 
         <!-- Afternoon section -->
         <template v-if="afternoonSlots.length > 0">
-          <p v-if="morningSlots.length > 0" class="day-slots__period">Tarde</p>
+          <p v-if="morningSlots.length > 0" class="day-slots__period">Turno Tarde</p>
           <div
             v-for="slot in afternoonSlots"
             :key="slot.id"
@@ -226,7 +226,7 @@
         </div>
       </div>
 
-      <p class="reservas-v2__policy">
+      <p class="reservas__policy">
         Podés reservar hasta 5 minutos antes del inicio de la clase. Las cancelaciones deben hacerse
         con al menos 20 minutos de anticipación.
       </p>
@@ -837,19 +837,19 @@ onBeforeUnmount(() => cleanup())
 @use 'sass:color';
 @import 'src/css/quasar.variables.scss';
 
-.reservas-v2 {
+.reservas {
   max-width: 600px;
   margin: 0 auto;
 }
 
-.reservas-v2__loading {
+.reservas__loading {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 60vh;
 }
 
-.reservas-v2__empty {
+.reservas__empty {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -858,7 +858,7 @@ onBeforeUnmount(() => cleanup())
   text-align: center;
 }
 
-.reservas-v2__empty-title {
+.reservas__empty-title {
   font-family: 'Montserrat', sans-serif;
   font-size: 20px;
   font-weight: 700;
@@ -866,7 +866,7 @@ onBeforeUnmount(() => cleanup())
   margin: 16px 0 8px;
 }
 
-.reservas-v2__empty-text {
+.reservas__empty-text {
   font-size: 14px;
   color: $grey-7;
 }
@@ -1095,10 +1095,9 @@ onBeforeUnmount(() => cleanup())
   gap: 8px;
 }
 
-.reservas-v2__policy {
+.reservas__policy {
   font-size: 12px;
   color: $grey-6;
-  text-align: center;
   margin: 16px 0 0;
   line-height: 1.5;
 }
