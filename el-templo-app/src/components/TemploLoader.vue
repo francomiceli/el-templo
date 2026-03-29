@@ -1,7 +1,7 @@
 <template>
   <div class="templo-loader" :class="`templo-loader--${size}`">
     <div class="templo-loader__ring"></div>
-    <img src="/icons/icon-48.webp" alt="" class="templo-loader__icon" />
+    <img src="/icons/favicon-128x128.png" alt="" class="templo-loader__icon" />
   </div>
 </template>
 

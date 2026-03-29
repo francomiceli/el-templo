@@ -1,9 +1,9 @@
 <template>
   <q-page padding>
     <!-- Loading state -->
-    <q-inner-loading :showing="loading">
-      <q-spinner-dots size="40px" color="primary" />
-    </q-inner-loading>
+    <div v-if="loading" class="planes-loading">
+      <TemploLoader size="lg" />
+    </div>
 
     <!-- Empty state -->
     <div v-if="!loading && plans.length === 0" class="text-center text-grey-6 q-pa-xl">
@@ -248,6 +248,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
@@ -386,6 +387,13 @@ onMounted(async () => {
   color: $primary;
 }
 
+.planes-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
 .planes-section-title {
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
@@ -394,7 +402,7 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 12px;
-  padding: 8px 0 0 4px;
+  padding: 4px 0 0 4px;
 }
 
 .current-plan-card {
