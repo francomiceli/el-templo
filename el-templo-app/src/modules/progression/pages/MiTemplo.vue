@@ -38,9 +38,12 @@
         </div>
       </template>
 
-      <!-- Program CTA or Progress Card (per D-14: below check-ins) -->
+      <!-- Upsell Badge for online/promo users -->
+      <UpsellBadge v-if="showUpsellBadge" />
+
+      <!-- Program CTA or Progress Card -->
       <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
-      <ProgramCtaCard v-else-if="showProgramCta" :segment="userStore.segment" />
+      <ProgramCtaCard v-else :segment="userStore.segment" />
 
       <!-- Weekly Summary -->
       <WeeklySummaryCard
@@ -69,9 +72,6 @@
           :next-class-time="null"
         />
       </template>
-
-      <!-- Upsell Badge for online/promo users (per D-18) -->
-      <UpsellBadge v-if="showUpsellBadge" />
 
       <!-- Existing stats, RPE trend, and evaluation sections -->
       <GeneralContent
@@ -128,9 +128,8 @@ const userStore = useUserStore()
 const { fetchStats, requestEvaluation, fetchWeeklySummary } = useProgressionApi()
 const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
-const { getMyProgress, getCatalog } = useProgramsApi()
+const { getMyProgress } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
-const hasProgramsAvailable = ref(false)
 
 const todayStr = computed(() => {
   const d = new Date()
@@ -182,8 +181,6 @@ type CardId = 'session' | 'booking'
 const cardOrder = computed((): CardId[] => {
   return ['booking', 'session']
 })
-
-const showProgramCta = computed(() => !programProgress.value && hasProgramsAvailable.value)
 
 const orderedCheckIns = computed((): CheckInQuestionConfig[] => {
   if (!progressionStore.checkInState) return []
@@ -247,15 +244,6 @@ onMounted(async () => {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     log.warn('Failed to load program progress', { error: message })
-  }
-  // Check if any programs exist (for CTA visibility per D-45)
-  if (!programProgress.value) {
-    try {
-      const catalog = await getCatalog()
-      hasProgramsAvailable.value = catalog.length > 0
-    } catch {
-      hasProgramsAvailable.value = false
-    }
   }
 
   // Fetch week sessions for today's route

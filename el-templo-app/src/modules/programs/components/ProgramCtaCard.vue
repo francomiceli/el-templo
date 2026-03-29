@@ -46,7 +46,7 @@
           Creamos programas enfocados en tus objetivos, con seguimiento personalizado
         </p>
         <a href="#" class="exp-cta" @click.prevent="openWhatsApp">
-          <span class="exp-cta-text">Empezar</span>
+          <span class="exp-cta-text">Mi Plan</span>
         </a>
       </div>
     </div>
@@ -63,7 +63,7 @@ defineProps<{
 const WHATSAPP_NUMBER = '5492235820521'
 
 function openWhatsApp() {
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola, me interesa un plan personalizado')}`
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola! Quiero saber más sobre mi plan personalizado 💪')}`
   window.open(url, '_blank')
 }
 </script>
