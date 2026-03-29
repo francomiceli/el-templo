@@ -39,7 +39,7 @@
 
     <!-- Loading State -->
     <div v-else-if="isLoading" class="day-player__loading flex flex-center">
-      <q-spinner-dots color="primary" size="60px" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- No Session State -->
@@ -84,6 +84,7 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useQuasar } from 'quasar'
 
 // Components
+import TemploLoader from 'src/components/TemploLoader.vue'
 import SplashScreen from '../components/player/SplashScreen.vue'
 import TransitionScreen from '../components/player/TransitionScreen.vue'
 import CelebrationScreen from '../components/player/CelebrationScreen.vue'

@@ -2,7 +2,7 @@
   <q-page class="session-summary-page">
     <!-- Loading -->
     <div v-if="loading" class="session-summary-page__loading flex flex-center">
-      <q-spinner-dots color="primary" size="50px" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- No data -->
@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { useQuasar } from 'quasar'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import { useSessionPlayerStore } from '../stores/sessionPlayerStore'

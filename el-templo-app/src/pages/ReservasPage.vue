@@ -2,7 +2,7 @@
   <q-page class="reservas" padding>
     <!-- Loading -->
     <div v-if="loading" class="reservas__loading">
-      <q-spinner-dots size="50px" color="primary" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- Online user empty state -->
@@ -308,6 +308,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { useSchedulingApi } from 'src/composables/useSchedulingApi'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'

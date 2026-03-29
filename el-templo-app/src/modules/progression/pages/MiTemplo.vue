@@ -2,7 +2,7 @@
   <q-page class="mi-templo">
     <!-- Loading State -->
     <div v-if="progressionStore.loading" class="mi-templo__loading">
-      <q-spinner-dots color="primary" size="50px" />
+      <TemploLoader size="lg" />
       <p class="mi-templo__loading-text">Cargando tu progreso...</p>
     </div>
 
@@ -92,6 +92,7 @@
  * stats/RPE trend/evaluation sections.
  */
 import { computed, ref, onMounted } from 'vue'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { useProgressionStore } from '../stores/progressionStore'
 import { useProgressionApi } from '../composables/useProgressionApi'
 import { useCheckInApi } from '../composables/useCheckInApi'

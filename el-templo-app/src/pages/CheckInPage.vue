@@ -26,7 +26,7 @@
     <!-- Camera permission denied -->
     <div v-else-if="state === 'permission-denied'" class="result-container">
       <q-icon name="videocam_off" size="80px" color="warning" />
-      <h2 class="result-title">Camara no disponible</h2>
+      <h2 class="result-title">Cámara no disponible</h2>
       <p class="result-message">Se necesita acceso a la camara para escanear el QR</p>
       <q-btn color="primary" label="Volver" class="result-btn" @click="goBack" />
     </div>

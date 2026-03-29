@@ -2,7 +2,7 @@
   <q-page class="training-index">
     <!-- Loading (while subscription loads) -->
     <div v-if="userStore.subscriptionLoading" class="training-index__loading">
-      <q-spinner-dots color="primary" size="50px" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- No active subscription — blocked state -->
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { useUserStore } from 'src/stores/useUserStore'
 import WeeklyView from './WeeklyView.vue'
 

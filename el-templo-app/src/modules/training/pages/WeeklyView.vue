@@ -7,7 +7,7 @@
 
     <!-- Loading state while fetching sessions -->
     <div v-if="loading" class="weekly-view__loading">
-      <q-spinner-dots color="primary" size="50px" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- Error state -->
@@ -31,6 +31,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { createLogger } from 'src/utils/logger'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useWeekStore } from '../stores/weekStore'
