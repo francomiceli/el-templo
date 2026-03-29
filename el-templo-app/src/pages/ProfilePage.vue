@@ -305,19 +305,19 @@ onMounted(() => {
 }
 
 .subscription-details {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .subscription-detail {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 
   &__label {
-    display: block;
-    font-size: 11px;
-    color: rgba($accent, 0.45);
-    margin-bottom: 2px;
+    font-size: 13px;
+    color: rgba($accent, 0.5);
   }
 
   &__value {
