@@ -38,11 +38,34 @@
         </div>
       </template>
 
-      <!-- Upsell Badge for online/promo users -->
-      <UpsellBadge v-if="showUpsellBadge" />
-
-      <!-- Program CTA or Progress Card -->
+      <!-- Program Progress (enrolled user) -->
       <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
+
+      <!-- Premium cards: carousel when multiple, single when one -->
+      <template v-else-if="showUpsellBadge">
+        <div class="premium-carousel">
+          <div class="premium-carousel__dots">
+            <span
+              class="premium-carousel__dot"
+              :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
+            />
+            <span
+              class="premium-carousel__dot"
+              :class="{ 'premium-carousel__dot--active': premiumSlide === 1 }"
+            />
+          </div>
+          <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
+            <div class="premium-carousel__slide">
+              <UpsellBadge />
+            </div>
+            <div class="premium-carousel__slide">
+              <ProgramCtaCard :segment="userStore.segment" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Single ProgramCtaCard for non-virtual users -->
       <ProgramCtaCard v-else :segment="userStore.segment" />
 
       <!-- Weekly Summary -->
@@ -94,7 +117,7 @@
  * booking status, weekly progress, weekly summary, and existing
  * stats/RPE trend/evaluation sections.
  */
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, type Ref } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import DailyQuote from '../components/DailyQuote.vue'
 import { useProgressionStore } from '../stores/progressionStore'
@@ -130,6 +153,15 @@ const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
 const { getMyProgress } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
+const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
+const premiumSlide = ref(0)
+
+function onPremiumScroll() {
+  const el = premiumScroller.value
+  if (!el) return
+  const scrollRatio = el.scrollLeft / (el.scrollWidth - el.clientWidth)
+  premiumSlide.value = scrollRatio > 0.5 ? 1 : 0
+}
 
 const todayStr = computed(() => {
   const d = new Date()
@@ -366,6 +398,51 @@ onMounted(async () => {
     max-width: 280px;
     flex-shrink: 0;
     scroll-snap-align: start;
+  }
+}
+
+// Premium cards carousel
+.premium-carousel {
+  margin: 0 -16px; // bleed to page edges
+
+  &__dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 0 8px;
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba($primary, 0.2);
+    transition: all 0.2s ease;
+
+    &--active {
+      width: 18px;
+      border-radius: 3px;
+      background: $primary;
+    }
+  }
+
+  &__scroller {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  &__slide {
+    flex: 0 0 100%;
+    scroll-snap-align: center;
+    padding: 0 16px;
+    box-sizing: border-box;
   }
 }
 </style>

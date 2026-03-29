@@ -16,7 +16,7 @@
 
     <template v-else>
       <!-- Branch selector -->
-      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-md">
+      <div v-if="isMultiBranch && branches.length > 1" class="q-mb-md flex justify-center">
         <q-select
           v-model="selectedBranchId"
           :options="branchOptions"
@@ -388,7 +388,8 @@ const MONTH_ABBREV = [
 function getMonday(d: Date): Date {
   const date = new Date(d)
   const day = date.getDay()
-  const diff = day === 0 ? -6 : 1 - day
+  // Sunday: show next week (tomorrow is Monday)
+  const diff = day === 0 ? 1 : 1 - day
   date.setDate(date.getDate() + diff)
   date.setHours(0, 0, 0, 0)
   return date
@@ -888,6 +889,7 @@ onBeforeUnmount(() => cleanup())
 .branch-label {
   display: flex;
   align-items: center;
+  justify-content: center;
   font-family: 'Montserrat', sans-serif;
   font-size: 14px;
   font-weight: 600;

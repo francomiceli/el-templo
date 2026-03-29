@@ -1,5 +1,5 @@
 <template>
-  <q-page class="profile-page">
+  <q-page class="profile-page" padding>
     <!-- Profile Header -->
     <div class="profile-header">
       <div class="profile-header__avatar">
@@ -11,128 +11,99 @@
       </div>
     </div>
 
-    <!-- Details -->
-    <q-card class="profile-card" flat bordered>
-      <q-list>
-        <q-item>
-          <q-item-section avatar>
-            <q-icon name="location_on" color="secondary" size="22px" />
-          </q-item-section>
-          <q-item-section>
-            <q-item-label class="profile-label">Sucursal</q-item-label>
-            <q-item-label class="profile-value">{{ userStore.branchDisplayName }}</q-item-label>
-          </q-item-section>
-        </q-item>
-      </q-list>
-    </q-card>
+    <!-- Sucursal -->
+    <div class="info-card q-mb-md">
+      <q-icon name="location_on" size="24px" color="primary" class="info-card__icon" />
+      <div class="info-card__content">
+        <span class="info-card__label">Sucursal</span>
+        <span class="info-card__value">{{ userStore.branchDisplayName }}</span>
+      </div>
+    </div>
 
     <!-- Subscription -->
-    <q-card class="profile-card" flat bordered>
-      <q-card-section class="profile-card__header">
-        <span class="profile-card__title">Mi Suscripcion</span>
-      </q-card-section>
-
-      <q-separator />
-
-      <q-card-section>
-        <div v-if="userStore.subscriptionLoading" class="flex flex-center q-pa-md">
-          <q-spinner-dots size="30px" color="primary" />
+    <div class="info-card q-mb-md">
+      <q-icon name="card_membership" size="24px" color="primary" class="info-card__icon" />
+      <div v-if="userStore.subscriptionLoading" class="info-card__content">
+        <TemploLoader size="sm" />
+      </div>
+      <div v-else-if="userStore.subscription" class="info-card__content">
+        <div class="info-card__row">
+          <span class="info-card__value">{{ userStore.subscription.planName }}</span>
+          <q-badge
+            :color="userStore.subscriptionStatusColor"
+            :label="userStore.subscriptionStatusLabel"
+          />
         </div>
-
-        <template v-else-if="userStore.subscription">
-          <div class="subscription-plan">
-            <span class="subscription-plan__name">
-              {{ userStore.subscription.planName }}
+        <div class="subscription-details">
+          <div class="subscription-detail">
+            <span class="subscription-detail__label">Inicio</span>
+            <span class="subscription-detail__value">{{
+              formatDate(userStore.subscription.startDate)
+            }}</span>
+          </div>
+          <div class="subscription-detail">
+            <span class="subscription-detail__label">Vencimiento</span>
+            <span class="subscription-detail__value">{{
+              userStore.subscription.endDate ? formatDate(userStore.subscription.endDate) : '—'
+            }}</span>
+          </div>
+          <div class="subscription-detail">
+            <span class="subscription-detail__label">Dias restantes</span>
+            <span
+              class="subscription-detail__value"
+              :class="{
+                'text-negative text-weight-bold': userStore.subscription.daysRemaining < 7,
+              }"
+            >
+              {{ userStore.subscription.daysRemaining }}
             </span>
-            <q-badge
-              :color="userStore.subscriptionStatusColor"
-              :label="userStore.subscriptionStatusLabel"
-            />
           </div>
-
-          <div class="subscription-details">
-            <div class="subscription-detail">
-              <span class="subscription-detail__label">Inicio</span>
-              <span class="subscription-detail__value">{{
-                formatDate(userStore.subscription.startDate)
-              }}</span>
-            </div>
-            <div class="subscription-detail">
-              <span class="subscription-detail__label">Vencimiento</span>
-              <span class="subscription-detail__value">{{
-                userStore.subscription.endDate ? formatDate(userStore.subscription.endDate) : '—'
-              }}</span>
-            </div>
-            <div class="subscription-detail">
-              <span class="subscription-detail__label">Dias restantes</span>
-              <span
-                class="subscription-detail__value"
-                :class="{
-                  'text-negative text-weight-bold': userStore.subscription.daysRemaining < 7,
-                }"
-              >
-                {{ userStore.subscription.daysRemaining }}
-              </span>
-            </div>
-          </div>
-        </template>
-
-        <div v-else class="text-center q-pa-sm">
-          <div class="text-grey-5 text-italic">Sin suscripcion activa</div>
         </div>
-      </q-card-section>
-    </q-card>
+      </div>
+      <div v-else class="info-card__content">
+        <span class="info-card__label">Mi Suscripcion</span>
+        <span class="info-card__value text-grey-5 text-italic">Sin suscripcion activa</span>
+      </div>
+    </div>
 
-    <!-- Notificaciones (per D-18, D-21) -->
-    <q-card class="profile-card" flat bordered>
-      <q-card-section class="profile-card__header">
-        <span class="profile-card__title">Notificaciones</span>
-      </q-card-section>
+    <!-- Ajustes -->
+    <p class="section-title">Ajustes</p>
+    <div class="settings-card q-mb-md">
+      <div
+        class="settings-card__item settings-card__item--clickable"
+        @click="$router.push('/change-password')"
+      >
+        <q-icon name="lock" size="22px" color="primary" />
+        <span class="settings-card__label">Cambiar contraseña</span>
+        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+      </div>
 
-      <q-separator />
+      <div class="settings-card__divider" />
 
-      <q-card-section>
-        <div v-if="preferencesLoading" class="flex flex-center q-pa-sm">
-          <q-spinner-dots size="24px" color="primary" />
-        </div>
-        <q-list v-else>
-          <q-item v-for="cat in notificationCategories" :key="cat.key" tag="label">
-            <q-item-section>
-              <q-item-label class="profile-value">{{ cat.label }}</q-item-label>
-              <q-item-label caption class="profile-label">{{ cat.description }}</q-item-label>
-            </q-item-section>
-            <q-item-section side>
-              <q-toggle
-                :model-value="preferences[cat.key]"
-                color="primary"
-                @update:model-value="(val: boolean) => togglePreference(cat.key, val)"
-              />
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card-section>
-    </q-card>
+      <div class="settings-card__section-label">
+        <q-icon name="notifications" size="18px" color="grey-6" />
+        <span>Notificaciones</span>
+      </div>
 
-    <!-- Ajustes (per D-21: Cambiar contraseña grouped with settings) -->
-    <q-card class="profile-card" flat bordered>
-      <q-card-section class="profile-card__header">
-        <span class="profile-card__title">Ajustes</span>
-      </q-card-section>
-
-      <q-separator />
-
-      <q-list>
-        <q-item clickable v-ripple to="/change-password">
-          <q-item-section avatar>
-            <q-icon name="lock" color="secondary" size="22px" />
+      <div v-if="preferencesLoading" class="flex flex-center q-pa-sm">
+        <TemploLoader size="sm" />
+      </div>
+      <q-list v-else class="notification-list">
+        <q-item v-for="cat in notificationCategories" :key="cat.key" tag="label" dense>
+          <q-item-section>
+            <q-item-label class="settings-card__label">{{ cat.label }}</q-item-label>
+            <q-item-label caption class="text-grey-6">{{ cat.description }}</q-item-label>
           </q-item-section>
-          <q-item-section class="profile-value">Cambiar contraseña</q-item-section>
           <q-item-section side>
-            <q-icon name="chevron_right" color="grey-5" />
+            <q-toggle
+              :model-value="preferences[cat.key]"
+              color="primary"
+              @update:model-value="(val: boolean) => togglePreference(cat.key, val)"
+            />
           </q-item-section>
         </q-item>
       </q-list>
-    </q-card>
+    </div>
   </q-page>
 </template>
 
@@ -142,6 +113,7 @@ import { useUserStore } from 'stores/useUserStore'
 import { formatDate } from 'src/utils/format-date'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import TemploLoader from 'src/components/TemploLoader.vue'
 
 const log = createLogger('ProfilePage')
 const userStore = useUserStore()
@@ -159,35 +131,29 @@ const notificationCategories = [
     description: 'Confirmacion de inscripcion, avance semanal',
   },
   {
-    key: 'motivacion',
-    label: 'Motivacion',
-    description: 'Mensajes de re-engagement, celebraciones',
+    key: 'novedades',
+    label: 'Novedades',
+    description: 'Nuevas funciones y actualizaciones',
   },
-  {
-    key: 'anuncios',
-    label: 'Anuncios',
-    description: 'Comunicados del gimnasio',
-  },
-] as const
+]
 
-type NotificationCategory = 'entrenamiento' | 'programas' | 'motivacion' | 'anuncios'
-
+// Notification preferences state
 const preferencesLoading = ref(true)
-const preferences = reactive<Record<NotificationCategory, boolean>>({
+const preferences = reactive<Record<string, boolean>>({
   entrenamiento: true,
   programas: true,
-  motivacion: true,
-  anuncios: true,
+  novedades: true,
 })
 
 async function loadPreferences() {
+  preferencesLoading.value = true
   try {
-    const { data } = await api.get<{
-      preferences: Record<NotificationCategory, boolean>
-    }>('/notifications/preferences')
-    Object.assign(preferences, data.preferences)
+    const res = await api.get<{ preferences: Record<string, boolean> }>(
+      '/notifications/preferences',
+    )
+    Object.assign(preferences, res.data.preferences)
   } catch (err: unknown) {
-    log.error('Failed to load notification preferences', {
+    log.warn('Failed to load notification preferences', {
       error: err instanceof Error ? err.message : String(err),
     })
   } finally {
@@ -195,119 +161,141 @@ async function loadPreferences() {
   }
 }
 
-async function togglePreference(category: NotificationCategory, enabled: boolean) {
-  // Optimistic update
-  preferences[category] = enabled
+async function togglePreference(key: string, value: boolean) {
+  preferences[key] = value
   try {
-    await api.put('/notifications/preferences', { category, enabled })
+    await api.put('/notifications/preferences', { preferences: { [key]: value } })
   } catch (err: unknown) {
     // Revert on failure
-    preferences[category] = !enabled
-    log.error('Failed to update preference', {
+    preferences[key] = !value
+    log.error('Failed to update notification preference', {
+      key,
       error: err instanceof Error ? err.message : String(err),
-      category,
     })
   }
 }
 
-onMounted(() => {
-  userStore.loadSubscription()
+onMounted(async () => {
+  if (!userStore.subscription && !userStore.subscriptionLoading) {
+    await userStore.loadSubscription()
+  }
   loadPreferences()
 })
 </script>
 
 <style scoped lang="scss">
+@use 'sass:color';
 @import 'src/css/quasar.variables.scss';
 
 .profile-page {
-  max-width: 500px;
+  max-width: 600px;
   margin: 0 auto;
-  padding: 16px;
 }
 
 .profile-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
+  gap: 16px;
+  padding: 8px 0 20px;
 
-.profile-header__avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, $primary, $secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.profile-header__info {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-header__name {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 17px;
-  font-weight: 600;
-  color: $accent;
-  line-height: 1.3;
-}
-
-.profile-header__email {
-  font-size: 13px;
-  color: rgba($accent, 0.5);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-card {
-  border-radius: 12px;
-  border-color: rgba($primary, 0.12);
-  margin-bottom: 10px;
-
-  &__header {
-    padding-bottom: 10px;
+  &__avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, $primary, color.adjust($primary, $lightness: 8%));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
-  &__title {
+  &__name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: $primary;
+  }
+
+  &__email {
+    font-size: 13px;
+    color: $grey-7;
+    margin-top: 2px;
+  }
+}
+
+.section-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba($primary, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 4px 0 8px;
+}
+
+.info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 1px solid rgba($primary, 0.15);
+  border-radius: 12px;
+  border-left: 4px solid $primary;
+
+  &--clickable {
+    cursor: pointer;
+    align-items: center;
+    transition: box-shadow 0.15s ease;
+
+    &:active {
+      box-shadow: 0 0 0 2px rgba($primary, 0.15);
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+
+    &--full {
+      margin-left: -36px; // align with card edge past icon
+      padding-left: 36px;
+    }
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  &__label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgba($primary, 0.5);
+    display: block;
+  }
+
+  &__value {
     font-family: 'Montserrat', sans-serif;
     font-size: 14px;
     font-weight: 600;
-    color: $accent;
-  }
-}
-
-.profile-label {
-  font-size: 12px;
-  color: rgba($accent, 0.5);
-}
-
-.profile-value {
-  font-size: 14px;
-  color: $accent;
-}
-
-.subscription-plan {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-
-  &__name {
-    font-size: 15px;
-    font-weight: 600;
-    color: $accent;
+    color: $primary;
   }
 }
 
 .subscription-details {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .subscription-detail {
@@ -324,6 +312,69 @@ onMounted(() => {
     font-size: 14px;
     font-weight: 500;
     color: $accent;
+  }
+}
+
+.settings-card {
+  background: white;
+  border: 1px solid rgba($primary, 0.15);
+  border-radius: 12px;
+  border-left: 4px solid $primary;
+  padding: 0;
+  overflow: hidden;
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+
+    &--clickable {
+      cursor: pointer;
+      transition: background 0.15s ease;
+
+      &:active {
+        background: rgba($primary, 0.04);
+      }
+    }
+  }
+
+  &__label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: $primary;
+    flex: 1;
+  }
+
+  &__chevron {
+    flex-shrink: 0;
+  }
+
+  &__divider {
+    height: 1px;
+    background: rgba($primary, 0.08);
+    margin: 0 16px;
+  }
+
+  &__section-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: $grey-6;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+.notification-list {
+  padding: 0 8px;
+
+  :deep(.q-item) {
+    padding: 6px 8px;
   }
 }
 </style>
