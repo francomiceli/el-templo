@@ -31,7 +31,7 @@
         <q-btn
           color="primary"
           unelevated
-          label="ENTRADA EN CALOR"
+          label="COMENZAR"
           class="full-width"
           size="lg"
           @click="emit('start')"

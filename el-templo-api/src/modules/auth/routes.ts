@@ -80,12 +80,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           .limit(1);
 
         if (branch.length === 0) {
-          return reply
-            .code(400)
-            .send({
-              error: "Solicitud invalida",
-              message: "Sucursal invalida",
-            });
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Sucursal invalida",
+          });
         }
         branchId = requestedBranchId;
       } else {
@@ -188,6 +186,13 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Get branch info for response
+      const [branchRow] = await fastify.db
+        .select({ name: branches.name, isVirtual: branches.isVirtual })
+        .from(branches)
+        .where(eq(branches.id, branchId))
+        .limit(1);
+
       // Sign JWT
       const token = fastify.jwt.sign({ userId, email, role: "member" });
 
@@ -201,6 +206,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: "member",
           level: "alfa",
           branchId,
+          branchName: branchRow?.name ?? "",
+          branchIsVirtual: branchRow?.isVirtual ?? false,
         },
         promoApplied,
       };

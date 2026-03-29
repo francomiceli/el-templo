@@ -2,16 +2,12 @@
   <q-card class="upsell-badge" flat bordered>
     <q-card-section class="upsell-badge__body">
       <div class="upsell-badge__header">
-        <q-icon
-          name="local_fire_department"
-          size="28px"
-          class="upsell-badge__icon"
-        />
+        <q-icon name="local_fire_department" size="28px" class="upsell-badge__icon" />
         <div>
           <p class="upsell-badge__title">Llevalo al siguiente nivel</p>
           <p class="upsell-badge__text">
-            Visita una de nuestras sedes y entrena con coaching presencial. Tu
-            cuerpo te lo va a agradecer.
+            Visita una de nuestras sedes y entrena junto a nuestros entrenadores. Tu cuerpo te lo va
+            a agradecer.
           </p>
         </div>
       </div>
@@ -27,11 +23,7 @@
 @import 'src/css/quasar.variables.scss';
 
 .upsell-badge {
-  background: linear-gradient(
-    135deg,
-    rgba($primary, 0.08) 0%,
-    rgba(#d4a843, 0.05) 100%
-  );
+  background: linear-gradient(135deg, rgba($primary, 0.08) 0%, rgba(#d4a843, 0.05) 100%);
   border-color: rgba($primary, 0.25);
   border-radius: 12px;
 
