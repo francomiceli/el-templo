@@ -57,11 +57,14 @@ export class BookingService {
       throw new BadRequestError("Este horario no esta activo");
     }
 
-    // 2. Validate date is within current week (Mon-Sat) and not in the past
-    const { monday, saturday } = getWeekRange(new Date());
-    if (date < monday || date > saturday) {
+    // 2. Validate date is within booking window: today to today+2 days
+    const today = toDateString(new Date());
+    const maxDate = toDateString(
+      new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    );
+    if (date < today || date > maxDate) {
       throw new BadRequestError(
-        "Solo podes reservar dentro de la semana actual",
+        "Solo podes reservar desde hoy hasta 2 dias en adelante",
       );
     }
 
@@ -120,6 +123,7 @@ export class BookingService {
     // 7. Check weekly booking count
     const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
     if (classesPerWeek !== null) {
+      const { monday, saturday } = getWeekRange(new Date(date + "T12:00:00Z"));
       const weeklyCount = await this.countWeeklyBookings(
         memberId,
         monday,

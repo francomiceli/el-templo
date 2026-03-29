@@ -94,9 +94,6 @@
           >
             <span class="day-pill__abbrev">{{ DAY_LABELS[day] }}</span>
             <span class="day-pill__date">{{ dayDateNumber(day) }}</span>
-            <span v-if="dayAvailableCount(day) > 0 && !isDayPast(day)" class="day-pill__avail">
-              {{ dayAvailableCount(day) }}
-            </span>
             <span v-if="dayHasBooking(day)" class="day-pill__dot"></span>
           </button>
         </div>
@@ -231,8 +228,8 @@
       </div>
 
       <p class="reservas__policy">
-        Podés reservar hasta 5 minutos antes del inicio de la clase. Las cancelaciones deben hacerse
-        con al menos 20 minutos de anticipación.
+        Podés reservar desde hoy hasta 2 días en adelante, hasta 5 minutos antes del inicio de la
+        clase. Las cancelaciones deben hacerse con al menos 20 minutos de anticipación.
       </p>
 
       <!-- Week activity summary (collapsible) -->
@@ -558,18 +555,6 @@ function dayHasBooking(day: DayOfWeek): boolean {
       b.bookingDate === date &&
       ['reservado', 'qr_escaneado', 'confirmado', 'lista_espera'].includes(b.status),
   )
-}
-
-function dayAvailableCount(day: DayOfWeek): number {
-  return slots.value.filter((s) => {
-    if (s.dayOfWeek !== day) return false
-    if (s.isFull) return false
-    if (s.isHoliday) return false
-    if (bookedScheduleIds.value.has(s.id)) return false
-    const date = dateForDay(day)
-    if (new Date(`${date}T${s.startTime}`) < new Date()) return false
-    return true
-  }).length
 }
 
 // ─── Slot state helpers ─────────────────────────────────────────────
@@ -1050,11 +1035,6 @@ onBeforeUnmount(() => cleanup())
     .day-pill__date {
       color: white;
     }
-
-    .day-pill__avail {
-      background: rgba(white, 0.25);
-      color: white;
-    }
   }
 
   &--today:not(&--selected) {
@@ -1079,16 +1059,6 @@ onBeforeUnmount(() => cleanup())
     font-weight: 700;
     color: $primary;
     line-height: 1.2;
-  }
-
-  &__avail {
-    font-size: 10px;
-    font-weight: 600;
-    color: $positive;
-    background: rgba($positive, 0.1);
-    border-radius: 8px;
-    padding: 1px 6px;
-    margin-top: 2px;
   }
 
   &__dot {

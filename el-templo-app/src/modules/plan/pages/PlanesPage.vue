@@ -394,6 +394,7 @@ onMounted(async () => {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 4px 0 12px;
+  padding: 8px 0 0 4px;
 }
 
 .current-plan-card {
