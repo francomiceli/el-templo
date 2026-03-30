@@ -16,6 +16,7 @@ export interface PdfExercise {
   rest?: number | null;
   notes?: string | null;
   formatType?: string | null; // e.g. 'pyramid' — used for format-specific volume display
+  formatRounds?: number | null; // rounds from block format params (ladder formats)
 }
 
 export interface PdfLevelBlock {

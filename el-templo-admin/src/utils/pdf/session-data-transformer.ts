@@ -227,7 +227,8 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
 function exerciseToPdf(
   ex: SessionExercise,
   formatDictated: boolean,
-  formatType?: string
+  formatType?: string,
+  formatRounds?: number
 ): PdfExercise {
   return {
     name: ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName,
@@ -240,6 +241,7 @@ function exerciseToPdf(
     rest: ex.rest,
     notes: ex.notes,
     formatType: formatType || null,
+    formatRounds: formatRounds || null,
   };
 }
 
@@ -248,14 +250,20 @@ function getFormatType(block: SessionBlock): string | undefined {
   return (params?.type as string) || undefined;
 }
 
+function getFormatRounds(block: SessionBlock): number | undefined {
+  const params = block.formatParams as Record<string, unknown> | null;
+  return params?.rounds ? Number(params.rounds) : undefined;
+}
+
 function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
   const dictated = isFormatDictatedByName(block.formatName);
   const formatType = getFormatType(block);
+  const formatRounds = getFormatRounds(block);
   return {
     level,
     route: block.route,
     intensity: block.intensity,
-    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType)),
+    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType, formatRounds)),
   };
 }
 

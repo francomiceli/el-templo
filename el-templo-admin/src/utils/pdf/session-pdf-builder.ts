@@ -114,11 +114,43 @@ function buildPyramidVolume(ex: PdfExercise): string {
   return `${first}...${peak}${q}...${last}`;
 }
 
+const LADDER_TYPES = new Set(['ladder', 'ladder_corta', 'ladder_block', 'broken_ladder']);
+
+/**
+ * Build ladder pattern string for PDF display.
+ * Uses repsMax/secondsMax as start, increment as step, formatRounds as count.
+ */
+function buildLadderVolume(ex: PdfExercise): string {
+  const isIso = ex.contraction?.toUpperCase() === 'ISO';
+  const start = Number(isIso ? ex.secondsMax : ex.repsMax) || 1;
+  const step = Number(ex.increment) || 1;
+  const rounds = Number(ex.formatRounds) || 10;
+  const q = isIso ? '"' : '';
+
+  const values: number[] = [];
+  for (let i = 0; i < rounds; i++) values.push(start + i * step);
+
+  if (values.length <= 7) return values.map((n) => `${n}${q}`).join('-');
+  const first = values
+    .slice(0, 3)
+    .map((n) => `${n}${q}`)
+    .join('-');
+  const last = values
+    .slice(-2)
+    .map((n) => `${n}${q}`)
+    .join('-');
+  return `${first}...${last}`;
+}
+
 /** Build volume display string for an exercise */
 function buildExerciseVolume(ex: PdfExercise): string {
   // Pyramid: per-exercise pattern
   if (ex.formatType === 'pyramid') {
     return buildPyramidVolume(ex);
+  }
+  // Ladder: per-exercise start/step + block-level rounds from format params
+  if (ex.formatType && LADDER_TYPES.has(ex.formatType)) {
+    return buildLadderVolume(ex);
   }
   // Death By: increment pattern
   if (ex.increment) {
