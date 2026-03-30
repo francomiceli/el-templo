@@ -257,6 +257,11 @@ async function onLogout() {
 .main-header {
   background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
 
+  // Android safe area — Quasar only handles iOS via q-ios-padding class
+  body.platform-android & {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
   &--unified {
     background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
   }
