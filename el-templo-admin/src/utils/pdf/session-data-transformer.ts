@@ -102,51 +102,19 @@ function formatNameWithParams(
       return name;
 
     // Direction formats with pattern
+    // Ladder formats: show direction + rounds (per-exercise start/step shown on each exercise)
     case 'ladder':
     case 'ladder_corta': {
       const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      if (p.start && p.step && p.rounds) {
-        const vals: number[] = [];
-        for (let i = 0; i < Number(p.rounds); i++) {
-          vals.push(
-            p.direction === 'ascending'
-              ? Number(p.start) + i * Number(p.step)
-              : Number(p.start) - i * Number(p.step)
-          );
-        }
-        return `${name} ${vals.join('-')}`;
-      }
-      return `${name} ${dir}`;
+      return p.rounds ? `${name} ${dir} X${p.rounds}` : `${name} ${dir}`;
     }
     case 'ladder_block': {
       const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      if (p.start && p.step && p.blockSize) {
-        const parts: string[] = [];
-        for (let i = 0; i < 4; i++) {
-          const reps =
-            p.direction === 'ascending'
-              ? Number(p.start) + i * Number(p.step)
-              : Number(p.start) - i * Number(p.step);
-          parts.push(`${reps}x${p.blockSize}`);
-        }
-        return `${name} ${parts.join('-')}...`;
-      }
-      return `${name} ${dir}`;
+      return p.blockSize ? `${name} ${dir} X${p.blockSize}` : `${name} ${dir}`;
     }
     case 'broken_ladder': {
       const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      if (p.start && p.step && p.breakAfter) {
-        const vals: number[] = [];
-        for (let i = 0; i < Number(p.breakAfter); i++) {
-          vals.push(
-            p.direction === 'ascending'
-              ? Number(p.start) + i * Number(p.step)
-              : Number(p.start) - i * Number(p.step)
-          );
-        }
-        return `${name} ${vals.join('-')} | ${vals.join('-')} | ...`;
-      }
-      return `${name} ${dir}`;
+      return p.breakAfter ? `${name} ${dir} /${p.breakAfter}` : `${name} ${dir}`;
     }
 
     // No-params formats — name only

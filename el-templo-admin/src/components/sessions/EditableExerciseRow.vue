@@ -237,7 +237,7 @@
           <span class="text-caption text-grey-6">{{ pyramidExercisePreview }}</span>
         </template>
 
-        <!-- Ladder: per-exercise start + step + rounds + preview -->
+        <!-- Ladder: per-exercise start + step (rounds from format params) -->
         <template v-else-if="isLadder">
           <template v-if="isIso">
             <q-input
@@ -262,17 +262,6 @@
               @blur="emitUpdate"
               @keyup.enter="emitUpdate"
             />
-            <q-input
-              v-model.number="localSeconds"
-              type="number"
-              dense
-              outlined
-              label="Rondas"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
           </template>
           <template v-else>
             <q-input
@@ -292,17 +281,6 @@
               dense
               outlined
               label="Paso"
-              class="editable-field"
-              input-class="text-center"
-              @blur="emitUpdate"
-              @keyup.enter="emitUpdate"
-            />
-            <q-input
-              v-model.number="localReps"
-              type="number"
-              dense
-              outlined
-              label="Rondas"
               class="editable-field"
               input-class="text-center"
               @blur="emitUpdate"
@@ -440,6 +418,8 @@ const props = defineProps<{
   blockFormatName: string;
   /** Discriminated format type from formatParams (e.g. 'amrap', 'death_by', 'i_go_you_go') */
   formatType?: string;
+  /** Rounds from block-level format params (ladder formats) */
+  formatRounds?: number;
   isFirst: boolean;
   isLast: boolean;
 }>();
@@ -657,7 +637,7 @@ const ladderExercisePreview = computed(() => {
   if (!isLadder.value) return '';
   const start = Number(isIso.value ? localSecondsMax.value : localRepsMax.value) || 1;
   const step = Number(localIncrement.value) || 1;
-  const rounds = Number(isIso.value ? localSeconds.value : localReps.value) || 5;
+  const rounds = Number(props.formatRounds) || 5;
   if (step <= 0 || rounds <= 0 || start <= 0) return '';
   const values: number[] = [];
   for (let i = 0; i < rounds; i++) values.push(start + i * step);
@@ -711,10 +691,8 @@ onMounted(() => {
     if (!localIncrement.value) localIncrement.value = 1;
     if (isIso.value) {
       if (!localSecondsMax.value) localSecondsMax.value = 5;
-      if (!localSeconds.value) localSeconds.value = 5;
     } else {
       if (!localRepsMax.value) localRepsMax.value = 1;
-      if (!localReps.value) localReps.value = 5;
     }
   }
 });
