@@ -16,7 +16,6 @@ export interface PdfExercise {
   rest?: number | null;
   notes?: string | null;
   formatType?: string | null; // e.g. 'pyramid' — used for format-specific volume display
-  formatRounds?: number | null; // rounds from block format params (ladder/ladder_corta)
   formatBlockSize?: number | null; // blockSize from format params (ladder_block)
   formatBreakAfter?: number | null; // breakAfter from format params (broken_ladder)
 }

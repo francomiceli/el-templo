@@ -102,20 +102,12 @@ function formatNameWithParams(
       return name;
 
     // Direction formats with pattern
-    // Ladder formats: show direction + rounds (per-exercise start/step shown on each exercise)
+    // Ladder formats: name only, per-exercise patterns shown on each exercise line
     case 'ladder':
-    case 'ladder_corta': {
-      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      return p.rounds ? `${name} ${dir} X${p.rounds}` : `${name} ${dir}`;
-    }
-    case 'ladder_block': {
-      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      return p.blockSize ? `${name} ${dir} X${p.blockSize}` : `${name} ${dir}`;
-    }
-    case 'broken_ladder': {
-      const dir = p.direction === 'descending' ? 'DESC' : 'ASC';
-      return p.breakAfter ? `${name} ${dir} /${p.breakAfter}` : `${name} ${dir}`;
-    }
+    case 'ladder_corta':
+    case 'ladder_block':
+    case 'broken_ladder':
+      return name;
 
     // No-params formats — name only
     case 'cluster':
@@ -193,7 +185,6 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
 }
 
 interface LadderParams {
-  rounds?: number;
   blockSize?: number;
   breakAfter?: number;
 }
@@ -215,7 +206,6 @@ function exerciseToPdf(
     rest: ex.rest,
     notes: ex.notes,
     formatType: formatType || null,
-    formatRounds: ladderParams?.rounds || null,
     formatBlockSize: ladderParams?.blockSize || null,
     formatBreakAfter: ladderParams?.breakAfter || null,
   };
@@ -230,7 +220,6 @@ function getLadderParams(block: SessionBlock): LadderParams | undefined {
   const params = block.formatParams as Record<string, unknown> | null;
   if (!params) return undefined;
   return {
-    rounds: params.rounds ? Number(params.rounds) : undefined,
     blockSize: params.blockSize ? Number(params.blockSize) : undefined,
     breakAfter: params.breakAfter ? Number(params.breakAfter) : undefined,
   };

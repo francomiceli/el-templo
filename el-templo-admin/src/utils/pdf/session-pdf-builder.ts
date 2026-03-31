@@ -146,11 +146,12 @@ function buildLadderVolume(ex: PdfExercise): string {
   const isIso = ex.contraction?.toUpperCase() === 'ISO';
   const start = Number(isIso ? ex.secondsMax : ex.repsMax) || 1;
   const step = Number(ex.increment) || 1;
+  const rounds = Number(isIso ? ex.seconds : ex.reps) || 5;
   const q = isIso ? '"' : '';
 
   if (ex.formatType === 'ladder_block') {
     const blockSize = Number(ex.formatBlockSize) || 3;
-    const values = ladderSequence(start, step, 4);
+    const values = ladderSequence(start, step, Math.min(rounds, 4));
     return values.map((n) => `${n}${q}x${blockSize}`).join('-') + '...';
   }
 
@@ -161,8 +162,7 @@ function buildLadderVolume(ex: PdfExercise): string {
     return `${segStr} | ${segStr} | ...`;
   }
 
-  // ladder / ladder_corta
-  const rounds = Number(ex.formatRounds) || 10;
+  // ladder / ladder_corta — rounds from per-exercise reps/seconds
   const values = ladderSequence(start, step, rounds);
   return truncateSequence(values, q);
 }

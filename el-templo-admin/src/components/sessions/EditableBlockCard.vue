@@ -140,9 +140,6 @@
           :block-route="selectedBlock.route"
           :block-format-name="selectedBlock.formatName"
           :format-type="(selectedBlock.formatParams as Record<string, unknown>)?.type as string"
-          :format-rounds="
-            Number((selectedBlock.formatParams as Record<string, unknown>)?.rounds) || undefined
-          "
           :is-first="idx === 0"
           :is-last="idx === selectedBlock.exercises.length - 1"
           draggable="true"
