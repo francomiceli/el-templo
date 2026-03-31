@@ -86,9 +86,10 @@ async function renderPdfToImages(
 
     await page.render({ canvas, viewport }).promise;
 
-    // Generate a small preview for the progress dialog
+    // Generate a small preview for the progress dialog and hold for 2s minimum
     const previewUrl = canvas.toDataURL('image/jpeg', 0.4);
     onProgress?.(`Renderizando página ${i} de ${pdf.numPages}...`, pagePercent, previewUrl);
+    await new Promise((r) => setTimeout(r, 2000));
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((b) => {

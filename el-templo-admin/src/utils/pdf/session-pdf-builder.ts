@@ -523,8 +523,8 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   topRow.sort(sortByLevel);
   bottomRow.sort(sortByLevel);
 
-  const headerFontSize = isHalf ? 100 : 130;
-  const mobilityFontSize = isHalf ? 48 : 68;
+  const headerFontSize = isHalf ? 88 : 130;
+  const mobilityFontSize = isHalf ? 56 : 68;
 
   // Set target box height to fill available space.
   // Full page: ~2128pt usable, half page: ~1063pt usable.

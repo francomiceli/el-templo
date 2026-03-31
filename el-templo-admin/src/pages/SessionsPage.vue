@@ -302,7 +302,7 @@
 
     <!-- PNG generation progress dialog -->
     <q-dialog v-model="pngProgress.active" persistent no-backdrop-dismiss>
-      <q-card style="min-width: 420px; max-width: 600px">
+      <q-card style="width: 80vw; max-width: 900px">
         <q-card-section>
           <div class="text-subtitle2 q-mb-sm">{{ pngProgress.message }}</div>
           <q-linear-progress :value="pngProgress.percent / 100" color="accent" size="20px" rounded>
