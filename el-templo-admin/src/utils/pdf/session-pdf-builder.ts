@@ -423,7 +423,10 @@ const LEVEL_BOX_WIDTH = 1780;
  */
 function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStack {
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
-  const isPyramidBlock = lb.exercises.some((ex) => ex.formatType === 'pyramid');
+  const hasWideVolume = lb.exercises.some(
+    (ex) => ex.formatType === 'pyramid' || (ex.formatType && LADDER_TYPES.has(ex.formatType))
+  );
+  const volumeWidth = hasWideVolume ? 576 : 276;
 
   // Calculate box height: use target if provided, otherwise fit content
   const exerciseCount = lb.exercises.length;
@@ -448,15 +451,36 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
           width: '*',
           font: 'NunitoSans',
         },
-        {
-          text: volume,
-          fontSize: 64,
-          color: GOLD,
-          width: isPyramidBlock ? 576 : 276,
-          alignment: 'right' as const,
-          bold: true,
-          font: 'NunitoSans',
-        },
+        volume
+          ? {
+              table: {
+                body: [
+                  [
+                    {
+                      text: volume,
+                      fontSize: 64,
+                      color: BG_CREAM,
+                      bold: true,
+                      font: 'NunitoSans',
+                      alignment: 'center' as const,
+                      margin: [16, 4, 16, 4],
+                    },
+                  ],
+                ],
+              },
+              layout: {
+                fillColor: () => NAVY,
+                hLineWidth: () => 0,
+                vLineWidth: () => 0,
+                paddingLeft: () => 0,
+                paddingRight: () => 0,
+                paddingTop: () => 0,
+                paddingBottom: () => 0,
+              },
+              width: volumeWidth,
+              alignment: 'right' as const,
+            }
+          : { text: '', width: volumeWidth },
       ],
       margin: [50, lineGap, 50, 0],
     };
@@ -633,7 +657,10 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
   const symbol = LEVEL_SYMBOLS[lb.level] || lb.level.toUpperCase();
   const symbolSize = Math.round(exFontSize * 1.35);
   const routeFontSize = Math.round(exFontSize * 1.05);
-  const isPyramidBlock = lb.exercises.some((ex) => ex.formatType === 'pyramid');
+  const hasWideVolume = lb.exercises.some(
+    (ex) => ex.formatType === 'pyramid' || (ex.formatType && LADDER_TYPES.has(ex.formatType))
+  );
+  const volumeWidth = hasWideVolume ? 432 : 200;
   const lineGap = Math.round(exFontSize * 0.22);
 
   const exercises: ContentColumns[] = lb.exercises.map((ex) => {
@@ -650,15 +677,36 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
           width: '*',
           font: 'NunitoSans',
         },
-        {
-          text: volume,
-          fontSize: exFontSize,
-          color: GOLD,
-          width: isPyramidBlock ? 432 : 200,
-          alignment: 'right' as const,
-          bold: true,
-          font: 'NunitoSans',
-        },
+        volume
+          ? {
+              table: {
+                body: [
+                  [
+                    {
+                      text: volume,
+                      fontSize: exFontSize,
+                      color: BG_CREAM,
+                      bold: true,
+                      font: 'NunitoSans',
+                      alignment: 'center' as const,
+                      margin: [12, 3, 12, 3],
+                    },
+                  ],
+                ],
+              },
+              layout: {
+                fillColor: () => NAVY,
+                hLineWidth: () => 0,
+                vLineWidth: () => 0,
+                paddingLeft: () => 0,
+                paddingRight: () => 0,
+                paddingTop: () => 0,
+                paddingBottom: () => 0,
+              },
+              width: volumeWidth,
+              alignment: 'right' as const,
+            }
+          : { text: '', width: volumeWidth },
       ],
       margin: [0, lineGap, 20, 0],
     };
