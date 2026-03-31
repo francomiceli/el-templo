@@ -523,12 +523,17 @@ function buildBlockPageWithGrid(block: PdfBlockPage, isHalf = false): Content[] 
   topRow.sort(sortByLevel);
   bottomRow.sort(sortByLevel);
 
-  const headerFontSize = isHalf ? 72 : 130;
-  const mobilityFontSize = isHalf ? 36 : 68;
+  const headerFontSize = isHalf ? 100 : 130;
+  const mobilityFontSize = isHalf ? 48 : 68;
 
-  // For full-page blocks, set a target box height to fill more of the page.
+  // Set target box height to fill available space.
+  // Full page: ~2128pt usable, half page: ~1063pt usable.
+  // Chrome (header + mobility + spacers) ≈ 300pt half, 350pt full.
+  // Level header above box ≈ 120pt.
   let targetBoxHeight: number | undefined;
-  if (!isHalf) {
+  if (isHalf) {
+    targetBoxHeight = 520;
+  } else {
     targetBoxHeight = 560;
   }
 
