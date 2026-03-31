@@ -21,7 +21,7 @@ import pdfjsWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 const workerBlob = new Blob([pdfjsWorkerSrc], { type: 'text/javascript' });
 pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
 
-export type ProgressCallback = (message: string, percent: number) => void;
+export type ProgressCallback = (message: string, percent: number, previewUrl?: string) => void;
 
 // Progress weight distribution (must sum to 100)
 const WEIGHT_PREP = 5;
@@ -76,7 +76,6 @@ async function renderPdfToImages(
   for (let i = 1; i <= pdf.numPages; i++) {
     checkAbort(signal);
     const pagePercent = WEIGHT_PREP + WEIGHT_PDF + Math.round((i / pdf.numPages) * WEIGHT_RENDER);
-    onProgress?.(`Renderizando página ${i} de ${pdf.numPages}...`, pagePercent);
 
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: 1 });
@@ -86,6 +85,10 @@ async function renderPdfToImages(
     canvas.height = viewport.height;
 
     await page.render({ canvas, viewport }).promise;
+
+    // Generate a small preview for the progress dialog
+    const previewUrl = canvas.toDataURL('image/jpeg', 0.4);
+    onProgress?.(`Renderizando página ${i} de ${pdf.numPages}...`, pagePercent, previewUrl);
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((b) => {

@@ -302,7 +302,7 @@
 
     <!-- PNG generation progress dialog -->
     <q-dialog v-model="pngProgress.active" persistent no-backdrop-dismiss>
-      <q-card style="min-width: 320px">
+      <q-card style="min-width: 420px; max-width: 600px">
         <q-card-section>
           <div class="text-subtitle2 q-mb-sm">{{ pngProgress.message }}</div>
           <q-linear-progress :value="pngProgress.percent / 100" color="accent" size="20px" rounded>
@@ -312,6 +312,12 @@
               </span>
             </div>
           </q-linear-progress>
+          <img
+            v-if="pngProgress.previewUrl"
+            :src="pngProgress.previewUrl"
+            class="q-mt-sm full-width rounded-borders"
+            style="border: 1px solid #ddd"
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" color="negative" @click="cancelPngGeneration" />
@@ -498,12 +504,13 @@ async function handleBulkApproveDay(dayGroup: DayGroup) {
   });
 }
 
-const pngProgress = ref({ active: false, message: '', percent: 0 });
+const pngProgress = ref({ active: false, message: '', percent: 0, previewUrl: '' });
 let pngAbort: AbortController | null = null;
 
-function onPngProgress(message: string, percent: number) {
+function onPngProgress(message: string, percent: number, previewUrl?: string) {
   pngProgress.value.message = message;
   pngProgress.value.percent = percent;
+  if (previewUrl) pngProgress.value.previewUrl = previewUrl;
 }
 
 function cancelPngGeneration() {
@@ -522,7 +529,7 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
 
   pdfDayLoading.value = dayGroup.day;
   pngAbort = new AbortController();
-  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
+  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
       daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
@@ -563,7 +570,7 @@ async function onDownloadWeekPngZip() {
 
   pdfWeekLoading.value = true;
   pngAbort = new AbortController();
-  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0 };
+  pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
       weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
