@@ -780,37 +780,60 @@ function computeDeuterosFontSize(block: PdfBlockPage): number {
 }
 
 /**
- * DEUTEROS page: Two blocks stacked on one page, each with 4-column layout.
- * Font size is dynamically computed to maximize readability.
+ * DEUTEROS split: Two pages, each with DEUT I (top) + DEUT II (bottom).
+ * Page 1: α and Δ levels. Page 2: Σ and Ω levels.
+ * Reuses the bordered level boxes from NUCLEUS/EPIKOS layout.
  */
-function buildDeuterosPage(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
-  const halfHeight = 1063;
-
-  // Use the smaller font size of the two halves so the page looks consistent
-  const fontSize = Math.min(computeDeuterosFontSize(deut1), computeDeuterosFontSize(deut2));
-
-  return [
-    { text: '', pageBreak: 'before' as const },
-    {
-      table: {
-        heights: [halfHeight, halfHeight],
-        widths: ['*'],
-        body: [
-          [{ stack: buildDeuterosHalf(deut1, fontSize) as Content[] }],
-          [{ stack: buildDeuterosHalf(deut2, fontSize) as Content[] }],
-        ],
-      },
-      layout: {
-        hLineWidth: (i: number) => (i === 1 ? 2 : 0),
-        vLineWidth: () => 0,
-        hLineColor: () => BORDER_MUTED,
-        paddingTop: () => 0,
-        paddingBottom: () => 0,
-        paddingLeft: () => 0,
-        paddingRight: () => 0,
-      },
-    } as unknown as Content,
+function buildDeuterosSplitPages(deut1: PdfBlockPage, deut2: PdfBlockPage): Content[] {
+  const levelPairs: [string, string][] = [
+    ['alfa', 'delta'],
+    ['sigma', 'omega'],
   ];
+
+  const content: Content[] = [];
+
+  for (const [levelA, levelB] of levelPairs) {
+    const filterLevels = (block: PdfBlockPage): PdfBlockPage => ({
+      ...block,
+      levelBlocks: (block.levelBlocks || []).filter(
+        (lb) => lb.level === levelA || lb.level === levelB
+      ),
+    });
+
+    const d1Filtered = filterLevels(deut1);
+    const d2Filtered = filterLevels(deut2);
+
+    // Skip page if no exercises for these levels in either block
+    if (!d1Filtered.levelBlocks?.length && !d2Filtered.levelBlocks?.length) continue;
+
+    const halfHeight = 1063;
+    const pageContent: Content[] = [
+      { text: '', pageBreak: 'before' as const },
+      {
+        table: {
+          heights: [halfHeight, halfHeight],
+          widths: ['*'],
+          body: [
+            [{ stack: buildBlockPageWithGrid(d1Filtered, true) as Content[] }],
+            [{ stack: buildBlockPageWithGrid(d2Filtered, true) as Content[] }],
+          ],
+        },
+        layout: {
+          hLineWidth: (i: number) => (i === 1 ? 2 : 0),
+          vLineWidth: () => 0,
+          hLineColor: () => BORDER_MUTED,
+          paddingTop: () => 0,
+          paddingBottom: () => 0,
+          paddingLeft: () => 0,
+          paddingRight: () => 0,
+        },
+      } as unknown as Content,
+    ];
+
+    content.push(...pageContent);
+  }
+
+  return content;
 }
 
 /**
@@ -836,9 +859,13 @@ export function buildDayContent(day: PdfDaySession): Content[] {
 
   if (initium) content.push(...buildInitiumPage(initium));
   if (nucleus) content.push(...buildFullBlockPage(nucleus));
-  if (deut1 && deut2) content.push(...buildDeuterosPage(deut1, deut2));
-  else if (deut1) content.push(...buildFullBlockPage(deut1));
-  else if (deut2) content.push(...buildFullBlockPage(deut2));
+  if (deut1 && deut2) {
+    content.push(...buildDeuterosSplitPages(deut1, deut2));
+  } else if (deut1) {
+    content.push(...buildFullBlockPage(deut1));
+  } else if (deut2) {
+    content.push(...buildFullBlockPage(deut2));
+  }
   if (epikos) content.push(...buildFullBlockPage(epikos));
 
   // 3. Closing page (rotate quotes by week + day for variety)
