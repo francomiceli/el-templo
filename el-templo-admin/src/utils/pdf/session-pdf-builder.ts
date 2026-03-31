@@ -426,44 +426,32 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
   // Content height approximation (used to align flow cursor with canvas bottom)
   const contentHeight = exerciseCount * lineHeight;
 
-  const exerciseTable = {
-    table: {
-      widths: ['*', 'auto'],
-      body: lb.exercises.map((ex) => {
-        const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
-        const volume = buildExerciseVolume(ex);
-        return [
-          {
-            text: `•  ${ex.name} ${contraction}`,
-            fontSize: 64,
-            bold: true,
-            color: NAVY,
-            font: 'NunitoSans',
-            margin: [0, lineGap, 16, 0],
-          },
-          {
-            text: volume || '',
-            fontSize: 64,
-            color: BG_CREAM,
-            bold: true,
-            font: 'NunitoSans',
-            alignment: 'right' as const,
-            fillColor: NAVY,
-            margin: [16, lineGap + 4, 16, 4],
-          },
-        ];
-      }),
-    },
-    layout: {
-      hLineWidth: () => 0,
-      vLineWidth: () => 0,
-      paddingLeft: () => 0,
-      paddingRight: () => 0,
-      paddingTop: () => 0,
-      paddingBottom: () => 0,
-    },
-    margin: [50, 0, 50, 0],
-  };
+  const exerciseLines = lb.exercises.map((ex) => {
+    const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
+    const volume = buildExerciseVolume(ex);
+    return {
+      columns: [
+        {
+          text: `•  ${ex.name} ${contraction}`,
+          fontSize: 64,
+          bold: true,
+          color: NAVY,
+          width: '*',
+          font: 'NunitoSans',
+        },
+        {
+          text: volume,
+          fontSize: 64,
+          color: NAVY,
+          width: 'auto',
+          alignment: 'right' as const,
+          bold: true,
+          font: 'NunitoSans',
+        },
+      ],
+      margin: [50, lineGap, 50, 0],
+    };
+  });
 
   const symbolSize = 86;
   const routeName = getRouteName(lb.route);
@@ -511,7 +499,7 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
       // Bottom margin ensures flow cursor aligns with the canvas rect bottom,
       // so the gap between rows is consistent regardless of exercise count.
       {
-        stack: [exerciseTable],
+        stack: exerciseLines,
         margin: [20, -(boxHeight - 24), 20, Math.max(32, boxHeight - 24 - contentHeight)],
       },
     ],
@@ -638,44 +626,32 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
   const routeFontSize = Math.round(exFontSize * 1.05);
   const lineGap = Math.round(exFontSize * 0.22);
 
-  const exerciseTable = {
-    table: {
-      widths: ['*', 'auto'],
-      body: lb.exercises.map((ex) => {
-        const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
-        const volume = buildExerciseVolume(ex);
-        return [
-          {
-            text: `• ${ex.name} ${contraction}`,
-            fontSize: exFontSize,
-            bold: true,
-            color: NAVY,
-            font: 'NunitoSans',
-            margin: [0, lineGap, 8, 0],
-          },
-          {
-            text: volume || '',
-            fontSize: exFontSize,
-            color: BG_CREAM,
-            bold: true,
-            font: 'NunitoSans',
-            alignment: 'right' as const,
-            fillColor: NAVY,
-            margin: [12, lineGap + 3, 12, 3],
-          },
-        ];
-      }),
-    },
-    layout: {
-      hLineWidth: () => 0,
-      vLineWidth: () => 0,
-      paddingLeft: () => 0,
-      paddingRight: () => 0,
-      paddingTop: () => 0,
-      paddingBottom: () => 0,
-    },
-    margin: [0, 0, 20, 0],
-  };
+  const exercises = lb.exercises.map((ex) => {
+    const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
+    const volume = buildExerciseVolume(ex);
+    return {
+      columns: [
+        {
+          text: `• ${ex.name} ${contraction}`,
+          fontSize: exFontSize,
+          bold: true,
+          color: NAVY,
+          width: '*',
+          font: 'NunitoSans',
+        },
+        {
+          text: volume,
+          fontSize: exFontSize,
+          color: NAVY,
+          width: 'auto',
+          alignment: 'right' as const,
+          bold: true,
+          font: 'NunitoSans',
+        },
+      ],
+      margin: [0, lineGap, 20, 0],
+    };
+  });
 
   return {
     stack: [
@@ -693,7 +669,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
         ],
         margin: [0, 0, 0, Math.round(exFontSize * 0.5)],
       },
-      exerciseTable,
+      ...exercises,
     ],
   };
 }
