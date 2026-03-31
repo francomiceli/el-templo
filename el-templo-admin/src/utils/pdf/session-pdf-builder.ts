@@ -116,30 +116,55 @@ function buildPyramidVolume(ex: PdfExercise): string {
 
 const LADDER_TYPES = new Set(['ladder', 'ladder_corta', 'ladder_block', 'broken_ladder']);
 
+/** Generate ascending sequence: start, start+step, start+2*step, ... */
+function ladderSequence(start: number, step: number, count: number): number[] {
+  const values: number[] = [];
+  for (let i = 0; i < count; i++) values.push(start + i * step);
+  return values;
+}
+
+/** Truncate long sequences: "1-2-3...9-10" */
+function truncateSequence(values: number[], suffix: string, maxFull = 7): string {
+  if (values.length <= maxFull) return values.map((n) => `${n}${suffix}`).join('-');
+  const first = values
+    .slice(0, 3)
+    .map((n) => `${n}${suffix}`)
+    .join('-');
+  const last = values
+    .slice(-2)
+    .map((n) => `${n}${suffix}`)
+    .join('-');
+  return `${first}...${last}`;
+}
+
 /**
  * Build ladder pattern string for PDF display.
- * Uses repsMax/secondsMax as start, increment as step, formatRounds as count.
+ * Uses repsMax/secondsMax as start, increment as step.
+ * Rounds/blockSize/breakAfter come from block-level format params.
  */
 function buildLadderVolume(ex: PdfExercise): string {
   const isIso = ex.contraction?.toUpperCase() === 'ISO';
   const start = Number(isIso ? ex.secondsMax : ex.repsMax) || 1;
   const step = Number(ex.increment) || 1;
-  const rounds = Number(ex.formatRounds) || 10;
   const q = isIso ? '"' : '';
 
-  const values: number[] = [];
-  for (let i = 0; i < rounds; i++) values.push(start + i * step);
+  if (ex.formatType === 'ladder_block') {
+    const blockSize = Number(ex.formatBlockSize) || 3;
+    const values = ladderSequence(start, step, 4);
+    return values.map((n) => `${n}${q}x${blockSize}`).join('-') + '...';
+  }
 
-  if (values.length <= 7) return values.map((n) => `${n}${q}`).join('-');
-  const first = values
-    .slice(0, 3)
-    .map((n) => `${n}${q}`)
-    .join('-');
-  const last = values
-    .slice(-2)
-    .map((n) => `${n}${q}`)
-    .join('-');
-  return `${first}...${last}`;
+  if (ex.formatType === 'broken_ladder') {
+    const breakAfter = Number(ex.formatBreakAfter) || 3;
+    const segment = ladderSequence(start, step, breakAfter);
+    const segStr = segment.map((n) => `${n}${q}`).join('-');
+    return `${segStr} | ${segStr} | ...`;
+  }
+
+  // ladder / ladder_corta
+  const rounds = Number(ex.formatRounds) || 10;
+  const values = ladderSequence(start, step, rounds);
+  return truncateSequence(values, q);
 }
 
 /** Build volume display string for an exercise */

@@ -224,11 +224,17 @@ function formatInitiumExercise(ex: SessionExercise, formatName: string): string 
   return prescription ? `${name}  ·  ${prescription}` : name;
 }
 
+interface LadderParams {
+  rounds?: number;
+  blockSize?: number;
+  breakAfter?: number;
+}
+
 function exerciseToPdf(
   ex: SessionExercise,
   formatDictated: boolean,
   formatType?: string,
-  formatRounds?: number
+  ladderParams?: LadderParams
 ): PdfExercise {
   return {
     name: ex.weighted ? `${ex.exerciseName} (W)` : ex.exerciseName,
@@ -241,7 +247,9 @@ function exerciseToPdf(
     rest: ex.rest,
     notes: ex.notes,
     formatType: formatType || null,
-    formatRounds: formatRounds || null,
+    formatRounds: ladderParams?.rounds || null,
+    formatBlockSize: ladderParams?.blockSize || null,
+    formatBreakAfter: ladderParams?.breakAfter || null,
   };
 }
 
@@ -250,20 +258,25 @@ function getFormatType(block: SessionBlock): string | undefined {
   return (params?.type as string) || undefined;
 }
 
-function getFormatRounds(block: SessionBlock): number | undefined {
+function getLadderParams(block: SessionBlock): LadderParams | undefined {
   const params = block.formatParams as Record<string, unknown> | null;
-  return params?.rounds ? Number(params.rounds) : undefined;
+  if (!params) return undefined;
+  return {
+    rounds: params.rounds ? Number(params.rounds) : undefined,
+    blockSize: params.blockSize ? Number(params.blockSize) : undefined,
+    breakAfter: params.breakAfter ? Number(params.breakAfter) : undefined,
+  };
 }
 
 function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
   const dictated = isFormatDictatedByName(block.formatName);
   const formatType = getFormatType(block);
-  const formatRounds = getFormatRounds(block);
+  const ladderParams = getLadderParams(block);
   return {
     level,
     route: block.route,
     intensity: block.intensity,
-    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType, formatRounds)),
+    exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType, ladderParams)),
   };
 }
 
