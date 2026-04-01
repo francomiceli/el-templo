@@ -100,9 +100,7 @@ onMounted(async () => {
 }
 
 .training-index__blocked-text {
-  font-size: 0.9rem;
-  color: rgba($accent, 0.6);
-  line-height: 1.5;
-  margin: 0;
+  font-size: 14px;
+  color: $grey-7;
 }
 </style>
