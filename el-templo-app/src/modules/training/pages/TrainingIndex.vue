@@ -11,8 +11,12 @@
         <q-icon name="fitness_center" size="64px" class="training-index__blocked-icon" />
         <h2 class="training-index__blocked-title">Activá Tu Plan</h2>
         <p class="training-index__blocked-text">
-          Consulta en recepcion para elegir tu plan y comenzar a entrenar
+          No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.
         </p>
+        <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
+          <q-icon name="img:/icons/whatsapp.svg" size="20px" class="q-mr-sm" />
+          Consultá por tu plan
+        </q-btn>
       </div>
     </div>
 
@@ -29,7 +33,15 @@ import WeeklyView from './WeeklyView.vue'
 
 const userStore = useUserStore()
 
+const WHATSAPP_NUMBER = '5492235820521'
+
 const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
+
+function openWhatsApp(): void {
+  const message = 'Hola, quiero consultar por los planes de entrenamiento'
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+  window.open(url, '_blank')
+}
 
 onMounted(async () => {
   if (!userStore.subscription && !userStore.subscriptionLoading) {
@@ -44,6 +56,7 @@ onMounted(async () => {
 .training-index {
   background-color: $cream;
   min-height: var(--app-vh);
+  max-width: none !important;
 }
 
 /* Loading state */

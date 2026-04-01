@@ -381,14 +381,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const user = userResults[0];
 
-      // Block deactivated users from logging in
-      if (!user.isActive) {
-        return reply.code(401).send({
-          error: "No autorizado",
-          message: "Cuenta desactivada. Contacta a tu coach.",
-        });
-      }
-
       // Verify password
       const validPassword = await argon2.verify(user.passwordHash, password);
       if (!validPassword) {

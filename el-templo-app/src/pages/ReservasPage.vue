@@ -5,13 +5,17 @@
       <TemploLoader size="lg" />
     </div>
 
-    <!-- Online user empty state -->
-    <div v-else-if="isOnlineUser" class="reservas__empty">
+    <!-- No active subscription or online user — blocked state -->
+    <div v-else-if="!hasActiveSubscription || isOnlineUser" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
       <h2 class="reservas__empty-title">Activá Tu Plan</h2>
       <p class="reservas__empty-text">
-        Visitá una de nuestras sedes para reservar tus clases presenciales
+        No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.
       </p>
+      <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
+        <q-icon name="img:/icons/whatsapp.svg" size="20px" class="q-mr-sm" />
+        Consultá por tu plan
+      </q-btn>
     </div>
 
     <template v-else>
@@ -339,7 +343,15 @@ const selectedDay = ref<DayOfWeek>(getTodayDow())
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
+const WHATSAPP_NUMBER = '5492235820521'
 const isOnlineUser = computed(() => userStore.profile?.branchIsVirtual ?? false)
+const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
+
+function openWhatsApp(): void {
+  const message = 'Hola, quiero consultar por los planes de entrenamiento'
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+  window.open(url, '_blank')
+}
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
 const branchOptions = computed(() =>
   branches.value.map((b) => ({
