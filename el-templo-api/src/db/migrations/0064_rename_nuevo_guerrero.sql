@@ -11,4 +11,4 @@ ALTER TABLE `member_profiles`
   MODIFY COLUMN `member_segment` enum('nuevo','espartano','intermitente','en_riesgo','digital_warrior','ghost') DEFAULT NULL;
 
 -- Step 4: Rename settings key
-UPDATE `system_settings` SET `key` = 'segment.nuevo_days' WHERE `key` = 'segment.nuevo_guerrero_days';
+UPDATE `system_settings` SET `setting_key` = 'segment.nuevo_days' WHERE `setting_key` = 'segment.nuevo_guerrero_days';
