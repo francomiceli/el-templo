@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { users } from "./schema/users.js";
 import { branches } from "./schema/branches.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
@@ -399,6 +399,8 @@ interface ImportReport {
     legacyPlansCreated: number;
     notesCreated: number;
     subscriptionsCreated: number;
+    subscriptionsUpdated: number;
+    subscriptionsCancelled: number;
   };
 }
 
@@ -763,6 +765,8 @@ async function main(): Promise<void> {
       let usersUnchanged = 0;
       let notesCreated = 0;
       let subscriptionsCreated = 0;
+      let subscriptionsUpdated = 0;
+      let subscriptionsCancelled = 0;
 
       for (const action of memberActions) {
         const m = action.member;
@@ -943,7 +947,7 @@ async function main(): Promise<void> {
           }
         }
 
-        // 5. Create subscriptions for members with plan names
+        // 5. Handle subscriptions
         if (m.planName) {
           const mapping = planMappings.get(m.planName);
           let planId: number | null = null;
@@ -972,7 +976,23 @@ async function main(): Promise<void> {
               status = "active";
             }
 
-            // Check if subscription already exists (idempotent)
+            // Cancel any existing subscriptions for a DIFFERENT plan (plan changed)
+            const staleResult = await db
+              .update(subscriptions)
+              .set({ status: "cancelled" })
+              .where(
+                and(
+                  eq(subscriptions.userId, userId),
+                  ne(subscriptions.planId, planId),
+                  ne(subscriptions.status, "cancelled"),
+                ),
+              );
+            const staleCancelled =
+              (staleResult as unknown as [{ affectedRows: number }])[0]
+                ?.affectedRows ?? 0;
+            subscriptionsCancelled += staleCancelled;
+
+            // Check if subscription for current plan already exists
             const existingSub = await db
               .select({ id: subscriptions.id })
               .from(subscriptions)
@@ -987,7 +1007,6 @@ async function main(): Promise<void> {
             if (existingSub.length === 0) {
               const startDate =
                 m.fechaIngreso ?? new Date().toISOString().split("T")[0];
-
               await db.insert(subscriptions).values({
                 userId,
                 planId,
@@ -1000,8 +1019,38 @@ async function main(): Promise<void> {
                 notes: "Importado desde CSV",
               });
               subscriptionsCreated++;
+            } else {
+              const updateFields: Record<string, unknown> = {
+                status,
+                endDate: m.vencimiento,
+                branchId,
+              };
+              // Only overwrite startDate if CSV has fechaIngreso
+              if (m.fechaIngreso) {
+                updateFields.startDate = m.fechaIngreso;
+              }
+              await db
+                .update(subscriptions)
+                .set(updateFields)
+                .where(eq(subscriptions.id, existingSub[0].id));
+              subscriptionsUpdated++;
             }
           }
+        } else {
+          // No plan in CSV — cancel any existing non-cancelled subscriptions
+          const cancelResult = await db
+            .update(subscriptions)
+            .set({ status: "cancelled" })
+            .where(
+              and(
+                eq(subscriptions.userId, userId),
+                ne(subscriptions.status, "cancelled"),
+              ),
+            );
+          const cancelled =
+            (cancelResult as unknown as [{ affectedRows: number }])[0]
+              ?.affectedRows ?? 0;
+          subscriptionsCancelled += cancelled;
         }
       }
 
@@ -1012,6 +1061,8 @@ async function main(): Promise<void> {
         legacyPlansCreated,
         notesCreated,
         subscriptionsCreated,
+        subscriptionsUpdated,
+        subscriptionsCancelled,
       };
 
       console.log("\n=== EXECUTION SUMMARY ===");
@@ -1021,6 +1072,8 @@ async function main(): Promise<void> {
       console.log(`  Legacy plans created: ${legacyPlansCreated}`);
       console.log(`  Notes created: ${notesCreated}`);
       console.log(`  Subscriptions created: ${subscriptionsCreated}`);
+      console.log(`  Subscriptions updated: ${subscriptionsUpdated}`);
+      console.log(`  Subscriptions cancelled: ${subscriptionsCancelled}`);
     }
 
     // ── Write JSON report ─────────────────────────────────────────
