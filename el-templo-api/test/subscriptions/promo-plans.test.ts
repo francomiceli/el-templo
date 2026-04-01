@@ -58,7 +58,7 @@ describe("Promo Plans API", () => {
         subscriptionPlanId: promoSubPlanId,
         startDate: new Date(),
         expiryDate: new Date(Date.now() + 86400000),
-        promoType: "qr_auto",
+        promoType: "auto",
       });
 
       const res = await app.inject({
@@ -113,7 +113,7 @@ describe("Promo Plans API", () => {
           planDurationDays: 14,
           startDate: new Date().toISOString(),
           expiryDate: new Date(Date.now() + 86400000 * 7).toISOString(),
-          promoType: "qr_auto",
+          promoType: "auto",
           subscriptionPlanId: promoSubPlanId,
         },
       });
@@ -135,7 +135,7 @@ describe("Promo Plans API", () => {
         subscriptionPlanId: promoSubPlanId,
         startDate: new Date(),
         expiryDate: new Date(Date.now() + 86400000),
-        promoType: "qr_auto",
+        promoType: "auto",
       });
 
       // Try to create second with same code
@@ -149,7 +149,7 @@ describe("Promo Plans API", () => {
           planDurationDays: 30,
           startDate: new Date().toISOString(),
           expiryDate: new Date(Date.now() + 86400000).toISOString(),
-          promoType: "qr_auto",
+          promoType: "auto",
           subscriptionPlanId: promoSubPlanId,
         },
       });
@@ -168,7 +168,7 @@ describe("Promo Plans API", () => {
           planDurationDays: 30,
           startDate: new Date().toISOString(),
           expiryDate: new Date(Date.now() + 86400000).toISOString(),
-          promoType: "qr_auto",
+          promoType: "auto",
           subscriptionPlanId: 99999,
         },
       });
@@ -190,7 +190,7 @@ describe("Promo Plans API", () => {
           subscriptionPlanId: promoSubPlanId,
           startDate: new Date(),
           expiryDate: new Date(Date.now() + 86400000),
-          promoType: "qr_auto",
+          promoType: "auto",
         })
         .$returningId();
 

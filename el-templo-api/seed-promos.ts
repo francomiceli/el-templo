@@ -78,7 +78,7 @@ async function seedPromos() {
         subscriptionPlanId,
         startDate,
         expiryDate,
-        promoType: "qr_auto",
+        promoType: "auto",
       });
       console.log("Seeded promo: TEMPLOPASSBCN");
     } else {
@@ -100,7 +100,7 @@ async function seedPromos() {
         subscriptionPlanId,
         startDate,
         expiryDate,
-        promoType: "qr_auto",
+        promoType: "auto",
       });
       console.log("Seeded promo: AURACLUB1");
     } else {

@@ -11,13 +11,7 @@
 
       <q-card-section>
         <q-form @submit="onSubmit" class="q-gutter-y-md">
-          <q-input
-            v-model="form.name"
-            label="Nombre"
-            outlined
-            dense
-            :rules="[required]"
-          />
+          <q-input v-model="form.name" label="Nombre" outlined dense :rules="[required]" />
           <q-input
             v-model="form.promoCode"
             label="Codigo Promo"
@@ -75,17 +69,8 @@
           />
 
           <q-card-actions align="right">
-            <q-btn
-              flat
-              label="Cancelar"
-              @click="$emit('update:modelValue', false)"
-            />
-            <q-btn
-              color="primary"
-              label="Guardar"
-              type="submit"
-              :loading="saving"
-            />
+            <q-btn flat label="Cancelar" @click="$emit('update:modelValue', false)" />
+            <q-btn color="primary" label="Guardar" type="submit" :loading="saving" />
           </q-card-actions>
         </q-form>
       </q-card-section>
@@ -124,7 +109,7 @@ const saving = ref(false);
 const planOptions = ref<{ label: string; value: number }[]>([]);
 
 const promoTypeOptions = [
-  { label: 'QR Auto-Asignar', value: 'qr_auto' },
+  { label: 'Auto-Asignar', value: 'auto' },
   { label: 'Admin Asignable', value: 'admin_assignable' },
 ];
 
@@ -142,7 +127,7 @@ const form = ref<{
   planDurationDays: 30,
   startDate: '',
   expiryDate: '',
-  promoType: 'qr_auto',
+  promoType: 'auto',
   subscriptionPlanId: null,
 });
 
@@ -184,12 +169,12 @@ watch(
           planDurationDays: 30,
           startDate: '',
           expiryDate: '',
-          promoType: 'qr_auto',
+          promoType: 'auto',
           subscriptionPlanId: null,
         };
       }
     }
-  },
+  }
 );
 
 async function onSubmit() {

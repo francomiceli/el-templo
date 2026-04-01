@@ -218,8 +218,8 @@
           <template #body-cell-promoTipo="props">
             <q-td :props="props">
               <q-badge
-                :color="props.row.promoType === 'qr_auto' ? 'primary' : 'secondary'"
-                :label="props.row.promoType === 'qr_auto' ? 'QR Auto' : 'Admin'"
+                :color="props.row.promoType === 'auto' ? 'primary' : 'secondary'"
+                :label="props.row.promoType === 'auto' ? 'Auto' : 'Admin'"
               />
             </q-td>
           </template>
@@ -251,6 +251,16 @@
           <!-- Actions column -->
           <template #body-cell-promoAcciones="props">
             <q-td :props="props">
+              <q-btn
+                flat
+                dense
+                round
+                icon="link"
+                color="primary"
+                @click="showPromoLink(props.row.promoCode)"
+              >
+                <q-tooltip>Ver link</q-tooltip>
+              </q-btn>
               <q-btn
                 v-if="props.row.isActive"
                 flat
@@ -636,6 +646,20 @@ async function loadPromos() {
 function openCreatePromoDialog() {
   editingPromo.value = null;
   showPromoDialog.value = true;
+}
+
+function showPromoLink(promoCode: string) {
+  const link = `https://app.eltemplo.org/register?promo=${promoCode}`;
+  $q.dialog({
+    title: 'Link de Registro',
+    message: link,
+    ok: 'Copiar',
+    cancel: 'Cerrar',
+  }).onOk(() => {
+    navigator.clipboard.writeText(link).then(() => {
+      $q.notify({ type: 'positive', message: 'Link copiado' });
+    });
+  });
 }
 
 async function confirmDeactivatePromo(promo: PromoListItem) {

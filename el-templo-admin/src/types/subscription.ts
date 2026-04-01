@@ -249,7 +249,7 @@ export interface ClassUsageInfo {
 
 // ─── Promo Plan Types ────────────────────────────────────────────────────────
 
-export type PromoType = 'qr_auto' | 'admin_assignable';
+export type PromoType = 'auto' | 'admin_assignable';
 
 export interface PromoListItem {
   id: number;

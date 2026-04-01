@@ -18,7 +18,7 @@ export type SubscriptionStatus =
 export type PlanTier = "flex" | "foundation" | "performance" | "other";
 export type BookingMode = "fixed" | "flexible";
 export type PriceType = "regular" | "zero" | "credit_card";
-export type PromoType = "qr_auto" | "admin_assignable";
+export type PromoType = "auto" | "admin_assignable";
 
 // ─── AURA Discount Tiers ────────────────────────────────────────────────────
 

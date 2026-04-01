@@ -55,7 +55,7 @@ describe("Promo Registration Flow", () => {
       subscriptionPlanId: promoSubPlanId,
       startDate: overrides.startDate ?? new Date(now.getTime() - 86400000), // yesterday
       expiryDate: overrides.expiryDate ?? new Date(now.getTime() + 86400000), // tomorrow
-      promoType: "qr_auto" as const,
+      promoType: "auto" as const,
       isActive: overrides.isActive ?? true,
     };
     await app.db.insert(promoPlans).values(defaults);

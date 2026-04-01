@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/mysql-core";
 
 export const promoTypeEnum = mysqlEnum("promo_type", [
-  "qr_auto",
+  "auto",
   "admin_assignable",
 ]);
 
@@ -22,7 +22,7 @@ export const promoPlans = mysqlTable("promo_plans", {
   subscriptionPlanId: int("subscription_plan_id").notNull(),
   startDate: datetime("start_date").notNull(),
   expiryDate: datetime("expiry_date").notNull(),
-  promoType: promoTypeEnum.notNull().default("qr_auto"),
+  promoType: promoTypeEnum.notNull().default("auto"),
   isActive: boolean("is_active").default(true).notNull(),
   redemptionCount: int("redemption_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

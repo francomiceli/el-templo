@@ -595,7 +595,7 @@ export const createPromoSchema = {
       planDurationDays: { type: "integer", minimum: 1 },
       startDate: { type: "string" },
       expiryDate: { type: "string" },
-      promoType: { type: "string", enum: ["qr_auto", "admin_assignable"] },
+      promoType: { type: "string", enum: ["auto", "admin_assignable"] },
       subscriptionPlanId: { type: "integer" },
     },
   },
