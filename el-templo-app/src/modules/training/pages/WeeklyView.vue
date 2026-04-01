@@ -179,9 +179,14 @@ onMounted(() => {
 .weekly-view {
   display: flex;
   flex-direction: column;
-  // Calculate height minus the header (50px) and mobile tab bar
+  // Calculate height minus the header (50px on mobile) and mobile tab bar
   height: calc(var(--app-vh) - 50px - var(--mobile-tabs-height));
   overflow: hidden;
+  max-width: none !important;
+
+  @media (min-width: 768px) {
+    height: var(--app-vh);
+  }
 
   &__header {
     flex-shrink: 0;

@@ -6,19 +6,26 @@
       <span class="video-placeholder__text">Video proximamente</span>
     </div>
 
-    <!-- HTML5 video with iOS compatibility attributes -->
-    <video
-      v-else
-      ref="videoRef"
-      class="video-player"
-      autoplay
-      loop
-      muted
-      playsinline
-      :poster="posterUrl"
-      :src="videoUrl"
-      @error="handleVideoError"
-    />
+    <template v-else>
+      <!-- HTML5 video with iOS compatibility attributes -->
+      <video
+        ref="videoRef"
+        class="video-player"
+        autoplay
+        loop
+        muted
+        playsinline
+        :poster="posterUrl"
+        :src="videoUrl"
+        @canplay="onVideoReady"
+        @error="handleVideoError"
+      />
+
+      <!-- Loading spinner over dark background while video loads -->
+      <div v-if="videoLoading" class="video-loading">
+        <div class="video-loading__spinner"></div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -42,13 +49,19 @@ const props = withDefaults(defineProps<Props>(), {
 
 const videoRef = ref<HTMLVideoElement | null>(null)
 const videoFailed = ref(false)
+const videoLoading = ref(true)
 
 /**
  * Handle video load error by silently falling back to placeholder
  */
 function handleVideoError(): void {
   videoFailed.value = true
+  videoLoading.value = false
   log.debug('Video load failed, showing placeholder')
+}
+
+function onVideoReady(): void {
+  videoLoading.value = false
 }
 
 /**
@@ -71,6 +84,7 @@ watch(
   () => props.videoUrl,
   (newUrl) => {
     videoFailed.value = false
+    videoLoading.value = true
     if (newUrl && videoRef.value) {
       videoRef.value.load()
       attemptAutoplay()
@@ -114,5 +128,30 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.video-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #2e2a26;
+  z-index: 1;
+}
+
+.video-loading__spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-top-color: rgba(255, 255, 255, 0.7);
+  animation: video-spin 0.9s linear infinite;
+}
+
+@keyframes video-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

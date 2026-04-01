@@ -89,29 +89,29 @@
           />
         </div>
       </template>
-    </div>
 
-    <!-- Fixed Footer (only in non-read-only / in-session mode) -->
-    <div v-if="!readOnly" class="session-summary__footer q-pa-md">
-      <q-btn
-        unelevated
-        class="start-button start-button--primary q-mb-sm"
-        size="lg"
-        :loading="isSubmitting"
-        @click="onFinish"
-      >
-        <q-icon name="check" size="24px" class="q-mr-sm" />
-        <span class="text-weight-bold">Terminar Sesión</span>
-      </q-btn>
-      <q-btn
-        flat
-        color="grey-7"
-        label="Repetir Sesión"
-        icon="replay"
-        class="full-width"
-        size="md"
-        @click="emit('restart')"
-      />
+      <!-- Actions -->
+      <div v-if="!readOnly" class="session-summary__actions q-mt-lg">
+        <q-btn
+          unelevated
+          class="start-button start-button--primary q-mb-sm"
+          size="lg"
+          :loading="isSubmitting"
+          @click="onFinish"
+        >
+          <q-icon name="check" size="24px" class="q-mr-sm" />
+          <span class="text-weight-bold">Terminar Sesión</span>
+        </q-btn>
+        <q-btn
+          flat
+          color="grey-7"
+          label="Repetir Sesión"
+          icon="replay"
+          class="session-summary__secondary-btn"
+          size="md"
+          @click="emit('restart')"
+        />
+      </div>
     </div>
 
     <!-- Read-only footer: in-flow, uses DayCard start-button style -->
@@ -207,9 +207,21 @@ function onFinish(): void {
   background: transparent;
 
   &.fixed-full {
-    z-index: 9998;
-    background-color: $cream;
-    position: relative;
+    z-index: 1999;
+    top: 50px;
+    bottom: var(--mobile-tabs-height, 0px);
+
+    @media (min-width: 768px) {
+      top: 0;
+      left: 64px;
+      right: 0;
+      max-width: 630px;
+      margin: 0 auto;
+    }
+
+    @media (min-width: 1025px) {
+      left: 200px;
+    }
 
     &::before {
       content: '';
@@ -260,19 +272,15 @@ function onFinish(): void {
   overflow-y: auto;
 }
 
-.fixed-full .session-summary__content {
-  padding-bottom: 140px;
+.session-summary__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
-.session-summary__footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba($cream, 0.95);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  z-index: 9999;
+.session-summary__secondary-btn {
+  max-width: 300px;
 }
 
 .session-summary__readonly-footer {
@@ -282,6 +290,7 @@ function onFinish(): void {
 // Same button style as DayCard's start-button
 .start-button {
   width: 100%;
+  max-width: 300px;
   height: 52px;
   border-radius: 26px;
   font-size: 16px;

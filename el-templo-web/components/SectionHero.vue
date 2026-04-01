@@ -139,7 +139,7 @@ const parallaxTransform = computed(() => {
         class="hero__title hero--delay-1"
         :class="{ 'hero--entered': entered }"
       >
-        Tu cuerpo es tu templo
+        Tu cuerpo<br >es tu templo
       </h1>
 
       <p

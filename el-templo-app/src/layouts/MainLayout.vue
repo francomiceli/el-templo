@@ -1,22 +1,13 @@
 <template>
   <q-layout view="lHh Lpr lFf">
+    <!-- Header: full bar on mobile, greeting-only on desktop Mi Templo, hidden otherwise -->
     <q-header
+      v-if="!isDesktop || isMiTemplo"
       :elevated="!isMiTemplo"
       class="main-header"
-      :class="{ 'main-header--unified': isMiTemplo }"
+      :class="{ 'main-header--unified': isMiTemplo, 'main-header--desktop': isDesktop }"
     >
-      <q-toolbar>
-        <!-- Desktop: hamburger for drawer -->
-        <q-btn
-          v-if="$q.screen.gt.sm"
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
-
+      <q-toolbar v-if="!isDesktop">
         <q-toolbar-title class="header-title">
           <img src="/icons/icon-48.webp" alt="El Templo" class="header-logo" />
           <img
@@ -49,73 +40,60 @@
       </div>
     </q-header>
 
-    <!-- Desktop drawer (hidden on mobile) -->
-    <q-drawer
-      v-if="$q.screen.gt.sm"
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-      class="main-drawer"
-    >
-      <q-list>
-        <q-item-label header class="drawer-header">Menu</q-item-label>
+    <!-- Desktop side rail (icons only, expand on hover) -->
+    <aside v-if="isDesktop" class="desktop-rail">
+      <!-- Brand -->
+      <router-link to="/mi-templo" class="desktop-rail__brand">
+        <img src="/icons/icon-48.webp" alt="El Templo" class="desktop-rail__icon" />
+        <img src="/icons/el-templo-title.png" alt="EL TEMPLO" class="desktop-rail__title-img" />
+      </router-link>
 
-        <q-item clickable to="/mi-templo" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="account_balance">
-              <q-badge
-                v-if="progressionStore.evaluationEligible"
-                floating
-                rounded
-                color="secondary"
-              />
-            </q-icon>
-          </q-item-section>
-          <q-item-section>Mi Templo</q-item-section>
-        </q-item>
+      <!-- Navigation -->
+      <nav class="desktop-rail__nav">
+        <router-link
+          v-for="tab in mobileTabs"
+          :key="'rail-' + tab.to"
+          :to="tab.to"
+          class="desktop-rail__tab"
+          :class="{ 'desktop-rail__tab--active': isTabActive(tab.to) }"
+        >
+          <q-icon :name="tab.icon" size="24px" />
+          <span class="desktop-rail__label">{{ tab.label }}</span>
+          <q-badge
+            v-if="tab.badge && progressionStore.evaluationEligible"
+            floating
+            rounded
+            color="primary"
+            class="desktop-rail__badge"
+          />
+        </router-link>
+      </nav>
 
-        <q-item clickable to="/training" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="fitness_center" />
-          </q-item-section>
-          <q-item-section>Entrenamiento</q-item-section>
-        </q-item>
+      <!-- Profile + Logout -->
+      <div v-if="authStore.isAuthenticated" class="desktop-rail__actions">
+        <router-link to="/profile" class="desktop-rail__tab">
+          <q-icon name="person" size="24px" />
+          <span class="desktop-rail__label">Mi Perfil</span>
+        </router-link>
+        <button class="desktop-rail__tab desktop-rail__tab--btn" @click="onLogout">
+          <q-icon name="logout" size="24px" />
+          <span class="desktop-rail__label">Salir</span>
+        </button>
+      </div>
+    </aside>
 
-        <q-item clickable to="/reservas" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="event_available" />
-          </q-item-section>
-          <q-item-section>Reservas</q-item-section>
-        </q-item>
-
-        <q-item clickable to="/training/guia" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="menu_book" />
-          </q-item-section>
-          <q-item-section>Guía</q-item-section>
-        </q-item>
-
-        <q-item clickable to="/planes" @click="leftDrawerOpen = false">
-          <q-item-section avatar>
-            <q-icon name="card_membership" />
-          </q-item-section>
-          <q-item-section>Planes</q-item-section>
-        </q-item>
-      </q-list>
-    </q-drawer>
-
-    <q-page-container>
+    <q-page-container :class="{ 'with-desktop-rail': isDesktop }">
       <router-view />
     </q-page-container>
 
     <!-- Check-in FAB (hidden for Templo Online / virtual branch members) -->
     <q-btn
-      v-if="showCheckInFab"
+      v-if="showCheckInFab && !isDesktop"
       fab
       icon="qr_code_scanner"
       color="primary"
       class="check-in-fab"
-      :class="{ 'check-in-fab--with-footer': $q.screen.lt.md }"
+      :class="{ 'check-in-fab--with-footer': !isDesktop }"
       @click="router.push('/check-in')"
     >
       <q-tooltip>Registrar asistencia</q-tooltip>
@@ -124,7 +102,7 @@
     <div class="app-bg" />
 
     <!-- Mobile bottom tab bar -->
-    <q-footer v-if="$q.screen.lt.md" elevated class="mobile-footer">
+    <q-footer v-if="!isDesktop" elevated class="mobile-footer">
       <div class="mobile-tabs">
         <router-link
           v-for="tab in mobileTabs"
@@ -149,7 +127,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
@@ -163,6 +141,7 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const progressionStore = useProgressionStore()
 
+const isDesktop = computed(() => $q.screen.width >= 768)
 const isMiTemplo = computed(() => route.path === '/mi-templo')
 
 const memberName = computed(() => {
@@ -192,10 +171,8 @@ const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
   if (userStore.profile.branchIsVirtual) return false
-  return route.path === '/mi-templo'
+  return route.path === '/mi-templo' || route.path === '/reservas'
 })
-
-const leftDrawerOpen = ref(false)
 
 interface MobileTab {
   to: string
@@ -224,10 +201,6 @@ function isTabActive(tabTo: string): boolean {
     )
   }
   return route.path.startsWith(tabTo)
-}
-
-function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value
 }
 
 async function onLogout() {
@@ -265,6 +238,32 @@ async function onLogout() {
   &--unified {
     background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
   }
+
+  &--desktop {
+    padding-left: 64px;
+    background: transparent !important;
+    box-shadow: none !important;
+
+    @media (min-width: 1025px) {
+      padding-left: 200px;
+    }
+
+    .header-greeting {
+      background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
+      border-radius: 0 0 12px 12px;
+    }
+  }
+}
+
+.main-header--desktop .q-toolbar,
+.main-header--desktop .header-greeting {
+  max-width: 630px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.main-header--desktop .header-greeting {
+  padding-top: 16px;
 }
 
 .header-title {
@@ -335,14 +334,150 @@ async function onLogout() {
   }
 }
 
-.main-drawer {
-  background-color: $cream;
+/* ------------------------------------------------------------------
+   Desktop Side Rail
+   ------------------------------------------------------------------ */
+.desktop-rail {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 64px;
+  background: linear-gradient(180deg, $brand-aged-gold 0%, $brand-terracotta 100%);
+  display: flex;
+  flex-direction: column;
+  z-index: 1999;
+  transition: width 200ms ease;
+  overflow: hidden;
+
+  &:hover {
+    width: 200px;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+
+  @media (min-width: 1025px) {
+    width: 200px;
+  }
 }
 
-.drawer-header {
-  font-family: 'Montserrat', sans-serif;
-  color: $primary;
-  letter-spacing: 0.05em;
+.desktop-rail__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 8px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.desktop-rail__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background-color: #f5f0e8;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.desktop-rail__title-img {
+  height: 40px;
+  width: auto;
+  opacity: 0;
+  transition: opacity 200ms ease;
+
+  .desktop-rail:hover & {
+    opacity: 1;
+  }
+
+  @media (min-width: 1025px) {
+    opacity: 1;
+  }
+}
+
+.desktop-rail__nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.desktop-rail__actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-top: 1px solid rgba(white, 0.15);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.desktop-rail__tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  color: rgba(white, 0.6);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color 200ms ease,
+    background-color 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+
+  &:hover {
+    background-color: rgba(white, 0.1);
+  }
+
+  &--active {
+    color: white;
+  }
+
+  &--btn {
+    border: none;
+    background: none;
+    font: inherit;
+    cursor: pointer;
+    width: 100%;
+  }
+}
+
+.desktop-rail__label {
+  font-family: 'Geologica', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  transition: opacity 200ms ease;
+
+  .desktop-rail:hover & {
+    opacity: 1;
+  }
+
+  @media (min-width: 1025px) {
+    opacity: 1;
+  }
+}
+
+.desktop-rail__badge {
+  position: absolute;
+  top: 8px;
+  left: 38px;
+}
+
+.with-desktop-rail {
+  padding-left: 64px !important;
+
+  @media (min-width: 1025px) {
+    padding-left: 200px !important;
+  }
+}
+
+.with-desktop-rail :deep(.q-page) {
+  max-width: 630px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ------------------------------------------------------------------

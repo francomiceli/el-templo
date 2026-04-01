@@ -18,20 +18,28 @@
     </div>
 
     <!-- Swipeable day cards -->
-    <div ref="carouselRef" class="week-carousel__container" @scroll="handleScroll">
-      <div
-        v-for="(day, index) in weekStore.weekDays"
-        :key="day.date"
-        class="week-carousel__slide"
-        :class="{ 'week-carousel__slide--center': index === centerIndex }"
-        :data-index="index"
-      >
-        <DayCard
-          :day="day"
-          :is-selected="day.date === weekStore.selectedDate"
-          @start="handleStart"
-        />
+    <div class="week-carousel__scroll-area">
+      <button class="week-carousel__arrow week-carousel__arrow--left" @click="scrollPrev">
+        <q-icon name="chevron_left" size="24px" />
+      </button>
+      <div ref="carouselRef" class="week-carousel__container" @scroll="handleScroll">
+        <div
+          v-for="(day, index) in weekStore.weekDays"
+          :key="day.date"
+          class="week-carousel__slide"
+          :class="{ 'week-carousel__slide--center': index === centerIndex }"
+          :data-index="index"
+        >
+          <DayCard
+            :day="day"
+            :is-selected="day.date === weekStore.selectedDate"
+            @start="handleStart"
+          />
+        </div>
       </div>
+      <button class="week-carousel__arrow week-carousel__arrow--right" @click="scrollNext">
+        <q-icon name="chevron_right" size="24px" />
+      </button>
     </div>
   </div>
 </template>
@@ -145,6 +153,19 @@ function scrollToToday() {
 }
 
 /**
+ * Navigate carousel by one slide
+ */
+function scrollPrev() {
+  const idx = Math.max(0, centerIndex.value - 1)
+  scrollToDay(idx)
+}
+
+function scrollNext() {
+  const idx = Math.min(weekStore.weekDays.length - 1, centerIndex.value + 1)
+  scrollToDay(idx)
+}
+
+/**
  * Handle start button from DayCard
  */
 function handleStart(date: string) {
@@ -243,9 +264,49 @@ watch(
     text-transform: uppercase;
   }
 
-  &__container {
+  &__scroll-area {
     flex: 1;
-    min-height: 0; // Critical for flex child to respect parent height
+    min-height: 0;
+    position: relative;
+  }
+
+  &__arrow {
+    display: none;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(white, 0.9);
+    color: $primary;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: background 200ms ease;
+
+    &:hover {
+      background: white;
+    }
+
+    &--left {
+      left: 12px;
+    }
+
+    &--right {
+      right: 12px;
+    }
+
+    @media (min-width: 768px) {
+      display: flex;
+    }
+  }
+
+  &__container {
+    height: 100%;
     display: flex;
     gap: 16px;
     padding: 16px 0 32px;

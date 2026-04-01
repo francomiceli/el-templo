@@ -22,7 +22,10 @@
       <template v-if="orderedCheckIns.length > 0">
         <p class="mi-templo__section-title">Registro del día</p>
         <div class="mi-templo__check-ins">
-          <div class="mi-templo__check-ins-row">
+          <button class="scroll-arrow scroll-arrow--left" @click="scrollCheckIns('left')">
+            <q-icon name="chevron_left" size="20px" />
+          </button>
+          <div ref="checkInsRowRef" class="mi-templo__check-ins-row">
             <CheckInCard
               v-for="config in orderedCheckIns"
               :key="config.type"
@@ -35,6 +38,9 @@
               "
             />
           </div>
+          <button class="scroll-arrow scroll-arrow--right" @click="scrollCheckIns('right')">
+            <q-icon name="chevron_right" size="20px" />
+          </button>
         </div>
       </template>
 
@@ -153,8 +159,15 @@ const { fetchTodayCheckIns, submitCheckIn } = useCheckInApi()
 const { sessions: weekSessions, fetchWeekSessions } = useWeekData()
 const { getMyProgress } = useProgramsApi()
 const programProgress = ref<MemberEnrollmentProgress | null>(null)
+const checkInsRowRef = ref<HTMLElement | null>(null)
 const premiumScroller = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>
 const premiumSlide = ref(0)
+
+function scrollCheckIns(direction: 'left' | 'right') {
+  const el = checkInsRowRef.value
+  if (!el) return
+  el.scrollBy({ left: direction === 'left' ? -280 : 280, behavior: 'smooth' })
+}
 
 function onPremiumScroll() {
   const el = premiumScroller.value
@@ -398,6 +411,42 @@ onMounted(async () => {
     max-width: 280px;
     flex-shrink: 0;
     scroll-snap-align: start;
+  }
+}
+
+// Scroll arrows (desktop only)
+.scroll-arrow {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(white, 0.9);
+  color: $primary;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: background 200ms ease;
+
+  &:hover {
+    background: white;
+  }
+
+  &--left {
+    left: 4px;
+  }
+
+  &--right {
+    right: 4px;
+  }
+
+  @media (min-width: 768px) {
+    display: flex;
   }
 }
 
