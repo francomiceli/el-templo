@@ -92,7 +92,7 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     templateKey: "segment_transition_espartano",
     category: "motivacion",
     title: "¡Semana increíble!",
-    body: "Tu constancia es inspiradora — seguí así, guerrero.",
+    body: "Tu constancia es inspiradora — seguí así.",
     route: "/mi-templo",
   },
   {
@@ -105,7 +105,7 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     templateKey: "morning_energy",
     category: "entrenamiento",
-    title: "Buenos días, guerrero",
+    title: "Arrancá el día con todo",
     body: "¿Cómo te sentís hoy? Registrá tu energía para personalizar tu día.",
     route: "/mi-templo",
   },

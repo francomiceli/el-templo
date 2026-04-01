@@ -8,7 +8,7 @@ export type DocumentType = 'DNI' | 'Pasaporte' | 'NIE' | 'NIF' | 'Otro';
 // ─── Behavioral Segmentation (Phase 79) ─────────────────────────────────────
 
 export type MemberSegment =
-  | 'nuevo_guerrero'
+  | 'nuevo'
   | 'espartano'
   | 'intermitente'
   | 'en_riesgo'
@@ -16,7 +16,7 @@ export type MemberSegment =
   | 'ghost';
 
 export const SEGMENT_LABELS: Record<MemberSegment, string> = {
-  nuevo_guerrero: 'Nuevo Guerrero',
+  nuevo: 'Nuevo',
   espartano: 'Espartano',
   intermitente: 'Intermitente',
   en_riesgo: 'En Riesgo',
@@ -25,7 +25,7 @@ export const SEGMENT_LABELS: Record<MemberSegment, string> = {
 };
 
 export const SEGMENT_COLORS: Record<MemberSegment, string> = {
-  nuevo_guerrero: 'blue',
+  nuevo: 'blue',
   espartano: 'green',
   intermitente: 'amber',
   en_riesgo: 'orange',
@@ -38,7 +38,7 @@ export interface SegmentThresholds {
   intermitentePct: number;
   enRiesgoWeeks: number;
   ghostWeeks: number;
-  nuevoGuerreroDays: number;
+  nuevoDays: number;
   windowDays: number;
 }
 

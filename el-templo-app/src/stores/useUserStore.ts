@@ -6,7 +6,7 @@ import { createLogger } from 'src/utils/logger'
 export type Level = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
 export type MemberSegment =
-  | 'nuevo_guerrero'
+  | 'nuevo'
   | 'espartano'
   | 'intermitente'
   | 'en_riesgo'

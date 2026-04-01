@@ -8,7 +8,7 @@
 // ─── Segment Type ─────────────────────────────────────────────────────────
 
 export type MemberSegment =
-  | "nuevo_guerrero"
+  | "nuevo"
   | "espartano"
   | "intermitente"
   | "en_riesgo"
@@ -22,7 +22,7 @@ export const SEGMENT_SETTINGS_KEYS = {
   INTERMITENTE_PCT: "segment.intermitente_pct",
   EN_RIESGO_WEEKS: "segment.en_riesgo_weeks",
   GHOST_WEEKS: "segment.ghost_weeks",
-  NUEVO_GUERRERO_DAYS: "segment.nuevo_guerrero_days",
+  NUEVO_DAYS: "segment.nuevo_days",
   WINDOW_DAYS: "segment.window_days",
 } as const;
 
@@ -33,7 +33,7 @@ export const SEGMENT_DEFAULTS = {
   INTERMITENTE_PCT: 40,
   EN_RIESGO_WEEKS: 2,
   GHOST_WEEKS: 8,
-  NUEVO_GUERRERO_DAYS: 30,
+  NUEVO_DAYS: 30,
   WINDOW_DAYS: 28,
 } as const;
 
@@ -44,14 +44,14 @@ export interface SegmentThresholds {
   intermitentePct: number;
   enRiesgoWeeks: number;
   ghostWeeks: number;
-  nuevoGuerreroDays: number;
+  nuevoDays: number;
   windowDays: number;
 }
 
 // ─── Display Metadata (for admin UI) ──────────────────────────────────────
 
 export const SEGMENT_LABELS: Record<MemberSegment, string> = {
-  nuevo_guerrero: "Nuevo Guerrero",
+  nuevo: "Nuevo",
   espartano: "Espartano",
   intermitente: "Intermitente",
   en_riesgo: "En Riesgo",
@@ -60,7 +60,7 @@ export const SEGMENT_LABELS: Record<MemberSegment, string> = {
 };
 
 export const SEGMENT_COLORS: Record<MemberSegment, string> = {
-  nuevo_guerrero: "blue",
+  nuevo: "blue",
   espartano: "green",
   intermitente: "amber",
   en_riesgo: "orange",
@@ -69,7 +69,7 @@ export const SEGMENT_COLORS: Record<MemberSegment, string> = {
 };
 
 export const SEGMENT_VALUES: MemberSegment[] = [
-  "nuevo_guerrero",
+  "nuevo",
   "espartano",
   "intermitente",
   "en_riesgo",

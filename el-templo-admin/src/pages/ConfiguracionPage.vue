@@ -55,8 +55,8 @@
               hint="Default: 8"
             />
             <q-input
-              v-model.number="form.nuevoGuerreroDays"
-              label="Nuevo Guerrero (dias desde registro)"
+              v-model.number="form.nuevoDays"
+              label="Nuevo (dias desde registro)"
               type="number"
               :rules="[positiveInt]"
               dense
@@ -109,7 +109,7 @@ const form = reactive<SegmentThresholds>({
   intermitentePct: 40,
   enRiesgoWeeks: 2,
   ghostWeeks: 8,
-  nuevoGuerreroDays: 30,
+  nuevoDays: 30,
   windowDays: 28,
 });
 
@@ -121,7 +121,7 @@ const hasChanges = computed(() => {
     form.intermitentePct !== orig.intermitentePct ||
     form.enRiesgoWeeks !== orig.enRiesgoWeeks ||
     form.ghostWeeks !== orig.ghostWeeks ||
-    form.nuevoGuerreroDays !== orig.nuevoGuerreroDays ||
+    form.nuevoDays !== orig.nuevoDays ||
     form.windowDays !== orig.windowDays
   );
 });

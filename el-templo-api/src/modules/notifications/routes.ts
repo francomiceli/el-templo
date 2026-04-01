@@ -18,7 +18,7 @@ import * as schema from "../../db/schema";
 
 /** Valid member segment values matching memberSegmentEnum */
 type MemberSegment =
-  | "nuevo_guerrero"
+  | "nuevo"
   | "espartano"
   | "intermitente"
   | "en_riesgo"
@@ -149,7 +149,7 @@ const sendSegmentSchema = {
         items: {
           type: "string",
           enum: [
-            "nuevo_guerrero",
+            "nuevo",
             "espartano",
             "intermitente",
             "en_riesgo",
@@ -333,12 +333,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         updates.isEnabled = request.body.isEnabled;
 
       if (Object.keys(updates).length === 0) {
-        return reply
-          .code(400)
-          .send({
-            error: "Solicitud invalida",
-            message: "No hay campos para actualizar",
-          });
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "No hay campos para actualizar",
+        });
       }
 
       const [existing] = await fastify.db

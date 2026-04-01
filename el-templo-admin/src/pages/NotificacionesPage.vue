@@ -53,10 +53,14 @@
               <span
                 class="cursor-pointer"
                 style="max-width: 300px; display: inline-block"
-                :class="{ 'ellipsis': props.row.body.length > 60 }"
+                :class="{ ellipsis: props.row.body.length > 60 }"
                 @click="openEdit(props.row)"
               >
-                {{ props.row.body.length > 60 ? props.row.body.substring(0, 60) + '...' : props.row.body }}
+                {{
+                  props.row.body.length > 60
+                    ? props.row.body.substring(0, 60) + '...'
+                    : props.row.body
+                }}
               </span>
             </q-td>
           </template>
@@ -95,13 +99,7 @@
       <!-- ============================================================ -->
       <q-tab-panel name="enviar">
         <div class="q-pa-md" style="max-width: 600px">
-          <q-input
-            v-model="sendForm.title"
-            label="Titulo"
-            class="q-mb-md"
-            outlined
-            dense
-          />
+          <q-input v-model="sendForm.title" label="Titulo" class="q-mb-md" outlined dense />
           <q-input
             v-model="sendForm.body"
             label="Mensaje"
@@ -154,13 +152,7 @@
       <q-card style="min-width: 400px">
         <q-card-section class="text-h6">Editar plantilla</q-card-section>
         <q-card-section>
-          <q-input
-            v-model="editForm.title"
-            label="Titulo"
-            class="q-mb-md"
-            outlined
-            dense
-          />
+          <q-input v-model="editForm.title" label="Titulo" class="q-mb-md" outlined dense />
           <q-input
             v-model="editForm.body"
             label="Cuerpo"
@@ -170,21 +162,11 @@
             outlined
             dense
           />
-          <q-input
-            v-model="editForm.route"
-            label="Ruta de destino"
-            outlined
-            dense
-          />
+          <q-input v-model="editForm.route" label="Ruta de destino" outlined dense />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" v-close-popup />
-          <q-btn
-            color="primary"
-            label="Guardar"
-            @click="saveTemplate"
-            :loading="saving"
-          />
+          <q-btn color="primary" label="Guardar" @click="saveTemplate" :loading="saving" />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -239,7 +221,7 @@ interface TemplateRow {
 // Segments
 // ----------------------------------------------------------------
 const segments = [
-  { value: 'nuevo_guerrero', label: 'Nuevo Guerrero' },
+  { value: 'nuevo', label: 'Nuevo' },
   { value: 'espartano', label: 'Espartano' },
   { value: 'intermitente', label: 'Intermitente' },
   { value: 'en_riesgo', label: 'En Riesgo' },
@@ -307,9 +289,7 @@ const canSend = computed(() => {
 async function loadTemplates() {
   loading.value = true;
   try {
-    const { data } = await api.get<{ templates: TemplateRow[] }>(
-      '/notifications/admin/templates',
-    );
+    const { data } = await api.get<{ templates: TemplateRow[] }>('/notifications/admin/templates');
     templates.value = data.templates;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
@@ -383,7 +363,7 @@ async function handleSendSegment() {
 
     const { data } = await api.post<{ queued: number }>(
       '/notifications/admin/send-segment',
-      payload,
+      payload
     );
 
     $q.notify({

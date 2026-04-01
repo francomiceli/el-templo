@@ -71,9 +71,9 @@ export class SegmentationService {
         SEGMENT_SETTINGS_KEYS.GHOST_WEEKS,
         SEGMENT_DEFAULTS.GHOST_WEEKS,
       ),
-      nuevoGuerreroDays: parseOrDefault(
-        SEGMENT_SETTINGS_KEYS.NUEVO_GUERRERO_DAYS,
-        SEGMENT_DEFAULTS.NUEVO_GUERRERO_DAYS,
+      nuevoDays: parseOrDefault(
+        SEGMENT_SETTINGS_KEYS.NUEVO_DAYS,
+        SEGMENT_DEFAULTS.NUEVO_DAYS,
       ),
       windowDays: parseOrDefault(
         SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
@@ -86,7 +86,7 @@ export class SegmentationService {
    * Calculate the behavioral segment for a member.
    *
    * Priority order (per D-02 through D-10):
-   * 1. Nuevo Guerrero — first N days after registration (overrides all)
+   * 1. Nuevo — first N days after registration (overrides all)
    * 2. Ghost — inactive 8+ weeks (no attendance, no app usage)
    * 3. En Riesgo — inactive 2-8 weeks
    * 4. Digital Warrior — low physical attendance but high app usage
@@ -109,12 +109,12 @@ export class SegmentationService {
       return "ghost";
     }
 
-    // Step 2: Nuevo Guerrero check (per D-07)
+    // Step 2: Nuevo check (per D-07)
     const daysSinceRegistration =
       (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
 
-    if (daysSinceRegistration < thresholds.nuevoGuerreroDays) {
-      return "nuevo_guerrero";
+    if (daysSinceRegistration < thresholds.nuevoDays) {
+      return "nuevo";
     }
 
     // Step 3: Get last activity dates

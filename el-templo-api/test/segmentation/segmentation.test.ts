@@ -39,7 +39,9 @@ describe("Segmentation", () => {
     await app.db.delete(schema.checkInResponses);
     await app.db.delete(schema.onboardingAnalytics);
     await app.db.delete(schema.memberProfiles);
-    await app.db.execute(sql`DELETE FROM ${schema.systemSettings} WHERE setting_key LIKE 'segment.%'`);
+    await app.db.execute(
+      sql`DELETE FROM ${schema.systemSettings} WHERE setting_key LIKE 'segment.%'`,
+    );
 
     // Seed segment threshold settings for all tests
     await app.db.insert(schema.systemSettings).values([
@@ -47,7 +49,7 @@ describe("Segmentation", () => {
       { settingKey: "segment.intermitente_pct", settingValue: "40" },
       { settingKey: "segment.en_riesgo_weeks", settingValue: "2" },
       { settingKey: "segment.ghost_weeks", settingValue: "8" },
-      { settingKey: "segment.nuevo_guerrero_days", settingValue: "30" },
+      { settingKey: "segment.nuevo_days", settingValue: "30" },
       { settingKey: "segment.window_days", settingValue: "28" },
     ]);
   });
@@ -191,7 +193,7 @@ describe("Segmentation", () => {
   // =========================================================================
 
   describe("Segment Calculation Logic", () => {
-    it("new member (< 30 days) always gets nuevo_guerrero regardless of attendance", async () => {
+    it("new member (< 30 days) always gets nuevo regardless of attendance", async () => {
       const userId = await createMemberWithDate(
         "new-member@test.com",
         new Date(), // registered today
@@ -203,7 +205,7 @@ describe("Segmentation", () => {
       const service = new SegmentationService(app.db, app.log);
       const segment = await service.calculateSegment(userId);
 
-      expect(segment).toBe("nuevo_guerrero");
+      expect(segment).toBe("nuevo");
     });
 
     it("member with 80%+ attendance gets espartano", async () => {
@@ -459,8 +461,8 @@ describe("Segmentation", () => {
 
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("segment");
-      // New member registered just now -> should be nuevo_guerrero
-      expect(body.segment).toBe("nuevo_guerrero");
+      // New member registered just now -> should be nuevo
+      expect(body.segment).toBe("nuevo");
     });
 
     it("non-member roles (coach/admin) do NOT trigger segment calculation", async () => {
@@ -511,7 +513,7 @@ describe("Segmentation", () => {
         intermitentePct: 40,
         enRiesgoWeeks: 2,
         ghostWeeks: 8,
-        nuevoGuerreroDays: 30,
+        nuevoDays: 30,
         windowDays: 28,
       });
     });

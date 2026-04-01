@@ -20,7 +20,7 @@ const segmentThresholdsResponseSchema = {
     intermitentePct: { type: "integer" },
     enRiesgoWeeks: { type: "integer" },
     ghostWeeks: { type: "integer" },
-    nuevoGuerreroDays: { type: "integer" },
+    nuevoDays: { type: "integer" },
     windowDays: { type: "integer" },
   },
 } as const;
@@ -68,7 +68,7 @@ export const settingsRoutes: FastifyPluginAsync = async (fastify) => {
             intermitentePct: { type: "integer", minimum: 1, maximum: 100 },
             enRiesgoWeeks: { type: "integer", minimum: 1 },
             ghostWeeks: { type: "integer", minimum: 1 },
-            nuevoGuerreroDays: { type: "integer", minimum: 1 },
+            nuevoDays: { type: "integer", minimum: 1 },
             windowDays: { type: "integer", minimum: 1 },
           },
           additionalProperties: false,

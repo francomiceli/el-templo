@@ -37,7 +37,7 @@ export const motivationStyleEnum = mysqlEnum("motivation_style", [
 ]);
 
 export const memberSegmentEnum = mysqlEnum("member_segment", [
-  "nuevo_guerrero",
+  "nuevo",
   "espartano",
   "intermitente",
   "en_riesgo",

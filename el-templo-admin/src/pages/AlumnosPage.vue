@@ -95,7 +95,15 @@
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
             <q-tooltip>Exportar a Excel</q-tooltip>
           </q-btn>
-          <q-btn label="Nuevo" icon="person_add" color="primary" dense no-caps class="q-px-md" @click="showCreateDialog = true" />
+          <q-btn
+            label="Nuevo"
+            icon="person_add"
+            color="primary"
+            dense
+            no-caps
+            class="q-px-md"
+            @click="showCreateDialog = true"
+          />
         </div>
       </div>
     </div>
@@ -318,7 +326,7 @@ const statusFilterOptions = [
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
   { label: 'Todos', value: null },
-  { label: 'Nuevo Guerrero', value: 'nuevo_guerrero' },
+  { label: 'Nuevo', value: 'nuevo' },
   { label: 'Espartano', value: 'espartano' },
   { label: 'Intermitente', value: 'intermitente' },
   { label: 'En Riesgo', value: 'en_riesgo' },

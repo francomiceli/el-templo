@@ -63,9 +63,9 @@ export class SettingsService {
         SEGMENT_SETTINGS_KEYS.GHOST_WEEKS,
         SEGMENT_DEFAULTS.GHOST_WEEKS,
       ),
-      nuevoGuerreroDays: parseOrDefault(
-        SEGMENT_SETTINGS_KEYS.NUEVO_GUERRERO_DAYS,
-        SEGMENT_DEFAULTS.NUEVO_GUERRERO_DAYS,
+      nuevoDays: parseOrDefault(
+        SEGMENT_SETTINGS_KEYS.NUEVO_DAYS,
+        SEGMENT_DEFAULTS.NUEVO_DAYS,
       ),
       windowDays: parseOrDefault(
         SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
@@ -86,7 +86,7 @@ export class SettingsService {
       intermitentePct: SEGMENT_SETTINGS_KEYS.INTERMITENTE_PCT,
       enRiesgoWeeks: SEGMENT_SETTINGS_KEYS.EN_RIESGO_WEEKS,
       ghostWeeks: SEGMENT_SETTINGS_KEYS.GHOST_WEEKS,
-      nuevoGuerreroDays: SEGMENT_SETTINGS_KEYS.NUEVO_GUERRERO_DAYS,
+      nuevoDays: SEGMENT_SETTINGS_KEYS.NUEVO_DAYS,
       windowDays: SEGMENT_SETTINGS_KEYS.WINDOW_DAYS,
     };
 

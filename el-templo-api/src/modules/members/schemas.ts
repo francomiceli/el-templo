@@ -113,7 +113,7 @@ export const listMembersSchema = {
       segment: {
         type: "string",
         enum: [
-          "nuevo_guerrero",
+          "nuevo",
           "espartano",
           "intermitente",
           "en_riesgo",

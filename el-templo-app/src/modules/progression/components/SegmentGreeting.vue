@@ -33,7 +33,7 @@ const props = defineProps<Props>()
  */
 // Segment greeting prefixes — keys preserved for future copywriting
 const SEGMENT_GREETINGS: Record<string, string> = {
-  nuevo_guerrero: 'Hola,',
+  nuevo: 'Hola,',
   espartano: 'Hola,',
   intermitente: 'Hola,',
   en_riesgo: 'Hola,',
