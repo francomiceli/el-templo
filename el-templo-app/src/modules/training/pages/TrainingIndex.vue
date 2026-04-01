@@ -14,7 +14,12 @@
           No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.
         </p>
         <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
-          <q-icon name="img:/icons/whatsapp.svg" size="20px" class="q-mr-sm" />
+          <q-icon
+            name="img:/icons/whatsapp.svg"
+            size="20px"
+            class="q-mr-sm"
+            style="filter: brightness(0) invert(1)"
+          />
           Consultá por tu plan
         </q-btn>
       </div>
@@ -88,10 +93,10 @@ onMounted(async () => {
 
 .training-index__blocked-title {
   font-family: 'Montserrat', sans-serif;
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: $accent;
-  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: $primary;
+  margin: 16px 0 8px;
 }
 
 .training-index__blocked-text {

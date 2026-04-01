@@ -13,7 +13,12 @@
         No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.
       </p>
       <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
-        <q-icon name="img:/icons/whatsapp.svg" size="20px" class="q-mr-sm" />
+        <q-icon
+          name="img:/icons/whatsapp.svg"
+          size="20px"
+          class="q-mr-sm"
+          style="filter: brightness(0) invert(1)"
+        />
         Consultá por tu plan
       </q-btn>
     </div>
