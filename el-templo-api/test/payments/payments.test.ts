@@ -103,6 +103,11 @@ describe("Payments API", () => {
   /**
    * Helper: assign a subscription plan to a member.
    */
+  /** Today as YYYY-MM-DD */
+  function todayStr(): string {
+    return new Date().toISOString().split("T")[0];
+  }
+
   async function assignPlan(
     userId: number,
     planId: number,
@@ -115,7 +120,7 @@ describe("Payments API", () => {
       payload: {
         planId,
         branchId: 1,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
         ...overrides,
@@ -321,15 +326,19 @@ describe("Payments API", () => {
       const plan = await createPlan();
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
-      // assignPlan auto-records 1 payment on startDate (2026-03-01)
+      // assignPlan auto-records 1 payment on startDate (today)
 
-      // Record an additional payment on a later date
+      // Record an additional payment on a future date
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 14);
+      const futureDateStr = futureDate.toISOString().split("T")[0];
+
       const { body: payment2 } = await recordPayment(
         member.id,
         sub.id as number,
         {
           amount: 10000,
-          paymentDate: "2026-03-15",
+          paymentDate: futureDateStr,
         },
       );
 
@@ -352,8 +361,8 @@ describe("Payments API", () => {
       // 1 auto from assign + 1 manual = 2 total
       expect(body.payments).toHaveLength(2);
       // Most recent first
-      expect(body.payments[0].paymentDate).toBe("2026-03-15");
-      expect(body.payments[1].paymentDate).toBe("2026-03-01");
+      expect(body.payments[0].paymentDate).toBe(futureDateStr);
+      expect(body.payments[1].paymentDate).toBe(todayStr());
       // Voided payment included with voided fields
       expect(body.payments[0].voidedAt).toBeTruthy();
     });
@@ -405,12 +414,24 @@ describe("Payments API", () => {
       const plan = await createPlan();
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
-      // assignPlan auto-records 1 cash payment on 2026-03-01
+      // assignPlan auto-records 1 cash payment on today
+
+      // Record a transfer payment 60 days in the future (different month)
+      const futureMonth = new Date();
+      futureMonth.setDate(futureMonth.getDate() + 60);
+      const futureMonthStr = futureMonth.toISOString().split("T")[0];
+      // Use a range that brackets the exact date
+      const dayBefore = new Date(futureMonth);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+      const dayAfter = new Date(futureMonth);
+      dayAfter.setDate(dayAfter.getDate() + 1);
+      const futureFrom = dayBefore.toISOString().split("T")[0];
+      const futureTo = dayAfter.toISOString().split("T")[0];
 
       await recordPayment(member.id, sub.id as number, {
         amount: 10000,
         paymentMethod: "transfer",
-        paymentDate: "2026-04-01",
+        paymentDate: futureMonthStr,
       });
 
       // Filter by method: transfer should return 1
@@ -423,10 +444,10 @@ describe("Payments API", () => {
       expect(bodyByMethod.payments).toHaveLength(1);
       expect(bodyByMethod.payments[0].paymentMethod).toBe("transfer");
 
-      // Filter by date range (April only)
+      // Filter by date range (future month only)
       const resByDate = await app.inject({
         method: "GET",
-        url: `${PAYMENTS_URL}/payments?dateFrom=2026-04-01&dateTo=2026-04-30`,
+        url: `${PAYMENTS_URL}/payments?dateFrom=${futureFrom}&dateTo=${futureTo}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
       const bodyByDate = JSON.parse(resByDate.body);
@@ -523,9 +544,16 @@ describe("Payments API", () => {
     it("POST renew active subscription creates new period and records payment", async () => {
       const plan = await createPlan({ durationDays: 30 });
       const member = await createMember();
-      const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2026-03-01",
-      });
+      const sub = await assignPlan(member.id, plan.id);
+
+      // Compute expected dates dynamically
+      const start = new Date();
+      const oldEnd = new Date(start);
+      oldEnd.setDate(oldEnd.getDate() + 30);
+      const oldEndStr = oldEnd.toISOString().split("T")[0];
+      const newEnd = new Date(oldEnd);
+      newEnd.setDate(newEnd.getDate() + 30);
+      const newEndStr = newEnd.toISOString().split("T")[0];
 
       // Renew the subscription
       const res = await app.inject({
@@ -539,9 +567,9 @@ describe("Payments API", () => {
       const body = JSON.parse(res.body);
       // Old sub still active (endDate in future) → new sub is scheduled
       expect(body.status).toBe("scheduled");
-      // New period starts from old endDate (2026-03-31) and extends by 30 days
-      expect(body.startDate).toBe("2026-03-31");
-      expect(body.endDate).toBe("2026-04-30");
+      // New period starts from old endDate and extends by 30 days
+      expect(body.startDate).toBe(oldEndStr);
+      expect(body.endDate).toBe(newEndStr);
       // New sub links to old sub
       expect(body.previousSubscriptionId).toBe(sub.id);
 

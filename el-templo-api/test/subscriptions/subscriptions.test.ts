@@ -102,6 +102,11 @@ describe("Subscriptions API", () => {
   /**
    * Helper: assign a plan to a member.
    */
+  /** Today as YYYY-MM-DD */
+  function todayStr(): string {
+    return new Date().toISOString().split("T")[0];
+  }
+
   async function assignPlan(
     userId: number,
     overrides: Record<string, unknown> = {},
@@ -113,7 +118,7 @@ describe("Subscriptions API", () => {
       payload: {
         planId: 1, // will be overridden
         branchId: 1,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
         ...overrides,
@@ -348,7 +353,7 @@ describe("Subscriptions API", () => {
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         priceTypeApplied: "regular",
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       expect(statusCode).toBe(201);
@@ -356,8 +361,11 @@ describe("Subscriptions API", () => {
       expect(body.planId).toBe(plan.id);
       expect(body.planName).toBe(basePlan.name);
       expect(body.status).toBe("active");
-      expect(body.startDate).toBe("2026-03-01");
-      expect(body.endDate).toBe("2026-03-31"); // 30 days from Mar 1
+      expect(body.startDate).toBe(todayStr());
+      // endDate = today + 30 days
+      const expectedEnd = new Date();
+      expectedEnd.setDate(expectedEnd.getDate() + 30);
+      expect(body.endDate).toBe(expectedEnd.toISOString().split("T")[0]);
       expect(body.pricePaid).toBe(basePlan.priceRegular);
       expect(body.priceTypeApplied).toBe("regular");
       expect(body.branchName).toBeTruthy();
@@ -370,7 +378,7 @@ describe("Subscriptions API", () => {
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
         priceTypeApplied: "regular",
       });
 
@@ -388,7 +396,7 @@ describe("Subscriptions API", () => {
       const { statusCode: first } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
         priceTypeApplied: "regular",
       });
       expect(first).toBe(201);
@@ -566,7 +574,7 @@ describe("Subscriptions API", () => {
       const member = await createMember();
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       // Pause
@@ -587,8 +595,8 @@ describe("Subscriptions API", () => {
       const body = JSON.parse(res.body);
       expect(body.status).toBe("active");
       expect(body.resumedAt).toBeTruthy();
-      // End date should be on or after the original end date
-      expect(body.endDate >= "2026-03-31").toBe(true);
+      // End date should be on or after today + 30 days
+      expect(body.endDate >= todayStr()).toBe(true);
     });
 
     it("POST cancel cancels subscription", async () => {
@@ -766,7 +774,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       expect(statusCode).toBe(201);
@@ -783,7 +791,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       expect(statusCode).toBe(201);
@@ -803,7 +811,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       expect(statusCode).toBe(201);
@@ -819,7 +827,7 @@ describe("Subscriptions API", () => {
       const member = await createMember();
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       const res = await app.inject({
@@ -843,7 +851,7 @@ describe("Subscriptions API", () => {
       const member = await createMember();
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-03-01",
+        startDate: todayStr(),
       });
 
       const res = await app.inject({
