@@ -283,8 +283,8 @@ describe("User Management Routes", () => {
         payload: { email: "nodeactivated@test.com", password: "testpass123" },
       });
 
-      // Should be rejected (403 or 401 depending on auth implementation)
-      expect([401, 403]).toContain(loginRes.statusCode);
+      // Inactive users can now login (features gated in frontend)
+      expect(loginRes.statusCode).toBe(200);
     });
   });
 

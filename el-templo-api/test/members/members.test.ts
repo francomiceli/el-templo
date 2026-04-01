@@ -967,9 +967,10 @@ describe("Members Management Routes", () => {
         },
       });
 
-      expect(loginRes.statusCode).toBe(401);
+      // Inactive users can now login (features gated in frontend)
+      expect(loginRes.statusCode).toBe(200);
       const body = JSON.parse(loginRes.body);
-      expect(body.message).toContain("desactivada");
+      expect(body.user.isActive).toBe(false);
     });
   });
 
