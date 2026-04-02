@@ -7,7 +7,7 @@ export const listExercisesSchema = {
     type: "object" as const,
     properties: {
       page: { type: "integer", minimum: 1, default: 1 },
-      limit: { type: "integer", minimum: 1, maximum: 200, default: 50 },
+      limit: { type: "integer", minimum: 1, maximum: 2000, default: 50 },
       search: { type: "string" },
       category: { type: "string" },
       level: {
