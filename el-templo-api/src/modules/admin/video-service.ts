@@ -223,7 +223,7 @@ export class VideoService {
 
   private needsCompression(meta: VideoMetadata): boolean {
     const isH264 = meta.codec.toLowerCase() === "h264";
-    const bitrateThreshold = meta.height <= 720 ? 4_000_000 : 6_000_000;
+    const bitrateThreshold = meta.height <= 720 ? 2_000_000 : 4_000_000;
 
     // No compression needed if already H.264 AND within bitrate threshold
     if (isH264 && meta.bitrate <= bitrateThreshold) {
@@ -296,7 +296,7 @@ export class VideoService {
         "-c:v",
         "libx264",
         "-crf",
-        "28",
+        "30",
         "-preset",
         "medium",
         "-vf",
@@ -371,6 +371,7 @@ export class VideoService {
         Body: fileStream,
         ContentType: contentType,
         ContentLength: fileStat.size,
+        CacheControl: "public, max-age=604800",
       }),
     );
   }
