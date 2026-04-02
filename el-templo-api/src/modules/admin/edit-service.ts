@@ -286,6 +286,18 @@ export class AdminEditService {
       throw new Error("No hay campos para actualizar");
     }
 
+    // When contraction changes, find or create the exercise variant in the exercises table
+    if (fields.contraction !== undefined) {
+      const exerciseVariant = await this.findOrCreateEffortVariant(
+        prescriptionId,
+        blockId,
+        fields.contraction,
+      );
+      if (exerciseVariant) {
+        updateSet.exerciseId = exerciseVariant.id;
+      }
+    }
+
     // Compound WHERE validates prescription belongs to the block
     const [result] = await this.db
       .update(schema.sessionPrescriptions)
@@ -310,6 +322,107 @@ export class AdminEditService {
       .where(eq(schema.sessionPrescriptions.id, prescriptionId));
 
     return updated;
+  }
+
+  /**
+   * Find or create an exercise variant with the target effort type.
+   * When a coach changes contraction (CON→ISO, etc.), we need a matching
+   * exercise row in the exercises table. If it doesn't exist, create it
+   * using the same logic as the admin "create with 3 contractions" feature.
+   *
+   * Difficulty offsets: CON = base, EXC = base - 1, ISO = base - 2
+   */
+  private async findOrCreateEffortVariant(
+    prescriptionId: number,
+    blockId: number,
+    newEffort: string,
+  ): Promise<{ id: number } | null> {
+    // Get current prescription to find the source exercise
+    const [prescription] = await this.db
+      .select({
+        exerciseId: schema.sessionPrescriptions.exerciseId,
+      })
+      .from(schema.sessionPrescriptions)
+      .where(
+        and(
+          eq(schema.sessionPrescriptions.id, prescriptionId),
+          eq(schema.sessionPrescriptions.blockId, blockId),
+        ),
+      );
+    if (!prescription) return null;
+
+    // Get the source exercise
+    const [sourceExercise] = await this.db
+      .select()
+      .from(schema.exercises)
+      .where(eq(schema.exercises.id, prescription.exerciseId));
+    if (!sourceExercise) return null;
+
+    // If already the same effort, just return the current exercise
+    if (sourceExercise.effort === newEffort) return { id: sourceExercise.id };
+
+    // Look for an existing sibling with the target effort + same route + same base name
+    const [existing] = await this.db
+      .select({ id: schema.exercises.id })
+      .from(schema.exercises)
+      .where(
+        and(
+          eq(schema.exercises.exercise, sourceExercise.exercise),
+          eq(schema.exercises.route, sourceExercise.route),
+          eq(schema.exercises.effort, newEffort),
+        ),
+      );
+    if (existing) return { id: existing.id };
+
+    // No existing variant — create one with adjusted difficulty
+    // CON = base difficulty, EXC = base - 1, ISO = base - 2
+    const EFFORT_OFFSETS: Record<string, number> = {
+      CON: 0,
+      EXC: -1,
+      ISO: -2,
+    };
+    const sourceOffset = EFFORT_OFFSETS[sourceExercise.effort] ?? 0;
+    const targetOffset = EFFORT_OFFSETS[newEffort] ?? 0;
+    const difficultyDelta = targetOffset - sourceOffset;
+    const newDifficulty = Math.max(
+      1,
+      sourceExercise.dificultadLineal + difficultyDelta,
+    );
+
+    // Determine level from difficulty
+    const levelForDifficulty = (d: number): string | null => {
+      if (d >= 1 && d <= 3) return "alfa";
+      if (d >= 4 && d <= 6) return "delta";
+      if (d >= 7 && d <= 8) return "sigma";
+      if (d >= 9 && d <= 10) return "omega";
+      if (d >= 11 && d <= 12) return "spartan";
+      return null;
+    };
+
+    const newLevel = levelForDifficulty(newDifficulty) as
+      | "alfa"
+      | "delta"
+      | "sigma"
+      | "omega"
+      | "spartan"
+      | null;
+
+    const insertResult = await this.db.insert(schema.exercises).values({
+      exercise: sourceExercise.exercise,
+      category: sourceExercise.category,
+      categorySecondary: sourceExercise.categorySecondary,
+      pattern: sourceExercise.pattern,
+      position: sourceExercise.position,
+      route: sourceExercise.route,
+      effort: newEffort,
+      level: newLevel,
+      difficulty: newDifficulty,
+      dificultadLineal: newDifficulty,
+      mobilityRelated: sourceExercise.mobilityRelated,
+    });
+
+    const newId = Number(insertResult[0].insertId);
+    return { id: newId };
   }
 
   async changeBlockFormat(params: ChangeBlockFormatParams) {
