@@ -291,6 +291,35 @@ const currentSlideExercise = computed<Prescription | null>(() => {
   return viewingBlock.value.exercises[storyNav.currentIndex.value] ?? null
 })
 
+// Prefetch next slide's video so it's cached when the user taps next
+const prefetchedUrls = new Set<string>()
+
+watch(
+  () => storyNav.currentIndex.value,
+  (idx) => {
+    if (!viewingBlock.value) return
+    const nextIdx = idx + 1
+    const exercises = viewingBlock.value.exercises
+    let nextUrl: string | null = null
+
+    if (nextIdx < exercises.length) {
+      nextUrl = exercises[nextIdx].videoUrl
+    } else if (nextIdx === exercises.length && viewingBlock.value.mobilityExercise) {
+      nextUrl = viewingBlock.value.mobilityExercise.videoUrl
+    }
+
+    if (nextUrl && !prefetchedUrls.has(nextUrl)) {
+      prefetchedUrls.add(nextUrl)
+      const link = document.createElement('link')
+      link.rel = 'prefetch'
+      link.as = 'video'
+      link.href = nextUrl
+      document.head.appendChild(link)
+    }
+  },
+  { immediate: true },
+)
+
 // Detail panel computeds
 const detailActiveName = computed(() => {
   if (isMobilitySlide.value && viewingBlock.value?.mobilityExercise) {

@@ -300,7 +300,7 @@ export class VideoService {
         "-preset",
         "medium",
         "-vf",
-        "scale='min(720,ih)':-2",
+        "scale='min(480,ih)':-2",
         "-movflags",
         "+faststart",
         "-an",
