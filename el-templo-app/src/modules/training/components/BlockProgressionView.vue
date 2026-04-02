@@ -444,6 +444,7 @@ function onSlideComplete(): void {
   min-height: 240px;
   flex-shrink: 0;
   background: #2e2a26;
+  z-index: 1; // above app-bg overlay
 }
 
 // Segmented progress bar overlay

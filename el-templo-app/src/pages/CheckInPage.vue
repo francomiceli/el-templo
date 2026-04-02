@@ -51,7 +51,7 @@
 
     <!-- Loading state -->
     <div v-else-if="state === 'loading'" class="result-container">
-      <q-spinner-orbit size="80px" color="primary" />
+      <TemploLoader size="lg" />
       <p class="result-message q-mt-lg">Registrando asistencia...</p>
     </div>
   </q-page>
@@ -64,6 +64,7 @@ import { Html5Qrcode } from 'html5-qrcode'
 import { useAttendanceApi } from 'src/composables/useAttendanceApi'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
+import TemploLoader from 'src/components/TemploLoader.vue'
 
 type PageState = 'scanning' | 'permission-denied' | 'success' | 'error' | 'loading'
 

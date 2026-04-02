@@ -2,7 +2,7 @@
   <div class="personalizada-section">
     <!-- Loading State -->
     <div v-if="loading" class="personalizada-section__loading">
-      <q-spinner-dots size="32px" color="secondary" />
+      <TemploLoader size="sm" />
     </div>
 
     <!-- Error State -->
@@ -293,6 +293,7 @@
  */
 import { computed } from 'vue'
 import { createLogger } from 'src/utils/logger'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { formatDate } from 'src/utils/format-date'
 import type {
   PersonalizadaProgress,

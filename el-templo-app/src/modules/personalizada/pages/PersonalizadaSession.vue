@@ -51,7 +51,7 @@
 
     <!-- Loading State -->
     <div v-else-if="isLoading" class="personalizada-session__loading flex flex-center">
-      <q-spinner-dots color="primary" size="60px" />
+      <TemploLoader size="lg" />
     </div>
 
     <!-- No Session State -->
@@ -110,6 +110,7 @@ import { usePersonalizadaSession } from '../composables/usePersonalizadaSession'
 import { useWakeLock } from '../../training/composables/useWakeLock'
 import { usePersonalizadaStore } from '../stores/personalizadaStore'
 import { createLogger } from 'src/utils/logger'
+import TemploLoader from 'src/components/TemploLoader.vue'
 
 import { getQuoteForBlock } from '../../training/data/quotes'
 import type { Quote } from '../../training/data/quotes'

@@ -65,7 +65,7 @@
 
         <!-- Submitting indicator -->
         <div v-if="submitting" class="check-in-card__submitting">
-          <q-spinner-dots color="primary" size="20px" />
+          <TemploLoader size="sm" />
         </div>
       </div>
     </q-card-section>
@@ -75,6 +75,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import type { CheckInQuestionConfig, CheckInAnswerValue } from '../types'
+import TemploLoader from 'src/components/TemploLoader.vue'
 import { BODY_AREA_OPTIONS } from '../types'
 
 const props = defineProps<{
