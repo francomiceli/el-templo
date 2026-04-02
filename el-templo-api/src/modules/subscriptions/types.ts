@@ -249,3 +249,12 @@ export interface CreatePromoInput {
   promoType: PromoType;
   subscriptionPlanId: number;
 }
+
+export interface UpdatePromoInput {
+  name?: string;
+  planDurationDays?: number;
+  startDate?: string;
+  expiryDate?: string;
+  promoType?: PromoType;
+  subscriptionPlanId?: number;
+}

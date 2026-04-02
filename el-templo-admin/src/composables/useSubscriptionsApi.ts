@@ -328,6 +328,17 @@ export function useSubscriptionsApi() {
     return data;
   }
 
+  async function updatePromo(
+    promoId: number,
+    input: Partial<CreatePromoInput>
+  ): Promise<PromoListItem> {
+    const { data } = await api.patch<PromoListItem>(
+      `/admin/subscriptions/promo-plans/${promoId}`,
+      input
+    );
+    return data;
+  }
+
   async function deactivatePromo(promoId: number): Promise<void> {
     await api.patch(`/admin/subscriptions/promo-plans/${promoId}/deactivate`);
   }
@@ -360,6 +371,7 @@ export function useSubscriptionsApi() {
     getClassUsage,
     listPromos,
     createPromo,
+    updatePromo,
     deactivatePromo,
     cleanup,
   };

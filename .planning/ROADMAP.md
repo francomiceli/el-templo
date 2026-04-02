@@ -8,7 +8,7 @@
 - **v4.1 Admin Consolidation & Data Migration** - Phases 58-66 (planned)
 - **v4.2 Clases Personalizadas Launch** - Phases 67-73 (complete)
 - **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
-- **v4.4 App Engagement & Intelligent Companion** - Phases 78-86 (planned)
+- **v4.4 App Engagement & Intelligent Companion** - Phases 78-88 (planned)
 
 ---
 
@@ -1533,8 +1533,8 @@ Phase 74 (Pre-Release Prep) → Phase 75 (Signing & Release Build) → Phase 76 
 | ----------------------------------- | -------------- | -------- | ---------- |
 | 74. Pre-Release Prep                | 2/2            | Complete | 2026-03-21 |
 | 75. Android Signing & Release Build | 2/2            | Complete | 2026-03-21 |
-| 76. Play Store Setup & Listing      | —              | Planned  | —          |
-| 77. Internal Testing & Launch       | —              | Planned  | —          |
+| 76. Play Store Setup & Listing      | manual         | Complete | 2026-04-02 |
+| 77. Internal Testing & Launch       | —              | Active   | —          |
 
 ---
 
@@ -1785,23 +1785,57 @@ Plans:
 
 ---
 
+### Phase 88: Reservation Rules — Per-Plan Booking Configuration
+
+**Goal**: Make reservation timing rules configurable per plan instead of hardcoded. Currently: 5-min booking cutoff, 20-min cancel cutoff, and current-week-only window are the same for all plans. This phase adds per-plan config for advance booking days, booking cutoff, and cancel cutoff — so premium plans can book further ahead and cheaper plans stay restricted.
+**Depends on**: None
+**Requirements**: RES-01, RES-02, RES-03, RES-04
+**Plans:** TBD
+
+**Current behavior (all hardcoded in `booking-service.ts`):**
+
+- Booking window: current week only (Mon-Sat) — no cross-week advance booking
+- Booking cutoff: 5 minutes before class start
+- Cancel cutoff: 20 minutes before class start
+- `bookingMode` (fixed/flexible) only controls slot assignment, not timing rules
+
+**Open questions for discuss:**
+
+- What advance booking window per plan tier? (e.g., flex=current week, foundation=next week, performance=2 weeks?)
+- Should booking/cancel cutoff times vary per plan or stay global?
+- Should online plans have any reservation rules or remain exempt?
+- Any special rules for ROM/SKILLS sessions vs regular?
+
+**Success Criteria** (what must be TRUE):
+
+1. Subscription plans have configurable advance booking days (how far ahead a member can reserve)
+2. Subscription plans have configurable booking cutoff (minutes before class)
+3. Subscription plans have configurable cancel cutoff (minutes before class)
+4. Booking service reads these values from the plan instead of hardcoded constants
+5. Admin can edit these values per plan in the Plans management page
+6. Member app respects the per-plan rules in the reservations flow
+7. Existing plans migrate with current defaults (7 days advance, 5-min book, 20-min cancel)
+
+---
+
 ## v4.4 Progress
 
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                  | Plans Complete | Status      | Completed  |
-| -------------------------------------- | -------------- | ----------- | ---------- |
-| 78. Onboarding & User Profiling        | 2/3            | In Progress |            |
-| 79. Behavioral Segmentation            | —              | Planned     | —          |
-| 80. "Tu Día" Daily Game Plan           | 2/3            | In Progress |            |
-| 81. Streaks & Engagement Mechanics     | 1/2            | In Progress |            |
-| 82. Progressive Profiling & Check-ins  | 2/3            | In Progress |            |
-| 83. Micro-Program Upsells              | 4/5            | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation      | 6/7            | Complete    | 2026-03-26 |
-| 85. Guía — Exercise & Mobility Library | —              | Planned     | —          |
-| 86. QR Promo — Free Month Campaign     | 6/6            | Complete    | 2026-03-28 |
-| 87. Localization — ES-AR vs ES-ES      | —              | Planned     | —          |
+| Phase                                   | Plans Complete | Status      | Completed  |
+| --------------------------------------- | -------------- | ----------- | ---------- |
+| 78. Onboarding & User Profiling         | 2/3            | In Progress |            |
+| 79. Behavioral Segmentation             | —              | Planned     | —          |
+| 80. "Tu Día" Daily Game Plan            | 2/3            | In Progress |            |
+| 81. Streaks & Engagement Mechanics      | 1/2            | In Progress |            |
+| 82. Progressive Profiling & Check-ins   | 2/3            | In Progress |            |
+| 83. Micro-Program Upsells               | 4/5            | Complete    | 2026-03-25 |
+| 84. Push Notifications Foundation       | 6/7            | Complete    | 2026-03-26 |
+| 85. Guía — Exercise & Mobility Library  | —              | Planned     | —          |
+| 86. QR Promo — Free Month Campaign      | 6/6            | Complete    | 2026-03-28 |
+| 87. Localization — ES-AR vs ES-ES       | —              | Planned     | —          |
+| 88. Reservation Rules — Per-Plan Config | —              | Planned     | —          |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 

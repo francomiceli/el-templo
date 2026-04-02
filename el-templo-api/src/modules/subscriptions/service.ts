@@ -36,6 +36,7 @@ import type {
   ChangePlanPreview,
   PromoListItem,
   CreatePromoInput,
+  UpdatePromoInput,
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
@@ -1969,6 +1970,58 @@ export class SubscriptionService {
     });
 
     const promoId = Number(result[0].insertId);
+    const [promo] = await this.db
+      .select()
+      .from(schema.promoPlans)
+      .where(eq(schema.promoPlans.id, promoId));
+    return {
+      ...promo,
+      startDate: promo.startDate.toISOString(),
+      expiryDate: promo.expiryDate.toISOString(),
+      createdAt: promo.createdAt.toISOString(),
+      updatedAt: promo.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Update an existing promo plan (name, dates, duration, type, plan).
+   */
+  async updatePromo(
+    promoId: number,
+    input: UpdatePromoInput,
+  ): Promise<PromoListItem> {
+    const [existing] = await this.db
+      .select({ id: schema.promoPlans.id })
+      .from(schema.promoPlans)
+      .where(eq(schema.promoPlans.id, promoId));
+    if (!existing) {
+      throw new NotFoundError("Promo no encontrada");
+    }
+
+    if (input.subscriptionPlanId) {
+      const plan = await this.getPlanById(input.subscriptionPlanId);
+      if (!plan) {
+        throw new NotFoundError("Plan de suscripcion no encontrado");
+      }
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (input.name !== undefined) updates.name = input.name;
+    if (input.planDurationDays !== undefined)
+      updates.planDurationDays = input.planDurationDays;
+    if (input.startDate !== undefined)
+      updates.startDate = new Date(input.startDate);
+    if (input.expiryDate !== undefined)
+      updates.expiryDate = new Date(input.expiryDate);
+    if (input.promoType !== undefined) updates.promoType = input.promoType;
+    if (input.subscriptionPlanId !== undefined)
+      updates.subscriptionPlanId = input.subscriptionPlanId;
+
+    await this.db
+      .update(schema.promoPlans)
+      .set(updates)
+      .where(eq(schema.promoPlans.id, promoId));
+
     const [promo] = await this.db
       .select()
       .from(schema.promoPlans)

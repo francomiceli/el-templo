@@ -181,24 +181,36 @@ async function onSubmit() {
   if (!form.value.subscriptionPlanId) return;
   saving.value = true;
   try {
-    const input: CreatePromoInput = {
-      name: form.value.name,
-      promoCode: form.value.promoCode,
-      planDurationDays: form.value.planDurationDays,
-      startDate: new Date(form.value.startDate).toISOString(),
-      expiryDate: new Date(form.value.expiryDate).toISOString(),
-      promoType: form.value.promoType,
-      subscriptionPlanId: form.value.subscriptionPlanId,
-    };
-    await subscriptionsApi.createPromo(input);
-    $q.notify({ type: 'positive', message: 'Promo creada' });
+    if (isEdit.value && props.promo) {
+      await subscriptionsApi.updatePromo(props.promo.id, {
+        name: form.value.name,
+        planDurationDays: form.value.planDurationDays,
+        startDate: new Date(form.value.startDate).toISOString(),
+        expiryDate: new Date(form.value.expiryDate).toISOString(),
+        promoType: form.value.promoType,
+        subscriptionPlanId: form.value.subscriptionPlanId,
+      });
+      $q.notify({ type: 'positive', message: 'Promo actualizada' });
+    } else {
+      const input: CreatePromoInput = {
+        name: form.value.name,
+        promoCode: form.value.promoCode,
+        planDurationDays: form.value.planDurationDays,
+        startDate: new Date(form.value.startDate).toISOString(),
+        expiryDate: new Date(form.value.expiryDate).toISOString(),
+        promoType: form.value.promoType,
+        subscriptionPlanId: form.value.subscriptionPlanId,
+      };
+      await subscriptionsApi.createPromo(input);
+      $q.notify({ type: 'positive', message: 'Promo creada' });
+    }
     emit('update:modelValue', false);
     emit('saved');
   } catch (err: unknown) {
-    log.error('Failed to create promo', {
+    log.error('Failed to save promo', {
       err: err instanceof Error ? err.message : String(err),
     });
-    $q.notify({ type: 'negative', message: 'Error al crear promo' });
+    $q.notify({ type: 'negative', message: 'Error al guardar promo' });
   } finally {
     saving.value = false;
   }

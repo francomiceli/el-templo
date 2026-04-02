@@ -22,6 +22,7 @@ import type {
   UpdatePlanInput,
   PriceType,
   CreatePromoInput,
+  UpdatePromoInput,
 } from "./types";
 import {
   listPlansSchema,
@@ -43,6 +44,7 @@ import {
   pricingPreviewSchema,
   listPromosSchema,
   createPromoSchema,
+  updatePromoSchema,
   deactivatePromoSchema,
 } from "./schemas";
 
@@ -400,6 +402,23 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(201).send(promo);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "create promo");
+      }
+    },
+  );
+
+  // PATCH /promo-plans/:promoId — Update a promo plan
+  fastify.patch<{ Params: { promoId: number }; Body: UpdatePromoInput }>(
+    "/promo-plans/:promoId",
+    { schema: updatePromoSchema },
+    async (request, reply) => {
+      try {
+        const promo = await subscriptionService.updatePromo(
+          request.params.promoId,
+          request.body,
+        );
+        return promo;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update promo");
       }
     },
   );

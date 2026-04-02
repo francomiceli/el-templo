@@ -33,9 +33,9 @@ export default boot(async ({ router }) => {
     }
   })
 
-  // Listener: Registration error
+  // Listener: Registration error (warn, not error — typically transient device issues like SERVICE_NOT_AVAILABLE)
   await PushNotifications.addListener('registrationError', (error) => {
-    log.error('Push notification registration failed', { error: error.error })
+    log.warn('Push notification registration failed', { error: error.error })
   })
 
   // Listener: Notification received while app in foreground (per D-29 -- suppress)

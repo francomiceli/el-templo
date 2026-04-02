@@ -601,6 +601,26 @@ export const createPromoSchema = {
   },
 };
 
+export const updatePromoSchema = {
+  tags: ["subscriptions"],
+  params: {
+    type: "object",
+    properties: { promoId: { type: "integer" } },
+    required: ["promoId"],
+  },
+  body: {
+    type: "object",
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 150 },
+      planDurationDays: { type: "integer", minimum: 1 },
+      startDate: { type: "string" },
+      expiryDate: { type: "string" },
+      promoType: { type: "string", enum: ["auto", "admin_assignable"] },
+      subscriptionPlanId: { type: "integer" },
+    },
+  },
+};
+
 export const deactivatePromoSchema = {
   tags: ["subscriptions"],
   params: {
