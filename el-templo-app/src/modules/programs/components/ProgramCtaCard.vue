@@ -6,7 +6,6 @@
       <div class="exp-sparkle" />
       <div class="exp-sparkle" />
       <div class="exp-sparkle" />
-      <div class="exp-corner-deco" />
       <div class="exp-bottom-line" />
 
       <!-- Header: badge + icon -->
@@ -21,20 +20,6 @@
           </svg>
           <span class="exp-badge-text">Planes Personalizados</span>
         </div>
-        <svg class="exp-header-icon" width="26" height="26" viewBox="0 0 24 24">
-          <path
-            d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5Z"
-            fill="none"
-            stroke="rgba(196,149,106,.7)"
-            stroke-width="1"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M18 3L18.8 5.5L21 6L18.8 6.5L18 9L17.2 6.5L15 6L17.2 5.5Z"
-            fill="rgba(196,149,106,.4)"
-            stroke="none"
-          />
-        </svg>
       </div>
 
       <!-- Title -->
@@ -210,39 +195,6 @@ function openWhatsApp() {
   }
 }
 
-/* Líneas decorativas esquina superior derecha */
-.exp-corner-deco {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 80px;
-  height: 80px;
-  overflow: hidden;
-  pointer-events: none;
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 40px;
-    height: 40px;
-    border: 1px solid rgba(196, 149, 106, 0.2);
-    border-radius: 0 14px 0 0;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    width: 26px;
-    height: 26px;
-    border: 0.5px solid rgba(196, 149, 106, 0.1);
-    border-radius: 0 8px 0 0;
-  }
-}
-
 /* Línea inferior gradiente */
 .exp-bottom-line {
   position: absolute;
@@ -289,11 +241,6 @@ function openWhatsApp() {
   color: #c4956a;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-}
-
-.exp-header-icon {
-  opacity: 0.5;
-  flex-shrink: 0;
 }
 
 /* Title */

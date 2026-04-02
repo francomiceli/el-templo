@@ -27,8 +27,8 @@
         </q-btn>
       </q-toolbar>
 
-      <!-- Greeting row — only on Mi Templo -->
-      <div v-if="isMiTemplo && authStore.isAuthenticated" class="header-greeting">
+      <!-- Greeting row — desktop only (stays in sticky header) -->
+      <div v-if="isDesktop && isMiTemplo && authStore.isAuthenticated" class="header-greeting">
         <div class="header-greeting__text">
           <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
           <p class="header-greeting__date">{{ formattedDate }}</p>
@@ -83,6 +83,19 @@
     </aside>
 
     <q-page-container :class="{ 'with-desktop-rail': isDesktop }">
+      <!-- Greeting row — mobile only (scrolls with content) -->
+      <div v-if="!isDesktop && isMiTemplo && authStore.isAuthenticated" class="mobile-greeting">
+        <div class="header-greeting">
+          <div class="header-greeting__text">
+            <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
+            <p class="header-greeting__date">{{ formattedDate }}</p>
+          </div>
+          <div v-if="greetingLevel" class="header-greeting__badge">
+            <span class="header-greeting__symbol">{{ greetingLevel.greekLetter }}</span>
+            <span class="header-greeting__level">{{ greetingLevel.levelName }}</span>
+          </div>
+        </div>
+      </div>
       <router-view />
     </q-page-container>
 
@@ -171,6 +184,7 @@ const showCheckInFab = computed(() => {
   if (!authStore.isAuthenticated) return false
   if (!userStore.profile) return false
   if (userStore.profile.branchIsVirtual) return false
+  if (!userStore.hasActiveSubscription) return false
   return route.path === '/mi-templo' || route.path === '/reservas'
 })
 
@@ -332,6 +346,16 @@ async function onLogout() {
     letter-spacing: 2px;
     text-transform: uppercase;
   }
+}
+
+/* ------------------------------------------------------------------
+   Mobile Greeting (scrolls with content)
+   ------------------------------------------------------------------ */
+.mobile-greeting {
+  position: relative;
+  z-index: 1; // above app-bg overlay
+  background: linear-gradient(135deg, $brand-terracotta 0%, $brand-aged-gold 100%);
+  margin: -1px 0 0; // close gap with header
 }
 
 /* ------------------------------------------------------------------

@@ -663,5 +663,8 @@ function onSlideComplete(): void {
 .block-progression__content {
   flex: 1;
   overflow-y: auto;
+  background: $cream;
+  position: relative;
+  z-index: 1; // above app-bg overlay
 }
 </style>
