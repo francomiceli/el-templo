@@ -127,7 +127,7 @@ const countdownText = computed(() => {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, $primary, darken($primary, 12%));
+    background: linear-gradient(135deg, $primary, #7a4830);
     color: white;
     flex-shrink: 0;
   }

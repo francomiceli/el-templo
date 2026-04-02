@@ -1,12 +1,7 @@
 <template>
   <div v-if="showBanner" class="permission-banner">
     <div class="permission-banner__content">
-      <q-icon
-        name="notifications_off"
-        size="20px"
-        color="white"
-        class="permission-banner__icon"
-      />
+      <q-icon name="notifications_off" size="20px" color="white" class="permission-banner__icon" />
       <span class="permission-banner__text">
         Activa las notificaciones para no perderte tu resumen semanal
       </span>
@@ -66,7 +61,7 @@ async function handleEnable() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: linear-gradient(135deg, $primary, darken($primary, 10%));
+  background: linear-gradient(135deg, $primary, #804d34);
   border-radius: 12px;
   padding: 12px 14px;
   gap: 10px;

@@ -889,7 +889,7 @@ $charcoal-mid: #3d3732;
 
 // Enter button — ritual action
 .enter-btn {
-  background: linear-gradient(135deg, $terracotta 0%, darken($terracotta, 8%) 100%) !important;
+  background: linear-gradient(135deg, $terracotta 0%, #855038 100%) !important;
   color: $cream !important;
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
