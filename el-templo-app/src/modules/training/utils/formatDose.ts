@@ -29,7 +29,7 @@ export function formatDose(exercise: DoseFields): string {
     const repsText = exercise.repsMax
       ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
       : `${exercise.reps}`
-    return `${repsText} reps`
+    return `${repsText} REPS`
   }
 
   if (exercise.seconds !== null && exercise.seconds > 0) {
@@ -41,7 +41,7 @@ export function formatDose(exercise: DoseFields): string {
     const secsText = exercise.secondsMax
       ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
       : `${exercise.seconds}`
-    return `${secsText}s`
+    return `${secsText} SEG`
   }
 
   return ''
@@ -61,7 +61,7 @@ export function formatQuickDose(exercise: Prescription): string {
     const repsText = exercise.repsMax
       ? `${exercise.reps} \u00B7 ${exercise.repsMax}`
       : `${exercise.reps}`
-    return `${repsText} reps`
+    return `${repsText} REPS`
   }
 
   if (exercise.seconds !== null && exercise.seconds > 0) {
@@ -71,7 +71,7 @@ export function formatQuickDose(exercise: Prescription): string {
     const secsText = exercise.secondsMax
       ? `${exercise.seconds} \u00B7 ${exercise.secondsMax}`
       : `${exercise.seconds}`
-    return `${secsText}s`
+    return `${secsText} SEG`
   }
 
   return ''

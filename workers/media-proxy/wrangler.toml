@@ -1,0 +1,8 @@
+name = "media-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# R2 bucket binding — connects to your existing el-templo-videos bucket
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "el-templo-videos"

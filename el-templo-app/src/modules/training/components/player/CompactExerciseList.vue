@@ -14,16 +14,16 @@
       <div class="compact-list__top">
         <div class="compact-list__content">
           <div v-if="item.isMobility" class="compact-list__mobility-label">DESCANSO ACTIVO</div>
-          <div class="compact-list__name">
+          <div class="compact-list__name">{{ item.name }}</div>
+          <div v-if="item.quickDose || item.contraction" class="compact-list__dose-row">
             <q-badge
               v-if="item.contraction"
               :label="item.contraction"
               :color="getContractionColor(item.contraction)"
               class="compact-list__badge"
             />
-            {{ item.name }}
+            <span v-if="item.quickDose" class="compact-list__dose">{{ item.quickDose }}</span>
           </div>
-          <div v-if="item.quickDose" class="compact-list__dose">{{ item.quickDose }}</div>
         </div>
         <!-- Indicaciones toggle (exercises with notes, not completed) -->
         <button
@@ -145,15 +145,19 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
 }
 
 .compact-list__name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 14px;
   font-weight: 500;
   color: #3d3732;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.compact-list__dose-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
 }
 
 .compact-list__badge {
@@ -166,8 +170,9 @@ watch([() => props.activeIndex, () => props.completedIds.size], () => {
 
 .compact-list__dose {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.5);
-  margin-top: 1px;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.55);
+  letter-spacing: 0.3px;
 }
 
 .compact-list__notes {
