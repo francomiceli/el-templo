@@ -639,4 +639,254 @@ describe("Notification Module", () => {
       expect(row.errorMessage).toContain("No device tokens");
     });
   });
+
+  // =========================================================================
+  // 7. Gender-Aware Notification Queueing
+  // =========================================================================
+  describe("Gender-Aware Notification Queueing", () => {
+    /**
+     * Helper: set female variants on a template via raw SQL.
+     * Uses raw SQL because titleFemale/bodyFemale columns are added by plan 88-01
+     * and may not be in the Drizzle schema at compile time during parallel execution.
+     */
+    async function setTemplateFemaleVariants(
+      templateKey: string,
+      titleFemale: string,
+      bodyFemale: string,
+    ): Promise<void> {
+      await app.db.execute(
+        sql`UPDATE notification_templates
+            SET title_female = ${titleFemale}, body_female = ${bodyFemale}
+            WHERE template_key = ${templateKey}`,
+      );
+    }
+
+    it("queueNotification uses female title/body for female user", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+
+      // Set member gender to female
+      await app.db
+        .update(schema.users)
+        .set({ gender: "female" })
+        .where(eq(schema.users.id, memberId));
+
+      // Set female variants on morning_energy template
+      await setTemplateFemaleVariants(
+        "morning_energy",
+        "Titulo femenino test",
+        "Cuerpo femenino test",
+      );
+
+      // Queue notification
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+      expect(notificationId).toBeGreaterThan(0);
+
+      // Verify the pending notification has female copy
+      const [row] = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.id, notificationId));
+      expect(row.title).toBe("Titulo femenino test");
+      expect(row.body).toBe("Cuerpo femenino test");
+    });
+
+    it("queueNotification uses default title/body for male user", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+
+      // Set member gender to male
+      await app.db
+        .update(schema.users)
+        .set({ gender: "male" })
+        .where(eq(schema.users.id, memberId));
+
+      // Set female variants on morning_energy template
+      await setTemplateFemaleVariants(
+        "morning_energy",
+        "Titulo femenino test",
+        "Cuerpo femenino test",
+      );
+
+      // Get the original template title for comparison
+      const [template] = await app.db
+        .select()
+        .from(schema.notificationTemplates)
+        .where(
+          eq(schema.notificationTemplates.templateKey, "morning_energy"),
+        );
+
+      // Queue notification
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+      expect(notificationId).toBeGreaterThan(0);
+
+      // Verify the pending notification has default (male) copy
+      const [row] = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.id, notificationId));
+      expect(row.title).toBe(template.title);
+      expect(row.body).toBe(template.body);
+      expect(row.title).not.toBe("Titulo femenino test");
+    });
+
+    it("queueNotification uses default title/body for null gender (legacy)", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+
+      // Leave gender as null (default from registerUser)
+      // Explicitly set to null to be sure
+      await app.db
+        .update(schema.users)
+        .set({ gender: null })
+        .where(eq(schema.users.id, memberId));
+
+      // Set female variants on morning_energy template
+      await setTemplateFemaleVariants(
+        "morning_energy",
+        "Titulo femenino test",
+        "Cuerpo femenino test",
+      );
+
+      // Get the original template title for comparison
+      const [template] = await app.db
+        .select()
+        .from(schema.notificationTemplates)
+        .where(
+          eq(schema.notificationTemplates.templateKey, "morning_energy"),
+        );
+
+      // Queue notification
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+      expect(notificationId).toBeGreaterThan(0);
+
+      // Verify the pending notification has default (male) copy
+      const [row] = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.id, notificationId));
+      expect(row.title).toBe(template.title);
+      expect(row.body).toBe(template.body);
+    });
+
+    it("queueNotification uses default title/body for unspecified gender", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+
+      // Set gender to unspecified (uses raw SQL since 'unspecified' added by plan 88-01)
+      await app.db.execute(
+        sql`UPDATE users SET gender = 'unspecified' WHERE id = ${memberId}`,
+      );
+
+      // Set female variants on morning_energy template
+      await setTemplateFemaleVariants(
+        "morning_energy",
+        "Titulo femenino test",
+        "Cuerpo femenino test",
+      );
+
+      // Get the original template title for comparison
+      const [template] = await app.db
+        .select()
+        .from(schema.notificationTemplates)
+        .where(
+          eq(schema.notificationTemplates.templateKey, "morning_energy"),
+        );
+
+      // Queue notification
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+      expect(notificationId).toBeGreaterThan(0);
+
+      // Verify the pending notification has default (male) copy
+      const [row] = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.id, notificationId));
+      expect(row.title).toBe(template.title);
+      expect(row.body).toBe(template.body);
+    });
+
+    it("send-segment routes female copy to female members and default to male members", async () => {
+      // Create a second member for dual-copy test
+      const timestamp2 = Date.now();
+      const femaleMemberEmail = `notif-female-${timestamp2}@test.com`;
+      const femaleMemberPassword = "female-pass-123";
+      const femaleMemberResult = await registerUser(app, {
+        email: femaleMemberEmail,
+        password: femaleMemberPassword,
+        firstName: "Laura",
+        branchId: 1,
+      });
+      const femaleMemberId = (femaleMemberResult.user as { id: number }).id;
+
+      // Set genders
+      await app.db
+        .update(schema.users)
+        .set({ gender: "male" })
+        .where(eq(schema.users.id, memberId));
+
+      await app.db
+        .update(schema.users)
+        .set({ gender: "female" })
+        .where(eq(schema.users.id, femaleMemberId));
+
+      // Create member_profiles with known segment for both members
+      await app.db.insert(schema.memberProfiles).values({
+        userId: memberId,
+        segment: "espartano",
+        segmentUpdatedAt: new Date(),
+      });
+      await app.db.insert(schema.memberProfiles).values({
+        userId: femaleMemberId,
+        segment: "espartano",
+        segmentUpdatedAt: new Date(),
+      });
+
+      // POST to send-segment with dual-copy
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/notifications/admin/send-segment",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          title: "Titulo default",
+          body: "Cuerpo default",
+          titleFemale: "Titulo femenino",
+          bodyFemale: "Cuerpo femenino",
+          segmentIds: ["espartano"],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.queued).toBe(2);
+
+      // Verify male member got default copy
+      const maleNotifications = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.userId, memberId));
+      expect(maleNotifications.length).toBeGreaterThanOrEqual(1);
+      const maleNotif = maleNotifications[maleNotifications.length - 1];
+      expect(maleNotif.title).toBe("Titulo default");
+      expect(maleNotif.body).toBe("Cuerpo default");
+
+      // Verify female member got female copy
+      const femaleNotifications = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.userId, femaleMemberId));
+      expect(femaleNotifications.length).toBeGreaterThanOrEqual(1);
+      const femaleNotif = femaleNotifications[femaleNotifications.length - 1];
+      expect(femaleNotif.title).toBe("Titulo femenino");
+      expect(femaleNotif.body).toBe("Cuerpo femenino");
+    });
+  });
 });

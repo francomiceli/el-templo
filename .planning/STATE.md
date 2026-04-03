@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Milestone complete
-stopped_at: Completed 88-03-PLAN.md
-last_updated: "2026-04-03T20:16:05.000Z"
+stopped_at: Completed 88-04-PLAN.md
+last_updated: "2026-04-03T20:26:31.441Z"
 progress:
   total_phases: 82
-  completed_phases: 71
-  total_plans: 293
-  completed_plans: 289
+  completed_phases: 70
+  total_plans: 292
+  completed_plans: 288
 ---
 
 # Project State
@@ -113,8 +113,7 @@ _Updated after each plan completion_
 | Phase 86 P04 | 2min | 2 tasks | 2 files |
 | Phase 86 P05 | 6min | 2 tasks | 8 files |
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
-| Phase 88 P03 | 4min | 2 tasks | 3 files |
-| Phase 88 P02 | 2min | 2 tasks | 5 files |
+| Phase 88 P04 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -237,9 +236,8 @@ Recent decisions affecting current work:
 - [Phase 86]: Used underscore prefix (\_promoApplied) for unused destructured response field to avoid lint warnings
 - [Phase 86]: Promo routes registered inside existing subscriptionRoutes plugin, sharing the SUBSCRIPTION_ROLES auth guard hook
 - [Phase 86]: promoPlans deletion placed in Layer 3 of cleanAllTestData before subscriptionPlans for FK ordering
-- [Phase 88]: resolveUseFemale as private method on NotificationService for encapsulated gender lookup
-- [Phase 88]: Segment send joins users table for gender rather than adding gender to memberProfiles
-- [Phase 88]: Side-by-side male/female form layout with col-6 grid for dual-variant template editing
+- [Phase 88]: Curated Argentine name dictionary (170+ names) for gender inference backfill; unknown names -> unspecified
+- [Phase 88]: Raw SQL in tests for parallel execution compatibility with schema columns from plan 88-01
 
 ### Pending Todos
 
@@ -251,6 +249,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-03T20:16:05.000Z
-Stopped at: Completed 88-03-PLAN.md
+Last session: 2026-04-03T20:26:31.436Z
+Stopped at: Completed 88-04-PLAN.md
 Resume file: None
