@@ -109,6 +109,18 @@
             outlined
             dense
           />
+          <q-separator class="q-my-md" />
+          <div class="text-subtitle2 q-mb-sm">Version femenina (opcional)</div>
+          <q-input v-model="sendForm.titleFemale" label="Titulo (femenino)" class="q-mb-md" outlined dense />
+          <q-input
+            v-model="sendForm.bodyFemale"
+            label="Mensaje (femenino)"
+            type="textarea"
+            autogrow
+            class="q-mb-md"
+            outlined
+            dense
+          />
           <q-input
             v-model="sendForm.route"
             label="Ruta de destino (opcional)"
@@ -149,20 +161,38 @@
     <!-- Edit template dialog -->
     <!-- ============================================================ -->
     <q-dialog v-model="editDialog">
-      <q-card style="min-width: 400px">
+      <q-card style="min-width: 700px; max-width: 900px">
         <q-card-section class="text-h6">Editar plantilla</q-card-section>
         <q-card-section>
-          <q-input v-model="editForm.title" label="Titulo" class="q-mb-md" outlined dense />
-          <q-input
-            v-model="editForm.body"
-            label="Cuerpo"
-            type="textarea"
-            autogrow
-            class="q-mb-md"
-            outlined
-            dense
-          />
-          <q-input v-model="editForm.route" label="Ruta de destino" outlined dense />
+          <div class="row q-col-gutter-md">
+            <!-- Male / Default column -->
+            <div class="col-6">
+              <div class="text-subtitle2 q-mb-sm">Masculino / Default</div>
+              <q-input v-model="editForm.title" label="Titulo" class="q-mb-md" outlined dense />
+              <q-input
+                v-model="editForm.body"
+                label="Cuerpo"
+                type="textarea"
+                autogrow
+                outlined
+                dense
+              />
+            </div>
+            <!-- Female column -->
+            <div class="col-6">
+              <div class="text-subtitle2 q-mb-sm">Femenino</div>
+              <q-input v-model="editForm.titleFemale" label="Titulo femenino" class="q-mb-md" outlined dense />
+              <q-input
+                v-model="editForm.bodyFemale"
+                label="Cuerpo femenino"
+                type="textarea"
+                autogrow
+                outlined
+                dense
+              />
+            </div>
+          </div>
+          <q-input v-model="editForm.route" label="Ruta de destino" class="q-mt-md" outlined dense />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" v-close-popup />
@@ -190,12 +220,14 @@ const tab = ref('plantillas');
 const loading = ref(true);
 const templates = ref<TemplateRow[]>([]);
 const editDialog = ref(false);
-const editForm = reactive({ id: 0, title: '', body: '', route: '' });
+const editForm = reactive({ id: 0, title: '', body: '', titleFemale: '', bodyFemale: '', route: '' });
 const saving = ref(false);
 
 const sendForm = reactive({
   title: '',
   body: '',
+  titleFemale: '',
+  bodyFemale: '',
   route: '',
   segmentIds: [] as string[],
 });
@@ -210,6 +242,8 @@ interface TemplateRow {
   category: string;
   title: string;
   body: string;
+  titleFemale: string | null;
+  bodyFemale: string | null;
   route: string;
   isEnabled: boolean;
   sentCount: number;
@@ -317,6 +351,8 @@ function openEdit(template: TemplateRow) {
   editForm.id = template.id;
   editForm.title = template.title;
   editForm.body = template.body;
+  editForm.titleFemale = template.titleFemale ?? '';
+  editForm.bodyFemale = template.bodyFemale ?? '';
   editForm.route = template.route;
   editDialog.value = true;
 }
@@ -327,6 +363,8 @@ async function saveTemplate() {
     await api.put(`/notifications/admin/templates/${editForm.id}`, {
       title: editForm.title,
       body: editForm.body,
+      titleFemale: editForm.titleFemale,
+      bodyFemale: editForm.bodyFemale,
       route: editForm.route,
     });
 
@@ -335,6 +373,8 @@ async function saveTemplate() {
     if (row) {
       row.title = editForm.title;
       row.body = editForm.body;
+      row.titleFemale = editForm.titleFemale;
+      row.bodyFemale = editForm.bodyFemale;
       row.route = editForm.route;
     }
 
@@ -352,13 +392,24 @@ async function saveTemplate() {
 async function handleSendSegment() {
   sending.value = true;
   try {
-    const payload: { title: string; body: string; segmentIds: string[]; route?: string } = {
+    const payload: {
+      title: string;
+      body: string;
+      segmentIds: string[];
+      route?: string;
+      titleFemale?: string;
+      bodyFemale?: string;
+    } = {
       title: sendForm.title,
       body: sendForm.body,
       segmentIds: sendForm.segmentIds,
     };
     if (sendForm.route.trim()) {
       payload.route = sendForm.route.trim();
+    }
+    if (sendForm.titleFemale.trim() && sendForm.bodyFemale.trim()) {
+      payload.titleFemale = sendForm.titleFemale.trim();
+      payload.bodyFemale = sendForm.bodyFemale.trim();
     }
 
     const { data } = await api.post<{ queued: number }>(
@@ -374,6 +425,8 @@ async function handleSendSegment() {
     // Clear form
     sendForm.title = '';
     sendForm.body = '';
+    sendForm.titleFemale = '';
+    sendForm.bodyFemale = '';
     sendForm.route = '';
     sendForm.segmentIds = [];
   } catch (err: unknown) {

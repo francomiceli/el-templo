@@ -120,6 +120,8 @@ const updateTemplateSchema = {
     properties: {
       title: { type: "string", minLength: 1, maxLength: 200 },
       body: { type: "string", minLength: 1 },
+      titleFemale: { type: "string", minLength: 1, maxLength: 200 },
+      bodyFemale: { type: "string", minLength: 1 },
       route: { type: "string", maxLength: 200 },
       isEnabled: { type: "boolean" },
     },
@@ -144,6 +146,8 @@ const sendSegmentSchema = {
     properties: {
       title: { type: "string", minLength: 1, maxLength: 200 },
       body: { type: "string", minLength: 1 },
+      titleFemale: { type: "string", minLength: 1, maxLength: 200 },
+      bodyFemale: { type: "string", minLength: 1 },
       segmentIds: {
         type: "array",
         items: {
@@ -283,6 +287,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
       category: row.category,
       title: row.title,
       body: row.body,
+      titleFemale: row.titleFemale,
+      bodyFemale: row.bodyFemale,
       route: row.route,
       isEnabled: row.isEnabled,
       sentCount: row.sentCount,
@@ -305,6 +311,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     Body: {
       title?: string;
       body?: string;
+      titleFemale?: string;
+      bodyFemale?: string;
       route?: string;
       isEnabled?: boolean;
     };
@@ -328,6 +336,10 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (request.body.title !== undefined) updates.title = request.body.title;
       if (request.body.body !== undefined) updates.body = request.body.body;
+      if (request.body.titleFemale !== undefined)
+        updates.titleFemale = request.body.titleFemale;
+      if (request.body.bodyFemale !== undefined)
+        updates.bodyFemale = request.body.bodyFemale;
       if (request.body.route !== undefined) updates.route = request.body.route;
       if (request.body.isEnabled !== undefined)
         updates.isEnabled = request.body.isEnabled;
@@ -369,6 +381,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         category: updated.category,
         title: updated.title,
         body: updated.body,
+        titleFemale: updated.titleFemale,
+        bodyFemale: updated.bodyFemale,
         route: updated.route,
         isEnabled: updated.isEnabled,
         sentCount: updated.sentCount,
@@ -390,6 +404,8 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
     Body: {
       title: string;
       body: string;
+      titleFemale?: string;
+      bodyFemale?: string;
       segmentIds: MemberSegment[];
       route?: string;
     };
@@ -405,21 +421,32 @@ export const notificationRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
-      const { title, body, segmentIds, route } = request.body;
+      const { title, body, segmentIds, route, titleFemale, bodyFemale } =
+        request.body;
 
-      // Query members in the selected segments
+      // Query members in the selected segments with their gender (per D-12)
       const members = await fastify.db
-        .select({ userId: schema.memberProfiles.userId })
+        .select({
+          userId: schema.memberProfiles.userId,
+          gender: schema.users.gender,
+        })
         .from(schema.memberProfiles)
+        .innerJoin(
+          schema.users,
+          eq(schema.memberProfiles.userId, schema.users.id),
+        )
         .where(inArray(schema.memberProfiles.segment, segmentIds));
 
       let queued = 0;
 
       for (const member of members) {
+        // Per D-12: female gets female copy, all others get default
+        const useFemale =
+          member.gender === "female" && !!titleFemale && !!bodyFemale;
         const result = await service.queueAdHocNotification({
           userId: member.userId,
-          title,
-          body,
+          title: useFemale ? titleFemale : title,
+          body: useFemale ? bodyFemale : body,
           category: "anuncios",
           route: route ?? "/mi-templo",
         });

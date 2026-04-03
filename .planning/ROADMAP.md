@@ -1835,7 +1835,7 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 85. Guía — Exercise & Mobility Library  | —              | Planned     | —          |
 | 86. QR Promo — Free Month Campaign      | 6/6            | Complete    | 2026-03-28 |
 | 87. Localization — ES-AR vs ES-ES       | —              | Planned     | —          |
-| 88. Reservation Rules — Per-Plan Config | 1/1 | Complete   | 2026-04-03 |
+| 88. Reservation Rules — Per-Plan Config | 3/4 | In Progress|  |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 
