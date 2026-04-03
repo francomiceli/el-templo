@@ -63,6 +63,7 @@ export async function registerUser(
     dni?: string;
     phone?: string;
     promoCode?: string;
+    gender?: string;
   },
 ): Promise<{
   token: string;
@@ -77,6 +78,7 @@ export async function registerUser(
       lastName: "User",
       dni: `T${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
       phone: "+5491100000000",
+      gender: "male",
       ...data,
     },
   });

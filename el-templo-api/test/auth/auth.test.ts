@@ -29,6 +29,7 @@ describe("Auth Routes", () => {
           lastName: "User",
           dni: "AUTH-REG-001",
           phone: "+5491100000001",
+          gender: "male",
         },
       });
 
@@ -52,6 +53,7 @@ describe("Auth Routes", () => {
           lastName: "Email",
           dni: "AUTH-NOEMAIL-001",
           phone: "+5491100000002",
+          gender: "male",
         },
       });
 
@@ -70,6 +72,7 @@ describe("Auth Routes", () => {
           lastName: "Pass",
           dni: "AUTH-SHORT-001",
           phone: "+5491100000003",
+          gender: "male",
         },
       });
 
@@ -89,6 +92,7 @@ describe("Auth Routes", () => {
           lastName: "One",
           dni: "AUTH-DUP-001",
           phone: "+5491100000004",
+          gender: "male",
         },
       });
 
@@ -104,6 +108,7 @@ describe("Auth Routes", () => {
           lastName: "Two",
           dni: "AUTH-DUP-002",
           phone: "+5491100000005",
+          gender: "male",
         },
       });
 
@@ -126,6 +131,7 @@ describe("Auth Routes", () => {
           lastName: "Update",
           dni: "AUTH-PWDUPD-001",
           phone: "+5491100000099",
+          gender: "male",
         },
       });
 
@@ -141,6 +147,7 @@ describe("Auth Routes", () => {
           lastName: "Update",
           dni: "AUTH-PWDUPD-002",
           phone: "+5491100000098",
+          gender: "male",
         },
       });
 
@@ -177,6 +184,7 @@ describe("Auth Routes", () => {
           lastName: "Branch",
           dni: "AUTH-BADBRANCH-001",
           phone: "+5491100000006",
+          gender: "male",
         },
       });
 
@@ -196,6 +204,7 @@ describe("Auth Routes", () => {
           firstName: "No",
           lastName: "Dni",
           phone: "+5491100000007",
+          gender: "male",
         },
       });
 
@@ -234,6 +243,7 @@ describe("Auth Routes", () => {
           lastName: "First",
           dni: sharedDni,
           phone: "+5491100000008",
+          gender: "male",
         },
       });
 
@@ -249,6 +259,7 @@ describe("Auth Routes", () => {
           lastName: "Second",
           dni: sharedDni,
           phone: "+5491100000009",
+          gender: "male",
         },
       });
 

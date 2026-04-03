@@ -72,6 +72,7 @@ describe("Promo Registration Flow", () => {
       branchId: 1,
       dni: `PROMO-${unique}`,
       phone: "+5491100000099",
+      gender: "male",
       ...overrides,
     };
   }
