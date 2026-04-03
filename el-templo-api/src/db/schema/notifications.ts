@@ -63,6 +63,8 @@ export const notificationTemplates = mysqlTable("notification_templates", {
   category: notificationCategoryEnum.notNull(),
   title: varchar("title", { length: 200 }).notNull(),
   body: text("body").notNull(),
+  titleFemale: varchar("title_female", { length: 200 }),
+  bodyFemale: text("body_female"),
   route: varchar("route", { length: 200 }).default("/mi-templo"),
   isEnabled: boolean("is_enabled").default(true).notNull(),
   sentCount: int("sent_count").default(0).notNull(),

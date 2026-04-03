@@ -182,7 +182,7 @@ export const createMemberSchema = {
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
       dateOfBirth: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      gender: { type: "string", enum: ["male", "female", "other"] },
+      gender: { type: "string", enum: ["male", "female", "other", "unspecified"] },
       emergencyContactName: { type: "string" },
       emergencyContactPhone: { type: "string" },
       emergencyContactRelationship: { type: "string" },
@@ -218,7 +218,7 @@ export const updateMemberSchema = {
       dateOfBirth: { type: ["string", "null"] },
       gender: {
         type: ["string", "null"],
-        enum: ["male", "female", "other", null],
+        enum: ["male", "female", "other", "unspecified", null],
       },
       emergencyContactName: { type: ["string", "null"] },
       emergencyContactPhone: { type: ["string", "null"] },
