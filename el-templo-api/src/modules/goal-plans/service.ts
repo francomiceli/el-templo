@@ -1,8 +1,8 @@
 /**
- * Personalizadas Service
+ * Goal Plan Service
  *
- * Manages member personalizada lifecycle (select, archive, switch, advance)
- * and generates personalizada sessions using the personalizada pipeline.
+ * Manages member goal plan lifecycle (select, archive, switch, advance)
+ * and generates goal plan sessions using the goal plan pipeline.
  *
  * Follows the established service pattern (see AdminSessionService).
  */
@@ -12,7 +12,7 @@ import { eq, and, or, desc, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SpomService } from "../spom/service";
 import { SessionGeneratorService } from "../sessions/service";
-import { runPersonalizadaBlockPipeline } from "../sessions/pipeline/personalizada-pipeline";
+import { runGoalPlanBlockPipeline } from "../sessions/pipeline/goal-plan-pipeline";
 import { createInitialContext } from "../sessions/pipeline/context";
 import type {
   LevelGroup,
@@ -37,13 +37,13 @@ import {
   MOBILITY_SORT_ORDER,
 } from "../shared/training-constants";
 import type {
-  PersonalizadaType,
-  PersonalizadaDuration,
-  PersonalizadaProgress,
-  ArchivedPersonalizada,
+  GoalPlanType,
+  GoalPlanDuration,
+  GoalPlanProgress,
+  ArchivedGoalPlan,
   CycleStats,
 } from "./types";
-import { PERSONALIZADA_ROUTE_MAP } from "./constants";
+import { GOAL_PLAN_ROUTE_MAP } from "./constants";
 import type { BlockPipelineOptions } from "../sessions/pipeline/index";
 
 /**
@@ -75,10 +75,10 @@ function levelGroupToMemberLevels(levelGroup: LevelGroup): ExerciseLevel[] {
 }
 
 /**
- * Map a semana column name from a PersonalizadaDuration
+ * Map a semana column name from a GoalPlanDuration
  */
 function semanaColumn(
-  duration: PersonalizadaDuration,
+  duration: GoalPlanDuration,
 ): "semana20" | "semana40" | "semana60" {
   switch (duration) {
     case 20:
@@ -92,12 +92,12 @@ function semanaColumn(
 
 export class SubscriptionRequiredError extends Error {
   constructor() {
-    super("Consulta en recepcion sobre los planes de Clases Personalizadas.");
+    super("Consulta en recepcion sobre los planes Por Objetivos.");
     this.name = "SubscriptionRequiredError";
   }
 }
 
-export class PersonalizadasService {
+export class GoalPlanService {
   private spomService: SpomService;
   private sessionService: SessionGeneratorService;
 
@@ -109,7 +109,7 @@ export class PersonalizadasService {
   // ─── Subscription Enforcement ──────────────────────────────────────────────
 
   /**
-   * Check that the member has an active subscription with a personalizada-enabled plan.
+   * Check that the member has an active subscription with a goal-plan-enabled plan.
    * Throws SubscriptionRequiredError if not.
    */
   async checkSubscription(userId: number): Promise<void> {
@@ -127,7 +127,7 @@ export class PersonalizadasService {
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
           ),
-          eq(schema.subscriptionPlans.isPersonalizada, true),
+          eq(schema.subscriptionPlans.planCategory, "online_goal"),
         ),
       )
       .limit(1);
@@ -137,55 +137,55 @@ export class PersonalizadasService {
     }
   }
 
-  // ─── Personalizada Lifecycle Methods ────────────────────────────────────────
+  // ─── Goal Plan Lifecycle Methods ────────────────────────────────────────
 
   /**
-   * Get the active personalizada for a user, or null if none is active.
+   * Get the active goal plan for a user, or null if none is active.
    */
-  async getActivePersonalizada(
+  async getActiveGoalPlan(
     userId: number,
-  ): Promise<PersonalizadaProgress | null> {
-    const [personalizada] = await this.db
+  ): Promise<GoalPlanProgress | null> {
+    const [goalPlan] = await this.db
       .select()
-      .from(schema.memberPersonalizadas)
+      .from(schema.memberGoalPlans)
       .where(
         and(
-          eq(schema.memberPersonalizadas.userId, userId),
-          eq(schema.memberPersonalizadas.isActive, true),
+          eq(schema.memberGoalPlans.userId, userId),
+          eq(schema.memberGoalPlans.isActive, true),
         ),
       );
 
-    if (!personalizada) return null;
+    if (!goalPlan) return null;
 
     return {
-      personalizadaType: personalizada.personalizadaType as PersonalizadaType,
-      semana20: personalizada.semana20,
-      semana40: personalizada.semana40,
-      semana60: personalizada.semana60,
-      isActive: personalizada.isActive,
-      startedAt: personalizada.startedAt.toISOString(),
+      goalPlanType: goalPlan.goalPlanType as GoalPlanType,
+      semana20: goalPlan.semana20,
+      semana40: goalPlan.semana40,
+      semana60: goalPlan.semana60,
+      isActive: goalPlan.isActive,
+      startedAt: goalPlan.startedAt.toISOString(),
     };
   }
 
   /**
-   * Get all archived personalizadas for a user.
+   * Get all archived goal plans for a user.
    */
-  async getArchivedPersonalizadas(
+  async getArchivedGoalPlans(
     userId: number,
-  ): Promise<ArchivedPersonalizada[]> {
-    const personalizadas = await this.db
+  ): Promise<ArchivedGoalPlan[]> {
+    const goalPlans = await this.db
       .select()
-      .from(schema.memberPersonalizadas)
+      .from(schema.memberGoalPlans)
       .where(
         and(
-          eq(schema.memberPersonalizadas.userId, userId),
-          eq(schema.memberPersonalizadas.isActive, false),
+          eq(schema.memberGoalPlans.userId, userId),
+          eq(schema.memberGoalPlans.isActive, false),
         ),
       )
-      .orderBy(desc(schema.memberPersonalizadas.archivedAt));
+      .orderBy(desc(schema.memberGoalPlans.archivedAt));
 
-    return personalizadas.map((p) => ({
-      personalizadaType: p.personalizadaType as PersonalizadaType,
+    return goalPlans.map((p) => ({
+      goalPlanType: p.goalPlanType as GoalPlanType,
       semana20: p.semana20,
       semana40: p.semana40,
       semana60: p.semana60,
@@ -195,24 +195,24 @@ export class PersonalizadasService {
   }
 
   /**
-   * Get cycle stats for the member's active personalizada subscription.
-   * Returns null if no active personalizada or no personalizada subscription.
+   * Get cycle stats for the member's active goal plan subscription.
+   * Returns null if no active goal plan or no goal plan subscription.
    */
   async getCycleStats(userId: number): Promise<CycleStats | null> {
-    // Step 1: Get active personalizada (has startedAt + personalizadaType)
-    const [personalizada] = await this.db
+    // Step 1: Get active goal plan (has startedAt + goalPlanType)
+    const [goalPlan] = await this.db
       .select()
-      .from(schema.memberPersonalizadas)
+      .from(schema.memberGoalPlans)
       .where(
         and(
-          eq(schema.memberPersonalizadas.userId, userId),
-          eq(schema.memberPersonalizadas.isActive, true),
+          eq(schema.memberGoalPlans.userId, userId),
+          eq(schema.memberGoalPlans.isActive, true),
         ),
       );
 
-    if (!personalizada) return null;
+    if (!goalPlan) return null;
 
-    // Step 2: Get the member's active personalizada subscription plan to get durationDays
+    // Step 2: Get the member's active goal plan subscription to get durationDays
     const [sub] = await this.db
       .select({ durationDays: schema.subscriptionPlans.durationDays })
       .from(schema.subscriptions)
@@ -227,7 +227,7 @@ export class PersonalizadasService {
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
           ),
-          eq(schema.subscriptionPlans.isPersonalizada, true),
+          eq(schema.subscriptionPlans.planCategory, "online_goal"),
         ),
       )
       .limit(1);
@@ -238,7 +238,7 @@ export class PersonalizadasService {
     const cycleWeeks = Math.ceil(durationDays / 7);
 
     // Step 3: Calculate cycle end date and current week
-    const startedAt = personalizada.startedAt; // Date object from DB
+    const startedAt = goalPlan.startedAt; // Date object from DB
     const cycleEndDate = new Date(
       startedAt.getTime() + durationDays * 24 * 60 * 60 * 1000,
     );
@@ -262,8 +262,8 @@ export class PersonalizadasService {
         and(
           eq(schema.completedSessions.userId, userId),
           eq(
-            schema.completedSessions.personalizadaType,
-            personalizada.personalizadaType,
+            schema.completedSessions.goalPlanType,
+            goalPlan.goalPlanType,
           ),
           sql`${schema.completedSessions.date} >= ${startDateStr}`,
           sql`${schema.completedSessions.date} <= ${endDateStr}`,
@@ -288,34 +288,34 @@ export class PersonalizadasService {
   }
 
   /**
-   * Select a new personalizada for a user.
-   * If the user has an existing active personalizada, archive it first.
+   * Select a new goal plan for a user.
+   * If the user has an existing active goal plan, archive it first.
    */
-  async selectPersonalizada(
+  async selectGoalPlan(
     userId: number,
-    personalizadaType: PersonalizadaType,
-  ): Promise<PersonalizadaProgress> {
-    // Archive any existing active personalizada
-    const existingActive = await this.getActivePersonalizada(userId);
+    goalPlanType: GoalPlanType,
+  ): Promise<GoalPlanProgress> {
+    // Archive any existing active goal plan
+    const existingActive = await this.getActiveGoalPlan(userId);
     if (existingActive) {
       await this.db
-        .update(schema.memberPersonalizadas)
+        .update(schema.memberGoalPlans)
         .set({
           isActive: false,
           archivedAt: new Date(),
         })
         .where(
           and(
-            eq(schema.memberPersonalizadas.userId, userId),
-            eq(schema.memberPersonalizadas.isActive, true),
+            eq(schema.memberGoalPlans.userId, userId),
+            eq(schema.memberGoalPlans.isActive, true),
           ),
         );
     }
 
-    // Create new active personalizada
-    await this.db.insert(schema.memberPersonalizadas).values({
+    // Create new active goal plan
+    await this.db.insert(schema.memberGoalPlans).values({
       userId,
-      personalizadaType,
+      goalPlanType,
       isActive: true,
       semana20: 1,
       semana40: 1,
@@ -323,7 +323,7 @@ export class PersonalizadasService {
     });
 
     return {
-      personalizadaType,
+      goalPlanType,
       semana20: 1,
       semana40: 1,
       semana60: 1,
@@ -333,53 +333,53 @@ export class PersonalizadasService {
   }
 
   /**
-   * Advance the semana counter for a specific duration of the user's active personalizada.
+   * Advance the semana counter for a specific duration of the user's active goal plan.
    */
   async advanceSemana(
     userId: number,
-    duration: PersonalizadaDuration,
+    duration: GoalPlanDuration,
   ): Promise<void> {
     const column = semanaColumn(duration);
 
-    const [personalizada] = await this.db
+    const [goalPlan] = await this.db
       .select()
-      .from(schema.memberPersonalizadas)
+      .from(schema.memberGoalPlans)
       .where(
         and(
-          eq(schema.memberPersonalizadas.userId, userId),
-          eq(schema.memberPersonalizadas.isActive, true),
+          eq(schema.memberGoalPlans.userId, userId),
+          eq(schema.memberGoalPlans.isActive, true),
         ),
       );
 
-    if (!personalizada) {
+    if (!goalPlan) {
       throw new Error(
-        "No se encontro una personalizada activa para el usuario",
+        "No se encontro un plan por objetivos activo para el usuario",
       );
     }
 
-    const newValue = personalizada[column] + 1;
+    const newValue = goalPlan[column] + 1;
 
     await this.db
-      .update(schema.memberPersonalizadas)
+      .update(schema.memberGoalPlans)
       .set({ [column]: newValue })
-      .where(eq(schema.memberPersonalizadas.id, personalizada.id));
+      .where(eq(schema.memberGoalPlans.id, goalPlan.id));
   }
 
   // ─── Session Generation Methods ───────────────────────────────────────
 
   /**
-   * Generate personalizada sessions for all level groups across specified days.
+   * Generate goal plan sessions for all level groups across specified days.
    *
-   * Uses runPersonalizadaBlockPipeline instead of runBlockPipeline.
-   * DayId format: P-{personalizadaType}-W{week}-{day}-{memberLevel}
+   * Uses runGoalPlanBlockPipeline instead of runBlockPipeline.
+   * DayId format: GP-{goalPlanType}-W{week}-{day}-{memberLevel}
    *
    * @param week - SPOM week number
-   * @param personalizadaType - The personalizada type to generate sessions for
+   * @param goalPlanType - The goal plan type to generate sessions for
    * @param options - Optional days filter and regenerate flag
    */
-  async generatePersonalizadaSessions(
+  async generateGoalPlanSessions(
     week: number,
-    personalizadaType: PersonalizadaType,
+    goalPlanType: GoalPlanType,
     options?: { days?: string[]; regenerate?: boolean },
   ): Promise<{
     generated: number;
@@ -405,7 +405,7 @@ export class PersonalizadasService {
         const memberLevels = levelGroupToMemberLevels(levelGroup);
 
         for (const memberLevel of memberLevels) {
-          const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
+          const dayId = `GP-${goalPlanType}-W${week}-${day}-${memberLevel}`;
 
           // Check if session exists
           const existing = await this.sessionService.getSessionByDayId(dayId);
@@ -423,13 +423,13 @@ export class PersonalizadasService {
           }
 
           try {
-            // Generate personalizada session
-            const session = await this.generatePersonalizadaDailySession({
+            // Generate goal plan session
+            const session = await this.generateGoalPlanDailySession({
               week,
               day,
               levelGroup,
               memberLevel,
-              personalizadaType,
+              goalPlanType,
               sharedFormats,
             });
 
@@ -486,43 +486,43 @@ export class PersonalizadasService {
   }
 
   /**
-   * Generate a complete daily personalizada session.
+   * Generate a complete daily goal plan session.
    *
    * Similar to SessionGeneratorService.generateDailySession but uses
-   * runPersonalizadaBlockPipeline and sets personalizadaType on the session.
+   * runGoalPlanBlockPipeline and sets goalPlanType on the session.
    */
-  private async generatePersonalizadaDailySession(input: {
+  private async generateGoalPlanDailySession(input: {
     week: number;
     day: string;
     levelGroup: LevelGroup;
     memberLevel: ExerciseLevel;
-    personalizadaType: PersonalizadaType;
+    goalPlanType: GoalPlanType;
     sharedFormats?: Map<string, { formatId: number; name: string }>;
   }): Promise<DaySession> {
-    const { week, day, levelGroup, memberLevel, personalizadaType } = input;
+    const { week, day, levelGroup, memberLevel, goalPlanType } = input;
     const startTime = Date.now();
-    const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
+    const dayId = `GP-${goalPlanType}-W${week}-${day}-${memberLevel}`;
 
     const logger = createSessionLogger(week, dayId, levelGroup);
     logger.info(
       {
-        event: "PERSONALIZADA_SESSION_STARTED",
+        event: "GOAL_PLAN_SESSION_STARTED",
         week,
         day,
         levelGroup,
         memberLevel,
-        personalizadaType,
+        goalPlanType,
       },
-      "Starting personalizada session generation",
+      "Starting goal plan session generation",
     );
 
     const sessionTrace: TraceEvent[] = [];
     const blocks: BlockPlan[] = [];
     const blockTraces: BlockTrace[] = [];
 
-    // Personalizada sessions don't use the weekly rotator, so DEUTEROS_2 behavior:
-    // For personalizada sessions, all blocks get routes from the personalizada route map.
-    // DEUTEROS_2 is always generated (routes come from personalizada map, not rotator null check).
+    // Goal plan sessions don't use the weekly rotator, so DEUTEROS_2 behavior:
+    // For goal plan sessions, all blocks get routes from the goal plan route map.
+    // DEUTEROS_2 is always generated (routes come from goal plan map, not rotator null check).
     const skipDeuteros2 = false;
 
     // Track DEUTEROS_1 format for consistency
@@ -535,7 +535,7 @@ export class PersonalizadasService {
         continue;
       }
 
-      // Create initial context with personalizada-specific blockId
+      // Create initial context with goal-plan-specific blockId
       const initialContext = createInitialContext(
         week,
         day,
@@ -555,12 +555,12 @@ export class PersonalizadasService {
             }
           : { excludeFormatNames: usedFormatNames };
 
-      // Run personalizada pipeline (uses personalizada route resolution instead of rotator)
-      const blockPlan = await runPersonalizadaBlockPipeline(
+      // Run goal plan pipeline (uses goal plan route resolution instead of rotator)
+      const blockPlan = await runGoalPlanBlockPipeline(
         initialContext,
         this.spomService,
         this.db,
-        personalizadaType,
+        goalPlanType,
         pipelineOptions,
       );
 
@@ -614,7 +614,7 @@ export class PersonalizadasService {
           intensity: blockPlan.intensity,
           format: blockPlan.format.name,
           exerciseCount: blockPlan.exercises.length,
-          personalizadaType,
+          goalPlanType,
         },
       };
       sessionTrace.push(blockCompleteEvent);
@@ -628,7 +628,7 @@ export class PersonalizadasService {
           intensity: blockPlan.intensity,
           format: blockPlan.format.name,
           exerciseCount: blockPlan.exercises.length,
-          personalizadaType,
+          goalPlanType,
         },
         `Block ${role} completed`,
       );
@@ -649,7 +649,7 @@ export class PersonalizadasService {
       decision: {
         blocksGenerated: blocks.length,
         totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
-        personalizadaType,
+        goalPlanType,
       },
     });
 
@@ -661,7 +661,7 @@ export class PersonalizadasService {
       memberLevel,
       blocks,
       trace: sessionTrace,
-      personalizadaType,
+      goalPlanType,
     };
 
     // Validate the generated session
@@ -683,7 +683,7 @@ export class PersonalizadasService {
       });
 
       throw new Error(
-        `Personalizada session validation failed: ${validation.errors.join("; ")}`,
+        `Goal plan session validation failed: ${validation.errors.join("; ")}`,
       );
     }
 
@@ -711,7 +711,7 @@ export class PersonalizadasService {
 
     logger.info(
       {
-        event: "PERSONALIZADA_SESSION_COMPLETE",
+        event: "GOAL_PLAN_SESSION_COMPLETE",
         dayId,
         blocksGenerated: blocks.length,
         totalExercises: blocks.reduce((sum, b) => sum + b.exercises.length, 0),
@@ -719,9 +719,9 @@ export class PersonalizadasService {
         warnings: fullSessionTrace.summary.totalWarnings,
         errors: fullSessionTrace.summary.totalErrors,
         durationMs,
-        personalizadaType,
+        goalPlanType,
       },
-      `Personalizada session ${dayId} generated in ${durationMs}ms`,
+      `Goal plan session ${dayId} generated in ${durationMs}ms`,
     );
 
     return {
@@ -731,22 +731,22 @@ export class PersonalizadasService {
   }
 
   /**
-   * Retrieve a personalizada session for the member's level,
+   * Retrieve a goal plan session for the member's level,
    * filtering blocks by duration.
    *
    * If no session exists for the current week, falls back to the most
    * recent available week (per CONTEXT.md: "silently fall back to most
    * recent available session").
    */
-  async getPersonalizadaSession(
+  async getGoalPlanSession(
     userId: number,
     week: number,
     day: string,
-    duration: PersonalizadaDuration,
+    duration: GoalPlanDuration,
   ): Promise<DaySession | null> {
-    // Get user's active personalizada and level
-    const personalizada = await this.getActivePersonalizada(userId);
-    if (!personalizada) return null;
+    // Get user's active goal plan and level
+    const goalPlan = await this.getActiveGoalPlan(userId);
+    if (!goalPlan) return null;
 
     // Get user's level
     const [user] = await this.db
@@ -756,23 +756,23 @@ export class PersonalizadasService {
     if (!user) return null;
 
     const memberLevel = user.level as ExerciseLevel;
-    const personalizadaType = personalizada.personalizadaType;
+    const goalPlanType = goalPlan.goalPlanType;
 
     // Try current week first
-    const dayId = `P-${personalizadaType}-W${week}-${day}-${memberLevel}`;
+    const dayId = `GP-${goalPlanType}-W${week}-${day}-${memberLevel}`;
     let session = await this.sessionService.getSessionByDayId(
       dayId,
       true, // requireApproved
     );
 
     if (!session) {
-      // Fallback: find the most recent available week for this personalizada+day+level
+      // Fallback: find the most recent available week for this goal plan+day+level
       const fallbackSession = await this.db
         .select({ dayId: schema.sessions.dayId })
         .from(schema.sessions)
         .where(
           and(
-            eq(schema.sessions.personalizadaType, personalizadaType),
+            eq(schema.sessions.goalPlanType, goalPlanType),
             eq(schema.sessions.day, day),
             eq(schema.sessions.status, "approved"),
           ),
@@ -814,7 +814,7 @@ export class PersonalizadasService {
  */
 function filterBlocksByDuration(
   blocks: readonly import("../sessions/types").BlockPlan[],
-  duration: PersonalizadaDuration,
+  duration: GoalPlanDuration,
 ): import("../sessions/types").BlockPlan[] {
   switch (duration) {
     case 20:

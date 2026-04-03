@@ -134,6 +134,6 @@ export interface DaySession {
   readonly memberLevel: ExerciseLevel;
   readonly blocks: readonly BlockPlan[];
   readonly trace: readonly TraceEvent[];
-  /** Personalizada type for personalizada sessions. Null/undefined for general Entrenamiento. */
-  readonly personalizadaType?: string | null;
+  /** Goal plan type for goal plan sessions. Null/undefined for general Entrenamiento. */
+  readonly goalPlanType?: string | null;
 }

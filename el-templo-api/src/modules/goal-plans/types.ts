@@ -1,4 +1,4 @@
-export type PersonalizadaType =
+export type GoalPlanType =
   | "tren_superior"
   | "tren_inferior"
   | "empuje"
@@ -6,12 +6,12 @@ export type PersonalizadaType =
   | "planche"
   | "front_lever";
 
-export type PersonalizadaTier = "principiante" | "intermedio" | "avanzado";
+export type GoalPlanTier = "principiante" | "intermedio" | "avanzado";
 
-export type PersonalizadaDuration = 20 | 40 | 60;
+export type GoalPlanDuration = 20 | 40 | 60;
 
-export interface PersonalizadaProgress {
-  personalizadaType: PersonalizadaType;
+export interface GoalPlanProgress {
+  goalPlanType: GoalPlanType;
   semana20: number;
   semana40: number;
   semana60: number;
@@ -19,8 +19,8 @@ export interface PersonalizadaProgress {
   startedAt: string;
 }
 
-export interface ArchivedPersonalizada {
-  personalizadaType: PersonalizadaType;
+export interface ArchivedGoalPlan {
+  goalPlanType: GoalPlanType;
   semana20: number;
   semana40: number;
   semana60: number;
@@ -28,10 +28,10 @@ export interface ArchivedPersonalizada {
   archivedAt: string;
 }
 
-export interface PersonalizadaMetadata {
-  type: PersonalizadaType;
+export interface GoalPlanMetadata {
+  type: GoalPlanType;
   name: string; // Spanish display name
-  tier: PersonalizadaTier;
+  tier: GoalPlanTier;
   description: string; // Spanish description for overview screen
   zones: string[]; // Body zones targeted
   idealFor: string; // Spanish "ideal for" text
