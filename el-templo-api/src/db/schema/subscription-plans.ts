@@ -18,6 +18,13 @@ export const planTierEnum = mysqlEnum("plan_tier", [
 
 export const bookingModeEnum = mysqlEnum("booking_mode", ["fixed", "flexible"]);
 
+export const planCategoryEnum = mysqlEnum("plan_category", [
+  "presencial",
+  "online_regular",
+  "online_goal",
+  "online_coach",
+]);
+
 export const subscriptionPlans = mysqlTable("subscription_plans", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 150 }).notNull(),
@@ -32,10 +39,9 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   multiBranch: boolean("multi_branch").default(false).notNull(),
   isTrial: boolean("is_trial").default(false).notNull(),
   isGroup: boolean("is_group").default(false).notNull(),
-  isPersonalizada: boolean("is_personalizada").default(false).notNull(),
-  personalizadaType: varchar("personalizada_type", { length: 30 }),
+  planCategory: planCategoryEnum.notNull(),
+  goalPlanType: varchar("goal_plan_type", { length: 30 }),
   groupMaxMembers: int("group_max_members"),
-  isOnline: boolean("is_online").default(false).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

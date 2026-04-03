@@ -19,7 +19,7 @@ export const sourceTypeEnum = mysqlEnum("source_type", [
   "manual_adjustment",
   "challenge",
   "social",
-  "personalizada_completion",
+  "goal_plan_completion",
   "onboarding_completion",
   "program_week_completion",
   "program_completion",

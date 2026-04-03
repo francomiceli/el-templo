@@ -21,8 +21,8 @@ export const sessions = mysqlTable(
     traceJson: json("trace_json"), // Full trace for debugging
     createdAt: timestamp("created_at").defaultNow(),
 
-    // Personalizada support: null = general Entrenamiento, non-null = personalizada type code
-    personalizadaType: varchar("personalizada_type", { length: 30 }),
+    // Goal plan support: null = general Entrenamiento, non-null = goal plan type code
+    goalPlanType: varchar("goal_plan_type", { length: 30 }),
 
     // Admin workflow columns
     status: varchar("status", { length: 20 })
