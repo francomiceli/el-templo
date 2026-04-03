@@ -19,6 +19,7 @@ interface RegisterBody {
   lastName: string;
   dni: string;
   phone: string;
+  gender: "male" | "female" | "other" | "unspecified";
   promoCode?: string;
 }
 
@@ -41,6 +42,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         lastName,
         dni,
         phone,
+        gender,
         promoCode,
       } = request.body;
 
@@ -248,6 +250,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         lastName,
         dni,
         phone,
+        gender,
         role: "member",
         level: "alfa",
       });
