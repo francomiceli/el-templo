@@ -1579,7 +1579,7 @@ Plans:
 
 - [x] 78-01-PLAN.md — Backend: member_profiles schema, onboarding service, API routes, AURA integration, /auth/me extension, integration tests
 - [x] 78-02-PLAN.md — Member app: 6-screen quiz flow (welcome + 4 questions + result) with atmospheric design, router guard, store extension
-- [ ] 78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification
+- [x] 78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification
 
 ---
 
@@ -1621,30 +1621,15 @@ Plans:
 Plans:
 
 - [x] 80-01-PLAN.md — Backend weekly summary endpoint + frontend types/store extensions (segment, WeeklySummary)
-- [ ] 80-02-PLAN.md — Tu Dia card components (6 cards) + MiCamino.vue reorganization + GeneralContent refactor + TuCaminoCard removal
+- [x] 80-02-PLAN.md — Tu Dia card components (6 cards) + MiCamino.vue reorganization + GeneralContent refactor + TuCaminoCard removal
 - [x] 80-03-PLAN.md — Post-session RPE contextual message on SessionSummary
 
 ---
 
-### Phase 81: Streaks & Engagement Mechanics
+### Phase 81: Streaks & Engagement Mechanics — DEFERRED
 
-**Goal**: Add attendance streak tracking with prominent display, post-session celebration animations, and milestone celebrations — the highest-retention-ROI features for lowest effort
-**Depends on**: None (can run in parallel with 79-80 if needed)
-**Requirements**: ENG-11, ENG-12, ENG-13, ENG-14
-**Success Criteria** (what must be TRUE):
-
-1. Current attendance streak and longest streak stored per member and displayed prominently on Mi Camino / Tu Día
-2. Post-session or post-check-in celebration animation plays on completion
-3. Milestone achievements (streak thresholds, session count milestones, level progression) trigger full-screen celebration
-4. AURA awarded for streak milestones and challenge completions (extends existing AURA economy)
-5. Streak recovery logic handles reasonable gaps (e.g., rest days don't break streaks)
-
-   **Plans:** 2 plans
-
-Plans:
-
-- [x] 81-01-PLAN.md — Backend: schema migration, StreakService, session/attendance integration, AURA milestones, integration tests
-- [ ] 81-02-PLAN.md — Frontend: StreakRow component on MiCamino, progression types update
+**Status**: Deferred. Backend foundation (StreakService, schema columns, session integration, tests) remains in codebase for future use. Frontend work (81-02) not started.
+**Original Goal**: Add attendance streak tracking with prominent display, post-session celebration animations, and milestone celebrations
 
 ---
 
@@ -1666,7 +1651,7 @@ Plans:
 
 - [x] 82-01-PLAN.md — Backend: check_in_responses schema, CheckInService, progressive unlock logic, API endpoints, integration tests
 - [x] 82-02-PLAN.md — Frontend: CheckInCard component, store/composable, swipeable row on MiCamino with daily rotation
-- [ ] 82-03-PLAN.md — Feedback loop: SessionCtaCard messaging adapts based on today's check-in answers
+- [x] 82-03-PLAN.md — Feedback loop: SessionCtaCard messaging adapts based on today's check-in answers
 
 ---
 
@@ -1785,36 +1770,19 @@ Plans:
 
 ---
 
-### Phase 88: Reservation Rules — Per-Plan Booking Configuration
+### Phase 88: Gender-Based Notification Personalization
 
-**Goal**: Make reservation timing rules configurable per plan instead of hardcoded. Currently: 5-min booking cutoff, 20-min cancel cutoff, and current-week-only window are the same for all plans. This phase adds per-plan config for advance booking days, booking cutoff, and cancel cutoff — so premium plans can book further ahead and cheaper plans stay restricted.
-**Depends on**: None
-**Requirements**: RES-01, RES-02, RES-03, RES-04
-**Plans:** TBD
+**Goal:** Infer gender from existing member names (batch script), add gender field to registration page and onboarding flows, make notification templates gender-aware (e.g. "Bienvenido/Bienvenida"), update notification service to resolve gender per user and select appropriate copy variant.
+**Requirements**: D-01 through D-18
+**Depends on:** Phase 84 (Push Notifications)
+**Plans:** 4 plans
 
-**Current behavior (all hardcoded in `booking-service.ts`):**
+Plans:
 
-- Booking window: current week only (Mon-Sat) — no cross-week advance booking
-- Booking cutoff: 5 minutes before class start
-- Cancel cutoff: 20 minutes before class start
-- `bookingMode` (fixed/flexible) only controls slot assignment, not timing rules
-
-**Open questions for discuss:**
-
-- What advance booking window per plan tier? (e.g., flex=current week, foundation=next week, performance=2 weeks?)
-- Should booking/cancel cutoff times vary per plan or stay global?
-- Should online plans have any reservation rules or remain exempt?
-- Any special rules for ROM/SKILLS sessions vs regular?
-
-**Success Criteria** (what must be TRUE):
-
-1. Subscription plans have configurable advance booking days (how far ahead a member can reserve)
-2. Subscription plans have configurable booking cutoff (minutes before class)
-3. Subscription plans have configurable cancel cutoff (minutes before class)
-4. Booking service reads these values from the plan instead of hardcoded constants
-5. Admin can edit these values per plan in the Plans management page
-6. Member app respects the per-plan rules in the reservations flow
-7. Existing plans migrate with current defaults (7 days advance, 5-min book, 20-min cancel)
+- [ ] 88-01-PLAN.md — Schema: gender enum + notification template female columns + TEMPLATE_SEEDS female copy
+- [ ] 88-02-PLAN.md — Registration gender field (API + app) + admin member form update
+- [ ] 88-03-PLAN.md — Gender-aware NotificationService + admin template side-by-side editing + dual-copy segment send
+- [ ] 88-04-PLAN.md — Gender backfill script (name dictionary) + integration tests
 
 ---
 
@@ -1823,19 +1791,19 @@ Plans:
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                   | Plans Complete | Status      | Completed  |
-| --------------------------------------- | -------------- | ----------- | ---------- |
-| 78. Onboarding & User Profiling         | 2/3            | In Progress |            |
-| 79. Behavioral Segmentation             | —              | Planned     | —          |
-| 80. "Tu Día" Daily Game Plan            | 2/3            | In Progress |            |
-| 81. Streaks & Engagement Mechanics      | 1/2            | In Progress |            |
-| 82. Progressive Profiling & Check-ins   | 2/3            | In Progress |            |
-| 83. Micro-Program Upsells               | 4/5            | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation       | 6/7            | Complete    | 2026-03-26 |
-| 85. Guía — Exercise & Mobility Library  | —              | Planned     | —          |
-| 86. QR Promo — Free Month Campaign      | 6/6            | Complete    | 2026-03-28 |
-| 87. Localization — ES-AR vs ES-ES       | —              | Planned     | —          |
-| 88. Reservation Rules — Per-Plan Config | —              | Planned     | —          |
+| Phase                                   | Plans Complete | Status   | Completed  |
+| --------------------------------------- | -------------- | -------- | ---------- |
+| 78. Onboarding & User Profiling         | 3/3            | Complete | 2026-04-03 |
+| 79. Behavioral Segmentation             | —              | Planned  | —          |
+| 80. "Tu Día" Daily Game Plan            | 3/3            | Complete | 2026-04-03 |
+| ~~81. Streaks & Engagement Mechanics~~  | 1/2            | Deferred | —          |
+| 82. Progressive Profiling & Check-ins   | 3/3            | Complete | 2026-04-03 |
+| 83. Micro-Program Upsells               | 4/5            | Complete | 2026-03-25 |
+| 84. Push Notifications Foundation       | 6/7            | Complete | 2026-03-26 |
+| 85. Guía — Exercise & Mobility Library  | —              | Planned  | —          |
+| 86. QR Promo — Free Month Campaign      | 6/6            | Complete | 2026-03-28 |
+| 87. Localization — ES-AR vs ES-ES       | —              | Planned  | —          |
+| 88. Gender-Based Notification Personal. | —              | Planned  | —          |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 
