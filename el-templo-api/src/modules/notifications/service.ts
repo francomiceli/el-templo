@@ -198,11 +198,27 @@ export class NotificationService {
     );
   }
 
+  // ── Gender Resolution ────────────────────────────────────────────────────
+
+  /**
+   * Resolve whether a user should receive female notification copy.
+   * Per D-12: only 'female' gets female copy; male/other/unspecified/null all get default (male).
+   */
+  private async resolveUseFemale(userId: number): Promise<boolean> {
+    const [user] = await this.db
+      .select({ gender: schema.users.gender })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    return user?.gender === "female";
+  }
+
   // ── Queue Operations ────────────────────────────────────────────────────
 
   /**
    * Queue a notification using a predefined template.
    * Checks template existence, enabled status, and user preference before queueing.
+   * Resolves user gender to select correct copy variant (per D-12).
    *
    * @returns The pending notification ID, or -1 if skipped
    */
@@ -250,12 +266,25 @@ export class NotificationService {
       return -1;
     }
 
+    // Resolve gender-specific copy (per D-12)
+    const useFemale = await this.resolveUseFemale(userId);
+    const resolvedTitle =
+      titleOverride ??
+      (useFemale && template.titleFemale
+        ? template.titleFemale
+        : template.title);
+    const resolvedBody =
+      bodyOverride ??
+      (useFemale && template.bodyFemale
+        ? template.bodyFemale
+        : template.body);
+
     // Insert into pending_notifications
     const result = await this.db.insert(schema.pendingNotifications).values({
       userId,
       templateId: template.id,
-      title: titleOverride ?? template.title,
-      body: bodyOverride ?? template.body,
+      title: resolvedTitle,
+      body: resolvedBody,
       route: routeOverride ?? template.route ?? "/mi-templo",
       status: "pending",
       scheduledAt: scheduledAt ?? new Date(),
