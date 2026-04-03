@@ -30,10 +30,12 @@ const planSchema = {
     multiBranch: { type: "boolean" },
     isTrial: { type: "boolean" },
     isGroup: { type: "boolean" },
-    isPersonalizada: { type: "boolean" },
-    personalizadaType: { type: ["string", "null"] },
+    planCategory: {
+      type: "string",
+      enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+    },
+    goalPlanType: { type: ["string", "null"] },
     groupMaxMembers: { type: ["integer", "null"] },
-    isOnline: { type: "boolean" },
     isActive: { type: "boolean" },
     isArchived: { type: "boolean" },
     createdAt: { type: "string" },
@@ -161,8 +163,11 @@ export const createPlanSchema = {
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
       isGroup: { type: "boolean" },
-      isPersonalizada: { type: "boolean" },
-      personalizadaType: {
+      planCategory: {
+        type: "string",
+        enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+      },
+      goalPlanType: {
         type: "string",
         enum: [
           "tren_superior",
@@ -174,7 +179,6 @@ export const createPlanSchema = {
         ],
       },
       groupMaxMembers: { type: "integer", minimum: 1 },
-      isOnline: { type: "boolean" },
     },
   },
   response: {
@@ -208,8 +212,11 @@ export const updatePlanSchema = {
       multiBranch: { type: "boolean" },
       isTrial: { type: "boolean" },
       isGroup: { type: "boolean" },
-      isPersonalizada: { type: "boolean" },
-      personalizadaType: {
+      planCategory: {
+        type: "string",
+        enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+      },
+      goalPlanType: {
         type: ["string", "null"],
         enum: [
           "tren_superior",
@@ -222,7 +229,6 @@ export const updatePlanSchema = {
         ],
       },
       groupMaxMembers: { type: ["integer", "null"] },
-      isOnline: { type: "boolean" },
     },
   },
   response: {

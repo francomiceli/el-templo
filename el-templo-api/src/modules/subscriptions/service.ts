@@ -40,9 +40,9 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
-import { PersonalizadasService } from "../personalizadas/service";
-import { ALL_PERSONALIZADA_TYPES } from "../personalizadas/constants";
-import type { PersonalizadaType } from "../personalizadas/types";
+import { GoalPlanService } from "../goal-plans/service";
+import { ALL_GOAL_PLAN_TYPES } from "../goal-plans/constants";
+import type { GoalPlanType } from "../goal-plans/types";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -50,7 +50,7 @@ type BookingServiceType =
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
-  private personalizadasService: PersonalizadasService;
+  private goalPlanService: GoalPlanService;
 
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -58,7 +58,7 @@ export class SubscriptionService {
     private auraService: AuraService,
     private paymentService?: PaymentService,
   ) {
-    this.personalizadasService = new PersonalizadasService(db);
+    this.goalPlanService = new GoalPlanService(db);
   }
 
   /**
@@ -114,19 +114,19 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
-    // Validate personalizadaType when isPersonalizada is true
-    if (input.isPersonalizada) {
-      if (!input.personalizadaType) {
+    // Validate goalPlanType when planCategory is online_goal
+    if (input.planCategory === "online_goal") {
+      if (!input.goalPlanType) {
         throw new BadRequestError(
-          "Para planes personalizados se requiere el tipo de personalizada",
+          "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
         );
       }
       if (
-        !(ALL_PERSONALIZADA_TYPES as readonly string[]).includes(
-          input.personalizadaType,
+        !(ALL_GOAL_PLAN_TYPES as readonly string[]).includes(
+          input.goalPlanType,
         )
       ) {
-        throw new BadRequestError("Tipo de personalizada invalido");
+        throw new BadRequestError("Tipo de plan por objetivos invalido");
       }
     }
 
@@ -143,12 +143,11 @@ export class SubscriptionService {
       multiBranch: input.multiBranch ?? false,
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
-      isPersonalizada: input.isPersonalizada ?? false,
-      personalizadaType: input.isPersonalizada
-        ? (input.personalizadaType ?? null)
+      planCategory: input.planCategory ?? "presencial",
+      goalPlanType: input.planCategory === "online_goal"
+        ? (input.goalPlanType ?? null)
         : null,
       groupMaxMembers: input.groupMaxMembers ?? null,
-      isOnline: input.isOnline ?? false,
     });
 
     const planId = Number(result[0].insertId);
@@ -189,26 +188,25 @@ export class SubscriptionService {
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
-    if (input.isPersonalizada !== undefined)
-      updateData.isPersonalizada = input.isPersonalizada;
-    if (input.personalizadaType !== undefined)
-      updateData.personalizadaType = input.personalizadaType;
+    if (input.planCategory !== undefined)
+      updateData.planCategory = input.planCategory;
+    if (input.goalPlanType !== undefined)
+      updateData.goalPlanType = input.goalPlanType;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
-    if (input.isOnline !== undefined) updateData.isOnline = input.isOnline;
 
-    // Validate: if resulting plan would be personalizada but without type, reject
-    const resultIsPersonalizada =
-      input.isPersonalizada !== undefined
-        ? input.isPersonalizada
-        : existing.isPersonalizada;
-    const resultPersonalizadaType =
-      input.personalizadaType !== undefined
-        ? input.personalizadaType
-        : existing.personalizadaType;
-    if (resultIsPersonalizada && !resultPersonalizadaType) {
+    // Validate: if resulting plan would be online_goal but without goalPlanType, reject
+    const resultPlanCategory =
+      input.planCategory !== undefined
+        ? input.planCategory
+        : existing.planCategory;
+    const resultGoalPlanType =
+      input.goalPlanType !== undefined
+        ? input.goalPlanType
+        : existing.goalPlanType;
+    if (resultPlanCategory === "online_goal" && !resultGoalPlanType) {
       throw new BadRequestError(
-        "Para planes personalizados se requiere el tipo de personalizada",
+        "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
       );
     }
 
@@ -676,15 +674,15 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Auto-assign personalizada from plan type
-    if (plan.isPersonalizada && plan.personalizadaType) {
-      await this.personalizadasService.selectPersonalizada(
+    // Auto-assign goal plan from plan type
+    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
+      await this.goalPlanService.selectGoalPlan(
         userId,
-        plan.personalizadaType as PersonalizadaType,
+        plan.goalPlanType as GoalPlanType,
       );
       this.log.info(
-        { userId, personalizadaType: plan.personalizadaType },
-        "Auto-assigned personalizada from plan",
+        { userId, goalPlanType: plan.goalPlanType },
+        "Auto-assigned goal plan from plan",
       );
     }
 
@@ -1157,15 +1155,15 @@ export class SubscriptionService {
         }
       }
 
-      // Auto-assign personalizada from target plan type
-      if (targetPlan.isPersonalizada && targetPlan.personalizadaType) {
-        await this.personalizadasService.selectPersonalizada(
+      // Auto-assign goal plan from target plan type
+      if (targetPlan.planCategory === "online_goal" && targetPlan.goalPlanType) {
+        await this.goalPlanService.selectGoalPlan(
           userId,
-          targetPlan.personalizadaType as PersonalizadaType,
+          targetPlan.goalPlanType as GoalPlanType,
         );
         this.log.info(
-          { userId, personalizadaType: targetPlan.personalizadaType },
-          "Auto-assigned personalizada on plan change",
+          { userId, goalPlanType: targetPlan.goalPlanType },
+          "Auto-assigned goal plan on plan change",
         );
       }
 
@@ -1380,15 +1378,15 @@ export class SubscriptionService {
       }
     }
 
-    // Auto-assign personalizada from plan type (archives old, creates fresh)
-    if (plan.isPersonalizada && plan.personalizadaType) {
-      await this.personalizadasService.selectPersonalizada(
+    // Auto-assign goal plan from plan type (archives old, creates fresh)
+    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
+      await this.goalPlanService.selectGoalPlan(
         userId,
-        plan.personalizadaType as PersonalizadaType,
+        plan.goalPlanType as GoalPlanType,
       );
       this.log.info(
-        { userId, personalizadaType: plan.personalizadaType },
-        "Auto-assigned personalizada on renewal",
+        { userId, goalPlanType: plan.goalPlanType },
+        "Auto-assigned goal plan on renewal",
       );
     }
 
@@ -1727,10 +1725,9 @@ export class SubscriptionService {
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
-      isPersonalizada: row.isPersonalizada,
-      personalizadaType: row.personalizadaType ?? null,
+      planCategory: row.planCategory as import("./types").PlanCategory,
+      goalPlanType: row.goalPlanType ?? null,
       groupMaxMembers: row.groupMaxMembers,
-      isOnline: row.isOnline,
       isActive: row.isActive,
       isArchived: row.isArchived,
       createdAt: row.createdAt.toISOString(),

@@ -11,7 +11,8 @@ import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
-import { PERSONALIZADA_METADATA } from "../personalizadas/constants";
+import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
+import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -51,8 +52,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     // Get plan info
     const [plan] = await fastify.db
       .select({
-        isPersonalizada: schema.subscriptionPlans.isPersonalizada,
-        personalizadaType: schema.subscriptionPlans.personalizadaType,
+        planCategory: schema.subscriptionPlans.planCategory,
+        goalPlanType: schema.subscriptionPlans.goalPlanType,
         multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
@@ -68,8 +69,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       endDate: sub.endDate,
       daysRemaining,
       pricePaid: sub.pricePaid,
-      isPersonalizada: plan?.isPersonalizada ?? false,
-      personalizadaType: plan?.personalizadaType ?? null,
+      planCategory: plan?.planCategory ?? "presencial",
+      goalPlanType: plan?.goalPlanType ?? null,
       multiBranch: plan?.multiBranch ?? false,
     };
   });
@@ -94,10 +95,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    // Map to member-safe response (no prices) and enrich personalizada zones
+    // Map to member-safe response (no prices) and enrich goal plan zones
     const mapped = plans.map((p) => {
-      const meta = p.isPersonalizada
-        ? PERSONALIZADA_METADATA.find((m) => m.type === p.personalizadaType)
+      const meta = isGoalPlan(p.planCategory)
+        ? GOAL_PLAN_METADATA.find((m) => m.type === p.goalPlanType)
         : undefined;
 
       return {
@@ -107,18 +108,19 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         planTier: p.planTier,
         durationDays: p.durationDays,
         classesPerWeek: p.classesPerWeek,
-        isPersonalizada: p.isPersonalizada,
-        isOnline: p.isOnline,
-        personalizadaType: p.personalizadaType,
-        personalizadaZones: meta?.zones ?? null,
+        planCategory: p.planCategory,
+        goalPlanType: p.goalPlanType,
+        goalPlanZones: meta?.zones ?? null,
       };
     });
 
-    // Sort: gym plans first (isPersonalizada=false), then personalizada plans
+    // Sort: presencial plans first, then online plans
     // Within each group, sort by name alphabetically
     mapped.sort((a, b) => {
-      if (a.isPersonalizada !== b.isPersonalizada) {
-        return a.isPersonalizada ? 1 : -1;
+      const aOnline = isOnlinePlan(a.planCategory as PlanCategory);
+      const bOnline = isOnlinePlan(b.planCategory as PlanCategory);
+      if (aOnline !== bOnline) {
+        return aOnline ? 1 : -1;
       }
       return a.name.localeCompare(b.name);
     });

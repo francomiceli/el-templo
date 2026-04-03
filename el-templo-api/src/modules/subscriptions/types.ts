@@ -19,6 +19,21 @@ export type PlanTier = "flex" | "foundation" | "performance" | "other";
 export type BookingMode = "fixed" | "flexible";
 export type PriceType = "regular" | "zero" | "credit_card";
 export type PromoType = "auto" | "admin_assignable";
+export type PlanCategory =
+  | "presencial"
+  | "online_regular"
+  | "online_goal"
+  | "online_coach";
+
+export function isOnlinePlan(category: PlanCategory): boolean {
+  return category !== "presencial";
+}
+export function isGoalPlan(category: PlanCategory): boolean {
+  return category === "online_goal";
+}
+export function isCoachPlan(category: PlanCategory): boolean {
+  return category === "online_coach";
+}
 
 // ─── AURA Discount Tiers ────────────────────────────────────────────────────
 
@@ -50,10 +65,9 @@ export interface PlanListItem {
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
-  isPersonalizada: boolean;
-  personalizadaType: string | null;
+  planCategory: PlanCategory;
+  goalPlanType: string | null;
   groupMaxMembers: number | null;
-  isOnline: boolean;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -89,10 +103,9 @@ export interface CreatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
-  isPersonalizada?: boolean;
-  personalizadaType?: string;
+  planCategory?: PlanCategory;
+  goalPlanType?: string;
   groupMaxMembers?: number;
-  isOnline?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -108,10 +121,9 @@ export interface UpdatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
-  isPersonalizada?: boolean;
-  personalizadaType?: string | null;
+  planCategory?: PlanCategory;
+  goalPlanType?: string | null;
   groupMaxMembers?: number | null;
-  isOnline?: boolean;
 }
 
 // ─── Subscription Types ─────────────────────────────────────────────────────
