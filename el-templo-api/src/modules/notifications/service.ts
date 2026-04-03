@@ -571,8 +571,8 @@ export class NotificationService {
     for (const seed of TEMPLATE_SEEDS) {
       const [result] = await this.db.execute(
         sql`INSERT IGNORE INTO notification_templates
-            (template_key, notification_category, title, body, route)
-            VALUES (${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.route})`,
+            (template_key, notification_category, title, body, title_female, body_female, route)
+            VALUES (${seed.templateKey}, ${seed.category}, ${seed.title}, ${seed.body}, ${seed.titleFemale}, ${seed.bodyFemale}, ${seed.route})`,
       );
       if ((result as { affectedRows?: number }).affectedRows === 1) {
         inserted++;
