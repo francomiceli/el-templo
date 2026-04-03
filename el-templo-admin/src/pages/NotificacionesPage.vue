@@ -38,30 +38,37 @@
             </q-td>
           </template>
 
-          <!-- Title (clickable) -->
+          <!-- Title (male + female stacked) -->
           <template #body-cell-title="props">
-            <q-td :props="props">
-              <span class="cursor-pointer text-primary" @click="openEdit(props.row)">
-                {{ props.row.title }}
-              </span>
+            <q-td :props="props" class="cursor-pointer" @click="openEdit(props.row)">
+              <div class="text-primary">{{ props.row.title }}</div>
+              <div
+                v-if="props.row.titleFemale && props.row.titleFemale !== props.row.title"
+                class="text-caption text-grey-6"
+              >
+                ♀ {{ props.row.titleFemale }}
+              </div>
             </q-td>
           </template>
 
-          <!-- Body (truncated) -->
+          <!-- Body (male + female stacked, truncated) -->
           <template #body-cell-body="props">
-            <q-td :props="props">
-              <span
-                class="cursor-pointer"
-                style="max-width: 300px; display: inline-block"
-                :class="{ ellipsis: props.row.body.length > 60 }"
-                @click="openEdit(props.row)"
+            <q-td
+              :props="props"
+              class="cursor-pointer"
+              @click="openEdit(props.row)"
+              style="max-width: 350px"
+            >
+              <div :class="{ ellipsis: props.row.body.length > 60 }">
+                {{ truncate(props.row.body) }}
+              </div>
+              <div
+                v-if="props.row.bodyFemale && props.row.bodyFemale !== props.row.body"
+                class="text-caption text-grey-6"
+                :class="{ ellipsis: props.row.bodyFemale.length > 60 }"
               >
-                {{
-                  props.row.body.length > 60
-                    ? props.row.body.substring(0, 60) + '...'
-                    : props.row.body
-                }}
-              </span>
+                ♀ {{ truncate(props.row.bodyFemale) }}
+              </div>
             </q-td>
           </template>
 
@@ -111,7 +118,13 @@
           />
           <q-separator class="q-my-md" />
           <div class="text-subtitle2 q-mb-sm">Version femenina (opcional)</div>
-          <q-input v-model="sendForm.titleFemale" label="Titulo (femenino)" class="q-mb-md" outlined dense />
+          <q-input
+            v-model="sendForm.titleFemale"
+            label="Titulo (femenino)"
+            class="q-mb-md"
+            outlined
+            dense
+          />
           <q-input
             v-model="sendForm.bodyFemale"
             label="Mensaje (femenino)"
@@ -181,7 +194,13 @@
             <!-- Female column -->
             <div class="col-6">
               <div class="text-subtitle2 q-mb-sm">Femenino</div>
-              <q-input v-model="editForm.titleFemale" label="Titulo femenino" class="q-mb-md" outlined dense />
+              <q-input
+                v-model="editForm.titleFemale"
+                label="Titulo femenino"
+                class="q-mb-md"
+                outlined
+                dense
+              />
               <q-input
                 v-model="editForm.bodyFemale"
                 label="Cuerpo femenino"
@@ -192,7 +211,13 @@
               />
             </div>
           </div>
-          <q-input v-model="editForm.route" label="Ruta de destino" class="q-mt-md" outlined dense />
+          <q-input
+            v-model="editForm.route"
+            label="Ruta de destino"
+            class="q-mt-md"
+            outlined
+            dense
+          />
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat label="Cancelar" v-close-popup />
@@ -220,7 +245,14 @@ const tab = ref('plantillas');
 const loading = ref(true);
 const templates = ref<TemplateRow[]>([]);
 const editDialog = ref(false);
-const editForm = reactive({ id: 0, title: '', body: '', titleFemale: '', bodyFemale: '', route: '' });
+const editForm = reactive({
+  id: 0,
+  title: '',
+  body: '',
+  titleFemale: '',
+  bodyFemale: '',
+  route: '',
+});
 const saving = ref(false);
 
 const sendForm = reactive({
@@ -304,6 +336,10 @@ function categoryLabel(category: string): string {
 
 function formatRate(rate: number): string {
   return `${rate.toFixed(1)}%`;
+}
+
+function truncate(text: string, max = 60): string {
+  return text.length > max ? text.substring(0, max) + '...' : text;
 }
 
 // ----------------------------------------------------------------
