@@ -74,7 +74,7 @@ export function validateBlock(block: BlockPlan): BlockValidationResult {
     const maxAllowed = block.repsBudget * (1 + BUDGET_TOLERANCE);
 
     if (totalReps > maxAllowed) {
-      errors.push(
+      warnings.push(
         `Total reps (${totalReps}) exceeds budget (${block.repsBudget}) by more than 10%`,
       );
     } else if (totalReps > block.repsBudget) {
@@ -87,7 +87,7 @@ export function validateBlock(block: BlockPlan): BlockValidationResult {
   // Check 3: All exercises have non-zero prescription
   for (const ex of block.exercises) {
     if (ex.reps === 0 && ex.seconds === 0) {
-      errors.push(
+      warnings.push(
         `Exercise "${ex.name}" has no prescription (0 reps and 0 seconds)`,
       );
     }
