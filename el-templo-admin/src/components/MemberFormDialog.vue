@@ -582,6 +582,7 @@ const genderOptions = [
   { label: 'Masculino', value: 'male' },
   { label: 'Femenino', value: 'female' },
   { label: 'Otro', value: 'other' },
+  { label: 'No especificar', value: 'unspecified' },
 ];
 
 const documentTypeOptions = [
