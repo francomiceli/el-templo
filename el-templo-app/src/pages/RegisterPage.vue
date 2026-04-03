@@ -79,7 +79,7 @@
 
               <q-input
                 v-model="phone"
-                label="Telefono"
+                label="Teléfono"
                 :rules="phoneRules"
                 lazy-rules
                 dark
@@ -92,7 +92,7 @@
               <q-select
                 v-model="gender"
                 :options="genderOptions"
-                label="Genero"
+                label="Género"
                 emit-value
                 map-options
                 :rules="[requiredRule]"
