@@ -9,6 +9,7 @@
 - **v4.2 Clases Personalizadas Launch** - Phases 67-73 (complete)
 - **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
 - **v4.4 App Engagement & Intelligent Companion** - Phases 78-88 (planned)
+- **v4.5 Planes Online — Digital Monetization** - Phases 89-91 (planned)
 
 ---
 
@@ -1835,8 +1836,81 @@ Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel)
 | 85. Guía — Exercise & Mobility Library  | —              | Planned     | —          |
 | 86. QR Promo — Free Month Campaign      | 6/6            | Complete    | 2026-03-28 |
 | 87. Localization — ES-AR vs ES-ES       | —              | Planned     | —          |
-| 88. Reservation Rules — Per-Plan Config | 3/4 | In Progress|  |
+| 88. Reservation Rules — Per-Plan Config | 3/4            | Complete    | 2026-04-03 |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
+
+</details>
+
+<details>
+<summary>v4.5 Planes Online — Digital Monetization (Phases 89-91)</summary>
+
+## v4.5 Overview
+
+Monetize the app ecosystem by selling training plans online. Strategy doc: `.docs/planes-online-strategy.md`
+
+## v4.5 Phases
+
+### Phase 89: Backend & Admin — "Planes Online" Infrastructure
+
+**Goal:** Full code+DB rename personalizada→goalPlan, replace boolean flags with planCategory enum, restructure admin Planes page (Presenciales/Online/Promos tabs), add weekly price calculation, refine session pipeline using approved production data, verify online user session access.
+
+**Depends on:** Phase 83, Phase 84
+
+**Requirements:**
+
+- MON-01: Admin tab renamed to Planes Online with sub-categories
+- MON-02: User-facing rename personalizadas→Por Objetivos, Personalizado reserved for coach-assisted
+- MON-03: Plan creation with all needed fields (name, description, duration, sessions/week, monthly price, category, audience tags)
+- MON-04: Weekly price auto-calculated and displayed
+- MON-05: WhatsApp CTA with pre-filled plan name and weekly price
+- MON-06: Pipeline difficulty calibration using approved session baselines
+- MON-07: Pipeline prescription calibration using approved reps/sets patterns
+- MON-08: Goal plan pipeline generates correctly for front_lever and tren_inferior for online users
+- MON-09: Regular plans link to regular weekly sessions (same as physical branches)
+- MON-10: Discount via manual price override at assignment (existing infra)
+
+Plans:
+
+- [ ] 89-01-PLAN.md — TBD
+- [ ] 89-02-PLAN.md — TBD
+- [ ] 89-03-PLAN.md — TBD
+
+---
+
+### Phase 90: App UX — Plan Catalog & Purchase Flow
+
+**Goal:** Redesign member app plans page with weekly pricing, pre-filled WhatsApp CTAs, post-assignment experience for online buyers.
+
+**Depends on:** Phase 89
+
+Plans:
+
+- [ ] 90-01-PLAN.md — TBD
+- [ ] 90-02-PLAN.md — TBD
+
+---
+
+### Phase 91: Marketing Deliverables — Launch Collateral
+
+**Goal:** Non-code marketing assets: ad copy, promo video script, content calendar, WhatsApp templates, Mercado Pago guide.
+
+**Depends on:** Phase 90
+
+Plans:
+
+- [ ] 91-01-PLAN.md — TBD
+
+---
+
+## v4.5 Progress
+
+| Phase                                          | Plans Complete | Status  | Completed |
+| ---------------------------------------------- | -------------- | ------- | --------- |
+| 89. Backend & Admin — Planes Online Infra      | —              | Planned | —         |
+| 90. App UX — Plan Catalog & Purchase Flow      | —              | Planned | —         |
+| 91. Marketing Deliverables — Launch Collateral | —              | Planned | —         |
+
+_v4.5 phases added: 2026-04-03 — 3 phases (89-91). Strategy: `.docs/planes-online-strategy.md`_
 
 </details>
