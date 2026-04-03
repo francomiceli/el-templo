@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Milestone complete
-stopped_at: Completed 86-06-PLAN.md
-last_updated: "2026-03-27T18:00:31.169Z"
+stopped_at: Phase 88 context gathered
+last_updated: "2026-04-03T19:31:40.940Z"
 progress:
-  total_phases: 83
+  total_phases: 84
   completed_phases: 70
   total_plans: 292
   completed_plans: 287
@@ -120,6 +120,8 @@ _Updated after each plan completion_
 
 - Phase 70 added: Personalizadas Cycle Config — configurable cycle length per plan, progress bars in member app
 - Phase 86 added: QR Promo — Free Month Campaign
+- Phase 88 (was 89): Gender-Based Notification Personalization — gender inference, registration field, gendered notification copy
+- Phase 88 (old): Reservation Rules — Per-Plan Booking Configuration — removed from v4.4
 
 ### Decisions
 
@@ -246,6 +248,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-27T17:48:50.298Z
-Stopped at: Completed 86-06-PLAN.md
-Resume file: None
+Last session: 2026-04-03T19:31:40.935Z
+Stopped at: Phase 88 context gathered
+Resume file: .planning/phases/88-gender-based-notification-personalization/88-CONTEXT.md
