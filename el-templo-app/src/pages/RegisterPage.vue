@@ -89,6 +89,21 @@
                 color="primary"
               />
 
+              <q-select
+                v-model="gender"
+                :options="genderOptions"
+                label="Genero"
+                emit-value
+                map-options
+                :rules="[requiredRule]"
+                lazy-rules
+                dark
+                outlined
+                label-color="cream"
+                color="primary"
+                popup-content-class="bg-dark text-cream"
+              />
+
               <q-input
                 v-model="email"
                 type="email"
@@ -177,12 +192,20 @@ const firstName = ref('')
 const lastName = ref('')
 const dni = ref('')
 const phone = ref('')
+const gender = ref<string | null>(null)
 const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
 const eyeBounce = ref(false)
+
+const genderOptions = [
+  { label: 'Femenino', value: 'female' },
+  { label: 'Masculino', value: 'male' },
+  { label: 'Otro', value: 'other' },
+  { label: 'No especificar', value: 'unspecified' },
+]
 
 const headerText = computed(() => {
   if (route.query.branchId) return 'Registrarse en Park'
@@ -234,6 +257,7 @@ async function onSubmit() {
       lastName: lastName.value,
       dni: dni.value,
       phone: phone.value,
+      gender: gender.value as string,
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,
     })

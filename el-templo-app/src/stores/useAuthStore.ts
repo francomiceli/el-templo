@@ -67,6 +67,7 @@ export const useAuthStore = defineStore('auth', () => {
     lastName: string
     dni: string
     phone: string
+    gender: string
     branchId?: number
     promoCode?: string
   }): Promise<{ existingAccount?: boolean; promoApplied?: boolean } | undefined> {
