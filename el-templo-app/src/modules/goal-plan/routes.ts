@@ -6,7 +6,7 @@ import type { RouteRecordRaw } from 'vue-router'
  * Routes:
  * - /goal-plan/session — Goal plan session player
  *
- * Note: DurationPicker route removed per D-29 (duration picker concept eliminated).
+ * Note: Duration picker route removed per D-29 (duration selection concept eliminated).
  */
 const routes: RouteRecordRaw[] = [
   {

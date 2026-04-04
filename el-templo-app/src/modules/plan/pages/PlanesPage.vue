@@ -34,9 +34,9 @@
       </div>
     </div>
 
-    <!-- Planes Personalizados -->
+    <!-- Planes Por Objetivos -->
     <div v-if="experiencias.length > 0" class="q-mb-lg">
-      <p class="planes-section-title">Planes Personalizados</p>
+      <p class="planes-section-title">Planes Por Objetivos</p>
       <div class="text-body2 text-grey-7 q-mb-md" style="padding-left: 4px">
         Planes diseñados a tu medida para potenciar tu entrenamiento.
       </div>
@@ -48,7 +48,7 @@
       >
         <div class="plan-card__header">
           <span class="plan-card__name">{{ exp.name }}</span>
-          <q-badge color="amber-8" label="PERSONALIZADO" />
+          <q-badge color="amber-8" label="POR OBJETIVOS" />
         </div>
         <div v-if="exp.description" class="plan-card__desc">{{ exp.description }}</div>
         <div class="plan-card__badges">
@@ -70,7 +70,7 @@
           @click="openExperienciaWhatsApp(exp)"
         >
           <q-icon name="img:/icons/whatsapp.svg" size="16px" class="q-ml-xs q-mr-sm" />
-          Más info
+          Mas info
         </q-btn>
       </div>
     </div>
@@ -79,7 +79,7 @@
     <div v-if="plans.length > 0" :class="experiencias.length > 0 ? 'q-mt-lg' : ''">
       <p class="planes-section-title">Planes Regulares</p>
 
-      <!-- All regular plans (presencial + online + personalizada) -->
+      <!-- All regular plans -->
       <div
         v-for="plan in allRegularPlans"
         :key="plan.id"
@@ -98,13 +98,6 @@
           <q-badge v-if="plan.classesPerWeek" outline color="grey-7">
             {{ plan.classesPerWeek }} clases/semana
           </q-badge>
-          <q-badge
-            v-for="zone in plan.personalizadaZones ?? []"
-            :key="zone"
-            outline
-            color="primary"
-            :label="zone"
-          />
         </div>
         <div v-if="isCurrentPlan(plan)" class="plan-card__status">
           <q-icon name="check_circle" size="16px" color="positive" />
@@ -145,10 +138,9 @@ interface MemberPlan {
   planTier: string
   durationDays: number
   classesPerWeek: number | null
-  isPersonalizada: boolean
-  isOnline: boolean
-  personalizadaType: string | null
-  personalizadaZones: string[] | null
+  planCategory: string
+  linkedProgramId: number | null
+  priceRegular: number
 }
 
 const PLAN_TIER_LABELS: Record<string, string> = {
@@ -209,14 +201,31 @@ function tierColor(tier: string): string {
   return TIER_COLORS[tier] ?? 'grey'
 }
 
+/**
+ * Compute weekly price from monthly price.
+ * priceRegular is always the monthly price regardless of plan durationDays.
+ * Returns formatted string with locale separators.
+ */
+function computeWeeklyPrice(monthlyPrice: number): string {
+  return Math.round(monthlyPrice / 4.33).toLocaleString()
+}
+
+/**
+ * Build WhatsApp pre-filled message with plan name and weekly price.
+ */
+function buildWhatsAppMessage(planName: string, monthlyPrice: number): string {
+  const wp = computeWeeklyPrice(monthlyPrice)
+  return `Hola! Me interesa el plan ${planName} ($${wp}/semana). Quiero mas info.`
+}
+
 function openWhatsApp(plan: MemberPlan): void {
-  const message = `Hola, me interesa el plan ${plan.name}`
+  const message = buildWhatsAppMessage(plan.name, plan.priceRegular)
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
 
 function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
-  const message = `Hola, me interesa el plan personalizado "${exp.name}"`
+  const message = buildWhatsAppMessage(exp.name, exp.price)
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
@@ -238,7 +247,7 @@ onMounted(async () => {
     loading.value = false
   }
 
-  // Fetch Planes Personalizados catalog
+  // Fetch Planes Por Objetivos catalog
   try {
     const catalog = await getCatalog()
     experiencias.value = catalog
@@ -254,7 +263,7 @@ onMounted(async () => {
       enrolledProgramId.value = progress.programId
     }
   } catch {
-    /* ignore — non-critical for catalog display */
+    /* ignore -- non-critical for catalog display */
   }
 })
 </script>
