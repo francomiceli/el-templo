@@ -40,9 +40,8 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
-import { PersonalizadasService } from "../personalizadas/service";
-import { ALL_PERSONALIZADA_TYPES } from "../personalizadas/constants";
-import type { PersonalizadaType } from "../personalizadas/types";
+import { GoalPlanService } from "../goal-plans/service";
+import { isOnlinePlan } from "./types";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -50,7 +49,7 @@ type BookingServiceType =
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
-  private personalizadasService: PersonalizadasService;
+  private goalPlanService: GoalPlanService;
 
   constructor(
     private db: MySql2Database<typeof schema>,
@@ -58,7 +57,7 @@ export class SubscriptionService {
     private auraService: AuraService,
     private paymentService?: PaymentService,
   ) {
-    this.personalizadasService = new PersonalizadasService(db);
+    this.goalPlanService = new GoalPlanService(db);
   }
 
   /**
@@ -114,20 +113,14 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
-    // Validate personalizadaType when isPersonalizada is true
-    if (input.isPersonalizada) {
-      if (!input.personalizadaType) {
-        throw new BadRequestError(
-          "Para planes personalizados se requiere el tipo de personalizada",
-        );
-      }
-      if (
-        !(ALL_PERSONALIZADA_TYPES as readonly string[]).includes(
-          input.personalizadaType,
-        )
-      ) {
-        throw new BadRequestError("Tipo de personalizada invalido");
-      }
+    // Validate that online plans have a linked program
+    if (
+      isOnlinePlan(input.planCategory) &&
+      !input.linkedProgramId
+    ) {
+      throw new BadRequestError(
+        "Planes online requieren un programa vinculado",
+      );
     }
 
     const result = await this.db.insert(schema.subscriptionPlans).values({
@@ -143,12 +136,9 @@ export class SubscriptionService {
       multiBranch: input.multiBranch ?? false,
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
-      isPersonalizada: input.isPersonalizada ?? false,
-      personalizadaType: input.isPersonalizada
-        ? (input.personalizadaType ?? null)
-        : null,
+      planCategory: input.planCategory ?? "presencial",
+      linkedProgramId: input.linkedProgramId ?? null,
       groupMaxMembers: input.groupMaxMembers ?? null,
-      isOnline: input.isOnline ?? false,
     });
 
     const planId = Number(result[0].insertId);
@@ -189,26 +179,25 @@ export class SubscriptionService {
       updateData.multiBranch = input.multiBranch;
     if (input.isTrial !== undefined) updateData.isTrial = input.isTrial;
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
-    if (input.isPersonalizada !== undefined)
-      updateData.isPersonalizada = input.isPersonalizada;
-    if (input.personalizadaType !== undefined)
-      updateData.personalizadaType = input.personalizadaType;
+    if (input.planCategory !== undefined)
+      updateData.planCategory = input.planCategory;
+    if (input.linkedProgramId !== undefined)
+      updateData.linkedProgramId = input.linkedProgramId;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
-    if (input.isOnline !== undefined) updateData.isOnline = input.isOnline;
 
-    // Validate: if resulting plan would be personalizada but without type, reject
-    const resultIsPersonalizada =
-      input.isPersonalizada !== undefined
-        ? input.isPersonalizada
-        : existing.isPersonalizada;
-    const resultPersonalizadaType =
-      input.personalizadaType !== undefined
-        ? input.personalizadaType
-        : existing.personalizadaType;
-    if (resultIsPersonalizada && !resultPersonalizadaType) {
+    // Validate: if resulting plan would be online but without linked program, reject
+    const resultCategory =
+      input.planCategory !== undefined
+        ? input.planCategory
+        : existing.planCategory;
+    const resultLinkedProgramId =
+      input.linkedProgramId !== undefined
+        ? input.linkedProgramId
+        : existing.linkedProgramId;
+    if (isOnlinePlan(resultCategory) && !resultLinkedProgramId) {
       throw new BadRequestError(
-        "Para planes personalizados se requiere el tipo de personalizada",
+        "Planes online requieren un programa vinculado",
       );
     }
 
@@ -676,17 +665,8 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Auto-assign personalizada from plan type
-    if (plan.isPersonalizada && plan.personalizadaType) {
-      await this.personalizadasService.selectPersonalizada(
-        userId,
-        plan.personalizadaType as PersonalizadaType,
-      );
-      this.log.info(
-        { userId, personalizadaType: plan.personalizadaType },
-        "Auto-assigned personalizada from plan",
-      );
-    }
+    // TODO Plan 06: auto-create program_enrollment from plan.linkedProgramId (D-34/D-39)
+    // When a plan with linkedProgramId is assigned, auto-enroll the member in the linked program.
 
     // Auto-record payment for the subscription
     if (this.paymentService && pricePaid > 0) {
@@ -1157,17 +1137,7 @@ export class SubscriptionService {
         }
       }
 
-      // Auto-assign personalizada from target plan type
-      if (targetPlan.isPersonalizada && targetPlan.personalizadaType) {
-        await this.personalizadasService.selectPersonalizada(
-          userId,
-          targetPlan.personalizadaType as PersonalizadaType,
-        );
-        this.log.info(
-          { userId, personalizadaType: targetPlan.personalizadaType },
-          "Auto-assigned personalizada on plan change",
-        );
-      }
+      // TODO Plan 06: auto-create program_enrollment from targetPlan.linkedProgramId (D-34/D-39)
 
       // Record payment for the net amount
       if (this.paymentService && netAmount > 0) {
@@ -1380,17 +1350,7 @@ export class SubscriptionService {
       }
     }
 
-    // Auto-assign personalizada from plan type (archives old, creates fresh)
-    if (plan.isPersonalizada && plan.personalizadaType) {
-      await this.personalizadasService.selectPersonalizada(
-        userId,
-        plan.personalizadaType as PersonalizadaType,
-      );
-      this.log.info(
-        { userId, personalizadaType: plan.personalizadaType },
-        "Auto-assigned personalizada on renewal",
-      );
-    }
+    // TODO Plan 06: auto-create program_enrollment from plan.linkedProgramId on renewal (D-34/D-39)
 
     // Record payment linked to the NEW subscription
     if (this.paymentService && renewalPrice > 0) {
@@ -1727,10 +1687,9 @@ export class SubscriptionService {
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
-      isPersonalizada: row.isPersonalizada,
-      personalizadaType: row.personalizadaType ?? null,
+      planCategory: row.planCategory,
+      linkedProgramId: row.linkedProgramId ?? null,
       groupMaxMembers: row.groupMaxMembers,
-      isOnline: row.isOnline,
       isActive: row.isActive,
       isArchived: row.isArchived,
       createdAt: row.createdAt.toISOString(),
