@@ -21,8 +21,8 @@ created: 2026-04-04
 | Preset            | not applicable                                                                   |
 | Component library | Quasar (QTable, QTabs, QDialog, QStepper, QBadge, QSelect, QToggle, QBtn, QForm) |
 | Icon library      | Material Icons (via `@quasar/extras`)                                            |
-| Font (body)       | Geologica 400/500/600                                                            |
-| Font (headings)   | Montserrat 600/700/800                                                           |
+| Font (body)       | Geologica 400                                                                    |
+| Font (headings)   | Montserrat 700                                                                   |
 
 ---
 
@@ -44,16 +44,16 @@ Exceptions: none -- all spacing follows Quasar's 4-based scale via utility class
 
 ## Typography
 
-All values follow existing project conventions established in Phase 39. No new font sizes introduced.
+All values follow existing project conventions established in Phase 39. Two weights across the entire spec: Geologica 400 (regular/body) and Montserrat 700 (bold/headings). Four distinct sizes.
 
-| Role                                    | Size | Weight         | Line Height | Font Family |
-| --------------------------------------- | ---- | -------------- | ----------- | ----------- |
-| Body                                    | 14px | Geologica 400  | 1.5         | Geologica   |
-| Label / Caption                         | 13px | Geologica 400  | 1.4         | Geologica   |
-| Section Title                           | 15px | Montserrat 700 | 1.3         | Montserrat  |
-| Subtitle (table headers, form sections) | 14px | Geologica 600  | 1.4         | Geologica   |
-| Page Heading (`text-h5`)                | 20px | Montserrat 700 | 1.2         | Montserrat  |
-| Dialog Title (`text-h6`)                | 18px | Montserrat 600 | 1.2         | Montserrat  |
+| Role                                          | Size | Weight         | Line Height | Font Family |
+| --------------------------------------------- | ---- | -------------- | ----------- | ----------- |
+| Body, Subtitle (table headers, form sections) | 14px | Geologica 400  | 1.5         | Geologica   |
+| Label / Caption                               | 13px | Geologica 400  | 1.4         | Geologica   |
+| Section Title, Dialog Title (`text-h6`)       | 18px | Montserrat 700 | 1.2         | Montserrat  |
+| Page Heading (`text-h5`)                      | 20px | Montserrat 700 | 1.2         | Montserrat  |
+
+**Rationale for 4-size collapse:** The original spec had 13/14/15px which are too close to form a clear hierarchy. Section titles promoted to 18px (same level as dialog titles) to create a visible jump from body text. Subtitles (table headers, form section labels) use 14px Geologica 400 -- distinguished from body content by context, not by a separate weight.
 
 ---
 
@@ -101,9 +101,9 @@ Source: Extends existing `tierColor` pattern in PlanesPage. Uses Quasar named co
 
 ### Admin App -- New Components
 
-| Component           | Description                                                                                                                                                                                                                                                             | Source Decision |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `ProgramasPage.vue` | New admin page for program catalog management. QTable listing programs (name, duration weeks, sessions/week, goalPlanType badge, status, actions). Reuses ProgramWizardDialog for create/edit. No enrollment actions -- enrollment only through plan assignment (D-36). | D-27, D-36      |
+| Component           | Description                                                                                                                                                                                                                                                                                                                                      | Source Decision |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| `ProgramasPage.vue` | New admin page for program catalog management. QTable listing programs (name, duration weeks, sessions/week, goalPlanType badge, status, actions). Reuses ProgramWizardDialog for create/edit. No enrollment actions -- enrollment only through plan assignment (D-36). **Focal point:** the programs QTable, centered in the page content area. | D-27, D-36      |
 
 ### Member App -- Modified Components
 
@@ -122,6 +122,8 @@ Source: Extends existing `tierColor` pattern in PlanesPage. Uses Quasar named co
 **Before:** 3 tabs -- "Planes de Suscripcion" | "Planes Personalizados" | "Promos"
 **After:** 2 tabs -- "Planes" | "Promos"
 
+**Focal point:** The two section tables within the "Planes" tab. The user's eye should land on the Presenciales section header first (top of content), then scan down to the Online section.
+
 The "Planes" tab contains two visual sections, each with its own section header and table:
 
 ```
@@ -138,7 +140,7 @@ Online                                [+ Nuevo Plan Online]
 +-----------------------------------------------------------+
 ```
 
-- Section headers use `text-h6` (Montserrat 600, 18px) with `q-mb-md` spacing below
+- Section headers use Montserrat 700, 18px with `q-mb-md` spacing below
 - Each section has its own "Nuevo Plan" / "Nuevo Plan Online" button aligned right
 - Presenciales table columns: Nombre, Tier (badge), Precio, Duracion, Clases/Sem, Estado, Acciones -- unchanged from current
 - Online table columns: Nombre, Categoria (badge per category colors above), Precio Mensual, Precio Semanal (computed), Programa Vinculado, Duracion, Estado, Acciones
@@ -180,7 +182,7 @@ Opciones
 - `linkedProgramId` QSelect: populated from `GET /admin/programs` endpoint, shows program name + duration
 - When switching category to `presencial`, clear `linkedProgramId`
 - When switching to any `online_*`, auto-hide `classesPerWeek`, `planTier`, `bookingMode`
-- Weekly price display: `text-caption text-grey-7` below the pricing row. Format: `Precio semanal: $XX.XXX/sem`
+- Weekly price display: 13px Geologica 400, `text-grey-7` below the pricing row. Format: `Precio semanal: $XX.XXX/sem`
 
 ### 3. AssignPlanDialog Online Skip (Admin)
 
@@ -192,6 +194,8 @@ When selected plan has `planCategory !== 'presencial'`:
 
 ### 4. ProgramasPage (Admin, New)
 
+**Focal point:** The programs QTable, occupying the main content area. Page heading at top-left, "Nuevo Programa" button at top-right.
+
 Layout matches existing PlanesPage pattern:
 
 ```
@@ -201,7 +205,7 @@ Programas                              [+ Nuevo Programa]
 +-------------------------------------------------------------------+
 ```
 
-- Page heading: `text-h5` "Programas"
+- Page heading: Montserrat 700, 20px "Programas"
 - "Tipo" column: shows goalPlanType as badge when present, or "Contenido" in grey badge when null
 - goalPlanType badge colors: `{ front_lever: 'deep-purple', tren_inferior: 'amber-8', tren_superior: 'blue', empuje: 'teal', traccion: 'orange', planche: 'pink' }`
 - Same QTable config as PlanesPage: `flat bordered`, pagination 50 rows, same action button pattern (edit + deactivate)
@@ -224,6 +228,8 @@ Insert after "Planes" item in the "Gestion" section:
 - Icon: `school` (Material Icons) -- distinguishes from Planes (`card_membership`)
 
 ### 6. Member App Plan Section Rename
+
+**Focal point:** The "Planes Por Objetivos" section heading and plan cards below it.
 
 - Section title: "Planes Personalizados" -> "Planes Por Objetivos"
 - Badge label: "PERSONALIZADO" -> "POR OBJETIVOS" (keep `amber-8` color)
@@ -268,8 +274,8 @@ All UI copy is in Spanish (app language). Source: D-02, D-04, D-24.
 | Member app WhatsApp pre-filled message         | "Hola! Me interesa el plan [Name] ($X/semana). Quiero mas info."                                                  |
 | Member app enrolled badge                      | "Ya estas inscripto" (unchanged)                                                                                  |
 | Member app plans empty state                   | "No hay planes disponibles" (unchanged)                                                                           |
-| Error state (plan loading)                     | "Error cargando planes" (admin) / fails silently with log (member)                                                |
-| Error state (program loading)                  | "Error cargando programas"                                                                                        |
+| Error state (plan loading)                     | "Error cargando planes. Intenta de nuevo." (admin) / fails silently with log (member)                             |
+| Error state (program loading)                  | "Error cargando programas. Intenta de nuevo."                                                                     |
 
 ---
 
