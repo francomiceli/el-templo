@@ -45,8 +45,7 @@ export interface MemberSubscription {
   endDate: string | null
   daysRemaining: number
   pricePaid: number
-  isPersonalizada: boolean
-  personalizadaType: string | null
+  planCategory: string
   multiBranch: boolean
 }
 
@@ -110,9 +109,9 @@ export const useUserStore = defineStore('user', () => {
 
   const onboardingCompleted = computed(() => profile.value?.onboardingCompleted ?? false)
 
-  const hasActivePersonalizada = computed(() => {
-    // Per D-08: program enrollment IS the Personalizadas gate
-    // Replaces previous subscription.isPersonalizada check
+  const hasActiveGoalPlan = computed(() => {
+    // Per D-08: program enrollment IS the goal plan gate
+    // Replaces previous subscription check
     return hasActiveProgramEnrollment.value
   })
 
@@ -188,7 +187,7 @@ export const useUserStore = defineStore('user', () => {
     subscriptionStatusColor,
     segment,
     onboardingCompleted,
-    hasActivePersonalizada,
+    hasActiveGoalPlan,
     hasActiveSubscription,
     branchDisplayName,
     // Actions

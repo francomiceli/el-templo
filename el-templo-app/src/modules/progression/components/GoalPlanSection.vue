@@ -1,28 +1,28 @@
 <template>
-  <div class="personalizada-section">
+  <div class="goal-plan-section">
     <!-- Loading State -->
-    <div v-if="loading" class="personalizada-section__loading">
+    <div v-if="loading" class="goal-plan-section__loading">
       <TemploLoader size="sm" />
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="personalizada-section__error">
+    <div v-else-if="error" class="goal-plan-section__error">
       <q-icon name="error_outline" size="24px" color="grey-6" />
-      <p class="personalizada-section__error-text">{{ error }}</p>
+      <p class="goal-plan-section__error-text">{{ error }}</p>
     </div>
 
     <!-- Content -->
     <template v-else>
-      <!-- Active Personalizada -->
-      <template v-if="activePersonalizada">
+      <!-- Active Goal Plan -->
+      <template v-if="activeGoalPlan">
         <!-- Train CTA Card -->
-        <q-card class="personalizada-section__cta-card" flat bordered>
-          <q-card-section class="personalizada-section__cta-content">
-            <div class="personalizada-section__cta-info">
+        <q-card class="goal-plan-section__cta-card" flat bordered>
+          <q-card-section class="goal-plan-section__cta-content">
+            <div class="goal-plan-section__cta-info">
               <q-icon name="self_improvement" color="secondary" size="40px" />
-              <div class="personalizada-section__cta-text">
-                <p class="personalizada-section__cta-title">Tu Clase Personalizada</p>
-                <p class="personalizada-section__cta-subtitle">{{ activePersonalizadaName }}</p>
+              <div class="goal-plan-section__cta-text">
+                <p class="goal-plan-section__cta-title">Tu Plan Por Objetivos</p>
+                <p class="goal-plan-section__cta-subtitle">{{ activeGoalPlanName }}</p>
               </div>
             </div>
             <q-btn
@@ -38,49 +38,49 @@
         </q-card>
 
         <!-- Description + Zones -->
-        <q-card v-if="activeMetadata" class="personalizada-section__info-card" flat bordered>
+        <q-card v-if="activeMetadata" class="goal-plan-section__info-card" flat bordered>
           <q-card-section>
-            <div class="personalizada-section__info-header">
+            <div class="goal-plan-section__info-header">
               <div>
-                <h3 class="personalizada-section__personalizada-name">
-                  {{ activePersonalizadaName }}
+                <h3 class="goal-plan-section__goal-plan-name">
+                  {{ activeGoalPlanName }}
                 </h3>
                 <q-badge
-                  class="personalizada-section__tier-badge"
-                  :label="activePersonalizadaTierLabel"
+                  class="goal-plan-section__tier-badge"
+                  :label="activeGoalPlanTierLabel"
                 />
               </div>
-              <q-icon name="explore" size="28px" class="personalizada-section__icon" />
+              <q-icon name="explore" size="28px" class="goal-plan-section__icon" />
             </div>
 
-            <p class="personalizada-section__description">
+            <p class="goal-plan-section__description">
               {{ activeMetadata.description }}
             </p>
 
             <!-- Zones chips -->
-            <div class="personalizada-section__zones">
+            <div class="goal-plan-section__zones">
               <q-chip
                 v-for="zone in activeMetadata.zones"
                 :key="zone"
                 dense
-                class="personalizada-section__zone-chip"
+                class="goal-plan-section__zone-chip"
               >
                 {{ zone }}
               </q-chip>
             </div>
 
-            <p v-if="activePersonalizada.startedAt" class="personalizada-section__since">
-              Activo desde {{ formatDate(activePersonalizada.startedAt) }}
+            <p v-if="activeGoalPlan.startedAt" class="goal-plan-section__since">
+              Activo desde {{ formatDate(activeGoalPlan.startedAt) }}
             </p>
 
             <!-- Cycle Progress (only when subscription has durationDays) -->
             <div
               v-if="cycleStats && !cycleStats.cycleComplete"
-              class="personalizada-section__cycle"
+              class="goal-plan-section__cycle"
             >
-              <div class="personalizada-section__cycle-header">
-                <span class="personalizada-section__cycle-week">{{ cycleWeekLabel }}</span>
-                <span class="personalizada-section__cycle-completions">{{ completionLabel }}</span>
+              <div class="goal-plan-section__cycle-header">
+                <span class="goal-plan-section__cycle-week">{{ cycleWeekLabel }}</span>
+                <span class="goal-plan-section__cycle-completions">{{ completionLabel }}</span>
               </div>
               <q-linear-progress
                 :value="cycleProgress"
@@ -88,22 +88,22 @@
                 track-color="grey-3"
                 rounded
                 size="10px"
-                class="personalizada-section__cycle-bar"
+                class="goal-plan-section__cycle-bar"
               />
             </div>
 
             <!-- Per-Duration Semana Progress (always visible, matches post-session resumen) -->
-            <div class="personalizada-section__durations">
-              <div class="personalizada-section__duration-row">
-                <span class="personalizada-section__duration-time"
-                  >20 <span class="personalizada-section__duration-unit">min</span></span
+            <div class="goal-plan-section__durations">
+              <div class="goal-plan-section__duration-row">
+                <span class="goal-plan-section__duration-time"
+                  >20 <span class="goal-plan-section__duration-unit">min</span></span
                 >
-                <div class="personalizada-section__duration-info">
-                  <span class="personalizada-section__duration-label"
-                    >Semana {{ activePersonalizada.semana20 }}</span
+                <div class="goal-plan-section__duration-info">
+                  <span class="goal-plan-section__duration-label"
+                    >Semana {{ activeGoalPlan.semana20 }}</span
                   >
                   <q-linear-progress
-                    :value="activePersonalizada.semana20 / 21"
+                    :value="activeGoalPlan.semana20 / 21"
                     color="secondary"
                     track-color="grey-3"
                     size="6px"
@@ -112,16 +112,16 @@
                   />
                 </div>
               </div>
-              <div class="personalizada-section__duration-row">
-                <span class="personalizada-section__duration-time"
-                  >40 <span class="personalizada-section__duration-unit">min</span></span
+              <div class="goal-plan-section__duration-row">
+                <span class="goal-plan-section__duration-time"
+                  >40 <span class="goal-plan-section__duration-unit">min</span></span
                 >
-                <div class="personalizada-section__duration-info">
-                  <span class="personalizada-section__duration-label"
-                    >Semana {{ activePersonalizada.semana40 }}</span
+                <div class="goal-plan-section__duration-info">
+                  <span class="goal-plan-section__duration-label"
+                    >Semana {{ activeGoalPlan.semana40 }}</span
                   >
                   <q-linear-progress
-                    :value="activePersonalizada.semana40 / 21"
+                    :value="activeGoalPlan.semana40 / 21"
                     color="secondary"
                     track-color="grey-3"
                     size="6px"
@@ -130,16 +130,16 @@
                   />
                 </div>
               </div>
-              <div class="personalizada-section__duration-row">
-                <span class="personalizada-section__duration-time"
-                  >60 <span class="personalizada-section__duration-unit">min</span></span
+              <div class="goal-plan-section__duration-row">
+                <span class="goal-plan-section__duration-time"
+                  >60 <span class="goal-plan-section__duration-unit">min</span></span
                 >
-                <div class="personalizada-section__duration-info">
-                  <span class="personalizada-section__duration-label"
-                    >Semana {{ activePersonalizada.semana60 }}</span
+                <div class="goal-plan-section__duration-info">
+                  <span class="goal-plan-section__duration-label"
+                    >Semana {{ activeGoalPlan.semana60 }}</span
                   >
                   <q-linear-progress
-                    :value="activePersonalizada.semana60 / 21"
+                    :value="activeGoalPlan.semana60 / 21"
                     color="secondary"
                     track-color="grey-3"
                     size="6px"
@@ -153,61 +153,61 @@
             <!-- Cycle Complete Wrap-Up Card -->
             <q-card
               v-if="cycleStats && cycleStats.cycleComplete"
-              class="personalizada-section__wrapup"
+              class="goal-plan-section__wrapup"
               flat
               bordered
             >
               <q-card-section>
-                <div class="personalizada-section__wrapup-header">
+                <div class="goal-plan-section__wrapup-header">
                   <q-icon name="emoji_events" size="36px" color="secondary" />
-                  <h3 class="personalizada-section__wrapup-title">Ciclo Completo!</h3>
+                  <h3 class="goal-plan-section__wrapup-title">Ciclo Completo!</h3>
                 </div>
 
-                <p class="personalizada-section__wrapup-summary">
+                <p class="goal-plan-section__wrapup-summary">
                   Completaste
                   <strong>{{ cycleStats.totalCompletions }} sesiones</strong> en
                   {{ cycleStats.cycleWeeks }} semanas.
                 </p>
 
                 <!-- Duration Breakdown in wrap-up -->
-                <div class="personalizada-section__wrapup-breakdown">
+                <div class="goal-plan-section__wrapup-breakdown">
                   <div
                     v-if="cycleStats.durationBreakdown.d20 > 0"
-                    class="personalizada-section__wrapup-duration"
+                    class="goal-plan-section__wrapup-duration"
                   >
-                    <span class="personalizada-section__wrapup-count">{{
+                    <span class="goal-plan-section__wrapup-count">{{
                       cycleStats.durationBreakdown.d20
                     }}</span>
-                    <span class="personalizada-section__wrapup-label">sesiones de 20 min</span>
+                    <span class="goal-plan-section__wrapup-label">sesiones de 20 min</span>
                   </div>
                   <div
                     v-if="cycleStats.durationBreakdown.d40 > 0"
-                    class="personalizada-section__wrapup-duration"
+                    class="goal-plan-section__wrapup-duration"
                   >
-                    <span class="personalizada-section__wrapup-count">{{
+                    <span class="goal-plan-section__wrapup-count">{{
                       cycleStats.durationBreakdown.d40
                     }}</span>
-                    <span class="personalizada-section__wrapup-label">sesiones de 40 min</span>
+                    <span class="goal-plan-section__wrapup-label">sesiones de 40 min</span>
                   </div>
                   <div
                     v-if="cycleStats.durationBreakdown.d60 > 0"
-                    class="personalizada-section__wrapup-duration"
+                    class="goal-plan-section__wrapup-duration"
                   >
-                    <span class="personalizada-section__wrapup-count">{{
+                    <span class="goal-plan-section__wrapup-count">{{
                       cycleStats.durationBreakdown.d60
                     }}</span>
-                    <span class="personalizada-section__wrapup-label">sesiones de 60 min</span>
+                    <span class="goal-plan-section__wrapup-label">sesiones de 60 min</span>
                   </div>
                 </div>
 
                 <!-- CTA -->
-                <div class="personalizada-section__wrapup-actions">
+                <div class="goal-plan-section__wrapup-actions">
                   <q-btn
                     unelevated
                     no-caps
                     color="secondary"
                     text-color="primary"
-                    class="personalizada-section__wrapup-btn"
+                    class="goal-plan-section__wrapup-btn"
                     label="Consulta en recepcion para renovar"
                     icon="support_agent"
                   />
@@ -217,45 +217,45 @@
           </q-card-section>
         </q-card>
 
-        <!-- Archived Personalizadas (collapsible) -->
+        <!-- Archived Goal Plans (collapsible) -->
         <q-expansion-item
-          v-if="archivedPersonalizadas.length > 0"
+          v-if="archivedGoalPlans.length > 0"
           dense
-          header-class="personalizada-section__archived-header"
-          expand-icon-class="personalizada-section__archived-expand"
+          header-class="goal-plan-section__archived-header"
+          expand-icon-class="goal-plan-section__archived-expand"
         >
           <template #header>
             <q-item-section>
-              <q-item-label class="personalizada-section__archived-title">
-                Historial ({{ archivedPersonalizadas.length }})
+              <q-item-label class="goal-plan-section__archived-title">
+                Historial ({{ archivedGoalPlans.length }})
               </q-item-label>
             </q-item-section>
           </template>
 
-          <div class="personalizada-section__archived-list">
+          <div class="goal-plan-section__archived-list">
             <q-card
-              v-for="(archived, index) in archivedPersonalizadas"
+              v-for="(archived, index) in archivedGoalPlans"
               :key="index"
-              class="personalizada-section__archived-card"
+              class="goal-plan-section__archived-card"
               flat
               bordered
             >
-              <q-card-section class="personalizada-section__archived-content">
-                <div class="personalizada-section__archived-row">
-                  <span class="personalizada-section__archived-name">{{
-                    getPersonalizadaName(archived.personalizadaType)
+              <q-card-section class="goal-plan-section__archived-content">
+                <div class="goal-plan-section__archived-row">
+                  <span class="goal-plan-section__archived-name">{{
+                    getGoalPlanName(archived.goalPlanType)
                   }}</span>
                   <q-badge
-                    class="personalizada-section__archived-tier-badge"
-                    :label="getPersonalizadaTierLabel(archived.personalizadaType)"
+                    class="goal-plan-section__archived-tier-badge"
+                    :label="getGoalPlanTierLabel(archived.goalPlanType)"
                   />
                 </div>
 
-                <p class="personalizada-section__archived-dates">
+                <p class="goal-plan-section__archived-dates">
                   {{ formatDate(archived.startedAt) }} - {{ formatDate(archived.archivedAt) }}
                 </p>
 
-                <p class="personalizada-section__archived-semanas">
+                <p class="goal-plan-section__archived-semanas">
                   20 min: S{{ archived.semana20 }} · 40 min: S{{ archived.semana40 }} · 60 min: S{{
                     archived.semana60
                   }}
@@ -266,14 +266,14 @@
         </q-expansion-item>
       </template>
 
-      <!-- No Active Personalizada - Info -->
-      <q-card v-else class="personalizada-section__prompt-card" flat bordered>
-        <q-card-section class="personalizada-section__prompt-content">
-          <q-icon name="explore" size="40px" class="personalizada-section__prompt-icon" />
-          <h3 class="personalizada-section__prompt-title">Clases Personalizadas</h3>
-          <p class="personalizada-section__prompt-text">
-            Tu plan no incluye una personalizada activa. Consulta en recepcion para conocer los
-            planes de Clases Personalizadas.
+      <!-- No Active Goal Plan - Info -->
+      <q-card v-else class="goal-plan-section__prompt-card" flat bordered>
+        <q-card-section class="goal-plan-section__prompt-content">
+          <q-icon name="explore" size="40px" class="goal-plan-section__prompt-icon" />
+          <h3 class="goal-plan-section__prompt-title">Planes Por Objetivos</h3>
+          <p class="goal-plan-section__prompt-text">
+            Tu plan no incluye un plan por objetivos activo. Consulta en recepcion para conocer los
+            Planes Por Objetivos.
           </p>
         </q-card-section>
       </q-card>
@@ -283,55 +283,54 @@
 
 <script setup lang="ts">
 /**
- * PersonalizadaSection component for Mi Templo Personalizadas tab.
+ * GoalPlanSection component for Mi Templo goal plans tab.
  *
  * Displays:
  * - Train CTA card with action button
- * - Active personalizada info with description, zones, and semana counters
+ * - Active goal plan info with description, zones, and semana counters
  * - Archived history in a collapsible section
- * - Personalizada switching with confirmation dialog
  */
 import { computed } from 'vue'
 import { createLogger } from 'src/utils/logger'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { formatDate } from 'src/utils/format-date'
 import type {
-  PersonalizadaProgress,
-  ArchivedPersonalizada,
-  PersonalizadaMetadata,
-  PersonalizadaTier,
+  GoalPlanProgress,
+  ArchivedGoalPlan,
+  GoalPlanMetadata,
+  GoalPlanTier,
   CycleStats,
-} from 'src/modules/personalizada/types'
+} from 'src/modules/goal-plan/types'
 
-createLogger('PersonalizadaSection')
+createLogger('GoalPlanSection')
 
 const props = defineProps<{
-  activePersonalizada: PersonalizadaProgress | null
-  archivedPersonalizadas: ArchivedPersonalizada[]
-  allMetadata: PersonalizadaMetadata[]
+  activeGoalPlan: GoalPlanProgress | null
+  archivedGoalPlans: ArchivedGoalPlan[]
+  allMetadata: GoalPlanMetadata[]
   cycleStats: CycleStats | null
   loading: boolean
   error: string | null
 }>()
 
-const TIER_LABELS: Record<PersonalizadaTier, string> = {
+const TIER_LABELS: Record<GoalPlanTier, string> = {
   principiante: 'Principiante',
   intermedio: 'Intermedio',
   avanzado: 'Avanzado',
 }
 
 const activeMetadata = computed(() => {
-  if (!props.activePersonalizada) return null
+  if (!props.activeGoalPlan) return null
   return (
-    props.allMetadata.find((m) => m.type === props.activePersonalizada?.personalizadaType) ?? null
+    props.allMetadata.find((m) => m.type === props.activeGoalPlan?.goalPlanType) ?? null
   )
 })
 
-const activePersonalizadaName = computed(() => {
-  return activeMetadata.value?.name ?? props.activePersonalizada?.personalizadaType ?? ''
+const activeGoalPlanName = computed(() => {
+  return activeMetadata.value?.name ?? props.activeGoalPlan?.goalPlanType ?? ''
 })
 
-const activePersonalizadaTierLabel = computed(() => {
+const activeGoalPlanTierLabel = computed(() => {
   if (!activeMetadata.value) return ''
   return TIER_LABELS[activeMetadata.value.tier] ?? ''
 })
@@ -349,16 +348,16 @@ const cycleWeekLabel = computed(() => {
 const completionLabel = computed(() => {
   if (!props.cycleStats) return ''
   const n = props.cycleStats.totalCompletions
-  return `${n} ${n === 1 ? 'sesión completada' : 'sesiones completadas'}`
+  return `${n} ${n === 1 ? 'sesion completada' : 'sesiones completadas'}`
 })
 
-function getPersonalizadaName(personalizadaType: string): string {
-  const meta = props.allMetadata.find((m) => m.type === personalizadaType)
-  return meta?.name ?? personalizadaType
+function getGoalPlanName(goalPlanType: string): string {
+  const meta = props.allMetadata.find((m) => m.type === goalPlanType)
+  return meta?.name ?? goalPlanType
 }
 
-function getPersonalizadaTierLabel(personalizadaType: string): string {
-  const meta = props.allMetadata.find((m) => m.type === personalizadaType)
+function getGoalPlanTierLabel(goalPlanType: string): string {
+  const meta = props.allMetadata.find((m) => m.type === goalPlanType)
   if (!meta) return ''
   return TIER_LABELS[meta.tier] ?? ''
 }
@@ -367,7 +366,7 @@ function getPersonalizadaTierLabel(personalizadaType: string): string {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.personalizada-section {
+.goal-plan-section {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -445,7 +444,7 @@ function getPersonalizadaTierLabel(personalizadaType: string): string {
     margin-bottom: 8px;
   }
 
-  &__personalizada-name {
+  &__goal-plan-name {
     font-family: 'Montserrat', sans-serif;
     font-size: 18px;
     font-weight: 600;
@@ -632,7 +631,7 @@ function getPersonalizadaTierLabel(personalizadaType: string): string {
     border-color: $secondary !important;
   }
 
-  // No Personalizada Prompt
+  // No Goal Plan Prompt
   &__prompt-card {
     background-color: white;
     border-color: rgba($secondary, 0.2);

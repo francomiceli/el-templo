@@ -1,21 +1,19 @@
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import type {
-  PersonalizadaType,
-  PersonalizadaDuration,
-  PersonalizadaMetadata,
-  PersonalizadaProgress,
-  ArchivedPersonalizada,
-  PersonalizadaSessionResponse,
+  GoalPlanType,
+  GoalPlanMetadata,
+  GoalPlanProgress,
+  ArchivedGoalPlan,
+  GoalPlanSessionResponse,
   CycleStats,
 } from '../types'
 
-const log = createLogger('PersonalizadaApi')
+const log = createLogger('GoalPlanApi')
 
 interface SessionCompleteData {
   dayId: string
-  personalizadaType: PersonalizadaType
-  duration: PersonalizadaDuration
+  goalPlanType: GoalPlanType
   date: string
   startedAt: string
   finishedAt: string
@@ -27,16 +25,16 @@ interface SessionCompleteData {
 
 interface SessionCompleteResponse {
   success: boolean
-  progress: PersonalizadaProgress
+  progress: GoalPlanProgress
 }
 
 /**
- * Composable for personalizada API calls.
+ * Composable for goal plan API calls.
  *
- * Handles all HTTP communication with the personalizada endpoints.
+ * Handles all HTTP communication with the goal-plans endpoints.
  * Returns cleanup() per composable convention (no onUnmounted inside).
  */
-export function usePersonalizadaApi() {
+export function useGoalPlanApi() {
   let abortController: AbortController | null = null
 
   function createAbortSignal(): AbortSignal {
@@ -45,23 +43,23 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Fetch static personalizada metadata for all 6 personalizadas.
-   * GET /api/personalizadas/metadata
+   * Fetch static goal plan metadata for all 6 goal plans.
+   * GET /api/goal-plans/metadata
    */
-  async function getMetadata(): Promise<PersonalizadaMetadata[]> {
+  async function getMetadata(): Promise<GoalPlanMetadata[]> {
     try {
-      const response = await api.get<{ personalizadas: PersonalizadaMetadata[] }>(
-        '/personalizadas/metadata',
+      const response = await api.get<{ goalPlans: GoalPlanMetadata[] }>(
+        '/goal-plans/metadata',
         {
           signal: createAbortSignal(),
         },
       )
-      return response.data.personalizadas
+      return response.data.goalPlans
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'CanceledError') {
         return []
       }
-      log.error('Failed to fetch personalizada metadata', {
+      log.error('Failed to fetch goal plan metadata', {
         error: err instanceof Error ? err.message : String(err),
       })
       throw err
@@ -69,13 +67,13 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Fetch the member's active personalizada progress.
-   * GET /api/personalizadas/active
-   * Returns null if no active personalizada.
+   * Fetch the member's active goal plan progress.
+   * GET /api/goal-plans/active
+   * Returns null if no active goal plan.
    */
-  async function getActivePersonalizada(): Promise<PersonalizadaProgress | null> {
+  async function getActiveGoalPlan(): Promise<GoalPlanProgress | null> {
     try {
-      const response = await api.get<PersonalizadaProgress | null>('/personalizadas/active', {
+      const response = await api.get<GoalPlanProgress | null>('/goal-plans/active', {
         signal: createAbortSignal(),
       })
       return response.data
@@ -83,7 +81,7 @@ export function usePersonalizadaApi() {
       if (err instanceof Error && err.name === 'CanceledError') {
         return null
       }
-      log.error('Failed to fetch active personalizada', {
+      log.error('Failed to fetch active goal plan', {
         error: err instanceof Error ? err.message : String(err),
       })
       throw err
@@ -91,12 +89,12 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Fetch archived/completed personalizadas for the member.
-   * GET /api/personalizadas/archived
+   * Fetch archived/completed goal plans for the member.
+   * GET /api/goal-plans/archived
    */
-  async function getArchivedPersonalizadas(): Promise<ArchivedPersonalizada[]> {
+  async function getArchivedGoalPlans(): Promise<ArchivedGoalPlan[]> {
     try {
-      const response = await api.get<ArchivedPersonalizada[]>('/personalizadas/archived', {
+      const response = await api.get<ArchivedGoalPlan[]>('/goal-plans/archived', {
         signal: createAbortSignal(),
       })
       return response.data
@@ -104,7 +102,7 @@ export function usePersonalizadaApi() {
       if (err instanceof Error && err.name === 'CanceledError') {
         return []
       }
-      log.error('Failed to fetch archived personalizadas', {
+      log.error('Failed to fetch archived goal plans', {
         error: err instanceof Error ? err.message : String(err),
       })
       throw err
@@ -112,13 +110,13 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Fetch cycle progress stats for the member's active personalizada.
-   * GET /api/personalizadas/stats
-   * Returns null if no active personalizada.
+   * Fetch cycle progress stats for the member's active goal plan.
+   * GET /api/goal-plans/stats
+   * Returns null if no active goal plan.
    */
   async function getStats(): Promise<CycleStats | null> {
     try {
-      const response = await api.get<{ stats: CycleStats | null }>('/personalizadas/stats', {
+      const response = await api.get<{ stats: CycleStats | null }>('/goal-plans/stats', {
         signal: createAbortSignal(),
       })
       return response.data.stats
@@ -126,7 +124,7 @@ export function usePersonalizadaApi() {
       if (err instanceof Error && err.name === 'CanceledError') {
         return null
       }
-      log.error('Failed to fetch personalizada stats', {
+      log.error('Failed to fetch goal plan stats', {
         error: err instanceof Error ? err.message : String(err),
       })
       throw err
@@ -134,19 +132,18 @@ export function usePersonalizadaApi() {
   }
 
   /**
-   * Fetch a personalizada session for a specific week/day/duration.
-   * GET /api/personalizadas/session
+   * Fetch a goal plan session for a specific week/day.
+   * GET /api/goal-plans/session
    */
   async function getSession(
     week: number,
     day: string,
-    duration: PersonalizadaDuration,
-  ): Promise<PersonalizadaSessionResponse | null> {
+  ): Promise<GoalPlanSessionResponse | null> {
     try {
-      const response = await api.get<PersonalizadaSessionResponse | null>(
-        '/personalizadas/session',
+      const response = await api.get<GoalPlanSessionResponse | null>(
+        '/goal-plans/session',
         {
-          params: { week, day, duration },
+          params: { week, day },
           signal: createAbortSignal(),
         },
       )
@@ -155,28 +152,27 @@ export function usePersonalizadaApi() {
       if (err instanceof Error && err.name === 'CanceledError') {
         return null
       }
-      log.error('Failed to fetch personalizada session', {
+      log.error('Failed to fetch goal plan session', {
         error: err instanceof Error ? err.message : String(err),
         week,
         day,
-        duration,
       })
       throw err
     }
   }
 
   /**
-   * Complete a personalizada session and update progress.
-   * POST /api/personalizadas/complete
+   * Complete a goal plan session and update progress.
+   * POST /api/goal-plans/complete
    */
   async function completeSession(data: SessionCompleteData): Promise<SessionCompleteResponse> {
     try {
-      const response = await api.post<SessionCompleteResponse>('/personalizadas/complete', data, {
+      const response = await api.post<SessionCompleteResponse>('/goal-plans/complete', data, {
         signal: createAbortSignal(),
       })
       return response.data
     } catch (err: unknown) {
-      log.error('Failed to complete personalizada session', {
+      log.error('Failed to complete goal plan session', {
         error: err instanceof Error ? err.message : String(err),
         dayId: data.dayId,
       })
@@ -197,8 +193,8 @@ export function usePersonalizadaApi() {
 
   return {
     getMetadata,
-    getActivePersonalizada,
-    getArchivedPersonalizadas,
+    getActiveGoalPlan,
+    getArchivedGoalPlans,
     getStats,
     getSession,
     completeSession,

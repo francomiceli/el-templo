@@ -3,21 +3,21 @@ import type { ModuleManifest } from '../types'
 import routes from './routes'
 
 /**
- * Personalizada module manifest.
+ * Goal Plan module manifest.
  *
- * Provides personalized session selection and session flow
+ * Provides goal-plan session selection and session flow
  * for zone-focused training paths.
  */
 export const manifest: ModuleManifest = {
-  name: 'personalizada',
-  label: 'Personalizada',
+  name: 'goal-plan',
+  label: 'Por Objetivos',
   icon: 'explore',
-  basePath: '/personalizada',
+  basePath: '/goal-plan',
   routes,
 }
 
 /**
- * Register personalizada module routes under the layout parent.
+ * Register goal-plan module routes under the layout parent.
  *
  * @param router - Vue Router instance
  */

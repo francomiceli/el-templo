@@ -1,13 +1,13 @@
 /**
- * Personalizada types for the member app.
+ * Goal Plan types for the member app.
  *
- * Mirrors API types from el-templo-api/src/modules/personalizadas/types.ts
+ * Mirrors API types from el-templo-api/src/modules/goal-plans/types.ts
  * for frontend consumption.
  */
 
 import type { Block } from '../training/types/session'
 
-export type PersonalizadaType =
+export type GoalPlanType =
   | 'tren_superior'
   | 'tren_inferior'
   | 'empuje'
@@ -15,12 +15,10 @@ export type PersonalizadaType =
   | 'planche'
   | 'front_lever'
 
-export type PersonalizadaTier = 'principiante' | 'intermedio' | 'avanzado'
+export type GoalPlanTier = 'principiante' | 'intermedio' | 'avanzado'
 
-export type PersonalizadaDuration = 20 | 40 | 60
-
-export interface PersonalizadaProgress {
-  personalizadaType: PersonalizadaType
+export interface GoalPlanProgress {
+  goalPlanType: GoalPlanType
   semana20: number
   semana40: number
   semana60: number
@@ -28,8 +26,8 @@ export interface PersonalizadaProgress {
   startedAt: string
 }
 
-export interface ArchivedPersonalizada {
-  personalizadaType: PersonalizadaType
+export interface ArchivedGoalPlan {
+  goalPlanType: GoalPlanType
   semana20: number
   semana40: number
   semana60: number
@@ -37,17 +35,17 @@ export interface ArchivedPersonalizada {
   archivedAt: string
 }
 
-export interface PersonalizadaMetadata {
-  type: PersonalizadaType
+export interface GoalPlanMetadata {
+  type: GoalPlanType
   name: string
-  tier: PersonalizadaTier
+  tier: GoalPlanTier
   description: string
   zones: string[]
   idealFor: string
 }
 
 /**
- * Cycle progress stats from GET /personalizadas/stats.
+ * Cycle progress stats from GET /goal-plans/stats.
  * Derived from subscription plan durationDays and completed sessions.
  */
 export interface CycleStats {
@@ -64,15 +62,15 @@ export interface CycleStats {
 }
 
 /**
- * Personalizada session response from API.
- * Structured like existing Session type but with personalizada context.
+ * Goal plan session response from API.
+ * Structured like existing Session type but with goal plan context.
  */
-export interface PersonalizadaSessionResponse {
+export interface GoalPlanSessionResponse {
   dayId: string
   week: number
   day: string
   levelGroup: string
-  personalizadaType: PersonalizadaType
+  goalPlanType: GoalPlanType
   blockCount: number
   blocks: Block[]
 }

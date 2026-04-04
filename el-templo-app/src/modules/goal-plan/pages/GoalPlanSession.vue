@@ -1,5 +1,5 @@
 <template>
-  <q-page class="personalizada-session">
+  <q-page class="goal-plan-session">
     <!-- Initial Splash Screen -->
     <SplashScreen
       v-if="showSplash && session"
@@ -36,41 +36,38 @@
       @finish="onSummaryFinish"
     />
 
-    <!-- Personalizada Progress Indicator -->
-    <PersonalizadaProgressIndicator
+    <!-- Goal Plan Progress Indicator -->
+    <GoalPlanProgressIndicator
       v-else-if="
         showProgress &&
-        personalizadaStore.activePersonalizada &&
-        personalizadaStore.activePersonalizadaName
+        goalPlanStore.activeGoalPlan &&
+        goalPlanStore.activeGoalPlanName
       "
-      :personalizada-name="personalizadaStore.activePersonalizadaName"
-      :progress="personalizadaStore.activePersonalizada"
-      :completed-duration="selectedDuration!"
+      :goal-plan-name="goalPlanStore.activeGoalPlanName"
+      :progress="goalPlanStore.activeGoalPlan"
       @continue="onProgressContinue"
     />
 
     <!-- Loading State -->
-    <div v-else-if="isLoading" class="personalizada-session__loading flex flex-center">
+    <div v-else-if="isLoading" class="goal-plan-session__loading flex flex-center">
       <TemploLoader size="lg" />
     </div>
 
     <!-- No Session State -->
-    <div v-else-if="!session" class="personalizada-session__empty flex flex-center column">
+    <div v-else-if="!session" class="goal-plan-session__empty flex flex-center column">
       <q-icon name="event_busy" size="80px" color="grey-4" />
-      <div class="text-h6 text-grey-6 q-mt-md">No hay sesión disponible</div>
+      <div class="text-h6 text-grey-6 q-mt-md">No hay sesion disponible</div>
       <p class="text-grey-5 text-center q-px-lg">
-        Es posible que no se hayan generado sesiones para esta semana. Intentá más tarde.
+        Es posible que no se hayan generado sesiones para esta semana. Intenta mas tarde.
       </p>
       <q-btn flat color="primary" label="Volver" class="q-mt-lg" @click="navigateBack" />
     </div>
 
     <!-- Main Player Content -->
     <template v-else-if="session && player && !showCelebration && !showSummary && !showProgress">
-      <!-- Personalizada Header Badge -->
-      <div class="personalizada-session__badge">
-        <span class="badge-name">{{ personalizadaStore.activePersonalizadaName }}</span>
-        <span class="badge-separator">&middot;</span>
-        <span class="badge-duration">{{ selectedDuration }} min</span>
+      <!-- Goal Plan Header Badge -->
+      <div class="goal-plan-session__badge">
+        <span class="badge-name">{{ goalPlanStore.activeGoalPlanName }}</span>
       </div>
 
       <!-- Block Progression View (reused from training) -->
@@ -102,30 +99,29 @@ import CelebrationScreen from '../../training/components/player/CelebrationScree
 import SessionSummary from '../../training/components/player/SessionSummary.vue'
 import BlockProgressionView from '../../training/components/BlockProgressionView.vue'
 
-// Personalizada components
-import PersonalizadaProgressIndicator from '../components/PersonalizadaProgressIndicator.vue'
+// Goal plan components
+import GoalPlanProgressIndicator from '../components/GoalPlanProgressIndicator.vue'
 
 // Composables and stores
-import { usePersonalizadaSession } from '../composables/usePersonalizadaSession'
+import { useGoalPlanSession } from '../composables/useGoalPlanSession'
 import { useWakeLock } from '../../training/composables/useWakeLock'
-import { usePersonalizadaStore } from '../stores/personalizadaStore'
+import { useGoalPlanStore } from '../stores/goalPlanStore'
 import { createLogger } from 'src/utils/logger'
 import TemploLoader from 'src/components/TemploLoader.vue'
 
 import { getQuoteForBlock } from '../../training/data/quotes'
 import type { Quote } from '../../training/data/quotes'
-import type { PersonalizadaSessionResponse } from '../types'
+import type { GoalPlanSessionResponse } from '../types'
 
-const log = createLogger('PersonalizadaSession')
+const log = createLogger('GoalPlanSession')
 
 const router = useRouter()
 const $q = useQuasar()
-const personalizadaStore = usePersonalizadaStore()
+const goalPlanStore = useGoalPlanStore()
 const wakeLock = useWakeLock()
 
-// --- Guard: Redirect if no active personalizada or no duration selected ---
-const selectedDuration = computed(() => personalizadaStore.selectedDuration)
-const session = ref<PersonalizadaSessionResponse | null>(null)
+// --- Guard: Redirect if no active goal plan ---
+const session = ref<GoalPlanSessionResponse | null>(null)
 const isLoading = ref(true)
 const isSubmitting = ref(false)
 
@@ -168,15 +164,15 @@ const todaySpanishDay = computed(() => {
   return SPANISH_DAYS[new Date().getDay()] ?? 'lunes'
 })
 
-// Player composable (created when session/duration change, via shallowRef + watch
+// Player composable (created when session changes, via shallowRef + watch
 // to avoid the composable-inside-computed anti-pattern which leaks reactive instances)
-const player = shallowRef<ReturnType<typeof usePersonalizadaSession> | null>(null)
+const player = shallowRef<ReturnType<typeof useGoalPlanSession> | null>(null)
 
 watch(
-  [() => session.value, () => selectedDuration.value] as const,
-  ([newSession, newDuration]) => {
-    if (newSession && newDuration) {
-      player.value = usePersonalizadaSession(newSession, newDuration)
+  () => session.value,
+  (newSession) => {
+    if (newSession) {
+      player.value = useGoalPlanSession(newSession)
     } else {
       player.value = null
     }
@@ -200,7 +196,7 @@ const dayLabel = computed(() => {
 
 const splashInfo = computed(() => ({
   day: todaySpanishDay.value,
-  level: '', // Personalizada sessions don't use level display in splash
+  level: '', // Goal plan sessions don't use level display in splash
 }))
 
 // Bridge player state to sub-components (null-safe accessors)
@@ -295,7 +291,7 @@ async function onBlockComplete(): Promise<void> {
   let actionLabel = 'Siguiente Bloque'
 
   if (isLastBlock) {
-    actionLabel = 'Finalizar Sesión'
+    actionLabel = 'Finalizar Sesion'
   } else {
     const nb = p.visibleBlocks.value[p.currentBlockIndex.value + 1]
     if (nb) {
@@ -308,12 +304,12 @@ async function onBlockComplete(): Promise<void> {
 
   // Check if session is now complete
   if (p.isSessionComplete.value) {
-    // Show transition with "Finalizar Sesión", then celebration
+    // Show transition with "Finalizar Sesion", then celebration
     pendingCelebration.value = true
     transitionCompletedBlock.value = completedName
     transitionMobilityName.value = mobilityName
     transitionQuote.value = getQuoteForBlock(completedBlockIndex, dayOffset.value)
-    transitionActionLabel.value = 'Finalizar Sesión'
+    transitionActionLabel.value = 'Finalizar Sesion'
     showBlockTransition.value = true
     await wakeLock.releaseWakeLock()
     return
@@ -328,13 +324,12 @@ async function onBlockComplete(): Promise<void> {
 }
 
 async function onSummaryFinish(data: { rpe: number | null; notes: string | null }): Promise<void> {
-  if (!session.value || !player.value || !selectedDuration.value) return
+  if (!session.value || !player.value) return
 
   isSubmitting.value = true
   try {
-    const success = await personalizadaStore.completePersonalizadaSession({
+    const success = await goalPlanStore.completeGoalPlanSession({
       dayId: session.value.dayId,
-      duration: selectedDuration.value,
       date: todayDate.value,
       startedAt: sessionStartedAt.value ?? new Date().toISOString(),
       blocksCompleted: player.value.completedBlocks.value,
@@ -367,12 +362,12 @@ function onProgressContinue(): void {
 }
 
 function navigateBack(): void {
-  router.push({ name: 'personalizada-duration' })
+  router.push('/training')
 }
 
 const exitDialogOpts = {
-  title: 'Salir de la sesión?',
-  message: 'Tu progreso se guardará y podrás continuar después.',
+  title: 'Salir de la sesion?',
+  message: 'Tu progreso se guardara y podras continuar despues.',
   cancel: { label: 'Cancelar', flat: true },
   ok: { label: 'Salir', color: 'negative', flat: true },
   persistent: true,
@@ -396,8 +391,8 @@ async function handleBackNavigation(): Promise<void> {
 
 async function restartSession(): Promise<void> {
   $q.dialog({
-    title: 'Reiniciar Sesión',
-    message: 'Se perderá todo el progreso actual. Estás seguro?',
+    title: 'Reiniciar Sesion',
+    message: 'Se perdera todo el progreso actual. Estas seguro?',
     cancel: { label: 'Cancelar', flat: true },
     ok: { label: 'Reiniciar', color: 'negative' },
     persistent: true,
@@ -433,37 +428,29 @@ onBeforeRouteLeave((_to, _from, next) => {
 // --- Session Loading ---
 
 async function loadSession(): Promise<void> {
-  // Guard: must have active personalizada and selected duration
-  if (!personalizadaStore.hasActivePersonalizada) {
-    await personalizadaStore.fetchActivePersonalizada()
-    if (!personalizadaStore.hasActivePersonalizada) {
-      log.warn('No active personalizada, redirecting to training')
+  // Guard: must have active goal plan
+  if (!goalPlanStore.hasActiveGoalPlan) {
+    await goalPlanStore.fetchActiveGoalPlan()
+    if (!goalPlanStore.hasActiveGoalPlan) {
+      log.warn('No active goal plan, redirecting to training')
       void router.replace({ name: 'training' })
       return
     }
   }
 
-  if (!selectedDuration.value) {
-    log.warn('No duration selected, redirecting to duration picker')
-    void router.replace({ name: 'personalizada-duration' })
-    return
-  }
-
   // Determine current week from the gym-wide SPOM week
-  // Use the personalizadaStore.currentWeek if already set, otherwise default to 1
-  const week = personalizadaStore.currentWeek
+  const week = goalPlanStore.currentWeek
 
   try {
     isLoading.value = true
-    await personalizadaStore.fetchSession(week, todaySpanishDay.value)
-    session.value = personalizadaStore.currentSession
+    await goalPlanStore.fetchSession(week, todaySpanishDay.value)
+    session.value = goalPlanStore.currentSession
 
     if (session.value) {
-      personalizadaStore.setCurrentWeek(session.value.week)
-      log.debug('Personalizada session loaded', {
+      goalPlanStore.setCurrentWeek(session.value.week)
+      log.debug('Goal plan session loaded', {
         dayId: session.value.dayId,
         blockCount: session.value.blocks.length,
-        duration: selectedDuration.value,
       })
     } else {
       log.warn('No session found for current week/day', {
@@ -472,7 +459,7 @@ async function loadSession(): Promise<void> {
       })
     }
   } catch (err: unknown) {
-    log.error('Failed to load personalizada session', {
+    log.error('Failed to load goal plan session', {
       error: err instanceof Error ? err.message : String(err),
     })
   } finally {
@@ -508,9 +495,9 @@ onMounted(() => {
   void loadSession()
   wakeLock.initialize()
 
-  // Ensure metadata is loaded for personalizada name display
-  if (personalizadaStore.personalizadaMetadata.length === 0) {
-    void personalizadaStore.fetchMetadata()
+  // Ensure metadata is loaded for goal plan name display
+  if (goalPlanStore.goalPlanMetadata.length === 0) {
+    void goalPlanStore.fetchMetadata()
   }
 })
 
@@ -523,14 +510,14 @@ onUnmounted(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.personalizada-session {
+.goal-plan-session {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: $cream;
 }
 
-.personalizada-session__badge {
+.goal-plan-session__badge {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -547,19 +534,8 @@ onUnmounted(() => {
   color: #4a4a4a;
 }
 
-.badge-separator {
-  color: #c27a5d;
-  font-weight: 600;
-}
-
-.badge-duration {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #c27a5d;
-}
-
-.personalizada-session__loading,
-.personalizada-session__empty {
+.goal-plan-session__loading,
+.goal-plan-session__empty {
   flex: 1;
   padding: 24px;
 }
