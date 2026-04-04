@@ -35,6 +35,7 @@ const planSchema = {
       enum: ["presencial", "online_regular", "online_goal", "online_coach"],
     },
     goalPlanType: { type: ["string", "null"] },
+    linkedProgramId: { type: ["integer", "null"] },
     groupMaxMembers: { type: ["integer", "null"] },
     isActive: { type: "boolean" },
     isArchived: { type: "boolean" },
@@ -169,7 +170,14 @@ export const createPlanSchema = {
       },
       goalPlanType: {
         type: "string",
-        enum: ["presencial", "online_regular", "online_goal", "online_coach"],
+        enum: [
+          "tren_superior",
+          "tren_inferior",
+          "empuje",
+          "traccion",
+          "planche",
+          "front_lever",
+        ],
       },
       linkedProgramId: { type: "integer" },
       groupMaxMembers: { type: "integer", minimum: 1 },

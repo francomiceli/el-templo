@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, ne, desc, sql, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { AuraService, InsufficientBalanceError } from "../aura";
@@ -38,7 +38,7 @@ import type {
   CreatePromoInput,
   UpdatePromoInput,
 } from "./types";
-import { AURA_DISCOUNT_TIERS } from "./types";
+import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
 import type { PaymentService } from "../payments/service";
 import { GoalPlanService } from "../goal-plans/service";
 import { ALL_GOAL_PLAN_TYPES } from "../goal-plans/constants";
@@ -147,6 +147,7 @@ export class SubscriptionService {
       goalPlanType: input.planCategory === "online_goal"
         ? (input.goalPlanType ?? null)
         : null,
+      linkedProgramId: input.linkedProgramId ?? null,
       groupMaxMembers: input.groupMaxMembers ?? null,
     });
 
@@ -192,6 +193,8 @@ export class SubscriptionService {
       updateData.planCategory = input.planCategory;
     if (input.goalPlanType !== undefined)
       updateData.goalPlanType = input.goalPlanType;
+    if (input.linkedProgramId !== undefined)
+      updateData.linkedProgramId = input.linkedProgramId;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
 
@@ -454,11 +457,35 @@ export class SubscriptionService {
       throw new BadRequestError("No se puede asignar un plan archivado");
     }
 
-    // Check no existing active/paused subscription
-    const existingSub = await this.getMemberSubscription(userId);
-    if (existingSub) {
+    // Check no existing active/paused subscription in the same category group (D-35)
+    // A member CAN have one presencial + one online simultaneously
+    // A member CANNOT have two presencial or two online simultaneously
+    const planIsOnline = isOnlinePlan(plan.planCategory);
+    const existingInSameGroup = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+          planIsOnline
+            ? ne(schema.subscriptionPlans.planCategory, "presencial")
+            : eq(schema.subscriptionPlans.planCategory, "presencial"),
+        ),
+      );
+
+    if (existingInSameGroup.length > 0) {
       throw new ConflictError(
-        "El miembro ya tiene una suscripcion activa o pausada",
+        planIsOnline
+          ? "El miembro ya tiene una suscripcion online activa"
+          : "El miembro ya tiene una suscripcion presencial activa",
       );
     }
 
@@ -683,6 +710,38 @@ export class SubscriptionService {
       this.log.info(
         { userId, goalPlanType: plan.goalPlanType },
         "Auto-assigned goal plan from plan",
+      );
+    }
+
+    // Auto-create program enrollment if plan has linked program (D-34/D-39)
+    if (plan.linkedProgramId) {
+      // Cancel any existing active enrollment for this user in this program
+      await this.db
+        .update(schema.programEnrollments)
+        .set({ status: "cancelled", cancelledAt: new Date() })
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.programId, plan.linkedProgramId),
+            eq(schema.programEnrollments.status, "active"),
+          ),
+        );
+
+      // Create new enrollment
+      await this.db.insert(schema.programEnrollments).values({
+        userId,
+        programId: plan.linkedProgramId,
+        status: "active",
+        currentWeek: 1,
+        sessionsCompletedThisWeek: 0,
+        weekUnlockedAt: new Date(),
+        paymentAmount: null,
+        paymentMethod: null,
+      });
+
+      this.log.info(
+        { userId, programId: plan.linkedProgramId },
+        "Auto-created program enrollment from plan assignment",
       );
     }
 
@@ -1167,6 +1226,47 @@ export class SubscriptionService {
         );
       }
 
+      // Cancel old program enrollment if old plan had a linked program
+      if (currentPlan.linkedProgramId) {
+        await this.db
+          .update(schema.programEnrollments)
+          .set({ status: "cancelled", cancelledAt: new Date() })
+          .where(
+            and(
+              eq(schema.programEnrollments.userId, userId),
+              eq(
+                schema.programEnrollments.programId,
+                currentPlan.linkedProgramId,
+              ),
+              eq(schema.programEnrollments.status, "active"),
+            ),
+          );
+
+        this.log.info(
+          { userId, programId: currentPlan.linkedProgramId },
+          "Cancelled program enrollment from old plan on plan change",
+        );
+      }
+
+      // Create new program enrollment if new plan has a linked program
+      if (targetPlan.linkedProgramId) {
+        await this.db.insert(schema.programEnrollments).values({
+          userId,
+          programId: targetPlan.linkedProgramId,
+          status: "active",
+          currentWeek: 1,
+          sessionsCompletedThisWeek: 0,
+          weekUnlockedAt: new Date(),
+          paymentAmount: null,
+          paymentMethod: null,
+        });
+
+        this.log.info(
+          { userId, programId: targetPlan.linkedProgramId },
+          "Auto-created program enrollment from plan change",
+        );
+      }
+
       // Record payment for the net amount
       if (this.paymentService && netAmount > 0) {
         await this.paymentService.recordPayment(
@@ -1388,6 +1488,39 @@ export class SubscriptionService {
         { userId, goalPlanType: plan.goalPlanType },
         "Auto-assigned goal plan on renewal",
       );
+    }
+
+    // Handle program enrollment on renewal
+    if (plan.linkedProgramId) {
+      const existingEnrollment = await this.db
+        .select({ id: schema.programEnrollments.id })
+        .from(schema.programEnrollments)
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.programId, plan.linkedProgramId),
+            eq(schema.programEnrollments.status, "active"),
+          ),
+        );
+
+      // Only create new enrollment if no active one exists
+      if (existingEnrollment.length === 0) {
+        await this.db.insert(schema.programEnrollments).values({
+          userId,
+          programId: plan.linkedProgramId,
+          status: "active",
+          currentWeek: 1,
+          sessionsCompletedThisWeek: 0,
+          weekUnlockedAt: new Date(),
+          paymentAmount: null,
+          paymentMethod: null,
+        });
+
+        this.log.info(
+          { userId, programId: plan.linkedProgramId },
+          "Auto-created program enrollment on renewal",
+        );
+      }
     }
 
     // Record payment linked to the NEW subscription
@@ -1727,6 +1860,7 @@ export class SubscriptionService {
       isGroup: row.isGroup,
       planCategory: row.planCategory as import("./types").PlanCategory,
       goalPlanType: row.goalPlanType ?? null,
+      linkedProgramId: row.linkedProgramId ?? null,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
       isArchived: row.isArchived,

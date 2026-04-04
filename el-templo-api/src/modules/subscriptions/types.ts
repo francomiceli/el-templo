@@ -49,22 +49,6 @@ export const AURA_DISCOUNT_TIERS: readonly AuraDiscountTier[] = [
   { spend: 5000, percent: 30 },
 ] as const;
 
-// ─── Plan Category ──────────────────────────────────────────────────────────
-
-export type PlanCategory =
-  | "presencial"
-  | "online_regular"
-  | "online_goal"
-  | "online_coach";
-
-export function isOnlinePlan(category: PlanCategory): boolean {
-  return category !== "presencial";
-}
-
-export function isGoalPlan(category: PlanCategory): boolean {
-  return category === "online_goal";
-}
-
 // ─── Plan Types ─────────────────────────────────────────────────────────────
 
 export interface PlanListItem {
@@ -83,6 +67,7 @@ export interface PlanListItem {
   isGroup: boolean;
   planCategory: PlanCategory;
   goalPlanType: string | null;
+  linkedProgramId: number | null;
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -121,6 +106,7 @@ export interface CreatePlanInput {
   isGroup?: boolean;
   planCategory?: PlanCategory;
   goalPlanType?: string;
+  linkedProgramId?: number;
   groupMaxMembers?: number;
 }
 
@@ -139,6 +125,7 @@ export interface UpdatePlanInput {
   isGroup?: boolean;
   planCategory?: PlanCategory;
   goalPlanType?: string | null;
+  linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
 }
 
