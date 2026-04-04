@@ -41,6 +41,17 @@
               dense
               outlined
             />
+            <q-select
+              v-model="form.goalPlanType"
+              :options="GOAL_PLAN_TYPE_OPTIONS"
+              label="Tipo de Plan por Objetivos"
+              dense
+              outlined
+              emit-value
+              map-options
+              clearable
+              hint="Dejar vacio para programas de contenido"
+            />
           </div>
 
           <q-stepper-navigation>
@@ -320,6 +331,14 @@
                   <span class="text-weight-medium col-4">Nombre:</span>
                   <span class="col">{{ form.name || '—' }}</span>
                 </div>
+                <div v-if="form.goalPlanType" class="row">
+                  <span class="text-weight-medium col-4">Tipo:</span>
+                  <span class="col">{{ GOAL_PLAN_TYPE_OPTIONS.find(o => o.value === form.goalPlanType)?.label ?? form.goalPlanType }}</span>
+                </div>
+                <div v-else class="row">
+                  <span class="text-weight-medium col-4">Tipo:</span>
+                  <span class="col text-grey-6">Contenido</span>
+                </div>
                 <div class="row">
                   <span class="text-weight-medium col-4">Precio:</span>
                   <span class="col">${{ (form.price ?? 0).toLocaleString() }}</span>
@@ -380,6 +399,7 @@ import {
   type ContentBlockInput,
   type ContentBlockType,
 } from 'src/types/program';
+import { GOAL_PLAN_TYPE_OPTIONS } from 'src/types/goal-plan';
 
 const log = createLogger('ProgramWizardDialog');
 const $q = useQuasar();
@@ -411,6 +431,7 @@ const isEditMode = computed(() => !!props.editingProgram);
 const form = ref({
   name: '',
   description: '',
+  goalPlanType: null as string | null,
   price: null as number | null,
   durationWeeks: null as number | null,
   sessionsPerWeekToAdvance: 3,
@@ -638,6 +659,7 @@ watch(
       form.value = {
         name: props.editingProgram.name,
         description: props.editingProgram.description ?? '',
+        goalPlanType: (props.editingProgram as Record<string, unknown>).goalPlanType as string | null ?? null,
         price: props.editingProgram.price,
         durationWeeks: props.editingProgram.durationWeeks,
         sessionsPerWeekToAdvance: props.editingProgram.sessionsPerWeekToAdvance,
@@ -659,6 +681,7 @@ watch(
       form.value = {
         name: '',
         description: '',
+        goalPlanType: null,
         price: null,
         durationWeeks: null,
         sessionsPerWeekToAdvance: 3,
@@ -684,11 +707,12 @@ async function onSubmit() {
       await programsApi.updateProgram(props.editingProgram.id, {
         name: form.value.name,
         description: form.value.description || null,
+        goalPlanType: form.value.goalPlanType,
         price: form.value.price!,
         sessionsPerWeekToAdvance: form.value.sessionsPerWeekToAdvance,
         auraWeeklyBonus: form.value.auraWeeklyBonus,
         auraCompletionBonus: form.value.auraCompletionBonus,
-      });
+      } as Partial<MicroProgram> & { goalPlanType?: string | null });
 
       // Update content blocks
       if (contentBlocks.value.length > 0) {
@@ -708,7 +732,8 @@ async function onSubmit() {
         auraWeeklyBonus: form.value.auraWeeklyBonus,
         auraCompletionBonus: form.value.auraCompletionBonus,
         contentBlocks: contentBlocks.value,
-      });
+        goalPlanType: form.value.goalPlanType,
+      } as Parameters<typeof programsApi.createProgram>[0] & { goalPlanType?: string | null });
     }
 
     $q.notify({ type: 'positive', message: 'Programa guardado correctamente' });
