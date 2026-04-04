@@ -731,6 +731,7 @@ async function main(): Promise<void> {
           .insert(subscriptionPlans)
           .values({
             name: legacyName,
+            planCategory: "presencial",
             planTier: "other",
             bookingMode: "flexible",
             priceRegular: 0,

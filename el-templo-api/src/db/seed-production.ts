@@ -137,6 +137,7 @@ async function seedProduction() {
         name: "Flex",
         description:
           "Turnos fijos en una sede. Incluye 2 sesiones de regalo en tu primer mes.",
+        planCategory: "presencial" as const,
         planTier: "flex" as const,
         bookingMode: "fixed" as const,
         priceRegular: 80000,
@@ -151,6 +152,7 @@ async function seedProduction() {
         name: "Flex+",
         description:
           "Turnos fijos o libres en una sede. Incluye acceso a clases ROM los sabados.",
+        planCategory: "presencial" as const,
         planTier: "flex" as const,
         bookingMode: "flexible" as const,
         priceRegular: 100000,
@@ -165,6 +167,7 @@ async function seedProduction() {
         name: "Foundation",
         description:
           "Turnos fijos en una sede. Compromiso de 4 meses con 2 sesiones de regalo.",
+        planCategory: "presencial" as const,
         planTier: "foundation" as const,
         bookingMode: "fixed" as const,
         priceRegular: 250000,
@@ -179,6 +182,7 @@ async function seedProduction() {
         name: "Foundation+",
         description:
           "Turnos fijos o libres con acceso a todas las sedes. Incluye clases ROM los sabados.",
+        planCategory: "presencial" as const,
         planTier: "foundation" as const,
         bookingMode: "flexible" as const,
         priceRegular: 350000,
@@ -193,6 +197,7 @@ async function seedProduction() {
         name: "Performance",
         description:
           "Nuestro plan mas completo. Turnos fijos o libres en todas las sedes con acceso a ROM y eventos exclusivos.",
+        planCategory: "presencial" as const,
         planTier: "performance" as const,
         bookingMode: "flexible" as const,
         priceRegular: 600000,
@@ -206,6 +211,7 @@ async function seedProduction() {
       {
         name: "Sesión de Prueba",
         description: "Sesion de prueba gratuita para conocer El Templo.",
+        planCategory: "presencial" as const,
         planTier: "other" as const,
         bookingMode: "flexible" as const,
         priceRegular: 0,
