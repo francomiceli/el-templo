@@ -23,6 +23,7 @@ export const microPrograms = mysqlTable("micro_programs", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 150 }).notNull(),
   description: text("description"),
+  goalPlanType: varchar("goal_plan_type", { length: 30 }),
   price: int("price").notNull(),
   durationWeeks: int("duration_weeks").notNull(),
   sessionsPerWeekToAdvance: int("sessions_per_week_to_advance")
