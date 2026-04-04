@@ -1,4 +1,4 @@
-export type PersonalizadaType =
+export type GoalPlanType =
   | 'tren_superior'
   | 'tren_inferior'
   | 'empuje'
@@ -6,35 +6,33 @@ export type PersonalizadaType =
   | 'planche'
   | 'front_lever';
 
-export type PersonalizadaTier = 'principiante' | 'intermedio' | 'avanzado';
+export type GoalPlanTier = 'principiante' | 'intermedio' | 'avanzado';
 
-export type PersonalizadaDuration = 20 | 40 | 60;
-
-export interface PersonalizadaMetadata {
-  type: PersonalizadaType;
+export interface GoalPlanMetadata {
+  type: GoalPlanType;
   name: string;
-  tier: PersonalizadaTier;
+  tier: GoalPlanTier;
   description: string;
   zones: string[];
   idealFor: string;
 }
 
-export interface MemberPersonalizadaInfo {
+export interface MemberGoalPlanInfo {
   userId: number;
   email: string;
   firstName: string | null;
   lastName: string | null;
   level: string;
   branchName: string;
-  personalizadaType: PersonalizadaType | null;
-  personalizadaName: string | null;
+  goalPlanType: GoalPlanType | null;
+  goalPlanName: string | null;
   semana20: number | null;
   semana40: number | null;
   semana60: number | null;
   startedAt: string | null;
 }
 
-export interface MemberPersonalizadaDetail {
+export interface MemberGoalPlanDetail {
   user: {
     firstName: string | null;
     lastName: string | null;
@@ -42,7 +40,7 @@ export interface MemberPersonalizadaDetail {
     branchName: string;
   };
   active: {
-    personalizadaType: PersonalizadaType;
+    goalPlanType: GoalPlanType;
     semana20: number;
     semana40: number;
     semana60: number;
@@ -50,7 +48,7 @@ export interface MemberPersonalizadaDetail {
     startedAt: string;
   } | null;
   archived: Array<{
-    personalizadaType: PersonalizadaType;
+    goalPlanType: GoalPlanType;
     semana20: number;
     semana40: number;
     semana60: number;
@@ -62,7 +60,7 @@ export interface MemberPersonalizadaDetail {
     totalDays: number;
     currentStreak: number;
   };
-  personalizadaStats: {
+  goalPlanStats: {
     totalSessions: number;
     byDuration: {
       d20: number;
@@ -73,7 +71,7 @@ export interface MemberPersonalizadaDetail {
   completions: Array<{
     dayId: string;
     date: string;
-    personalizadaType: PersonalizadaType | null;
+    goalPlanType: GoalPlanType | null;
     duration: number | null;
     rpe: number | null;
     blocksCompleted: string[];
@@ -81,12 +79,12 @@ export interface MemberPersonalizadaDetail {
   }>;
 }
 
-export interface PersonalizadaGenerateResult {
+export interface GoalPlanGenerateResult {
   generated: number;
   skipped: number;
 }
 
-export const ALL_PERSONALIZADA_TYPES: PersonalizadaType[] = [
+export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   'tren_superior',
   'tren_inferior',
   'empuje',
@@ -95,7 +93,7 @@ export const ALL_PERSONALIZADA_TYPES: PersonalizadaType[] = [
   'front_lever',
 ];
 
-export const PERSONALIZADA_TIER_MAP: Record<PersonalizadaType, PersonalizadaTier> = {
+export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
   tren_superior: 'principiante',
   tren_inferior: 'principiante',
   empuje: 'intermedio',
@@ -104,7 +102,7 @@ export const PERSONALIZADA_TIER_MAP: Record<PersonalizadaType, PersonalizadaTier
   front_lever: 'avanzado',
 };
 
-export const PERSONALIZADA_TYPE_LABELS: Record<PersonalizadaType, string> = {
+export const GOAL_PLAN_TYPE_LABELS: Record<GoalPlanType, string> = {
   tren_superior: 'Tren Superior',
   tren_inferior: 'Tren Inferior',
   empuje: 'Empuje',
@@ -113,15 +111,35 @@ export const PERSONALIZADA_TYPE_LABELS: Record<PersonalizadaType, string> = {
   front_lever: 'Front Lever',
 };
 
-export const PERSONALIZADA_TIER_LABELS: Record<PersonalizadaTier, string> = {
+export const GOAL_PLAN_TIER_LABELS: Record<GoalPlanTier, string> = {
   principiante: 'Principiante',
   intermedio: 'Intermedio',
   avanzado: 'Avanzado',
 };
 
-/** Color for personalizada type badges, grouped by tier */
-export const PERSONALIZADA_TIER_COLORS: Record<PersonalizadaTier, string> = {
+/** Color for goal plan type badges, grouped by tier */
+export const GOAL_PLAN_TIER_COLORS: Record<GoalPlanTier, string> = {
   principiante: 'brown-4',
   intermedio: 'deep-orange',
   avanzado: 'deep-orange-9',
+};
+
+/** Goal plan type options for QSelect dropdowns */
+export const GOAL_PLAN_TYPE_OPTIONS = [
+  { label: 'Front Lever', value: 'front_lever' },
+  { label: 'Tren Inferior', value: 'tren_inferior' },
+  { label: 'Tren Superior', value: 'tren_superior' },
+  { label: 'Empuje', value: 'empuje' },
+  { label: 'Traccion', value: 'traccion' },
+  { label: 'Planche', value: 'planche' },
+];
+
+/** Badge colors for goalPlanType values (used in ProgramasPage and ProgramWizardDialog) */
+export const GOAL_PLAN_TYPE_COLORS: Record<string, string> = {
+  front_lever: 'deep-purple',
+  tren_inferior: 'amber-8',
+  tren_superior: 'blue',
+  empuje: 'teal',
+  traccion: 'orange',
+  planche: 'pink',
 };

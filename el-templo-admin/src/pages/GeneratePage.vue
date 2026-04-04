@@ -2,7 +2,7 @@
   <q-page class="q-pa-md">
     <div class="text-h5 q-mb-md">Generar Sesiones</div>
 
-    <!-- Tabs for General / Personalizadas -->
+    <!-- Tabs for General / Goal Plans -->
     <q-tabs
       v-model="activeTab"
       dense
@@ -12,7 +12,7 @@
       align="left"
     >
       <q-tab name="general" label="General" />
-      <q-tab name="personalizadas" label="Personalizadas" />
+      <q-tab name="goalPlans" label="Por Objetivos" />
     </q-tabs>
 
     <q-separator class="q-mb-md" />
@@ -157,15 +157,15 @@
       </q-tab-panel>
 
       <!-- ============================================================ -->
-      <!-- PERSONALIZADAS TAB (personalizada session generation) -->
+      <!-- GOAL PLANS TAB (goal plan session generation) -->
       <!-- ============================================================ -->
-      <q-tab-panel name="personalizadas" class="q-pa-none">
+      <q-tab-panel name="goalPlans" class="q-pa-none">
         <!-- Week selector -->
         <q-card flat bordered class="q-mb-md">
           <q-card-section>
             <div class="row items-center q-gutter-md">
               <q-select
-                v-model="personalizadaWeek"
+                v-model="goalPlanWeek"
                 :options="weekOptions"
                 label="Semana"
                 outlined
@@ -178,13 +178,13 @@
           </q-card-section>
         </q-card>
 
-        <!-- Personalizada type selection -->
-        <q-card v-if="isPersonalizadaFutureWeek" flat bordered class="q-mb-md">
+        <!-- Goal plan type selection -->
+        <q-card v-if="isGoalPlanFutureWeek" flat bordered class="q-mb-md">
           <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Tipos de Personalizada</div>
+            <div class="text-subtitle1 q-mb-md">Tipos de Plan por Objetivos</div>
 
             <!-- Grouped by tier -->
-            <div v-for="tier in personalizadaTiers" :key="tier.key" class="q-mb-md">
+            <div v-for="tier in goalPlanTiers" :key="tier.key" class="q-mb-md">
               <div class="text-caption text-weight-bold q-mb-xs" :class="`text-${tier.color}`">
                 {{ tier.label }}
               </div>
@@ -192,11 +192,11 @@
                 <q-chip
                   v-for="jt in tier.types"
                   :key="jt.type"
-                  :selected="selectedPersonalizadaTypes.includes(jt.type)"
+                  :selected="selectedGoalPlanTypes.includes(jt.type)"
                   clickable
-                  :color="selectedPersonalizadaTypes.includes(jt.type) ? tier.color : 'grey-3'"
-                  :text-color="selectedPersonalizadaTypes.includes(jt.type) ? 'white' : 'grey-8'"
-                  @click="togglePersonalizadaType(jt.type)"
+                  :color="selectedGoalPlanTypes.includes(jt.type) ? tier.color : 'grey-3'"
+                  :text-color="selectedGoalPlanTypes.includes(jt.type) ? 'white' : 'grey-8'"
+                  @click="toggleGoalPlanType(jt.type)"
                 >
                   {{ jt.label }}
                 </q-chip>
@@ -205,7 +205,7 @@
 
             <!-- Regenerate option -->
             <q-checkbox
-              v-model="personalizadaRegenerate"
+              v-model="goalPlanRegenerate"
               label="Regenerar sesiones existentes"
               class="q-mb-md"
             />
@@ -216,27 +216,27 @@
                 color="primary"
                 icon="auto_awesome"
                 label="Generar Todo"
-                :loading="personalizadaGenerating"
-                :disable="selectedPersonalizadaTypes.length === 0"
-                @click="handlePersonalizadaGenerateAll"
+                :loading="goalPlanGenerating"
+                :disable="selectedGoalPlanTypes.length === 0"
+                @click="handleGoalPlanGenerateAll"
               />
             </div>
           </q-card-section>
         </q-card>
 
         <!-- Per-type generation rows -->
-        <q-card v-if="isPersonalizadaFutureWeek" flat bordered class="q-mb-md">
+        <q-card v-if="isGoalPlanFutureWeek" flat bordered class="q-mb-md">
           <q-card-section>
             <div class="text-subtitle1 q-mb-md">Generacion por Tipo</div>
 
             <q-list separator>
-              <q-item v-for="jt in allPersonalizadaTypesList" :key="jt.type">
+              <q-item v-for="jt in allGoalPlanTypesList" :key="jt.type">
                 <q-item-section>
                   <q-item-label>
                     {{ jt.label }}
                     <q-badge
-                      :color="PERSONALIZADA_TIER_COLORS[jt.tier]"
-                      :label="PERSONALIZADA_TIER_LABELS[jt.tier]"
+                      :color="GOAL_PLAN_TIER_COLORS[jt.tier]"
+                      :label="GOAL_PLAN_TIER_LABELS[jt.tier]"
                       class="q-ml-sm"
                     />
                   </q-item-label>
@@ -244,15 +244,15 @@
                 <q-item-section side>
                   <div class="row items-center q-gutter-sm">
                     <span
-                      v-if="personalizadaResults[jt.type]"
+                      v-if="goalPlanResults[jt.type]"
                       class="text-caption"
                       :class="
-                        personalizadaResults[jt.type]!.generated > 0 ? 'text-positive' : 'text-grey'
+                        goalPlanResults[jt.type]!.generated > 0 ? 'text-positive' : 'text-grey'
                       "
                     >
-                      {{ personalizadaResults[jt.type]!.generated }} generadas
-                      <template v-if="personalizadaResults[jt.type]!.skipped > 0">
-                        , {{ personalizadaResults[jt.type]!.skipped }} omitidas
+                      {{ goalPlanResults[jt.type]!.generated }} generadas
+                      <template v-if="goalPlanResults[jt.type]!.skipped > 0">
+                        , {{ goalPlanResults[jt.type]!.skipped }} omitidas
                       </template>
                     </span>
                     <q-btn
@@ -261,8 +261,8 @@
                       color="primary"
                       icon="play_arrow"
                       label="Generar"
-                      :loading="personalizadaTypeLoading === jt.type"
-                      @click="handlePersonalizadaGenerateSingle(jt.type)"
+                      :loading="goalPlanTypeLoading === jt.type"
+                      @click="handleGoalPlanGenerateSingle(jt.type)"
                     />
                   </div>
                 </q-item-section>
@@ -272,11 +272,11 @@
         </q-card>
 
         <!-- No future week selected -->
-        <q-banner v-if="!isPersonalizadaFutureWeek" class="bg-warning text-white q-mt-md">
+        <q-banner v-if="!isGoalPlanFutureWeek" class="bg-warning text-white q-mt-md">
           <template #avatar>
             <q-icon name="info" />
           </template>
-          Selecciona una semana futura para generar sesiones personalizadas.
+          Selecciona una semana futura para generar sesiones por objetivos.
         </q-banner>
       </q-tab-panel>
     </q-tab-panels>
@@ -293,22 +293,22 @@ import {
   type WeekSummary,
   type GenerateResult,
 } from 'src/composables/useGenerateApi';
-import { usePersonalizadasAdminApi } from 'src/composables/usePersonalizadasAdminApi';
+import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import {
-  ALL_PERSONALIZADA_TYPES,
-  PERSONALIZADA_TIER_MAP,
-  PERSONALIZADA_TYPE_LABELS,
-  PERSONALIZADA_TIER_LABELS,
-  PERSONALIZADA_TIER_COLORS,
-  type PersonalizadaType,
-  type PersonalizadaTier,
-  type PersonalizadaGenerateResult,
-} from 'src/types/personalizada';
+  ALL_GOAL_PLAN_TYPES,
+  GOAL_PLAN_TIER_MAP,
+  GOAL_PLAN_TYPE_LABELS,
+  GOAL_PLAN_TIER_LABELS,
+  GOAL_PLAN_TIER_COLORS,
+  type GoalPlanType,
+  type GoalPlanTier,
+  type GoalPlanGenerateResult,
+} from 'src/types/goal-plan';
 
 const log = createLogger('GeneratePage');
 const $q = useQuasar();
 const generateApi = useGenerateApi();
-const personalizadaApi = usePersonalizadasAdminApi();
+const goalPlanApi = useGoalPlanAdminApi();
 
 // ============================================================
 // Shared state
@@ -371,10 +371,10 @@ const summaryRows = computed(() => {
   const dayLabels: Record<string, string> = {
     lunes: 'Lunes',
     martes: 'Martes',
-    miercoles: 'Miércoles',
+    miercoles: 'Miercoles',
     jueves: 'Jueves',
     viernes: 'Viernes',
-    sabado: 'Sábado',
+    sabado: 'Sabado',
   };
 
   return weekSummary.value.days.map((d) => ({
@@ -574,115 +574,105 @@ const StatusIndicator = defineComponent({
 });
 
 // ============================================================
-// Personalizadas tab state
+// Goal Plans tab state
 // ============================================================
-const personalizadaWeek = ref(2);
-const selectedPersonalizadaTypes = ref<PersonalizadaType[]>([...ALL_PERSONALIZADA_TYPES]);
-const personalizadaRegenerate = ref(false);
-const personalizadaGenerating = ref(false);
-const personalizadaTypeLoading = ref<PersonalizadaType | null>(null);
-const personalizadaResults = ref<Record<string, PersonalizadaGenerateResult>>({});
+const goalPlanWeek = ref(2);
+const selectedGoalPlanTypes = ref<GoalPlanType[]>([...ALL_GOAL_PLAN_TYPES]);
+const goalPlanRegenerate = ref(false);
+const goalPlanGenerating = ref(false);
+const goalPlanTypeLoading = ref<GoalPlanType | null>(null);
+const goalPlanResults = ref<Record<string, GoalPlanGenerateResult>>({});
 
-const isPersonalizadaFutureWeek = computed(() => personalizadaWeek.value > currentWeek.value);
+const isGoalPlanFutureWeek = computed(() => goalPlanWeek.value > currentWeek.value);
 
-interface PersonalizadaTierGroup {
-  key: PersonalizadaTier;
+interface GoalPlanTierGroup {
+  key: GoalPlanTier;
   label: string;
   color: string;
-  types: Array<{ type: PersonalizadaType; label: string }>;
+  types: Array<{ type: GoalPlanType; label: string }>;
 }
 
-const personalizadaTiers = computed<PersonalizadaTierGroup[]>(() => {
-  const tiers: PersonalizadaTier[] = ['principiante', 'intermedio', 'avanzado'];
+const goalPlanTiers = computed<GoalPlanTierGroup[]>(() => {
+  const tiers: GoalPlanTier[] = ['principiante', 'intermedio', 'avanzado'];
   return tiers.map((tier) => ({
     key: tier,
-    label: PERSONALIZADA_TIER_LABELS[tier],
-    color: PERSONALIZADA_TIER_COLORS[tier],
-    types: ALL_PERSONALIZADA_TYPES.filter((jt) => PERSONALIZADA_TIER_MAP[jt] === tier).map(
-      (jt) => ({
-        type: jt,
-        label: PERSONALIZADA_TYPE_LABELS[jt],
-      })
-    ),
+    label: GOAL_PLAN_TIER_LABELS[tier],
+    color: GOAL_PLAN_TIER_COLORS[tier],
+    types: ALL_GOAL_PLAN_TYPES.filter((jt) => GOAL_PLAN_TIER_MAP[jt] === tier).map((jt) => ({
+      type: jt,
+      label: GOAL_PLAN_TYPE_LABELS[jt],
+    })),
   }));
 });
 
-const allPersonalizadaTypesList = computed(() =>
-  ALL_PERSONALIZADA_TYPES.map((jt) => ({
+const allGoalPlanTypesList = computed(() =>
+  ALL_GOAL_PLAN_TYPES.map((jt) => ({
     type: jt,
-    label: PERSONALIZADA_TYPE_LABELS[jt],
-    tier: PERSONALIZADA_TIER_MAP[jt],
-  }))
+    label: GOAL_PLAN_TYPE_LABELS[jt],
+    tier: GOAL_PLAN_TIER_MAP[jt],
+  })),
 );
 
-function togglePersonalizadaType(jt: PersonalizadaType) {
-  const idx = selectedPersonalizadaTypes.value.indexOf(jt);
+function toggleGoalPlanType(jt: GoalPlanType) {
+  const idx = selectedGoalPlanTypes.value.indexOf(jt);
   if (idx >= 0) {
-    selectedPersonalizadaTypes.value.splice(idx, 1);
+    selectedGoalPlanTypes.value.splice(idx, 1);
   } else {
-    selectedPersonalizadaTypes.value.push(jt);
+    selectedGoalPlanTypes.value.push(jt);
   }
 }
 
-async function handlePersonalizadaGenerateAll() {
-  if (selectedPersonalizadaTypes.value.length === 0) return;
+async function handleGoalPlanGenerateAll() {
+  if (selectedGoalPlanTypes.value.length === 0) return;
 
-  personalizadaGenerating.value = true;
-  personalizadaResults.value = {};
+  goalPlanGenerating.value = true;
+  goalPlanResults.value = {};
 
   let totalGenerated = 0;
   let totalSkipped = 0;
 
   try {
-    for (const jt of selectedPersonalizadaTypes.value) {
+    for (const jt of selectedGoalPlanTypes.value) {
       try {
-        const result = await personalizadaApi.generatePersonalizadaSessions(
-          personalizadaWeek.value,
-          jt,
-          {
-            regenerate: personalizadaRegenerate.value,
-          }
-        );
-        personalizadaResults.value[jt] = result;
+        const result = await goalPlanApi.generateGoalPlanSessions(goalPlanWeek.value, jt, {
+          regenerate: goalPlanRegenerate.value,
+        });
+        goalPlanResults.value[jt] = result;
         totalGenerated += result.generated;
         totalSkipped += result.skipped;
       } catch (err: unknown) {
-        log.error('Error generating personalizada type', {
-          personalizadaType: jt,
+        log.error('Error generating goal plan type', {
+          goalPlanType: jt,
           error: err instanceof Error ? err.message : String(err),
         });
-        personalizadaResults.value[jt] = { generated: 0, skipped: 0 };
+        goalPlanResults.value[jt] = { generated: 0, skipped: 0 };
       }
     }
 
     $q.notify({
       type: 'positive',
-      message: `Generadas ${totalGenerated} sesiones de personalizada. ${totalSkipped > 0 ? `${totalSkipped} omitidas.` : ''}`,
+      message: `Generadas ${totalGenerated} sesiones por objetivos. ${totalSkipped > 0 ? `${totalSkipped} omitidas.` : ''}`,
     });
   } finally {
-    personalizadaGenerating.value = false;
+    goalPlanGenerating.value = false;
   }
 }
 
-async function handlePersonalizadaGenerateSingle(jt: PersonalizadaType) {
-  personalizadaTypeLoading.value = jt;
+async function handleGoalPlanGenerateSingle(jt: GoalPlanType) {
+  goalPlanTypeLoading.value = jt;
   try {
-    const result = await personalizadaApi.generatePersonalizadaSessions(
-      personalizadaWeek.value,
-      jt,
-      {
-        regenerate: personalizadaRegenerate.value,
-      }
-    );
-    personalizadaResults.value[jt] = result;
+    const result = await goalPlanApi.generateGoalPlanSessions(goalPlanWeek.value, jt, {
+      regenerate: goalPlanRegenerate.value,
+    });
+    goalPlanResults.value[jt] = result;
     $q.notify({
       type: 'positive',
-      message: `${PERSONALIZADA_TYPE_LABELS[jt]}: ${result.generated} generadas${result.skipped > 0 ? `, ${result.skipped} omitidas` : ''}`,
+      message: `${GOAL_PLAN_TYPE_LABELS[jt]}: ${result.generated} generadas${result.skipped > 0 ? `, ${result.skipped} omitidas` : ''}`,
     });
   } catch {
-    $q.notify({ type: 'negative', message: `Error generando ${PERSONALIZADA_TYPE_LABELS[jt]}` });
+    $q.notify({ type: 'negative', message: `Error generando ${GOAL_PLAN_TYPE_LABELS[jt]}` });
   } finally {
-    personalizadaTypeLoading.value = null;
+    goalPlanTypeLoading.value = null;
   }
 }
 
@@ -696,7 +686,7 @@ onMounted(async () => {
     $q.notify({ type: 'negative', message: 'Error cargando semana actual' });
   }
   selectedWeek.value = currentWeek.value + 1;
-  personalizadaWeek.value = currentWeek.value + 1;
+  goalPlanWeek.value = currentWeek.value + 1;
   loadWeekSummary();
 });
 </script>

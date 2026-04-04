@@ -6,7 +6,7 @@
     <div class="text-h5 q-mb-md">Planes</div>
 
     <!-- ================================================================== -->
-    <!-- Tabs: Planes / Experiencias -->
+    <!-- Tabs: Planes / Promos -->
     <!-- ================================================================== -->
     <q-tabs
       v-model="activeTab"
@@ -16,26 +16,26 @@
       active-color="primary"
       indicator-color="primary"
     >
-      <q-tab name="planes" label="Planes de Suscripcion" />
-      <q-tab name="experiencias" label="Planes Personalizados" />
+      <q-tab name="planes" label="Planes" />
       <q-tab name="promos" label="Promos" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
       <!-- ============================================================== -->
-      <!-- Planes Tab (existing) -->
+      <!-- Planes Tab -->
       <!-- ============================================================== -->
       <q-tab-panel name="planes">
-        <!-- Header -->
+        <!-- ============================================================ -->
+        <!-- Presenciales Section -->
+        <!-- ============================================================ -->
         <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Planes de Suscripcion</div>
-          <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreateDialog" />
+          <div class="text-h6 col">Presenciales</div>
+          <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreatePresencial" />
         </div>
 
-        <!-- QTable -->
         <q-table
-          :rows="plans"
-          :columns="planColumns"
+          :rows="presencialPlans"
+          :columns="presencialColumns"
           row-key="id"
           :loading="loadingPlans"
           :pagination="{ rowsPerPage: 50 }"
@@ -108,48 +108,69 @@
           </template>
         </q-table>
 
-        <!-- Plan Form Dialog -->
-        <PlanFormDialog v-model="showFormDialog" :plan="editingPlan" @saved="onPlanSaved" />
-      </q-tab-panel>
+        <!-- ============================================================ -->
+        <!-- Online Section -->
+        <!-- ============================================================ -->
+        <div class="q-mb-xl" />
 
-      <!-- ============================================================== -->
-      <!-- Experiencias Tab (new) -->
-      <!-- ============================================================== -->
-      <q-tab-panel name="experiencias">
-        <!-- Header -->
         <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Planes Personalizados</div>
+          <div class="text-h6 col">Online</div>
           <q-btn
             icon="add"
-            label="Nuevo Programa"
+            label="Nuevo Plan Online"
             color="primary"
-            @click="openCreateProgramDialog"
+            @click="openCreateOnline"
           />
         </div>
 
-        <!-- Programs QTable -->
         <q-table
-          :rows="programs"
-          :columns="programColumns"
+          :rows="onlinePlans"
+          :columns="onlineColumns"
           row-key="id"
-          :loading="loadingPrograms"
+          :loading="loadingPlans"
           :pagination="{ rowsPerPage: 50 }"
           :rows-per-page-options="[20, 50, 100]"
           flat
           bordered
         >
-          <!-- Price column -->
-          <template #body-cell-programPrecio="props">
-            <q-td :props="props"> ${{ props.row.price.toLocaleString() }} </q-td>
+          <!-- Category column -->
+          <template #body-cell-categoria="props">
+            <q-td :props="props">
+              <q-badge
+                :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
+                :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
+              />
+            </q-td>
+          </template>
+
+          <!-- Monthly price column -->
+          <template #body-cell-precioMensual="props">
+            <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
+          </template>
+
+          <!-- Weekly price column -->
+          <template #body-cell-precioSemanal="props">
+            <q-td :props="props">
+              <span class="text-caption text-grey-7">
+                ${{ Math.round(props.row.priceRegular / 4.33).toLocaleString() }}/sem
+              </span>
+            </q-td>
+          </template>
+
+          <!-- Linked program column -->
+          <template #body-cell-programa="props">
+            <q-td :props="props">
+              {{ programName(props.row.linkedProgramId) }}
+            </q-td>
           </template>
 
           <!-- Duration column -->
-          <template #body-cell-programDuracion="props">
-            <q-td :props="props"> {{ props.row.durationWeeks }} semanas </q-td>
+          <template #body-cell-onlineDuracion="props">
+            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
           </template>
 
           <!-- Status column -->
-          <template #body-cell-programEstado="props">
+          <template #body-cell-onlineEstado="props">
             <q-td :props="props">
               <q-badge
                 :color="props.row.isActive ? 'positive' : 'grey'"
@@ -159,7 +180,7 @@
           </template>
 
           <!-- Actions column -->
-          <template #body-cell-programAcciones="props">
+          <template #body-cell-onlineAcciones="props">
             <q-td :props="props">
               <q-btn
                 flat
@@ -167,7 +188,7 @@
                 round
                 icon="edit"
                 color="primary"
-                @click="openEditProgramDialog(props.row)"
+                @click="openEditDialog(props.row)"
               >
                 <q-tooltip>Editar</q-tooltip>
               </q-btn>
@@ -178,7 +199,7 @@
                 round
                 icon="block"
                 color="negative"
-                @click="confirmDeactivateProgram(props.row)"
+                @click="confirmDeactivate(props.row)"
               >
                 <q-tooltip>Desactivar</q-tooltip>
               </q-btn>
@@ -186,11 +207,12 @@
           </template>
         </q-table>
 
-        <!-- Program Wizard Dialog -->
-        <ProgramWizardDialog
-          v-model="showProgramDialog"
-          :editing-program="editingProgram"
-          @saved="onProgramSaved"
+        <!-- Plan Form Dialog -->
+        <PlanFormDialog
+          v-model="showFormDialog"
+          :plan="editingPlan"
+          :preset-category="presetCategory"
+          @saved="onPlanSaved"
         />
       </q-tab-panel>
 
@@ -283,17 +305,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
-import { PLAN_TIER_LABELS, type PlanListItem, type PlanTier } from 'src/types/subscription';
+import {
+  PLAN_TIER_LABELS,
+  PLAN_CATEGORY_LABELS,
+  PLAN_CATEGORY_COLORS,
+  type PlanListItem,
+  type PlanTier,
+  type PlanCategory,
+} from 'src/types/subscription';
 import type { PromoListItem } from 'src/types/subscription';
-import type { MicroProgram, MicroProgramDetail } from 'src/types/program';
+import type { MicroProgram } from 'src/types/program';
 import PlanFormDialog from 'src/components/PlanFormDialog.vue';
-import ProgramWizardDialog from 'src/components/ProgramWizardDialog.vue';
 import PromoFormDialog from 'src/components/PromoFormDialog.vue';
 
 const log = createLogger('PlanesPage');
@@ -308,22 +336,20 @@ const programsApi = useProgramsApi();
 const activeTab = ref('planes');
 
 // =========================================================================
-// Plans State (existing)
+// Plans State
 // =========================================================================
 
 const plans = ref<PlanListItem[]>([]);
 const loadingPlans = ref(false);
 const showFormDialog = ref(false);
 const editingPlan = ref<PlanListItem | null>(null);
+const presetCategory = ref<PlanCategory>('presencial');
 
 // =========================================================================
-// Programs State (new)
+// Programs (for linked program names in Online table)
 // =========================================================================
 
 const programs = ref<MicroProgram[]>([]);
-const loadingPrograms = ref(false);
-const showProgramDialog = ref(false);
-const editingProgram = ref<MicroProgramDetail | null>(null);
 
 // =========================================================================
 // Promos State
@@ -335,10 +361,22 @@ const showPromoDialog = ref(false);
 const editingPromo = ref<PromoListItem | null>(null);
 
 // =========================================================================
-// Plan Table columns
+// Computed plan lists
 // =========================================================================
 
-const planColumns: QTableProps['columns'] = [
+const presencialPlans = computed(() =>
+  plans.value.filter((p) => p.planCategory === 'presencial'),
+);
+
+const onlinePlans = computed(() =>
+  plans.value.filter((p) => p.planCategory !== 'presencial'),
+);
+
+// =========================================================================
+// Presencial Table columns
+// =========================================================================
+
+const presencialColumns: QTableProps['columns'] = [
   {
     name: 'name',
     label: 'Nombre',
@@ -397,10 +435,10 @@ const planColumns: QTableProps['columns'] = [
 ];
 
 // =========================================================================
-// Program Table columns
+// Online Table columns
 // =========================================================================
 
-const programColumns: QTableProps['columns'] = [
+const onlineColumns: QTableProps['columns'] = [
   {
     name: 'name',
     label: 'Nombre',
@@ -409,31 +447,47 @@ const programColumns: QTableProps['columns'] = [
     sortable: true,
   },
   {
-    name: 'programPrecio',
-    label: 'Precio',
-    field: 'price',
-    align: 'right',
+    name: 'categoria',
+    label: 'Categoria',
+    field: 'planCategory',
+    align: 'left',
     sortable: true,
-    style: 'width: 120px',
+    style: 'width: 140px',
   },
   {
-    name: 'programDuracion',
+    name: 'precioMensual',
+    label: 'Precio Mensual',
+    field: 'priceRegular',
+    align: 'right',
+    sortable: true,
+    style: 'width: 130px',
+  },
+  {
+    name: 'precioSemanal',
+    label: 'Precio Semanal',
+    field: 'priceRegular',
+    align: 'right',
+    sortable: false,
+    style: 'width: 130px',
+  },
+  {
+    name: 'programa',
+    label: 'Programa Vinculado',
+    field: 'linkedProgramId',
+    align: 'left',
+    sortable: false,
+    style: 'width: 180px',
+  },
+  {
+    name: 'onlineDuracion',
     label: 'Duracion',
-    field: 'durationWeeks',
+    field: 'durationDays',
     align: 'right',
     sortable: true,
-    style: 'width: 120px',
+    style: 'width: 100px',
   },
   {
-    name: 'sessionsPerWeek',
-    label: 'Sesiones/Sem',
-    field: 'sessionsPerWeekToAdvance',
-    align: 'center',
-    sortable: true,
-    style: 'width: 110px',
-  },
-  {
-    name: 'programEstado',
+    name: 'onlineEstado',
     label: 'Estado',
     field: 'isActive',
     align: 'center',
@@ -441,7 +495,7 @@ const programColumns: QTableProps['columns'] = [
     style: 'width: 100px',
   },
   {
-    name: 'programAcciones',
+    name: 'onlineAcciones',
     label: 'Acciones',
     field: 'id',
     align: 'center',
@@ -508,6 +562,16 @@ function tierColor(tier: PlanTier): string {
 }
 
 // =========================================================================
+// Program name helper
+// =========================================================================
+
+function programName(programId: number | null): string {
+  if (!programId) return '-';
+  const program = programs.value.find((p) => p.id === programId);
+  return program?.name ?? '-';
+}
+
+// =========================================================================
 // Plans Data loading
 // =========================================================================
 
@@ -524,20 +588,12 @@ async function loadPlans() {
   }
 }
 
-// =========================================================================
-// Programs Data loading
-// =========================================================================
-
 async function loadPrograms() {
-  loadingPrograms.value = true;
   try {
     programs.value = await programsApi.getPrograms();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading programs', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando programas' });
-  } finally {
-    loadingPrograms.value = false;
   }
 }
 
@@ -545,13 +601,21 @@ async function loadPrograms() {
 // Plan Dialog actions
 // =========================================================================
 
-function openCreateDialog() {
+function openCreatePresencial() {
   editingPlan.value = null;
+  presetCategory.value = 'presencial';
+  showFormDialog.value = true;
+}
+
+function openCreateOnline() {
+  editingPlan.value = null;
+  presetCategory.value = 'online_regular';
   showFormDialog.value = true;
 }
 
 function openEditDialog(plan: PlanListItem) {
   editingPlan.value = plan;
+  presetCategory.value = plan.planCategory;
   showFormDialog.value = true;
 }
 
@@ -577,50 +641,6 @@ function confirmDeactivate(plan: PlanListItem) {
 function onPlanSaved() {
   $q.notify({ type: 'positive', message: 'Plan guardado correctamente' });
   loadPlans();
-}
-
-// =========================================================================
-// Program Dialog actions
-// =========================================================================
-
-function openCreateProgramDialog() {
-  editingProgram.value = null;
-  showProgramDialog.value = true;
-}
-
-async function openEditProgramDialog(program: MicroProgram) {
-  try {
-    const detail = await programsApi.getProgramDetail(program.id);
-    editingProgram.value = detail;
-    showProgramDialog.value = true;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading program detail', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando detalle del programa' });
-  }
-}
-
-function confirmDeactivateProgram(program: MicroProgram) {
-  $q.dialog({
-    title: 'Desactivar programa',
-    message: `Desactivar "${program.name}"? Las inscripciones activas continuaran pero no se podran crear nuevas.`,
-    cancel: { flat: true, label: 'Cancelar' },
-    ok: { color: 'negative', label: 'Desactivar' },
-  }).onOk(async () => {
-    try {
-      await programsApi.deactivateProgram(program.id);
-      $q.notify({ type: 'positive', message: 'Programa desactivado' });
-      await loadPrograms();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error deactivating program', { error: message });
-      $q.notify({ type: 'negative', message: 'Error desactivando programa' });
-    }
-  });
-}
-
-function onProgramSaved() {
-  loadPrograms();
 }
 
 // =========================================================================

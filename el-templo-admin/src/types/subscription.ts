@@ -71,6 +71,35 @@ export const AURA_DISCOUNT_TIERS: readonly AuraDiscountTier[] = [
   { spend: 5000, percent: 30 },
 ] as const;
 
+// ─── Plan Category ──────────────────────────────────────────────────────────
+
+export type PlanCategory =
+  | 'presencial'
+  | 'online_regular'
+  | 'online_goal'
+  | 'online_coach';
+
+export const PLAN_CATEGORY_LABELS: Record<PlanCategory, string> = {
+  presencial: 'Presencial',
+  online_regular: 'Regular',
+  online_goal: 'Por Objetivos',
+  online_coach: 'Personalizado',
+};
+
+export const PLAN_CATEGORY_COLORS: Record<PlanCategory, string> = {
+  presencial: 'teal',
+  online_regular: 'blue',
+  online_goal: 'amber-8',
+  online_coach: 'deep-purple',
+};
+
+export const PLAN_CATEGORY_OPTIONS = [
+  { label: 'Presencial', value: 'presencial' },
+  { label: 'Online Regular', value: 'online_regular' },
+  { label: 'Online Por Objetivos', value: 'online_goal' },
+  { label: 'Online Personalizado', value: 'online_coach' },
+];
+
 // ─── Plan Types ─────────────────────────────────────────────────────────────
 
 export interface PlanListItem {
@@ -87,10 +116,9 @@ export interface PlanListItem {
   multiBranch: boolean;
   isTrial: boolean;
   isGroup: boolean;
-  isPersonalizada: boolean;
-  personalizadaType: string | null;
+  planCategory: PlanCategory;
+  linkedProgramId: number | null;
   groupMaxMembers: number | null;
-  isOnline: boolean;
   isActive: boolean;
   isArchived: boolean;
   createdAt: string;
@@ -116,10 +144,9 @@ export interface CreatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
-  isPersonalizada?: boolean;
-  personalizadaType?: string;
+  planCategory: PlanCategory;
+  linkedProgramId?: number;
   groupMaxMembers?: number;
-  isOnline?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -135,10 +162,9 @@ export interface UpdatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
-  isPersonalizada?: boolean;
-  personalizadaType?: string | null;
+  planCategory?: PlanCategory;
+  linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
-  isOnline?: boolean;
 }
 
 import type { PaymentMethod } from './payment';
