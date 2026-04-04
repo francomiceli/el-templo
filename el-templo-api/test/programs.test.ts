@@ -471,7 +471,7 @@ describe("Programs Module", () => {
 
       const res = await app.inject({
         method: "GET",
-        url: "/api/members/programs/has-personalizada-access",
+        url: "/api/members/programs/has-goal-plan-access",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -483,7 +483,7 @@ describe("Programs Module", () => {
     it("should return has-goal-plan-access false when not enrolled", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/members/programs/has-personalizada-access",
+        url: "/api/members/programs/has-goal-plan-access",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 

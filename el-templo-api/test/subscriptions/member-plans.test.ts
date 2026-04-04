@@ -46,7 +46,34 @@ describe("Member Plan Listing API", () => {
   });
 
   /**
+   * Helper: create a program via admin API.
+   */
+  async function createProgram(
+    overrides: Record<string, unknown> = {},
+  ): Promise<{ id: number; [key: string]: unknown }> {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/admin/programs",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Test Program",
+        description: null,
+        price: 10000,
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+        auraWeeklyBonus: 15,
+        auraCompletionBonus: 100,
+        contentBlocks: [],
+        ...overrides,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    return JSON.parse(res.body);
+  }
+
+  /**
    * Helper: create a plan via admin API.
+   * For online plans, pass linkedProgramId instead of goalPlanType.
    */
   async function createPlan(
     overrides: Record<string, unknown> = {},
@@ -133,10 +160,14 @@ describe("Member Plan Listing API", () => {
   });
 
   it("includes goalPlanZones for goal plans", async () => {
+    const program = await createProgram({
+      name: "Tren Superior",
+      goalPlanType: "tren_superior",
+    });
     await createPlan({
       name: "Goal Plan Tren Superior",
       planCategory: "online_goal",
-      goalPlanType: "tren_superior",
+      linkedProgramId: program.id,
     });
 
     const res = await app.inject({
@@ -159,10 +190,14 @@ describe("Member Plan Listing API", () => {
 
   it("sorts presencial plans before online plans", async () => {
     // Create online goal plan first, presencial second — should still sort presencial first
+    const empujeProgram = await createProgram({
+      name: "Empuje",
+      goalPlanType: "empuje",
+    });
     await createPlan({
       name: "Goal Plan Empuje",
       planCategory: "online_goal",
-      goalPlanType: "empuje",
+      linkedProgramId: empujeProgram.id,
     });
     await createPlan({ name: "Gym Plan" });
 

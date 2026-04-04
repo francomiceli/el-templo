@@ -33,6 +33,7 @@ export interface CreateProgramInput {
   price: number;
   durationWeeks: number;
   sessionsPerWeekToAdvance: number;
+  goalPlanType?: string | null;
   auraWeeklyBonus: number;
   auraCompletionBonus: number;
   contentBlocks: ContentBlockInput[];
@@ -42,6 +43,7 @@ export interface UpdateProgramInput {
   name?: string;
   description?: string | null;
   price?: number;
+  goalPlanType?: string | null;
   // durationWeeks NOT editable when active enrollments exist (per D-41)
   auraWeeklyBonus?: number;
   auraCompletionBonus?: number;

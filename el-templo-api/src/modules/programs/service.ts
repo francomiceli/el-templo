@@ -49,6 +49,7 @@ export class ProgramsService {
         price: input.price,
         durationWeeks: input.durationWeeks,
         sessionsPerWeekToAdvance: input.sessionsPerWeekToAdvance,
+        goalPlanType: input.goalPlanType ?? null,
         auraWeeklyBonus: input.auraWeeklyBonus,
         auraCompletionBonus: input.auraCompletionBonus,
       });
@@ -211,6 +212,8 @@ export class ProgramsService {
     if (input.description !== undefined)
       updateFields.description = input.description;
     if (input.price !== undefined) updateFields.price = input.price;
+    if (input.goalPlanType !== undefined)
+      updateFields.goalPlanType = input.goalPlanType;
     if (input.auraWeeklyBonus !== undefined)
       updateFields.auraWeeklyBonus = input.auraWeeklyBonus;
     if (input.auraCompletionBonus !== undefined)
@@ -227,7 +230,10 @@ export class ProgramsService {
       throw new NotFoundError("Programa no encontrado");
     }
 
-    this.log?.info({ programId, fields: Object.keys(updateFields) }, "Program updated");
+    this.log?.info(
+      { programId, fields: Object.keys(updateFields) },
+      "Program updated",
+    );
   }
 
   /**
@@ -321,7 +327,9 @@ export class ProgramsService {
     }
 
     if (!programRows[0].isActive) {
-      throw new ConflictError("El programa esta desactivado y no acepta nuevas inscripciones");
+      throw new ConflictError(
+        "El programa esta desactivado y no acepta nuevas inscripciones",
+      );
     }
 
     const [result] = await this.db.insert(programEnrollments).values({
@@ -360,9 +368,7 @@ export class ProgramsService {
     }
 
     if (rows[0].status !== "active") {
-      throw new ConflictError(
-        "Solo se pueden cancelar inscripciones activas",
-      );
+      throw new ConflictError("Solo se pueden cancelar inscripciones activas");
     }
 
     await this.db
@@ -463,8 +469,7 @@ export class ProgramsService {
         programName: microPrograms.name,
         status: programEnrollments.status,
         currentWeek: programEnrollments.currentWeek,
-        sessionsCompletedThisWeek:
-          programEnrollments.sessionsCompletedThisWeek,
+        sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         durationWeeks: microPrograms.durationWeeks,
         sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
@@ -497,9 +502,7 @@ export class ProgramsService {
   /**
    * Get the single active enrollment for a user, or null.
    */
-  async getActiveEnrollment(
-    userId: number,
-  ): Promise<ProgramEnrollment | null> {
+  async getActiveEnrollment(userId: number): Promise<ProgramEnrollment | null> {
     const rows = await this.db
       .select({
         id: programEnrollments.id,
@@ -508,8 +511,7 @@ export class ProgramsService {
         programName: microPrograms.name,
         status: programEnrollments.status,
         currentWeek: programEnrollments.currentWeek,
-        sessionsCompletedThisWeek:
-          programEnrollments.sessionsCompletedThisWeek,
+        sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         durationWeeks: microPrograms.durationWeeks,
         sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
@@ -590,8 +592,7 @@ export class ProgramsService {
         programName: microPrograms.name,
         currentWeek: programEnrollments.currentWeek,
         durationWeeks: microPrograms.durationWeeks,
-        sessionsCompletedThisWeek:
-          programEnrollments.sessionsCompletedThisWeek,
+        sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
       })
@@ -633,10 +634,7 @@ export class ProgramsService {
       .where(
         and(
           eq(microProgramContentBlocks.programId, enrollment.programId),
-          eq(
-            microProgramContentBlocks.weekNumber,
-            enrollment.currentWeek,
-          ),
+          eq(microProgramContentBlocks.weekNumber, enrollment.currentWeek),
         ),
       )
       .orderBy(microProgramContentBlocks.sortOrder);
@@ -664,7 +662,9 @@ export class ProgramsService {
     const expiryMs =
       enrolledAtMs + enrollment.durationWeeks * 7 * 24 * 60 * 60 * 1000;
     const nowMs = Date.now();
-    const daysUntilExpiry = Math.ceil((expiryMs - nowMs) / (24 * 60 * 60 * 1000));
+    const daysUntilExpiry = Math.ceil(
+      (expiryMs - nowMs) / (24 * 60 * 60 * 1000),
+    );
 
     return {
       enrollmentId: enrollment.enrollmentId,
@@ -733,8 +733,7 @@ export class ProgramsService {
         id: programEnrollments.id,
         programId: programEnrollments.programId,
         currentWeek: programEnrollments.currentWeek,
-        sessionsCompletedThisWeek:
-          programEnrollments.sessionsCompletedThisWeek,
+        sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         enrolledAt: programEnrollments.enrolledAt,
       })
       .from(programEnrollments)
@@ -782,8 +781,7 @@ export class ProgramsService {
     // Calendar week check: next week starts at enrolledAt + (currentWeek * 7 days)
     const enrolledDate = new Date(enrollment.enrolledAt);
     const nextWeekStartDate = new Date(
-      enrolledDate.getTime() +
-        enrollment.currentWeek * 7 * 24 * 60 * 60 * 1000,
+      enrolledDate.getTime() + enrollment.currentWeek * 7 * 24 * 60 * 60 * 1000,
     );
     const calendarWeekArrived = new Date() >= nextWeekStartDate;
 

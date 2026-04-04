@@ -48,21 +48,40 @@ describe("Goal Plan Routes", () => {
       "password123",
     );
 
-    // Create a goal-plan-enabled subscription plan with goalPlanType
+    // Create a micro_program with goalPlanType (D-07 REVISED: goalPlanType lives on program)
+    const programRes = await app.inject({
+      method: "POST",
+      url: "/api/admin/programs",
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Tren Superior Program",
+        description: null,
+        price: 20000,
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+        goalPlanType: "tren_superior",
+        auraWeeklyBonus: 15,
+        auraCompletionBonus: 100,
+        contentBlocks: [],
+      },
+    });
+    expect(programRes.statusCode).toBe(201);
+    const program = JSON.parse(programRes.body);
+
+    // Create a goal-plan-enabled subscription plan linked to the program
     const planRes = await app.inject({
       method: "POST",
       url: `${SUBSCRIPTIONS_URL}/plans`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         name: "Plan Goal Plan Test",
-        planTier: "flex",
+        planTier: "other",
         bookingMode: "flexible",
         priceRegular: 20000,
         priceZero: 15000,
         durationDays: 30,
-        classesPerWeek: 3,
         planCategory: "online_goal",
-        goalPlanType: "tren_superior",
+        linkedProgramId: program.id,
       },
     });
     expect(planRes.statusCode).toBe(201);
@@ -218,25 +237,38 @@ describe("Goal Plan Routes", () => {
   // Plan-driven goal plan assignment
   // ---------------------------------------------------------------
   describe("Plan-driven goal plan assignment", () => {
-    it("rejects plan creation with planCategory=online_goal but no goalPlanType", async () => {
-      const res = await app.inject({
+    it("rejects plan update to online_goal without linkedProgramId", async () => {
+      // Create a presencial plan first
+      const createRes = await app.inject({
         method: "POST",
         url: `${SUBSCRIPTIONS_URL}/plans`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          name: "Bad Goal Plan",
+          name: "Temp Presencial Plan",
           planTier: "other",
           bookingMode: "flexible",
           priceRegular: 10000,
           priceZero: 8000,
           durationDays: 30,
+          planCategory: "presencial",
+        },
+      });
+      expect(createRes.statusCode).toBe(201);
+      const tempPlan = JSON.parse(createRes.body);
+
+      // Try to update to online_goal without linkedProgramId
+      const res = await app.inject({
+        method: "PUT",
+        url: `${SUBSCRIPTIONS_URL}/plans/${tempPlan.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
           planCategory: "online_goal",
-          // no goalPlanType
+          // no linkedProgramId
         },
       });
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("goalPlanType");
+      expect(body.message).toContain("linkedProgramId");
     });
 
     it("plan list includes goalPlanType field", async () => {
@@ -604,8 +636,7 @@ describe("Goal Plan Routes", () => {
       for (const member of body.members) {
         const matchesSearch =
           member.email.includes("goal-plan-member") ||
-          (member.firstName &&
-            member.firstName.includes("goal-plan-member")) ||
+          (member.firstName && member.firstName.includes("goal-plan-member")) ||
           (member.lastName && member.lastName.includes("goal-plan-member"));
         expect(matchesSearch).toBe(true);
       }

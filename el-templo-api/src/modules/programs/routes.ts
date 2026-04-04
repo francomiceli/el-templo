@@ -59,6 +59,18 @@ const createProgramSchema = {
       sessionsPerWeekToAdvance: { type: "integer", minimum: 1, maximum: 7 },
       auraWeeklyBonus: { type: "integer", minimum: 0 },
       auraCompletionBonus: { type: "integer", minimum: 0 },
+      goalPlanType: {
+        type: ["string", "null"],
+        enum: [
+          "tren_superior",
+          "tren_inferior",
+          "empuje",
+          "traccion",
+          "planche",
+          "front_lever",
+          null,
+        ],
+      },
       contentBlocks: {
         type: "array",
         items: contentBlockSchema,
@@ -75,6 +87,18 @@ const updateProgramSchema = {
       name: { type: "string", minLength: 1, maxLength: 150 },
       description: { type: ["string", "null"] },
       price: { type: "integer", minimum: 0 },
+      goalPlanType: {
+        type: ["string", "null"],
+        enum: [
+          "tren_superior",
+          "tren_inferior",
+          "empuje",
+          "traccion",
+          "planche",
+          "front_lever",
+          null,
+        ],
+      },
       auraWeeklyBonus: { type: "integer", minimum: 0 },
       auraCompletionBonus: { type: "integer", minimum: 0 },
     },
