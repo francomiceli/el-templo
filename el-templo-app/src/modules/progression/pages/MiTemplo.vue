@@ -91,7 +91,7 @@
             :today-completed="todayCompleted"
             :today-session="progressionStore.todaySession"
             :route-name="todayRouteName"
-            :is-personalizada="isPersonalizada"
+            :is-goal-plan="isGoalPlan"
             :check-in-message="checkInMessage"
           />
         </template>
@@ -213,8 +213,8 @@ const todayCompleted = computed(() => {
   return progressionStore.todaySession?.completed ?? false
 })
 
-const isPersonalizada = computed(() => {
-  return userStore.hasActivePersonalizada
+const isGoalPlan = computed(() => {
+  return userStore.hasActiveGoalPlan
 })
 
 const showReservaCta = computed(() => {

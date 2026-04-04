@@ -2,54 +2,25 @@ import { ref, computed } from 'vue'
 import { useSessionPlayerStore } from '../../training/stores/sessionPlayerStore'
 import { createLogger } from 'src/utils/logger'
 import type { Block, BlockRole } from '../../training/types/session'
-import type { PersonalizadaDuration, PersonalizadaSessionResponse } from '../types'
+import type { GoalPlanSessionResponse } from '../types'
 
-const log = createLogger('PersonalizadaSession')
-
-/**
- * Duration-based block filtering for personalizada sessions.
- *
- * - 20 min: INITIUM + NUCLEUS only
- * - 40 min: INITIUM + NUCLEUS + DEUTEROS_1 (single, no choice)
- * - 60 min: All blocks (INITIUM + NUCLEUS + DEUTEROS_1 + ATHLOS/EPIKOS)
- *
- * Note: Personalizada sessions do NOT have DEUTEROS_2 choice like regular sessions.
- * The 40-min shows only DEUTEROS_1. For 60-min, the coach determines
- * which final block (Athlos or Epikos) is present in the generated session.
- */
-export function getBlocksForDuration(blocks: Block[], duration: PersonalizadaDuration): Block[] {
-  switch (duration) {
-    case 20:
-      return blocks.filter((b) => b.role === 'INITIUM' || b.role === 'NUCLEUS')
-    case 40:
-      return blocks.filter(
-        (b) => b.role === 'INITIUM' || b.role === 'NUCLEUS' || b.role === 'DEUTEROS_1',
-      )
-    case 60:
-      // All blocks except DEUTEROS_2 (personalizada sessions use DEUTEROS_1 only)
-      return blocks.filter((b) => b.role !== 'DEUTEROS_2')
-    default:
-      return blocks
-  }
-}
+const log = createLogger('GoalPlanSession')
 
 /**
- * Personalizada session player composable.
+ * Goal plan session player composable.
  *
- * Manages the lifecycle of a personalizada session: block filtering by duration,
+ * Manages the lifecycle of a goal plan session:
  * block-by-block progression, exercise completion tracking, timer, and
  * session completion.
  *
- * Follows the useSessionPlayer pattern but simplified for personalizadas:
- * - No Deuteros choice (duration determines which blocks are visible)
- * - Block count varies by duration (2 for 20min, 3 for 40min, 4+ for 60min)
+ * Follows the useSessionPlayer pattern but simplified for goal plans:
+ * - All blocks are visible (duration picker removed per D-29)
  * - Reuses sessionPlayerStore for progress persistence
  *
  * Returns cleanup() per composable convention.
  */
-export function usePersonalizadaSession(
-  session: PersonalizadaSessionResponse,
-  duration: PersonalizadaDuration,
+export function useGoalPlanSession(
+  session: GoalPlanSessionResponse,
 ) {
   const store = useSessionPlayerStore()
 
@@ -68,15 +39,15 @@ export function usePersonalizadaSession(
   let anchorTime = 0
 
   /**
-   * Visible blocks filtered by selected duration.
-   * Unlike regular sessions, personalizada sessions have no Deuteros choice.
+   * Visible blocks — all blocks except DEUTEROS_2.
+   * Goal plan sessions use DEUTEROS_1 only (no choice like regular sessions).
    */
   const visibleBlocks = computed<Block[]>(() => {
-    return getBlocksForDuration(session.blocks, duration)
+    return session.blocks.filter((b) => b.role !== 'DEUTEROS_2')
   })
 
   /**
-   * Total number of blocks to complete for this duration.
+   * Total number of blocks to complete.
    */
   const totalBlocks = computed(() => visibleBlocks.value.length)
 
@@ -250,9 +221,8 @@ export function usePersonalizadaSession(
     elapsedSeconds.value = accumulatedSeconds
 
     isInitialized.value = true
-    log.debug('Personalizada session initialized', {
+    log.debug('Goal plan session initialized', {
       dayId: session.dayId,
-      duration,
       visibleBlockCount: visibleBlocks.value.length,
       resumedFromProgress: savedProgress.elapsedSeconds > 0,
     })

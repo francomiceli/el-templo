@@ -17,13 +17,13 @@
               {{ routeName || 'Podés entrenar desde donde quieras' }}
             </p>
             <q-chip
-              v-if="isPersonalizada"
+              v-if="isGoalPlan"
               outline
               dense
               color="secondary"
               class="session-cta-card__chip"
             >
-              Personalizada
+              Por Objetivos
             </q-chip>
           </template>
           <template v-else>
@@ -61,7 +61,7 @@ const props = defineProps<{
   todayCompleted: boolean
   todaySession: TodaySession | null
   routeName: string | null
-  isPersonalizada: boolean
+  isGoalPlan: boolean
   checkInMessage: string | null
 }>()
 

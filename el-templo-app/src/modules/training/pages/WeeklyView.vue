@@ -159,8 +159,8 @@ const weekRangeLabel = computed(() => {
  * Navigate to Day Player when Start button clicked
  */
 function handleStartSession(date: string) {
-  if (userStore.hasActivePersonalizada) {
-    router.push({ name: 'personalizada-duration' })
+  if (userStore.hasActiveGoalPlan) {
+    router.push({ name: 'goalPlan-session' })
   } else {
     router.push({ name: 'day-player', params: { date } })
   }

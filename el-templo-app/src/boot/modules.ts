@@ -8,9 +8,9 @@ import {
   registerModule as registerProgression,
 } from 'src/modules/progression'
 import {
-  manifest as personalizadaManifest,
-  registerModule as registerPersonalizada,
-} from 'src/modules/personalizada'
+  manifest as goalPlanManifest,
+  registerModule as registerGoalPlan,
+} from 'src/modules/goal-plan'
 import { manifest as planManifest, registerModule as registerPlan } from 'src/modules/plan'
 import { registerModule as registerOnboarding } from 'src/modules/onboarding'
 
@@ -26,7 +26,7 @@ if (typeof window !== 'undefined') {
 export const modules = [
   trainingManifest,
   progressionManifest,
-  personalizadaManifest,
+  goalPlanManifest,
   planManifest,
   // Future modules added here:
   // academyManifest,
@@ -37,7 +37,7 @@ export default boot(({ router }) => {
   // Register all module routes
   registerTraining(router)
   registerProgression(router)
-  registerPersonalizada(router)
+  registerGoalPlan(router)
   registerPlan(router)
   registerOnboarding(router)
 

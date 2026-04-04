@@ -1,15 +1,15 @@
 <template>
-  <div class="personalizada-progress-indicator">
+  <div class="goal-plan-progress-indicator">
     <!-- Header -->
     <div class="indicator__header">
       <q-icon name="trending_up" size="28px" class="indicator__icon" />
       <h3 class="indicator__title">Tu Progreso</h3>
     </div>
 
-    <!-- Personalizada Name & Total -->
-    <div class="indicator__personalizada-name">{{ personalizadaName }}</div>
+    <!-- Goal Plan Name & Total -->
+    <div class="indicator__goal-plan-name">{{ goalPlanName }}</div>
     <div class="indicator__total">
-      {{ totalSessions }} {{ totalSessions === 1 ? 'sesión' : 'sesiones' }} completadas
+      {{ totalSessions }} {{ totalSessions === 1 ? 'sesion' : 'sesiones' }} completadas
     </div>
 
     <!-- Per-Duration Progress -->
@@ -18,7 +18,6 @@
         v-for="item in durationItems"
         :key="item.duration"
         class="duration-row"
-        :class="{ 'duration-row--active': item.duration === completedDuration }"
       >
         <div class="duration-row__time">
           <span class="duration-row__number">{{ item.duration }}</span>
@@ -35,12 +34,6 @@
             class="q-mt-xs"
           />
         </div>
-        <q-icon
-          v-if="item.duration === completedDuration"
-          name="check_circle"
-          size="20px"
-          class="duration-row__check"
-        />
       </div>
     </div>
 
@@ -58,15 +51,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { PersonalizadaDuration, PersonalizadaProgress } from '../types'
+import type { GoalPlanProgress } from '../types'
 
 interface Props {
-  /** Personalizada display name */
-  personalizadaName: string
-  /** Current personalizada progress with per-duration semana */
-  progress: PersonalizadaProgress
-  /** Duration that was just completed */
-  completedDuration: PersonalizadaDuration
+  /** Goal plan display name */
+  goalPlanName: string
+  /** Current goal plan progress with per-duration semana */
+  progress: GoalPlanProgress
 }
 
 interface Emits {
@@ -90,7 +81,7 @@ const totalSessions = computed(() => {
 <style scoped lang="scss">
 @import 'src/css/quasar.variables.scss';
 
-.personalizada-progress-indicator {
+.goal-plan-progress-indicator {
   background: #f5f2eb;
   padding: 24px 20px;
   max-width: 500px;
@@ -116,7 +107,7 @@ const totalSessions = computed(() => {
   margin: 0;
 }
 
-.indicator__personalizada-name {
+.indicator__goal-plan-name {
   font-family: 'Montserrat', sans-serif;
   font-size: 1.1rem;
   color: #4a4a4a;
@@ -143,11 +134,6 @@ const totalSessions = computed(() => {
   padding: 12px 14px;
   background: #e6e2d6;
   transition: background 0.2s;
-}
-
-.duration-row--active {
-  background: rgba(194, 122, 93, 0.15);
-  border-left: 3px solid #c27a5d;
 }
 
 .duration-row__time {
