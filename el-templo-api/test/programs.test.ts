@@ -454,7 +454,7 @@ describe("Programs Module", () => {
       expect(body.contentBlocks.length).toBe(2);
     });
 
-    it("should return has-personalizada-access true when enrolled", async () => {
+    it("should return has-goal-plan-access true when enrolled", async () => {
       // Enroll via admin
       await app.inject({
         method: "POST",
@@ -480,7 +480,7 @@ describe("Programs Module", () => {
       expect(body.hasAccess).toBe(true);
     });
 
-    it("should return has-personalizada-access false when not enrolled", async () => {
+    it("should return has-goal-plan-access false when not enrolled", async () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/members/programs/has-personalizada-access",

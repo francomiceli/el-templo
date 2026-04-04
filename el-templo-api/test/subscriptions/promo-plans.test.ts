@@ -39,7 +39,7 @@ describe("Promo Plans API", () => {
         priceRegular: 0,
         priceZero: 0,
         durationDays: 30,
-        isOnline: true,
+        planCategory: "online_regular",
         isTrial: true,
       })
       .$returningId();

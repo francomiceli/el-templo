@@ -90,9 +90,9 @@ describe("Member Plan Listing API", () => {
       expect(plan).toHaveProperty("name");
       expect(plan).toHaveProperty("description");
       expect(plan).toHaveProperty("planTier");
-      expect(plan).toHaveProperty("isPersonalizada");
-      expect(plan).toHaveProperty("personalizadaType");
-      expect(plan).toHaveProperty("personalizadaZones");
+      expect(plan).toHaveProperty("planCategory");
+      expect(plan).toHaveProperty("goalPlanType");
+      expect(plan).toHaveProperty("goalPlanZones");
     }
   });
 
@@ -132,11 +132,11 @@ describe("Member Plan Listing API", () => {
     expect(body.plans[0].name).toBe("Regular Plan");
   });
 
-  it("includes personalizadaZones for personalizada plans", async () => {
+  it("includes goalPlanZones for goal plans", async () => {
     await createPlan({
-      name: "Personalizada Tren Superior",
-      isPersonalizada: true,
-      personalizadaType: "tren_superior",
+      name: "Goal Plan Tren Superior",
+      planCategory: "online_goal",
+      goalPlanType: "tren_superior",
     });
 
     const res = await app.inject({
@@ -147,22 +147,22 @@ describe("Member Plan Listing API", () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    const persPlan = body.plans.find(
-      (p: Record<string, unknown>) => p.isPersonalizada === true,
+    const goalPlan = body.plans.find(
+      (p: Record<string, unknown>) => p.planCategory === "online_goal",
     );
-    expect(persPlan).toBeDefined();
-    expect(persPlan.personalizadaType).toBe("tren_superior");
-    expect(persPlan.personalizadaZones).toBeInstanceOf(Array);
-    expect(persPlan.personalizadaZones.length).toBeGreaterThan(0);
-    expect(persPlan.personalizadaZones).toContain("Hombros");
+    expect(goalPlan).toBeDefined();
+    expect(goalPlan.goalPlanType).toBe("tren_superior");
+    expect(goalPlan.goalPlanZones).toBeInstanceOf(Array);
+    expect(goalPlan.goalPlanZones.length).toBeGreaterThan(0);
+    expect(goalPlan.goalPlanZones).toContain("Hombros");
   });
 
-  it("sorts gym plans before personalizada plans", async () => {
-    // Create personalizada first, gym second — should still sort gym first
+  it("sorts presencial plans before online plans", async () => {
+    // Create online goal plan first, presencial second — should still sort presencial first
     await createPlan({
-      name: "Personalizada Empuje",
-      isPersonalizada: true,
-      personalizadaType: "empuje",
+      name: "Goal Plan Empuje",
+      planCategory: "online_goal",
+      goalPlanType: "empuje",
     });
     await createPlan({ name: "Gym Plan" });
 
@@ -175,11 +175,11 @@ describe("Member Plan Listing API", () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.plans).toHaveLength(2);
-    expect(body.plans[0].isPersonalizada).toBe(false);
-    expect(body.plans[1].isPersonalizada).toBe(true);
+    expect(body.plans[0].planCategory).toBe("presencial");
+    expect(body.plans[1].planCategory).toBe("online_goal");
   });
 
-  it("returns personalizadaZones as null for non-personalizada plans", async () => {
+  it("returns goalPlanZones as null for presencial plans", async () => {
     await createPlan({ name: "Gym Plan" });
 
     const res = await app.inject({
@@ -190,6 +190,6 @@ describe("Member Plan Listing API", () => {
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
-    expect(body.plans[0].personalizadaZones).toBeNull();
+    expect(body.plans[0].goalPlanZones).toBeNull();
   });
 });
