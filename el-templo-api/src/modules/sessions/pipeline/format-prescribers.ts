@@ -491,27 +491,31 @@ function prescribeTriplet(
 }
 
 /**
- * Ladder: Progressive rep scheme (ascending or descending)
- * Structure: 1-2-3-4-5 or 10-8-6-4-2
+ * Ladder: Progressive rep scheme (ascending or descending) over multiple rounds
+ * Structure: Athletes cycle through all exercises for N rounds
+ * Budget represents TOTAL volume — divide by rounds to get per-round reps
+ * (which is what's displayed to the athlete).
+ *
+ * Production data (25 coach edits, avg -15.1 delta) showed pipeline was
+ * prescribing ~25 reps when coaches want ~10 per exercise per round.
  */
 function prescribeLadder(ctx: PrescriptionContext): ExercisePrescription[] {
   const { exercises, repsBudget, intensity, restTime } = ctx;
 
+  // Ladder has multiple rounds — budget represents total volume
+  const LADDER_ROUNDS = 5; // Conservative: ladder/ladder_corta typically 5-10 rounds
+  const budgetPerRound = repsBudget / LADDER_ROUNDS;
+
   // High intensity = descending ladder, low = ascending
   const descending = intensity >= 75;
 
-  // Calculate ladder steps based on budget, rounded to 5
-  const baseStep = roundToNearest5(repsBudget / exercises.length);
-  const stepVariation = 5; // Clean 5-rep variation between steps
+  // Per-round per-exercise base, rounded to 5
+  const nonIsoCount = exercises.filter((e) => e.contraction !== "ISO").length;
+  const effectiveCount = Math.max(nonIsoCount, 1);
+  const baseStep = roundToNearest5(budgetPerRound / effectiveCount);
 
   return exercises.map((ex, i) => {
-    let reps: number;
-    if (descending) {
-      reps = baseStep + stepVariation * (exercises.length - 1 - i);
-    } else {
-      reps = baseStep - stepVariation * (exercises.length - 1 - i);
-    }
-    reps = Math.max(reps, REPS.LADDER_MIN);
+    const reps = Math.max(baseStep, REPS.LADDER_MIN);
 
     return createPrescription(
       ex,
@@ -523,6 +527,39 @@ function prescribeLadder(ctx: PrescriptionContext): ExercisePrescription[] {
       ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
     );
   });
+}
+
+/**
+ * Pyramid: Ascending then descending rep scheme (e.g., 2-4-6-8-10-8-6-4-2)
+ * Budget represents TOTAL volume — divide by the pyramid multiplier
+ * (sum of pattern / peak) to get the displayed per-exercise reps.
+ *
+ * Production data (10 edits, avg -28.5 delta) showed pipeline prescribing
+ * ~54 reps when coaches want ~25.5 per exercise.
+ * Standard fallback was using full budget without accounting for pyramid shape.
+ */
+function prescribePyramid(ctx: PrescriptionContext): ExercisePrescription[] {
+  const { exercises, repsBudget, restTime } = ctx;
+
+  // Pyramid has ascending + descending passes, so the total volume multiplier
+  // is roughly 2x what a single-pass format would be.
+  // Production calibration: coaches approve ~50% of raw budget per exercise.
+  const PYRAMID_VOLUME_FACTOR = 2;
+  const adjustedBudget = repsBudget / PYRAMID_VOLUME_FACTOR;
+
+  const nonIsoCount = exercises.filter((e) => e.contraction !== "ISO").length;
+  const effectiveCount = Math.max(nonIsoCount, 1);
+  const repsPerExercise = roundToNearest5(adjustedBudget / effectiveCount);
+
+  return exercises.map((ex, i) =>
+    createPrescription(
+      ex,
+      Math.max(repsPerExercise, REPS.MIN_PER_EXERCISE),
+      restTime,
+      i === 0 ? "Pyramid - ascending + descending reps" : undefined,
+      ex.contraction === "ISO" ? ISO_SECONDS.DEFAULT : 0,
+    ),
+  );
 }
 
 // =============================================================================
@@ -630,6 +667,7 @@ const PRESCRIBER_REGISTRY: Record<string, Prescriber> = {
   ladder: prescribeLadder,
   "ladder block": prescribeLadder,
   "ladder corta": prescribeLadder,
+  pyramid: prescribePyramid,
 };
 
 /**

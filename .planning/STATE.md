@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Ready to plan
-stopped_at: Completed 89-06-PLAN.md
-last_updated: "2026-04-04T20:18:11.010Z"
+stopped_at: Completed 89-07-PLAN.md
+last_updated: "2026-04-04T20:42:00.000Z"
 progress:
   total_phases: 83
   completed_phases: 71
@@ -113,8 +113,7 @@ _Updated after each plan completion_
 | Phase 86 P04 | 2min | 2 tasks | 2 files |
 | Phase 86 P05 | 6min | 2 tasks | 8 files |
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
-| Phase 89 P05 | 12min | 2 tasks | 18 files |
-| Phase 89 P06 | 37min | 2 tasks | 8 files |
+| Phase 89 P07 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -239,11 +238,9 @@ Recent decisions affecting current work:
 - [Phase 86]: Used underscore prefix (\_promoApplied) for unused destructured response field to avoid lint warnings
 - [Phase 86]: Promo routes registered inside existing subscriptionRoutes plugin, sharing the SUBSCRIPTION_ROLES auth guard hook
 - [Phase 86]: promoPlans deletion placed in Layer 3 of cleanAllTestData before subscriptionPlans for FK ordering
-- [Phase 89]: Duration picker removed entirely per D-29; goal plan sessions show all blocks
-- [Phase 89]: MemberPlan interface includes priceRegular for weekly price WhatsApp CTA
-- [Phase 89]: Category-group subscription constraint: presencial group vs online group via plan FK join
-- [Phase 89]: Auto-enrollment cascade: linkedProgramId triggers program_enrollment insert after subscription creation
-- [Phase 89]: renewSubscription preserves active enrollment (no re-creation if already active)
+- [Phase 89]: Ladder prescriber divides by LADDER_ROUNDS=5 for per-round reps (production: 25 edits, -15.1 avg delta)
+- [Phase 89]: Pyramid gets dedicated prescriber with PYRAMID_VOLUME_FACTOR=2 (production: 10 edits, -28.5 avg delta)
+- [Phase 89]: Multi-round format audit: all 16 prescribers checked, only Ladder+Pyramid needed fixing
 
 ### Pending Todos
 
@@ -255,6 +252,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T20:18:11.005Z
-Stopped at: Completed 89-06-PLAN.md
+Last session: 2026-04-04T20:42:00.000Z
+Stopped at: Completed 89-07-PLAN.md
 Resume file: None
