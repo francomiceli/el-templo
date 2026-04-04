@@ -1,4 +1,8 @@
-import type { GoalPlanType, GoalPlanMetadata, GoalPlanTier } from "./types";
+import type {
+  GoalPlanType,
+  GoalPlanMetadata,
+  GoalPlanTier,
+} from "./types";
 
 /**
  * Maps goal plan type to allowed exercise route codes.
@@ -52,6 +56,8 @@ export const GOAL_PLAN_ROUTE_MAP: Record<GoalPlanType, string[]> = {
   planche: ["PL", "PLPU"], // Planche-specific
   front_lever: ["FL", "FLR"], // Front lever-specific
 };
+
+export const GOAL_PLAN_DURATIONS = [20, 40, 60] as const;
 
 export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   "tren_superior",

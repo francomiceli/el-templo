@@ -2,7 +2,7 @@
  * Fastify JSON schemas for Goal Plans API request/response validation.
  */
 
-import type { GoalPlanType } from "./types";
+import type { GoalPlanDuration, GoalPlanType } from "./types";
 
 // =============================================================================
 // Member Endpoints
@@ -155,8 +155,6 @@ export const getGoalPlanSessionSchema = {
     },
   },
 };
-
-export type GoalPlanDuration = 20 | 40 | 60;
 
 export interface GetGoalPlanSessionInput {
   week: number;

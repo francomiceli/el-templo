@@ -67,14 +67,19 @@ function resolveGoalPlanRoute(
   const routeIndex = simpleHash(hashInput) % allowedRoutes.length;
   const selectedRoute = allowedRoutes[routeIndex];
 
-  const traceEvent = createTraceEvent(ctx, "GOAL_PLAN_ROUTE_SELECTED", "INFO", {
-    goalPlanType,
-    allowedRoutes,
-    hashInput,
-    routeIndex,
-    selectedRoute,
-    source: "goal_plan_route_map",
-  });
+  const traceEvent = createTraceEvent(
+    ctx,
+    "GOAL_PLAN_ROUTE_SELECTED",
+    "INFO",
+    {
+      goalPlanType,
+      allowedRoutes,
+      hashInput,
+      routeIndex,
+      selectedRoute,
+      source: "goal_plan_route_map",
+    },
+  );
 
   return {
     ...appendTrace(ctx, traceEvent),
@@ -83,10 +88,12 @@ function resolveGoalPlanRoute(
 }
 
 /**
- * Get the mobility routes for Initium zone-specific warmup.
+ * Get the mobility routes for goal plan zone-specific Initium warmup.
  * Returns all unique mobility routes that map to the goal plan's route pool.
  */
-function getGoalPlanMobilityRoutes(goalPlanType: GoalPlanType): string[] {
+function getGoalPlanMobilityRoutes(
+  goalPlanType: GoalPlanType,
+): string[] {
   const goalPlanRoutes = GOAL_PLAN_ROUTE_MAP[goalPlanType];
   const mobilityRoutes = new Set<string>();
 
@@ -242,9 +249,10 @@ export async function runGoalPlanBlockPipeline(
   goalPlanType: GoalPlanType,
   options?: BlockPipelineOptions,
 ): Promise<BlockPlan> {
-  // INITIUM uses special pipeline with goal plan zone-specific mobility
+  // INITIUM uses special pipeline with goal-plan zone-specific mobility
   if (initialContext.role === "INITIUM") {
-    const goalPlanMobilityRoutes = getGoalPlanMobilityRoutes(goalPlanType);
+    const goalPlanMobilityRoutes =
+      getGoalPlanMobilityRoutes(goalPlanType);
     return runInitiumPipeline(
       initialContext,
       db,

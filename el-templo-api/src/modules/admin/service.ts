@@ -86,7 +86,9 @@ export class AdminSessionService {
     } else if (filter.goalPlanType === "notnull") {
       conditions.push(isNotNull(schema.sessions.goalPlanType));
     } else if (filter.goalPlanType) {
-      conditions.push(eq(schema.sessions.goalPlanType, filter.goalPlanType));
+      conditions.push(
+        eq(schema.sessions.goalPlanType, filter.goalPlanType),
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -298,7 +300,11 @@ export class AdminSessionService {
    * Batch fetch all session details for a given week+day (eliminates N+1).
    * Returns fully hydrated sessions sorted by memberLevel.
    */
-  async getDaySessionDetails(week: number, day: string, goalPlanType?: string) {
+  async getDaySessionDetails(
+    week: number,
+    day: string,
+    goalPlanType?: string,
+  ) {
     // 1. Get all sessions for this week+day, optionally filtered by goalPlanType
     const conditions = [
       eq(schema.sessions.week, week),

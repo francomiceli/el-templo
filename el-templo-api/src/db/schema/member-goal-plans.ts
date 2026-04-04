@@ -24,6 +24,9 @@ export const memberGoalPlans = mysqlTable(
     archivedAt: timestamp("archived_at"),
   },
   (table) => [
-    index("member_goal_plans_user_active_idx").on(table.userId, table.isActive),
+    index("member_goal_plans_user_active_idx").on(
+      table.userId,
+      table.isActive,
+    ),
   ],
 );

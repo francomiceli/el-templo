@@ -19,6 +19,21 @@ export type PlanTier = "flex" | "foundation" | "performance" | "other";
 export type BookingMode = "fixed" | "flexible";
 export type PriceType = "regular" | "zero" | "credit_card";
 export type PromoType = "auto" | "admin_assignable";
+export type PlanCategory =
+  | "presencial"
+  | "online_regular"
+  | "online_goal"
+  | "online_coach";
+
+export function isOnlinePlan(category: PlanCategory): boolean {
+  return category !== "presencial";
+}
+export function isGoalPlan(category: PlanCategory): boolean {
+  return category === "online_goal";
+}
+export function isCoachPlan(category: PlanCategory): boolean {
+  return category === "online_coach";
+}
 
 // ─── AURA Discount Tiers ────────────────────────────────────────────────────
 
@@ -67,7 +82,7 @@ export interface PlanListItem {
   isTrial: boolean;
   isGroup: boolean;
   planCategory: PlanCategory;
-  linkedProgramId: number | null;
+  goalPlanType: string | null;
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -104,8 +119,8 @@ export interface CreatePlanInput {
   multiBranch?: boolean;
   isTrial?: boolean;
   isGroup?: boolean;
-  planCategory: PlanCategory;
-  linkedProgramId?: number;
+  planCategory?: PlanCategory;
+  goalPlanType?: string;
   groupMaxMembers?: number;
 }
 
@@ -123,7 +138,7 @@ export interface UpdatePlanInput {
   isTrial?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
-  linkedProgramId?: number | null;
+  goalPlanType?: string | null;
   groupMaxMembers?: number | null;
 }
 

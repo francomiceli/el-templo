@@ -122,7 +122,7 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.sessionEditLogs);
   await app.db.delete(schema.sessionPrescriptions);
   await app.db.delete(schema.savedBlocks);
-  await app.db.delete(schema.memberPersonalizadas);
+  await app.db.delete(schema.memberGoalPlans);
   await app.db.delete(schema.evaluationRequests);
   await app.db.delete(schema.formatCompatibility);
   await app.db.delete(schema.memberLogins);

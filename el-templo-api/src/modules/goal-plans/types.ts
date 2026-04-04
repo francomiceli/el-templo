@@ -8,6 +8,8 @@ export type GoalPlanType =
 
 export type GoalPlanTier = "principiante" | "intermedio" | "avanzado";
 
+export type GoalPlanDuration = 20 | 40 | 60;
+
 export interface GoalPlanProgress {
   goalPlanType: GoalPlanType;
   semana20: number;

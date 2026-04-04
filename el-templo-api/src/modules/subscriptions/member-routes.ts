@@ -12,7 +12,7 @@ import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
-import type { PlanCategory } from "./types";
+import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -53,7 +53,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     const [plan] = await fastify.db
       .select({
         planCategory: schema.subscriptionPlans.planCategory,
-        linkedProgramId: schema.subscriptionPlans.linkedProgramId,
+        goalPlanType: schema.subscriptionPlans.goalPlanType,
         multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
@@ -69,8 +69,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       endDate: sub.endDate,
       daysRemaining,
       pricePaid: sub.pricePaid,
-      planCategory: (plan?.planCategory as PlanCategory) ?? "presencial",
-      linkedProgramId: plan?.linkedProgramId ?? null,
+      planCategory: plan?.planCategory ?? "presencial",
+      goalPlanType: plan?.goalPlanType ?? null,
       multiBranch: plan?.multiBranch ?? false,
     };
   });
@@ -97,14 +97,9 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Map to member-safe response (no prices) and enrich goal plan zones
     const mapped = plans.map((p) => {
-      const meta =
-        p.planCategory === "online_goal"
-          ? GOAL_PLAN_METADATA.find((m) =>
-              // Match by linked program's goalPlanType if available
-              // For now, zones come from the metadata array
-              p.linkedProgramId ? true : false,
-            )
-          : undefined;
+      const meta = isGoalPlan(p.planCategory)
+        ? GOAL_PLAN_METADATA.find((m) => m.type === p.goalPlanType)
+        : undefined;
 
       return {
         id: p.id,
@@ -114,7 +109,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         durationDays: p.durationDays,
         classesPerWeek: p.classesPerWeek,
         planCategory: p.planCategory,
-        linkedProgramId: p.linkedProgramId,
+        goalPlanType: p.goalPlanType,
         goalPlanZones: meta?.zones ?? null,
       };
     });
@@ -122,10 +117,10 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     // Sort: presencial plans first, then online plans
     // Within each group, sort by name alphabetically
     mapped.sort((a, b) => {
-      const aIsOnline = a.planCategory !== "presencial";
-      const bIsOnline = b.planCategory !== "presencial";
-      if (aIsOnline !== bIsOnline) {
-        return aIsOnline ? 1 : -1;
+      const aOnline = isOnlinePlan(a.planCategory as PlanCategory);
+      const bOnline = isOnlinePlan(b.planCategory as PlanCategory);
+      if (aOnline !== bOnline) {
+        return aOnline ? 1 : -1;
       }
       return a.name.localeCompare(b.name);
     });

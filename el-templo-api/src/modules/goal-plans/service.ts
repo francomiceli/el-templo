@@ -38,11 +38,11 @@ import {
 } from "../shared/training-constants";
 import type {
   GoalPlanType,
+  GoalPlanDuration,
   GoalPlanProgress,
   ArchivedGoalPlan,
   CycleStats,
 } from "./types";
-import type { GoalPlanDuration } from "./schemas";
 import { GOAL_PLAN_ROUTE_MAP } from "./constants";
 import type { BlockPipelineOptions } from "../sessions/pipeline/index";
 
@@ -92,7 +92,7 @@ function semanaColumn(
 
 export class SubscriptionRequiredError extends Error {
   constructor() {
-    super("Consulta en recepcion sobre los planes por objetivos.");
+    super("Consulta en recepcion sobre los planes Por Objetivos.");
     this.name = "SubscriptionRequiredError";
   }
 }
@@ -142,7 +142,9 @@ export class GoalPlanService {
   /**
    * Get the active goal plan for a user, or null if none is active.
    */
-  async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
+  async getActiveGoalPlan(
+    userId: number,
+  ): Promise<GoalPlanProgress | null> {
     const [goalPlan] = await this.db
       .select()
       .from(schema.memberGoalPlans)
@@ -168,7 +170,9 @@ export class GoalPlanService {
   /**
    * Get all archived goal plans for a user.
    */
-  async getArchivedGoalPlans(userId: number): Promise<ArchivedGoalPlan[]> {
+  async getArchivedGoalPlans(
+    userId: number,
+  ): Promise<ArchivedGoalPlan[]> {
     const goalPlans = await this.db
       .select()
       .from(schema.memberGoalPlans)
@@ -257,7 +261,10 @@ export class GoalPlanService {
       .where(
         and(
           eq(schema.completedSessions.userId, userId),
-          eq(schema.completedSessions.goalPlanType, goalPlan.goalPlanType),
+          eq(
+            schema.completedSessions.goalPlanType,
+            goalPlan.goalPlanType,
+          ),
           sql`${schema.completedSessions.date} >= ${startDateStr}`,
           sql`${schema.completedSessions.date} <= ${endDateStr}`,
         ),
@@ -759,7 +766,7 @@ export class GoalPlanService {
     );
 
     if (!session) {
-      // Fallback: find the most recent available week for this goalPlan+day+level
+      // Fallback: find the most recent available week for this goal plan+day+level
       const fallbackSession = await this.db
         .select({ dayId: schema.sessions.dayId })
         .from(schema.sessions)

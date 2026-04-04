@@ -452,7 +452,9 @@ export class SessionGeneratorService {
         levelGroup: session.levelGroup,
         blockCount: session.blocks.length,
         traceJson: session.trace,
-        ...(session.goalPlanType ? { goalPlanType: session.goalPlanType } : {}),
+        ...(session.goalPlanType
+          ? { goalPlanType: session.goalPlanType }
+          : {}),
       });
 
       const newSessionId = sessionResult.insertId;

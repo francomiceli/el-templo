@@ -41,7 +41,8 @@ import type {
 import { AURA_DISCOUNT_TIERS } from "./types";
 import type { PaymentService } from "../payments/service";
 import { GoalPlanService } from "../goal-plans/service";
-import { isOnlinePlan } from "./types";
+import { ALL_GOAL_PLAN_TYPES } from "../goal-plans/constants";
+import type { GoalPlanType } from "../goal-plans/types";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -113,11 +114,20 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
-    // Validate that online plans have a linked program
-    if (isOnlinePlan(input.planCategory) && !input.linkedProgramId) {
-      throw new BadRequestError(
-        "Planes online requieren un programa vinculado",
-      );
+    // Validate goalPlanType when planCategory is online_goal
+    if (input.planCategory === "online_goal") {
+      if (!input.goalPlanType) {
+        throw new BadRequestError(
+          "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
+        );
+      }
+      if (
+        !(ALL_GOAL_PLAN_TYPES as readonly string[]).includes(
+          input.goalPlanType,
+        )
+      ) {
+        throw new BadRequestError("Tipo de plan por objetivos invalido");
+      }
     }
 
     const result = await this.db.insert(schema.subscriptionPlans).values({
@@ -134,7 +144,9 @@ export class SubscriptionService {
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
       planCategory: input.planCategory ?? "presencial",
-      linkedProgramId: input.linkedProgramId ?? null,
+      goalPlanType: input.planCategory === "online_goal"
+        ? (input.goalPlanType ?? null)
+        : null,
       groupMaxMembers: input.groupMaxMembers ?? null,
     });
 
@@ -178,23 +190,23 @@ export class SubscriptionService {
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
     if (input.planCategory !== undefined)
       updateData.planCategory = input.planCategory;
-    if (input.linkedProgramId !== undefined)
-      updateData.linkedProgramId = input.linkedProgramId;
+    if (input.goalPlanType !== undefined)
+      updateData.goalPlanType = input.goalPlanType;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
 
-    // Validate: if resulting plan would be online but without linked program, reject
-    const resultCategory =
+    // Validate: if resulting plan would be online_goal but without goalPlanType, reject
+    const resultPlanCategory =
       input.planCategory !== undefined
         ? input.planCategory
         : existing.planCategory;
-    const resultLinkedProgramId =
-      input.linkedProgramId !== undefined
-        ? input.linkedProgramId
-        : existing.linkedProgramId;
-    if (isOnlinePlan(resultCategory) && !resultLinkedProgramId) {
+    const resultGoalPlanType =
+      input.goalPlanType !== undefined
+        ? input.goalPlanType
+        : existing.goalPlanType;
+    if (resultPlanCategory === "online_goal" && !resultGoalPlanType) {
       throw new BadRequestError(
-        "Planes online requieren un programa vinculado",
+        "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
       );
     }
 
@@ -662,8 +674,17 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // TODO Plan 06: auto-create program_enrollment from plan.linkedProgramId (D-34/D-39)
-    // When a plan with linkedProgramId is assigned, auto-enroll the member in the linked program.
+    // Auto-assign goal plan from plan type
+    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
+      await this.goalPlanService.selectGoalPlan(
+        userId,
+        plan.goalPlanType as GoalPlanType,
+      );
+      this.log.info(
+        { userId, goalPlanType: plan.goalPlanType },
+        "Auto-assigned goal plan from plan",
+      );
+    }
 
     // Auto-record payment for the subscription
     if (this.paymentService && pricePaid > 0) {
@@ -1134,7 +1155,17 @@ export class SubscriptionService {
         }
       }
 
-      // TODO Plan 06: auto-create program_enrollment from targetPlan.linkedProgramId (D-34/D-39)
+      // Auto-assign goal plan from target plan type
+      if (targetPlan.planCategory === "online_goal" && targetPlan.goalPlanType) {
+        await this.goalPlanService.selectGoalPlan(
+          userId,
+          targetPlan.goalPlanType as GoalPlanType,
+        );
+        this.log.info(
+          { userId, goalPlanType: targetPlan.goalPlanType },
+          "Auto-assigned goal plan on plan change",
+        );
+      }
 
       // Record payment for the net amount
       if (this.paymentService && netAmount > 0) {
@@ -1347,7 +1378,17 @@ export class SubscriptionService {
       }
     }
 
-    // TODO Plan 06: auto-create program_enrollment from plan.linkedProgramId on renewal (D-34/D-39)
+    // Auto-assign goal plan from plan type (archives old, creates fresh)
+    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
+      await this.goalPlanService.selectGoalPlan(
+        userId,
+        plan.goalPlanType as GoalPlanType,
+      );
+      this.log.info(
+        { userId, goalPlanType: plan.goalPlanType },
+        "Auto-assigned goal plan on renewal",
+      );
+    }
 
     // Record payment linked to the NEW subscription
     if (this.paymentService && renewalPrice > 0) {
@@ -1684,8 +1725,8 @@ export class SubscriptionService {
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
-      planCategory: row.planCategory,
-      linkedProgramId: row.linkedProgramId ?? null,
+      planCategory: row.planCategory as import("./types").PlanCategory,
+      goalPlanType: row.goalPlanType ?? null,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
       isArchived: row.isArchived,
