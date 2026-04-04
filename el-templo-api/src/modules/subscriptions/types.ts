@@ -105,7 +105,6 @@ export interface CreatePlanInput {
   isTrial?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
-  goalPlanType?: string;
   linkedProgramId?: number;
   groupMaxMembers?: number;
 }
@@ -124,7 +123,6 @@ export interface UpdatePlanInput {
   isTrial?: boolean;
   isGroup?: boolean;
   planCategory?: PlanCategory;
-  goalPlanType?: string | null;
   linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
 }

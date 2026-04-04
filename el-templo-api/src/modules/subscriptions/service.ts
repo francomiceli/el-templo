@@ -41,7 +41,6 @@ import type {
 import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
 import type { PaymentService } from "../payments/service";
 import { GoalPlanService } from "../goal-plans/service";
-import { ALL_GOAL_PLAN_TYPES } from "../goal-plans/constants";
 import type { GoalPlanType } from "../goal-plans/types";
 
 // Lazy import type to avoid circular dependency at module load time
@@ -94,7 +93,7 @@ export class SubscriptionService {
       .where(whereClause)
       .orderBy(schema.subscriptionPlans.name);
 
-    return rows.map((r) => this.mapPlanRow(r));
+    return Promise.all(rows.map((r) => this.mapPlanRow(r)));
   }
 
   /**
@@ -114,22 +113,6 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
-    // Validate goalPlanType when planCategory is online_goal
-    if (input.planCategory === "online_goal") {
-      if (!input.goalPlanType) {
-        throw new BadRequestError(
-          "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
-        );
-      }
-      if (
-        !(ALL_GOAL_PLAN_TYPES as readonly string[]).includes(
-          input.goalPlanType,
-        )
-      ) {
-        throw new BadRequestError("Tipo de plan por objetivos invalido");
-      }
-    }
-
     const result = await this.db.insert(schema.subscriptionPlans).values({
       name: input.name,
       description: input.description ?? null,
@@ -144,9 +127,6 @@ export class SubscriptionService {
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
       planCategory: input.planCategory ?? "presencial",
-      goalPlanType: input.planCategory === "online_goal"
-        ? (input.goalPlanType ?? null)
-        : null,
       linkedProgramId: input.linkedProgramId ?? null,
       groupMaxMembers: input.groupMaxMembers ?? null,
     });
@@ -191,25 +171,23 @@ export class SubscriptionService {
     if (input.isGroup !== undefined) updateData.isGroup = input.isGroup;
     if (input.planCategory !== undefined)
       updateData.planCategory = input.planCategory;
-    if (input.goalPlanType !== undefined)
-      updateData.goalPlanType = input.goalPlanType;
     if (input.linkedProgramId !== undefined)
       updateData.linkedProgramId = input.linkedProgramId;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
 
-    // Validate: if resulting plan would be online_goal but without goalPlanType, reject
+    // Validate: if resulting plan would be online but without linkedProgramId, reject
     const resultPlanCategory =
       input.planCategory !== undefined
         ? input.planCategory
         : existing.planCategory;
-    const resultGoalPlanType =
-      input.goalPlanType !== undefined
-        ? input.goalPlanType
-        : existing.goalPlanType;
-    if (resultPlanCategory === "online_goal" && !resultGoalPlanType) {
+    const resultLinkedProgramId =
+      input.linkedProgramId !== undefined
+        ? input.linkedProgramId
+        : existing.linkedProgramId;
+    if (resultPlanCategory !== "presencial" && !resultLinkedProgramId) {
       throw new BadRequestError(
-        "Para planes por objetivos se requiere el tipo de plan (goalPlanType)",
+        "Planes online requieren un programa vinculado (linkedProgramId)",
       );
     }
 
@@ -701,16 +679,19 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Auto-assign goal plan from plan type
-    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
-      await this.goalPlanService.selectGoalPlan(
-        userId,
-        plan.goalPlanType as GoalPlanType,
-      );
-      this.log.info(
-        { userId, goalPlanType: plan.goalPlanType },
-        "Auto-assigned goal plan from plan",
-      );
+    // Auto-assign goal plan from linked program's goalPlanType (D-07 REVISED)
+    if (plan.planCategory === "online_goal" && plan.linkedProgramId) {
+      const goalPlanType = await this.resolveGoalPlanType(plan.linkedProgramId);
+      if (goalPlanType) {
+        await this.goalPlanService.selectGoalPlan(
+          userId,
+          goalPlanType as GoalPlanType,
+        );
+        this.log.info(
+          { userId, goalPlanType },
+          "Auto-assigned goal plan from linked program",
+        );
+      }
     }
 
     // Auto-create program enrollment if plan has linked program (D-34/D-39)
@@ -1214,16 +1195,24 @@ export class SubscriptionService {
         }
       }
 
-      // Auto-assign goal plan from target plan type
-      if (targetPlan.planCategory === "online_goal" && targetPlan.goalPlanType) {
-        await this.goalPlanService.selectGoalPlan(
-          userId,
-          targetPlan.goalPlanType as GoalPlanType,
+      // Auto-assign goal plan from target plan's linked program (D-07 REVISED)
+      if (
+        targetPlan.planCategory === "online_goal" &&
+        targetPlan.linkedProgramId
+      ) {
+        const goalPlanType = await this.resolveGoalPlanType(
+          targetPlan.linkedProgramId,
         );
-        this.log.info(
-          { userId, goalPlanType: targetPlan.goalPlanType },
-          "Auto-assigned goal plan on plan change",
-        );
+        if (goalPlanType) {
+          await this.goalPlanService.selectGoalPlan(
+            userId,
+            goalPlanType as GoalPlanType,
+          );
+          this.log.info(
+            { userId, goalPlanType },
+            "Auto-assigned goal plan on plan change",
+          );
+        }
       }
 
       // Cancel old program enrollment if old plan had a linked program
@@ -1478,16 +1467,19 @@ export class SubscriptionService {
       }
     }
 
-    // Auto-assign goal plan from plan type (archives old, creates fresh)
-    if (plan.planCategory === "online_goal" && plan.goalPlanType) {
-      await this.goalPlanService.selectGoalPlan(
-        userId,
-        plan.goalPlanType as GoalPlanType,
-      );
-      this.log.info(
-        { userId, goalPlanType: plan.goalPlanType },
-        "Auto-assigned goal plan on renewal",
-      );
+    // Auto-assign goal plan from linked program (D-07 REVISED)
+    if (plan.planCategory === "online_goal" && plan.linkedProgramId) {
+      const goalPlanType = await this.resolveGoalPlanType(plan.linkedProgramId);
+      if (goalPlanType) {
+        await this.goalPlanService.selectGoalPlan(
+          userId,
+          goalPlanType as GoalPlanType,
+        );
+        this.log.info(
+          { userId, goalPlanType },
+          "Auto-assigned goal plan on renewal",
+        );
+      }
     }
 
     // Handle program enrollment on renewal
@@ -1839,11 +1831,30 @@ export class SubscriptionService {
   }
 
   /**
-   * Map a raw plan row to PlanListItem.
+   * Resolve goalPlanType from a plan's linked program.
+   * Returns null if no linked program or program has no goalPlanType.
    */
-  private mapPlanRow(
+  private async resolveGoalPlanType(
+    linkedProgramId: number | null,
+  ): Promise<string | null> {
+    if (!linkedProgramId) return null;
+    const [program] = await this.db
+      .select({ goalPlanType: schema.microPrograms.goalPlanType })
+      .from(schema.microPrograms)
+      .where(eq(schema.microPrograms.id, linkedProgramId))
+      .limit(1);
+    return program?.goalPlanType ?? null;
+  }
+
+  /**
+   * Map a raw plan row to PlanListItem, resolving goalPlanType from linked program.
+   */
+  private async mapPlanRow(
     row: typeof schema.subscriptionPlans.$inferSelect,
-  ): PlanListItem {
+  ): Promise<PlanListItem> {
+    const goalPlanType = await this.resolveGoalPlanType(
+      row.linkedProgramId ?? null,
+    );
     return {
       id: row.id,
       name: row.name,
@@ -1859,7 +1870,7 @@ export class SubscriptionService {
       isTrial: row.isTrial,
       isGroup: row.isGroup,
       planCategory: row.planCategory as import("./types").PlanCategory,
-      goalPlanType: row.goalPlanType ?? null,
+      goalPlanType,
       linkedProgramId: row.linkedProgramId ?? null,
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
