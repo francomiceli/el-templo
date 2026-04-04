@@ -4,13 +4,13 @@ import { createTestApp, getAuthToken, registerUser } from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
 
-describe("Personalizada Routes", () => {
+describe("Goal Plan Routes", () => {
   let app: FastifyInstance;
   let memberToken: string;
   let adminToken: string;
   let memberToken2: string;
   let memberId: number;
-  let personalizadaPlanId: number;
+  let goalPlanPlanId: number;
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -18,53 +18,53 @@ describe("Personalizada Routes", () => {
     // Get admin token (admin@test.com seeded in globalSetup)
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
-    // Register member for personalizada tests
+    // Register member for goal plan tests
     const member1Result = await registerUser(app, {
-      email: "personalizada-member@test.com",
+      email: "goal-plan-member@test.com",
       password: "password123",
       branchId: 1,
     });
     memberToken = await getAuthToken(
       app,
-      "personalizada-member@test.com",
+      "goal-plan-member@test.com",
       "password123",
     );
     memberId = (member1Result.user as { id: number }).id;
 
     // Register a second member for isolation/enforcement tests (no subscription)
     await registerUser(app, {
-      email: "personalizada-member2@test.com",
+      email: "goal-plan-member2@test.com",
       password: "password123",
       branchId: 1,
     });
     memberToken2 = await getAuthToken(
       app,
-      "personalizada-member2@test.com",
+      "goal-plan-member2@test.com",
       "password123",
     );
 
-    // Create a personalizada-enabled subscription plan with personalizadaType
+    // Create a goal-plan-enabled subscription plan with goalPlanType
     const planRes = await app.inject({
       method: "POST",
       url: `${SUBSCRIPTIONS_URL}/plans`,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        name: "Plan Personalizada Test",
+        name: "Plan Goal Plan Test",
         planTier: "flex",
         bookingMode: "flexible",
         priceRegular: 20000,
         priceZero: 15000,
         durationDays: 30,
         classesPerWeek: 3,
-        isPersonalizada: true,
-        personalizadaType: "tren_superior",
+        planCategory: "online_goal",
+        goalPlanType: "tren_superior",
       },
     });
     expect(planRes.statusCode).toBe(201);
     const plan = JSON.parse(planRes.body);
-    personalizadaPlanId = plan.id;
+    goalPlanPlanId = plan.id;
 
-    // Assign the personalizada plan to member1
+    // Assign the goal plan to member1
     const assignRes = await app.inject({
       method: "POST",
       url: `${SUBSCRIPTIONS_URL}/members/${memberId}/subscription/assign`,
@@ -88,32 +88,22 @@ describe("Personalizada Routes", () => {
   // Subscription Enforcement
   // ---------------------------------------------------------------
   describe("Subscription Enforcement", () => {
-    it("POST /personalizadas/select returns 404 (route removed)", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/personalizadas/select",
-        headers: { authorization: `Bearer ${memberToken}` },
-        payload: { personalizadaType: "tren_superior" },
-      });
-      expect(res.statusCode).toBe(404);
-    });
-
-    it("returns 403 on GET /personalizadas/session without personalizada subscription", async () => {
+    it("returns 403 on GET /goal-plans/session without goal plan subscription", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
+        url: "/api/goal-plans/session?week=1&day=lunes&duration=20",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(403);
     });
 
-    it("returns 403 on POST /personalizadas/complete without personalizada subscription", async () => {
+    it("returns 403 on POST /goal-plans/complete without goal plan subscription", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/personalizadas/complete",
+        url: "/api/goal-plans/complete",
         headers: { authorization: `Bearer ${memberToken2}` },
         payload: {
-          dayId: "P-empuje-W1-lunes-alfa",
+          dayId: "GP-empuje-W1-lunes-alfa",
           duration: 20,
           date: "2026-03-18",
           startedAt: new Date().toISOString(),
@@ -123,28 +113,28 @@ describe("Personalizada Routes", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    it("GET /personalizadas/metadata returns 200 without subscription (public)", async () => {
+    it("GET /goal-plans/metadata returns 200 without subscription (public)", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/metadata",
+        url: "/api/goal-plans/metadata",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(200);
     });
 
-    it("GET /personalizadas/active returns 200 without subscription (no gate)", async () => {
+    it("GET /goal-plans/active returns 200 without subscription (no gate)", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/active",
+        url: "/api/goal-plans/active",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(200);
     });
 
-    it("GET /personalizadas/archived returns 200 without subscription (no gate)", async () => {
+    it("GET /goal-plans/archived returns 200 without subscription (no gate)", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/archived",
+        url: "/api/goal-plans/archived",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(200);
@@ -152,46 +142,46 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/metadata
+  // GET /api/goal-plans/metadata
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/metadata", () => {
+  describe("GET /api/goal-plans/metadata", () => {
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/metadata",
+        url: "/api/goal-plans/metadata",
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns all 6 personalizada types with correct structure", async () => {
+    it("returns all 6 goal plan types with correct structure", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/metadata",
+        url: "/api/goal-plans/metadata",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("personalizadas");
-      expect(body.personalizadas).toHaveLength(6);
+      expect(body).toHaveProperty("goalPlans");
+      expect(body.goalPlans).toHaveLength(6);
 
-      // Verify structure of each personalizada
-      for (const personalizada of body.personalizadas) {
-        expect(personalizada).toHaveProperty("type");
-        expect(personalizada).toHaveProperty("name");
-        expect(personalizada).toHaveProperty("tier");
-        expect(personalizada).toHaveProperty("description");
-        expect(personalizada).toHaveProperty("zones");
-        expect(personalizada).toHaveProperty("idealFor");
-        expect(Array.isArray(personalizada.zones)).toBe(true);
+      // Verify structure of each goal plan
+      for (const goalPlan of body.goalPlans) {
+        expect(goalPlan).toHaveProperty("type");
+        expect(goalPlan).toHaveProperty("name");
+        expect(goalPlan).toHaveProperty("tier");
+        expect(goalPlan).toHaveProperty("description");
+        expect(goalPlan).toHaveProperty("zones");
+        expect(goalPlan).toHaveProperty("idealFor");
+        expect(Array.isArray(goalPlan.zones)).toBe(true);
         expect(["principiante", "intermedio", "avanzado"]).toContain(
-          personalizada.tier,
+          goalPlan.tier,
         );
       }
 
       // Verify all 6 types are present
-      const types = body.personalizadas.map((p: { type: string }) => p.type);
+      const types = body.goalPlans.map((p: { type: string }) => p.type);
       expect(types).toContain("tren_superior");
       expect(types).toContain("tren_inferior");
       expect(types).toContain("empuje");
@@ -202,49 +192,49 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/active
+  // GET /api/goal-plans/active
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/active", () => {
-    it("returns null when no personalizada is active", async () => {
+  describe("GET /api/goal-plans/active", () => {
+    it("returns null when no goal plan is active", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/active",
+        url: "/api/goal-plans/active",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("personalizada");
-      expect(body.personalizada).toBeNull();
+      expect(body).toHaveProperty("goalPlan");
+      expect(body.goalPlan).toBeNull();
     });
   });
 
   // ---------------------------------------------------------------
-  // Plan-driven personalizada assignment
+  // Plan-driven goal plan assignment
   // ---------------------------------------------------------------
-  describe("Plan-driven personalizada assignment", () => {
-    it("rejects plan creation with isPersonalizada=true but no personalizadaType", async () => {
+  describe("Plan-driven goal plan assignment", () => {
+    it("rejects plan creation with planCategory=online_goal but no goalPlanType", async () => {
       const res = await app.inject({
         method: "POST",
         url: `${SUBSCRIPTIONS_URL}/plans`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          name: "Bad Personalizada Plan",
+          name: "Bad Goal Plan",
           planTier: "other",
           bookingMode: "flexible",
           priceRegular: 10000,
           priceZero: 8000,
           durationDays: 30,
-          isPersonalizada: true,
-          // no personalizadaType
+          planCategory: "online_goal",
+          // no goalPlanType
         },
       });
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.message).toContain("personalizada");
+      expect(body.message).toContain("goalPlanType");
     });
 
-    it("plan list includes personalizadaType field", async () => {
+    it("plan list includes goalPlanType field", async () => {
       const res = await app.inject({
         method: "GET",
         url: `${SUBSCRIPTIONS_URL}/plans`,
@@ -252,23 +242,23 @@ describe("Personalizada Routes", () => {
       });
       expect(res.statusCode).toBe(200);
       const plans = JSON.parse(res.body).plans;
-      const persoPlan = plans.find(
-        (p: { isPersonalizada: boolean }) => p.isPersonalizada,
+      const goalPlan = plans.find(
+        (p: { planCategory: string }) => p.planCategory === "online_goal",
       );
-      expect(persoPlan).toBeDefined();
-      expect(persoPlan.personalizadaType).toBe("tren_superior");
+      expect(goalPlan).toBeDefined();
+      expect(goalPlan.goalPlanType).toBe("tren_superior");
     });
 
-    it("assigning a personalizada plan auto-creates member_personalizadas", async () => {
+    it("assigning a goal plan auto-creates member_goal_plans", async () => {
       // Use a fresh member to avoid conflicts with existing subscription
       const freshMember = await registerUser(app, {
-        email: "personalizada-auto-assign@test.com",
+        email: "goal-plan-auto-assign@test.com",
         password: "password123",
         branchId: 1,
       });
       const freshToken = await getAuthToken(
         app,
-        "personalizada-auto-assign@test.com",
+        "goal-plan-auto-assign@test.com",
         "password123",
       );
       const freshMemberId = (freshMember.user as { id: number }).id;
@@ -278,7 +268,7 @@ describe("Personalizada Routes", () => {
         url: `${SUBSCRIPTIONS_URL}/members/${freshMemberId}/subscription/assign`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          planId: personalizadaPlanId,
+          planId: goalPlanPlanId,
           branchId: 1,
           startDate: new Date().toISOString().split("T")[0],
           priceTypeApplied: "regular",
@@ -287,83 +277,83 @@ describe("Personalizada Routes", () => {
       });
       expect(assignRes.statusCode).toBe(201);
 
-      // Verify member_personalizadas was auto-created
+      // Verify member_goal_plans was auto-created
       const activeRes = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/active",
+        url: "/api/goal-plans/active",
         headers: { authorization: `Bearer ${freshToken}` },
       });
       expect(activeRes.statusCode).toBe(200);
       const body = JSON.parse(activeRes.body);
-      expect(body.personalizada).not.toBeNull();
-      expect(body.personalizada.personalizadaType).toBe("tren_superior");
-      expect(body.personalizada.isActive).toBe(true);
-      expect(body.personalizada.semana20).toBe(1);
+      expect(body.goalPlan).not.toBeNull();
+      expect(body.goalPlan.goalPlanType).toBe("tren_superior");
+      expect(body.goalPlan.isActive).toBe(true);
+      expect(body.goalPlan.semana20).toBe(1);
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/active (after auto-assignment from plan)
+  // GET /api/goal-plans/active (after auto-assignment from plan)
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/active (after auto-assignment)", () => {
-    it("returns the auto-assigned personalizada with correct semana values", async () => {
-      // member1 was assigned a plan with personalizadaType: "tren_superior" in beforeAll
+  describe("GET /api/goal-plans/active (after auto-assignment)", () => {
+    it("returns the auto-assigned goal plan with correct semana values", async () => {
+      // member1 was assigned a plan with goalPlanType: "tren_superior" in beforeAll
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/active",
+        url: "/api/goal-plans/active",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.personalizada).not.toBeNull();
-      expect(body.personalizada.personalizadaType).toBe("tren_superior");
-      expect(body.personalizada.semana20).toBe(1);
-      expect(body.personalizada.semana40).toBe(1);
-      expect(body.personalizada.semana60).toBe(1);
+      expect(body.goalPlan).not.toBeNull();
+      expect(body.goalPlan.goalPlanType).toBe("tren_superior");
+      expect(body.goalPlan.semana20).toBe(1);
+      expect(body.goalPlan.semana40).toBe(1);
+      expect(body.goalPlan.semana60).toBe(1);
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/archived
+  // GET /api/goal-plans/archived
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/archived", () => {
-    it("returns empty array when no archived personalizadas exist", async () => {
+  describe("GET /api/goal-plans/archived", () => {
+    it("returns empty array when no archived goal plans exist", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/archived",
+        url: "/api/goal-plans/archived",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("personalizadas");
-      expect(body.personalizadas).toHaveLength(0);
+      expect(body).toHaveProperty("goalPlans");
+      expect(body.goalPlans).toHaveLength(0);
     });
 
-    it("returns empty archived list for member with only auto-assigned personalizada", async () => {
+    it("returns empty archived list for member with only auto-assigned goal plan", async () => {
       // member1 was only auto-assigned tren_superior from plan, no prior switching
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/archived",
+        url: "/api/goal-plans/archived",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("personalizadas");
-      expect(Array.isArray(body.personalizadas)).toBe(true);
+      expect(body).toHaveProperty("goalPlans");
+      expect(Array.isArray(body.goalPlans)).toBe(true);
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/stats
+  // GET /api/goal-plans/stats
   // ---------------------------------------------------------------
-  describe("GET /personalizadas/stats", () => {
-    it("returns null stats when member has no active personalizada", async () => {
+  describe("GET /goal-plans/stats", () => {
+    it("returns null stats when member has no active goal plan", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/stats",
+        url: "/api/goal-plans/stats",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(200);
@@ -371,11 +361,11 @@ describe("Personalizada Routes", () => {
       expect(body.stats).toBeNull();
     });
 
-    it("returns cycle stats for member with active personalizada", async () => {
-      // member1 has an active personalizada (tren_superior) auto-assigned from plan
+    it("returns cycle stats for member with active goal plan", async () => {
+      // member1 has an active goal plan (tren_superior) auto-assigned from plan
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/stats",
+        url: "/api/goal-plans/stats",
         headers: { authorization: `Bearer ${memberToken}` },
       });
       expect(res.statusCode).toBe(200);
@@ -400,24 +390,24 @@ describe("Personalizada Routes", () => {
     it("returns 401 when not authenticated", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/stats",
+        url: "/api/goal-plans/stats",
       });
       expect(res.statusCode).toBe(401);
     });
   });
 
   // ---------------------------------------------------------------
-  // GET /api/personalizadas/session
+  // GET /api/goal-plans/session
   // ---------------------------------------------------------------
-  describe("GET /api/personalizadas/session", () => {
+  describe("GET /api/goal-plans/session", () => {
     it("returns 404 when no session exists for the given week/day", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/session?week=1&day=lunes&duration=20",
+        url: "/api/goal-plans/session?week=1&day=lunes&duration=20",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
-      // No personalizada sessions have been generated yet
+      // No goal plan sessions have been generated yet
       expect(res.statusCode).toBe(404);
       const body = JSON.parse(res.body);
       expect(body.error).toBeTruthy();
@@ -426,7 +416,7 @@ describe("Personalizada Routes", () => {
     it("returns 400 for missing required query params", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/personalizadas/session?week=1&day=lunes",
+        url: "/api/goal-plans/session?week=1&day=lunes",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -435,16 +425,16 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // POST /api/personalizadas/complete
+  // POST /api/goal-plans/complete
   // ---------------------------------------------------------------
-  describe("POST /api/personalizadas/complete", () => {
-    it("records a personalizada session completion and advances semana", async () => {
+  describe("POST /api/goal-plans/complete", () => {
+    it("records a goal plan session completion and advances semana", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/personalizadas/complete",
+        url: "/api/goal-plans/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
-          dayId: "P-tren_superior-W1-lunes-alfa",
+          dayId: "GP-tren_superior-W1-lunes-alfa",
           duration: 40,
           date: "2026-02-10",
           startedAt: new Date().toISOString(),
@@ -458,7 +448,7 @@ describe("Personalizada Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.success).toBe(true);
       expect(body.progress).toBeDefined();
-      expect(body.progress.personalizadaType).toBe("tren_superior");
+      expect(body.progress.goalPlanType).toBe("tren_superior");
       // semana40 should be incremented to 2 (was 1 + 1)
       expect(body.progress.semana40).toBe(2);
       // Other durations should remain at 1
@@ -469,7 +459,7 @@ describe("Personalizada Routes", () => {
     it("validates required fields", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/personalizadas/complete",
+        url: "/api/goal-plans/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           // Missing required fields
@@ -482,17 +472,17 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // POST /api/admin/personalizadas/generate
+  // POST /api/admin/goal-plans/generate
   // ---------------------------------------------------------------
-  describe("POST /api/admin/personalizadas/generate", () => {
+  describe("POST /api/admin/goal-plans/generate", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/personalizadas/generate",
+        url: "/api/admin/goal-plans/generate",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           week: 1,
-          personalizadaType: "empuje",
+          goalPlanType: "empuje",
         },
       });
 
@@ -504,24 +494,24 @@ describe("Personalizada Routes", () => {
     it("returns 401 without authentication", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/personalizadas/generate",
+        url: "/api/admin/goal-plans/generate",
         payload: {
           week: 1,
-          personalizadaType: "empuje",
+          goalPlanType: "empuje",
         },
       });
 
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns 400 for invalid personalizada type", async () => {
+    it("returns 400 for invalid goal plan type", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/personalizadas/generate",
+        url: "/api/admin/goal-plans/generate",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           week: 1,
-          personalizadaType: "invalid_type",
+          goalPlanType: "invalid_type",
         },
       });
 
@@ -533,11 +523,11 @@ describe("Personalizada Routes", () => {
     it("accepts valid generate request from admin", async () => {
       const res = await app.inject({
         method: "POST",
-        url: "/api/admin/personalizadas/generate",
+        url: "/api/admin/goal-plans/generate",
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
           week: 50,
-          personalizadaType: "tren_inferior",
+          goalPlanType: "tren_inferior",
           days: ["lunes"],
         },
       });
@@ -557,23 +547,23 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/admin/personalizadas/members
+  // GET /api/admin/goal-plans/members
   // ---------------------------------------------------------------
-  describe("GET /api/admin/personalizadas/members", () => {
+  describe("GET /api/admin/goal-plans/members", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members",
+        url: "/api/admin/goal-plans/members",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
       expect(res.statusCode).toBe(403);
     });
 
-    it("returns members list with personalizada status for admin", async () => {
+    it("returns members list with goal plan status for admin", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members",
+        url: "/api/admin/goal-plans/members",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -590,15 +580,15 @@ describe("Personalizada Routes", () => {
         expect(member).toHaveProperty("userId");
         expect(member).toHaveProperty("email");
         expect(member).toHaveProperty("level");
-        // personalizadaType can be string or null
-        expect(member).toHaveProperty("personalizadaType");
+        // goalPlanType can be string or null
+        expect(member).toHaveProperty("goalPlanType");
       }
     });
 
     it("supports search filter", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members?search=personalizada-member",
+        url: "/api/admin/goal-plans/members?search=goal-plan-member",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -608,10 +598,10 @@ describe("Personalizada Routes", () => {
       // All returned members should match the search
       for (const member of body.members) {
         const matchesSearch =
-          member.email.includes("personalizada-member") ||
+          member.email.includes("goal-plan-member") ||
           (member.firstName &&
-            member.firstName.includes("personalizada-member")) ||
-          (member.lastName && member.lastName.includes("personalizada-member"));
+            member.firstName.includes("goal-plan-member")) ||
+          (member.lastName && member.lastName.includes("goal-plan-member"));
         expect(matchesSearch).toBe(true);
       }
     });
@@ -619,7 +609,7 @@ describe("Personalizada Routes", () => {
     it("supports pagination", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members?page=1&limit=1",
+        url: "/api/admin/goal-plans/members?page=1&limit=1",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -630,13 +620,13 @@ describe("Personalizada Routes", () => {
   });
 
   // ---------------------------------------------------------------
-  // GET /api/admin/personalizadas/members/:userId
+  // GET /api/admin/goal-plans/members/:userId
   // ---------------------------------------------------------------
-  describe("GET /api/admin/personalizadas/members/:userId", () => {
+  describe("GET /api/admin/goal-plans/members/:userId", () => {
     it("returns 403 for non-admin users", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members/1",
+        url: "/api/admin/goal-plans/members/1",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -646,18 +636,18 @@ describe("Personalizada Routes", () => {
     it("returns 404 for nonexistent user", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members/99999",
+        url: "/api/admin/goal-plans/members/99999",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
       expect(res.statusCode).toBe(404);
     });
 
-    it("returns detailed personalizada info for a specific member", async () => {
+    it("returns detailed goal plan info for a specific member", async () => {
       // First, get the member's user ID from the members list
       const listRes = await app.inject({
         method: "GET",
-        url: "/api/admin/personalizadas/members?search=personalizada-member@test.com",
+        url: "/api/admin/goal-plans/members?search=goal-plan-member@test.com",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -668,7 +658,7 @@ describe("Personalizada Routes", () => {
       // Get detail
       const res = await app.inject({
         method: "GET",
-        url: `/api/admin/personalizadas/members/${targetMemberId}`,
+        url: `/api/admin/goal-plans/members/${targetMemberId}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
@@ -678,9 +668,9 @@ describe("Personalizada Routes", () => {
       expect(body).toHaveProperty("archived");
       expect(body).toHaveProperty("completions");
 
-      // Active personalizada should be tren_superior (auto-assigned from plan)
+      // Active goal plan should be tren_superior (auto-assigned from plan)
       expect(body.active).not.toBeNull();
-      expect(body.active.personalizadaType).toBe("tren_superior");
+      expect(body.active.goalPlanType).toBe("tren_superior");
 
       // Archived may be empty (no manual switching since route removed)
       expect(Array.isArray(body.archived)).toBe(true);
@@ -692,7 +682,7 @@ describe("Personalizada Routes", () => {
       const completion = body.completions[0];
       expect(completion).toHaveProperty("dayId");
       expect(completion).toHaveProperty("date");
-      expect(completion).toHaveProperty("personalizadaType");
+      expect(completion).toHaveProperty("goalPlanType");
       expect(completion).toHaveProperty("duration");
       expect(completion).toHaveProperty("completedAt");
     });
