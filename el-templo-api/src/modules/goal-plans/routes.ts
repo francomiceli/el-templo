@@ -1,42 +1,43 @@
 /**
- * Personalizadas API Routes
+ * Goal Plans API Routes
  *
- * Member endpoints for personalizada lifecycle (select, session, complete)
+ * Member endpoints for goal plan lifecycle (select, session, complete)
  * and admin endpoints for generation and member overview.
  */
 
 import { FastifyPluginAsync } from "fastify";
 import { eq, and, like, sql, desc } from "drizzle-orm";
 import * as schema from "../../db/schema";
-import { PersonalizadasService, SubscriptionRequiredError } from "./service";
+import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
-import { PERSONALIZADA_METADATA, ALL_PERSONALIZADA_TYPES } from "./constants";
+import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
-import type { PersonalizadaType, PersonalizadaDuration } from "./types";
+import type { GoalPlanType } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
-  getPersonalizadaMetadataSchema,
-  getActivePersonalizadaSchema,
-  getArchivedPersonalizadasSchema,
-  getPersonalizadaStatsSchema,
-  getPersonalizadaSessionSchema,
-  completePersonalizadaSchema,
-  generatePersonalizadaSessionsSchema,
-  getAdminPersonalizadaMembersSchema,
-  getAdminPersonalizadaMemberDetailSchema,
-  type GetPersonalizadaSessionInput,
-  type CompletePersonalizadaInput,
-  type GeneratePersonalizadaSessionsInput,
-  type GetAdminPersonalizadaMembersInput,
+  getGoalPlanMetadataSchema,
+  getActiveGoalPlanSchema,
+  getArchivedGoalPlansSchema,
+  getGoalPlanStatsSchema,
+  getGoalPlanSessionSchema,
+  completeGoalPlanSchema,
+  generateGoalPlanSessionsSchema,
+  getAdminGoalPlanMembersSchema,
+  getAdminGoalPlanMemberDetailSchema,
+  type GoalPlanDuration,
+  type GetGoalPlanSessionInput,
+  type CompleteGoalPlanInput,
+  type GenerateGoalPlanSessionsInput,
+  type GetAdminGoalPlanMembersInput,
 } from "./schemas";
 
 import { TRAINING_ROLES, MEMBER_ROLES } from "../shared/permissions";
 
 /**
- * Convert a personalizada DaySession to API response format.
- * Similar to sessionToResponse in sessions/routes.ts but personalizada-specific.
+ * Convert a goal plan DaySession to API response format.
+ * Similar to sessionToResponse in sessions/routes.ts but goal-plan-specific.
  */
-function personalizadaSessionToResponse(session: DaySession) {
+function goalPlanSessionToResponse(session: DaySession) {
   return {
     dayId: session.dayId,
     week: session.week,
@@ -95,83 +96,82 @@ function personalizadaSessionToResponse(session: DaySession) {
   };
 }
 
-export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
-  const personalizadasService = new PersonalizadasService(fastify.db);
+export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
+  const goalPlanService = new GoalPlanService(fastify.db);
   const auraService = new AuraService(fastify.db);
 
   // =========================================================================
   // Member Endpoints (require authentication)
   // =========================================================================
 
-  // GET /personalizadas/metadata — Returns all personalizada types with metadata
+  // GET /goal-plans/metadata — Returns all goal plan types with metadata
   fastify.get(
-    "/personalizadas/metadata",
+    "/goal-plans/metadata",
     {
       onRequest: [fastify.authenticate],
-      schema: getPersonalizadaMetadataSchema,
+      schema: getGoalPlanMetadataSchema,
     },
     async () => {
-      return { personalizadas: PERSONALIZADA_METADATA };
+      return { goalPlans: GOAL_PLAN_METADATA };
     },
   );
 
-  // GET /personalizadas/active — Returns member's active personalizada or null
+  // GET /goal-plans/active — Returns member's active goal plan or null
   fastify.get(
-    "/personalizadas/active",
+    "/goal-plans/active",
     {
       onRequest: [fastify.authenticate],
-      schema: getActivePersonalizadaSchema,
+      schema: getActiveGoalPlanSchema,
     },
     async (request) => {
-      const personalizada = await personalizadasService.getActivePersonalizada(
+      const goalPlan = await goalPlanService.getActiveGoalPlan(
         request.user.userId,
       );
-      return { personalizada };
+      return { goalPlan };
     },
   );
 
-  // GET /personalizadas/archived — Returns member's archived personalizada history
+  // GET /goal-plans/archived — Returns member's archived goal plan history
   fastify.get(
-    "/personalizadas/archived",
+    "/goal-plans/archived",
     {
       onRequest: [fastify.authenticate],
-      schema: getArchivedPersonalizadasSchema,
+      schema: getArchivedGoalPlansSchema,
     },
     async (request) => {
-      const personalizadas =
-        await personalizadasService.getArchivedPersonalizadas(
-          request.user.userId,
-        );
-      return { personalizadas };
+      const goalPlans = await goalPlanService.getArchivedGoalPlans(
+        request.user.userId,
+      );
+      return { goalPlans };
     },
   );
 
-  // GET /personalizadas/stats — Returns cycle progress stats for member's active personalizada
+  // GET /goal-plans/stats — Returns cycle progress stats for member's active goal plan
   fastify.get(
-    "/personalizadas/stats",
+    "/goal-plans/stats",
     {
       onRequest: [fastify.authenticate],
-      schema: getPersonalizadaStatsSchema,
+      schema: getGoalPlanStatsSchema,
     },
     async (request) => {
-      const stats = await personalizadasService.getCycleStats(
+      const stats = await goalPlanService.getCycleStats(
         request.user.userId,
       );
       return { stats };
     },
   );
 
-  // GET /personalizadas/session — Returns personalizada session for member's active personalizada
-  fastify.get<{ Querystring: GetPersonalizadaSessionInput }>(
-    "/personalizadas/session",
+  // GET /goal-plans/session — Returns goal plan session for member's active goal plan
+  fastify.get<{ Querystring: GetGoalPlanSessionInput }>(
+    "/goal-plans/session",
     {
       onRequest: [fastify.authenticate],
-      schema: getPersonalizadaSessionSchema,
+      schema: getGoalPlanSessionSchema,
     },
     async (request, reply) => {
-      // Subscription enforcement: require personalizada-enabled plan
+      // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await personalizadasService.checkSubscription(request.user.userId);
+        await goalPlanService.checkSubscription(request.user.userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
@@ -189,58 +189,58 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const session = await personalizadasService.getPersonalizadaSession(
+        const session = await goalPlanService.getGoalPlanSession(
           request.user.userId,
           week,
           day,
-          duration as PersonalizadaDuration,
+          duration as GoalPlanDuration,
         );
 
         if (!session) {
-          // Check if the issue is no active personalizada vs no session found
-          const activePersonalizada =
-            await personalizadasService.getActivePersonalizada(
-              request.user.userId,
-            );
-          if (!activePersonalizada) {
+          // Check if the issue is no active goal plan vs no session found
+          const activeGoalPlan = await goalPlanService.getActiveGoalPlan(
+            request.user.userId,
+          );
+          if (!activeGoalPlan) {
             return reply.status(400).send({
               error:
-                "No tienes una personalizada activa. Selecciona una primero.",
+                "No tienes un plan por objetivos activo. Selecciona uno primero.",
             });
           }
           return reply.status(404).send({
-            error: "Sesion personalizada no encontrada para esta semana y dia",
+            error:
+              "Sesion de plan por objetivos no encontrada para esta semana y dia",
           });
         }
 
-        return personalizadaSessionToResponse(session);
+        return goalPlanSessionToResponse(session);
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al obtener sesion personalizada";
+            : "Error al obtener sesion de plan por objetivos";
         request.log.error(
           { err, week, day, duration },
-          "Error getting personalizada session",
+          "Error getting goal plan session",
         );
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // POST /personalizadas/complete — Records personalizada session completion
-  fastify.post<{ Body: CompletePersonalizadaInput }>(
-    "/personalizadas/complete",
+  // POST /goal-plans/complete — Records goal plan session completion
+  fastify.post<{ Body: CompleteGoalPlanInput }>(
+    "/goal-plans/complete",
     {
       onRequest: [fastify.authenticate],
-      schema: completePersonalizadaSchema,
+      schema: completeGoalPlanSchema,
     },
     async (request, reply) => {
       const { userId } = request.user;
 
-      // Subscription enforcement: require personalizada-enabled plan
+      // Subscription enforcement: require goal-plan-enabled plan
       try {
-        await personalizadasService.checkSubscription(userId);
+        await goalPlanService.checkSubscription(userId);
       } catch (err: unknown) {
         if (err instanceof SubscriptionRequiredError) {
           return reply.status(403).send({ error: err.message });
@@ -269,17 +269,16 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: "Usuario no encontrado" });
       }
 
-      // Get active personalizada
-      const activePersonalizada =
-        await personalizadasService.getActivePersonalizada(userId);
-      if (!activePersonalizada) {
+      // Get active goal plan
+      const activeGoalPlan = await goalPlanService.getActiveGoalPlan(userId);
+      if (!activeGoalPlan) {
         return reply.status(400).send({
-          error: "No tienes una personalizada activa",
+          error: "No tienes un plan por objetivos activo",
         });
       }
 
       try {
-        // Record completion in completed_sessions with personalizada metadata
+        // Record completion in completed_sessions with goal plan metadata
         const [existing] = await fastify.db
           .select({ id: schema.completedSessions.id })
           .from(schema.completedSessions)
@@ -303,7 +302,7 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
               notes: notes ?? null,
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
-              personalizadaType: activePersonalizada.personalizadaType,
+              goalPlanType: activeGoalPlan.goalPlanType,
               duration,
             })
             .where(eq(schema.completedSessions.id, existing.id));
@@ -321,46 +320,45 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
               notes: notes ?? null,
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
-              personalizadaType: activePersonalizada.personalizadaType,
+              goalPlanType: activeGoalPlan.goalPlanType,
               duration,
             });
           completionId = Number(result[0].insertId);
         }
 
         // Advance semana for the specific duration
-        await personalizadasService.advanceSemana(
+        await goalPlanService.advanceSemana(
           userId,
-          duration as PersonalizadaDuration,
+          duration as GoalPlanDuration,
         );
 
-        // Award AURA for personalizada completion
+        // Award AURA for goal plan completion
         try {
           await auraService.award({
             userId,
-            sourceType: "personalizada_completion",
-            referenceType: "personalizada_session",
+            sourceType: "goal_plan_completion",
+            referenceType: "goal_plan_session",
             referenceId: completionId,
           });
         } catch (auraErr: unknown) {
           // Log but don't fail the completion if AURA award fails (e.g., duplicate)
           request.log.warn(
             { err: auraErr, userId, dayId },
-            "AURA award failed for personalizada completion",
+            "AURA award failed for goal plan completion",
           );
         }
 
         // Return updated progress
-        const progress =
-          await personalizadasService.getActivePersonalizada(userId);
+        const progress = await goalPlanService.getActiveGoalPlan(userId);
         return { success: true, progress };
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al completar sesion personalizada";
+            : "Error al completar sesion de plan por objetivos";
         request.log.error(
           { err, dayId, duration },
-          "Error completing personalizada session",
+          "Error completing goal plan session",
         );
         return reply.status(400).send({ error: message });
       }
@@ -371,12 +369,12 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
   // Admin Endpoints (require admin/coach role)
   // =========================================================================
 
-  // POST /admin/personalizadas/generate — Generate personalizada sessions
-  fastify.post<{ Body: GeneratePersonalizadaSessionsInput }>(
-    "/admin/personalizadas/generate",
+  // POST /admin/goal-plans/generate — Generate goal plan sessions
+  fastify.post<{ Body: GenerateGoalPlanSessionsInput }>(
+    "/admin/goal-plans/generate",
     {
       onRequest: [fastify.authenticate],
-      schema: generatePersonalizadaSessionsSchema,
+      schema: generateGoalPlanSessionsSchema,
     },
     async (request, reply) => {
       if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
@@ -385,42 +383,41 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
-      const { week, personalizadaType, days, regenerate } = request.body;
+      const { week, goalPlanType, days, regenerate } = request.body;
 
-      if (!ALL_PERSONALIZADA_TYPES.includes(personalizadaType)) {
+      if (!ALL_GOAL_PLAN_TYPES.includes(goalPlanType)) {
         return reply.status(400).send({
-          error: `Tipo de personalizada invalido: ${personalizadaType}`,
+          error: `Tipo de plan por objetivos invalido: ${goalPlanType}`,
         });
       }
 
       try {
-        const result =
-          await personalizadasService.generatePersonalizadaSessions(
-            week,
-            personalizadaType,
-            { days, regenerate },
-          );
+        const result = await goalPlanService.generateGoalPlanSessions(
+          week,
+          goalPlanType,
+          { days, regenerate },
+        );
         return result;
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
-            : "Error al generar sesiones personalizadas";
+            : "Error al generar sesiones de plan por objetivos";
         request.log.error(
-          { err, week, personalizadaType },
-          "Error generating personalizada sessions",
+          { err, week, goalPlanType },
+          "Error generating goal plan sessions",
         );
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // GET /admin/personalizadas/members — List members with personalizada status
-  fastify.get<{ Querystring: GetAdminPersonalizadaMembersInput }>(
-    "/admin/personalizadas/members",
+  // GET /admin/goal-plans/members — List members with goal plan status
+  fastify.get<{ Querystring: GetAdminGoalPlanMembersInput }>(
+    "/admin/goal-plans/members",
     {
       onRequest: [fastify.authenticate],
-      schema: getAdminPersonalizadaMembersSchema,
+      schema: getAdminGoalPlanMembersSchema,
     },
     async (request, reply) => {
       if (!(TRAINING_ROLES as readonly string[]).includes(request.user.role)) {
@@ -429,16 +426,14 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
 
-      const { search, personalizadaType, page = 1, limit = 20 } = request.query;
+      const { search, goalPlanType, page = 1, limit = 20 } = request.query;
       const offset = (page - 1) * limit;
 
       try {
-        // Build base query: members with optional active personalizada via left join
-        // We query members (role=member) with their active personalizada info
+        // Build base query: members with optional active goal plan via left join
         const conditions = [eq(schema.users.role, "member")];
 
         if (search) {
-          // Search by name or email
           conditions.push(
             sql`(${schema.users.firstName} LIKE ${`%${search}%`} OR ${schema.users.lastName} LIKE ${`%${search}%`} OR ${schema.users.email} LIKE ${`%${search}%`})`,
           );
@@ -452,7 +447,7 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
 
         const total = countResult?.count ?? 0;
 
-        // Get paginated members with left join to active personalizadas and branch
+        // Get paginated members with left join to active goal plans and branch
         const members = await fastify.db
           .select({
             userId: schema.users.id,
@@ -461,11 +456,11 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             lastName: schema.users.lastName,
             level: schema.users.level,
             branchName: schema.branches.name,
-            personalizadaType: schema.memberPersonalizadas.personalizadaType,
-            semana20: schema.memberPersonalizadas.semana20,
-            semana40: schema.memberPersonalizadas.semana40,
-            semana60: schema.memberPersonalizadas.semana60,
-            startedAt: schema.memberPersonalizadas.startedAt,
+            goalPlanType: schema.memberGoalPlans.goalPlanType,
+            semana20: schema.memberGoalPlans.semana20,
+            semana40: schema.memberGoalPlans.semana40,
+            semana60: schema.memberGoalPlans.semana60,
+            startedAt: schema.memberGoalPlans.startedAt,
           })
           .from(schema.users)
           .innerJoin(
@@ -473,10 +468,10 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             eq(schema.branches.id, schema.users.branchId),
           )
           .leftJoin(
-            schema.memberPersonalizadas,
+            schema.memberGoalPlans,
             and(
-              eq(schema.memberPersonalizadas.userId, schema.users.id),
-              eq(schema.memberPersonalizadas.isActive, true),
+              eq(schema.memberGoalPlans.userId, schema.users.id),
+              eq(schema.memberGoalPlans.isActive, true),
             ),
           )
           .where(and(...conditions))
@@ -484,17 +479,17 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           .offset(offset)
           .orderBy(schema.users.firstName);
 
-        // Apply personalizada type filter after join (filtering on left-joined data)
+        // Apply goal plan type filter after join (filtering on left-joined data)
         let filteredMembers = members;
-        if (personalizadaType) {
+        if (goalPlanType) {
           filteredMembers = members.filter(
-            (m) => m.personalizadaType === personalizadaType,
+            (m) => m.goalPlanType === goalPlanType,
           );
         }
 
-        // Map to response with personalizada name
-        const personalizadaNameMap = new Map(
-          PERSONALIZADA_METADATA.map((p) => [p.type, p.name]),
+        // Map to response with goal plan name
+        const goalPlanNameMap = new Map(
+          GOAL_PLAN_METADATA.map((p) => [p.type, p.name]),
         );
 
         const result = filteredMembers.map((m) => ({
@@ -504,11 +499,9 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           lastName: m.lastName,
           level: m.level,
           branchName: m.branchName,
-          personalizadaType: m.personalizadaType,
-          personalizadaName: m.personalizadaType
-            ? (personalizadaNameMap.get(
-                m.personalizadaType as PersonalizadaType,
-              ) ?? null)
+          goalPlanType: m.goalPlanType,
+          goalPlanName: m.goalPlanType
+            ? (goalPlanNameMap.get(m.goalPlanType as GoalPlanType) ?? null)
             : null,
           semana20: m.semana20 ?? null,
           semana40: m.semana40 ?? null,
@@ -520,18 +513,18 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Error al obtener miembros";
-        request.log.error({ err }, "Error fetching personalizada members");
+        request.log.error({ err }, "Error fetching goal plan members");
         return reply.status(400).send({ error: message });
       }
     },
   );
 
-  // GET /admin/personalizadas/members/:userId — Detailed personalizada info for a member
+  // GET /admin/goal-plans/members/:userId — Detailed goal plan info for a member
   fastify.get<{ Params: { userId: number } }>(
-    "/admin/personalizadas/members/:userId",
+    "/admin/goal-plans/members/:userId",
     {
       onRequest: [fastify.authenticate],
-      schema: getAdminPersonalizadaMemberDetailSchema,
+      schema: getAdminGoalPlanMemberDetailSchema,
     },
     async (request, reply) => {
       if (!(MEMBER_ROLES as readonly string[]).includes(request.user.role)) {
@@ -563,20 +556,18 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        // Get active personalizada
-        const active =
-          await personalizadasService.getActivePersonalizada(userId);
+        // Get active goal plan
+        const active = await goalPlanService.getActiveGoalPlan(userId);
 
-        // Get archived personalizadas
-        const archived =
-          await personalizadasService.getArchivedPersonalizadas(userId);
+        // Get archived goal plans
+        const archived = await goalPlanService.getArchivedGoalPlans(userId);
 
-        // Get all completions (both entrenamiento and personalizada)
+        // Get all completions (both entrenamiento and goal plan)
         const completions = await fastify.db
           .select({
             dayId: schema.completedSessions.dayId,
             date: schema.completedSessions.date,
-            personalizadaType: schema.completedSessions.personalizadaType,
+            goalPlanType: schema.completedSessions.goalPlanType,
             duration: schema.completedSessions.duration,
             rpe: schema.completedSessions.rpe,
             blocksCompleted: schema.completedSessions.blocksCompleted,
@@ -587,14 +578,14 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
           .orderBy(desc(schema.completedSessions.completedAt))
           .limit(50);
 
-        // Compute entrenamiento stats (personalizadaType IS NULL)
+        // Compute entrenamiento stats (goalPlanType IS NULL)
         const entrenamientoCompletions = completions.filter(
-          (c) => c.personalizadaType === null,
+          (c) => c.goalPlanType === null,
         );
 
-        // Compute personalizada stats (personalizadaType IS NOT NULL)
-        const personalizadaCompletions = completions.filter(
-          (c) => c.personalizadaType !== null,
+        // Compute goal plan stats (goalPlanType IS NOT NULL)
+        const goalPlanCompletions = completions.filter(
+          (c) => c.goalPlanType !== null,
         );
 
         // Unique training days for entrenamiento
@@ -643,21 +634,18 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             totalDays: entrenamientoDays.size,
             currentStreak: streak,
           },
-          personalizadaStats: {
-            totalSessions: personalizadaCompletions.length,
+          goalPlanStats: {
+            totalSessions: goalPlanCompletions.length,
             byDuration: {
-              d20: personalizadaCompletions.filter((c) => c.duration === 20)
-                .length,
-              d40: personalizadaCompletions.filter((c) => c.duration === 40)
-                .length,
-              d60: personalizadaCompletions.filter((c) => c.duration === 60)
-                .length,
+              d20: goalPlanCompletions.filter((c) => c.duration === 20).length,
+              d40: goalPlanCompletions.filter((c) => c.duration === 40).length,
+              d60: goalPlanCompletions.filter((c) => c.duration === 60).length,
             },
           },
           completions: completions.map((c) => ({
             dayId: c.dayId,
             date: c.date,
-            personalizadaType: c.personalizadaType,
+            goalPlanType: c.goalPlanType,
             duration: c.duration,
             rpe: c.rpe,
             blocksCompleted: c.blocksCompleted as string[],
@@ -671,7 +659,7 @@ export const personalizadasRoutes: FastifyPluginAsync = async (fastify) => {
             : "Error al obtener detalle de miembro";
         request.log.error(
           { err, userId },
-          "Error fetching member personalizada detail",
+          "Error fetching member goal plan detail",
         );
         return reply.status(400).send({ error: message });
       }

@@ -26,8 +26,8 @@ export interface SessionFilter {
   day?: string;
   levelGroup?: string;
   status?: SessionStatus;
-  /** "null" = general (no personalizada), "notnull" = any personalizada, or specific personalizada type */
-  personalizadaType?: string;
+  /** "null" = general (no goal plan), "notnull" = any goal plan, or specific goal plan type */
+  goalPlanType?: string;
   page?: number;
   limit?: number;
   sortBy?: string;
@@ -51,7 +51,7 @@ export interface AdminSessionSummary {
   routesSummary: string;
   status: SessionStatus;
   blockCount: number;
-  personalizadaType: string | null;
+  goalPlanType: string | null;
   approvedAt: Date | null;
   approvedBy: number | null;
   approvedByName: string | null;
@@ -80,14 +80,14 @@ export class AdminSessionService {
     if (filter.status)
       conditions.push(eq(schema.sessions.status, filter.status));
 
-    // Personalizada type filtering: "null" = general only, "notnull" = personalizada only, else specific type
-    if (filter.personalizadaType === "null") {
-      conditions.push(isNull(schema.sessions.personalizadaType));
-    } else if (filter.personalizadaType === "notnull") {
-      conditions.push(isNotNull(schema.sessions.personalizadaType));
-    } else if (filter.personalizadaType) {
+    // Goal plan type filtering: "null" = general only, "notnull" = any goal plan, else specific type
+    if (filter.goalPlanType === "null") {
+      conditions.push(isNull(schema.sessions.goalPlanType));
+    } else if (filter.goalPlanType === "notnull") {
+      conditions.push(isNotNull(schema.sessions.goalPlanType));
+    } else if (filter.goalPlanType) {
       conditions.push(
-        eq(schema.sessions.personalizadaType, filter.personalizadaType),
+        eq(schema.sessions.goalPlanType, filter.goalPlanType),
       );
     }
 
@@ -109,7 +109,7 @@ export class AdminSessionService {
         levelGroup: schema.sessions.levelGroup,
         status: schema.sessions.status,
         blockCount: schema.sessions.blockCount,
-        personalizadaType: schema.sessions.personalizadaType,
+        goalPlanType: schema.sessions.goalPlanType,
         approvedAt: schema.sessions.approvedAt,
         approvedBy: schema.sessions.approvedBy,
         approvedBySystem: schema.sessions.approvedBySystem,
@@ -182,7 +182,7 @@ export class AdminSessionService {
           routesSummary: routesBySession.get(s.id) || "",
           status: s.status as SessionStatus,
           blockCount: s.blockCount,
-          personalizadaType: s.personalizadaType ?? null,
+          goalPlanType: s.goalPlanType ?? null,
           approvedAt: s.approvedAt,
           approvedBy: s.approvedBy,
           approvedByName:
@@ -303,18 +303,18 @@ export class AdminSessionService {
   async getDaySessionDetails(
     week: number,
     day: string,
-    personalizadaType?: string,
+    goalPlanType?: string,
   ) {
-    // 1. Get all sessions for this week+day, optionally filtered by personalizadaType
+    // 1. Get all sessions for this week+day, optionally filtered by goalPlanType
     const conditions = [
       eq(schema.sessions.week, week),
       eq(schema.sessions.day, day),
     ];
 
-    if (personalizadaType) {
-      conditions.push(eq(schema.sessions.personalizadaType, personalizadaType));
+    if (goalPlanType) {
+      conditions.push(eq(schema.sessions.goalPlanType, goalPlanType));
     } else {
-      conditions.push(isNull(schema.sessions.personalizadaType));
+      conditions.push(isNull(schema.sessions.goalPlanType));
     }
 
     const sessions = await this.db

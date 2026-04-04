@@ -1,13 +1,13 @@
 /**
- * Personalizada Pipeline Orchestrator
+ * Goal Plan Pipeline Orchestrator
  *
- * Modified pipeline for personalizada sessions that replaces Stage 1 (rotator)
- * with deterministic route selection from the personalizada route map, disables
+ * Modified pipeline for goal plan sessions that replaces Stage 1 (rotator)
+ * with deterministic route selection from the goal plan route map, disables
  * cross-route exercise mixing (100% zone bias), and uses zone-specific
  * Initium warmup.
  *
  * Reuses stages 2-7 from the main pipeline — only Stage 1 is replaced
- * and Stages 2/6 have guard logic for personalizada-specific behavior.
+ * and Stages 2/6 have guard logic for goal-plan-specific behavior.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
@@ -30,9 +30,9 @@ import { generatePrescriptions } from "./stage-7-prescription";
 // Import INITIUM special pipeline
 import { runInitiumPipeline } from "./initium-pipeline";
 
-// Import personalizada constants
-import { PERSONALIZADA_ROUTE_MAP } from "../../personalizadas/constants";
-import type { PersonalizadaType } from "../../personalizadas/types";
+// Import goal plan constants
+import { GOAL_PLAN_ROUTE_MAP } from "../../goal-plans/constants";
+import type { GoalPlanType } from "../../goal-plans/types";
 
 // Import mobility routes for zone-specific Initium
 import { ROUTE_TO_MOBILITY_ROUTES } from "./utils/mobility-routes";
@@ -50,17 +50,17 @@ function simpleHash(input: string): number {
 }
 
 /**
- * Personalizada Route Resolution (replaces Stage 1: Rotator)
+ * Goal Plan Route Resolution (replaces Stage 1: Rotator)
  *
- * Selects route deterministically from the personalizada's allowed routes using
+ * Selects route deterministically from the goal plan's allowed routes using
  * a hash of (week, day, blockRole). This ensures route variety across days
  * and blocks while remaining reproducible.
  */
-function resolvePersonalizadaRoute(
+function resolveGoalPlanRoute(
   ctx: BlockContext,
-  personalizadaType: PersonalizadaType,
+  goalPlanType: GoalPlanType,
 ): BlockContextWithRoute {
-  const allowedRoutes = PERSONALIZADA_ROUTE_MAP[personalizadaType];
+  const allowedRoutes = GOAL_PLAN_ROUTE_MAP[goalPlanType];
 
   // Deterministic route selection: hash of (week, day, blockRole) modulo allowedRoutes.length
   const hashInput = `${ctx.week}-${ctx.day}-${ctx.role}`;
@@ -69,15 +69,15 @@ function resolvePersonalizadaRoute(
 
   const traceEvent = createTraceEvent(
     ctx,
-    "PERSONALIZADA_ROUTE_SELECTED",
+    "GOAL_PLAN_ROUTE_SELECTED",
     "INFO",
     {
-      personalizadaType,
+      goalPlanType,
       allowedRoutes,
       hashInput,
       routeIndex,
       selectedRoute,
-      source: "personalizada_route_map",
+      source: "goal_plan_route_map",
     },
   );
 
@@ -88,16 +88,14 @@ function resolvePersonalizadaRoute(
 }
 
 /**
- * Get the first available personalizada route for Initium zone-specific warmup.
- * Returns all unique mobility routes that map to the personalizada's route pool.
+ * Get the mobility routes for Initium zone-specific warmup.
+ * Returns all unique mobility routes that map to the goal plan's route pool.
  */
-function getPersonalizadaMobilityRoutes(
-  personalizadaType: PersonalizadaType,
-): string[] {
-  const personalizadaRoutes = PERSONALIZADA_ROUTE_MAP[personalizadaType];
+function getGoalPlanMobilityRoutes(goalPlanType: GoalPlanType): string[] {
+  const goalPlanRoutes = GOAL_PLAN_ROUTE_MAP[goalPlanType];
   const mobilityRoutes = new Set<string>();
 
-  for (const route of personalizadaRoutes) {
+  for (const route of goalPlanRoutes) {
     const related = ROUTE_TO_MOBILITY_ROUTES[route];
     if (related) {
       for (const r of related) {
@@ -112,7 +110,7 @@ function getPersonalizadaMobilityRoutes(
 /**
  * Attempt SPOM resolution with fallback for missing rules.
  *
- * For personalizada sessions, a route may not have a SPOM rule for the current week
+ * For goal plan sessions, a route may not have a SPOM rule for the current week
  * (the rotator only uses certain routes per week). Fallback strategy:
  *   1. Try the requested week + route (normal).
  *   2. Try nearest available week for the same route.
@@ -182,7 +180,7 @@ async function resolveSpomWithFallback(
 
       const fallbackTrace = createTraceEvent(
         ctx,
-        "PERSONALIZADA_SPOM_FALLBACK",
+        "GOAL_PLAN_SPOM_FALLBACK",
         "WARNING",
         {
           requestedWeek: ctx.week,
@@ -206,7 +204,7 @@ async function resolveSpomWithFallback(
   // Ultimate fallback: no SPOM rule exists for this route at any week
   const defaultTrace = createTraceEvent(
     ctx,
-    "PERSONALIZADA_SPOM_FALLBACK",
+    "GOAL_PLAN_SPOM_FALLBACK",
     "WARNING",
     {
       route: ctx.route,
@@ -226,10 +224,10 @@ async function resolveSpomWithFallback(
 }
 
 /**
- * Run the personalizada block pipeline.
+ * Run the goal plan block pipeline.
  *
- * Executes a modified 7-stage pipeline for personalizada sessions:
- *   Stage 1: Personalizada route resolution (replaces rotator)
+ * Executes a modified 7-stage pipeline for goal plan sessions:
+ *   Stage 1: Goal plan route resolution (replaces rotator)
  *   Stage 2: SPOM resolution with fallback
  *   Stage 3-5: Budget, contraction, format (unchanged)
  *   Stage 6: Exercise selection with cross-route disabled
@@ -238,34 +236,33 @@ async function resolveSpomWithFallback(
  * @param initialContext - Starting context with week, day, levelGroup, role
  * @param spomService - SPOM service for data lookups
  * @param db - Database connection for direct queries
- * @param personalizadaType - The personalizada type for route resolution
+ * @param goalPlanType - The goal plan type for route resolution
  * @param options - Optional pipeline options (e.g., forced format)
  * @returns Complete BlockPlan with all fields populated
  */
-export async function runPersonalizadaBlockPipeline(
+export async function runGoalPlanBlockPipeline(
   initialContext: BlockContext,
   spomService: SpomService,
   db: MySql2Database<typeof schema>,
-  personalizadaType: PersonalizadaType,
+  goalPlanType: GoalPlanType,
   options?: BlockPipelineOptions,
 ): Promise<BlockPlan> {
-  // INITIUM uses special pipeline with personalizada zone-specific mobility
+  // INITIUM uses special pipeline with goal plan zone-specific mobility
   if (initialContext.role === "INITIUM") {
-    const personalizadaMobilityRoutes =
-      getPersonalizadaMobilityRoutes(personalizadaType);
+    const goalPlanMobilityRoutes = getGoalPlanMobilityRoutes(goalPlanType);
     return runInitiumPipeline(
       initialContext,
       db,
       options?.excludeFormatNames,
-      personalizadaMobilityRoutes,
+      goalPlanMobilityRoutes,
     );
   }
 
   let ctx: BlockContext | BlockContextWithRoute = initialContext;
 
   try {
-    // Stage 1: Personalizada route resolution (replaces rotator)
-    const ctx1 = resolvePersonalizadaRoute(ctx, personalizadaType);
+    // Stage 1: Goal plan route resolution (replaces rotator)
+    const ctx1 = resolveGoalPlanRoute(ctx, goalPlanType);
 
     // Stage 2: SPOM resolution with fallback for missing rules
     const spomResult = await resolveSpomWithFallback(ctx1, spomService, db);
@@ -284,9 +281,9 @@ export async function runPersonalizadaBlockPipeline(
         {
           intensity: spomResult.intensity,
           pattern: spomResult.pattern,
-          pattern2: null, // Explicitly disable cross-route for personalizada sessions
+          pattern2: null, // Explicitly disable cross-route for goal plan sessions
           category: spomResult.category,
-          source: "personalizada_fallback",
+          source: "goal_plan_fallback",
         },
       );
       ctx2 = {
@@ -299,17 +296,17 @@ export async function runPersonalizadaBlockPipeline(
       };
     }
 
-    // For personalizada sessions where SPOM resolves normally, override pattern2
+    // For goal plan sessions where SPOM resolves normally, override pattern2
     // to null to enforce 100% zone bias (no cross-route mixing)
     if (ctx2.pattern2 !== null) {
       const biasTrace = createTraceEvent(
         ctx2,
-        "PERSONALIZADA_CROSS_ROUTE_DISABLED",
+        "GOAL_PLAN_CROSS_ROUTE_DISABLED",
         "INFO",
         {
           originalPattern2: ctx2.pattern2,
           reason:
-            "Personalizada sessions use 100% zone bias — cross-route disabled",
+            "Goal plan sessions use 100% zone bias — cross-route disabled",
         },
       );
       ctx2 = {
@@ -365,9 +362,9 @@ export async function runPersonalizadaBlockPipeline(
     // Add ERROR trace and re-throw
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorTrace = createTraceEvent(ctx, "PIPELINE_ERROR", "ERROR", {
-      stage: "personalizada_pipeline",
+      stage: "goal_plan_pipeline",
       error: errorMessage,
-      personalizadaType,
+      goalPlanType,
     });
     ctx = appendTrace(ctx, errorTrace);
     throw error;

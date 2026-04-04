@@ -1,19 +1,19 @@
 /**
- * Fastify JSON schemas for Personalizadas API request/response validation.
+ * Fastify JSON schemas for Goal Plans API request/response validation.
  */
 
-import type { PersonalizadaDuration, PersonalizadaType } from "./types";
+import type { GoalPlanType } from "./types";
 
 // =============================================================================
 // Member Endpoints
 // =============================================================================
 
-export const getPersonalizadaMetadataSchema = {
+export const getGoalPlanMetadataSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        personalizadas: {
+        goalPlans: {
           type: "array",
           items: {
             type: "object",
@@ -32,18 +32,18 @@ export const getPersonalizadaMetadataSchema = {
   },
 };
 
-export const getActivePersonalizadaSchema = {
+export const getActiveGoalPlanSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        personalizada: {
+        goalPlan: {
           oneOf: [
             { type: "null" },
             {
               type: "object",
               properties: {
-                personalizadaType: { type: "string" },
+                goalPlanType: { type: "string" },
                 semana20: { type: "integer" },
                 semana40: { type: "integer" },
                 semana60: { type: "integer" },
@@ -58,17 +58,17 @@ export const getActivePersonalizadaSchema = {
   },
 };
 
-export const getArchivedPersonalizadasSchema = {
+export const getArchivedGoalPlansSchema = {
   response: {
     200: {
       type: "object",
       properties: {
-        personalizadas: {
+        goalPlans: {
           type: "array",
           items: {
             type: "object",
             properties: {
-              personalizadaType: { type: "string" },
+              goalPlanType: { type: "string" },
               semana20: { type: "integer" },
               semana40: { type: "integer" },
               semana60: { type: "integer" },
@@ -82,7 +82,7 @@ export const getArchivedPersonalizadasSchema = {
   },
 };
 
-export const getPersonalizadaStatsSchema = {
+export const getGoalPlanStatsSchema = {
   response: {
     200: {
       type: "object",
@@ -115,7 +115,7 @@ export const getPersonalizadaStatsSchema = {
   },
 };
 
-export const getPersonalizadaSessionSchema = {
+export const getGoalPlanSessionSchema = {
   querystring: {
     type: "object",
     required: ["week", "day", "duration"],
@@ -156,13 +156,15 @@ export const getPersonalizadaSessionSchema = {
   },
 };
 
-export interface GetPersonalizadaSessionInput {
+export type GoalPlanDuration = 20 | 40 | 60;
+
+export interface GetGoalPlanSessionInput {
   week: number;
   day: string;
-  duration: PersonalizadaDuration;
+  duration: GoalPlanDuration;
 }
 
-export const completePersonalizadaSchema = {
+export const completeGoalPlanSchema = {
   body: {
     type: "object",
     required: ["dayId", "duration", "date", "startedAt", "blocksCompleted"],
@@ -194,7 +196,7 @@ export const completePersonalizadaSchema = {
         progress: {
           type: "object",
           properties: {
-            personalizadaType: { type: "string" },
+            goalPlanType: { type: "string" },
             semana20: { type: "integer" },
             semana40: { type: "integer" },
             semana60: { type: "integer" },
@@ -213,9 +215,9 @@ export const completePersonalizadaSchema = {
   },
 };
 
-export interface CompletePersonalizadaInput {
+export interface CompleteGoalPlanInput {
   dayId: string;
-  duration: PersonalizadaDuration;
+  duration: GoalPlanDuration;
   date: string;
   startedAt: string;
   blocksCompleted: string[];
@@ -228,13 +230,13 @@ export interface CompletePersonalizadaInput {
 // Admin Endpoints
 // =============================================================================
 
-export const generatePersonalizadaSessionsSchema = {
+export const generateGoalPlanSessionsSchema = {
   body: {
     type: "object",
-    required: ["week", "personalizadaType"],
+    required: ["week", "goalPlanType"],
     properties: {
       week: { type: "integer", minimum: 1, maximum: 52 },
-      personalizadaType: {
+      goalPlanType: {
         type: "string",
         enum: [
           "tren_superior",
@@ -272,19 +274,19 @@ export const generatePersonalizadaSessionsSchema = {
   },
 };
 
-export interface GeneratePersonalizadaSessionsInput {
+export interface GenerateGoalPlanSessionsInput {
   week: number;
-  personalizadaType: PersonalizadaType;
+  goalPlanType: GoalPlanType;
   days?: string[];
   regenerate?: boolean;
 }
 
-export const getAdminPersonalizadaMembersSchema = {
+export const getAdminGoalPlanMembersSchema = {
   querystring: {
     type: "object",
     properties: {
       search: { type: "string" },
-      personalizadaType: { type: "string" },
+      goalPlanType: { type: "string" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -304,8 +306,8 @@ export const getAdminPersonalizadaMembersSchema = {
               lastName: { type: ["string", "null"] },
               level: { type: "string" },
               branchName: { type: "string" },
-              personalizadaType: { type: ["string", "null"] },
-              personalizadaName: { type: ["string", "null"] },
+              goalPlanType: { type: ["string", "null"] },
+              goalPlanName: { type: ["string", "null"] },
               semana20: { type: ["integer", "null"] },
               semana40: { type: ["integer", "null"] },
               semana60: { type: ["integer", "null"] },
@@ -319,14 +321,14 @@ export const getAdminPersonalizadaMembersSchema = {
   },
 };
 
-export interface GetAdminPersonalizadaMembersInput {
+export interface GetAdminGoalPlanMembersInput {
   search?: string;
-  personalizadaType?: string;
+  goalPlanType?: string;
   page?: number;
   limit?: number;
 }
 
-export const getAdminPersonalizadaMemberDetailSchema = {
+export const getAdminGoalPlanMemberDetailSchema = {
   params: {
     type: "object",
     required: ["userId"],
@@ -353,7 +355,7 @@ export const getAdminPersonalizadaMemberDetailSchema = {
             {
               type: "object",
               properties: {
-                personalizadaType: { type: "string" },
+                goalPlanType: { type: "string" },
                 semana20: { type: "integer" },
                 semana40: { type: "integer" },
                 semana60: { type: "integer" },
@@ -368,7 +370,7 @@ export const getAdminPersonalizadaMemberDetailSchema = {
           items: {
             type: "object",
             properties: {
-              personalizadaType: { type: "string" },
+              goalPlanType: { type: "string" },
               semana20: { type: "integer" },
               semana40: { type: "integer" },
               semana60: { type: "integer" },
@@ -385,7 +387,7 @@ export const getAdminPersonalizadaMemberDetailSchema = {
             currentStreak: { type: "integer" },
           },
         },
-        personalizadaStats: {
+        goalPlanStats: {
           type: "object",
           properties: {
             totalSessions: { type: "integer" },
@@ -406,7 +408,7 @@ export const getAdminPersonalizadaMemberDetailSchema = {
             properties: {
               dayId: { type: "string" },
               date: { type: "string" },
-              personalizadaType: { type: ["string", "null"] },
+              goalPlanType: { type: ["string", "null"] },
               duration: { type: ["integer", "null"] },
               rpe: { type: ["integer", "null"] },
               blocksCompleted: { type: "array" },
