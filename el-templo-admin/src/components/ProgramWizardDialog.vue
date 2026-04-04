@@ -237,12 +237,7 @@
                       emit-value
                       map-options
                     />
-                    <q-input
-                      v-model="blockForm.title"
-                      label="Titulo *"
-                      dense
-                      outlined
-                    />
+                    <q-input v-model="blockForm.title" label="Titulo *" dense outlined />
 
                     <!-- Conditional fields by type -->
                     <q-input
@@ -333,7 +328,10 @@
                 </div>
                 <div v-if="form.goalPlanType" class="row">
                   <span class="text-weight-medium col-4">Tipo:</span>
-                  <span class="col">{{ GOAL_PLAN_TYPE_OPTIONS.find(o => o.value === form.goalPlanType)?.label ?? form.goalPlanType }}</span>
+                  <span class="col">{{
+                    GOAL_PLAN_TYPE_OPTIONS.find((o) => o.value === form.goalPlanType)?.label ??
+                    form.goalPlanType
+                  }}</span>
                 </div>
                 <div v-else class="row">
                   <span class="text-weight-medium col-4">Tipo:</span>
@@ -395,6 +393,7 @@ import { useProgramsApi } from 'src/composables/useProgramsApi';
 import {
   BLOCK_TYPE_LABELS,
   BLOCK_TYPE_COLORS,
+  type MicroProgram,
   type MicroProgramDetail,
   type ContentBlockInput,
   type ContentBlockType,
@@ -491,10 +490,7 @@ function isWeekReadOnly(week: number): boolean {
   if (props.editingProgram.activeEnrollmentCount === 0) return false;
 
   // Find the max week that has content as the "current" boundary
-  const maxWeekWithContent = contentBlocks.value.reduce(
-    (max, b) => Math.max(max, b.weekNumber),
-    0,
-  );
+  const maxWeekWithContent = contentBlocks.value.reduce((max, b) => Math.max(max, b.weekNumber), 0);
   return week <= maxWeekWithContent && props.editingProgram.activeEnrollmentCount > 0;
 }
 
@@ -515,8 +511,7 @@ const isFormValid = computed(() => {
 // =========================================================================
 
 function requiredRule(fieldName: string) {
-  return (val: string | null | undefined) =>
-    (val && val.length > 0) || `${fieldName} es requerido`;
+  return (val: string | null | undefined) => (val && val.length > 0) || `${fieldName} es requerido`;
 }
 
 function requiredNumberRule(fieldName: string) {
@@ -575,8 +570,7 @@ function confirmBlock(week: number) {
       blockForm.value.blockType === 'video' || blockForm.value.blockType === 'pdf'
         ? blockForm.value.videoUrl
         : null,
-    exerciseId:
-      blockForm.value.blockType === 'exercise' ? blockForm.value.exerciseId : null,
+    exerciseId: blockForm.value.blockType === 'exercise' ? blockForm.value.exerciseId : null,
   };
 
   const weekBlocks = blocksForWeek(week);
@@ -659,7 +653,8 @@ watch(
       form.value = {
         name: props.editingProgram.name,
         description: props.editingProgram.description ?? '',
-        goalPlanType: (props.editingProgram as Record<string, unknown>).goalPlanType as string | null ?? null,
+        goalPlanType:
+          ((props.editingProgram as Record<string, unknown>).goalPlanType as string | null) ?? null,
         price: props.editingProgram.price,
         durationWeeks: props.editingProgram.durationWeeks,
         sessionsPerWeekToAdvance: props.editingProgram.sessionsPerWeekToAdvance,
@@ -690,7 +685,7 @@ watch(
       };
       contentBlocks.value = [];
     }
-  },
+  }
 );
 
 // =========================================================================
@@ -716,10 +711,7 @@ async function onSubmit() {
 
       // Update content blocks
       if (contentBlocks.value.length > 0) {
-        await programsApi.addContentBlocks(
-          props.editingProgram.id,
-          contentBlocks.value,
-        );
+        await programsApi.addContentBlocks(props.editingProgram.id, contentBlocks.value);
       }
     } else {
       // Create new program with content blocks

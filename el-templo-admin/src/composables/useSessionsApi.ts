@@ -45,13 +45,13 @@ export function useSessionsApi() {
   async function fetchDaySessionDetails(
     week: number,
     day: string,
-    goalPlanType?: string,
+    goalPlanType?: string
   ): Promise<SessionDetail[]> {
     loading.value = true;
     error.value = null;
     try {
-      const params: { week: number; day: string; personalizadaType?: string } = { week, day };
-      if (goalPlanType) params.personalizadaType = goalPlanType;
+      const params: { week: number; day: string; goalPlanType?: string } = { week, day };
+      if (goalPlanType) params.goalPlanType = goalPlanType;
       const { data } = await api.get<{ sessions: SessionDetail[] }>('/admin/sessions/day-details', {
         params,
       });

@@ -22,11 +22,7 @@
             Editar Sesion - {{ formatWeekLabel(week) }} - {{ dayLabel(day) }}
             <q-badge
               v-if="goalPlanType"
-              :color="
-                GOAL_PLAN_TIER_COLORS[
-                  GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType]
-                ]
-              "
+              :color="GOAL_PLAN_TIER_COLORS[GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType]]"
               :label="GOAL_PLAN_TYPE_LABELS[goalPlanType as GoalPlanType]"
               class="q-ml-sm"
               style="font-size: 0.6em; vertical-align: middle"
@@ -180,7 +176,7 @@ const week = computed(() => {
   return param ? (urlParamToWeek(param) ?? 1) : 1;
 });
 const day = computed(() => (route.query.day as string) || 'lunes');
-const goalPlanType = computed(() => (route.query.personalizadaType as string) || undefined);
+const goalPlanType = computed(() => (route.query.goalPlanType as string) || undefined);
 
 // Preview dialog state
 const previewOpen = ref(false);

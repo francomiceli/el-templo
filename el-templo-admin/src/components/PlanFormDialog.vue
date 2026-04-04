@@ -38,7 +38,7 @@
               outlined
               emit-value
               map-options
-              :rules="[val => !!val || 'Categoria es requerida']"
+              :rules="[(val) => !!val || 'Categoria es requerida']"
             />
           </div>
 
@@ -154,7 +154,7 @@
               outlined
               emit-value
               map-options
-              :rules="[val => !!val || 'Programa es requerido para planes online']"
+              :rules="[(val) => !!val || 'Programa es requerido para planes online']"
               :loading="loadingPrograms"
             />
             <div
@@ -203,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
@@ -273,7 +273,7 @@ const form = ref({
 // =========================================================================
 
 const weeklyPrice = computed(() =>
-  form.value.priceRegular ? Math.round(form.value.priceRegular / 4.33) : null,
+  form.value.priceRegular ? Math.round(form.value.priceRegular / 4.33) : null
 );
 
 const programOptions = computed(() =>
@@ -282,7 +282,7 @@ const programOptions = computed(() =>
     .map((p) => ({
       label: `${p.name} (${p.durationWeeks} sem)`,
       value: p.id,
-    })),
+    }))
 );
 
 // =========================================================================
@@ -344,7 +344,7 @@ watch(
       form.value.bookingMode = 'flexible';
       form.value.classesPerWeek = null;
     }
-  },
+  }
 );
 
 // =========================================================================
@@ -396,7 +396,7 @@ watch(
         groupMaxMembers: null,
       };
     }
-  },
+  }
 );
 
 // =========================================================================
@@ -413,14 +413,24 @@ async function onSubmit() {
       name: form.value.name,
       description: form.value.description || undefined,
       planCategory: form.value.planCategory,
-      planTier: form.value.planCategory === 'presencial' ? form.value.planTier : 'other' as PlanTier,
-      bookingMode: form.value.planCategory === 'presencial' ? form.value.bookingMode : 'flexible' as BookingMode,
+      planTier:
+        form.value.planCategory === 'presencial' ? form.value.planTier : ('other' as PlanTier),
+      bookingMode:
+        form.value.planCategory === 'presencial'
+          ? form.value.bookingMode
+          : ('flexible' as BookingMode),
       priceRegular: form.value.priceRegular!,
       priceZero: form.value.priceZero!,
       priceCreditCard: form.value.priceCreditCard ?? undefined,
       durationDays: form.value.durationDays!,
-      classesPerWeek: form.value.planCategory === 'presencial' ? (form.value.classesPerWeek ?? undefined) : undefined,
-      linkedProgramId: form.value.planCategory !== 'presencial' ? (form.value.linkedProgramId ?? undefined) : undefined,
+      classesPerWeek:
+        form.value.planCategory === 'presencial'
+          ? (form.value.classesPerWeek ?? undefined)
+          : undefined,
+      linkedProgramId:
+        form.value.planCategory !== 'presencial'
+          ? (form.value.linkedProgramId ?? undefined)
+          : undefined,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,

@@ -49,16 +49,27 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     }
 
-    // Get plan info
+    // Get plan info + linked program's goalPlanType
     const [plan] = await fastify.db
       .select({
         planCategory: schema.subscriptionPlans.planCategory,
-        goalPlanType: schema.subscriptionPlans.goalPlanType,
+        linkedProgramId: schema.subscriptionPlans.linkedProgramId,
         multiBranch: schema.subscriptionPlans.multiBranch,
       })
       .from(schema.subscriptionPlans)
       .where(eq(schema.subscriptionPlans.id, sub.planId))
       .limit(1);
+
+    // Resolve goalPlanType from linked program if present
+    let goalPlanType: string | null = null;
+    if (plan?.linkedProgramId) {
+      const [program] = await fastify.db
+        .select({ goalPlanType: schema.microPrograms.goalPlanType })
+        .from(schema.microPrograms)
+        .where(eq(schema.microPrograms.id, plan.linkedProgramId))
+        .limit(1);
+      goalPlanType = program?.goalPlanType ?? null;
+    }
 
     return {
       id: sub.id,
@@ -70,7 +81,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       daysRemaining,
       pricePaid: sub.pricePaid,
       planCategory: plan?.planCategory ?? "presencial",
-      goalPlanType: plan?.goalPlanType ?? null,
+      goalPlanType,
       multiBranch: plan?.multiBranch ?? false,
     };
   });

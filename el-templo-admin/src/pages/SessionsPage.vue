@@ -433,7 +433,7 @@ async function loadSessions() {
   try {
     const response = await sessionsApi.fetchSessions({
       week: currentWeek.value,
-      personalizadaType: 'null', // General tab: only non-goal-plan sessions
+      goalPlanType: 'null', // General tab: only non-goal-plan sessions
       limit: 100,
     });
     sessions.value = response.sessions;
@@ -532,7 +532,7 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
-      daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id)),
+      daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
     );
     const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
     const { buildDayPngZip } = await import('src/utils/pdf/session-png-builder');
@@ -573,7 +573,7 @@ async function onDownloadWeekPngZip() {
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
-      weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id)),
+      weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
     );
     const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
     const { buildWeekPngZip } = await import('src/utils/pdf/session-png-builder');
@@ -643,7 +643,7 @@ async function loadGoalPlanSessions() {
   try {
     const response = await sessionsApi.fetchSessions({
       week: goalPlanWeek.value,
-      personalizadaType: selectedGoalPlanTab.value,
+      goalPlanType: selectedGoalPlanTab.value,
       limit: 100,
     });
     goalPlanSessions.value = response.sessions;
@@ -660,7 +660,7 @@ function editGoalPlanDay(day: string) {
     query: {
       week: weekToUrlParam(goalPlanWeek.value),
       day,
-      personalizadaType: selectedGoalPlanTab.value,
+      goalPlanType: selectedGoalPlanTab.value,
     },
   });
 }

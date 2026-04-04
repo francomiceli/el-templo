@@ -42,7 +42,6 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   multiBranch: boolean("multi_branch").default(false).notNull(),
   isTrial: boolean("is_trial").default(false).notNull(),
   isGroup: boolean("is_group").default(false).notNull(),
-  goalPlanType: varchar("goal_plan_type", { length: 30 }),
   groupMaxMembers: int("group_max_members"),
   isActive: boolean("is_active").default(true).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
