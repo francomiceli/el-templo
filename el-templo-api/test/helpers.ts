@@ -104,10 +104,10 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.deviceTokens);
   await app.db.delete(schema.notificationTemplates);
 
-  // Layer 0b: program, onboarding, and check-in tables (depend on users)
+  // Layer 0b: program enrollments, onboarding, and check-in tables (depend on users)
   await app.db.delete(schema.programEnrollments);
   await app.db.delete(schema.microProgramContentBlocks);
-  await app.db.delete(schema.microPrograms);
+  // NOTE: microPrograms deleted in Layer 3b (after subscriptionPlans due to linkedProgramId FK)
   await app.db.delete(schema.checkInResponses);
   await app.db.delete(schema.onboardingAnalytics);
   await app.db.delete(schema.memberProfiles);
@@ -141,6 +141,8 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.subscriptions);
   await app.db.delete(schema.schedules);
   await app.db.delete(schema.subscriptionPlans);
+  // Layer 3b: microPrograms depends on subscriptionPlans.linkedProgramId being clear
+  await app.db.delete(schema.microPrograms);
   await app.db.delete(schema.auraBalances);
   await app.db.delete(schema.activities);
   await app.db.delete(schema.sessions);

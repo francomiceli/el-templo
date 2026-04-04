@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { createTestApp, getAuthToken, registerUser } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  registerUser,
+  cleanAllTestData,
+} from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
 
@@ -685,6 +690,85 @@ describe("Goal Plan Routes", () => {
       expect(completion).toHaveProperty("goalPlanType");
       expect(completion).toHaveProperty("duration");
       expect(completion).toHaveProperty("completedAt");
+    });
+  });
+
+  // ---------------------------------------------------------------
+  // Online Regular Session Access (MON-09)
+  // ---------------------------------------------------------------
+  describe("Online Regular Session Access (MON-09)", () => {
+    it("online_regular member sees planCategory in subscription and can access session endpoint", async () => {
+      // Clean up to avoid subscription conflicts
+      await cleanAllTestData(app);
+
+      // Create online_regular plan (no goalPlanType, no linkedProgramId)
+      const planRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          name: "Plan Online Regular Test",
+          planTier: "flex",
+          bookingMode: "flexible",
+          priceRegular: 8000,
+          priceZero: 6000,
+          durationDays: 30,
+          planCategory: "online_regular",
+        },
+      });
+      expect(planRes.statusCode).toBe(201);
+      const onlinePlan = JSON.parse(planRes.body);
+
+      // Register a fresh member for this test
+      const freshMember = await registerUser(app, {
+        email: "online-regular-session-test@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      const freshToken = await getAuthToken(
+        app,
+        "online-regular-session-test@test.com",
+        "password123",
+      );
+      const freshMemberId = (freshMember.user as { id: number }).id;
+
+      // Assign online_regular plan
+      const assignRes = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${freshMemberId}/subscription/assign`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: onlinePlan.id,
+          branchId: 1,
+          startDate: new Date().toISOString().split("T")[0],
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+        },
+      });
+      expect(assignRes.statusCode).toBe(201);
+
+      // Verify subscription shows planCategory: "online_regular"
+      const subRes = await app.inject({
+        method: "GET",
+        url: "/api/members/subscription/me/subscription",
+        headers: { authorization: `Bearer ${freshToken}` },
+      });
+      expect(subRes.statusCode).toBe(200);
+      const subBody = JSON.parse(subRes.body);
+      expect(subBody.planCategory).toBe("online_regular");
+
+      // Verify online_regular member gets 404 (no approved session) not 403 (forbidden)
+      // on regular session endpoint -- this confirms they access the regular pipeline
+      const sessionRes = await app.inject({
+        method: "GET",
+        url: "/api/sessions/daily?date=2026-04-04",
+        headers: { authorization: `Bearer ${freshToken}` },
+      });
+      // 404 means "session not available" -- NOT 403 (blocked) or 401 (unauthorized)
+      // This confirms online_regular users access the regular session pipeline
+      expect(sessionRes.statusCode).toBe(404);
+      const sessionBody = JSON.parse(sessionRes.body);
+      expect(sessionBody.error).toContain("no disponible");
     });
   });
 });

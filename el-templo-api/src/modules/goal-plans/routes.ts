@@ -154,21 +154,6 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getGoalPlanStatsSchema,
     },
     async (request) => {
-      const stats = await goalPlanService.getCycleStats(
-        request.user.userId,
-      );
-      return { goalPlans };
-    },
-  );
-
-  // GET /goal-plans/stats — Returns cycle progress stats for member's active goal plan
-  fastify.get(
-    "/goal-plans/stats",
-    {
-      onRequest: [fastify.authenticate],
-      schema: getGoalPlanStatsSchema,
-    },
-    async (request) => {
       const stats = await goalPlanService.getCycleStats(request.user.userId);
       return { stats };
     },
