@@ -30,32 +30,16 @@
               outlined
             />
 
-            <div class="row q-col-gutter-sm">
-              <div class="col-12 col-sm-6">
-                <q-select
-                  v-model="form.planTier"
-                  :options="tierOptions"
-                  label="Tier *"
-                  dense
-                  outlined
-                  emit-value
-                  map-options
-                  :rules="[requiredRule('Tier')]"
-                />
-              </div>
-              <div class="col-12 col-sm-6">
-                <q-select
-                  v-model="form.bookingMode"
-                  :options="bookingModeOptions"
-                  label="Modo de Reserva *"
-                  dense
-                  outlined
-                  emit-value
-                  map-options
-                  :rules="[requiredRule('Modo de reserva')]"
-                />
-              </div>
-            </div>
+            <q-select
+              v-model="form.planCategory"
+              :options="PLAN_CATEGORY_OPTIONS"
+              label="Categoria *"
+              dense
+              outlined
+              emit-value
+              map-options
+              :rules="[val => !!val || 'Categoria es requerida']"
+            />
           </div>
 
           <!-- Precios -->
@@ -96,6 +80,14 @@
             </div>
           </div>
 
+          <!-- Weekly price display for online plans -->
+          <div
+            v-if="form.planCategory !== 'presencial' && weeklyPrice"
+            class="text-caption text-grey-7 q-mt-xs"
+          >
+            Precio semanal: ${{ weeklyPrice.toLocaleString() }}/sem
+          </div>
+
           <!-- Duracion y Clases -->
           <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-sm">Duracion y Clases</div>
 
@@ -111,7 +103,7 @@
                 :rules="[requiredNumberRule('Duracion')]"
               />
             </div>
-            <div class="col-12 col-sm-6">
+            <div v-if="form.planCategory === 'presencial'" class="col-12 col-sm-6">
               <q-input
                 v-model.number="form.classesPerWeek"
                 label="Clases por semana"
@@ -123,6 +115,56 @@
             </div>
           </div>
 
+          <!-- Tier and Booking Mode (presencial only) -->
+          <div v-if="form.planCategory === 'presencial'" class="row q-col-gutter-sm q-mt-sm">
+            <div class="col-12 col-sm-6">
+              <q-select
+                v-model="form.planTier"
+                :options="tierOptions"
+                label="Tier *"
+                dense
+                outlined
+                emit-value
+                map-options
+                :rules="[requiredRule('Tier')]"
+              />
+            </div>
+            <div class="col-12 col-sm-6">
+              <q-select
+                v-model="form.bookingMode"
+                :options="bookingModeOptions"
+                label="Modo de Reserva *"
+                dense
+                outlined
+                emit-value
+                map-options
+                :rules="[requiredRule('Modo de reserva')]"
+              />
+            </div>
+          </div>
+
+          <!-- Programa Vinculado (online only) -->
+          <div v-if="form.planCategory !== 'presencial'" class="q-mt-lg">
+            <div class="text-subtitle2 text-weight-bold q-mb-sm">Programa Vinculado</div>
+            <q-select
+              v-model="form.linkedProgramId"
+              :options="programOptions"
+              label="Programa Vinculado *"
+              dense
+              outlined
+              emit-value
+              map-options
+              :rules="[val => !!val || 'Programa es requerido para planes online']"
+              :loading="loadingPrograms"
+            />
+            <div
+              v-if="programOptions.length === 0 && !loadingPrograms"
+              class="text-caption text-grey-7 q-mt-xs"
+            >
+              No hay programas. Crea uno en la pagina de Programas.
+            </div>
+          </div>
+
           <!-- Opciones -->
           <div class="text-subtitle2 text-weight-bold q-mt-lg q-mb-xs">Opciones</div>
 
@@ -130,26 +172,7 @@
             <q-toggle v-model="form.multiBranch" label="Multi-sucursal" />
             <q-toggle v-model="form.isTrial" label="Plan de prueba" />
             <q-toggle v-model="form.isGroup" label="Plan grupal" />
-            <q-toggle v-model="form.isPersonalizada" label="Personalizada">
-              <q-tooltip>Otorga acceso a Clases Personalizadas</q-tooltip>
-            </q-toggle>
-            <q-toggle v-model="form.isOnline" label="Plan Online">
-              <q-tooltip>Plan para miembros online (sin asistencia presencial)</q-tooltip>
-            </q-toggle>
           </div>
-
-          <q-select
-            v-if="form.isPersonalizada"
-            v-model="form.personalizadaType"
-            :options="personalizadaTypeOptions"
-            label="Tipo de Personalizada *"
-            dense
-            outlined
-            emit-value
-            map-options
-            class="q-mt-sm"
-            :rules="[requiredRule('Tipo de personalizada')]"
-          />
 
           <q-input
             v-if="form.isGroup"
@@ -180,17 +203,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import type { QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
+import { useProgramsApi } from 'src/composables/useProgramsApi';
 import {
   PLAN_TIER_LABELS,
   BOOKING_MODE_LABELS,
+  PLAN_CATEGORY_OPTIONS,
   type PlanListItem,
   type PlanTier,
   type BookingMode,
+  type PlanCategory,
 } from 'src/types/subscription';
+import type { MicroProgram } from 'src/types/program';
 
 const log = createLogger('PlanFormDialog');
 
@@ -201,6 +228,7 @@ const log = createLogger('PlanFormDialog');
 const props = defineProps<{
   modelValue: boolean;
   plan?: PlanListItem | null;
+  presetCategory?: PlanCategory;
 }>();
 
 const emit = defineEmits<{
@@ -213,8 +241,11 @@ const emit = defineEmits<{
 // =========================================================================
 
 const subscriptionsApi = useSubscriptionsApi();
+const programsApi = useProgramsApi();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const submitting = ref(false);
+const programs = ref<MicroProgram[]>([]);
+const loadingPrograms = ref(false);
 
 const isEditMode = computed(() => !!props.plan);
 
@@ -222,6 +253,7 @@ const isEditMode = computed(() => !!props.plan);
 const form = ref({
   name: '',
   description: '',
+  planCategory: 'presencial' as PlanCategory,
   planTier: 'flex' as PlanTier,
   bookingMode: 'flexible' as BookingMode,
   priceRegular: null as number | null,
@@ -229,14 +261,29 @@ const form = ref({
   priceCreditCard: null as number | null,
   durationDays: null as number | null,
   classesPerWeek: null as number | null,
+  linkedProgramId: null as number | null,
   multiBranch: false,
   isTrial: false,
   isGroup: false,
-  isPersonalizada: false,
-  personalizadaType: null as string | null,
   groupMaxMembers: null as number | null,
-  isOnline: false,
 });
+
+// =========================================================================
+// Computed
+// =========================================================================
+
+const weeklyPrice = computed(() =>
+  form.value.priceRegular ? Math.round(form.value.priceRegular / 4.33) : null,
+);
+
+const programOptions = computed(() =>
+  programs.value
+    .filter((p) => p.isActive)
+    .map((p) => ({
+      label: `${p.name} (${p.durationWeeks} sem)`,
+      value: p.id,
+    })),
+);
 
 // =========================================================================
 // Options
@@ -252,15 +299,6 @@ const bookingModeOptions = (Object.keys(BOOKING_MODE_LABELS) as BookingMode[]).m
   value: key,
 }));
 
-const personalizadaTypeOptions = [
-  { label: 'Tren Superior', value: 'tren_superior' },
-  { label: 'Tren Inferior', value: 'tren_inferior' },
-  { label: 'Empuje', value: 'empuje' },
-  { label: 'Traccion', value: 'traccion' },
-  { label: 'Planche', value: 'planche' },
-  { label: 'Front Lever', value: 'front_lever' },
-];
-
 // =========================================================================
 // Validation rules
 // =========================================================================
@@ -275,6 +313,41 @@ function requiredNumberRule(fieldName: string) {
 }
 
 // =========================================================================
+// Programs loading
+// =========================================================================
+
+async function loadPrograms() {
+  loadingPrograms.value = true;
+  try {
+    programs.value = await programsApi.getPrograms();
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading programs', { error: message });
+  } finally {
+    loadingPrograms.value = false;
+  }
+}
+
+// =========================================================================
+// Category change watcher
+// =========================================================================
+
+watch(
+  () => form.value.planCategory,
+  (newCategory) => {
+    if (newCategory === 'presencial') {
+      // Switching to presencial: clear online-specific fields
+      form.value.linkedProgramId = null;
+    } else {
+      // Switching to online: set defaults, clear presencial-specific fields
+      form.value.planTier = 'other';
+      form.value.bookingMode = 'flexible';
+      form.value.classesPerWeek = null;
+    }
+  },
+);
+
+// =========================================================================
 // Form Lifecycle
 // =========================================================================
 
@@ -283,10 +356,14 @@ watch(
   (open) => {
     if (!open) return;
 
+    // Load programs for the linked program dropdown
+    loadPrograms();
+
     if (props.plan) {
       form.value = {
         name: props.plan.name,
         description: props.plan.description ?? '',
+        planCategory: props.plan.planCategory,
         planTier: props.plan.planTier,
         bookingMode: props.plan.bookingMode,
         priceRegular: props.plan.priceRegular,
@@ -294,18 +371,17 @@ watch(
         priceCreditCard: props.plan.priceCreditCard,
         durationDays: props.plan.durationDays,
         classesPerWeek: props.plan.classesPerWeek,
+        linkedProgramId: props.plan.linkedProgramId,
         multiBranch: props.plan.multiBranch,
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
-        isPersonalizada: props.plan.isPersonalizada,
-        personalizadaType: props.plan.personalizadaType ?? null,
         groupMaxMembers: props.plan.groupMaxMembers,
-        isOnline: props.plan.isOnline,
       };
     } else {
       form.value = {
         name: '',
         description: '',
+        planCategory: props.presetCategory ?? 'presencial',
         planTier: 'flex',
         bookingMode: 'flexible',
         priceRegular: null,
@@ -313,25 +389,14 @@ watch(
         priceCreditCard: null,
         durationDays: null,
         classesPerWeek: null,
+        linkedProgramId: null,
         multiBranch: false,
         isTrial: false,
         isGroup: false,
-        isPersonalizada: false,
-        personalizadaType: null,
         groupMaxMembers: null,
-        isOnline: false,
       };
     }
-  }
-);
-
-watch(
-  () => form.value.isPersonalizada,
-  (val) => {
-    if (!val) {
-      form.value.personalizadaType = null;
-    }
-  }
+  },
 );
 
 // =========================================================================
@@ -347,22 +412,19 @@ async function onSubmit() {
     const payload = {
       name: form.value.name,
       description: form.value.description || undefined,
-      planTier: form.value.planTier,
-      bookingMode: form.value.bookingMode,
+      planCategory: form.value.planCategory,
+      planTier: form.value.planCategory === 'presencial' ? form.value.planTier : 'other' as PlanTier,
+      bookingMode: form.value.planCategory === 'presencial' ? form.value.bookingMode : 'flexible' as BookingMode,
       priceRegular: form.value.priceRegular!,
       priceZero: form.value.priceZero!,
       priceCreditCard: form.value.priceCreditCard ?? undefined,
       durationDays: form.value.durationDays!,
-      classesPerWeek: form.value.classesPerWeek ?? undefined,
+      classesPerWeek: form.value.planCategory === 'presencial' ? (form.value.classesPerWeek ?? undefined) : undefined,
+      linkedProgramId: form.value.planCategory !== 'presencial' ? (form.value.linkedProgramId ?? undefined) : undefined,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,
-      isPersonalizada: form.value.isPersonalizada,
-      personalizadaType: form.value.isPersonalizada
-        ? (form.value.personalizadaType ?? undefined)
-        : undefined,
       groupMaxMembers: form.value.isGroup ? (form.value.groupMaxMembers ?? undefined) : undefined,
-      isOnline: form.value.isOnline,
     };
 
     if (isEditMode.value && props.plan) {

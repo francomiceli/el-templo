@@ -112,7 +112,6 @@
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
         <q-tab name="asistencia" label="Asistencia" />
-        <q-tab name="programas" label="Programas" />
       </q-tabs>
       <q-separator />
 
@@ -143,30 +142,30 @@
 
         <!-- Entrenamiento Tab -->
         <q-tab-panel name="entrenamiento">
-          <!-- Loading state for personalizada data -->
-          <div v-if="personalizadaLoading" class="flex flex-center q-pa-lg">
+          <!-- Loading state for goal plan data -->
+          <div v-if="goalPlanLoading" class="flex flex-center q-pa-lg">
             <q-spinner-dots size="40px" color="primary" />
           </div>
 
-          <template v-else-if="personalizadaDetail">
-            <!-- Active Personalizada -->
-            <q-card v-if="personalizadaDetail.active" flat bordered class="q-mb-md">
+          <template v-else-if="goalPlanDetail">
+            <!-- Active Goal Plan -->
+            <q-card v-if="goalPlanDetail.active" flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Personalizada Activa</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">Plan por Objetivos Activo</div>
                 <div class="row items-center q-gutter-sm q-mb-sm">
                   <q-badge
-                    :color="personalizadaBadgeColor(personalizadaDetail.active.personalizadaType)"
-                    :label="personalizadaLabel(personalizadaDetail.active.personalizadaType)"
+                    :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
+                    :label="goalPlanLabel(goalPlanDetail.active.goalPlanType)"
                     class="text-body2"
                   />
                   <q-badge
                     outline
-                    :color="personalizadaBadgeColor(personalizadaDetail.active.personalizadaType)"
-                    :label="tierLabel(personalizadaDetail.active.personalizadaType)"
+                    :color="goalPlanBadgeColor(goalPlanDetail.active.goalPlanType)"
+                    :label="goalPlanTierLabel(goalPlanDetail.active.goalPlanType)"
                   />
                 </div>
                 <div class="text-caption text-grey-7 q-mb-md">
-                  Iniciado: {{ formatDate(personalizadaDetail.active.startedAt) }}
+                  Iniciado: {{ formatDate(goalPlanDetail.active.startedAt) }}
                 </div>
 
                 <!-- Per-duration semana counters -->
@@ -174,7 +173,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6 text-primary">
-                        {{ personalizadaDetail.active.semana20 }}
+                        {{ goalPlanDetail.active.semana20 }}
                       </div>
                       <div class="text-caption text-grey-7">Semana 20 min</div>
                     </div>
@@ -182,7 +181,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6 text-primary">
-                        {{ personalizadaDetail.active.semana40 }}
+                        {{ goalPlanDetail.active.semana40 }}
                       </div>
                       <div class="text-caption text-grey-7">Semana 40 min</div>
                     </div>
@@ -190,7 +189,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6 text-primary">
-                        {{ personalizadaDetail.active.semana60 }}
+                        {{ goalPlanDetail.active.semana60 }}
                       </div>
                       <div class="text-caption text-grey-7">Semana 60 min</div>
                     </div>
@@ -199,11 +198,11 @@
               </q-card-section>
             </q-card>
 
-            <!-- No active personalizada -->
+            <!-- No active goal plan -->
             <q-card v-else flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-xs">Personalizada Activa</div>
-                <div class="text-grey-5 text-italic">Sin personalizada activa</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-xs">Plan por Objetivos Activo</div>
+                <div class="text-grey-5 text-italic">Sin plan por objetivos activo</div>
               </q-card-section>
             </q-card>
 
@@ -215,7 +214,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.entrenamientoStats.totalSessions }}
+                        {{ goalPlanDetail.entrenamientoStats.totalSessions }}
                       </div>
                       <div class="text-caption text-grey-7">Sesiones completadas</div>
                     </div>
@@ -223,7 +222,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.entrenamientoStats.totalDays }}
+                        {{ goalPlanDetail.entrenamientoStats.totalDays }}
                       </div>
                       <div class="text-caption text-grey-7">Dias entrenados</div>
                     </div>
@@ -231,9 +230,9 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.entrenamientoStats.currentStreak }}
+                        {{ goalPlanDetail.entrenamientoStats.currentStreak }}
                         <q-icon
-                          v-if="personalizadaDetail.entrenamientoStats.currentStreak > 0"
+                          v-if="goalPlanDetail.entrenamientoStats.currentStreak > 0"
                           name="local_fire_department"
                           color="orange"
                           size="xs"
@@ -246,23 +245,23 @@
               </q-card-section>
             </q-card>
 
-            <!-- Personalizada Progress -->
+            <!-- Goal Plan Progress -->
             <q-card flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Progreso Personalizada</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">Progreso Plan por Objetivos</div>
                 <div class="row q-gutter-md">
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.personalizadaStats.totalSessions }}
+                        {{ goalPlanDetail.goalPlanStats.totalSessions }}
                       </div>
-                      <div class="text-caption text-grey-7">Sesiones personalizada</div>
+                      <div class="text-caption text-grey-7">Sesiones por objetivos</div>
                     </div>
                   </div>
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.personalizadaStats.byDuration.d20 }}
+                        {{ goalPlanDetail.goalPlanStats.byDuration.d20 }}
                       </div>
                       <div class="text-caption text-grey-7">20 min</div>
                     </div>
@@ -270,7 +269,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.personalizadaStats.byDuration.d40 }}
+                        {{ goalPlanDetail.goalPlanStats.byDuration.d40 }}
                       </div>
                       <div class="text-caption text-grey-7">40 min</div>
                     </div>
@@ -278,7 +277,7 @@
                   <div class="col">
                     <div class="text-center">
                       <div class="text-h6">
-                        {{ personalizadaDetail.personalizadaStats.byDuration.d60 }}
+                        {{ goalPlanDetail.goalPlanStats.byDuration.d60 }}
                       </div>
                       <div class="text-caption text-grey-7">60 min</div>
                     </div>
@@ -300,15 +299,15 @@
                   <q-item v-for="(completion, idx) in recentCompletions" :key="idx">
                     <q-item-section avatar>
                       <q-icon
-                        :name="completion.personalizadaType ? 'explore' : 'fitness_center'"
-                        :color="completion.personalizadaType ? 'deep-orange-9' : 'primary'"
+                        :name="completion.goalPlanType ? 'explore' : 'fitness_center'"
+                        :color="completion.goalPlanType ? 'deep-orange-9' : 'primary'"
                       />
                     </q-item-section>
                     <q-item-section>
                       <q-item-label>
                         {{
-                          completion.personalizadaType
-                            ? personalizadaLabel(completion.personalizadaType)
+                          completion.goalPlanType
+                            ? goalPlanLabel(completion.goalPlanType)
                             : 'Entrenamiento'
                         }}
                         <q-badge
@@ -337,21 +336,21 @@
               </q-card-section>
             </q-card>
 
-            <!-- Archived Personalizadas -->
-            <q-card v-if="personalizadaDetail.archived.length > 0" flat bordered class="q-mb-md">
+            <!-- Archived Goal Plans -->
+            <q-card v-if="goalPlanDetail.archived.length > 0" flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Personalizadas Anteriores</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">Planes por Objetivos Anteriores</div>
 
                 <q-list separator>
-                  <q-item v-for="(arch, idx) in personalizadaDetail.archived" :key="idx">
+                  <q-item v-for="(arch, idx) in goalPlanDetail.archived" :key="idx">
                     <q-item-section avatar>
                       <q-icon name="history" color="grey-6" />
                     </q-item-section>
                     <q-item-section>
                       <q-item-label>
                         <q-badge
-                          :color="personalizadaBadgeColor(arch.personalizadaType)"
-                          :label="personalizadaLabel(arch.personalizadaType)"
+                          :color="goalPlanBadgeColor(arch.goalPlanType)"
+                          :label="goalPlanLabel(arch.goalPlanType)"
                         />
                       </q-item-label>
                       <q-item-label caption>
@@ -369,7 +368,7 @@
             </q-card>
           </template>
 
-          <!-- Personalizada data error -->
+          <!-- Goal plan data error -->
           <div v-else class="text-center q-pa-lg text-grey-5 text-italic">
             Sin datos de entrenamiento disponibles
           </div>
@@ -401,10 +400,6 @@
           <MemberAttendanceTab :userId="userId" />
         </q-tab-panel>
 
-        <!-- Programas Tab -->
-        <q-tab-panel name="programas">
-          <ProgramEnrollmentSection :member-id="memberProfile.id" />
-        </q-tab-panel>
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -427,7 +422,7 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
-import { usePersonalizadasAdminApi } from 'src/composables/usePersonalizadasAdminApi';
+import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
@@ -435,18 +430,17 @@ import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
-import ProgramEnrollmentSection from 'src/components/ProgramEnrollmentSection.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import {
-  PERSONALIZADA_TYPE_LABELS,
-  PERSONALIZADA_TIER_MAP,
-  PERSONALIZADA_TIER_COLORS,
-  PERSONALIZADA_TIER_LABELS,
-  type PersonalizadaType,
-  type PersonalizadaTier,
-  type MemberPersonalizadaDetail,
-} from 'src/types/personalizada';
+  GOAL_PLAN_TYPE_LABELS,
+  GOAL_PLAN_TIER_MAP,
+  GOAL_PLAN_TIER_COLORS,
+  GOAL_PLAN_TIER_LABELS,
+  type GoalPlanType,
+  type GoalPlanTier,
+  type MemberGoalPlanDetail,
+} from 'src/types/goal-plan';
 
 const log = createLogger('AlumnoDetailPage');
 const route = useRoute();
@@ -454,7 +448,7 @@ const router = useRouter();
 const $q = useQuasar();
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
-const personalizadaApi = usePersonalizadasAdminApi();
+const goalPlanApi = useGoalPlanAdminApi();
 
 // =========================================================================
 // State
@@ -463,8 +457,8 @@ const personalizadaApi = usePersonalizadasAdminApi();
 const pageLoading = ref(true);
 const pageError = ref<string | null>(null);
 const memberProfile = ref<MemberProfile | null>(null);
-const personalizadaDetail = ref<MemberPersonalizadaDetail | null>(null);
-const personalizadaLoading = ref(false);
+const goalPlanDetail = ref<MemberGoalPlanDetail | null>(null);
+const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
@@ -483,8 +477,8 @@ const memberName = computed(() => {
 });
 
 const recentCompletions = computed(() => {
-  if (!personalizadaDetail.value) return [];
-  return personalizadaDetail.value.completions.slice(0, 20);
+  if (!goalPlanDetail.value) return [];
+  return goalPlanDetail.value.completions.slice(0, 20);
 });
 
 // =========================================================================
@@ -533,23 +527,23 @@ function levelColor(level: string): string {
 }
 
 // =========================================================================
-// Personalizada display helpers
+// Goal plan display helpers
 // =========================================================================
 
-function personalizadaLabel(personalizadaType: string): string {
-  return PERSONALIZADA_TYPE_LABELS[personalizadaType as PersonalizadaType] ?? personalizadaType;
+function goalPlanLabel(goalPlanType: string): string {
+  return GOAL_PLAN_TYPE_LABELS[goalPlanType as GoalPlanType] ?? goalPlanType;
 }
 
-function personalizadaBadgeColor(personalizadaType: string): string {
-  const tier: PersonalizadaTier | undefined =
-    PERSONALIZADA_TIER_MAP[personalizadaType as PersonalizadaType];
-  return tier ? PERSONALIZADA_TIER_COLORS[tier] : 'grey';
+function goalPlanBadgeColor(goalPlanType: string): string {
+  const tier: GoalPlanTier | undefined =
+    GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
+  return tier ? GOAL_PLAN_TIER_COLORS[tier] : 'grey';
 }
 
-function tierLabel(personalizadaType: string): string {
-  const tier: PersonalizadaTier | undefined =
-    PERSONALIZADA_TIER_MAP[personalizadaType as PersonalizadaType];
-  return tier ? PERSONALIZADA_TIER_LABELS[tier] : '';
+function goalPlanTierLabel(goalPlanType: string): string {
+  const tier: GoalPlanTier | undefined =
+    GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
+  return tier ? GOAL_PLAN_TIER_LABELS[tier] : '';
 }
 
 // =========================================================================
@@ -566,17 +560,17 @@ async function loadMemberProfile() {
   }
 }
 
-async function loadPersonalizadaDetail() {
-  personalizadaLoading.value = true;
+async function loadGoalPlanDetail() {
+  goalPlanLoading.value = true;
   try {
-    personalizadaDetail.value = await personalizadaApi.getMemberDetail(userId.value);
+    goalPlanDetail.value = await goalPlanApi.getMemberDetail(userId.value);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading personalizada detail', { error: message, userId: userId.value });
-    // Non-fatal: personalizada data is supplementary, profile still works
-    personalizadaDetail.value = null;
+    log.error('Error loading goal plan detail', { error: message, userId: userId.value });
+    // Non-fatal: goal plan data is supplementary, profile still works
+    goalPlanDetail.value = null;
   } finally {
-    personalizadaLoading.value = false;
+    goalPlanLoading.value = false;
   }
 }
 
@@ -597,8 +591,8 @@ async function loadAll() {
     // Load profile + branches in parallel (required for page render)
     await Promise.all([loadMemberProfile(), loadBranches()]);
 
-    // Load personalizada detail in background (non-blocking)
-    loadPersonalizadaDetail();
+    // Load goal plan detail in background (non-blocking)
+    loadGoalPlanDetail();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {

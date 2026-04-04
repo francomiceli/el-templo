@@ -59,6 +59,12 @@
           </q-item-section>
           <q-item-section>Planes</q-item-section>
         </q-item>
+        <q-item v-if="isAdminRole" clickable v-ripple to="/programas">
+          <q-item-section avatar>
+            <q-icon name="school" />
+          </q-item-section>
+          <q-item-section>Programas</q-item-section>
+        </q-item>
         <q-item v-if="isCajaRole" clickable v-ripple to="/caja">
           <q-item-section avatar>
             <q-icon name="point_of_sale" />

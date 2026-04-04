@@ -572,7 +572,13 @@ interface TierGroup {
   plans: PlanListItem[];
 }
 
-const isFixedMode = computed(() => selectedPlan.value?.bookingMode === 'fixed');
+const isOnlinePlan = computed(() =>
+  selectedPlan.value ? selectedPlan.value.planCategory !== 'presencial' : false,
+);
+
+const isFixedMode = computed(() =>
+  selectedPlan.value?.bookingMode === 'fixed' && !isOnlinePlan.value,
+);
 
 const confirmStep = computed(() => (isFixedMode.value ? 4 : 3));
 
@@ -836,20 +842,21 @@ async function selectPlan(plan: PlanListItem) {
       loadingPreview.value = false;
     }
 
-    // For fixed plans, go to schedule picker (step 3) first
-    if (plan.bookingMode === 'fixed') {
+    // For fixed presencial plans, go to schedule picker (step 3) first
+    // Online plans always skip schedule step regardless of bookingMode
+    if (plan.bookingMode === 'fixed' && plan.planCategory === 'presencial') {
       step.value = 3;
       loadBranchSchedules();
     } else {
-      // Flexible plans skip directly to confirm step
+      // Flexible and online plans skip directly to confirm step
       step.value = confirmStep.value;
     }
   } else {
     step.value = 2;
     loadPricingPreview();
 
-    // Pre-load branch schedules for fixed plans
-    if (plan.bookingMode === 'fixed') {
+    // Pre-load branch schedules for fixed presencial plans (online never uses schedules)
+    if (plan.bookingMode === 'fixed' && plan.planCategory === 'presencial') {
       loadBranchSchedules();
     }
   }

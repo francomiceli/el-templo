@@ -2,39 +2,39 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type {
-  PersonalizadaType,
-  PersonalizadaGenerateResult,
-  MemberPersonalizadaInfo,
-  MemberPersonalizadaDetail,
-} from 'src/types/personalizada';
+  GoalPlanType,
+  GoalPlanGenerateResult,
+  MemberGoalPlanInfo,
+  MemberGoalPlanDetail,
+} from 'src/types/goal-plan';
 
-export function usePersonalizadasAdminApi() {
+export function useGoalPlanAdminApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  async function generatePersonalizadaSessions(
+  async function generateGoalPlanSessions(
     week: number,
-    personalizadaType: PersonalizadaType,
-    options?: { days?: string[]; regenerate?: boolean }
-  ): Promise<PersonalizadaGenerateResult> {
+    goalPlanType: GoalPlanType,
+    options?: { days?: string[]; regenerate?: boolean },
+  ): Promise<GoalPlanGenerateResult> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.post<PersonalizadaGenerateResult>(
-        '/admin/personalizadas/generate',
+      const { data } = await api.post<GoalPlanGenerateResult>(
+        '/admin/goal-plans/generate',
         {
           week,
-          personalizadaType,
+          goalPlanType,
           days: options?.days,
           regenerate: options?.regenerate,
         },
         {
           timeout: 120_000, // 2 min — generation is slow
-        }
+        },
       );
       return data;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error generando sesiones de personalizada');
+      error.value = extractError(err, 'Error generando sesiones de plan por objetivos');
       throw err;
     } finally {
       loading.value = false;
@@ -43,16 +43,16 @@ export function usePersonalizadasAdminApi() {
 
   async function getMembers(params?: {
     search?: string;
-    personalizadaType?: string;
+    goalPlanType?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ members: MemberPersonalizadaInfo[]; total: number }> {
+  }): Promise<{ members: MemberGoalPlanInfo[]; total: number }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ members: MemberPersonalizadaInfo[]; total: number }>(
-        '/admin/personalizadas/members',
-        { params }
+      const { data } = await api.get<{ members: MemberGoalPlanInfo[]; total: number }>(
+        '/admin/goal-plans/members',
+        { params },
       );
       return data;
     } catch (err: unknown) {
@@ -63,12 +63,12 @@ export function usePersonalizadasAdminApi() {
     }
   }
 
-  async function getMemberDetail(userId: number): Promise<MemberPersonalizadaDetail> {
+  async function getMemberDetail(userId: number): Promise<MemberGoalPlanDetail> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<MemberPersonalizadaDetail>(
-        `/admin/personalizadas/members/${userId}`
+      const { data } = await api.get<MemberGoalPlanDetail>(
+        `/admin/goal-plans/members/${userId}`,
       );
       return data;
     } catch (err: unknown) {
@@ -87,7 +87,7 @@ export function usePersonalizadasAdminApi() {
   return {
     loading,
     error,
-    generatePersonalizadaSessions,
+    generateGoalPlanSessions,
     getMembers,
     getMemberDetail,
     cleanup,

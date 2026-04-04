@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Ready to plan
-stopped_at: Completed 89-03-PLAN.md
-last_updated: "2026-04-04T19:35:36.192Z"
+stopped_at: Completed 89-04-PLAN.md
+last_updated: "2026-04-04T19:31:27.938Z"
 progress:
   total_phases: 83
   completed_phases: 71
@@ -113,7 +113,7 @@ _Updated after each plan completion_
 | Phase 86 P04 | 2min | 2 tasks | 2 files |
 | Phase 86 P05 | 6min | 2 tasks | 8 files |
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
-| Phase 89 P03 | 22min | 2 tasks | 10 files |
+| Phase 89 P04 | 18min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -238,7 +238,8 @@ Recent decisions affecting current work:
 - [Phase 86]: Used underscore prefix (\_promoApplied) for unused destructured response field to avoid lint warnings
 - [Phase 86]: Promo routes registered inside existing subscriptionRoutes plugin, sharing the SUBSCRIPTION_ROLES auth guard hook
 - [Phase 86]: promoPlans deletion placed in Layer 3 of cleanAllTestData before subscriptionPlans for FK ordering
-- [Phase 89]: Admin and progression modules required Rule 3 fixes for broken schema references after Plans 01/02 renamed personalizadaType to goalPlanType
+- [Phase 89]: API session filter param stays as personalizadaType (matches API contract), only internal admin variable names renamed to goalPlan
+- [Phase 89]: ProgramEnrollmentSection removed from AlumnoDetailPage per D-36 (enrollment only through plan assignment)
 
 ### Pending Todos
 
@@ -250,6 +251,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T19:35:36.188Z
-Stopped at: Completed 89-03-PLAN.md
+Last session: 2026-04-04T19:31:27.932Z
+Stopped at: Completed 89-04-PLAN.md
 Resume file: None

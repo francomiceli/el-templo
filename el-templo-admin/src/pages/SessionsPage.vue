@@ -2,7 +2,7 @@
   <q-page class="q-pa-md">
     <div class="text-h5 q-mb-md">Sesiones</div>
 
-    <!-- Tabs for General / Personalizadas -->
+    <!-- Tabs for General / Goal Plans -->
     <q-tabs
       v-model="activeTab"
       dense
@@ -12,7 +12,7 @@
       align="left"
     >
       <q-tab name="general" label="General" />
-      <q-tab name="personalizadas" label="Personalizadas" />
+      <q-tab name="goalPlans" label="Por Objetivos" />
     </q-tabs>
 
     <q-separator class="q-mb-md" />
@@ -47,7 +47,7 @@
           <q-space />
           <q-btn
             icon="download"
-            label="Descargar Imágenes"
+            label="Descargar Imagenes"
             color="accent"
             outline
             :loading="pdfWeekLoading"
@@ -63,7 +63,7 @@
             class="xs"
             @click="onDownloadWeekPngZip"
           >
-            <q-tooltip>Descargar Imágenes</q-tooltip>
+            <q-tooltip>Descargar Imagenes</q-tooltip>
           </q-btn>
         </div>
 
@@ -93,7 +93,7 @@
                     :loading="pdfDayLoading === dayGroup.day"
                     @click="onDownloadDayPngZip(dayGroup)"
                   >
-                    <q-tooltip>Descargar imágenes del dia</q-tooltip>
+                    <q-tooltip>Descargar imagenes del dia</q-tooltip>
                   </q-btn>
                   <q-btn
                     flat
@@ -160,24 +160,24 @@
       </q-tab-panel>
 
       <!-- ============================================================ -->
-      <!-- PERSONALIZADAS TAB (personalizada sessions) -->
+      <!-- GOAL PLANS TAB (goal plan sessions) -->
       <!-- ============================================================ -->
-      <q-tab-panel name="personalizadas" class="q-pa-none">
+      <q-tab-panel name="goalPlans" class="q-pa-none">
         <!-- Week selector -->
         <div class="row items-center q-mb-md q-gutter-sm">
-          <q-btn icon="chevron_left" flat round @click="prevPersonalizadaWeek" />
-          <div class="text-subtitle1">{{ formatWeekLabel(personalizadaWeek) }}</div>
-          <q-btn icon="chevron_right" flat round @click="nextPersonalizadaWeek" />
+          <q-btn icon="chevron_left" flat round @click="prevGoalPlanWeek" />
+          <div class="text-subtitle1">{{ formatWeekLabel(goalPlanWeek) }}</div>
+          <q-btn icon="chevron_right" flat round @click="nextGoalPlanWeek" />
           <q-btn icon="event" flat round dense>
             <q-popup-proxy
-              v-model="showPersonalizadaDatePicker"
+              v-model="showGoalPlanDatePicker"
               cover
               transition-show="scale"
               transition-hide="scale"
             >
               <q-date
-                :model-value="weekToQDate(personalizadaWeek)"
-                @update:model-value="onPersonalizadaDatePicked"
+                :model-value="weekToQDate(goalPlanWeek)"
+                @update:model-value="onGoalPlanDatePicked"
                 minimal
                 first-day-of-week="1"
                 navigation-min-year-month="2026/02"
@@ -187,35 +187,35 @@
           </q-btn>
         </div>
 
-        <!-- Personalizada type sub-tabs -->
+        <!-- Goal plan type sub-tabs -->
         <q-tabs
-          v-model="selectedPersonalizadaTab"
+          v-model="selectedGoalPlanTab"
           dense
           class="text-grey q-mb-md"
           active-color="primary"
           indicator-color="primary"
           align="left"
           narrow-indicator
-          @update:model-value="loadPersonalizadaSessions"
+          @update:model-value="loadGoalPlanSessions"
         >
-          <q-tab v-for="jt in ALL_PERSONALIZADA_TYPES" :key="jt" :name="jt">
+          <q-tab v-for="jt in ALL_GOAL_PLAN_TYPES" :key="jt" :name="jt">
             <q-badge
-              :color="getPersonalizadaBadgeColor(jt)"
-              :label="getPersonalizadaLabel(jt)"
+              :color="getGoalPlanBadgeColor(jt)"
+              :label="getGoalPlanLabel(jt)"
               class="q-px-sm"
             />
           </q-tab>
         </q-tabs>
 
         <!-- Loading -->
-        <div v-if="personalizadaLoading" class="flex flex-center q-pa-xl">
+        <div v-if="goalPlanLoading" class="flex flex-center q-pa-xl">
           <q-spinner-dots size="50px" color="primary" />
         </div>
 
         <!-- Day cards (mirrors General tab structure) -->
         <template v-else>
           <q-card
-            v-for="dayGroup in personalizadaDayGroups"
+            v-for="dayGroup in goalPlanDayGroups"
             :key="dayGroup.day"
             flat
             bordered
@@ -236,7 +236,7 @@
                     icon="edit"
                     color="primary"
                     size="md"
-                    @click="editPersonalizadaDay(dayGroup.day)"
+                    @click="editGoalPlanDay(dayGroup.day)"
                   >
                     <q-tooltip>Editar dia</q-tooltip>
                   </q-btn>
@@ -248,7 +248,7 @@
                     icon="check_circle"
                     color="positive"
                     size="md"
-                    @click="handleBulkApprovePersonalizadaDay(dayGroup)"
+                    @click="handleBulkApproveGoalPlanDay(dayGroup)"
                   >
                     <q-tooltip>Aprobar {{ dayGroup.pendingCount }} pendientes</q-tooltip>
                     <q-badge floating color="red" :label="dayGroup.pendingCount" />
@@ -286,14 +286,14 @@
           </q-card>
 
           <!-- No sessions -->
-          <div v-if="personalizadaDayGroups.length === 0" class="text-center q-pa-xl text-grey">
+          <div v-if="goalPlanDayGroups.length === 0" class="text-center q-pa-xl text-grey">
             <q-icon name="info" size="xl" class="q-mb-md" />
             <div class="text-h6">
-              No hay sesiones de {{ getPersonalizadaLabel(selectedPersonalizadaTab) }} para
-              {{ formatWeekLabel(personalizadaWeek) }}
+              No hay sesiones de {{ getGoalPlanLabel(selectedGoalPlanTab) }} para
+              {{ formatWeekLabel(goalPlanWeek) }}
             </div>
             <div class="text-caption q-mt-sm">
-              Genera sesiones en la pestana "Generar Sesiones" > Personalizadas
+              Genera sesiones en la pestana "Generar Sesiones" > Por Objetivos
             </div>
           </div>
         </template>
@@ -351,12 +351,12 @@ import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import {
-  ALL_PERSONALIZADA_TYPES,
-  PERSONALIZADA_TYPE_LABELS,
-  PERSONALIZADA_TIER_MAP,
-  PERSONALIZADA_TIER_COLORS,
-  type PersonalizadaType,
-} from 'src/types/personalizada';
+  ALL_GOAL_PLAN_TYPES,
+  GOAL_PLAN_TYPE_LABELS,
+  GOAL_PLAN_TIER_MAP,
+  GOAL_PLAN_TIER_COLORS,
+  type GoalPlanType,
+} from 'src/types/goal-plan';
 import type { SessionSummary } from 'src/types/session';
 
 const log = createLogger('SessionsPage');
@@ -368,7 +368,7 @@ const sessionsApi = useSessionsApi();
 const adminStore = useAdminStore();
 
 // Shared
-const activeTab = ref(route.query.tab === 'personalizadas' ? 'personalizadas' : 'general');
+const activeTab = ref(route.query.tab === 'goalPlans' ? 'goalPlans' : 'general');
 
 // ============================================================
 // General tab state
@@ -433,7 +433,7 @@ async function loadSessions() {
   try {
     const response = await sessionsApi.fetchSessions({
       week: currentWeek.value,
-      personalizadaType: 'null', // General tab: only non-personalizada sessions
+      personalizadaType: 'null', // General tab: only non-goal-plan sessions
       limit: 100,
     });
     sessions.value = response.sessions;
@@ -523,7 +523,7 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
     .map((s) => s.id);
 
   if (daySessionIds.length === 0) {
-    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar imágenes' });
+    $q.notify({ type: 'warning', message: 'No hay sesiones de nivel para generar imagenes' });
     return;
   }
 
@@ -532,18 +532,18 @@ async function onDownloadDayPngZip(dayGroup: DayGroup) {
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
-      daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
+      daySessionIds.map((id) => sessionsApi.fetchSessionDetail(id)),
     );
     const { sessionsToPdfDay } = await import('src/utils/pdf/session-data-transformer');
     const { buildDayPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDay = sessionsToPdfDay(details);
     await buildDayPngZip(pdfDay, onPngProgress, pngAbort.signal);
-    $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
+    $q.notify({ type: 'positive', message: 'Imagenes descargadas' });
   } catch (err) {
     if (pngAbort.signal.aborted) {
       $q.notify({ type: 'info', message: 'Descarga cancelada' });
     } else {
-      $q.notify({ type: 'negative', message: 'Error generando imágenes' });
+      $q.notify({ type: 'negative', message: 'Error generando imagenes' });
       log.error('PNG generation error', {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -563,7 +563,7 @@ async function onDownloadWeekPngZip() {
   if (weekSessionIds.length === 0) {
     $q.notify({
       type: 'warning',
-      message: 'No hay sesiones de nivel para generar imágenes de la semana',
+      message: 'No hay sesiones de nivel para generar imagenes de la semana',
     });
     return;
   }
@@ -573,18 +573,18 @@ async function onDownloadWeekPngZip() {
   pngProgress.value = { active: true, message: 'Cargando sesiones...', percent: 0, previewUrl: '' };
   try {
     const details = await Promise.all(
-      weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id))
+      weekSessionIds.map((id) => sessionsApi.fetchSessionDetail(id)),
     );
     const { sessionsToWeekPdf } = await import('src/utils/pdf/session-data-transformer');
     const { buildWeekPngZip } = await import('src/utils/pdf/session-png-builder');
     const pdfDays = sessionsToWeekPdf(details);
     await buildWeekPngZip(pdfDays, onPngProgress, pngAbort.signal);
-    $q.notify({ type: 'positive', message: 'Imágenes descargadas' });
+    $q.notify({ type: 'positive', message: 'Imagenes descargadas' });
   } catch (err) {
     if (pngAbort.signal.aborted) {
       $q.notify({ type: 'info', message: 'Descarga cancelada' });
     } else {
-      $q.notify({ type: 'negative', message: 'Error generando imágenes de la semana' });
+      $q.notify({ type: 'negative', message: 'Error generando imagenes de la semana' });
       log.error('Week PNG generation error', {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -597,15 +597,15 @@ async function onDownloadWeekPngZip() {
 }
 
 // ============================================================
-// Personalizadas tab state
+// Goal Plans tab state
 // ============================================================
-const personalizadaWeek = ref(initialWeek);
-const selectedPersonalizadaTab = ref<PersonalizadaType>(ALL_PERSONALIZADA_TYPES[0]);
-const personalizadaSessions = ref<SessionSummary[]>([]);
-const personalizadaLoading = ref(false);
-const showPersonalizadaDatePicker = ref(false);
+const goalPlanWeek = ref(initialWeek);
+const selectedGoalPlanTab = ref<GoalPlanType>(ALL_GOAL_PLAN_TYPES[0]);
+const goalPlanSessions = ref<SessionSummary[]>([]);
+const goalPlanLoading = ref(false);
+const showGoalPlanDatePicker = ref(false);
 
-interface PersonalizadaDayLevelStatus {
+interface GoalPlanDayLevelStatus {
   memberLevel: string;
   status: string | null;
   sessionId: number | null;
@@ -613,16 +613,16 @@ interface PersonalizadaDayLevelStatus {
   blockCount: number;
 }
 
-interface PersonalizadaDayGroup {
+interface GoalPlanDayGroup {
   day: string;
-  levels: PersonalizadaDayLevelStatus[];
+  levels: GoalPlanDayLevelStatus[];
   sessions: SessionSummary[];
   pendingCount: number;
 }
 
-const personalizadaDayGroups = computed<PersonalizadaDayGroup[]>(() => {
+const goalPlanDayGroups = computed<GoalPlanDayGroup[]>(() => {
   return DAYS.map((day) => {
-    const daySessions = personalizadaSessions.value.filter((s) => s.day === day);
+    const daySessions = goalPlanSessions.value.filter((s) => s.day === day);
     const levels = DISPLAY_LEVELS.map((level) => {
       const session = daySessions.find((s) => s.memberLevel === level);
       return {
@@ -638,34 +638,34 @@ const personalizadaDayGroups = computed<PersonalizadaDayGroup[]>(() => {
   }).filter((dg) => dg.sessions.length > 0);
 });
 
-async function loadPersonalizadaSessions() {
-  personalizadaLoading.value = true;
+async function loadGoalPlanSessions() {
+  goalPlanLoading.value = true;
   try {
     const response = await sessionsApi.fetchSessions({
-      week: personalizadaWeek.value,
-      personalizadaType: selectedPersonalizadaTab.value,
+      week: goalPlanWeek.value,
+      personalizadaType: selectedGoalPlanTab.value,
       limit: 100,
     });
-    personalizadaSessions.value = response.sessions;
+    goalPlanSessions.value = response.sessions;
   } catch {
-    $q.notify({ type: 'negative', message: 'Error cargando sesiones personalizadas' });
+    $q.notify({ type: 'negative', message: 'Error cargando sesiones por objetivos' });
   } finally {
-    personalizadaLoading.value = false;
+    goalPlanLoading.value = false;
   }
 }
 
-function editPersonalizadaDay(day: string) {
+function editGoalPlanDay(day: string) {
   router.push({
     path: '/sessions/edit',
     query: {
-      week: weekToUrlParam(personalizadaWeek.value),
+      week: weekToUrlParam(goalPlanWeek.value),
       day,
-      personalizadaType: selectedPersonalizadaTab.value,
+      personalizadaType: selectedGoalPlanTab.value,
     },
   });
 }
 
-async function handleBulkApprovePersonalizadaDay(dayGroup: PersonalizadaDayGroup) {
+async function handleBulkApproveGoalPlanDay(dayGroup: GoalPlanDayGroup) {
   const pendingIds = dayGroup.sessions
     .filter((s) => s.status === 'pending_review')
     .map((s) => s.id);
@@ -674,14 +674,14 @@ async function handleBulkApprovePersonalizadaDay(dayGroup: PersonalizadaDayGroup
 
   $q.dialog({
     title: 'Aprobar Sesiones',
-    message: `Aprobar ${pendingIds.length} sesiones pendientes de ${getPersonalizadaLabel(selectedPersonalizadaTab.value)} para ${dayLabel(dayGroup.day)}?`,
+    message: `Aprobar ${pendingIds.length} sesiones pendientes de ${getGoalPlanLabel(selectedGoalPlanTab.value)} para ${dayLabel(dayGroup.day)}?`,
     cancel: true,
     persistent: true,
   }).onOk(async () => {
     try {
       const result = await sessionsApi.bulkApprove(pendingIds);
       $q.notify({ type: 'positive', message: `${result.approvedCount} sesiones aprobadas` });
-      loadPersonalizadaSessions();
+      loadGoalPlanSessions();
       adminStore.fetchPendingCount();
       adminStore.checkSessionCoverage();
     } catch {
@@ -690,34 +690,34 @@ async function handleBulkApprovePersonalizadaDay(dayGroup: PersonalizadaDayGroup
   });
 }
 
-function prevPersonalizadaWeek() {
-  if (personalizadaWeek.value > 1) {
-    personalizadaWeek.value--;
-    loadPersonalizadaSessions();
+function prevGoalPlanWeek() {
+  if (goalPlanWeek.value > 1) {
+    goalPlanWeek.value--;
+    loadGoalPlanSessions();
   }
 }
 
-function nextPersonalizadaWeek() {
-  if (personalizadaWeek.value < 52) {
-    personalizadaWeek.value++;
-    loadPersonalizadaSessions();
+function nextGoalPlanWeek() {
+  if (goalPlanWeek.value < 52) {
+    goalPlanWeek.value++;
+    loadGoalPlanSessions();
   }
 }
 
-function onPersonalizadaDatePicked(val: string | null) {
-  showPersonalizadaDatePicker.value = false;
+function onGoalPlanDatePicked(val: string | null) {
+  showGoalPlanDatePicker.value = false;
   if (!val) return;
-  personalizadaWeek.value = qDateToWeek(val);
-  loadPersonalizadaSessions();
+  goalPlanWeek.value = qDateToWeek(val);
+  loadGoalPlanSessions();
 }
 
-function getPersonalizadaBadgeColor(personalizadaType: string): string {
-  const tier = PERSONALIZADA_TIER_MAP[personalizadaType as PersonalizadaType];
-  return tier ? PERSONALIZADA_TIER_COLORS[tier] : 'grey';
+function getGoalPlanBadgeColor(goalPlanType: string): string {
+  const tier = GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
+  return tier ? GOAL_PLAN_TIER_COLORS[tier] : 'grey';
 }
 
-function getPersonalizadaLabel(personalizadaType: string): string {
-  return PERSONALIZADA_TYPE_LABELS[personalizadaType as PersonalizadaType] ?? personalizadaType;
+function getGoalPlanLabel(goalPlanType: string): string {
+  return GOAL_PLAN_TYPE_LABELS[goalPlanType as GoalPlanType] ?? goalPlanType;
 }
 
 // ============================================================
@@ -727,10 +727,10 @@ function dayLabel(day: string): string {
   const labels: Record<string, string> = {
     lunes: 'Lunes',
     martes: 'Martes',
-    miercoles: 'Miércoles',
+    miercoles: 'Miercoles',
     jueves: 'Jueves',
     viernes: 'Viernes',
-    sabado: 'Sábado',
+    sabado: 'Sabado',
   };
   return labels[day] || day;
 }
@@ -769,19 +769,19 @@ function memberLevelLabel(level: string): string {
   }
 }
 
-// Reload personalizada sessions when switching to Personalizadas tab
+// Reload goal plan sessions when switching to Goal Plans tab
 watch(activeTab, (newTab) => {
-  if (newTab === 'personalizadas' && personalizadaSessions.value.length === 0) {
-    loadPersonalizadaSessions();
+  if (newTab === 'goalPlans' && goalPlanSessions.value.length === 0) {
+    loadGoalPlanSessions();
   }
 });
 
 onMounted(() => {
   syncWeekUrl();
   loadSessions();
-  // If starting on personalizadas tab, load personalizada sessions too
-  if (activeTab.value === 'personalizadas') {
-    loadPersonalizadaSessions();
+  // If starting on goalPlans tab, load goal plan sessions too
+  if (activeTab.value === 'goalPlans') {
+    loadGoalPlanSessions();
   }
 });
 </script>
