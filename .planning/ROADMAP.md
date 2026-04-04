@@ -1872,15 +1872,9 @@ Monetize the app ecosystem by selling training plans online. Strategy doc: `.doc
 
 Plans:
 
-**Plans:** 7 plans
-
-- [ ] 89-01-PLAN.md — DB migration SQL + Drizzle schema code (planCategory enum, column renames, table rename)
-- [ ] 89-02-PLAN.md — API module rename (personalizadas -> goal-plans) + boolean-to-enum migration
-- [ ] 89-03-PLAN.md — API test updates (all fixtures + helpers to planCategory/goalPlanType naming)
-- [ ] 89-04-PLAN.md — Admin UI restructure (PlanesPage sections, PlanFormDialog, ProgramasPage, sidebar)
-- [ ] 89-05-PLAN.md — Member app rename (goal-plan module, Por Objetivos branding, WhatsApp CTA)
-- [ ] 89-06-PLAN.md — Unified plan+program model (linkedProgramId, auto-enrollment, dual constraint)
-- [ ] 89-07-PLAN.md — Pipeline calibration (approved session analysis + deviation fixes)
+- [x] 89-01-PLAN.md — TBD
+- [ ] 89-02-PLAN.md — TBD
+- [ ] 89-03-PLAN.md — TBD
 
 ---
 
@@ -1911,11 +1905,11 @@ Plans:
 
 ## v4.5 Progress
 
-| Phase                                          | Plans Complete | Status  | Completed |
-| ---------------------------------------------- | -------------- | ------- | --------- |
-| 89. Backend & Admin — Planes Online Infra      | —              | Planned | —         |
-| 90. App UX — Plan Catalog & Purchase Flow      | —              | Planned | —         |
-| 91. Marketing Deliverables — Launch Collateral | —              | Planned | —         |
+| Phase                                          | Plans Complete | Status   | Completed  |
+| ---------------------------------------------- | -------------- | -------- | ---------- |
+| 89. Backend & Admin — Planes Online Infra      | 1/1            | Complete | 2026-04-04 |
+| 90. App UX — Plan Catalog & Purchase Flow      | —              | Planned  | —          |
+| 91. Marketing Deliverables — Launch Collateral | —              | Planned  | —          |
 
 _v4.5 phases added: 2026-04-03 — 3 phases (89-91). Strategy: `.docs/planes-online-strategy.md`_
 

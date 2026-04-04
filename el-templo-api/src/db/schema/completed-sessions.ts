@@ -29,8 +29,8 @@ export const completedSessions = mysqlTable(
     blocksCompleted: json("blocks_completed").notNull(), // Array of block role strings
     exercisesCompleted: json("exercises_completed"), // Nullable - { "NUCLEUS": [123, 456], ... } maps block role to prescription IDs
 
-    // Personalizada support: null = general Entrenamiento, non-null = personalizada type code
-    personalizadaType: varchar("personalizada_type", { length: 30 }),
+    // Goal plan support: null = general Entrenamiento, non-null = goal plan type code
+    goalPlanType: varchar("goal_plan_type", { length: 30 }),
     // Duration played: 20, 40, or 60 for personalizada sessions; null for general
     duration: int("duration"),
   },
