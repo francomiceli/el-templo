@@ -3,14 +3,16 @@
 > **Audit trail only.** Do not use as input to planning, research, or execution agents.
 > Decisions are captured in CONTEXT.md — this log preserves the alternatives considered.
 
-**Date:** 2026-04-03
+**Date:** 2026-04-03, 2026-04-04
 **Phase:** 89-planes-online-infra
-**Areas discussed:** Member app rename boundary, Online plan assignment flow (expanded into admin page structure deep dive)
-**Status:** INCOMPLETE — user pausing, will resume next session
+**Areas discussed:** Full rename, plan categorization, admin page structure, unified plan+program model, table reduction, duration system, presencial upsell billing, subscription constraints, pipeline calibration
+**Status:** COMPLETE
 
 ---
 
-## Member App Rename Boundary
+## Session 1 (2026-04-03) — Partial
+
+### Member App Rename Boundary
 
 | Option                     | Description                                                                                               | Selected |
 | -------------------------- | --------------------------------------------------------------------------------------------------------- | -------- |
@@ -40,11 +42,11 @@
 
 ---
 
-## Online Plan Assignment Flow → Admin Page Structure Deep Dive
+### Online Plan Assignment Flow → Admin Page Structure Deep Dive
 
 User requested a deep review of the current admin PlanesPage before deciding on the assignment flow. Reviewed: PlanesPage.vue (3 tabs, tables, dialogs), PlanFormDialog.vue (form fields, toggles), AssignPlanDialog.vue (stepper).
 
-### Program Placement in Tab Structure
+**Program Placement in Tab Structure**
 
 | Option              | Description                                 | Selected |
 | ------------------- | ------------------------------------------- | -------- |
@@ -54,7 +56,7 @@ User requested a deep review of the current admin PlanesPage before deciding on 
 
 **User's response:** "gluteos, front lever, desde cero and habitos are basically forms of microprograms" — pointed out online products ARE essentially micro-programs.
 
-### Online Product Data Model
+**Online Product Data Model**
 
 | Option             | Description                                           | Selected |
 | ------------------ | ----------------------------------------------------- | -------- |
@@ -66,7 +68,7 @@ User requested a deep review of the current admin PlanesPage before deciding on 
 
 **Analysis provided:** Explained what each system handles (subscription_plans = pricing/access, micro_programs = content/progression) and that online products need BOTH.
 
-### Architecture Decision
+**Architecture Decision**
 
 | Option                  | Description                                                                       | Selected |
 | ----------------------- | --------------------------------------------------------------------------------- | -------- |
@@ -74,29 +76,11 @@ User requested a deep review of the current admin PlanesPage before deciding on 
 | Programs absorb pricing | Add pricing to micro_programs, they become primary online entity                  |          |
 | Plans absorb content    | Add content blocks to subscription_plans                                          |          |
 
-**User's response:** Agreed with plan + linked program. Asked about planCategory — "doesn't make sense here?"
+**User's response:** Agreed with plan + linked program.
 
-### planCategory Confirmation
+**planCategory Confirmation:** User confirmed `presencial | online_regular | online_goal | online_coach` enum.
 
-| Option                           | Description                                              | Selected |
-| -------------------------------- | -------------------------------------------------------- | -------- |
-| planCategory enum (D-06)         | presencial / online_regular / online_goal / online_coach | ✓        |
-| Keep isOnline, add sessionSource | Two independent dimensions                               |          |
-| Keep current booleans            | Minimal schema change                                    |          |
-
-**User's choice:** planCategory enum (D-06).
-
-### Online Tab in PlanesPage
-
-| Option                         | Description                                            | Selected |
-| ------------------------------ | ------------------------------------------------------ | -------- |
-| Plans only                     | Online tab shows subscription_plans, programs separate |          |
-| Both together                  | Online tab shows plans AND programs                    |          |
-| Programs only, linked to plans | Online tab shows programs, plans auto-created          |          |
-
-**User's response:** "Online tab should not exist, we have a plan online toggle in regular plan creation, maybe we can create two lists to separate them visually, but the program is a different thing and should go in a different page in admin panel."
-
-### Page Layout
+**Page Layout**
 
 | Option                   | Description                                                                | Selected |
 | ------------------------ | -------------------------------------------------------------------------- | -------- |
@@ -104,24 +88,109 @@ User requested a deep review of the current admin PlanesPage before deciding on 
 | Two sections, one page   | Presenciales table + Online table on same page. Programs to separate page. | ✓        |
 | Two tabs + promos        | Presenciales tab / Online tab / Promos tab                                 |          |
 
-**User's choice:** Two sections, one page. One tab for planes. Programs → separate "Programas" page.
+**User's choice:** Two sections, one page. Programs → separate "Programas" page.
 
-### Plan Creation Form UX — NOT DECIDED
+**Plan Creation Form UX — left OPEN.** User paused session.
 
-| Option               | Description                            | Selected |
-| -------------------- | -------------------------------------- | -------- |
-| Dropdown selector    | planCategory dropdown replaces toggles |          |
-| Toggle + conditional | Keep online toggle, show sub-selector  |          |
-| You decide           | Claude picks                           |          |
+---
 
-**User's response:** "I'm too confused, will try again tomorrow from here."
+## Session 2 (2026-04-04) — Completion
+
+User returned and requested full architecture research before resolving open areas.
+
+### Full Architecture Research
+
+User directive: "go full research mode, start from the first time we introduced plans into this project and go step by step, change by change... the goal should be that you come up with a solution to get plans and programs schemes... the simplest possible solution so all systems coexist together"
+
+**Research conducted:**
+
+- Traced complete git history of plan-related schema changes (Phase 48 through 89)
+- Read all 6 plan-adjacent tables and their full column definitions
+- Mapped every usage of isPersonalizada, isOnline, personalizadaType across all 3 apps
+- Traced full call chains: assignment → subscription → session generation
+- Identified dual gating inconsistency (backend checks subscription flag per Phase 69, frontend checks program enrollment per Phase 83 D-08)
+- Identified missing FK between subscription_plans and micro_programs
+- Identified personalizadaType stored redundantly on both subscription_plans and member_personalizadas
+
+**Proposed unified model presented:** planCategory enum + linkedProgramId FK + unified gate. User approved direction.
+
+### Table Reduction
+
+| Option                                         | Description                                                                                      | Selected |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------- |
+| Keep 6 tables, fix wiring                      | planCategory enum + linkedProgramId FK + unified gate                                            |          |
+| Merge member_personalizadas into subscriptions | Move goal counters to subscription record                                                        |          |
+| Eliminate member_personalizadas via programs   | Goals ARE programs with goalPlanType column. program_enrollments replaces member_personalizadas. | ✓        |
+
+**User's insight:** "member_personalizadas with semana20, 40 etc, doesn't make sense for what we want to build now, the micro-program system should essentially contain these 6 different goals we have"
+
+**Result:** 6 tables → 5 tables. member_personalizadas eliminated.
+
+### Duration System
+
+| Option                          | Description                              | Selected |
+| ------------------------------- | ---------------------------------------- | -------- |
+| Keep duration picker (20/40/60) | Member chooses duration, blocks filtered |          |
+| Remove duration picker entirely | Member gets full session, no filtering   | ✓        |
+
+**User's directive:** "the 20, 40 or 60 min thing goes away entirely from everywhere"
+
+### Regular vs Goal Sessions for Online Plans
+
+| Option                                     | Description                                               | Selected |
+| ------------------------------------------ | --------------------------------------------------------- | -------- |
+| All online plans use goal pipeline         | Even Desde Cero/Habitos get route-locked sessions         |          |
+| Regular pipeline for content-only programs | Desde Cero/Habitos use regular sessions + program content | ✓        |
+
+**User's clarification:** "construccion de habitos y calistenia desde cero, use regular sessions"
+
+### Presencial Upsell Billing
+
+| Option                                | Description                                               | Selected |
+| ------------------------------------- | --------------------------------------------------------- | -------- |
+| Bill through program_enrollments      | Standalone enrollment with paymentAmount/paymentMethod    |          |
+| Bill through online plan subscription | Presencial member buys online plan as second subscription | ✓        |
+
+**User's insight:** "maybe we should make these people get what we call the 'online' plan when they want the upsell, so we don't have programs without plans"
+
+**Result:** Every program enrollment comes from a plan assignment. No orphan programs. All billing through subscription pricing.
+
+### Subscription Constraint
+
+| Option                          | Description                               | Selected |
+| ------------------------------- | ----------------------------------------- | -------- |
+| One active per member (current) | Only one subscription at a time           |          |
+| One presencial + one online max | Allow gym member to also have online plan | ✓        |
+| Unlimited                       | Any number of active subscriptions        |          |
+
+**User confirmed:** "the 'one presencial + one online' constraint is correct"
+
+### Plan Creation Form UX (resolved from Session 1)
+
+| Option               | Description                                                       | Selected |
+| -------------------- | ----------------------------------------------------------------- | -------- |
+| Dropdown selector    | planCategory dropdown + linkedProgramId selector for online plans | ✓        |
+| Toggle + conditional | Keep online toggle, show sub-selector                             |          |
+
+**Resolution:** planCategory dropdown replaces boolean toggles. linkedProgramId dropdown appears for online plans. goalPlanType is NOT on this form — it's set when creating the program.
 
 ---
 
 ## Claude's Discretion
 
-None identified in this session.
+- Migration strategy for boolean→enum conversion
+- Weekly price formula
+- Handling existing member_personalizadas data during elimination
+- Handling personalizadaType on sessions/completed_sessions tables
+- Pipeline calibration methodology
+- Whether to keep/remove program_enrollments payment columns
+- Default values for planTier/bookingMode on online plans
 
 ## Deferred Ideas
 
-None raised in this session.
+- Self-service payment integration (Mercado Pago)
+- Online user level progression
+- Exercise video library completion
+- Full onboarding quiz for online users
+- Automated session quality validation
+- Multiple online subscriptions per member (v1 is one presencial + one online max)
