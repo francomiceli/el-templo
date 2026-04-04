@@ -139,7 +139,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             ),
           ),
 
-        // Today's completed regular training session (exclude personalizadas)
+        // Today's completed regular training session (exclude goal plans)
         fastify.db
           .select({
             rpe: schema.completedSessions.rpe,
@@ -153,7 +153,7 @@ export const progressionRoutes: FastifyPluginAsync = async (fastify) => {
             and(
               eq(schema.completedSessions.userId, userId),
               eq(schema.completedSessions.date, todayStr),
-              isNull(schema.completedSessions.personalizadaType),
+              isNull(schema.completedSessions.goalPlanType),
             ),
           ),
       ]);

@@ -288,12 +288,10 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const detail = await service.getProgramDetail(request.params.programId);
         if (!detail) {
-          return reply
-            .code(404)
-            .send({
-              error: "No encontrado",
-              message: "Programa no encontrado",
-            });
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Programa no encontrado",
+          });
         }
         return detail;
       } catch (err: unknown) {
@@ -459,12 +457,12 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   /**
-   * GET /api/members/programs/has-personalizada-access — Personalizadas gate check.
+   * GET /api/members/programs/has-goal-plan-access — Goal plan gate check.
    * Returns { hasAccess: boolean } — true if member has active program enrollment.
-   * Per D-08: program enrollment IS the Personalizadas gate.
+   * Per D-08: program enrollment IS the goal plan gate.
    */
   fastify.get(
-    "/members/programs/has-personalizada-access",
+    "/members/programs/has-goal-plan-access",
     async (request, reply) => {
       await fastify.authenticate(request, reply);
 

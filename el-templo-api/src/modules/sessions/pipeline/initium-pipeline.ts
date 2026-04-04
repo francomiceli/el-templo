@@ -213,14 +213,14 @@ async function selectContextualExercises(
 }
 
 /**
- * Personalizada-specific contextual exercise selection using pre-computed mobility routes.
- * Used when personalizada pipeline provides zone-specific mobility routes directly,
+ * Goal-plan-specific contextual exercise selection using pre-computed mobility routes.
+ * Used when goal plan pipeline provides zone-specific mobility routes directly,
  * bypassing the nucleusRoute -> ROUTE_TO_MOBILITY_ROUTES lookup.
  */
-async function selectPersonalizadaContextualExercises(
+async function selectGoalPlanContextualExercises(
   db: MySql2Database<typeof schema>,
   ctx: BlockContext,
-  personalizadaMobilityRoutes: string[],
+  goalPlanMobilityRoutes: string[],
   exerciseOffset: number,
 ): Promise<{
   exercises: InitiumExercise[] | null;
@@ -230,16 +230,16 @@ async function selectPersonalizadaContextualExercises(
 
   const contextAttemptTrace = createTraceEvent(
     updatedCtx,
-    "INITIUM_PERSONALIZADA_CONTEXTUAL_ATTEMPT",
+    "INITIUM_GOAL_PLAN_CONTEXTUAL_ATTEMPT",
     "INFO",
     {
-      personalizadaMobilityRoutes,
-      routeCount: personalizadaMobilityRoutes.length,
+      goalPlanMobilityRoutes,
+      routeCount: goalPlanMobilityRoutes.length,
     },
   );
   updatedCtx = appendTrace(updatedCtx, contextAttemptTrace);
 
-  if (personalizadaMobilityRoutes.length === 0) {
+  if (goalPlanMobilityRoutes.length === 0) {
     return { exercises: null, ctx: updatedCtx };
   }
 
@@ -264,7 +264,7 @@ async function selectPersonalizadaContextualExercises(
         lte(schema.exercises.difficulty, INITIUM_DIFFICULTY_BUCKET),
         isNotNull(schema.exercises.mobilityRelated),
         or(
-          ...personalizadaMobilityRoutes.map((route) =>
+          ...goalPlanMobilityRoutes.map((route) =>
             like(schema.exercises.mobilityRelated, `%${route}%`),
           ),
         ),
@@ -282,10 +282,10 @@ async function selectPersonalizadaContextualExercises(
   if (contextualExercises.length >= INITIUM_EXERCISE_COUNT) {
     const successTrace = createTraceEvent(
       updatedCtx,
-      "INITIUM_PERSONALIZADA_CONTEXTUAL_SUCCESS",
+      "INITIUM_GOAL_PLAN_CONTEXTUAL_SUCCESS",
       "INFO",
       {
-        personalizadaMobilityRoutes,
+        goalPlanMobilityRoutes,
         poolSize: contextualPool.length,
         exerciseOffset,
         selectionMethod: "stride_variety",
@@ -304,15 +304,15 @@ async function selectPersonalizadaContextualExercises(
 
   const fallbackTrace = createTraceEvent(
     updatedCtx,
-    "INITIUM_PERSONALIZADA_CONTEXTUAL_FALLBACK",
+    "INITIUM_GOAL_PLAN_CONTEXTUAL_FALLBACK",
     "INFO",
     {
-      personalizadaMobilityRoutes,
+      goalPlanMobilityRoutes,
       poolSize: contextualPool.length,
       selectedCount: contextualExercises.length,
       requiredCount: INITIUM_EXERCISE_COUNT,
       reason:
-        "Not enough personalizada-contextual exercises, falling back to generic selection",
+        "Not enough goal-plan-contextual exercises, falling back to generic selection",
     },
   );
   updatedCtx = appendTrace(updatedCtx, fallbackTrace);
@@ -392,15 +392,15 @@ function generateInitiumPrescriptions(exercises: InitiumExercise[]): {
  * @param ctx - Initial block context with week, day, levelGroup, role='INITIUM'
  * @param db - Database connection for format/exercise queries
  * @param excludeFormatNames - Format names to exclude for variety
- * @param personalizadaRoutes - Optional zone-specific mobility routes for personalizada sessions.
- *   When provided, overrides nucleusRoute-based contextual selection with personalizada zone routes.
+ * @param goalPlanMobilityRoutes - Optional zone-specific mobility routes for goal plan sessions.
+ *   When provided, overrides nucleusRoute-based contextual selection with goal plan zone routes.
  * @returns Complete BlockPlan with warmup configuration
  */
 export async function runInitiumPipeline(
   ctx: BlockContext,
   db: MySql2Database<typeof schema>,
   excludeFormatNames?: string[],
-  personalizadaRoutes?: string[],
+  goalPlanMobilityRoutes?: string[],
 ): Promise<BlockPlan> {
   let updatedCtx = ctx;
 
@@ -448,18 +448,17 @@ export async function runInitiumPipeline(
   let exerciseResults: InitiumExercise[] = [];
   let usedContextual = false;
 
-  if (personalizadaRoutes && personalizadaRoutes.length > 0) {
-    // Personalizada mode: use zone-specific mobility routes directly
-    const personalizadaContextResult =
-      await selectPersonalizadaContextualExercises(
-        db,
-        updatedCtx,
-        personalizadaRoutes,
-        exerciseOffset,
-      );
-    updatedCtx = personalizadaContextResult.ctx;
-    if (personalizadaContextResult.exercises) {
-      exerciseResults = personalizadaContextResult.exercises;
+  if (goalPlanMobilityRoutes && goalPlanMobilityRoutes.length > 0) {
+    // Goal plan mode: use zone-specific mobility routes directly
+    const goalPlanContextResult = await selectGoalPlanContextualExercises(
+      db,
+      updatedCtx,
+      goalPlanMobilityRoutes,
+      exerciseOffset,
+    );
+    updatedCtx = goalPlanContextResult.ctx;
+    if (goalPlanContextResult.exercises) {
+      exerciseResults = goalPlanContextResult.exercises;
       usedContextual = true;
     }
   } else if (ctx.nucleusRoute) {

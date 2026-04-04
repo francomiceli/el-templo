@@ -78,16 +78,16 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   // GET /admin/sessions/day-details - Batch fetch all session details for a day
   fastify.get<{
-    Querystring: { week: number; day: string; personalizadaType?: string };
+    Querystring: { week: number; day: string; goalPlanType?: string };
   }>(
     "/sessions/day-details",
     { schema: getDaySessionDetailsSchema },
     async (request) => {
-      const { week, day, personalizadaType } = request.query;
+      const { week, day, goalPlanType } = request.query;
       const sessions = await adminService.getDaySessionDetails(
         week,
         day,
-        personalizadaType,
+        goalPlanType,
       );
       return { sessions };
     },

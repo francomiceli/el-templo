@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: Ready to plan
-stopped_at: Completed 89-01-PLAN.md
-last_updated: "2026-04-04T18:46:23.662Z"
+stopped_at: Completed 89-02-PLAN.md
+last_updated: "2026-04-04T19:09:26.383Z"
 progress:
   total_phases: 83
-  completed_phases: 72
-  total_plans: 297
+  completed_phases: 71
+  total_plans: 296
   completed_plans: 292
 ---
 
@@ -113,7 +113,7 @@ _Updated after each plan completion_
 | Phase 86 P04 | 2min | 2 tasks | 2 files |
 | Phase 86 P05 | 6min | 2 tasks | 8 files |
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
-| Phase 89 P01 | 5min | 2 tasks | 10 files |
+| Phase 89 P02 | 19min | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -238,8 +238,9 @@ Recent decisions affecting current work:
 - [Phase 86]: Used underscore prefix (\_promoApplied) for unused destructured response field to avoid lint warnings
 - [Phase 86]: Promo routes registered inside existing subscriptionRoutes plugin, sharing the SUBSCRIPTION_ROLES auth guard hook
 - [Phase 86]: promoPlans deletion placed in Layer 3 of cleanAllTestData before subscriptionPlans for FK ordering
-- [Phase 89]: Safe 3-step AURA enum migration: expand with both old+new values, UPDATE rows, shrink to remove old value (prevents MySQL silent data loss)
-- [Phase 89]: personalizada_type DROPPED on subscription_plans (not renamed) per D-07 REVISED; goalPlanType lives on micro_programs only
+- [Phase 89]: GoalPlanService replaces PersonalizadasService; planCategory enum replaces boolean flags on subscription plans
+- [Phase 89]: DayId prefix changed from P- to GP- for goal plan sessions; parseDayId handles GP-, P-, J- for backward compat
+- [Phase 89]: goalPlanType NOT on plan types (per D-07 REVISED); lives on micro_programs only. Plans use planCategory + linkedProgramId
 
 ### Pending Todos
 
@@ -251,6 +252,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-04T18:46:23.657Z
-Stopped at: Completed 89-01-PLAN.md
+Last session: 2026-04-04T19:09:26.379Z
+Stopped at: Completed 89-02-PLAN.md
 Resume file: None

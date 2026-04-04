@@ -40,17 +40,21 @@ export const LEVEL_DIFFICULTY_MAP: Record<string, number> = {
  * Parse a dayId string into its components.
  *
  * General format: "W1-lunes-alfa"
- * Personalizada format: "P-tren_superior-W1-lunes-alfa"
- * Legacy format: "J-tren_superior-W1-lunes-alfa" (backward compat)
+ * Goal plan format: "GP-tren_superior-W1-lunes-alfa"
+ * Legacy formats: "P-tren_superior-W1-lunes-alfa", "J-tren_superior-W1-lunes-alfa" (backward compat)
  */
 export function parseDayId(dayId: string): {
   week: string;
   day: string;
   level: string;
 } {
-  if (dayId.startsWith("P-") || dayId.startsWith("J-")) {
-    // Personalizada format: P-{personalizadaType}-W{week}-{day}-{memberLevel}
-    // Also handles legacy J- prefix for backward compatibility
+  if (
+    dayId.startsWith("GP-") ||
+    dayId.startsWith("P-") ||
+    dayId.startsWith("J-")
+  ) {
+    // Goal plan format: GP-{goalPlanType}-W{week}-{day}-{memberLevel}
+    // Also handles legacy P- and J- prefixes for backward compatibility
     const parts = dayId.split("-");
     // Personalizada type may contain underscores, so find the W{n} part to anchor
     const weekIdx = parts.findIndex((p) => p.startsWith("W"));
