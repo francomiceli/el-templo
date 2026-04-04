@@ -1,12 +1,13 @@
 # Phase 89: Backend & Admin — "Planes Online" Infrastructure - Context
 
 **Gathered:** 2026-04-03
-**Status:** Ready for planning
+**Updated:** 2026-04-03
+**Status:** In discussion (partially decided, resuming tomorrow)
 
 <domain>
 ## Phase Boundary
 
-Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, types, services, routes, both apps), replace boolean flags with a `planCategory` enum, rename admin tab to "Planes Online", enable plan creation with weekly price display, refine session pipeline using approved production data, and verify online user session access for all plan categories.
+Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, types, services, routes, all 3 apps including member app text), replace boolean flags with a `planCategory` enum, restructure admin Planes page into two visual sections (Presenciales + Online) with programs moved to a separate admin page, enable plan creation with weekly price display, refine session pipeline using approved production data, and verify online user session access for all plan categories.
 
 </domain>
 
@@ -18,7 +19,7 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 - **D-01:** Full rename across the entire codebase. `personalizada` → `goalPlan`/`goal_plan` everywhere: DB columns, table names, TypeScript types, services, pipeline files, API routes, API response keys, admin UI, member app UI.
 - **D-02:** Code naming convention: `goalPlan` (camelCase) / `goal_plan` (snake_case for DB). English in code, "Por Objetivos" in user-facing Spanish UI.
 - **D-03:** This is a standalone plan within Phase 89 — handled as a dedicated plan before other work builds on the new naming.
-- **D-04:** Both admin and member app renamed in this phase (not deferred to Phase 90).
+- **D-04:** Both admin and member app renamed in this phase (not deferred to Phase 90). **Includes user-facing text** — labels that say "Personalizada" change to "Por Objetivos" in both apps. Phase 90 handles UX redesign only.
 - **D-05:** "Personalizado" (the $80k coach-assisted tier) is a SEPARATE concept from the old "personalizadas." In the new naming: goalPlan = auto-generated pipeline plans (Por Objetivos), coachAssisted/online_coach = premium coach-built plans (Personalizado).
 
 ### Plan Categorization Model
@@ -28,6 +29,28 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 - **D-08:** Existing gym subscription plans set to `presencial` via migration. Completely untouched functionally — zero risk to current operations.
 - **D-09:** Planner/researcher MUST trace ALL usages of `isPersonalizada` and `isOnline` across the entire codebase (API, admin, member app) to ensure every conditional branch is updated to use `planCategory`. These flags are used extensively for content gating, session access, UI display, and feature toggling.
 - **D-10:** `isTrial` and `isGroup` booleans remain — they're orthogonal concerns unrelated to plan category.
+
+### Online Product Architecture
+
+- **D-25:** Online products use a **plan + linked program** model. `subscription_plan` handles pricing, access, session type (via planCategory). Optionally linked to a `micro_program` for content blocks and weekly progression. Assigning a plan with a linked program auto-enrolls the member in that program.
+- **D-26:** subscription_plans is the single entity for ALL plan types (presencial + online). No separate "online product" table. planCategory enum is the sole distinguisher.
+
+### Admin Page Structure
+
+- **D-20 (REVISED):** PlanesPage has ONE "Planes" tab with TWO visual sections: **Presenciales** table (plans where planCategory=presencial) and **Online** table (plans where planCategory=online\_\*). Plus **Promos** tab (unchanged from Phase 86).
+- **D-27:** Programs (micro-programs from Phase 83) moved to a **separate "Programas" admin page**. No longer a tab within PlanesPage. This is a new route/page in the admin sidebar.
+- **D-21 (REVISED):** Online section shows all online plans in a flat list with category badges (Regular / Por Objetivos / Coach) on each row.
+- **D-23:** Weekly price auto-calculated from monthly price and displayed alongside it (computed, not stored).
+
+### Plan Creation Form — OPEN (resuming next session)
+
+- **D-22 (PARTIALLY DECIDED):** Plan creation form needs to replace `isPersonalizada` + `isOnline` toggles with planCategory selection. **UX pattern not yet decided** — dropdown selector vs toggle+conditional. goalPlanType selector still shown conditionally for online_goal plans.
+- Fields confirmed: name, description, duration, sessions/week, monthly price, plan category, goalPlanType selector (only for goal category), target audience tags.
+
+### Assignment Flow — OPEN (resuming next session)
+
+- How AssignPlanDialog behaves for online plans (schedule picker irrelevant, different fields?)
+- Whether plan↔program linking triggers auto-enrollment on assignment
 
 ### Pipeline Calibration
 
@@ -46,13 +69,6 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 - **D-17:** Online Regular plan users (Desde Cero, Hábitos) always get `alfa_delta` (lowest) level sessions. No level selection at purchase.
 - **D-18:** No level progression for online users in v1. They stay at alfa_delta for the duration of their plan. Progression requires coach evaluation which doesn't exist online.
 - **D-19:** Online Regular plans use the same weekly sessions as physical branches — member's Week 1 = whatever the current production week is.
-
-### Admin Tab Structure
-
-- **D-20:** Admin Planes page reorganized into 3 tabs: **Presenciales** (renamed from "Planes de Suscripción"), **Online** (renamed from "Personalizados"), **Promos** (unchanged).
-- **D-21:** Online tab shows all 3 online categories (Regular, Por Objetivos, Personalizado/Coach) in a flat list with category badges on each row. No sub-tabs, no grouped sections.
-- **D-22:** Plan creation form within Online tab includes: name, description, duration (weeks), sessions/week, monthly price, plan category (regular/goal/coach), goalPlanType selector (only for goal category), target audience tags.
-- **D-23:** Weekly price auto-calculated from monthly price and displayed alongside it (computed, not stored).
 
 ### WhatsApp CTA
 
@@ -88,16 +104,23 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 - `el-templo-api/src/modules/sessions/pipeline/personalizada-pipeline.ts` — Goal-plan specific pipeline variant
 - `el-templo-api/src/modules/sessions/validation/compare-algorithm.ts` — Existing validation against coach examples
 
+### Pipeline Diagnostics
+
+- `REP_COUNT_DIAGNOSIS.md` — 3 specific pipeline bugs found: ISO phantom weight, multi-round format reps, INITIUM reps too low
+- `SESSION_PIPELINE_ADMIN_EDIT_REFACTOR_PLAN.md` — 87 findings across pipeline, admin API, admin frontend (critical: missing ownership validation, no DB transactions)
+
+### Admin UI (must read to understand current state)
+
+- `el-templo-admin/src/pages/PlanesPage.vue` — Current 3-tab layout (Planes de Suscripcion / Planes Personalizados / Promos) to be restructured
+- `el-templo-admin/src/components/PlanFormDialog.vue` — Plan creation form with isPersonalizada/isOnline toggles to be replaced with planCategory
+- `el-templo-admin/src/components/AssignPlanDialog.vue` — Plan assignment stepper (select plan → pricing → schedule → confirm)
+- `el-templo-admin/src/components/ProgramWizardDialog.vue` — Program creation wizard (to be moved to new Programas page)
+- `el-templo-admin/src/components/ProgramEnrollmentSection.vue` — Program enrollment UI
+
 ### Prior Phase Context
 
 - `.planning/phases/83-micro-program-upsells/83-CONTEXT.md` — Program enrollment gates personalizada access (D-08), PlanesPage catalog (D-18)
 - `.planning/phases/86-qr-promo-free-month-campaign/86-CONTEXT.md` — Promo plans infrastructure, admin promos tab
-
-### Admin UI
-
-- `el-templo-admin/src/pages/PlanesPage.vue` — Current 3-tab layout to be restructured
-- `el-templo-admin/src/components/PlanFormDialog.vue` — Plan creation form to be extended
-- `el-templo-admin/src/components/AssignPlanDialog.vue` — Plan assignment with price override (already supports discounts)
 
 ### Research Data
 
@@ -130,6 +153,14 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 - Session generation: `personalizadaType` field on sessions table determines which pipeline variant was used. Needs rename + migration.
 - Phase 83 micro-programs: enrollment gates personalizada access via `isPersonalizada` check — must be updated to use planCategory.
 
+### Current Admin PlanesPage Structure (as of this session)
+
+- **Tab 1 "Planes de Suscripcion"**: QTable of subscription_plans (Name, Tier, Precio, Duracion, Clases/Sem, Estado). PlanFormDialog for create/edit.
+- **Tab 2 "Planes Personalizados"**: QTable of micro_programs (Nombre, Precio, Duracion weeks, Sesiones/Sem, Estado). ProgramWizardDialog for create/edit.
+- **Tab 3 "Promos"**: QTable of promo_plans (Nombre, Codigo, Duracion, Tipo, Periodo, Usos, Estado). PromoFormDialog for create.
+- **PlanFormDialog fields**: name, description, tier, bookingMode, priceRegular, priceZero, priceCreditCard, durationDays, classesPerWeek, toggles (multiBranch, isTrial, isGroup, isPersonalizada, isOnline), conditional personalizadaType selector, conditional groupMaxMembers.
+- **AssignPlanDialog**: 3-4 step stepper (Select plan by tier → Pricing/discounts → Fixed schedule slots [conditional] → Confirm). Supports price override, AURA discount, boarding pass.
+
 </code_context>
 
 <specifics>
@@ -156,4 +187,4 @@ Rename "personalizadas" to "goalPlan/goal_plan" across the full codebase (DB, ty
 ---
 
 _Phase: 89-planes-online-infra_
-_Context gathered: 2026-04-03_
+_Context gathered: 2026-04-03 (updated same day, discussion incomplete)_

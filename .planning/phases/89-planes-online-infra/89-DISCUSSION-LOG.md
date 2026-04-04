@@ -5,168 +5,123 @@
 
 **Date:** 2026-04-03
 **Phase:** 89-planes-online-infra
-**Areas discussed:** Rename depth, Plan categorization model, Pipeline calibration scope, Discount code mechanics, Online user session access, Admin tab structure
+**Areas discussed:** Member app rename boundary, Online plan assignment flow (expanded into admin page structure deep dive)
+**Status:** INCOMPLETE — user pausing, will resume next session
 
 ---
 
-## Rename Depth
+## Member App Rename Boundary
 
-| Option                 | Description                                                                         | Selected |
-| ---------------------- | ----------------------------------------------------------------------------------- | -------- |
-| UI-only rename         | Change display labels only. Code keeps 'personalizada' internally. Fast, zero-risk. |          |
-| UI + API response keys | Rename UI labels AND API response field names. Medium effort.                       |          |
-| Full code + DB rename  | Rename everything: DB columns, types, services, routes, API, UI. ~50+ files.        | ✓        |
+| Option                     | Description                                                                                               | Selected |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- | -------- |
+| Infrastructure rename only | Phase 89: rename types, stores, API response keys, route paths. Phase 90: visual redesign.                |          |
+| Full rename + minimal UX   | Phase 89: above + update existing UI text ("Personalizada" → "Por Objetivos"). Phase 90: redesign layout. |          |
+| Skip member app entirely   | ALL member app changes in Phase 90.                                                                       |          |
 
-**User's choice:** Full code + DB rename
-**Notes:** User wants clean codebase, not legacy naming.
+**Initial response:** User didn't understand the question — needed clarification on what "rename" means in context.
 
-### Follow-up: Code term
+**Clarification provided:** The rename touches ~10 member app files (types, stores, routes). Question is whether to do it now (Phase 89) so Phase 90 starts clean, or bundle it all in Phase 90.
 
-| Option                       | Description                                                | Selected |
-| ---------------------------- | ---------------------------------------------------------- | -------- |
-| goalPlan / goal_plan         | English, clean in code. GoalPlanService, goal_plans table. | ✓        |
-| porObjetivos / por_objetivos | Spanish, matches user-facing term. Unusual in code.        |          |
-| objective / objectives       | English shorthand. Could confuse with generic 'objective'. |          |
+| Option                | Description                                                      | Selected |
+| --------------------- | ---------------------------------------------------------------- | -------- |
+| Yes, rename in 89     | Rename code references now. Phase 90 focuses on visual redesign. | ✓        |
+| No, defer to Phase 90 | Leave member app as-is until Phase 90.                           |          |
 
-**User's choice:** goalPlan / goal_plan
+**User's choice:** Yes, rename in Phase 89.
 
-### Follow-up: Phase fit
+**Follow-up: User-facing text**
 
-| Option                      | Description                                             | Selected |
-| --------------------------- | ------------------------------------------------------- | -------- |
-| Standalone plan in Phase 89 | One dedicated plan handles full rename within Phase 89. | ✓        |
-| Split into Phase 89.1       | Own sub-phase before rest of Phase 89.                  |          |
-| Defer, UI-only for now      | Reconsider: UI now, code later.                         |          |
+| Option                | Description                                             | Selected |
+| --------------------- | ------------------------------------------------------- | -------- |
+| Change text too       | Update user-facing strings while renaming code.         | ✓        |
+| Code only, text in 90 | Labels stay as "Personalizada" until Phase 90 redesign. |          |
 
-**User's choice:** Standalone plan in Phase 89
-
-### Follow-up: App scope
-
-| Option                             | Description                          | Selected |
-| ---------------------------------- | ------------------------------------ | -------- |
-| Both apps in this phase            | Admin + member app renamed together. | ✓        |
-| Admin only, member app in Phase 90 | Clean separation of concerns.        |          |
-
-**User's choice:** Both apps in this phase
+**User's choice:** Change text too.
 
 ---
 
-## Plan Categorization Model
+## Online Plan Assignment Flow → Admin Page Structure Deep Dive
 
-| Option                                    | Description                                    | Selected |
-| ----------------------------------------- | ---------------------------------------------- | -------- |
-| New enum column: onlinePlanType           | Add enum replacing booleans. Clean, queryable. |          |
-| Two booleans: isGoalPlan + isPersonalized | Keep boolean pattern. Simple but messy.        |          |
-| Separate online_plans table               | New table for online plans. Over-engineered.   |          |
+User requested a deep review of the current admin PlanesPage before deciding on the assignment flow. Reviewed: PlanesPage.vue (3 tabs, tables, dialogs), PlanFormDialog.vue (form fields, toggles), AssignPlanDialog.vue (stepper).
 
-**User's choice:** User noted boolean accumulation is tech debt and asked for a better approach.
+### Program Placement in Tab Structure
 
-### Follow-up: Single planCategory enum
+| Option              | Description                                 | Selected |
+| ------------------- | ------------------------------------------- | -------- |
+| 4 tabs              | Presenciales / Online / Programas / Promos  |          |
+| Inside Online tab   | Programs become a section within Online tab |          |
+| Keep 3 tabs, rename | Presenciales / Experiencias / Promos        |          |
 
-| Option                          | Description                                                          | Selected |
-| ------------------------------- | -------------------------------------------------------------------- | -------- |
-| Single enum replacing booleans  | plan_category: presencial, online_regular, online_goal, online_coach | ✓        |
-| Enum + isOnline computed helper | Same enum but keep isOnline as computed property.                    |          |
+**User's response:** "gluteos, front lever, desde cero and habitos are basically forms of microprograms" — pointed out online products ARE essentially micro-programs.
 
-**User's choice:** Single enum. Noted that existing boolean flags are used extensively for content gating — planner must trace all usages.
+### Online Product Data Model
 
-### Follow-up: Gym plans affected?
+| Option             | Description                                           | Selected |
+| ------------------ | ----------------------------------------------------- | -------- |
+| Subscription plans | Keep using subscription_plans table + PlanFormDialog  |          |
+| Micro-programs     | Online products ARE programs, use ProgramWizardDialog |          |
+| Let me explain     | User will describe a different approach               |          |
 
-| Option                    | Description                                          | Selected |
-| ------------------------- | ---------------------------------------------------- | -------- |
-| Completely untouched      | Existing plans get presencial, no functional change. | ✓        |
-| Also categorize gym plans | Extend to cover gym plans too.                       |          |
+**User's response:** "Something between 2 and 3, this is the problem I'm facing now and I don't know how to proceed."
 
-**User's choice:** Completely untouched
+**Analysis provided:** Explained what each system handles (subscription_plans = pricing/access, micro_programs = content/progression) and that online products need BOTH.
 
----
+### Architecture Decision
 
-## Pipeline Calibration Scope
+| Option                  | Description                                                                       | Selected |
+| ----------------------- | --------------------------------------------------------------------------------- | -------- |
+| Plan + linked program   | subscription_plan for pricing/access, optionally linked micro_program for content | ✓        |
+| Programs absorb pricing | Add pricing to micro_programs, they become primary online entity                  |          |
+| Plans absorb content    | Add content blocks to subscription_plans                                          |          |
 
-| Option                     | Description                                                                      | Selected |
-| -------------------------- | -------------------------------------------------------------------------------- | -------- |
-| Analysis + targeted fixes  | Extract baselines, identify deviations, fix algorithm parameters. Report + code. | ✓        |
-| Permanent validation layer | Automated quality check on every generation. More infra.                         |          |
-| Analysis report only       | Data extraction + report, no code changes.                                       |          |
+**User's response:** Agreed with plan + linked program. Asked about planCategory — "doesn't make sense here?"
 
-**User's choice:** Analysis + targeted fixes. Key clarification: approved blocks = gold standard examples. Goal is sessions AS GOOD as approved ones, NOT repetitions. Learn patterns, not copy exercises. Scope of proposed changes is unlimited — will decide after seeing proposals.
+### planCategory Confirmation
 
-### Follow-up: Priority (exercise difficulty vs reps/sets)
+| Option                           | Description                                              | Selected |
+| -------------------------------- | -------------------------------------------------------- | -------- |
+| planCategory enum (D-06)         | presencial / online_regular / online_goal / online_coach | ✓        |
+| Keep isOnline, add sessionSource | Two independent dimensions                               |          |
+| Keep current booleans            | Minimal schema change                                    |          |
 
-**User's choice:** "Why does this matter?" — deferred to planner/researcher to determine based on data analysis.
+**User's choice:** planCategory enum (D-06).
 
----
+### Online Tab in PlanesPage
 
-## Discount Code Mechanics
+| Option                         | Description                                            | Selected |
+| ------------------------------ | ------------------------------------------------------ | -------- |
+| Plans only                     | Online tab shows subscription_plans, programs separate |          |
+| Both together                  | Online tab shows plans AND programs                    |          |
+| Programs only, linked to plans | Online tab shows programs, plans auto-created          |          |
 
-| Option                                  | Description                          | Selected |
-| --------------------------------------- | ------------------------------------ | -------- |
-| Extend promo_plans with discount fields | Add discount_percent to promo table. |          |
-| Fixed discount per code                 | Promo code has fixed override price. |          |
-| You decide                              | Claude picks best approach.          |          |
+**User's response:** "Online tab should not exist, we have a plan online toggle in regular plan creation, maybe we can create two lists to separate them visually, but the program is a different thing and should go in a different page in admin panel."
 
-**User's choice:** No promo code infrastructure needed. Sales applies discount manually at assignment using existing priceOverrideAmount field. Zero dev work.
+### Page Layout
 
-### Follow-up: Distribution
+| Option                   | Description                                                                | Selected |
+| ------------------------ | -------------------------------------------------------------------------- | -------- |
+| Single list with filters | One list, filter by category                                               |          |
+| Two sections, one page   | Presenciales table + Online table on same page. Programs to separate page. | ✓        |
+| Two tabs + promos        | Presenciales tab / Online tab / Promos tab                                 |          |
 
-**User's choice:** Same as above — manual at sale time, no codes.
+**User's choice:** Two sections, one page. One tab for planes. Programs → separate "Programas" page.
 
----
+### Plan Creation Form UX — NOT DECIDED
 
-## Online User Session Access
+| Option               | Description                            | Selected |
+| -------------------- | -------------------------------------- | -------- |
+| Dropdown selector    | planCategory dropdown replaces toggles |          |
+| Toggle + conditional | Keep online toggle, show sub-selector  |          |
+| You decide           | Claude picks                           |          |
 
-| Option                           | Description                                          | Selected |
-| -------------------------------- | ---------------------------------------------------- | -------- |
-| Always alfa_delta (lowest)       | Online Regular plans always serve beginner sessions. | ✓        |
-| Based on onboarding quiz         | Use Phase 78 quiz answer for initial level.          |          |
-| Nach assigns level at activation | Admin picks level when assigning plan.               |          |
-
-**User's choice:** Always alfa_delta
-
-### Follow-up: Level progression
-
-| Option                         | Description                            | Selected |
-| ------------------------------ | -------------------------------------- | -------- |
-| Locked at initial level for v1 | No progression for online users.       | ✓        |
-| Self-assessed progression      | User self-promotes after X weeks.      |          |
-| Coach decides via WhatsApp     | Manual progression via coach outreach. |          |
-
-**User's choice:** Locked at initial level for v1
-
----
-
-## Admin Tab Structure
-
-| Option                                                     | Description                                      | Selected |
-| ---------------------------------------------------------- | ------------------------------------------------ | -------- |
-| 3 tabs: Presenciales, Online, Promos                       | Clean separation. Online shows all 3 categories. | ✓        |
-| 4 tabs: Presenciales, Por Objetivos, Personalizado, Promos | More granular, more tabs.                        |          |
-| 2 tabs: Planes, Promos                                     | Merge with category filter.                      |          |
-
-**User's choice:** 3 tabs. Personalizado (coach-assisted) goes under Online tab.
-
-### Follow-up: Online tab layout
-
-| Option                        | Description                           | Selected |
-| ----------------------------- | ------------------------------------- | -------- |
-| Grouped sections              | 3 visual sections per category.       |          |
-| Flat list with category badge | All plans in one list, badge per row. | ✓        |
-| Sub-tabs within Online        | Nested tabs.                          |          |
-
-**User's choice:** Flat list with category badge
+**User's response:** "I'm too confused, will try again tomorrow from here."
 
 ---
 
 ## Claude's Discretion
 
-- Migration strategy for boolean→enum conversion
-- Weekly price formula
-- Edge cases in rename (old session data)
-- Pipeline calibration methodology
+None identified in this session.
 
 ## Deferred Ideas
 
-- Self-service payment (Mercado Pago in-app)
-- Online user level progression
-- Exercise video library completion
-- Automated permanent session validation layer
+None raised in this session.
