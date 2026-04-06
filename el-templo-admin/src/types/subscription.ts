@@ -73,11 +73,7 @@ export const AURA_DISCOUNT_TIERS: readonly AuraDiscountTier[] = [
 
 // ─── Plan Category ──────────────────────────────────────────────────────────
 
-export type PlanCategory =
-  | 'presencial'
-  | 'online_regular'
-  | 'online_goal'
-  | 'online_coach';
+export type PlanCategory = 'presencial' | 'online_regular' | 'online_goal' | 'online_coach';
 
 export const PLAN_CATEGORY_LABELS: Record<PlanCategory, string> = {
   presencial: 'Presencial',
@@ -177,6 +173,7 @@ export interface SubscriptionDetail {
   planId: number;
   planName: string;
   planTier: PlanTier;
+  planCategory: PlanCategory;
   branchId: number;
   branchName: string;
   status: SubscriptionStatus;

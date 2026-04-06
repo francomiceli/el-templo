@@ -127,6 +127,22 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function getMemberSubscriptions(userId: number): Promise<SubscriptionDetail[]> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{ subscriptions: SubscriptionDetail[] }>(
+        `/admin/subscriptions/members/${userId}/subscriptions`
+      );
+      return data.subscriptions;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando suscripciones');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getMemberSubscriptionHistory(userId: number): Promise<SubscriptionHistoryItem[]> {
     loading.value = true;
     error.value = null;
@@ -359,6 +375,7 @@ export function useSubscriptionsApi() {
     updatePlan,
     deactivatePlan,
     getMemberSubscription,
+    getMemberSubscriptions,
     getMemberSubscriptionHistory,
     assignPlan,
     changePlan,

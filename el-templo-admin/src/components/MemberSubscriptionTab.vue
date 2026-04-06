@@ -7,200 +7,60 @@
 
     <template v-else>
       <!-- ========================================== -->
-      <!-- Active Subscription Card -->
+      <!-- Presencial Subscription Card -->
       <!-- ========================================== -->
-      <q-card v-if="subscription" flat bordered class="q-mb-md">
-        <q-card-section>
-          <!-- Header: plan name + badges -->
-          <div class="row items-center q-gutter-sm q-mb-md">
-            <div class="text-h6">{{ subscription.planName }}</div>
-            <q-badge
-              :color="tierColor(subscription.planTier)"
-              :label="tierLabel(subscription.planTier)"
-            />
-            <q-badge
-              :color="statusColor(subscription.status)"
-              :label="statusLabel(subscription.status)"
-            />
-          </div>
+      <SubscriptionCard
+        v-if="presencialSub"
+        :subscription="presencialSub"
+        :class-usage="classUsage"
+        label="Suscripción Presencial"
+        @renew="
+          showRenewalDialog = true;
+          renewTarget = presencialSub;
+        "
+        @change="showChangeDialog = true"
+        @pause="confirmPause"
+        @resume="confirmResume"
+        @cancel="confirmCancel"
+      />
 
-          <!-- Dates row -->
-          <div class="row q-gutter-x-lg q-mb-md">
-            <div>
-              <div class="text-caption text-grey-7">Inicio</div>
-              <div>{{ formatDate(subscription.startDate) }}</div>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7">Vencimiento</div>
-              <div>{{ subscription.endDate ? formatDate(subscription.endDate) : '—' }}</div>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7">Dias restantes</div>
-              <div :class="{ 'text-negative text-weight-bold': daysRemaining < 7 }">
-                {{ daysRemaining >= 0 ? daysRemaining : 0 }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Class usage section -->
-          <div v-if="showClassUsage && classUsage" class="row q-gutter-x-lg q-mb-md">
-            <div>
-              <div class="text-caption text-grey-7">Clases esta semana</div>
-              <div>
-                {{ classUsage.classesUsedThisWeek }} /
-                {{ classUsage.weeklyLimit !== null ? classUsage.weeklyLimit : 'Sin limite' }}
-              </div>
-            </div>
-            <div>
-              <div class="text-caption text-grey-7">Clases restantes</div>
-              <div>
-                {{
-                  classUsage.classesRemaining !== null
-                    ? `${classUsage.classesRemaining} / ${classUsage.classesBudget}`
-                    : 'Sin limite'
-                }}
-              </div>
-            </div>
-            <div v-if="classUsage.scheduleSlots && classUsage.scheduleSlots.length > 0">
-              <div class="text-caption text-grey-7">Horarios fijos</div>
-              <div v-for="slot in classUsage.scheduleSlots" :key="slot.id" class="text-body2">
-                {{ dayLabel(slot.dayOfWeek) }} {{ slot.startTime }} — {{ slot.activityName }}
-              </div>
-            </div>
-            <div v-if="subscription && subscription.replacementCredits > 0">
-              <div class="text-caption text-grey-7">Clases de reemplazo</div>
-              <div class="text-positive text-weight-medium">
-                {{ subscription.replacementCredits }}
-              </div>
-            </div>
-          </div>
-
-          <!-- Pricing row -->
-          <div class="row q-gutter-x-lg q-mb-sm">
-            <div>
-              <div class="text-caption text-grey-7">Pagado</div>
-              <div class="text-weight-medium">${{ subscription.pricePaid.toLocaleString() }}</div>
-            </div>
-            <div>
-              <q-badge
-                outline
-                :color="priceTypeBadgeColor(subscription.priceTypeApplied)"
-                :label="priceTypeLabel(subscription.priceTypeApplied)"
-              />
-            </div>
-            <div v-if="subscription.auraDiscount">
-              <div class="text-caption text-grey-7">Descuento AURA</div>
-              <div>
-                {{ subscription.auraDiscountPercent }}% (-{{ subscription.auraDiscount }} AURA)
-              </div>
-            </div>
-            <div v-if="subscription.boardingPassUsed">
-              <q-badge color="deep-purple" label="Boarding Pass" />
-            </div>
-            <div v-if="subscription.priceOverrideReason">
-              <div class="text-caption text-grey-7">Precio especial</div>
-              <div class="text-italic">{{ subscription.priceOverrideReason }}</div>
-            </div>
-          </div>
-
-          <!-- Notes -->
-          <div v-if="subscription.notes" class="q-mt-sm text-italic text-grey-7">
-            {{ subscription.notes }}
-          </div>
-        </q-card-section>
-
-        <!-- Action buttons -->
-        <q-card-actions
-          v-if="
-            subscription.status === 'active' ||
-            subscription.status === 'paused' ||
-            subscription.status === 'expired'
-          "
-        >
-          <template v-if="subscription.status === 'active'">
-            <q-btn
-              flat
-              icon="autorenew"
-              label="Renovar"
-              color="positive"
-              :loading="renewalLoading"
-              @click="showRenewalDialog = true"
-            />
-            <q-btn
-              flat
-              icon="swap_horiz"
-              label="Cambiar Plan"
-              color="primary"
-              :loading="actionLoading"
-              @click="showChangeDialog = true"
-            />
-            <q-btn
-              flat
-              icon="pause"
-              label="Pausar"
-              color="warning"
-              :loading="actionLoading"
-              @click="confirmPause"
-            />
-            <q-btn
-              flat
-              icon="cancel"
-              label="Cancelar"
-              color="negative"
-              :loading="actionLoading"
-              @click="confirmCancel"
-            />
-          </template>
-          <template v-else-if="subscription.status === 'paused'">
-            <q-btn
-              flat
-              icon="swap_horiz"
-              label="Cambiar Plan"
-              color="primary"
-              :loading="actionLoading"
-              @click="showChangeDialog = true"
-            />
-            <q-btn
-              flat
-              icon="play_arrow"
-              label="Reanudar"
-              color="positive"
-              :loading="actionLoading"
-              @click="confirmResume"
-            />
-            <q-btn
-              flat
-              icon="cancel"
-              label="Cancelar"
-              color="negative"
-              :loading="actionLoading"
-              @click="confirmCancel"
-            />
-          </template>
-          <template v-else-if="subscription.status === 'expired'">
-            <q-btn
-              flat
-              icon="autorenew"
-              label="Renovar"
-              color="positive"
-              :loading="renewalLoading"
-              @click="showRenewalDialog = true"
-            />
-          </template>
-        </q-card-actions>
-      </q-card>
-
-      <!-- ========================================== -->
-      <!-- No Subscription State -->
-      <!-- ========================================== -->
+      <!-- No presencial subscription -->
       <q-card v-else flat bordered class="q-mb-md">
         <q-card-section class="text-center q-pa-lg">
-          <div class="text-grey-5 text-italic q-mb-md">Sin suscripcion activa</div>
+          <div class="text-grey-5 text-italic q-mb-md">Sin suscripción presencial</div>
           <q-btn
             icon="assignment"
             label="Gestionar Plan"
             color="primary"
             @click="showAssignDialog = true"
+          />
+        </q-card-section>
+      </q-card>
+
+      <!-- ========================================== -->
+      <!-- Programa (Online) Subscription Card -->
+      <!-- ========================================== -->
+      <SubscriptionCard
+        v-if="programaSub"
+        :subscription="programaSub"
+        label="Programa Online"
+        show-category-badge
+        @renew="
+          showRenewalDialog = true;
+          renewTarget = programaSub;
+        "
+        @cancel="confirmCancelPrograma"
+      />
+
+      <!-- No programa — show "Agregar Programa" button -->
+      <q-card v-else flat bordered class="q-mb-md">
+        <q-card-section class="text-center q-pa-lg">
+          <div class="text-grey-5 text-italic q-mb-md">Sin programa online</div>
+          <q-btn
+            icon="add_circle"
+            label="Agregar Programa"
+            color="amber-8"
+            @click="showAssignProgramDialog = true"
           />
         </q-card-section>
       </q-card>
@@ -236,6 +96,13 @@
                     :label="statusLabel(item.status)"
                     class="q-ml-xs"
                   />
+                  <q-badge
+                    v-if="item.planCategory !== 'presencial'"
+                    :color="categoryColor(item.planCategory)"
+                    :label="categoryLabel(item.planCategory)"
+                    class="q-ml-xs"
+                    outline
+                  />
                 </q-item-label>
                 <q-item-label caption>
                   {{ formatDate(item.startDate) }}
@@ -252,7 +119,7 @@
     </template>
 
     <!-- ========================================== -->
-    <!-- Assign Plan Dialog -->
+    <!-- Assign Plan Dialog (presencial) -->
     <!-- ========================================== -->
     <AssignPlanDialog
       v-model="showAssignDialog"
@@ -263,7 +130,7 @@
       @assigned="onAssigned"
     />
 
-    <!-- Change Plan Dialog (reuses AssignPlanDialog in change mode) -->
+    <!-- Change Plan Dialog (presencial — reuses AssignPlanDialog in change mode) -->
     <AssignPlanDialog
       v-model="showChangeDialog"
       :userId="userId"
@@ -274,6 +141,17 @@
       @assigned="onAssigned"
     />
 
+    <!-- Assign Program Dialog (online only) -->
+    <AssignPlanDialog
+      v-model="showAssignProgramDialog"
+      :userId="userId"
+      :memberBranchId="memberBranchId"
+      :memberBranchName="memberBranchName"
+      :boardingPassUsed="memberBoardingPassUsed"
+      category-filter="online"
+      @assigned="onAssigned"
+    />
+
     <!-- Renewal Dialog -->
     <q-dialog v-model="showRenewalDialog">
       <q-card style="width: 450px; max-width: 95vw">
@@ -281,18 +159,18 @@
           <div class="text-h6">Renovar Suscripcion</div>
         </q-card-section>
         <q-separator />
-        <q-card-section v-if="subscription">
+        <q-card-section v-if="renewTarget">
           <q-list dense>
             <q-item>
               <q-item-section>Plan</q-item-section>
               <q-item-section side class="text-weight-medium">{{
-                subscription.planName
+                renewTarget.planName
               }}</q-item-section>
             </q-item>
             <q-item>
               <q-item-section>Vencimiento actual</q-item-section>
               <q-item-section side>{{
-                subscription.endDate ? formatDate(subscription.endDate) : '—'
+                renewTarget.endDate ? formatDate(renewTarget.endDate) : '—'
               }}</q-item-section>
             </q-item>
             <q-item>
@@ -304,7 +182,7 @@
             <q-item>
               <q-item-section>Precio</q-item-section>
               <q-item-section side class="text-weight-bold text-h6"
-                >${{ subscription.pricePaid.toLocaleString() }}</q-item-section
+                >${{ renewTarget.pricePaid.toLocaleString() }}</q-item-section
               >
             </q-item>
           </q-list>
@@ -346,15 +224,19 @@ import {
   STATUS_LABELS,
   STATUS_COLORS,
   PRICE_TYPE_LABELS,
+  PLAN_CATEGORY_LABELS,
+  PLAN_CATEGORY_COLORS,
   type SubscriptionDetail,
   type SubscriptionHistoryItem,
   type ClassUsageInfo,
   type PlanTier,
+  type PlanCategory,
   type SubscriptionStatus,
   type PriceType,
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
+import SubscriptionCard from 'src/components/SubscriptionCard.vue';
 
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
@@ -379,43 +261,42 @@ const emit = defineEmits<{
 // State
 // =========================================================================
 
-const subscription = ref<SubscriptionDetail | null>(null);
+const allSubscriptions = ref<SubscriptionDetail[]>([]);
 const classUsage = ref<ClassUsageInfo | null>(null);
 const history = ref<SubscriptionHistoryItem[]>([]);
 const loadingSubscription = ref(false);
 const loadingHistory = ref(false);
 const actionLoading = ref(false);
 const showAssignDialog = ref(false);
+const showAssignProgramDialog = ref(false);
 const showChangeDialog = ref(false);
 const showRenewalDialog = ref(false);
+const renewTarget = ref<SubscriptionDetail | null>(null);
 const renewalMethod = ref<PaymentMethod>('cash');
 const renewalLoading = ref(false);
 
 const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
-const daysRemaining = computed(() => {
-  if (!subscription.value?.endDate) return 0;
-  const end = new Date(subscription.value.endDate);
-  const now = new Date();
-  const diffMs = end.getTime() - now.getTime();
-  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-});
+// =========================================================================
+// Computed — split subscriptions
+// =========================================================================
 
-const showClassUsage = computed(() => {
-  if (!classUsage.value) return false;
-  return classUsage.value.weeklyLimit !== null || classUsage.value.scheduleIds.length > 0;
-});
+const presencialSub = computed(
+  () => allSubscriptions.value.find((s) => s.planCategory === 'presencial') ?? null
+);
+
+const programaSub = computed(
+  () => allSubscriptions.value.find((s) => s.planCategory !== 'presencial') ?? null
+);
 
 const renewalEndDate = computed(() => {
-  if (!subscription.value?.endDate) return '—';
-  // Calculate duration from current start/end, then project new end from today or current end
-  const startMs = new Date(subscription.value.startDate).getTime();
-  const endMs = new Date(subscription.value.endDate).getTime();
+  if (!renewTarget.value?.endDate) return '—';
+  const startMs = new Date(renewTarget.value.startDate).getTime();
+  const endMs = new Date(renewTarget.value.endDate).getTime();
   const durationMs = endMs - startMs;
   const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
-  // Renewal starts from current endDate (if active) or today (if expired)
   const today = new Date().toISOString().split('T')[0];
-  const renewStart = subscription.value.endDate >= today ? subscription.value.endDate : today;
+  const renewStart = renewTarget.value.endDate >= today ? renewTarget.value.endDate : today;
   const end = new Date(renewStart);
   end.setDate(end.getDate() + (durationDays > 0 ? durationDays : 30));
   return formatDate(end.toISOString().split('T')[0]);
@@ -447,44 +328,26 @@ function statusColor(status: SubscriptionStatus): string {
   return STATUS_COLORS[status] ?? 'grey';
 }
 
-function priceTypeLabel(priceType: PriceType): string {
-  return PRICE_TYPE_LABELS[priceType] ?? priceType;
+function categoryLabel(category: PlanCategory): string {
+  return PLAN_CATEGORY_LABELS[category] ?? category;
 }
 
-const DAY_LABELS: Record<number, string> = {
-  1: 'Lunes',
-  2: 'Martes',
-  3: 'Miércoles',
-  4: 'Jueves',
-  5: 'Viernes',
-  6: 'Sábado',
-};
-
-function dayLabel(dayOfWeek: number): string {
-  return DAY_LABELS[dayOfWeek] ?? `Día ${dayOfWeek}`;
-}
-
-function priceTypeBadgeColor(priceType: PriceType): string {
-  const colors: Record<PriceType, string> = {
-    regular: 'grey-7',
-    zero: 'deep-purple',
-    credit_card: 'blue-grey',
-  };
-  return colors[priceType] ?? 'grey';
+function categoryColor(category: PlanCategory): string {
+  return PLAN_CATEGORY_COLORS[category] ?? 'grey';
 }
 
 // =========================================================================
 // Data loading
 // =========================================================================
 
-async function loadSubscription() {
+async function loadSubscriptions() {
   loadingSubscription.value = true;
   try {
-    subscription.value = await subsApi.getMemberSubscription(props.userId);
+    allSubscriptions.value = await subsApi.getMemberSubscriptions(props.userId);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading subscription', { error: message, userId: props.userId });
-    $q.notify({ type: 'negative', message: 'Error cargando suscripcion' });
+    log.error('Error loading subscriptions', { error: message, userId: props.userId });
+    $q.notify({ type: 'negative', message: 'Error cargando suscripciones' });
   } finally {
     loadingSubscription.value = false;
   }
@@ -513,7 +376,7 @@ async function loadClassUsage() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadSubscription(), loadHistory(), loadClassUsage()]);
+  await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage()]);
 }
 
 // =========================================================================
@@ -528,6 +391,7 @@ async function executeRenewal() {
     });
     $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
     showRenewalDialog.value = false;
+    renewTarget.value = null;
     renewalMethod.value = 'cash';
     refreshAll();
     emit('subscription-changed');
@@ -550,10 +414,10 @@ function confirmPause() {
   }).onOk(async () => {
     actionLoading.value = true;
     try {
-      subscription.value = await subsApi.pauseSubscription(props.userId);
+      await subsApi.pauseSubscription(props.userId);
       $q.notify({ type: 'positive', message: 'Suscripcion pausada' });
       emit('subscription-changed');
-      loadHistory();
+      refreshAll();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.error('Error pausing subscription', { error: message });
@@ -573,10 +437,10 @@ function confirmResume() {
   }).onOk(async () => {
     actionLoading.value = true;
     try {
-      subscription.value = await subsApi.resumeSubscription(props.userId);
+      await subsApi.resumeSubscription(props.userId);
       $q.notify({ type: 'positive', message: 'Suscripcion reanudada' });
       emit('subscription-changed');
-      loadHistory();
+      refreshAll();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.error('Error resuming subscription', { error: message });
@@ -589,7 +453,7 @@ function confirmResume() {
 
 function confirmCancel() {
   $q.dialog({
-    title: 'Cancelar suscripcion',
+    title: 'Cancelar suscripcion presencial',
     message: 'Cancelar la suscripcion? Esta accion no se puede deshacer.',
     prompt: {
       model: '',
@@ -602,14 +466,41 @@ function confirmCancel() {
     actionLoading.value = true;
     try {
       await subsApi.cancelSubscription(props.userId, notes.trim() || undefined);
-      subscription.value = null;
       $q.notify({ type: 'positive', message: 'Suscripcion cancelada' });
       emit('subscription-changed');
-      loadHistory();
+      refreshAll();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
       log.error('Error cancelling subscription', { error: message });
       $q.notify({ type: 'negative', message: 'Error cancelando suscripcion' });
+    } finally {
+      actionLoading.value = false;
+    }
+  });
+}
+
+function confirmCancelPrograma() {
+  $q.dialog({
+    title: 'Cancelar programa online',
+    message: 'Cancelar el programa? Esta accion no se puede deshacer.',
+    prompt: {
+      model: '',
+      type: 'textarea',
+      label: 'Notas (opcional)',
+    },
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'negative', label: 'Cancelar programa' },
+  }).onOk(async (notes: string) => {
+    actionLoading.value = true;
+    try {
+      await subsApi.cancelSubscription(props.userId, notes.trim() || undefined);
+      $q.notify({ type: 'positive', message: 'Programa cancelado' });
+      emit('subscription-changed');
+      refreshAll();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.error('Error cancelling program subscription', { error: message });
+      $q.notify({ type: 'negative', message: 'Error cancelando programa' });
     } finally {
       actionLoading.value = false;
     }

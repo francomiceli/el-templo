@@ -29,6 +29,7 @@ import type {
   BulkMigrateResult,
   ClassUsageInfo,
   PlanTier,
+  PlanCategory,
   BookingMode,
   PriceType,
   SubscriptionStatus,
@@ -236,6 +237,7 @@ export class SubscriptionService {
         planId: schema.subscriptions.planId,
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
+        planCategory: schema.subscriptionPlans.planCategory,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -291,6 +293,68 @@ export class SubscriptionService {
   }
 
   /**
+   * Get ALL active/paused subscriptions for a member (supports dual presencial + online).
+   * Returns an array (empty if none).
+   */
+  async getMemberSubscriptions(userId: number): Promise<SubscriptionDetail[]> {
+    await this.autoExpireSubscriptions(userId);
+
+    const rows = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        planId: schema.subscriptions.planId,
+        planName: schema.subscriptionPlans.name,
+        planTier: schema.subscriptionPlans.planTier,
+        planCategory: schema.subscriptionPlans.planCategory,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
+        status: schema.subscriptions.status,
+        startDate: schema.subscriptions.startDate,
+        endDate: schema.subscriptions.endDate,
+        pricePaid: schema.subscriptions.pricePaid,
+        priceTypeApplied: schema.subscriptions.priceTypeApplied,
+        auraDiscount: schema.subscriptions.auraDiscount,
+        auraDiscountPercent: schema.subscriptions.auraDiscountPercent,
+        boardingPassUsed: schema.subscriptions.boardingPassUsed,
+        priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
+        priceOverrideReason: schema.subscriptions.priceOverrideReason,
+        pausedAt: schema.subscriptions.pausedAt,
+        resumedAt: schema.subscriptions.resumedAt,
+        cancelledAt: schema.subscriptions.cancelledAt,
+        classesRemaining: schema.subscriptions.classesRemaining,
+        classesBudget: schema.subscriptions.classesBudget,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+        replacementCredits: schema.subscriptions.replacementCredits,
+        notes: schema.subscriptions.notes,
+        createdAt: schema.subscriptions.createdAt,
+        updatedAt: schema.subscriptions.updatedAt,
+      })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+        ),
+      )
+      .orderBy(schema.subscriptions.createdAt);
+
+    const mapped = rows.map((r) => this.mapSubscriptionRow(r));
+    return Promise.all(mapped.map((m) => this.enrichWithScheduleIds(m)));
+  }
+
+  /**
    * Get full subscription history for a member, most recent first.
    */
   async getMemberSubscriptionHistory(
@@ -306,6 +370,7 @@ export class SubscriptionService {
         planId: schema.subscriptions.planId,
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
+        planCategory: schema.subscriptionPlans.planCategory,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -358,6 +423,7 @@ export class SubscriptionService {
         planId: schema.subscriptions.planId,
         planName: schema.subscriptionPlans.name,
         planTier: schema.subscriptionPlans.planTier,
+        planCategory: schema.subscriptionPlans.planCategory,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         status: schema.subscriptions.status,
@@ -1869,7 +1935,7 @@ export class SubscriptionService {
       multiBranch: row.multiBranch,
       isTrial: row.isTrial,
       isGroup: row.isGroup,
-      planCategory: row.planCategory as import("./types").PlanCategory,
+      planCategory: row.planCategory as PlanCategory,
       goalPlanType,
       linkedProgramId: row.linkedProgramId ?? null,
       groupMaxMembers: row.groupMaxMembers,
@@ -2006,6 +2072,7 @@ export class SubscriptionService {
     planId: number;
     planName: string;
     planTier: string;
+    planCategory: string;
     branchId: number;
     branchName: string;
     status: string;
@@ -2035,6 +2102,7 @@ export class SubscriptionService {
       planId: row.planId,
       planName: row.planName,
       planTier: row.planTier as PlanTier,
+      planCategory: row.planCategory as PlanCategory,
       branchId: row.branchId,
       branchName: row.branchName,
       status: row.status as SubscriptionStatus,

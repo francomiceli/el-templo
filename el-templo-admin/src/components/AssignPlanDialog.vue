@@ -2,7 +2,7 @@
   <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
     <q-card style="width: 700px; max-width: 95vw">
       <q-card-section>
-        <div class="text-h6">{{ mode === 'change' ? 'Cambiar Plan' : 'Gestionar Plan' }}</div>
+        <div class="text-h6">{{ dialogTitle }}</div>
       </q-card-section>
 
       <q-separator />
@@ -522,8 +522,10 @@ const props = withDefaults(
     memberBranchName: string;
     boardingPassUsed: boolean;
     mode?: 'assign' | 'change';
+    /** Filter plans by category group: 'presencial' shows only presencial, 'online' shows only online_* categories */
+    categoryFilter?: 'presencial' | 'online';
   }>(),
-  { mode: 'assign' }
+  { mode: 'assign', categoryFilter: undefined }
 );
 
 const emit = defineEmits<{
@@ -572,24 +574,39 @@ interface TierGroup {
   plans: PlanListItem[];
 }
 
+const dialogTitle = computed(() => {
+  if (props.mode === 'change') return 'Cambiar Plan';
+  if (props.categoryFilter === 'online') return 'Agregar Programa';
+  return 'Gestionar Plan';
+});
+
 const isOnlinePlan = computed(() =>
-  selectedPlan.value ? selectedPlan.value.planCategory !== 'presencial' : false,
+  selectedPlan.value ? selectedPlan.value.planCategory !== 'presencial' : false
 );
 
-const isFixedMode = computed(() =>
-  selectedPlan.value?.bookingMode === 'fixed' && !isOnlinePlan.value,
+const isFixedMode = computed(
+  () => selectedPlan.value?.bookingMode === 'fixed' && !isOnlinePlan.value
 );
 
 const confirmStep = computed(() => (isFixedMode.value ? 4 : 3));
 
 const requiredSlotCount = computed(() => selectedPlan.value?.classesPerWeek ?? 0);
 
+const filteredPlans = computed(() => {
+  if (!props.categoryFilter) return plans.value;
+  if (props.categoryFilter === 'presencial') {
+    return plans.value.filter((p) => p.planCategory === 'presencial');
+  }
+  // 'online' filter: show all non-presencial categories
+  return plans.value.filter((p) => p.planCategory !== 'presencial');
+});
+
 const plansByTier = computed((): TierGroup[] => {
   const tierOrder: PlanTier[] = ['flex', 'foundation', 'performance', 'other'];
   const groups: TierGroup[] = [];
 
   for (const tier of tierOrder) {
-    const tierPlans = plans.value.filter((p) => p.planTier === tier);
+    const tierPlans = filteredPlans.value.filter((p) => p.planTier === tier);
     if (tierPlans.length > 0) {
       groups.push({ tier, plans: tierPlans });
     }

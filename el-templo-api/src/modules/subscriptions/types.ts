@@ -135,6 +135,7 @@ export interface SubscriptionDetail {
   planId: number;
   planName: string;
   planTier: PlanTier;
+  planCategory: PlanCategory;
   branchId: number;
   branchName: string;
   status: SubscriptionStatus;

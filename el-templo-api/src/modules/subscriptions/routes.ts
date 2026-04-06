@@ -196,6 +196,18 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
+  // GET /members/:userId/subscriptions — Get ALL active/paused subscriptions (plural)
+  fastify.get<{ Params: { userId: number } }>(
+    "/members/:userId/subscriptions",
+    { schema: getMemberSubscriptionSchema },
+    async (request) => {
+      const subscriptions = await subscriptionService.getMemberSubscriptions(
+        request.params.userId,
+      );
+      return { subscriptions };
+    },
+  );
+
   // GET /members/:userId/subscription/history — Get subscription history
   fastify.get<{ Params: { userId: number } }>(
     "/members/:userId/subscription/history",
