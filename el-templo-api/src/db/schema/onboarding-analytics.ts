@@ -12,6 +12,7 @@ export const onboardingEventTypeEnum = mysqlEnum("onboarding_event_type", [
   "question_answered",
   "quiz_completed",
   "quiz_abandoned",
+  "avatar_assigned",
 ]);
 
 export const onboardingAnalytics = mysqlTable("onboarding_analytics", {
@@ -21,7 +22,7 @@ export const onboardingAnalytics = mysqlTable("onboarding_analytics", {
     .notNull(),
   eventType: onboardingEventTypeEnum.notNull(),
   questionIndex: int("question_index"), // 0-3 for Q1-Q4
-  answerValue: varchar("answer_value", { length: 50 }), // the selected option value
+  answerValue: varchar("answer_value", { length: 100 }), // the selected option value
   durationMs: int("duration_ms"), // time spent on this step
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

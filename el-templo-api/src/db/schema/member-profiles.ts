@@ -1,6 +1,7 @@
 import {
   mysqlTable,
   int,
+  varchar,
   timestamp,
   mysqlEnum,
   index,
@@ -53,10 +54,15 @@ export const memberProfiles = mysqlTable(
       .references(() => users.id)
       .notNull()
       .unique(),
-    goalType: goalTypeEnum.notNull(),
-    experienceLevel: experienceLevelEnum.notNull(),
-    trainingFocus: trainingFocusEnum.notNull(),
-    motivationStyle: motivationStyleEnum.notNull(),
+    goalType: goalTypeEnum,
+    experienceLevel: experienceLevelEnum,
+    trainingFocus: trainingFocusEnum,
+    motivationStyle: motivationStyleEnum,
+    ageRange: varchar("age_range", { length: 10 }),
+    trainingBackground: varchar("training_background", { length: 20 }),
+    painPoint: varchar("pain_point", { length: 20 }),
+    trainingFrequency: varchar("training_frequency", { length: 10 }),
+    avatarType: varchar("avatar_type", { length: 2 }),
     onboardingCompletedAt: timestamp("onboarding_completed_at"),
     segment: memberSegmentEnum,
     segmentUpdatedAt: timestamp("segment_updated_at"),
