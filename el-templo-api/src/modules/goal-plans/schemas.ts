@@ -2,7 +2,7 @@
  * Fastify JSON schemas for Goal Plans API request/response validation.
  */
 
-import type { GoalPlanDuration, GoalPlanType } from "./types";
+import type { GoalPlanType } from "./types";
 
 // =============================================================================
 // Member Endpoints
@@ -44,9 +44,6 @@ export const getActiveGoalPlanSchema = {
               type: "object",
               properties: {
                 goalPlanType: { type: "string" },
-                semana20: { type: "integer" },
-                semana40: { type: "integer" },
-                semana60: { type: "integer" },
                 isActive: { type: "boolean" },
                 startedAt: { type: "string" },
               },
@@ -69,9 +66,6 @@ export const getArchivedGoalPlansSchema = {
             type: "object",
             properties: {
               goalPlanType: { type: "string" },
-              semana20: { type: "integer" },
-              semana40: { type: "integer" },
-              semana60: { type: "integer" },
               startedAt: { type: "string" },
               archivedAt: { type: "string" },
             },
@@ -97,14 +91,6 @@ export const getGoalPlanStatsSchema = {
                 currentWeek: { type: "integer" },
                 cycleEndDate: { type: "string" },
                 totalCompletions: { type: "integer" },
-                durationBreakdown: {
-                  type: "object",
-                  properties: {
-                    d20: { type: "integer" },
-                    d40: { type: "integer" },
-                    d60: { type: "integer" },
-                  },
-                },
                 cycleComplete: { type: "boolean" },
               },
             },
@@ -118,14 +104,13 @@ export const getGoalPlanStatsSchema = {
 export const getGoalPlanSessionSchema = {
   querystring: {
     type: "object",
-    required: ["week", "day", "duration"],
+    required: ["week", "day"],
     properties: {
       week: { type: "integer", minimum: 1, maximum: 52 },
       day: {
         type: "string",
         enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
       },
-      duration: { type: "integer", enum: [20, 40, 60] },
     },
   },
   response: {
@@ -159,16 +144,14 @@ export const getGoalPlanSessionSchema = {
 export interface GetGoalPlanSessionInput {
   week: number;
   day: string;
-  duration: GoalPlanDuration;
 }
 
 export const completeGoalPlanSchema = {
   body: {
     type: "object",
-    required: ["dayId", "duration", "date", "startedAt", "blocksCompleted"],
+    required: ["dayId", "date", "startedAt", "blocksCompleted"],
     properties: {
       dayId: { type: "string" },
-      duration: { type: "integer", enum: [20, 40, 60] },
       date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
       startedAt: { type: "string" },
       blocksCompleted: {
@@ -195,9 +178,6 @@ export const completeGoalPlanSchema = {
           type: "object",
           properties: {
             goalPlanType: { type: "string" },
-            semana20: { type: "integer" },
-            semana40: { type: "integer" },
-            semana60: { type: "integer" },
             isActive: { type: "boolean" },
             startedAt: { type: "string" },
           },
@@ -215,7 +195,6 @@ export const completeGoalPlanSchema = {
 
 export interface CompleteGoalPlanInput {
   dayId: string;
-  duration: GoalPlanDuration;
   date: string;
   startedAt: string;
   blocksCompleted: string[];
@@ -308,9 +287,6 @@ export const getAdminGoalPlanMembersSchema = {
               branchName: { type: "string" },
               goalPlanType: { type: ["string", "null"] },
               goalPlanName: { type: ["string", "null"] },
-              semana20: { type: ["integer", "null"] },
-              semana40: { type: ["integer", "null"] },
-              semana60: { type: ["integer", "null"] },
               startedAt: { type: ["string", "null"] },
             },
           },
@@ -356,9 +332,6 @@ export const getAdminGoalPlanMemberDetailSchema = {
               type: "object",
               properties: {
                 goalPlanType: { type: "string" },
-                semana20: { type: "integer" },
-                semana40: { type: "integer" },
-                semana60: { type: "integer" },
                 isActive: { type: "boolean" },
                 startedAt: { type: "string" },
               },
@@ -371,9 +344,6 @@ export const getAdminGoalPlanMemberDetailSchema = {
             type: "object",
             properties: {
               goalPlanType: { type: "string" },
-              semana20: { type: "integer" },
-              semana40: { type: "integer" },
-              semana60: { type: "integer" },
               startedAt: { type: "string" },
               archivedAt: { type: "string" },
             },
@@ -391,14 +361,6 @@ export const getAdminGoalPlanMemberDetailSchema = {
           type: "object",
           properties: {
             totalSessions: { type: "integer" },
-            byDuration: {
-              type: "object",
-              properties: {
-                d20: { type: "integer" },
-                d40: { type: "integer" },
-                d60: { type: "integer" },
-              },
-            },
           },
         },
         completions: {

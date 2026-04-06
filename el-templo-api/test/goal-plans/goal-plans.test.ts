@@ -327,7 +327,6 @@ describe("Goal Plan Routes", () => {
       expect(body.goalPlan).not.toBeNull();
       expect(body.goalPlan.goalPlanType).toBe("tren_superior");
       expect(body.goalPlan.isActive).toBe(true);
-      expect(body.goalPlan.semana20).toBe(1);
     });
   });
 
@@ -335,7 +334,7 @@ describe("Goal Plan Routes", () => {
   // GET /api/goal-plans/active (after auto-assignment from plan)
   // ---------------------------------------------------------------
   describe("GET /api/goal-plans/active (after auto-assignment)", () => {
-    it("returns the auto-assigned goal plan with correct semana values", async () => {
+    it("returns the auto-assigned goal plan", async () => {
       // member1 was assigned a plan with goalPlanType: "tren_superior" in beforeAll
       const res = await app.inject({
         method: "GET",
@@ -347,9 +346,7 @@ describe("Goal Plan Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.goalPlan).not.toBeNull();
       expect(body.goalPlan.goalPlanType).toBe("tren_superior");
-      expect(body.goalPlan.semana20).toBe(1);
-      expect(body.goalPlan.semana40).toBe(1);
-      expect(body.goalPlan.semana60).toBe(1);
+      expect(body.goalPlan.isActive).toBe(true);
     });
   });
 

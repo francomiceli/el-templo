@@ -1,7 +1,7 @@
 /**
  * Goal Plan Service
  *
- * Manages member goal plan lifecycle (select, archive, switch, advance)
+ * Manages member goal plan lifecycle (select, archive, switch)
  * and generates goal plan sessions using the goal plan pipeline.
  *
  * Follows the established service pattern (see AdminSessionService).
@@ -38,7 +38,6 @@ import {
 } from "../shared/training-constants";
 import type {
   GoalPlanType,
-  GoalPlanDuration,
   GoalPlanProgress,
   ArchivedGoalPlan,
   CycleStats,
@@ -71,22 +70,6 @@ function levelGroupToMemberLevels(levelGroup: LevelGroup): ExerciseLevel[] {
       return ["sigma"];
     case "omega":
       return ["omega", "spartan"];
-  }
-}
-
-/**
- * Map a semana column name from a GoalPlanDuration
- */
-function semanaColumn(
-  duration: GoalPlanDuration,
-): "semana20" | "semana40" | "semana60" {
-  switch (duration) {
-    case 20:
-      return "semana20";
-    case 40:
-      return "semana40";
-    case 60:
-      return "semana60";
   }
 }
 
@@ -142,9 +125,7 @@ export class GoalPlanService {
   /**
    * Get the active goal plan for a user, or null if none is active.
    */
-  async getActiveGoalPlan(
-    userId: number,
-  ): Promise<GoalPlanProgress | null> {
+  async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
     const [goalPlan] = await this.db
       .select()
       .from(schema.memberGoalPlans)
@@ -159,9 +140,6 @@ export class GoalPlanService {
 
     return {
       goalPlanType: goalPlan.goalPlanType as GoalPlanType,
-      semana20: goalPlan.semana20,
-      semana40: goalPlan.semana40,
-      semana60: goalPlan.semana60,
       isActive: goalPlan.isActive,
       startedAt: goalPlan.startedAt.toISOString(),
     };
@@ -170,9 +148,7 @@ export class GoalPlanService {
   /**
    * Get all archived goal plans for a user.
    */
-  async getArchivedGoalPlans(
-    userId: number,
-  ): Promise<ArchivedGoalPlan[]> {
+  async getArchivedGoalPlans(userId: number): Promise<ArchivedGoalPlan[]> {
     const goalPlans = await this.db
       .select()
       .from(schema.memberGoalPlans)
@@ -186,9 +162,6 @@ export class GoalPlanService {
 
     return goalPlans.map((p) => ({
       goalPlanType: p.goalPlanType as GoalPlanType,
-      semana20: p.semana20,
-      semana40: p.semana40,
-      semana60: p.semana60,
       startedAt: p.startedAt.toISOString(),
       archivedAt: p.archivedAt?.toISOString() ?? new Date().toISOString(),
     }));
@@ -255,34 +228,23 @@ export class GoalPlanService {
 
     const completions = await this.db
       .select({
-        duration: schema.completedSessions.duration,
+        id: schema.completedSessions.id,
       })
       .from(schema.completedSessions)
       .where(
         and(
           eq(schema.completedSessions.userId, userId),
-          eq(
-            schema.completedSessions.goalPlanType,
-            goalPlan.goalPlanType,
-          ),
+          eq(schema.completedSessions.goalPlanType, goalPlan.goalPlanType),
           sql`${schema.completedSessions.date} >= ${startDateStr}`,
           sql`${schema.completedSessions.date} <= ${endDateStr}`,
         ),
       );
 
-    const totalCompletions = completions.length;
-    const durationBreakdown = {
-      d20: completions.filter((c) => c.duration === 20).length,
-      d40: completions.filter((c) => c.duration === 40).length,
-      d60: completions.filter((c) => c.duration === 60).length,
-    };
-
     return {
       cycleWeeks,
       currentWeek: Math.max(currentWeek, 1),
       cycleEndDate: cycleEndDate.toISOString(),
-      totalCompletions,
-      durationBreakdown,
+      totalCompletions: completions.length,
       cycleComplete,
     };
   }
@@ -317,52 +279,13 @@ export class GoalPlanService {
       userId,
       goalPlanType,
       isActive: true,
-      semana20: 1,
-      semana40: 1,
-      semana60: 1,
     });
 
     return {
       goalPlanType,
-      semana20: 1,
-      semana40: 1,
-      semana60: 1,
       isActive: true,
       startedAt: new Date().toISOString(),
     };
-  }
-
-  /**
-   * Advance the semana counter for a specific duration of the user's active goal plan.
-   */
-  async advanceSemana(
-    userId: number,
-    duration: GoalPlanDuration,
-  ): Promise<void> {
-    const column = semanaColumn(duration);
-
-    const [goalPlan] = await this.db
-      .select()
-      .from(schema.memberGoalPlans)
-      .where(
-        and(
-          eq(schema.memberGoalPlans.userId, userId),
-          eq(schema.memberGoalPlans.isActive, true),
-        ),
-      );
-
-    if (!goalPlan) {
-      throw new Error(
-        "No se encontro un plan por objetivos activo para el usuario",
-      );
-    }
-
-    const newValue = goalPlan[column] + 1;
-
-    await this.db
-      .update(schema.memberGoalPlans)
-      .set({ [column]: newValue })
-      .where(eq(schema.memberGoalPlans.id, goalPlan.id));
   }
 
   // ─── Session Generation Methods ───────────────────────────────────────
@@ -731,18 +654,16 @@ export class GoalPlanService {
   }
 
   /**
-   * Retrieve a goal plan session for the member's level,
-   * filtering blocks by duration.
+   * Retrieve a goal plan session for the member's level.
+   * Always returns the full session (all blocks).
    *
    * If no session exists for the current week, falls back to the most
-   * recent available week (per CONTEXT.md: "silently fall back to most
-   * recent available session").
+   * recent available week.
    */
   async getGoalPlanSession(
     userId: number,
     week: number,
     day: string,
-    duration: GoalPlanDuration,
   ): Promise<DaySession | null> {
     // Get user's active goal plan and level
     const goalPlan = await this.getActiveGoalPlan(userId);
@@ -792,41 +713,6 @@ export class GoalPlanService {
       }
     }
 
-    if (!session) return null;
-
-    // Filter blocks by duration
-    const filteredBlocks = filterBlocksByDuration(session.blocks, duration);
-
-    return {
-      ...session,
-      blocks: filteredBlocks,
-    };
-  }
-}
-
-/**
- * Filter session blocks based on selected duration.
- *
- * Per CONTEXT.md:
- *   20 min: Initium + Nucleus
- *   40 min: Initium + Nucleus + Deuteros (single, DEUTEROS_1 only)
- *   60 min: All blocks (Initium + Nucleus + Deuteros + Athlos/Epikos)
- */
-function filterBlocksByDuration(
-  blocks: readonly import("../sessions/types").BlockPlan[],
-  duration: GoalPlanDuration,
-): import("../sessions/types").BlockPlan[] {
-  switch (duration) {
-    case 20:
-      return blocks.filter((b) => b.role === "INITIUM" || b.role === "NUCLEUS");
-    case 40:
-      return blocks.filter(
-        (b) =>
-          b.role === "INITIUM" ||
-          b.role === "NUCLEUS" ||
-          b.role === "DEUTEROS_1",
-      );
-    case 60:
-      return [...blocks];
+    return session ?? null;
   }
 }

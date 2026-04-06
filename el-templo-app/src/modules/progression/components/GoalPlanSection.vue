@@ -45,10 +45,7 @@
                 <h3 class="goal-plan-section__goal-plan-name">
                   {{ activeGoalPlanName }}
                 </h3>
-                <q-badge
-                  class="goal-plan-section__tier-badge"
-                  :label="activeGoalPlanTierLabel"
-                />
+                <q-badge class="goal-plan-section__tier-badge" :label="activeGoalPlanTierLabel" />
               </div>
               <q-icon name="explore" size="28px" class="goal-plan-section__icon" />
             </div>
@@ -74,10 +71,7 @@
             </p>
 
             <!-- Cycle Progress (only when subscription has durationDays) -->
-            <div
-              v-if="cycleStats && !cycleStats.cycleComplete"
-              class="goal-plan-section__cycle"
-            >
+            <div v-if="cycleStats && !cycleStats.cycleComplete" class="goal-plan-section__cycle">
               <div class="goal-plan-section__cycle-header">
                 <span class="goal-plan-section__cycle-week">{{ cycleWeekLabel }}</span>
                 <span class="goal-plan-section__cycle-completions">{{ completionLabel }}</span>
@@ -90,64 +84,6 @@
                 size="10px"
                 class="goal-plan-section__cycle-bar"
               />
-            </div>
-
-            <!-- Per-Duration Semana Progress (always visible, matches post-session resumen) -->
-            <div class="goal-plan-section__durations">
-              <div class="goal-plan-section__duration-row">
-                <span class="goal-plan-section__duration-time"
-                  >20 <span class="goal-plan-section__duration-unit">min</span></span
-                >
-                <div class="goal-plan-section__duration-info">
-                  <span class="goal-plan-section__duration-label"
-                    >Semana {{ activeGoalPlan.semana20 }}</span
-                  >
-                  <q-linear-progress
-                    :value="activeGoalPlan.semana20 / 21"
-                    color="secondary"
-                    track-color="grey-3"
-                    size="6px"
-                    rounded
-                    class="q-mt-xs"
-                  />
-                </div>
-              </div>
-              <div class="goal-plan-section__duration-row">
-                <span class="goal-plan-section__duration-time"
-                  >40 <span class="goal-plan-section__duration-unit">min</span></span
-                >
-                <div class="goal-plan-section__duration-info">
-                  <span class="goal-plan-section__duration-label"
-                    >Semana {{ activeGoalPlan.semana40 }}</span
-                  >
-                  <q-linear-progress
-                    :value="activeGoalPlan.semana40 / 21"
-                    color="secondary"
-                    track-color="grey-3"
-                    size="6px"
-                    rounded
-                    class="q-mt-xs"
-                  />
-                </div>
-              </div>
-              <div class="goal-plan-section__duration-row">
-                <span class="goal-plan-section__duration-time"
-                  >60 <span class="goal-plan-section__duration-unit">min</span></span
-                >
-                <div class="goal-plan-section__duration-info">
-                  <span class="goal-plan-section__duration-label"
-                    >Semana {{ activeGoalPlan.semana60 }}</span
-                  >
-                  <q-linear-progress
-                    :value="activeGoalPlan.semana60 / 21"
-                    color="secondary"
-                    track-color="grey-3"
-                    size="6px"
-                    rounded
-                    class="q-mt-xs"
-                  />
-                </div>
-              </div>
             </div>
 
             <!-- Cycle Complete Wrap-Up Card -->
@@ -168,37 +104,6 @@
                   <strong>{{ cycleStats.totalCompletions }} sesiones</strong> en
                   {{ cycleStats.cycleWeeks }} semanas.
                 </p>
-
-                <!-- Duration Breakdown in wrap-up -->
-                <div class="goal-plan-section__wrapup-breakdown">
-                  <div
-                    v-if="cycleStats.durationBreakdown.d20 > 0"
-                    class="goal-plan-section__wrapup-duration"
-                  >
-                    <span class="goal-plan-section__wrapup-count">{{
-                      cycleStats.durationBreakdown.d20
-                    }}</span>
-                    <span class="goal-plan-section__wrapup-label">sesiones de 20 min</span>
-                  </div>
-                  <div
-                    v-if="cycleStats.durationBreakdown.d40 > 0"
-                    class="goal-plan-section__wrapup-duration"
-                  >
-                    <span class="goal-plan-section__wrapup-count">{{
-                      cycleStats.durationBreakdown.d40
-                    }}</span>
-                    <span class="goal-plan-section__wrapup-label">sesiones de 40 min</span>
-                  </div>
-                  <div
-                    v-if="cycleStats.durationBreakdown.d60 > 0"
-                    class="goal-plan-section__wrapup-duration"
-                  >
-                    <span class="goal-plan-section__wrapup-count">{{
-                      cycleStats.durationBreakdown.d60
-                    }}</span>
-                    <span class="goal-plan-section__wrapup-label">sesiones de 60 min</span>
-                  </div>
-                </div>
 
                 <!-- CTA -->
                 <div class="goal-plan-section__wrapup-actions">
@@ -253,12 +158,6 @@
 
                 <p class="goal-plan-section__archived-dates">
                   {{ formatDate(archived.startedAt) }} - {{ formatDate(archived.archivedAt) }}
-                </p>
-
-                <p class="goal-plan-section__archived-semanas">
-                  20 min: S{{ archived.semana20 }} · 40 min: S{{ archived.semana40 }} · 60 min: S{{
-                    archived.semana60
-                  }}
                 </p>
               </q-card-section>
             </q-card>
@@ -321,9 +220,7 @@ const TIER_LABELS: Record<GoalPlanTier, string> = {
 
 const activeMetadata = computed(() => {
   if (!props.activeGoalPlan) return null
-  return (
-    props.allMetadata.find((m) => m.type === props.activeGoalPlan?.goalPlanType) ?? null
-  )
+  return props.allMetadata.find((m) => m.type === props.activeGoalPlan?.goalPlanType) ?? null
 })
 
 const activeGoalPlanName = computed(() => {
@@ -520,45 +417,6 @@ function getGoalPlanTierLabel(goalPlanType: string): string {
     margin-bottom: 12px;
   }
 
-  &__durations {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  &__duration-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 10px 12px;
-    background: rgba($cream, 0.7);
-    border-radius: 8px;
-  }
-
-  &__duration-time {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 400;
-    color: $secondary;
-    min-width: 50px;
-    line-height: 1;
-  }
-
-  &__duration-unit {
-    font-size: 0.7rem;
-    color: rgba($primary, 0.4);
-  }
-
-  &__duration-info {
-    flex: 1;
-  }
-
-  &__duration-label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: $primary;
-  }
-
   // Wrap-Up Card
   &__wrapup {
     background-color: white;
@@ -587,36 +445,6 @@ function getGoalPlanTierLabel(goalPlanType: string): string {
     color: rgba($primary, 0.7);
     line-height: 1.5;
     margin: 0 0 16px;
-  }
-
-  &__wrapup-breakdown {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-
-  &__wrapup-duration {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1;
-    padding: 12px 8px;
-    background-color: rgba($cream, 0.7);
-    border-radius: 10px;
-  }
-
-  &__wrapup-count {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 24px;
-    font-weight: 700;
-    color: $secondary;
-  }
-
-  &__wrapup-label {
-    font-size: 11px;
-    color: rgba($primary, 0.6);
-    text-align: center;
-    margin-top: 4px;
   }
 
   &__wrapup-actions {
@@ -722,14 +550,7 @@ function getGoalPlanTierLabel(goalPlanType: string): string {
   &__archived-dates {
     font-size: 12px;
     color: rgba($primary, 0.5);
-    margin: 0 0 4px;
-  }
-
-  &__archived-semanas {
-    font-size: 12px;
-    color: rgba($primary, 0.6);
     margin: 0;
-    font-weight: 500;
   }
 }
 </style>

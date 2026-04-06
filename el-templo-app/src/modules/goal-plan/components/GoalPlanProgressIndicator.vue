@@ -6,36 +6,9 @@
       <h3 class="indicator__title">Tu Progreso</h3>
     </div>
 
-    <!-- Goal Plan Name & Total -->
+    <!-- Goal Plan Name -->
     <div class="indicator__goal-plan-name">{{ goalPlanName }}</div>
-    <div class="indicator__total">
-      {{ totalSessions }} {{ totalSessions === 1 ? 'sesion' : 'sesiones' }} completadas
-    </div>
-
-    <!-- Per-Duration Progress -->
-    <div class="indicator__durations">
-      <div
-        v-for="item in durationItems"
-        :key="item.duration"
-        class="duration-row"
-      >
-        <div class="duration-row__time">
-          <span class="duration-row__number">{{ item.duration }}</span>
-          <span class="duration-row__unit">min</span>
-        </div>
-        <div class="duration-row__info">
-          <div class="duration-row__label">Semana {{ item.semana }}</div>
-          <q-linear-progress
-            :value="item.semana / 21"
-            color="secondary"
-            track-color="grey-3"
-            size="6px"
-            rounded
-            class="q-mt-xs"
-          />
-        </div>
-      </div>
-    </div>
+    <div class="indicator__since">Activo desde {{ formatDate(progress.startedAt) }}</div>
 
     <!-- Continue Button -->
     <q-btn
@@ -50,13 +23,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { GoalPlanProgress } from '../types'
+import { formatDate } from 'src/utils/format-date'
 
 interface Props {
   /** Goal plan display name */
   goalPlanName: string
-  /** Current goal plan progress with per-duration semana */
+  /** Current goal plan progress */
   progress: GoalPlanProgress
 }
 
@@ -64,18 +37,8 @@ interface Emits {
   (e: 'continue'): void
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 defineEmits<Emits>()
-
-const durationItems = computed(() => [
-  { duration: 20 as const, semana: props.progress.semana20 },
-  { duration: 40 as const, semana: props.progress.semana40 },
-  { duration: 60 as const, semana: props.progress.semana60 },
-])
-
-const totalSessions = computed(() => {
-  return props.progress.semana20 + props.progress.semana40 + props.progress.semana60 - 3
-})
 </script>
 
 <style scoped lang="scss">
@@ -114,60 +77,10 @@ const totalSessions = computed(() => {
   margin-bottom: 4px;
 }
 
-.indicator__total {
+.indicator__since {
   font-size: 0.85rem;
   color: #6b6b6b;
   margin-bottom: 20px;
-}
-
-.indicator__durations {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-
-.duration-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 14px;
-  background: #e6e2d6;
-  transition: background 0.2s;
-}
-
-.duration-row__time {
-  display: flex;
-  align-items: baseline;
-  gap: 2px;
-  min-width: 52px;
-}
-
-.duration-row__number {
-  font-family: 'Montserrat', sans-serif;
-  font-size: 1.3rem;
-  font-weight: 400;
-  color: #c27a5d;
-  line-height: 1;
-}
-
-.duration-row__unit {
-  font-size: 0.75rem;
-  color: #8a8a8a;
-}
-
-.duration-row__info {
-  flex: 1;
-}
-
-.duration-row__label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #2a2a2a;
-}
-
-.duration-row__check {
-  color: #c27a5d;
 }
 
 .indicator__continue-btn {

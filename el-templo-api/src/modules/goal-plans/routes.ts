@@ -12,7 +12,7 @@ import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
-import type { GoalPlanType, GoalPlanDuration } from "./types";
+import type { GoalPlanType } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
   getGoalPlanMetadataSchema,
@@ -138,10 +138,9 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       schema: getArchivedGoalPlansSchema,
     },
     async (request) => {
-      const goalPlans =
-        await goalPlanService.getArchivedGoalPlans(
-          request.user.userId,
-        );
+      const goalPlans = await goalPlanService.getArchivedGoalPlans(
+        request.user.userId,
+      );
       return { goalPlans };
     },
   );
@@ -177,29 +176,20 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         throw err;
       }
 
-      const { week, day, duration } = request.query;
-
-      // Validate duration
-      if (![20, 40, 60].includes(duration)) {
-        return reply
-          .status(400)
-          .send({ error: "Duracion invalida. Opciones: 20, 40 o 60 minutos" });
-      }
+      const { week, day } = request.query;
 
       try {
         const session = await goalPlanService.getGoalPlanSession(
           request.user.userId,
           week,
           day,
-          duration as GoalPlanDuration,
         );
 
         if (!session) {
           // Check if the issue is no active goal plan vs no session found
-          const activeGoalPlan =
-            await goalPlanService.getActiveGoalPlan(
-              request.user.userId,
-            );
+          const activeGoalPlan = await goalPlanService.getActiveGoalPlan(
+            request.user.userId,
+          );
           if (!activeGoalPlan) {
             return reply.status(400).send({
               error:
@@ -207,7 +197,8 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             });
           }
           return reply.status(404).send({
-            error: "Sesion de plan por objetivos no encontrada para esta semana y dia",
+            error:
+              "Sesion de plan por objetivos no encontrada para esta semana y dia",
           });
         }
 
@@ -218,7 +209,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             ? err.message
             : "Error al obtener sesion de plan por objetivos";
         request.log.error(
-          { err, week, day, duration },
+          { err, week, day },
           "Error getting goal plan session",
         );
         return reply.status(400).send({ error: message });
@@ -248,7 +239,6 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
 
       const {
         dayId,
-        duration,
         date,
         startedAt,
         blocksCompleted,
@@ -268,8 +258,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Get active goal plan
-      const activeGoalPlan =
-        await goalPlanService.getActiveGoalPlan(userId);
+      const activeGoalPlan = await goalPlanService.getActiveGoalPlan(userId);
       if (!activeGoalPlan) {
         return reply.status(400).send({
           error: "No tienes un plan por objetivos activo",
@@ -302,7 +291,6 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
-              duration,
             })
             .where(eq(schema.completedSessions.id, existing.id));
         } else {
@@ -320,16 +308,9 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
-              duration,
             });
           completionId = Number(result[0].insertId);
         }
-
-        // Advance semana for the specific duration
-        await goalPlanService.advanceSemana(
-          userId,
-          duration as GoalPlanDuration,
-        );
 
         // Award AURA for goal plan completion
         try {
@@ -348,18 +329,14 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         // Return updated progress
-        const progress =
-          await goalPlanService.getActiveGoalPlan(userId);
+        const progress = await goalPlanService.getActiveGoalPlan(userId);
         return { success: true, progress };
       } catch (err: unknown) {
         const message =
           err instanceof Error
             ? err.message
             : "Error al completar sesion de plan por objetivos";
-        request.log.error(
-          { err, dayId, duration },
-          "Error completing goal plan session",
-        );
+        request.log.error({ err, dayId }, "Error completing goal plan session");
         return reply.status(400).send({ error: message });
       }
     },
@@ -392,12 +369,11 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const result =
-          await goalPlanService.generateGoalPlanSessions(
-            week,
-            goalPlanType,
-            { days, regenerate },
-          );
+        const result = await goalPlanService.generateGoalPlanSessions(
+          week,
+          goalPlanType,
+          { days, regenerate },
+        );
         return result;
       } catch (err: unknown) {
         const message =
@@ -458,9 +434,6 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             level: schema.users.level,
             branchName: schema.branches.name,
             goalPlanType: schema.memberGoalPlans.goalPlanType,
-            semana20: schema.memberGoalPlans.semana20,
-            semana40: schema.memberGoalPlans.semana40,
-            semana60: schema.memberGoalPlans.semana60,
             startedAt: schema.memberGoalPlans.startedAt,
           })
           .from(schema.users)
@@ -502,13 +475,8 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           branchName: m.branchName,
           goalPlanType: m.goalPlanType,
           goalPlanName: m.goalPlanType
-            ? (goalPlanNameMap.get(
-                m.goalPlanType as GoalPlanType,
-              ) ?? null)
+            ? (goalPlanNameMap.get(m.goalPlanType as GoalPlanType) ?? null)
             : null,
-          semana20: m.semana20 ?? null,
-          semana40: m.semana40 ?? null,
-          semana60: m.semana60 ?? null,
           startedAt: m.startedAt ? m.startedAt.toISOString() : null,
         }));
 
@@ -560,12 +528,10 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
 
       try {
         // Get active goal plan
-        const active =
-          await goalPlanService.getActiveGoalPlan(userId);
+        const active = await goalPlanService.getActiveGoalPlan(userId);
 
         // Get archived goal plans
-        const archived =
-          await goalPlanService.getArchivedGoalPlans(userId);
+        const archived = await goalPlanService.getArchivedGoalPlans(userId);
 
         // Get all completions (both entrenamiento and goal plan)
         const completions = await fastify.db
@@ -641,14 +607,6 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
           },
           goalPlanStats: {
             totalSessions: goalPlanCompletions.length,
-            byDuration: {
-              d20: goalPlanCompletions.filter((c) => c.duration === 20)
-                .length,
-              d40: goalPlanCompletions.filter((c) => c.duration === 40)
-                .length,
-              d60: goalPlanCompletions.filter((c) => c.duration === 60)
-                .length,
-            },
           },
           completions: completions.map((c) => ({
             dayId: c.dayId,

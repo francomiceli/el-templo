@@ -173,36 +173,8 @@
                     :label="goalPlanTierLabel(goalPlanDetail.active.goalPlanType)"
                   />
                 </div>
-                <div class="text-caption text-grey-7 q-mb-md">
+                <div class="text-caption text-grey-7">
                   Iniciado: {{ formatDate(goalPlanDetail.active.startedAt) }}
-                </div>
-
-                <!-- Per-duration semana counters -->
-                <div class="row q-gutter-md">
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6 text-primary">
-                        {{ goalPlanDetail.active.semana20 }}
-                      </div>
-                      <div class="text-caption text-grey-7">Semana 20 min</div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6 text-primary">
-                        {{ goalPlanDetail.active.semana40 }}
-                      </div>
-                      <div class="text-caption text-grey-7">Semana 40 min</div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6 text-primary">
-                        {{ goalPlanDetail.active.semana60 }}
-                      </div>
-                      <div class="text-caption text-grey-7">Semana 60 min</div>
-                    </div>
-                  </div>
                 </div>
               </q-card-section>
             </q-card>
@@ -267,30 +239,6 @@
                         {{ goalPlanDetail.goalPlanStats.totalSessions }}
                       </div>
                       <div class="text-caption text-grey-7">Sesiones por objetivos</div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.goalPlanStats.byDuration.d20 }}
-                      </div>
-                      <div class="text-caption text-grey-7">20 min</div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.goalPlanStats.byDuration.d40 }}
-                      </div>
-                      <div class="text-caption text-grey-7">40 min</div>
-                    </div>
-                  </div>
-                  <div class="col">
-                    <div class="text-center">
-                      <div class="text-h6">
-                        {{ goalPlanDetail.goalPlanStats.byDuration.d60 }}
-                      </div>
-                      <div class="text-caption text-grey-7">60 min</div>
                     </div>
                   </div>
                 </div>
@@ -372,7 +320,7 @@
                     </q-item-section>
                     <q-item-section side>
                       <div class="text-caption text-grey-7">
-                        S{{ arch.semana20 }}/{{ arch.semana40 }}/{{ arch.semana60 }}
+                        {{ formatDate(arch.startedAt) }}
                       </div>
                     </q-item-section>
                   </q-item>

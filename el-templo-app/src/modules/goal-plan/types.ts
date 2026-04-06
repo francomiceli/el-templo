@@ -21,18 +21,12 @@ export type GoalPlanTier = 'principiante' | 'intermedio' | 'avanzado'
 
 export interface GoalPlanProgress {
   goalPlanType: GoalPlanType
-  semana20: number
-  semana40: number
-  semana60: number
   isActive: boolean
   startedAt: string
 }
 
 export interface ArchivedGoalPlan {
   goalPlanType: GoalPlanType
-  semana20: number
-  semana40: number
-  semana60: number
   startedAt: string
   archivedAt: string
 }
@@ -55,11 +49,6 @@ export interface CycleStats {
   currentWeek: number
   cycleEndDate: string
   totalCompletions: number
-  durationBreakdown: {
-    d20: number
-    d40: number
-    d60: number
-  }
   cycleComplete: boolean
 }
 

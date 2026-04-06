@@ -28,9 +28,6 @@ export interface MemberGoalPlanInfo {
   branchName: string;
   goalPlanType: GoalPlanType | null;
   goalPlanName: string | null;
-  semana20: number | null;
-  semana40: number | null;
-  semana60: number | null;
   startedAt: string | null;
 }
 
@@ -43,17 +40,11 @@ export interface MemberGoalPlanDetail {
   };
   active: {
     goalPlanType: GoalPlanType;
-    semana20: number;
-    semana40: number;
-    semana60: number;
     isActive: boolean;
     startedAt: string;
   } | null;
   archived: Array<{
     goalPlanType: GoalPlanType;
-    semana20: number;
-    semana40: number;
-    semana60: number;
     startedAt: string;
     archivedAt: string;
   }>;
@@ -64,11 +55,6 @@ export interface MemberGoalPlanDetail {
   };
   goalPlanStats: {
     totalSessions: number;
-    byDuration: {
-      d20: number;
-      d40: number;
-      d60: number;
-    };
   };
   completions: Array<{
     dayId: string;

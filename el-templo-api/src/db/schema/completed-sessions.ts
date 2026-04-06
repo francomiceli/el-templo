@@ -31,7 +31,7 @@ export const completedSessions = mysqlTable(
 
     // Goal plan support: null = general Entrenamiento, non-null = goal plan type code
     goalPlanType: varchar("goal_plan_type", { length: 30 }),
-    // Duration played: 20, 40, or 60 for personalizada sessions; null for general
+    // Duration played in minutes; null for general sessions
     duration: int("duration"),
   },
   (table) => [

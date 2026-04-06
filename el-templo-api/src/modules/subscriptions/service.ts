@@ -41,7 +41,6 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
 import type { PaymentService } from "../payments/service";
-import { GoalPlanService } from "../goal-plans/service";
 import type { GoalPlanType } from "../goal-plans/types";
 
 // Lazy import type to avoid circular dependency at module load time
@@ -50,16 +49,13 @@ type BookingServiceType =
 
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
-  private goalPlanService: GoalPlanService;
 
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
     private paymentService?: PaymentService,
-  ) {
-    this.goalPlanService = new GoalPlanService(db);
-  }
+  ) {}
 
   /**
    * Set the BookingService reference (avoids circular constructor dependency).
@@ -745,21 +741,6 @@ export class SubscriptionService {
       throw new Error("Failed to retrieve newly created subscription");
     }
 
-    // Auto-assign goal plan from linked program's goalPlanType (D-07 REVISED)
-    if (plan.planCategory === "online_goal" && plan.linkedProgramId) {
-      const goalPlanType = await this.resolveGoalPlanType(plan.linkedProgramId);
-      if (goalPlanType) {
-        await this.goalPlanService.selectGoalPlan(
-          userId,
-          goalPlanType as GoalPlanType,
-        );
-        this.log.info(
-          { userId, goalPlanType },
-          "Auto-assigned goal plan from linked program",
-        );
-      }
-    }
-
     // Auto-create program enrollment if plan has linked program (D-34/D-39)
     if (plan.linkedProgramId) {
       // Cancel any existing active enrollment for this user in this program
@@ -1261,26 +1242,6 @@ export class SubscriptionService {
         }
       }
 
-      // Auto-assign goal plan from target plan's linked program (D-07 REVISED)
-      if (
-        targetPlan.planCategory === "online_goal" &&
-        targetPlan.linkedProgramId
-      ) {
-        const goalPlanType = await this.resolveGoalPlanType(
-          targetPlan.linkedProgramId,
-        );
-        if (goalPlanType) {
-          await this.goalPlanService.selectGoalPlan(
-            userId,
-            goalPlanType as GoalPlanType,
-          );
-          this.log.info(
-            { userId, goalPlanType },
-            "Auto-assigned goal plan on plan change",
-          );
-        }
-      }
-
       // Cancel old program enrollment if old plan had a linked program
       if (currentPlan.linkedProgramId) {
         await this.db
@@ -1530,21 +1491,6 @@ export class SubscriptionService {
           .update(schema.subscriptions)
           .set({ replacementCredits })
           .where(eq(schema.subscriptions.id, newSubscriptionId));
-      }
-    }
-
-    // Auto-assign goal plan from linked program (D-07 REVISED)
-    if (plan.planCategory === "online_goal" && plan.linkedProgramId) {
-      const goalPlanType = await this.resolveGoalPlanType(plan.linkedProgramId);
-      if (goalPlanType) {
-        await this.goalPlanService.selectGoalPlan(
-          userId,
-          goalPlanType as GoalPlanType,
-        );
-        this.log.info(
-          { userId, goalPlanType },
-          "Auto-assigned goal plan on renewal",
-        );
       }
     }
 

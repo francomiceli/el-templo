@@ -76,8 +76,6 @@ export const GOAL_PLAN_ROUTE_MAP: Record<GoalPlanType, string[]> = {
   front_lever: ["FL", "FLR", "OAR"], // Front lever + horizontal pull
 };
 
-export const GOAL_PLAN_DURATIONS = [20, 40, 60] as const;
-
 export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   "tren_superior",
   "tren_inferior",
