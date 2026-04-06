@@ -57,7 +57,7 @@
           class="desktop-rail__tab"
           :class="{ 'desktop-rail__tab--active': isTabActive(tab.to) }"
         >
-          <q-icon :name="tab.icon" size="24px" />
+          <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="desktop-rail__label">{{ tab.label }}</span>
           <q-badge
             v-if="tab.badge && progressionStore.evaluationEligible"
@@ -124,7 +124,7 @@
           class="mobile-tab"
           :class="{ 'mobile-tab--active': isTabActive(tab.to) }"
         >
-          <q-icon :name="tab.icon" size="24px" />
+          <q-icon :name="tab.icon" :size="tab.size ?? '24px'" />
           <span class="mobile-tab__label">{{ tab.label }}</span>
           <q-badge
             v-if="tab.badge && progressionStore.evaluationEligible"
@@ -192,13 +192,14 @@ interface MobileTab {
   to: string
   icon: string
   label: string
+  size?: string
   badge?: boolean
 }
 
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
-    { to: '/training/guia', icon: 'menu_book', label: 'Guía' },
+    { to: '/training/guia', icon: 'menu_book', label: 'Guía', size: '26px' },
     { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
@@ -458,6 +459,15 @@ async function onLogout() {
     color: white;
   }
 
+  :deep(.q-icon img) {
+    opacity: 0.6;
+    transition: opacity 200ms ease;
+  }
+
+  &--active :deep(.q-icon img) {
+    opacity: 1;
+  }
+
   &--btn {
     border: none;
     background: none;
@@ -554,6 +564,17 @@ async function onLogout() {
     position: absolute;
     top: 4px;
     right: calc(50% - 16px);
+  }
+
+  // img-based icons (SVG via img: prefix) don't inherit CSS color.
+  // Match active/inactive opacity to the text color alpha.
+  :deep(.q-icon img) {
+    opacity: 0.6;
+    transition: opacity 200ms ease;
+  }
+
+  &--active :deep(.q-icon img) {
+    opacity: 1;
   }
 }
 

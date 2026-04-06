@@ -1,7 +1,7 @@
 <template>
   <q-page class="flex flex-center column q-pa-md">
     <div class="text-center">
-      <q-icon name="img:/icons/entrenar.svg" size="80px" color="primary" />
+      <q-icon name="img:/icons/entrenar-dark.svg" size="80px" />
       <h1 class="text-h3 q-mt-md q-mb-sm">El Templo</h1>
       <p class="text-subtitle1 text-grey-7">Training Module</p>
 

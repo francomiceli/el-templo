@@ -14,7 +14,7 @@
       <div v-else class="stats-card__stats">
         <div class="stats-card__stat">
           <div class="stats-card__stat-row">
-            <q-icon name="img:/icons/entrenar.svg" class="stats-card__icon" />
+            <q-icon name="img:/icons/entrenar-dark.svg" class="stats-card__icon" />
             <span class="stats-card__stat-value">{{ totalSessions }}</span>
           </div>
           <span class="stats-card__stat-label">Sesiones totales</span>

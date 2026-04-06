@@ -150,13 +150,6 @@ const PLAN_TIER_LABELS: Record<string, string> = {
   other: 'Otro',
 }
 
-const TIER_COLORS: Record<string, string> = {
-  flex: 'blue',
-  foundation: 'teal',
-  performance: 'deep-purple',
-  other: 'grey',
-}
-
 const WHATSAPP_NUMBER = '5492235820521'
 
 const userStore = useUserStore()
@@ -195,10 +188,6 @@ function formatEndDate(): string {
 
 function tierLabel(tier: string): string {
   return PLAN_TIER_LABELS[tier] ?? tier
-}
-
-function tierColor(tier: string): string {
-  return TIER_COLORS[tier] ?? 'grey'
 }
 
 /**
