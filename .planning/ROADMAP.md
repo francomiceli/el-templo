@@ -1872,45 +1872,78 @@ Monetize the app ecosystem by selling training plans online. Strategy doc: `.doc
 
 Plans:
 
-- [x] 89-01-PLAN.md — TBD
-- [x] 89-02-PLAN.md — TBD
-- [x] 89-03-PLAN.md — TBD
+- [x] 89-01-PLAN.md — Database migration: full rename + plan_category enum
+- [x] 89-02-PLAN.md — API codebase rename: modules, types, routes, services
+- [x] 89-03-PLAN.md — Admin UI restructure: Planes page tabs, Programas page
+- [x] 89-04-PLAN.md — Plan creation flow: form fields, linked programs, weekly price
+- [x] 89-05-PLAN.md — Session pipeline calibration: difficulty/prescription from production data
+- [x] 89-06-PLAN.md — Session access gates: online user verification, auto-enrollment on assign
+- [x] 89-07-PLAN.md — Pipeline calibration: Ladder/Pyramid format reps from production patterns
+- [x] Admin dual subscription support: planCategory in SubscriptionDetail, GET /subscriptions (plural) endpoint, Agregar Programa button in admin alumnos subscription tab, SubscriptionCard component, AssignPlanDialog categoryFilter prop
 
 ---
 
-### Phase 90: App UX — Plan Catalog & Purchase Flow
+### Phase 90: Onboarding Quiz Redesign & Avatar Profiling
 
-**Goal:** Redesign member app plans page with weekly pricing, pre-filled WhatsApp CTAs, post-assignment experience for online buyers.
+**Goal:** Redesign the 4-question onboarding quiz into a 5-question avatar profiling system that segments users into 11 avatars (A-K), routes them to the correct program (Step 0/1/2), and captures pain points for upsell intelligence. Gender comes from registration — quiz asks age range, training background, goal (gender-conditional options), blocker/pain point, and training frequency.
 
 **Depends on:** Phase 89
 
+**Requirements:**
+
+- AVA-01: Replace current 4 quiz questions with new 5-question flow (age range, training background, goal, blocker, frequency)
+- AVA-02: Q3 (goal) shows gender-conditional options — women see piernas_gluteos/cuerpo_firme, men see cero_atleta/skill, 41+ sees longevidad
+- AVA-03: DB migration: add ageRange, trainingBackground, painPoint, trainingFrequency, avatarType columns to member_profiles
+- AVA-04: Avatar resolution service: compute avatarType (A-K) from gender + quiz answers using mapping rules
+- AVA-05: Backward compat: existing users keep old profile data, new fields nullable, re-onboarding option
+- AVA-06: Post-quiz screen: "Tu programa sugerido" recommendation based on avatar → Step mapping
+- AVA-07: Admin visibility: avatar type shown in member detail, filterable in member list
+- AVA-08: Update onboarding analytics events for new question types
+
+**Plans:** 3 plans
+
 Plans:
 
-- [ ] 90-01-PLAN.md — TBD
-- [ ] 90-02-PLAN.md — TBD
+- [ ] 90-01-PLAN.md — API: Schema migration (5 new columns + nullable old columns), avatar resolution service, updated onboarding endpoints, gender in /me, integration tests
+- [ ] 90-02-PLAN.md — Member App: 5-question quiz types/composable, OnboardingPage 7-step state machine, gender-filtered Q3, OnboardingRecommendation screen
+- [ ] 90-03-PLAN.md — Admin: avatarType in member list/detail API, avatar badge on detail page, avatar filter on members list
 
 ---
 
-### Phase 91: Marketing Deliverables — Launch Collateral
+### Phase 91: App UX — Plan Catalog & Purchase Flow
 
-**Goal:** Non-code marketing assets: ad copy, promo video script, content calendar, WhatsApp templates, Mercado Pago guide.
+**Goal:** Redesign member app plans page with weekly pricing, pre-filled WhatsApp CTAs, post-assignment experience for online buyers. Leverage avatar data from Phase 90 for personalized plan recommendations.
 
 **Depends on:** Phase 90
 
 Plans:
 
 - [ ] 91-01-PLAN.md — TBD
+- [ ] 91-02-PLAN.md — TBD
+
+---
+
+### Phase 92: Marketing Deliverables — Launch Collateral
+
+**Goal:** Non-code marketing assets: ad copy mapped to avatar pain points, promo video script, content calendar, WhatsApp templates, Mercado Pago guide.
+
+**Depends on:** Phase 91
+
+Plans:
+
+- [ ] 92-01-PLAN.md — TBD
 
 ---
 
 ## v4.5 Progress
 
-| Phase                                          | Plans Complete | Status   | Completed  |
-| ---------------------------------------------- | -------------- | -------- | ---------- |
-| 89. Backend & Admin — Planes Online Infra      | 6/7 | In Progress|  |
-| 90. App UX — Plan Catalog & Purchase Flow      | —              | Planned  | —          |
-| 91. Marketing Deliverables — Launch Collateral | —              | Planned  | —          |
+| Phase                                           | Plans Complete       | Status   | Completed  |
+| ----------------------------------------------- | -------------------- | -------- | ---------- |
+| 89. Backend & Admin — Planes Online Infra       | 7/7 + admin dual sub | Complete | 2026-04-05 |
+| 90. Onboarding Quiz Redesign & Avatar Profiling | —                    | Planned  | —          |
+| 91. App UX — Plan Catalog & Purchase Flow       | —                    | Planned  | —          |
+| 92. Marketing Deliverables — Launch Collateral  | —                    | Planned  | —          |
 
-_v4.5 phases added: 2026-04-03 — 3 phases (89-91). Strategy: `.docs/planes-online-strategy.md`_
+_v4.5 phases added: 2026-04-03 — 4 phases (89-92). Strategy: `.docs/planes-online-strategy.md`_
 
 </details>
