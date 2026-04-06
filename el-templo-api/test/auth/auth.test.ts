@@ -79,7 +79,7 @@ describe("Auth Routes", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("auto-logs in when registering a duplicate email", async () => {
+    it("rejects duplicate email with 409", async () => {
       // First registration
       await app.inject({
         method: "POST",
@@ -112,64 +112,47 @@ describe("Auth Routes", () => {
         },
       });
 
-      expect(res.statusCode).toBe(200);
+      expect(res.statusCode).toBe(409);
       const body = JSON.parse(res.body);
-      expect(body.existingAccount).toBe(true);
-      expect(body.token).toBeDefined();
+      expect(body.error).toBe("Email en uso");
     });
 
-    it("auto-logs in duplicate email and updates password", async () => {
-      // Register first
+    it("rejects duplicate DNI with 409", async () => {
+      // First registration
       await app.inject({
         method: "POST",
         url: "/api/auth/register",
         payload: {
-          email: "pwdupdate@test.com",
-          password: "oldpassword",
+          email: "dnifirst@test.com",
+          password: "password123",
           branchId: 1,
-          firstName: "Pwd",
-          lastName: "Update",
-          dni: "AUTH-PWDUPD-001",
-          phone: "+5491100000099",
-          gender: "male",
-        },
-      });
-
-      // Register again with different password
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/auth/register",
-        payload: {
-          email: "pwdupdate@test.com",
-          password: "newpassword",
-          branchId: 1,
-          firstName: "Pwd",
-          lastName: "Update",
-          dni: "AUTH-PWDUPD-002",
+          firstName: "Dni",
+          lastName: "First",
+          dni: "AUTH-DNIDUP-001",
           phone: "+5491100000098",
           gender: "male",
         },
       });
 
-      expect(res.statusCode).toBe(200);
+      // Second registration with same DNI, different email
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: "dnisecond@test.com",
+          password: "password123",
+          branchId: 1,
+          firstName: "Dni",
+          lastName: "Second",
+          dni: "AUTH-DNIDUP-001",
+          phone: "+5491100000099",
+          gender: "male",
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
       const body = JSON.parse(res.body);
-      expect(body.existingAccount).toBe(true);
-
-      // Verify new password works for login
-      const loginRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/login",
-        payload: { email: "pwdupdate@test.com", password: "newpassword" },
-      });
-      expect(loginRes.statusCode).toBe(200);
-
-      // Verify old password no longer works
-      const oldLoginRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/login",
-        payload: { email: "pwdupdate@test.com", password: "oldpassword" },
-      });
-      expect(oldLoginRes.statusCode).toBe(401);
+      expect(body.error).toBe("DNI en uso");
     });
 
     it("returns 400 for invalid branch ID", async () => {
@@ -226,47 +209,6 @@ describe("Auth Routes", () => {
       });
 
       expect(res.statusCode).toBe(400);
-    });
-
-    it("auto-logs in when registering a duplicate DNI", async () => {
-      const sharedDni = "AUTH-DUPDNI-001";
-
-      // First registration
-      await app.inject({
-        method: "POST",
-        url: "/api/auth/register",
-        payload: {
-          email: "dnifirst@test.com",
-          password: "password123",
-          branchId: 1,
-          firstName: "Dni",
-          lastName: "First",
-          dni: sharedDni,
-          phone: "+5491100000008",
-          gender: "male",
-        },
-      });
-
-      // Second registration with same DNI
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/auth/register",
-        payload: {
-          email: "dnisecond@test.com",
-          password: "password123",
-          branchId: 1,
-          firstName: "Dni",
-          lastName: "Second",
-          dni: sharedDni,
-          phone: "+5491100000009",
-          gender: "male",
-        },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.existingAccount).toBe(true);
-      expect(body.token).toBeDefined();
     });
   });
 

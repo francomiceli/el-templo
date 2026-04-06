@@ -174,7 +174,7 @@ describe("Promo Registration Flow", () => {
     expect(body).toHaveProperty("promoApplied", false);
   });
 
-  it("registers duplicate email with promo code -- auto-logs in existing user", async () => {
+  it("rejects duplicate email with promo code with 409", async () => {
     await seedPromo({ promoCode: "DUPTEST" });
     const payload = makeRegPayload({ promoCode: "DUPTEST" });
 
@@ -185,16 +185,15 @@ describe("Promo Registration Flow", () => {
       payload,
     });
 
-    // Second with same email — should auto-login
+    // Second with same email — should reject
     const res = await app.inject({
       method: "POST",
       url: "/api/auth/register",
       payload,
     });
 
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(409);
     const body = JSON.parse(res.body);
-    expect(body.existingAccount).toBe(true);
-    expect(body.token).toBeDefined();
+    expect(body.error).toBe("Email en uso");
   });
 });
