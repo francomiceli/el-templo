@@ -63,10 +63,10 @@ $charcoal-mid: #3d3732;
 }
 
 .welcome-subtitle {
-  color: rgba($cream, 0.5);
-  font-size: 0.9375rem;
+  color: rgba($cream, 0.6);
+  font-size: 1.0625rem;
   margin: 0 0 24px 0;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .welcome-cta {
