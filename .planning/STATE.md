@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Executing
-stopped_at: Completed 90-01-PLAN.md
-last_updated: "2026-04-06T18:09:10Z"
+status: Ready to execute
+stopped_at: Completed 90-03-PLAN.md
+last_updated: "2026-04-06T18:25:35.628Z"
 progress:
   total_phases: 87
   completed_phases: 72
   total_plans: 306
-  completed_plans: 298
-  percent: 97
+  completed_plans: 300
+  percent: 98
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 90
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 
 ## Performance Metrics
 
@@ -116,6 +116,7 @@ _Updated after each plan completion_
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
 | Phase 89 P07 | 6min | 2 tasks | 2 files |
 | Phase 90 P01 | 12min | 2 tasks | 9 files |
+| Phase 90 P03 | 13min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -246,6 +247,7 @@ Recent decisions affecting current work:
 - [Phase 90]: Manual migration SQL (0068) for avatar profiling schema — consistent with Phase 86 precedent to avoid interactive drizzle-kit prompts
 - [Phase 90]: V2 onboarding service method alongside V1 for backward compatibility; old columns nullable, new columns nullable
 - [Phase 90]: Server-side gender read from users table in /complete handler — never trust client-provided gender for avatar resolution (T-90-02)
+- [Phase 90]: avatarType filter uses NOT EXISTS subquery for 'none' to catch both missing profiles and null avatar_type
 
 ### Pending Todos
 
@@ -257,6 +259,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-06T18:09:10Z
-Stopped at: Completed 90-01-PLAN.md
-Resume file: .planning/phases/90-onboarding-quiz-redesign-avatar-profiling/90-01-SUMMARY.md
+Last session: 2026-04-06T18:25:35.624Z
+Stopped at: Completed 90-03-PLAN.md
+Resume file: None
