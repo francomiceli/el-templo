@@ -114,7 +114,7 @@ describe("Goal Plan Routes", () => {
     it("returns 403 on GET /goal-plans/session without goal plan subscription", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/goal-plans/session?week=1&day=lunes&duration=20",
+        url: "/api/goal-plans/session?week=1&day=lunes",
         headers: { authorization: `Bearer ${memberToken2}` },
       });
       expect(res.statusCode).toBe(403);
@@ -127,7 +127,6 @@ describe("Goal Plan Routes", () => {
         headers: { authorization: `Bearer ${memberToken2}` },
         payload: {
           dayId: "GP-empuje-W1-lunes-alfa",
-          duration: 20,
           date: "2026-03-18",
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM"],
@@ -410,13 +409,6 @@ describe("Goal Plan Routes", () => {
       expect(body.stats.currentWeek).toBeGreaterThanOrEqual(1);
       expect(body.stats.cycleEndDate).toBeTruthy();
       expect(body.stats.totalCompletions).toBeGreaterThanOrEqual(0);
-      expect(body.stats.durationBreakdown).toEqual(
-        expect.objectContaining({
-          d20: expect.any(Number),
-          d40: expect.any(Number),
-          d60: expect.any(Number),
-        }),
-      );
       expect(typeof body.stats.cycleComplete).toBe("boolean");
       // Plan has durationDays=30, so cycleWeeks should be ceil(30/7) = 5
       expect(body.stats.cycleWeeks).toBe(5);
@@ -438,7 +430,7 @@ describe("Goal Plan Routes", () => {
     it("returns 404 when no session exists for the given week/day", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/goal-plans/session?week=1&day=lunes&duration=20",
+        url: "/api/goal-plans/session?week=1&day=lunes",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -451,7 +443,7 @@ describe("Goal Plan Routes", () => {
     it("returns 400 for missing required query params", async () => {
       const res = await app.inject({
         method: "GET",
-        url: "/api/goal-plans/session?week=1&day=lunes",
+        url: "/api/goal-plans/session?week=1",
         headers: { authorization: `Bearer ${memberToken}` },
       });
 
@@ -463,14 +455,13 @@ describe("Goal Plan Routes", () => {
   // POST /api/goal-plans/complete
   // ---------------------------------------------------------------
   describe("POST /api/goal-plans/complete", () => {
-    it("records a goal plan session completion and advances semana", async () => {
+    it("records a goal plan session completion", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/goal-plans/complete",
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           dayId: "GP-tren_superior-W1-lunes-alfa",
-          duration: 40,
           date: "2026-02-10",
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1"],
@@ -484,11 +475,7 @@ describe("Goal Plan Routes", () => {
       expect(body.success).toBe(true);
       expect(body.progress).toBeDefined();
       expect(body.progress.goalPlanType).toBe("tren_superior");
-      // semana40 should be incremented to 2 (was 1 + 1)
-      expect(body.progress.semana40).toBe(2);
-      // Other durations should remain at 1
-      expect(body.progress.semana20).toBe(1);
-      expect(body.progress.semana60).toBe(1);
+      expect(body.progress.isActive).toBe(true);
     });
 
     it("validates required fields", async () => {
