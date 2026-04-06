@@ -1895,7 +1895,7 @@ Plans:
 - AVA-02: Q3 (goal) shows gender-conditional options — women see piernas_gluteos/cuerpo_firme, men see cero_atleta/skill, 41+ sees longevidad
 - AVA-03: DB migration: add ageRange, trainingBackground, painPoint, trainingFrequency, avatarType columns to member_profiles
 - AVA-04: Avatar resolution service: compute avatarType (A-K) from gender + quiz answers using mapping rules
-- AVA-05: Backward compat: existing users keep old profile data, new fields nullable, re-onboarding option
+- AVA-05: Backward compat: existing users keep old profile data, new fields nullable, no re-onboarding (D-12/D-13)
 - AVA-06: Post-quiz screen: "Tu programa sugerido" recommendation based on avatar → Step mapping
 - AVA-07: Admin visibility: avatar type shown in member detail, filterable in member list
 - AVA-08: Update onboarding analytics events for new question types
