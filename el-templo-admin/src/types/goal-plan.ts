@@ -1,6 +1,8 @@
 export type GoalPlanType =
   | 'tren_superior'
   | 'tren_inferior'
+  | 'gluteos'
+  | 'cuadriceps'
   | 'empuje'
   | 'traccion'
   | 'planche'
@@ -87,6 +89,8 @@ export interface GoalPlanGenerateResult {
 export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   'tren_superior',
   'tren_inferior',
+  'gluteos',
+  'cuadriceps',
   'empuje',
   'traccion',
   'planche',
@@ -96,6 +100,8 @@ export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
 export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
   tren_superior: 'principiante',
   tren_inferior: 'principiante',
+  gluteos: 'intermedio',
+  cuadriceps: 'intermedio',
   empuje: 'intermedio',
   traccion: 'intermedio',
   planche: 'avanzado',
@@ -105,6 +111,8 @@ export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
 export const GOAL_PLAN_TYPE_LABELS: Record<GoalPlanType, string> = {
   tren_superior: 'Tren Superior',
   tren_inferior: 'Tren Inferior',
+  gluteos: 'Gluteos',
+  cuadriceps: 'Cuadriceps',
   empuje: 'Empuje',
   traccion: 'Traccion',
   planche: 'Planche',
@@ -126,20 +134,24 @@ export const GOAL_PLAN_TIER_COLORS: Record<GoalPlanTier, string> = {
 
 /** Goal plan type options for QSelect dropdowns */
 export const GOAL_PLAN_TYPE_OPTIONS = [
-  { label: 'Front Lever', value: 'front_lever' },
-  { label: 'Tren Inferior', value: 'tren_inferior' },
   { label: 'Tren Superior', value: 'tren_superior' },
+  { label: 'Tren Inferior', value: 'tren_inferior' },
+  { label: 'Gluteos', value: 'gluteos' },
+  { label: 'Cuadriceps', value: 'cuadriceps' },
   { label: 'Empuje', value: 'empuje' },
   { label: 'Traccion', value: 'traccion' },
   { label: 'Planche', value: 'planche' },
+  { label: 'Front Lever', value: 'front_lever' },
 ];
 
 /** Badge colors for goalPlanType values (used in ProgramasPage and ProgramWizardDialog) */
 export const GOAL_PLAN_TYPE_COLORS: Record<string, string> = {
-  front_lever: 'deep-purple',
-  tren_inferior: 'amber-8',
   tren_superior: 'blue',
+  tren_inferior: 'amber-8',
+  gluteos: 'pink-5',
+  cuadriceps: 'lime-8',
   empuje: 'teal',
   traccion: 'orange',
   planche: 'pink',
+  front_lever: 'deep-purple',
 };

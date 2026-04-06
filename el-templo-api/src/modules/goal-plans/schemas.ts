@@ -239,6 +239,8 @@ export const generateGoalPlanSessionsSchema = {
         enum: [
           "tren_superior",
           "tren_inferior",
+          "gluteos",
+          "cuadriceps",
           "empuje",
           "traccion",
           "planche",

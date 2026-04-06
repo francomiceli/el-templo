@@ -1,8 +1,4 @@
-import type {
-  GoalPlanType,
-  GoalPlanMetadata,
-  GoalPlanTier,
-} from "./types";
+import type { GoalPlanType, GoalPlanMetadata, GoalPlanTier } from "./types";
 
 /**
  * Maps goal plan type to allowed exercise route codes.
@@ -25,9 +21,11 @@ export const GOAL_PLAN_ROUTE_MAP: Record<GoalPlanType, string[]> = {
     "OAP",
     "OAR",
     "BL", // Upper pull
-    // "HR" excluded — only has exercises up to sigma level, fails for omega generation
     "HD/ID",
     "MN/RP", // Handstand/core (upper-body-adjacent)
+    "FL",
+    "FLR", // Front lever progressions
+    "TTB", // Core
   ],
   tren_inferior: [
     "SU",
@@ -35,26 +33,47 @@ export const GOAL_PLAN_ROUTE_MAP: Record<GoalPlanType, string[]> = {
     "PS",
     "QC", // Lower knee-dominant
     "DS", // Lower hip-dominant
+    "NC",
+    "HT", // Core/posterior chain
   ],
 
   // Intermedio tier
+  gluteos: [
+    "SU",
+    "PS", // Squat/pistol patterns
+    "DS", // Hip-dominant
+    "NC",
+    "HT", // Posterior chain
+    "L", // Core/compression
+  ],
+  cuadriceps: [
+    "SS",
+    "QC", // Knee-dominant
+    "PS", // Pistol squats
+    "L", // Core/compression
+  ],
   empuje: [
     "HS",
     "HSPU",
     "PHS",
     "OAPU",
     "PLPU", // Push patterns
+    "PL", // Planche progressions
+    "BL", // Back lever
   ],
   traccion: [
     "MU",
     "OAP",
-    "OAR",
-    "BL", // Pull patterns
+    "OAR", // Pull patterns
+    "MN/RP", // Core/midline
+    "FL",
+    "FLR", // Front lever progressions
+    "TTB", // Core
   ],
 
   // Avanzado tier
-  planche: ["PL", "PLPU"], // Planche-specific
-  front_lever: ["FL", "FLR"], // Front lever-specific
+  planche: ["PL", "PLPU", "OAPU", "PHS"], // Planche + complementary push
+  front_lever: ["FL", "FLR", "OAR"], // Front lever + horizontal pull
 };
 
 export const GOAL_PLAN_DURATIONS = [20, 40, 60] as const;
@@ -62,6 +81,8 @@ export const GOAL_PLAN_DURATIONS = [20, 40, 60] as const;
 export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   "tren_superior",
   "tren_inferior",
+  "gluteos",
+  "cuadriceps",
   "empuje",
   "traccion",
   "planche",
@@ -71,6 +92,8 @@ export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
 export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
   tren_superior: "principiante",
   tren_inferior: "principiante",
+  gluteos: "intermedio",
+  cuadriceps: "intermedio",
   empuje: "intermedio",
   traccion: "intermedio",
   planche: "avanzado",
@@ -102,6 +125,26 @@ export const GOAL_PLAN_METADATA: GoalPlanMetadata[] = [
     zones: ["Piernas", "Caderas", "Gluteos"],
     idealFor:
       "Atletas que quieren desarrollar fuerza y estabilidad en piernas.",
+  },
+  {
+    type: "gluteos",
+    name: "Gluteos",
+    tier: "intermedio",
+    description:
+      "Especializado en el desarrollo de gluteos y cadena posterior: peso muerto, sentadillas profundas, hip thrusts y nordic curls. Requiere base previa en tren inferior.",
+    zones: ["Gluteos", "Caderas", "Isquiotibiales"],
+    idealFor:
+      "Atletas con base en tren inferior que buscan desarrollo especifico de gluteos y cadena posterior.",
+  },
+  {
+    type: "cuadriceps",
+    name: "Cuadriceps",
+    tier: "intermedio",
+    description:
+      "Especializado en fuerza de cuadriceps y rodilla: sentadillas a una pierna, sissy squats, pistol squats y zancadas. Requiere base previa en tren inferior.",
+    zones: ["Cuadriceps", "Rodillas", "Piernas"],
+    idealFor:
+      "Atletas con base en tren inferior que buscan fuerza especifica en cuadriceps y estabilidad de rodilla.",
   },
   {
     type: "empuje",

@@ -1,6 +1,8 @@
 export type GoalPlanType =
   | "tren_superior"
   | "tren_inferior"
+  | "gluteos"
+  | "cuadriceps"
   | "empuje"
   | "traccion"
   | "planche"
