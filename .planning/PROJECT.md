@@ -4,16 +4,10 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), a public-facing marketing site (el-templo-web), and a WhatsApp AI chatbot (el-templo-bot). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 began ecosystem integration (admin consolidation, attendance/scheduling, data migration), and v5 adds the WhatsApp AI chatbot for automated customer service and class booking.
 
-## Current Milestone: v5.2 Mica Persona & Bot Refinement
+## Current State
 
-**Goal:** Replace the generic bot personality with "Mica" — a warm, concise, sales-aware assistant that matches how the real El Templo team communicates on WhatsApp. Includes sales techniques, objection handling, retention strategies, response quality fixes, and conversation flow testing.
-
-**Target features:**
-
-- Mica persona: warm Argentine tuteo, concise WhatsApp-native responses, state-adaptive sales behavior
-- Complete knowledge rewrite: plans, pricing, schedules, ROM, policies, sales techniques, objection handling, retention playbook
-- Response quality fixes: WhatsApp formatting, pricing presentation order, schedule limits, escalation behavior
-- Conversation flow testing: 14 QA questions + real conversation example flows
+**Latest shipped:** v5.2 Mica Persona & Bot Refinement (2026-04-06)
+**Bot status:** Production-ready with Mica persona, 12-section knowledge base, 20 response quality tests, and 27 conversation flow tests.
 
 ## Core Value
 
@@ -43,10 +37,13 @@ Members know exactly what to train today, complete guided sessions with block st
 - ✓ Schema extensions (documentType, address), CSV data import for 5 branches (v4.1)
 - ✓ WhatsApp Cloud API webhook + echo bot, AI with function calling tools, Redis memory, action tools, proactive schedulers, admin conversations UI, human takeover (v5.0)
 - ✓ Business data integration, production seed, bug fixes, CI/CD pipeline, WhatsApp production setup docs (v5.1)
+- ✓ Mica persona with Argentine tuteo, 12-section knowledge base, state-adaptive sales behavior (v5.2)
+- ✓ Response quality fixes: WhatsApp formatting, markdown stripping, escalation, pricing order (v5.2)
+- ✓ Conversation flow testing: 14 QA questions, 7 flows, 6 tone rules (v5.2)
 
 ### Active
 
-See: .planning/REQUIREMENTS.md (v5.2 scope)
+Next milestone TBD — run `/gsd:new-milestone` to define
 
 ### Out of Scope
 
@@ -101,30 +98,34 @@ See: .planning/REQUIREMENTS.md (v5.2 scope)
 
 ## Key Decisions
 
-| Decision                           | Rationale                                                                                     | Outcome   |
-| ---------------------------------- | --------------------------------------------------------------------------------------------- | --------- |
-| Training module first              | Highest daily value, foundation for progression system                                        | ✓ Good    |
-| Algorithmic session generation     | SPOM rules exist, coaches shouldn't manually build programs                                   | ✓ Good    |
-| Shell + module architecture        | Future modules need clean integration points                                                  | ✓ Good    |
-| Gym-wide SPOM (not per-member)     | Simplifies generation, matches gym operational model                                          | ✓ Good    |
-| Multi-branch from start            | Avoid architectural rework when scaling to more locations                                     | ✓ Good    |
-| Nuxt 3 for landing                 | Purpose-built for SSR/SSG, lighter for marketing site                                         | ✓ Good    |
-| Brand alignment in v3.0            | Unified visual identity before ecosystem expansion                                            | ✓ Good    |
-| Unified AURA currency              | Single currency (not AURA + AURUM). Simpler UX, one wallet                                    | — Pending |
-| Single level system (Alfa→Spartan) | Multiple progression ladders confuse users                                                    | — Pending |
-| Virtual "Templo Online" branch     | Avoids making branchId nullable everywhere. Clean code path for online users                  | — Pending |
-| Modular monolith                   | Formalizes existing src/modules/ pattern. Prevents tangling as features grow                  | — Pending |
-| Modular DB (lean users table)      | Prevents god table. Each module owns its data in dedicated tables                             | — Pending |
-| Merge admin apps                   | One admin for training content + business ops. Net features rebuilt in Vue/Quasar             | — Pending |
-| Auto-generated missions first      | Social works without coach effort. Coach-created missions as enhancement                      | — Pending |
-| AURA tracking from day 1           | Foundation tables track activity early so early adopters aren't penalized                     | — Pending |
-| Payment gateway with online model  | Don't delay revenue — online premium conversion requires payment processing                   | — Pending |
-| Separate bot process               | Crash isolation — bot shouldn't take down production API                                      | ✓ Good    |
-| WhatsApp Cloud API (not Baileys)   | Stable, officially supported, no QR/session issues. RenovaFacil validates approach            | ✓ Good    |
-| AI-primary (no keyword flows)      | Every message to AI with tools. Natural language > rigid menus. RenovaFacil proves this works | ✓ Good    |
-| Redis for ephemeral state          | Context windows, locks, caching in Redis. Permanent records in MySQL                          | ✓ Good    |
-| Model-agnostic AI abstraction      | Easy swap between OpenAI/Anthropic via config. Test both, pick best for gym context           | ✓ Good    |
+| Decision                            | Rationale                                                                                     | Outcome   |
+| ----------------------------------- | --------------------------------------------------------------------------------------------- | --------- |
+| Training module first               | Highest daily value, foundation for progression system                                        | ✓ Good    |
+| Algorithmic session generation      | SPOM rules exist, coaches shouldn't manually build programs                                   | ✓ Good    |
+| Shell + module architecture         | Future modules need clean integration points                                                  | ✓ Good    |
+| Gym-wide SPOM (not per-member)      | Simplifies generation, matches gym operational model                                          | ✓ Good    |
+| Multi-branch from start             | Avoid architectural rework when scaling to more locations                                     | ✓ Good    |
+| Nuxt 3 for landing                  | Purpose-built for SSR/SSG, lighter for marketing site                                         | ✓ Good    |
+| Brand alignment in v3.0             | Unified visual identity before ecosystem expansion                                            | ✓ Good    |
+| Unified AURA currency               | Single currency (not AURA + AURUM). Simpler UX, one wallet                                    | — Pending |
+| Single level system (Alfa→Spartan)  | Multiple progression ladders confuse users                                                    | — Pending |
+| Virtual "Templo Online" branch      | Avoids making branchId nullable everywhere. Clean code path for online users                  | — Pending |
+| Modular monolith                    | Formalizes existing src/modules/ pattern. Prevents tangling as features grow                  | — Pending |
+| Modular DB (lean users table)       | Prevents god table. Each module owns its data in dedicated tables                             | — Pending |
+| Merge admin apps                    | One admin for training content + business ops. Net features rebuilt in Vue/Quasar             | — Pending |
+| Auto-generated missions first       | Social works without coach effort. Coach-created missions as enhancement                      | — Pending |
+| AURA tracking from day 1            | Foundation tables track activity early so early adopters aren't penalized                     | — Pending |
+| Payment gateway with online model   | Don't delay revenue — online premium conversion requires payment processing                   | — Pending |
+| Separate bot process                | Crash isolation — bot shouldn't take down production API                                      | ✓ Good    |
+| WhatsApp Cloud API (not Baileys)    | Stable, officially supported, no QR/session issues. RenovaFacil validates approach            | ✓ Good    |
+| AI-primary (no keyword flows)       | Every message to AI with tools. Natural language > rigid menus. RenovaFacil proves this works | ✓ Good    |
+| Redis for ephemeral state           | Context windows, locks, caching in Redis. Permanent records in MySQL                          | ✓ Good    |
+| Model-agnostic AI abstraction       | Easy swap between OpenAI/Anthropic via config. Test both, pick best for gym context           | ✓ Good    |
+| Mica persona (Argentine tuteo)      | Matches real team WhatsApp communication style. Users expect warm, concise Argentine Spanish  | ✓ Good    |
+| 12-section knowledge architecture   | Separates business data from prompt logic. Each section independently testable                | ✓ Good    |
+| Defense-in-depth markdown stripping | Post-processes AI output even though prompt instructs against markdown. AI compliance varies  | ✓ Good    |
+| State-adaptive sales objectives     | Different goals per client lifecycle state (lead→trial, active→retain, inactive→reactivate)   | ✓ Good    |
 
 ---
 
-_Last updated: 2026-03-27 after v5.2 milestone initialization_
+_Last updated: 2026-04-06 after v5.2 milestone completion_

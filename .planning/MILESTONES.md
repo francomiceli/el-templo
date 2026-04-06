@@ -280,3 +280,49 @@ _Last phase: 73_
 ---
 
 _Last phase: 78_
+
+## v5.2 — Mica Persona & Bot Refinement
+
+**Completed:** 2026-04-06
+**Phases:** 79-81 (3 phases, 5 plans)
+**Requirements:** 20/20 complete
+**Timeline:** 2026-03-27 (single day execution)
+**Stats:** 5 files changed, ~361 lines added/modified
+
+### What Shipped
+
+**Mica System Prompt & Knowledge Rewrite (Phase 79)**
+
+- Mica persona with Argentine tuteo, warm concise tone, 1-2 emoji max per message
+- State-adaptive sales objectives for 5 client lifecycle states (lead→trial→active→inactive→expired)
+- 12-section business knowledge base: plans, pricing, schedules, ROM, trial flow, app help, sales techniques, objection handling (7 objections), retention strategies, golden rules
+- Comprehensive test suite verifying all 12 knowledge sections and state-adaptive behavior
+
+**Response Quality & Data Fixes (Phase 80)**
+
+- WhatsApp-only formatting: defense-in-depth `stripMarkdownHeaders` post-processor converts `###` to `*bold*`
+- "cupos disponibles" terminology in schedule responses
+- Escalation phrase with emoji: "Te paso con alguien del equipo, te escriben enseguida 🙌"
+- Pricing presentation: Flex plans first, Foundation/Performance on request
+- Schedule max 5 results, book_class silence after buttons, trial asks only name+preference
+- 7 QUAL regression tests
+
+**Conversation Flow Testing (Phase 81)**
+
+- 14 QA question validation tests
+- 7 conversation flow tests (lead→trial, renewal, objections, escalation, reactivation)
+- 6 tone rule tests (short responses, one question at a time, WhatsApp-native style)
+- Strict 7/7 objection keyword matching, exact Unicode emoji escalation verification
+
+### Requirements Completed
+
+- MICA-01 through MICA-03 (persona & prompt)
+- KNOW-01 through KNOW-07 (knowledge)
+- QUAL-01 through QUAL-07 (response quality)
+- TEST-01 through TEST-03 (testing)
+
+**Total:** 20 requirements
+
+---
+
+_Last phase: 81_

@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v5.2
 milestone_name: Mica Persona & Bot Refinement
-status: in_progress
-stopped_at: "Completed 81-01-PLAN.md"
-last_updated: "2026-03-27T22:46:00Z"
-last_activity: 2026-03-27 -- Completed 81-01 (Conversation flow tests)
+status: milestone_complete
+stopped_at: "Milestone v5.2 completed"
+last_updated: "2026-04-06T19:44:00Z"
+last_activity: 2026-04-06 -- Milestone v5.2 completed and archived
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 3
+  completed_phases: 3
+  total_plans: 5
   completed_plans: 5
   percent: 100
 ---
@@ -18,18 +18,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-27)
+See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
-**Current focus:** v5.2 Mica Persona & Bot Refinement — Phase 81 (Conversation Flow Testing)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Milestone: v5.2 Mica Persona & Bot Refinement
-Phase: 81 — Conversation Flow Testing
-Plan: 1 of 1 complete
-Status: phase_complete
+Milestone: v5.2 Mica Persona & Bot Refinement — COMPLETE
+Status: milestone_complete
 Progress: ██████████ 100%
+Next: `/gsd:new-milestone` to start next milestone
 
 ## Performance Metrics
 
