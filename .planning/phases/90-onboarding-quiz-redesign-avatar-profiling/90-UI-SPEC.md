@@ -15,15 +15,15 @@ created: 2026-04-06
 
 ## Design System
 
-| Property          | Value                                                 |
-| ----------------- | ----------------------------------------------------- |
-| Tool              | Quasar Framework (not shadcn — Vue/Quasar stack)      |
-| Preset            | not applicable                                        |
-| Component library | Quasar v2 (QBtn, QIcon, QBadge, QSelect, QChip)       |
-| Icon library      | Material Icons (already bundled via Quasar)           |
-| Font — body       | Geologica 400, 500                                    |
-| Font — heading    | Montserrat 600, 700, 800                              |
-| Font — elegance   | Cormorant Garamond 400i, 600i (welcome subtitle only) |
+| Property          | Value                                            |
+| ----------------- | ------------------------------------------------ |
+| Tool              | Quasar Framework (not shadcn — Vue/Quasar stack) |
+| Preset            | not applicable                                   |
+| Component library | Quasar v2 (QBtn, QIcon, QBadge, QSelect, QChip)  |
+| Icon library      | Material Icons (already bundled via Quasar)      |
+| Font — body       | Geologica 400                                    |
+| Font — heading    | Montserrat 700                                   |
+| Font — elegance   | Cormorant Garamond 400i (welcome subtitle only)  |
 
 ---
 
@@ -35,11 +35,11 @@ Declared values (must be multiples of 4):
 | ----- | ----- | ------------------------------------------------------------------------ |
 | xs    | 4px   | Icon-to-text inline gaps, AURA label margin-top                          |
 | sm    | 8px   | Option check icon margin-left, compact gaps                              |
-| md    | 12px  | Option stack gap, summary row icon gap, progress dot gap                 |
+| md    | 8px   | Option stack gap, summary row icon gap, progress dot gap                 |
 | lg    | 16px  | Content top padding, progress dots bottom margin                         |
-| xl    | 20px  | Glass card horizontal padding, screen horizontal padding, section breaks |
+| xl    | 24px  | Glass card horizontal padding, screen horizontal padding, section breaks |
 | 2xl   | 24px  | Glass card vertical padding, question-to-options gap                     |
-| 3xl   | 28px  | Glass card top padding                                                   |
+| 3xl   | 32px  | Glass card top padding                                                   |
 
 Exceptions:
 
@@ -65,8 +65,8 @@ Additional typography rules:
 - Question heading: `letter-spacing: 0.06em`, `text-shadow: 0 1px 8px rgba(0,0,0,0.5)`, `text-align: center`
 - Screen heading (welcome/result): `letter-spacing: 0.08em`, `text-shadow: 0 1px 8px rgba(0,0,0,0.5)`
 - CTA button text: Montserrat 700, 15px (0.9375rem), `letter-spacing: 0.12em`
-- AURA number: Montserrat 700, 28px (1.75rem), color `$amber`
-- AURA label: Montserrat 700, 12px (0.75rem), `letter-spacing: 0.15em`, `text-transform: uppercase`
+- AURA number: Montserrat 700, 22px (1.375rem), color `$amber`
+- AURA label: Montserrat 700, 13px (0.8125rem), `letter-spacing: 0.15em`, `text-transform: uppercase`
 - Welcome subtitle: Cormorant Garamond italic via `.text-elegance` utility class
 
 ---
