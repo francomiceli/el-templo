@@ -34,6 +34,7 @@ export interface UserProfile {
   branchIsVirtual: boolean
   segment: MemberSegment | null
   onboardingCompleted: boolean
+  gender: 'male' | 'female' | 'other' | 'unspecified' | null
 }
 
 export interface MemberSubscription {

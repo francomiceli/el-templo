@@ -133,3 +133,156 @@ export const SUMMARY_ROWS = [
     labels: MOTIVATION_LABELS,
   },
 ] as const
+
+// =========================================================================
+// V2 Avatar Profiling Quiz (Phase 90)
+// =========================================================================
+
+export type AgeRange = '18_28' | '29_40' | '41_plus'
+export type TrainingBackground = 'nunca' | 'gym' | 'cardio' | 'yoga_pilates' | 'calistenia' | 'deje'
+export type GoalChoice =
+  | 'habito'
+  | 'fuerza_general'
+  | 'comunidad'
+  | 'piernas_gluteos'
+  | 'cuerpo_firme'
+  | 'cero_atleta'
+  | 'skill'
+  | 'longevidad'
+export type PainPoint =
+  | 'tiempo'
+  | 'constancia'
+  | 'no_se_por_donde'
+  | 'ambiente'
+  | 'resultados'
+  | 'nada'
+export type TrainingFrequency = '2' | '3' | '4' | '5_plus'
+export type AvatarLetter = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K'
+
+export type QuizKeyV2 =
+  | 'ageRange'
+  | 'trainingBackground'
+  | 'goal'
+  | 'painPoint'
+  | 'trainingFrequency'
+
+export interface QuizQuestionV2 {
+  key: QuizKeyV2
+  text: string
+  options: QuizOption[]
+  genderFiltered?: boolean
+}
+
+export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
+  {
+    key: 'ageRange',
+    text: '¿En qué etapa estás?',
+    options: [
+      { value: '18_28', label: '18 a 28 años' },
+      { value: '29_40', label: '29 a 40 años' },
+      { value: '41_plus', label: '41 o más' },
+    ],
+  },
+  {
+    key: 'trainingBackground',
+    text: '¿Cuál es tu experiencia entrenando?',
+    options: [
+      { value: 'nunca', label: 'Nunca entrené en serio' },
+      { value: 'gym', label: 'Gym / pesas' },
+      { value: 'cardio', label: 'Correr / nadar / bici' },
+      { value: 'yoga_pilates', label: 'Yoga / pilates / similar' },
+      { value: 'calistenia', label: 'Calistenia / peso corporal' },
+      { value: 'deje', label: 'Entrenaba pero dejé' },
+    ],
+  },
+  {
+    key: 'goal',
+    text: '¿Qué buscás?',
+    genderFiltered: true,
+    options: [
+      // Universal
+      { value: 'habito', label: 'Crear el hábito de entrenar' },
+      { value: 'fuerza_general', label: 'Fuerza y cuerpo completo' },
+      { value: 'comunidad', label: 'Entrenar con gente, pertenecer' },
+      // Women-only
+      { value: 'piernas_gluteos', label: 'Piernas y glúteos que se noten' },
+      { value: 'cuerpo_firme', label: 'Cuerpo firme y funcional' },
+      // Men-only
+      { value: 'cero_atleta', label: 'De cero a atleta' },
+      { value: 'skill', label: 'Dominar un skill (front lever, muscle up, planche)' },
+      // 41+
+      { value: 'longevidad', label: 'Moverme sin dolor, longevidad' },
+    ],
+  },
+  {
+    key: 'painPoint',
+    text: '¿Qué te frena o te frenó antes?',
+    options: [
+      { value: 'tiempo', label: 'No tengo tiempo' },
+      { value: 'constancia', label: 'Siempre empiezo y no sigo' },
+      { value: 'no_se_por_donde', label: 'No sé por dónde empezar' },
+      { value: 'ambiente', label: 'El gym no era para mí' },
+      { value: 'resultados', label: 'Entrené pero no vi resultados' },
+      { value: 'nada', label: 'Nada, estoy listo/a' },
+    ],
+  },
+  {
+    key: 'trainingFrequency',
+    text: '¿Cuántas veces por semana podés entrenar?',
+    options: [
+      { value: '2', label: '2 veces' },
+      { value: '3', label: '3 veces' },
+      { value: '4', label: '4 veces' },
+      { value: '5_plus', label: '5 o más' },
+    ],
+  },
+]
+
+// Q3 gender filtering constants
+export const Q3_UNIVERSAL_OPTIONS: string[] = ['habito', 'fuerza_general', 'comunidad']
+export const Q3_WOMEN_OPTIONS: string[] = ['piernas_gluteos', 'cuerpo_firme']
+export const Q3_MEN_OPTIONS: string[] = ['cero_atleta', 'skill']
+export const Q3_41PLUS_OPTION: string = 'longevidad'
+
+export interface OnboardingAnswersV2 {
+  ageRange: AgeRange | null
+  trainingBackground: TrainingBackground | null
+  goal: GoalChoice | null
+  painPoint: PainPoint | null
+  trainingFrequency: TrainingFrequency | null
+}
+
+export interface CompleteOnboardingResponseV2 {
+  profile: {
+    ageRange: AgeRange
+    trainingBackground: TrainingBackground
+    goal: GoalChoice
+    painPoint: PainPoint
+    trainingFrequency: TrainingFrequency
+    avatarType: AvatarLetter
+    suggestedProgram: string
+    onboardingCompletedAt: string
+  }
+  auraAwarded: number
+}
+
+export interface ProgramRecommendation {
+  name: string
+  description: string
+}
+
+export const PROGRAM_RECOMMENDATIONS: Record<string, ProgramRecommendation> = {
+  '30 Días - Crea el Hábito': {
+    name: '30 Días - Crea el Hábito',
+    description:
+      'Un programa de 30 días para instalar el hábito de entrenar. Sin equipamiento, desde casa.',
+  },
+  'Foundation - Cuerpo Completo': {
+    name: 'Foundation - Cuerpo Completo',
+    description: 'El programa base de El Templo. Fuerza general, técnica y progresión visible.',
+  },
+  'Piernas y Glúteos - 12 Semanas': {
+    name: 'Piernas y Glúteos - 12 Semanas',
+    description: 'Resultado estético específico con método y progresión real.',
+  },
+}
