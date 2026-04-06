@@ -14,10 +14,7 @@
         :subscription="presencialSub"
         :class-usage="classUsage"
         label="Suscripción Presencial"
-        @renew="
-          showRenewalDialog = true;
-          renewTarget = presencialSub;
-        "
+        @renew="openRenewal(presencialSub!)"
         @change="showChangeDialog = true"
         @pause="confirmPause"
         @resume="confirmResume"
@@ -45,10 +42,7 @@
         :subscription="programaSub"
         label="Programa Online"
         show-category-badge
-        @renew="
-          showRenewalDialog = true;
-          renewTarget = programaSub;
-        "
+        @renew="openRenewal(programaSub!)"
         @cancel="confirmCancelPrograma"
       />
 
@@ -282,11 +276,13 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 // =========================================================================
 
 const presencialSub = computed(
-  () => allSubscriptions.value.find((s) => s.planCategory === 'presencial') ?? null
+  () =>
+    allSubscriptions.value.find((s) => !s.planCategory || s.planCategory === 'presencial') ?? null
 );
 
 const programaSub = computed(
-  () => allSubscriptions.value.find((s) => s.planCategory !== 'presencial') ?? null
+  () =>
+    allSubscriptions.value.find((s) => s.planCategory && s.planCategory !== 'presencial') ?? null
 );
 
 const renewalEndDate = computed(() => {
@@ -344,10 +340,15 @@ async function loadSubscriptions() {
   loadingSubscription.value = true;
   try {
     allSubscriptions.value = await subsApi.getMemberSubscriptions(props.userId);
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading subscriptions', { error: message, userId: props.userId });
-    $q.notify({ type: 'negative', message: 'Error cargando suscripciones' });
+  } catch {
+    // Fallback to singular endpoint (backwards compat if API not yet deployed)
+    try {
+      const single = await subsApi.getMemberSubscription(props.userId);
+      allSubscriptions.value = single ? [single] : [];
+    } catch (err2: unknown) {
+      const message = err2 instanceof Error ? err2.message : 'Error desconocido';
+      log.error('Error loading subscriptions', { error: message, userId: props.userId });
+    }
   } finally {
     loadingSubscription.value = false;
   }
@@ -382,6 +383,11 @@ async function refreshAll() {
 // =========================================================================
 // Lifecycle Actions
 // =========================================================================
+
+function openRenewal(sub: SubscriptionDetail) {
+  renewTarget.value = sub;
+  showRenewalDialog.value = true;
+}
 
 async function executeRenewal() {
   renewalLoading.value = true;
