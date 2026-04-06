@@ -257,11 +257,13 @@ function onSplashStart(): void {
     player.value.startTimer()
   }
   wakeLock.requestWakeLock()
+  showCountdown.value = true
 }
 
 function onDeuterosSelect(choiceId: 'DEUTEROS_1' | 'DEUTEROS_2'): void {
   if (player.value) {
     player.value.selectDeuteros(choiceId)
+    showCountdown.value = true
   }
 }
 

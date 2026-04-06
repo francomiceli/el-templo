@@ -6,7 +6,7 @@
         <div v-if="current > 0" :key="current" class="countdown-overlay__number">
           {{ current }}
         </div>
-        <button v-else key="go" class="countdown-overlay__go" @click="emit('done')">VAMOS!</button>
+        <div v-else key="go" class="countdown-overlay__go">VAMOS!</div>
       </Transition>
     </div>
   </div>
@@ -23,6 +23,7 @@ const emit = defineEmits<Emits>()
 
 const current = ref(3)
 let timer: ReturnType<typeof setInterval> | null = null
+let goTimer: ReturnType<typeof setTimeout> | null = null
 
 onMounted(() => {
   timer = setInterval(() => {
@@ -31,6 +32,8 @@ onMounted(() => {
     } else if (timer) {
       clearInterval(timer)
       timer = null
+      // Auto-dismiss after 1 second on "VAMOS!"
+      goTimer = setTimeout(() => emit('done'), 1000)
     }
   }, 1000)
 })
@@ -39,6 +42,10 @@ onUnmounted(() => {
   if (timer) {
     clearInterval(timer)
     timer = null
+  }
+  if (goTimer) {
+    clearTimeout(goTimer)
+    goTimer = null
   }
 })
 </script>
@@ -83,22 +90,18 @@ onUnmounted(() => {
 
 .countdown-overlay__go {
   font-family: 'Montserrat', sans-serif;
-  font-size: 36px;
+  font-size: 26px;
   font-weight: 800;
   color: white;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   background: $primary;
-  border: none;
   border-radius: 50%;
   width: 160px;
   height: 160px;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 0 40px rgba($primary, 0.4);
-  transition: transform 0.15s ease;
-
-  &:active {
-    transform: scale(0.95);
-  }
 }
 
 // Transition animations
