@@ -178,7 +178,7 @@ describe("Goal Plan Routes", () => {
       expect(res.statusCode).toBe(401);
     });
 
-    it("returns all 6 goal plan types with correct structure", async () => {
+    it("returns all 8 goal plan types with correct structure", async () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/goal-plans/metadata",
@@ -188,7 +188,7 @@ describe("Goal Plan Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("goalPlans");
-      expect(body.goalPlans).toHaveLength(6);
+      expect(body.goalPlans).toHaveLength(8);
 
       // Verify structure of each goal plan
       for (const goalPlan of body.goalPlans) {
@@ -204,10 +204,12 @@ describe("Goal Plan Routes", () => {
         );
       }
 
-      // Verify all 6 types are present
+      // Verify all 8 types are present
       const types = body.goalPlans.map((p: { type: string }) => p.type);
       expect(types).toContain("tren_superior");
       expect(types).toContain("tren_inferior");
+      expect(types).toContain("gluteos");
+      expect(types).toContain("cuadriceps");
       expect(types).toContain("empuje");
       expect(types).toContain("traccion");
       expect(types).toContain("planche");
