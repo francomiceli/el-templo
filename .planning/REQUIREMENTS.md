@@ -85,22 +85,40 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 
 ## Traceability
 
-Filled in by roadmapper after phase decomposition.
-
-| Requirement          | Phase | Status  |
-| -------------------- | ----- | ------- |
-| PBENG-01 to PBENG-06 | TBD   | Pending |
-| DISC-01 to DISC-07   | TBD   | Pending |
-| PBPR-01 to PBPR-06   | TBD   | Pending |
-| AVAT-01 to AVAT-05   | TBD   | Pending |
+| Requirement | Phase    | Status  |
+| ----------- | -------- | ------- |
+| PBENG-01    | Phase 82 | Pending |
+| PBENG-02    | Phase 82 | Pending |
+| PBENG-03    | Phase 82 | Pending |
+| PBENG-04    | Phase 82 | Pending |
+| PBENG-05    | Phase 82 | Pending |
+| PBENG-06    | Phase 82 | Pending |
+| DISC-01     | Phase 83 | Pending |
+| DISC-02     | Phase 83 | Pending |
+| DISC-03     | Phase 83 | Pending |
+| DISC-04     | Phase 83 | Pending |
+| DISC-05     | Phase 83 | Pending |
+| DISC-06     | Phase 83 | Pending |
+| DISC-07     | Phase 83 | Pending |
+| PBPR-01     | Phase 84 | Pending |
+| PBPR-02     | Phase 84 | Pending |
+| PBPR-03     | Phase 84 | Pending |
+| PBPR-04     | Phase 84 | Pending |
+| PBPR-05     | Phase 84 | Pending |
+| PBPR-06     | Phase 84 | Pending |
+| AVAT-01     | Phase 85 | Pending |
+| AVAT-02     | Phase 85 | Pending |
+| AVAT-03     | Phase 85 | Pending |
+| AVAT-04     | Phase 85 | Pending |
+| AVAT-05     | Phase 85 | Pending |
 
 **Coverage:**
 
 - v5.3 requirements: 24 total
-- Mapped to phases: 0 (pending roadmapper)
-- Unmapped: 24 ⚠️
+- Mapped to phases: 24 ✓
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-04-06_
-_Last updated: 2026-04-06 after starting v5.3 milestone_
+_Last updated: 2026-04-06 after roadmapper mapped 24 requirements to phases 82-85_

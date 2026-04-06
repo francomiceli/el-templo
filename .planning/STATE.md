@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
-status: defining_requirements
-stopped_at: "Milestone v5.3 started — defining requirements"
-last_updated: "2026-04-06T20:30:00Z"
-last_activity: 2026-04-06 -- Milestone v5.3 started
+status: ready_to_plan
+stopped_at: "Roadmap created — ready to plan Phase 82"
+last_updated: "2026-04-06T21:00:00Z"
+last_activity: 2026-04-06 -- v5.3 roadmap created (4 phases, 24 requirements mapped)
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,35 +20,23 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-04-06)
 
-**Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
-**Current focus:** v5.3 Conversational Sales & Playbook Engine — defining requirements
+**Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and now leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
+**Current focus:** v5.3 Conversational Sales & Playbook Engine — Phase 82 (Playbook Engine) next.
 
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: Not started (defining requirements)
+Phase: 82 — Playbook Engine (not started)
 Plan: —
-Status: Defining requirements
-Progress: ░░░░░░░░░░ 0%
-Last activity: 2026-04-06 — Milestone v5.3 started
+Status: Ready to plan Phase 82
+Progress: ░░░░░░░░░░ 0% (0/4 phases)
+Last activity: 2026-04-06 — Roadmap created, 24 requirements mapped to 4 phases
 
 ## Performance Metrics
 
 **Velocity:**
 
 - Total plans completed: 16 (v5.0) + 7 (v5.1) + 4 (v5.2) = 27
-
-**By Phase (v5.1):**
-
-| Phase        | Plans | Total   | Avg/Plan |
-| ------------ | ----- | ------- | -------- |
-| Phase 74 P01 | 2min  | 2 tasks | 2 files  |
-| Phase 74 P02 | 2min  | 2 tasks | 2 files  |
-| Phase 75 P01 | 3min  | 2 tasks | 4 files  |
-| Phase 76 P01 | 2min  | 2 tasks | 6 files  |
-| Phase 77 P02 | 2min  | 2 tasks | 2 files  |
-| Phase 77 P01 | 2min  | 2 tasks | 2 files  |
-| Phase 78 P01 | 4min  | 2 tasks | 3 files  |
 
 **By Phase (v5.2):**
 
@@ -67,21 +55,13 @@ Last activity: 2026-04-06 — Milestone v5.3 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- Separate bot process for crash isolation (el-templo-bot alongside el-templo-api)
-- WhatsApp Cloud API (official Meta) over Baileys
-- AI-primary: every message goes to AI with function calling tools
-- Model-agnostic AI abstraction (OpenAI GPT-4o mini or Anthropic Haiku)
-- Redis for ephemeral state, MySQL for permanent records
-- [Phase 74]: Business data in separate knowledge.ts file (not inline in prompt) for maintainability
-- [Phase 74]: Knowledge always present in base prompt (not conditional like state/profile sections)
-- [Phase 79]: Mica persona with Argentine tuteo replaces unnamed bot
-- [Phase 79]: Knowledge expanded to 12 sections with sales, objections, retention, golden rules
-- [Phase 79]: State sections now include sales-specific objectives per client state
-- [Phase 79]: Knowledge tests use flexible thresholds (5/7 objections, 10+ rules) for resilience
-- [Phase 80]: Defense-in-depth: post-process AI output to strip markdown headers even when prompt instructs against them
-- [Phase 80]: Test stripMarkdownHeaders regex inline rather than exporting private function from handler.ts
-- [Phase 81]: Conversation flow tests use strict 7/7 objection keyword matching (not 5/7 threshold)
-- [Phase 81]: Escalation phrase tested with exact Unicode emoji match
+- v5.3 stays in the prompt + Redis layer. NO new DB tables, NO new schedulers, NO Meta templates, NO admin panel changes (all Kero CRM work is v5.4).
+- Phase ordering: engine first, then PB1 discovery (highest revenue path), then PB2-PB5 state-driven prompts, then avatar polish + full regression.
+- Only the active playbook section is injected into the system prompt — the other 4 are excluded per turn (avoids prompt bloat and conflicting instructions).
+- Conversational profiling only: Mica detects avatar from natural discovery, never via quiz format ("si le enchufas una encuesta se va").
+- 4 avatars (cero_absoluto, gym_crossover, intermedio, retorna) — simplified from the original 11-avatar quiz model.
+- PB6 (long-term reactivation) and onboarding playbook are explicitly skipped in v5.3.
+- Stage state lives in Redis session (6h TTL). Cross-session durability is a v5.4 concern.
 
 ### Pending Todos
 
@@ -93,19 +73,15 @@ None yet.
 
 ### Quick Tasks Completed
 
-| #   | Description                                                         | Date       | Commit   | Directory                                                                                         |
-| --- | ------------------------------------------------------------------- | ---------- | -------- | ------------------------------------------------------------------------------------------------- |
-| 3   | Analyze env setup across monorepo and document recommended approach | 2026-03-26 | 2f1f09e2 | [3-analyze-env-setup-across-monorepo-and-do](./quick/3-analyze-env-setup-across-monorepo-and-do/) |
-| 4   | Update ENV-ANALYSIS.md with GitHub Actions deployment details       | 2026-03-26 | 6621e263 | [4-update-env-analysis-with-github-actions-](./quick/4-update-env-analysis-with-github-actions-/) |
-| 5   | Audit env-related files in PR for security                          | 2026-03-26 | 16c778de | [5-audit-env-related-files-in-pr-for-securi](./quick/5-audit-env-related-files-in-pr-for-securi/) |
-| 6   | Fix .gitignore for bot .env and planning quick docs                 | 2026-03-26 | 67025c0f | [6-fix-gitignore-for-bot-env-and-planning-q](./quick/6-fix-gitignore-for-bot-env-and-planning-q/) |
-| 7   | Fix 4 Mica response quality issues (QUAL-08 to QUAL-11)             | 2026-03-27 | 88dd1731 | [7-fix-4-mica-response-quality-issues-from-](./quick/7-fix-4-mica-response-quality-issues-from-/) |
-| 8   | Security dependency audit for el-templo-api and el-templo-bot       | 2026-04-06 | 5f81a588 | [8-security-dependency-audit-for-el-templo-](./quick/8-security-dependency-audit-for-el-templo-/) |
-| 9   | Kero full context synthesis and v5.3 phase plan                     | 2026-04-06 | 6f9be3d4 | [9-kero-full-context-synthesis-and-v5-3-pha](./quick/9-kero-full-context-synthesis-and-v5-3-pha/) |
+| #   | Description                                                   | Date       | Commit   | Directory                                                                                         |
+| --- | ------------------------------------------------------------- | ---------- | -------- | ------------------------------------------------------------------------------------------------- |
+| 7   | Fix 4 Mica response quality issues (QUAL-08 to QUAL-11)       | 2026-03-27 | 88dd1731 | [7-fix-4-mica-response-quality-issues-from-](./quick/7-fix-4-mica-response-quality-issues-from-/) |
+| 8   | Security dependency audit for el-templo-api and el-templo-bot | 2026-04-06 | 5f81a588 | [8-security-dependency-audit-for-el-templo-](./quick/8-security-dependency-audit-for-el-templo-/) |
+| 9   | Kero full context synthesis and v5.3 phase plan               | 2026-04-06 | 6f9be3d4 | [9-kero-full-context-synthesis-and-v5-3-pha](./quick/9-kero-full-context-synthesis-and-v5-3-pha/) |
 
 ## Session Continuity
 
 Last session: 2026-04-06
-Stopped at: Completed quick task 9
-Resume file: .planning/quick/9-kero-full-context-synthesis-and-v5-3-pha/9-SUMMARY.md
-Next step: Ready for next task.
+Stopped at: v5.3 roadmap created — 4 phases (82-85), 24 requirements mapped
+Resume file: .planning/ROADMAP.md
+Next step: `/gsd:plan-phase 82` to plan the Playbook Engine phase.
