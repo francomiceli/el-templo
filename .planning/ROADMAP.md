@@ -1904,7 +1904,7 @@ Plans:
 
 Plans:
 
-- [ ] 90-01-PLAN.md — API: Schema migration (5 new columns + nullable old columns), avatar resolution service, updated onboarding endpoints, gender in /me, integration tests
+- [x] 90-01-PLAN.md — API: Schema migration (5 new columns + nullable old columns), avatar resolution service, updated onboarding endpoints, gender in /me, integration tests
 - [ ] 90-02-PLAN.md — Member App: 5-question quiz types/composable, OnboardingPage 7-step state machine, gender-filtered Q3, OnboardingRecommendation screen
 - [ ] 90-03-PLAN.md — Admin: avatarType in member list/detail API, avatar badge on detail page, avatar filter on members list
 
@@ -1937,12 +1937,12 @@ Plans:
 
 ## v4.5 Progress
 
-| Phase                                           | Plans Complete       | Status   | Completed  |
-| ----------------------------------------------- | -------------------- | -------- | ---------- |
-| 89. Backend & Admin — Planes Online Infra       | 7/7 + admin dual sub | Complete | 2026-04-05 |
-| 90. Onboarding Quiz Redesign & Avatar Profiling | —                    | Planned  | —          |
-| 91. App UX — Plan Catalog & Purchase Flow       | —                    | Planned  | —          |
-| 92. Marketing Deliverables — Launch Collateral  | —                    | Planned  | —          |
+| Phase                                           | Plans Complete       | Status      | Completed  |
+| ----------------------------------------------- | -------------------- | ----------- | ---------- |
+| 89. Backend & Admin — Planes Online Infra       | 7/7 + admin dual sub | Complete    | 2026-04-05 |
+| 90. Onboarding Quiz Redesign & Avatar Profiling | 1/3                  | In Progress |            |
+| 91. App UX — Plan Catalog & Purchase Flow       | —                    | Planned     | —          |
+| 92. Marketing Deliverables — Launch Collateral  | —                    | Planned     | —          |
 
 _v4.5 phases added: 2026-04-03 — 4 phases (89-92). Strategy: `.docs/planes-online-strategy.md`_
 

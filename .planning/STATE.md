@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Ready to execute
-stopped_at: Phase 90 UI-SPEC approved
-last_updated: "2026-04-06T17:55:40.679Z"
+status: Executing
+stopped_at: Completed 90-01-PLAN.md
+last_updated: "2026-04-06T18:09:10Z"
 progress:
   total_phases: 87
   completed_phases: 72
@@ -20,12 +20,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase 88 — gender-based-notification-personalization
+**Current focus:** Phase 90 — onboarding-quiz-redesign-avatar-profiling
 
 ## Current Position
 
-Phase: 89
-Plan: Not started
+Phase: 90
+Plan: 1 of 3 complete
 
 ## Performance Metrics
 
@@ -115,6 +115,7 @@ _Updated after each plan completion_
 | Phase 86 P05 | 6min | 2 tasks | 8 files |
 | Phase 86 P06 | 7min | 2 tasks | 3 files |
 | Phase 89 P07 | 6min | 2 tasks | 2 files |
+| Phase 90 P01 | 12min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -242,6 +243,9 @@ Recent decisions affecting current work:
 - [Phase 89]: Ladder prescriber divides by LADDER_ROUNDS=5 for per-round reps (production: 25 edits, -15.1 avg delta)
 - [Phase 89]: Pyramid gets dedicated prescriber with PYRAMID_VOLUME_FACTOR=2 (production: 10 edits, -28.5 avg delta)
 - [Phase 89]: Multi-round format audit: all 16 prescribers checked, only Ladder+Pyramid needed fixing
+- [Phase 90]: Manual migration SQL (0068) for avatar profiling schema — consistent with Phase 86 precedent to avoid interactive drizzle-kit prompts
+- [Phase 90]: V2 onboarding service method alongside V1 for backward compatibility; old columns nullable, new columns nullable
+- [Phase 90]: Server-side gender read from users table in /complete handler — never trust client-provided gender for avatar resolution (T-90-02)
 
 ### Pending Todos
 
@@ -253,6 +257,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-06T17:24:04.622Z
-Stopped at: Phase 90 UI-SPEC approved
-Resume file: .planning/phases/90-onboarding-quiz-redesign-avatar-profiling/90-UI-SPEC.md
+Last session: 2026-04-06T18:09:10Z
+Stopped at: Completed 90-01-PLAN.md
+Resume file: .planning/phases/90-onboarding-quiz-redesign-avatar-profiling/90-01-SUMMARY.md
