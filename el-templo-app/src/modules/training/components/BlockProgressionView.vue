@@ -106,7 +106,7 @@
         class="block-progression__change-deuteros"
         @click="emit('change-deuteros')"
       >
-        <q-icon name="swap_horiz" size="16px" class="q-mr-xs" />
+        <q-icon name="arrow_back" size="16px" class="q-mr-xs" />
         Cambiar bloque Deuteros
       </div>
 

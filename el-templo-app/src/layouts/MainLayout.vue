@@ -198,10 +198,10 @@ interface MobileTab {
 const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
+    { to: '/training/guia', icon: 'menu_book', label: 'Guía' },
     { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
-  tabs.push({ to: '/training/guia', icon: 'menu_book', label: 'Guía' })
   tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })
   return tabs
 })

@@ -283,9 +283,9 @@ const FORMATS = [
 
 .guia-page__subtitle {
   font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba($primary, 0.6);
+  font-size: 20px;
+  font-weight: 800;
+  color: $primary;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin: 0;

@@ -79,7 +79,7 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
-  subtitle: 'Elige una opción',
+  subtitle: '2 opciones disponibles',
 })
 
 /**

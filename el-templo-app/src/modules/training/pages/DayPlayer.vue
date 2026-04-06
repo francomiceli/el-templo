@@ -18,6 +18,9 @@
       @continue="onTransitionContinue"
     />
 
+    <!-- 3-2-1 Countdown before next block starts -->
+    <CountdownOverlay v-else-if="showCountdown" @done="onCountdownDone" />
+
     <!-- Celebration Screen (after completing all blocks) -->
     <CelebrationScreen
       v-else-if="showCelebration"
@@ -87,6 +90,7 @@ import { useQuasar } from 'quasar'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import SplashScreen from '../components/player/SplashScreen.vue'
 import TransitionScreen from '../components/player/TransitionScreen.vue'
+import CountdownOverlay from '../components/player/CountdownOverlay.vue'
 import CelebrationScreen from '../components/player/CelebrationScreen.vue'
 import SessionSummary from '../components/player/SessionSummary.vue'
 import DeuterosSelector from '../components/DeuterosSelector.vue'
@@ -148,6 +152,7 @@ const transitionActionLabel = ref('Siguiente Bloque')
 // Completion flow state
 const showCelebration = ref(false)
 const showSummary = ref(false)
+const showCountdown = ref(false)
 const sessionStartedAt = ref<string | null>(null)
 
 // Session player composable (created when session changes, via shallowRef + watch
@@ -270,11 +275,19 @@ function onChangeDeuteros(): void {
 function onTransitionContinue(): void {
   showBlockTransition.value = false
 
-  // If transition was for session complete, show celebration
+  // If transition was for session complete, show celebration (no countdown)
   if (pendingCelebration.value) {
     pendingCelebration.value = false
     showCelebration.value = true
+    return
   }
+
+  // Show 3-2-1 countdown before next block
+  showCountdown.value = true
+}
+
+function onCountdownDone(): void {
+  showCountdown.value = false
 }
 
 const pendingCelebration = ref(false)
@@ -415,6 +428,7 @@ async function restartSession(): Promise<void> {
       showCelebration.value = false
       showSummary.value = false
       showBlockTransition.value = false
+      showCountdown.value = false
       pendingCelebration.value = false
       isInitialized.value = false
       await player.value.initialize()

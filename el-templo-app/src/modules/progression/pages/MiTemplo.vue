@@ -18,6 +18,34 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
+      <!-- Program/Premium card — top of page -->
+      <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
+
+      <template v-else-if="showUpsellBadge">
+        <div class="premium-carousel">
+          <div class="premium-carousel__dots">
+            <span
+              class="premium-carousel__dot"
+              :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
+            />
+            <span
+              class="premium-carousel__dot"
+              :class="{ 'premium-carousel__dot--active': premiumSlide === 1 }"
+            />
+          </div>
+          <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
+            <div class="premium-carousel__slide">
+              <UpsellBadge />
+            </div>
+            <div class="premium-carousel__slide">
+              <ProgramCtaCard :segment="userStore.segment" />
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <ProgramCtaCard v-else :segment="userStore.segment" />
+
       <!-- Check-in Cards — horizontal swipeable row (Phase 82) -->
       <template v-if="orderedCheckIns.length > 0">
         <p class="mi-templo__section-title">Registro del día</p>
@@ -43,36 +71,6 @@
           </button>
         </div>
       </template>
-
-      <!-- Program Progress (enrolled user) -->
-      <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
-
-      <!-- Premium cards: carousel when multiple, single when one -->
-      <template v-else-if="showUpsellBadge">
-        <div class="premium-carousel">
-          <div class="premium-carousel__dots">
-            <span
-              class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 0 }"
-            />
-            <span
-              class="premium-carousel__dot"
-              :class="{ 'premium-carousel__dot--active': premiumSlide === 1 }"
-            />
-          </div>
-          <div ref="premiumScroller" class="premium-carousel__scroller" @scroll="onPremiumScroll">
-            <div class="premium-carousel__slide">
-              <UpsellBadge />
-            </div>
-            <div class="premium-carousel__slide">
-              <ProgramCtaCard :segment="userStore.segment" />
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <!-- Single ProgramCtaCard for non-virtual users -->
-      <ProgramCtaCard v-else :segment="userStore.segment" />
 
       <!-- Weekly Summary -->
       <WeeklySummaryCard
@@ -359,9 +357,9 @@ onMounted(async () => {
 
   &__section-title {
     font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba($primary, 0.6);
+    font-size: 16px;
+    font-weight: 800;
+    color: $primary;
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin: -4px 0 -8px;

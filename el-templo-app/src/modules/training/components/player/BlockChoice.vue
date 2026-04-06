@@ -42,11 +42,10 @@
             {{ option.block.exercises.length }} ejercicios - {{ option.block.format }}
           </div>
         </div>
-        <!-- Selection indicator -->
+        <!-- Selection indicator — empty circle when unselected, filled when selected -->
         <q-icon
-          v-if="selected === option.id"
-          name="check_circle"
-          color="primary"
+          :name="selected === option.id ? 'check_circle' : 'radio_button_unchecked'"
+          :color="selected === option.id ? 'primary' : 'grey-5'"
           size="24px"
           class="selection-indicator"
         />
