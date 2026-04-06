@@ -460,6 +460,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           role: users.role,
           level: users.level,
           branchId: users.branchId,
+          gender: users.gender,
           isActive: users.isActive,
         })
         .from(users)
@@ -535,6 +536,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchName,
         branchIsVirtual,
         isActive: user.isActive,
+        gender: user.gender,
         segment,
         onboardingCompleted,
       };

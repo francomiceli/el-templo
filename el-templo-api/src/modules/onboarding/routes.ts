@@ -7,21 +7,26 @@
  * All routes require authentication.
  */
 
+import { eq } from "drizzle-orm";
 import { FastifyPluginAsync } from "fastify";
 import { OnboardingService, DuplicateOnboardingError } from "./service";
 import { AuraService } from "../aura/service";
+import { users } from "../../db/schema/users";
 import type {
-  GoalType,
-  ExperienceLevel,
-  TrainingFocus,
-  MotivationStyle,
+  AgeRange,
+  TrainingBackground,
+  GoalChoice,
+  PainPoint,
+  TrainingFrequency,
+  Gender,
 } from "./types";
 
 interface CompleteBody {
-  goalType: GoalType;
-  experienceLevel: ExperienceLevel;
-  trainingFocus: TrainingFocus;
-  motivationStyle: MotivationStyle;
+  ageRange: AgeRange;
+  trainingBackground: TrainingBackground;
+  goal: GoalChoice;
+  painPoint: PainPoint;
+  trainingFrequency: TrainingFrequency;
 }
 
 interface AnalyticsBody {
@@ -29,7 +34,8 @@ interface AnalyticsBody {
     | "quiz_started"
     | "question_answered"
     | "quiz_completed"
-    | "quiz_abandoned";
+    | "quiz_abandoned"
+    | "avatar_assigned";
   questionIndex?: number;
   answerValue?: string;
   durationMs?: number;
@@ -39,33 +45,48 @@ const completeSchema = {
   body: {
     type: "object",
     required: [
-      "goalType",
-      "experienceLevel",
-      "trainingFocus",
-      "motivationStyle",
+      "ageRange",
+      "trainingBackground",
+      "goal",
+      "painPoint",
+      "trainingFrequency",
     ],
     properties: {
-      goalType: {
+      ageRange: {
+        type: "string",
+        enum: ["18_28", "29_40", "41_plus"],
+      },
+      trainingBackground: {
+        type: "string",
+        enum: ["nunca", "gym", "cardio", "yoga_pilates", "calistenia", "deje"],
+      },
+      goal: {
         type: "string",
         enum: [
-          "muscle_up",
-          "fitness",
-          "weight_loss",
-          "flexibility",
-          "wellness",
+          "habito",
+          "fuerza_general",
+          "comunidad",
+          "piernas_gluteos",
+          "cuerpo_firme",
+          "cero_atleta",
+          "skill",
+          "longevidad",
         ],
       },
-      experienceLevel: {
+      painPoint: {
         type: "string",
-        enum: ["beginner", "intermediate", "advanced"],
+        enum: [
+          "tiempo",
+          "constancia",
+          "no_se_por_donde",
+          "ambiente",
+          "resultados",
+          "nada",
+        ],
       },
-      trainingFocus: {
+      trainingFrequency: {
         type: "string",
-        enum: ["upper_body", "lower_body", "core", "full_body"],
-      },
-      motivationStyle: {
-        type: "string",
-        enum: ["discipline", "community", "results", "challenges"],
+        enum: ["2", "3", "4", "5_plus"],
       },
     },
     additionalProperties: false,
@@ -84,10 +105,11 @@ const analyticsSchema = {
           "question_answered",
           "quiz_completed",
           "quiz_abandoned",
+          "avatar_assigned",
         ],
       },
-      questionIndex: { type: "integer", minimum: 0, maximum: 3 },
-      answerValue: { type: "string", maxLength: 50 },
+      questionIndex: { type: "integer", minimum: 0, maximum: 4 },
+      answerValue: { type: "string", maxLength: 100 },
       durationMs: { type: "integer", minimum: 0 },
     },
     additionalProperties: false,
@@ -111,15 +133,30 @@ export const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
     { schema: completeSchema },
     async (request, reply) => {
       const auraService = new AuraService(fastify.db);
-      const service = new OnboardingService(fastify.db, auraService);
+      const service = new OnboardingService(
+        fastify.db,
+        auraService,
+        request.log,
+      );
+
+      // T-90-02: Read gender from DB server-side, NOT from client body
+      const [userRow] = await fastify.db
+        .select({ gender: users.gender })
+        .from(users)
+        .where(eq(users.id, request.user.userId))
+        .limit(1);
+
+      const gender: Gender = userRow?.gender ?? "unspecified";
 
       try {
-        const result = await service.completeOnboarding({
+        const result = await service.completeOnboardingV2({
           userId: request.user.userId,
-          goalType: request.body.goalType,
-          experienceLevel: request.body.experienceLevel,
-          trainingFocus: request.body.trainingFocus,
-          motivationStyle: request.body.motivationStyle,
+          gender,
+          ageRange: request.body.ageRange,
+          trainingBackground: request.body.trainingBackground,
+          goal: request.body.goal,
+          painPoint: request.body.painPoint,
+          trainingFrequency: request.body.trainingFrequency,
         });
 
         return reply.code(201).send(result);
