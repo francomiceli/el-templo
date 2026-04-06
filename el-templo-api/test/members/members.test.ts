@@ -20,6 +20,7 @@ import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { memberProfiles } from "../../src/db/schema/member-profiles";
 
 describe("Members Management Routes", () => {
   let app: FastifyInstance;
@@ -1063,6 +1064,140 @@ describe("Members Management Routes", () => {
       expect(getRes.statusCode).toBe(200);
       const getBody = JSON.parse(getRes.body);
       expect(getBody.photoUrl).toBe(testUrl);
+    });
+  });
+
+  // =========================================================================
+  // avatarType filter and response field
+  // =========================================================================
+  describe("avatarType filter and response field", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("GET /members returns avatarType in list response", async () => {
+      const member = await createMember();
+
+      // Seed member_profiles with avatarType
+      await app.db.insert(memberProfiles).values({
+        userId: member.id,
+        avatarType: "B",
+        onboardingCompletedAt: new Date(),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      const found = body.members.find(
+        (m: Record<string, unknown>) => m.id === member.id,
+      );
+      expect(found).toBeDefined();
+      expect(found.avatarType).toBe("B");
+    });
+
+    it("GET /members?avatarType=B filters to matching members only", async () => {
+      const memberA = await createMember({
+        email: "avatar-a@test.com",
+        dni: "60111111",
+      });
+      const memberB = await createMember({
+        email: "avatar-b@test.com",
+        dni: "60222222",
+      });
+
+      await app.db.insert(memberProfiles).values({
+        userId: memberA.id,
+        avatarType: "A",
+        onboardingCompletedAt: new Date(),
+      });
+      await app.db.insert(memberProfiles).values({
+        userId: memberB.id,
+        avatarType: "B",
+        onboardingCompletedAt: new Date(),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?avatarType=B",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.members).toHaveLength(1);
+      expect(body.members[0].avatarType).toBe("B");
+      expect(body.members[0].id).toBe(memberB.id);
+    });
+
+    it("GET /members?avatarType=none filters to members without avatar", async () => {
+      const memberWithAvatar = await createMember({
+        email: "has-avatar@test.com",
+        dni: "60333333",
+      });
+      const memberWithout = await createMember({
+        email: "no-avatar@test.com",
+        dni: "60444444",
+      });
+
+      // Only memberWithAvatar gets an avatar
+      await app.db.insert(memberProfiles).values({
+        userId: memberWithAvatar.id,
+        avatarType: "A",
+        onboardingCompletedAt: new Date(),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?avatarType=none",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // memberWithout has no profile row, so no avatar_type
+      const ids = body.members.map((m: Record<string, unknown>) => m.id);
+      expect(ids).toContain(memberWithout.id);
+      expect(ids).not.toContain(memberWithAvatar.id);
+    });
+
+    it("GET /members/:id returns avatarType in detail response", async () => {
+      const member = await createMember();
+
+      await app.db.insert(memberProfiles).values({
+        userId: member.id,
+        avatarType: "K",
+        onboardingCompletedAt: new Date(),
+      });
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.avatarType).toBe("K");
+    });
+
+    it("GET /members/:id returns null avatarType when not set", async () => {
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.avatarType).toBeNull();
     });
   });
 });
