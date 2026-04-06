@@ -52,6 +52,7 @@ const subscriptionDetailSchema = {
     planId: { type: "integer" },
     planName: { type: "string" },
     planTier: { type: "string" },
+    planCategory: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
     status: { type: "string" },
