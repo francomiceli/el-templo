@@ -58,8 +58,23 @@ export interface MemberListItem {
   photoUrl: string | null;
   planName: string | null;
   segment: MemberSegment | null;
+  avatarType: string | null;
   createdAt: string;
 }
+
+export const AVATAR_LABELS: Record<string, string> = {
+  A: 'A - Nunca entreno',
+  B: 'B - Solo gym',
+  C: 'C - Dejo el gym',
+  D: 'D - Yogui/pilatera',
+  E: 'E - Cardio',
+  F: 'F - Pesas veterano',
+  G: 'G - Busca comunidad',
+  H: 'H - Longevidad',
+  I: 'I - Cuerpo-mente',
+  J: 'J - Cuerpo firme',
+  K: 'K - Mujer joven',
+};
 
 export interface OnboardingProfileSummary {
   goalType: string;
@@ -129,6 +144,7 @@ export interface MemberListParams {
   isActive?: boolean;
   overdue?: boolean;
   segment?: MemberSegment;
+  avatarType?: string;
   page?: number;
   limit?: number;
 }

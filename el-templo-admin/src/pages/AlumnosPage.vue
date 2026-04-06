@@ -90,6 +90,18 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <div class="col-6 col-sm-3 col-md-2">
+        <q-select
+          v-model="filters.avatarType"
+          :options="avatarFilterOptions"
+          label="Avatar"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
       <div class="col-12 col-sm-3 col-md-2">
         <div class="row no-wrap q-gutter-x-sm justify-end items-center">
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
@@ -245,6 +257,7 @@ const filters = reactive({
   level: null as string | null,
   isActive: true as boolean | null,
   segment: null as MemberSegment | null,
+  avatarType: null as string | null,
 });
 
 const tablePagination = ref({
@@ -297,6 +310,22 @@ const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }
   { label: 'En Riesgo', value: 'en_riesgo' },
   { label: 'Digital Warrior', value: 'digital_warrior' },
   { label: 'Ghost', value: 'ghost' },
+];
+
+const avatarFilterOptions: Array<{ label: string; value: string | null }> = [
+  { label: 'Todos', value: null },
+  { label: 'A - Nunca entreno', value: 'A' },
+  { label: 'B - Solo gym', value: 'B' },
+  { label: 'C - Dejo el gym', value: 'C' },
+  { label: 'D - Yogui/pilatera', value: 'D' },
+  { label: 'E - Cardio', value: 'E' },
+  { label: 'F - Pesas veterano', value: 'F' },
+  { label: 'G - Busca comunidad', value: 'G' },
+  { label: 'H - Longevidad', value: 'H' },
+  { label: 'I - Cuerpo-mente', value: 'I' },
+  { label: 'J - Cuerpo firme', value: 'J' },
+  { label: 'K - Mujer joven', value: 'K' },
+  { label: 'Sin avatar', value: 'none' },
 ];
 
 // =========================================================================
@@ -521,6 +550,7 @@ async function loadMembers() {
       level: filters.level ?? undefined,
       isActive: filters.isActive ?? undefined,
       segment: filters.segment ?? undefined,
+      avatarType: filters.avatarType ?? undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -557,6 +587,7 @@ async function onExport() {
       level: filters.level || undefined,
       isActive: filters.isActive ?? undefined,
       planId: filters.planId ?? undefined,
+      avatarType: filters.avatarType ?? undefined,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

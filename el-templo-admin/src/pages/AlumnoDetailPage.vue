@@ -68,6 +68,15 @@
                   Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
                 </q-tooltip>
               </q-badge>
+              <q-badge
+                v-if="memberProfile.avatarType"
+                color="primary"
+                :label="AVATAR_LABELS[memberProfile.avatarType] ?? memberProfile.avatarType"
+                outline
+                class="text-body2"
+              >
+                <q-tooltip>Avatar: {{ memberProfile.avatarType }}</q-tooltip>
+              </q-badge>
               <q-btn
                 flat
                 icon="edit"
@@ -248,7 +257,9 @@
             <!-- Goal Plan Progress -->
             <q-card flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Progreso Plan por Objetivos</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                  Progreso Plan por Objetivos
+                </div>
                 <div class="row q-gutter-md">
                   <div class="col">
                     <div class="text-center">
@@ -339,7 +350,9 @@
             <!-- Archived Goal Plans -->
             <q-card v-if="goalPlanDetail.archived.length > 0" flat bordered class="q-mb-md">
               <q-card-section>
-                <div class="text-subtitle1 text-weight-bold q-mb-sm">Planes por Objetivos Anteriores</div>
+                <div class="text-subtitle1 text-weight-bold q-mb-sm">
+                  Planes por Objetivos Anteriores
+                </div>
 
                 <q-list separator>
                   <q-item v-for="(arch, idx) in goalPlanDetail.archived" :key="idx">
@@ -399,7 +412,6 @@
         <q-tab-panel name="asistencia">
           <MemberAttendanceTab :userId="userId" />
         </q-tab-panel>
-
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -431,7 +443,7 @@ import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
-import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
+import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import {
   GOAL_PLAN_TYPE_LABELS,
   GOAL_PLAN_TIER_MAP,
@@ -535,14 +547,12 @@ function goalPlanLabel(goalPlanType: string): string {
 }
 
 function goalPlanBadgeColor(goalPlanType: string): string {
-  const tier: GoalPlanTier | undefined =
-    GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
+  const tier: GoalPlanTier | undefined = GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
   return tier ? GOAL_PLAN_TIER_COLORS[tier] : 'grey';
 }
 
 function goalPlanTierLabel(goalPlanType: string): string {
-  const tier: GoalPlanTier | undefined =
-    GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
+  const tier: GoalPlanTier | undefined = GOAL_PLAN_TIER_MAP[goalPlanType as GoalPlanType];
   return tier ? GOAL_PLAN_TIER_LABELS[tier] : '';
 }
 
