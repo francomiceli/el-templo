@@ -3,7 +3,7 @@
     <div class="glass-card">
       <h2 class="welcome-heading">Bienvenido, {{ firstName }}</h2>
       <p class="welcome-subtitle text-elegance">
-        Respond&eacute; 4 preguntas para personalizar tu experiencia
+        Respondé 5 preguntas para personalizar tu experiencia
       </p>
       <q-btn
         label="Empezar"

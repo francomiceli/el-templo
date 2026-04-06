@@ -13,7 +13,7 @@
 
       <h3 class="question-text">{{ question.text }}</h3>
 
-      <div class="options-stack">
+      <div :class="['options-stack', { 'options-stack--scrollable': scrollable }]">
         <button
           v-for="option in question.options"
           :key="option.value"
@@ -35,14 +35,17 @@
 </template>
 
 <script setup lang="ts">
-import type { QuizQuestion } from '../types'
+import { computed } from 'vue'
+import type { QuizQuestion, QuizQuestionV2 } from '../types'
 
-defineProps<{
-  question: QuizQuestion
+const props = defineProps<{
+  question: QuizQuestion | QuizQuestionV2
   questionIndex: number
   selectedValue: string | null
   showBack: boolean
 }>()
+
+const scrollable = computed(() => props.question.options.length > 5)
 
 const emit = defineEmits<{
   select: [value: string]
@@ -122,6 +125,26 @@ $charcoal-mid: #3d3732;
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  &--scrollable {
+    max-height: 360px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0px,
+      black 8px,
+      black calc(100% - 8px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0px,
+      black 8px,
+      black calc(100% - 8px),
+      transparent 100%
+    );
+  }
 }
 
 .option-btn {

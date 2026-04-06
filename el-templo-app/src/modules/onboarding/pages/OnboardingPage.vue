@@ -5,27 +5,28 @@
         <OnboardingBackground :logo-size="logoSize" />
 
         <div class="onboarding-page__content">
-          <!-- Progress dots (visible only during questions) -->
-          <OnboardingProgressDots v-if="step >= 1 && step <= 4" :current-step="step - 1" />
+          <!-- Progress dots (visible only during questions, NOT on recommendation) -->
+          <OnboardingProgressDots v-if="step >= 1 && step <= 5" :current-step="step - 1" />
 
           <!-- Screen transitions -->
           <div class="onboarding-page__screen-container">
             <Transition :name="transitionName" mode="out-in">
               <OnboardingWelcome v-if="step === 0" :key="0" @start="onStart" />
               <OnboardingQuestion
-                v-else-if="step >= 1 && step <= 4"
+                v-else-if="step >= 1 && step <= 5"
                 :key="step"
-                :question="QUIZ_QUESTIONS[step - 1]"
+                :question="filteredQuestions[step - 1]"
                 :question-index="step - 1"
                 :selected-value="currentAnswer"
                 :show-back="step > 1"
                 @select="onSelect"
                 @back="onBack"
               />
-              <OnboardingResult
-                v-else-if="step === 5"
-                :key="5"
-                :answers="answers"
+              <OnboardingRecommendation
+                v-else-if="step === 6"
+                :key="6"
+                :program-name="recommendationResult?.programName ?? ''"
+                :program-description="recommendationResult?.programDescription ?? ''"
                 :aura-awarded="auraAwarded"
                 :submitting="submitting"
                 @enter="onEnter"
@@ -43,37 +44,50 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from 'src/stores/useUserStore'
 import { useOnboardingApi } from '../composables/useOnboardingApi'
-import { QUIZ_QUESTIONS } from '../types'
+import {
+  QUIZ_QUESTIONS_V2,
+  Q3_UNIVERSAL_OPTIONS,
+  Q3_WOMEN_OPTIONS,
+  Q3_MEN_OPTIONS,
+  Q3_41PLUS_OPTION,
+  PROGRAM_RECOMMENDATIONS,
+} from '../types'
 import type {
-  OnboardingAnswers,
-  GoalType,
-  ExperienceLevel,
-  TrainingFocus,
-  MotivationStyle,
+  OnboardingAnswersV2,
+  AgeRange,
+  TrainingBackground,
+  GoalChoice,
+  PainPoint,
+  TrainingFrequency,
 } from '../types'
 import OnboardingBackground from '../components/OnboardingBackground.vue'
 import OnboardingProgressDots from '../components/OnboardingProgressDots.vue'
 import OnboardingWelcome from '../components/OnboardingWelcome.vue'
 import OnboardingQuestion from '../components/OnboardingQuestion.vue'
-import OnboardingResult from '../components/OnboardingResult.vue'
+import OnboardingRecommendation from '../components/OnboardingRecommendation.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
-const { submitting, submitOnboarding, recordAnalytics } = useOnboardingApi()
+const { submitting, submitOnboardingV2, recordAnalytics } = useOnboardingApi()
 
 // =========================================================================
-// State machine: 0=welcome, 1-4=questions, 5=result
+// State machine: 0=welcome, 1-5=questions, 6=recommendation
 // =========================================================================
 const step = ref(0)
 const direction = ref<'forward' | 'backward'>('forward')
-const answers = ref<OnboardingAnswers>({
-  goalType: null,
-  experienceLevel: null,
-  trainingFocus: null,
-  motivationStyle: null,
+const answers = ref<OnboardingAnswersV2>({
+  ageRange: null,
+  trainingBackground: null,
+  goal: null,
+  painPoint: null,
+  trainingFrequency: null,
 })
 const auraAwarded = ref(0)
 const isExiting = ref(false)
+const recommendationResult = ref<{
+  programName: string
+  programDescription: string
+} | null>(null)
 
 // Analytics timing
 const quizStartTime = ref<number | null>(null)
@@ -84,7 +98,7 @@ const stepStartTime = ref<number>(Date.now())
 // =========================================================================
 const logoSize = computed(() => {
   if (step.value === 0) return 150
-  if (step.value === 5) return 120
+  if (step.value === 6) return 120
   return 80
 })
 
@@ -93,9 +107,41 @@ const transitionName = computed(() => {
 })
 
 const currentAnswer = computed(() => {
-  if (step.value < 1 || step.value > 4) return null
-  const key = QUIZ_QUESTIONS[step.value - 1].key
+  if (step.value < 1 || step.value > 5) return null
+  const key = QUIZ_QUESTIONS_V2[step.value - 1].key
   return answers.value[key]
+})
+
+// Q3 gender filtering (per D-06, D-09)
+const filteredQuestions = computed(() => {
+  const userGender = userStore.profile?.gender ?? 'unspecified'
+  const userAgeRange = answers.value.ageRange
+
+  return QUIZ_QUESTIONS_V2.map((q) => {
+    if (!q.genderFiltered) return q
+
+    // Q3: filter options by gender + age
+    const allowedValues = [...Q3_UNIVERSAL_OPTIONS]
+
+    if (userGender === 'female') {
+      allowedValues.push(...Q3_WOMEN_OPTIONS)
+    } else if (userGender === 'male') {
+      allowedValues.push(...Q3_MEN_OPTIONS)
+    } else {
+      // 'other' or 'unspecified': show ALL options (per D-06)
+      allowedValues.push(...Q3_WOMEN_OPTIONS, ...Q3_MEN_OPTIONS)
+    }
+
+    // 41+ sees longevidad regardless of gender
+    if (userAgeRange === '41_plus') {
+      allowedValues.push(Q3_41PLUS_OPTION)
+    }
+
+    return {
+      ...q,
+      options: q.options.filter((opt) => allowedValues.includes(opt.value)),
+    }
+  })
 })
 
 // =========================================================================
@@ -111,22 +157,25 @@ function onStart() {
 
 function onSelect(value: string) {
   const questionIndex = step.value - 1
-  const questionKey = QUIZ_QUESTIONS[questionIndex].key
+  const questionKey = QUIZ_QUESTIONS_V2[questionIndex].key
   const durationMs = Date.now() - stepStartTime.value
 
   // Update the answer
   switch (questionKey) {
-    case 'goalType':
-      answers.value.goalType = value as GoalType
+    case 'ageRange':
+      answers.value.ageRange = value as AgeRange
       break
-    case 'experienceLevel':
-      answers.value.experienceLevel = value as ExperienceLevel
+    case 'trainingBackground':
+      answers.value.trainingBackground = value as TrainingBackground
       break
-    case 'trainingFocus':
-      answers.value.trainingFocus = value as TrainingFocus
+    case 'goal':
+      answers.value.goal = value as GoalChoice
       break
-    case 'motivationStyle':
-      answers.value.motivationStyle = value as MotivationStyle
+    case 'painPoint':
+      answers.value.painPoint = value as PainPoint
+      break
+    case 'trainingFrequency':
+      answers.value.trainingFrequency = value as TrainingFrequency
       break
   }
 
@@ -138,11 +187,16 @@ function onSelect(value: string) {
     durationMs,
   })
 
-  // Auto-advance after 400ms delay (D-03)
+  // Auto-advance after 400ms delay
   direction.value = 'forward'
   setTimeout(() => {
-    step.value = step.value + 1
-    stepStartTime.value = Date.now()
+    if (step.value === 5) {
+      // Last question — submit and go to recommendation
+      onSubmit()
+    } else {
+      step.value = step.value + 1
+      stepStartTime.value = Date.now()
+    }
   }, 400)
 }
 
@@ -153,23 +207,39 @@ function onBack() {
   stepStartTime.value = Date.now()
 }
 
-async function onEnter() {
-  const result = await submitOnboarding(answers.value)
-  if (!result) return // Error handled by composable (Notify shown)
+async function onSubmit() {
+  const result = await submitOnboardingV2(answers.value)
+  if (!result) return // Error shown by composable Notify
 
   auraAwarded.value = result.auraAwarded
 
-  // Record completion analytics
+  // Get program recommendation
+  const program = PROGRAM_RECOMMENDATIONS[result.profile.suggestedProgram]
+  recommendationResult.value = {
+    programName: program?.name ?? result.profile.suggestedProgram,
+    programDescription: program?.description ?? '',
+  }
+
+  // Record completion analytics with total duration (per D-22)
   const totalDurationMs = quizStartTime.value ? Date.now() - quizStartTime.value : 0
+  recordAnalytics({ eventType: 'quiz_completed', durationMs: totalDurationMs })
+
+  // Record avatar_assigned event (per D-23)
   recordAnalytics({
-    eventType: 'quiz_completed',
-    durationMs: totalDurationMs,
+    eventType: 'avatar_assigned',
+    answerValue: result.profile.avatarType,
   })
 
+  // Advance to recommendation screen
+  direction.value = 'forward'
+  step.value = 6
+}
+
+async function onEnter() {
   // Mark onboarding complete in local state
   userStore.markOnboardingComplete()
 
-  // Exit animation (800ms fade, matching LoginPage)
+  // Exit animation (800ms fade)
   isExiting.value = true
   await new Promise((resolve) => setTimeout(resolve, 800))
   router.replace({ name: 'home' })
@@ -246,5 +316,21 @@ $charcoal: #2e2a26;
 .slide-right-leave-to {
   transform: translateX(100%);
   opacity: 0;
+}
+
+// =========================================================================
+// Accessibility: reduced motion
+// =========================================================================
+@media (prefers-reduced-motion: reduce) {
+  .slide-left-enter-active,
+  .slide-left-leave-active,
+  .slide-right-enter-active,
+  .slide-right-leave-active {
+    transition: none;
+  }
+
+  .onboarding-page {
+    transition: none;
+  }
 }
 </style>

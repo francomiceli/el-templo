@@ -29,7 +29,7 @@ withDefaults(
     totalSteps?: number
   }>(),
   {
-    totalSteps: 4,
+    totalSteps: 5,
   },
 )
 </script>
