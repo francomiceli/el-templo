@@ -47,6 +47,7 @@ export class MemberService {
       isActive,
       planId,
       segment,
+      avatarType,
       page,
       limit,
     } = params;
@@ -124,6 +125,26 @@ export class MemberService {
       );
     }
 
+    // Avatar type filter: filter by avatar type from member_profiles
+    if (avatarType !== undefined) {
+      if (avatarType === "none") {
+        // "Sin avatar" filter — members with no avatar
+        conditions.push(
+          sql`NOT EXISTS (
+            SELECT 1 FROM member_profiles mp
+            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+          )`,
+        );
+      } else {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM member_profiles mp
+            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
+          )`,
+        );
+      }
+    }
+
     const whereClause = and(...conditions);
 
     // Get total count
@@ -148,6 +169,12 @@ export class MemberService {
       WHERE mp.user_id = users.id LIMIT 1
     )`;
 
+    // Subquery: avatar type from member_profiles
+    const avatarTypeSubquery = sql<string | null>`(
+      SELECT mp.avatar_type FROM member_profiles mp
+      WHERE mp.user_id = users.id LIMIT 1
+    )`;
+
     // Get paginated members with branch join and plan name
     const rows = await this.db
       .select({
@@ -166,6 +193,7 @@ export class MemberService {
         createdAt: schema.users.createdAt,
         planName: planNameSubquery,
         segment: segmentSubquery,
+        avatarType: avatarTypeSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -189,6 +217,7 @@ export class MemberService {
       isActive: r.isActive,
       planName: r.planName ?? null,
       segment: r.segment ?? null,
+      avatarType: r.avatarType ?? null,
       createdAt: r.createdAt.toISOString(),
     }));
 
@@ -427,7 +456,15 @@ export class MemberService {
   async exportMembers(
     params: Omit<MemberListParams, "page" | "limit">,
   ): Promise<MemberExportRow[]> {
-    const { search, branchId, multiBranch, level, isActive, planId } = params;
+    const {
+      search,
+      branchId,
+      multiBranch,
+      level,
+      isActive,
+      planId,
+      avatarType,
+    } = params;
 
     const conditions: ReturnType<typeof eq>[] = [];
 
@@ -480,6 +517,25 @@ export class MemberService {
           sql`EXISTS (
             SELECT 1 FROM subscriptions s
             WHERE s.user_id = users.id AND s.subscription_status IN ('active','paused') AND s.plan_id = ${planId}
+          )`,
+        );
+      }
+    }
+
+    // Avatar type filter: filter by avatar type from member_profiles
+    if (avatarType !== undefined) {
+      if (avatarType === "none") {
+        conditions.push(
+          sql`NOT EXISTS (
+            SELECT 1 FROM member_profiles mp
+            WHERE mp.user_id = users.id AND mp.avatar_type IS NOT NULL
+          )`,
+        );
+      } else {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM member_profiles mp
+            WHERE mp.user_id = users.id AND mp.avatar_type = ${avatarType}
           )`,
         );
       }

@@ -23,6 +23,7 @@ const memberListItemSchema = {
     isActive: { type: "boolean" },
     planName: { type: ["string", "null"] },
     segment: { type: ["string", "null"] },
+    avatarType: { type: ["string", "null"] },
     createdAt: { type: "string" },
   },
 } as const;
@@ -66,6 +67,7 @@ const memberProfileSchema = {
     isActive: { type: "boolean" },
     segment: { type: ["string", "null"] },
     segmentUpdatedAt: { type: ["string", "null"] },
+    avatarType: { type: ["string", "null"] },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
     onboardingProfile: onboardingProfileSchema,
@@ -121,6 +123,7 @@ export const listMembersSchema = {
           "ghost",
         ],
       },
+      avatarType: { type: "string" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -182,7 +185,10 @@ export const createMemberSchema = {
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
       dateOfBirth: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
-      gender: { type: "string", enum: ["male", "female", "other", "unspecified"] },
+      gender: {
+        type: "string",
+        enum: ["male", "female", "other", "unspecified"],
+      },
       emergencyContactName: { type: "string" },
       emergencyContactPhone: { type: "string" },
       emergencyContactRelationship: { type: "string" },
@@ -295,6 +301,7 @@ export const exportMembersSchema = {
       },
       isActive: { type: "boolean" },
       planId: { type: "integer" },
+      avatarType: { type: "string" },
     },
   },
   // No response schema -- binary file response

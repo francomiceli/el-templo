@@ -133,6 +133,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level?: string;
       isActive?: boolean;
       planId?: number;
+      avatarType?: string;
     };
   }>("/export", { schema: exportMembersSchema }, async (request, reply) => {
     const rows = await memberService.exportMembers({
@@ -142,6 +143,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       level: request.query.level,
       isActive: request.query.isActive,
       planId: request.query.planId,
+      avatarType: request.query.avatarType,
     });
 
     const workbook = new Workbook();
@@ -204,6 +206,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       isActive?: boolean;
       planId?: number;
       segment?: string;
+      avatarType?: string;
       page?: number;
       limit?: number;
     };
@@ -216,6 +219,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       isActive,
       planId,
       segment,
+      avatarType,
       page = 1,
       limit = 20,
     } = request.query;
@@ -228,6 +232,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       isActive,
       planId,
       segment,
+      avatarType,
       page,
       limit,
     };
@@ -248,11 +253,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
-      // Fetch segment + onboarding data from member_profiles
+      // Fetch segment + onboarding + avatar data from member_profiles
       const [profile] = await fastify.db
         .select({
           segment: memberProfiles.segment,
           segmentUpdatedAt: memberProfiles.segmentUpdatedAt,
+          avatarType: memberProfiles.avatarType,
           goalType: memberProfiles.goalType,
           experienceLevel: memberProfiles.experienceLevel,
           trainingFocus: memberProfiles.trainingFocus,
@@ -281,6 +287,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         ...member,
         segment: profile?.segment ?? null,
         segmentUpdatedAt: profile?.segmentUpdatedAt?.toISOString() ?? null,
+        avatarType: profile?.avatarType ?? null,
         onboardingProfile,
       };
     },
@@ -364,12 +371,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         request.log.error({ err }, "Error creating member");
-        return reply
-          .code(500)
-          .send({
-            error: "Error del servidor",
-            message: "Error al crear miembro",
-          });
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Error al crear miembro",
+        });
       }
     },
   );
