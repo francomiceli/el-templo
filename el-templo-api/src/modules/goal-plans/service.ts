@@ -121,50 +121,77 @@ export class GoalPlanService {
   }
 
   // ─── Goal Plan Lifecycle Methods ────────────────────────────────────────
+  // Uses program_enrollments + programs tables instead of the old member_goal_plans.
+  // A "goal plan" is a program enrollment where the linked program has a goalPlanType.
 
   /**
    * Get the active goal plan for a user, or null if none is active.
+   * Queries program_enrollments joined with programs where goalPlanType is set.
    */
   async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
-    const [goalPlan] = await this.db
-      .select()
-      .from(schema.memberGoalPlans)
+    const [enrollment] = await this.db
+      .select({
+        goalPlanType: schema.programs.goalPlanType,
+        enrolledAt: schema.programEnrollments.enrolledAt,
+      })
+      .from(schema.programEnrollments)
+      .innerJoin(
+        schema.programs,
+        eq(schema.programs.id, schema.programEnrollments.programId),
+      )
       .where(
         and(
-          eq(schema.memberGoalPlans.userId, userId),
-          eq(schema.memberGoalPlans.isActive, true),
+          eq(schema.programEnrollments.userId, userId),
+          eq(schema.programEnrollments.status, "active"),
+          sql`${schema.programs.goalPlanType} IS NOT NULL`,
         ),
-      );
+      )
+      .limit(1);
 
-    if (!goalPlan) return null;
+    if (!enrollment || !enrollment.goalPlanType) return null;
 
     return {
-      goalPlanType: goalPlan.goalPlanType as GoalPlanType,
-      isActive: goalPlan.isActive,
-      startedAt: goalPlan.startedAt.toISOString(),
+      goalPlanType: enrollment.goalPlanType as GoalPlanType,
+      isActive: true,
+      startedAt: enrollment.enrolledAt.toISOString(),
     };
   }
 
   /**
-   * Get all archived goal plans for a user.
+   * Get all archived (non-active) goal plan enrollments for a user.
    */
   async getArchivedGoalPlans(userId: number): Promise<ArchivedGoalPlan[]> {
-    const goalPlans = await this.db
-      .select()
-      .from(schema.memberGoalPlans)
+    const enrollments = await this.db
+      .select({
+        goalPlanType: schema.programs.goalPlanType,
+        enrolledAt: schema.programEnrollments.enrolledAt,
+        completedAt: schema.programEnrollments.completedAt,
+        expiredAt: schema.programEnrollments.expiredAt,
+        cancelledAt: schema.programEnrollments.cancelledAt,
+      })
+      .from(schema.programEnrollments)
+      .innerJoin(
+        schema.programs,
+        eq(schema.programs.id, schema.programEnrollments.programId),
+      )
       .where(
         and(
-          eq(schema.memberGoalPlans.userId, userId),
-          eq(schema.memberGoalPlans.isActive, false),
+          eq(schema.programEnrollments.userId, userId),
+          sql`${schema.programEnrollments.status} != 'active'`,
+          sql`${schema.programs.goalPlanType} IS NOT NULL`,
         ),
       )
-      .orderBy(desc(schema.memberGoalPlans.archivedAt));
+      .orderBy(desc(schema.programEnrollments.completedAt));
 
-    return goalPlans.map((p) => ({
-      goalPlanType: p.goalPlanType as GoalPlanType,
-      startedAt: p.startedAt.toISOString(),
-      archivedAt: p.archivedAt?.toISOString() ?? new Date().toISOString(),
-    }));
+    return enrollments
+      .filter((e) => e.goalPlanType !== null)
+      .map((e) => ({
+        goalPlanType: e.goalPlanType as GoalPlanType,
+        startedAt: e.enrolledAt.toISOString(),
+        archivedAt:
+          (e.completedAt ?? e.expiredAt ?? e.cancelledAt)?.toISOString() ??
+          new Date().toISOString(),
+      }));
   }
 
   /**
@@ -172,18 +199,27 @@ export class GoalPlanService {
    * Returns null if no active goal plan or no goal plan subscription.
    */
   async getCycleStats(userId: number): Promise<CycleStats | null> {
-    // Step 1: Get active goal plan (has startedAt + goalPlanType)
-    const [goalPlan] = await this.db
-      .select()
-      .from(schema.memberGoalPlans)
+    // Step 1: Get active enrollment with goal plan type
+    const [enrollment] = await this.db
+      .select({
+        goalPlanType: schema.programs.goalPlanType,
+        enrolledAt: schema.programEnrollments.enrolledAt,
+      })
+      .from(schema.programEnrollments)
+      .innerJoin(
+        schema.programs,
+        eq(schema.programs.id, schema.programEnrollments.programId),
+      )
       .where(
         and(
-          eq(schema.memberGoalPlans.userId, userId),
-          eq(schema.memberGoalPlans.isActive, true),
+          eq(schema.programEnrollments.userId, userId),
+          eq(schema.programEnrollments.status, "active"),
+          sql`${schema.programs.goalPlanType} IS NOT NULL`,
         ),
-      );
+      )
+      .limit(1);
 
-    if (!goalPlan) return null;
+    if (!enrollment || !enrollment.goalPlanType) return null;
 
     // Step 2: Get the member's active goal plan subscription to get durationDays
     const [sub] = await this.db
@@ -211,7 +247,7 @@ export class GoalPlanService {
     const cycleWeeks = Math.ceil(durationDays / 7);
 
     // Step 3: Calculate cycle end date and current week
-    const startedAt = goalPlan.startedAt; // Date object from DB
+    const startedAt = enrollment.enrolledAt;
     const cycleEndDate = new Date(
       startedAt.getTime() + durationDays * 24 * 60 * 60 * 1000,
     );
@@ -234,7 +270,7 @@ export class GoalPlanService {
       .where(
         and(
           eq(schema.completedSessions.userId, userId),
-          eq(schema.completedSessions.goalPlanType, goalPlan.goalPlanType),
+          eq(schema.completedSessions.goalPlanType, enrollment.goalPlanType),
           sql`${schema.completedSessions.date} >= ${startDateStr}`,
           sql`${schema.completedSessions.date} <= ${endDateStr}`,
         ),
@@ -246,45 +282,6 @@ export class GoalPlanService {
       cycleEndDate: cycleEndDate.toISOString(),
       totalCompletions: completions.length,
       cycleComplete,
-    };
-  }
-
-  /**
-   * Select a new goal plan for a user.
-   * If the user has an existing active goal plan, archive it first.
-   */
-  async selectGoalPlan(
-    userId: number,
-    goalPlanType: GoalPlanType,
-  ): Promise<GoalPlanProgress> {
-    // Archive any existing active goal plan
-    const existingActive = await this.getActiveGoalPlan(userId);
-    if (existingActive) {
-      await this.db
-        .update(schema.memberGoalPlans)
-        .set({
-          isActive: false,
-          archivedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(schema.memberGoalPlans.userId, userId),
-            eq(schema.memberGoalPlans.isActive, true),
-          ),
-        );
-    }
-
-    // Create new active goal plan
-    await this.db.insert(schema.memberGoalPlans).values({
-      userId,
-      goalPlanType,
-      isActive: true,
-    });
-
-    return {
-      goalPlanType,
-      isActive: true,
-      startedAt: new Date().toISOString(),
     };
   }
 

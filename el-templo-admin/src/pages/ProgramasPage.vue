@@ -27,7 +27,10 @@
           <q-badge
             v-if="props.row.goalPlanType"
             :color="GOAL_PLAN_TYPE_COLORS[props.row.goalPlanType] ?? 'grey'"
-            :label="GOAL_PLAN_TYPE_LABELS[props.row.goalPlanType as GoalPlanType] ?? props.row.goalPlanType"
+            :label="
+              GOAL_PLAN_TYPE_LABELS[props.row.goalPlanType as GoalPlanType] ??
+              props.row.goalPlanType
+            "
           />
           <q-badge v-else color="grey" label="Contenido" />
         </q-td>
@@ -58,14 +61,7 @@
       <!-- Actions column -->
       <template #body-cell-acciones="props">
         <q-td :props="props">
-          <q-btn
-            flat
-            dense
-            round
-            icon="edit"
-            color="primary"
-            @click="openEditDialog(props.row)"
-          >
+          <q-btn flat dense round icon="edit" color="primary" @click="openEditDialog(props.row)">
             <q-tooltip>Editar</q-tooltip>
           </q-btn>
           <q-btn
@@ -110,7 +106,7 @@ import {
   GOAL_PLAN_TYPE_COLORS,
   type GoalPlanType,
 } from 'src/types/goal-plan';
-import type { MicroProgram, MicroProgramDetail } from 'src/types/program';
+import type { Program, ProgramDetail } from 'src/types/program';
 import ProgramWizardDialog from 'src/components/ProgramWizardDialog.vue';
 
 const log = createLogger('ProgramasPage');
@@ -121,10 +117,10 @@ const programsApi = useProgramsApi();
 // State
 // =========================================================================
 
-const programs = ref<MicroProgram[]>([]);
+const programs = ref<Program[]>([]);
 const loading = ref(false);
 const showDialog = ref(false);
-const editingProgram = ref<MicroProgramDetail | null>(null);
+const editingProgram = ref<ProgramDetail | null>(null);
 
 // =========================================================================
 // Table columns
@@ -206,7 +202,7 @@ function openCreateDialog() {
   showDialog.value = true;
 }
 
-async function openEditDialog(program: MicroProgram) {
+async function openEditDialog(program: Program) {
   try {
     const detail = await programsApi.getProgramDetail(program.id);
     editingProgram.value = detail;
@@ -218,7 +214,7 @@ async function openEditDialog(program: MicroProgram) {
   }
 }
 
-function confirmDeactivate(program: MicroProgram) {
+function confirmDeactivate(program: Program) {
   $q.dialog({
     title: 'Desactivar programa',
     message: `Desactivar "${program.name}"? Las inscripciones activas continuaran pero no se podran crear nuevas.`,

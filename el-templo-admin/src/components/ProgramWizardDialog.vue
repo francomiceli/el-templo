@@ -69,18 +69,8 @@
         <!-- ============================================================ -->
         <!-- Step 2: Pricing & Config -->
         <!-- ============================================================ -->
-        <q-step :name="2" title="Precio y Configuracion" icon="settings" :done="step > 2">
+        <q-step :name="2" title="Configuracion" icon="settings" :done="step > 2">
           <div class="q-gutter-sm">
-            <q-input
-              v-model.number="form.price"
-              label="Precio (ARS) *"
-              type="number"
-              dense
-              outlined
-              prefix="$"
-              :rules="[requiredNumberRule('Precio')]"
-            />
-
             <div class="row q-col-gutter-sm">
               <div class="col-12 col-sm-6">
                 <q-input
@@ -338,10 +328,6 @@
                   <span class="col text-grey-6">Contenido</span>
                 </div>
                 <div class="row">
-                  <span class="text-weight-medium col-4">Precio:</span>
-                  <span class="col">${{ (form.price ?? 0).toLocaleString() }}</span>
-                </div>
-                <div class="row">
                   <span class="text-weight-medium col-4">Duracion:</span>
                   <span class="col">{{ form.durationWeeks }} semanas</span>
                 </div>
@@ -393,8 +379,8 @@ import { useProgramsApi } from 'src/composables/useProgramsApi';
 import {
   BLOCK_TYPE_LABELS,
   BLOCK_TYPE_COLORS,
-  type MicroProgram,
-  type MicroProgramDetail,
+  type Program,
+  type ProgramDetail,
   type ContentBlockInput,
   type ContentBlockType,
 } from 'src/types/program';
@@ -410,7 +396,7 @@ const programsApi = useProgramsApi();
 
 const props = defineProps<{
   modelValue: boolean;
-  editingProgram: MicroProgramDetail | null;
+  editingProgram: ProgramDetail | null;
 }>();
 
 const emit = defineEmits<{
@@ -431,7 +417,6 @@ const form = ref({
   name: '',
   description: '',
   goalPlanType: null as string | null,
-  price: null as number | null,
   durationWeeks: null as number | null,
   sessionsPerWeekToAdvance: 3,
   auraWeeklyBonus: 15,
@@ -497,8 +482,6 @@ function isWeekReadOnly(week: number): boolean {
 const isFormValid = computed(() => {
   return (
     form.value.name.trim().length > 0 &&
-    form.value.price !== null &&
-    form.value.price >= 0 &&
     form.value.durationWeeks !== null &&
     form.value.durationWeeks >= 1 &&
     form.value.durationWeeks <= 52 &&
@@ -655,7 +638,6 @@ watch(
         description: props.editingProgram.description ?? '',
         goalPlanType:
           ((props.editingProgram as Record<string, unknown>).goalPlanType as string | null) ?? null,
-        price: props.editingProgram.price,
         durationWeeks: props.editingProgram.durationWeeks,
         sessionsPerWeekToAdvance: props.editingProgram.sessionsPerWeekToAdvance,
         auraWeeklyBonus: props.editingProgram.auraWeeklyBonus,
@@ -677,7 +659,6 @@ watch(
         name: '',
         description: '',
         goalPlanType: null,
-        price: null,
         durationWeeks: null,
         sessionsPerWeekToAdvance: 3,
         auraWeeklyBonus: 15,
@@ -703,11 +684,10 @@ async function onSubmit() {
         name: form.value.name,
         description: form.value.description || null,
         goalPlanType: form.value.goalPlanType,
-        price: form.value.price!,
         sessionsPerWeekToAdvance: form.value.sessionsPerWeekToAdvance,
         auraWeeklyBonus: form.value.auraWeeklyBonus,
         auraCompletionBonus: form.value.auraCompletionBonus,
-      } as Partial<MicroProgram> & { goalPlanType?: string | null });
+      } as Partial<Program> & { goalPlanType?: string | null });
 
       // Update content blocks
       if (contentBlocks.value.length > 0) {
@@ -718,7 +698,6 @@ async function onSubmit() {
       await programsApi.createProgram({
         name: form.value.name,
         description: form.value.description || null,
-        price: form.value.price!,
         durationWeeks: form.value.durationWeeks!,
         sessionsPerWeekToAdvance: form.value.sessionsPerWeekToAdvance,
         auraWeeklyBonus: form.value.auraWeeklyBonus,

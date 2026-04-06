@@ -4,8 +4,8 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
 import {
-  microPrograms,
-  microProgramContentBlocks,
+  programs,
+  programContentBlocks,
   programEnrollments,
   exercises,
 } from "../../db/schema";
@@ -15,10 +15,9 @@ import type {
   CreateProgramInput,
   UpdateProgramInput,
   ContentBlockInput,
-  MicroProgram,
-  MicroProgramDetail,
+  Program,
+  ProgramDetail,
   ContentBlockDetail,
-  EnrollMemberInput,
   ProgramEnrollment,
   MemberProgramCatalogItem,
   MemberEnrollmentProgress,
@@ -43,10 +42,9 @@ export class ProgramsService {
    */
   async createProgram(input: CreateProgramInput): Promise<number> {
     return await this.db.transaction(async (tx) => {
-      const [result] = await tx.insert(microPrograms).values({
+      const [result] = await tx.insert(programs).values({
         name: input.name,
         description: input.description,
-        price: input.price,
         durationWeeks: input.durationWeeks,
         sessionsPerWeekToAdvance: input.sessionsPerWeekToAdvance,
         goalPlanType: input.goalPlanType ?? null,
@@ -57,7 +55,7 @@ export class ProgramsService {
       const programId = result.insertId;
 
       if (input.contentBlocks.length > 0) {
-        await tx.insert(microProgramContentBlocks).values(
+        await tx.insert(programContentBlocks).values(
           input.contentBlocks.map((block) => ({
             programId,
             weekNumber: block.weekNumber,
@@ -80,22 +78,21 @@ export class ProgramsService {
    * List all programs (active and inactive) ordered by creation date DESC.
    * Admin sees all.
    */
-  async listPrograms(): Promise<MicroProgram[]> {
+  async listPrograms(): Promise<Program[]> {
     const rows = await this.db
       .select({
-        id: microPrograms.id,
-        name: microPrograms.name,
-        description: microPrograms.description,
-        price: microPrograms.price,
-        durationWeeks: microPrograms.durationWeeks,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
-        auraWeeklyBonus: microPrograms.auraWeeklyBonus,
-        auraCompletionBonus: microPrograms.auraCompletionBonus,
-        isActive: microPrograms.isActive,
-        createdAt: microPrograms.createdAt,
+        id: programs.id,
+        name: programs.name,
+        description: programs.description,
+        durationWeeks: programs.durationWeeks,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+        auraWeeklyBonus: programs.auraWeeklyBonus,
+        auraCompletionBonus: programs.auraCompletionBonus,
+        isActive: programs.isActive,
+        createdAt: programs.createdAt,
       })
-      .from(microPrograms)
-      .orderBy(desc(microPrograms.createdAt));
+      .from(programs)
+      .orderBy(desc(programs.createdAt));
 
     return rows.map((r) => ({
       ...r,
@@ -109,25 +106,22 @@ export class ProgramsService {
    * Get program detail with content blocks and active enrollment count.
    * For exercise-type blocks, joins exercises table to get name and video URL.
    */
-  async getProgramDetail(
-    programId: number,
-  ): Promise<MicroProgramDetail | null> {
+  async getProgramDetail(programId: number): Promise<ProgramDetail | null> {
     // Fetch the program
     const programRows = await this.db
       .select({
-        id: microPrograms.id,
-        name: microPrograms.name,
-        description: microPrograms.description,
-        price: microPrograms.price,
-        durationWeeks: microPrograms.durationWeeks,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
-        auraWeeklyBonus: microPrograms.auraWeeklyBonus,
-        auraCompletionBonus: microPrograms.auraCompletionBonus,
-        isActive: microPrograms.isActive,
-        createdAt: microPrograms.createdAt,
+        id: programs.id,
+        name: programs.name,
+        description: programs.description,
+        durationWeeks: programs.durationWeeks,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+        auraWeeklyBonus: programs.auraWeeklyBonus,
+        auraCompletionBonus: programs.auraCompletionBonus,
+        isActive: programs.isActive,
+        createdAt: programs.createdAt,
       })
-      .from(microPrograms)
-      .where(eq(microPrograms.id, programId));
+      .from(programs)
+      .where(eq(programs.id, programId));
 
     if (programRows.length === 0) return null;
 
@@ -136,27 +130,21 @@ export class ProgramsService {
     // Fetch content blocks with exercise join
     const blockRows = await this.db
       .select({
-        id: microProgramContentBlocks.id,
-        weekNumber: microProgramContentBlocks.weekNumber,
-        sortOrder: microProgramContentBlocks.sortOrder,
-        blockType: microProgramContentBlocks.blockType,
-        title: microProgramContentBlocks.title,
-        content: microProgramContentBlocks.content,
-        videoUrl: microProgramContentBlocks.videoUrl,
-        exerciseId: microProgramContentBlocks.exerciseId,
+        id: programContentBlocks.id,
+        weekNumber: programContentBlocks.weekNumber,
+        sortOrder: programContentBlocks.sortOrder,
+        blockType: programContentBlocks.blockType,
+        title: programContentBlocks.title,
+        content: programContentBlocks.content,
+        videoUrl: programContentBlocks.videoUrl,
+        exerciseId: programContentBlocks.exerciseId,
         exerciseName: exercises.exercise,
         exerciseVideoUrl: exercises.videoUrl,
       })
-      .from(microProgramContentBlocks)
-      .leftJoin(
-        exercises,
-        eq(microProgramContentBlocks.exerciseId, exercises.id),
-      )
-      .where(eq(microProgramContentBlocks.programId, programId))
-      .orderBy(
-        microProgramContentBlocks.weekNumber,
-        microProgramContentBlocks.sortOrder,
-      );
+      .from(programContentBlocks)
+      .leftJoin(exercises, eq(programContentBlocks.exerciseId, exercises.id))
+      .where(eq(programContentBlocks.programId, programId))
+      .orderBy(programContentBlocks.weekNumber, programContentBlocks.sortOrder);
 
     // Count active enrollments
     const enrollmentCountRows = await this.db
@@ -186,7 +174,6 @@ export class ProgramsService {
       id: program.id,
       name: program.name,
       description: program.description,
-      price: program.price,
       durationWeeks: program.durationWeeks,
       sessionsPerWeekToAdvance: program.sessionsPerWeekToAdvance,
       auraWeeklyBonus: program.auraWeeklyBonus ?? 15,
@@ -199,7 +186,7 @@ export class ProgramsService {
   }
 
   /**
-   * Update program fields (name, description, price, AURA bonuses).
+   * Update program fields (name, description, AURA bonuses).
    * durationWeeks is NOT editable per D-41.
    */
   async updateProgram(
@@ -211,7 +198,6 @@ export class ProgramsService {
     if (input.name !== undefined) updateFields.name = input.name;
     if (input.description !== undefined)
       updateFields.description = input.description;
-    if (input.price !== undefined) updateFields.price = input.price;
     if (input.goalPlanType !== undefined)
       updateFields.goalPlanType = input.goalPlanType;
     if (input.auraWeeklyBonus !== undefined)
@@ -222,9 +208,9 @@ export class ProgramsService {
     if (Object.keys(updateFields).length === 0) return;
 
     const result = await this.db
-      .update(microPrograms)
+      .update(programs)
       .set(updateFields)
-      .where(eq(microPrograms.id, programId));
+      .where(eq(programs.id, programId));
 
     if (result[0].affectedRows === 0) {
       throw new NotFoundError("Programa no encontrado");
@@ -247,15 +233,15 @@ export class ProgramsService {
 
     // Verify program exists
     const programRows = await this.db
-      .select({ id: microPrograms.id })
-      .from(microPrograms)
-      .where(eq(microPrograms.id, programId));
+      .select({ id: programs.id })
+      .from(programs)
+      .where(eq(programs.id, programId));
 
     if (programRows.length === 0) {
       throw new NotFoundError("Programa no encontrado");
     }
 
-    await this.db.insert(microProgramContentBlocks).values(
+    await this.db.insert(programContentBlocks).values(
       blocks.map((block) => ({
         programId,
         weekNumber: block.weekNumber,
@@ -279,9 +265,9 @@ export class ProgramsService {
    */
   async deactivateProgram(programId: number): Promise<void> {
     const result = await this.db
-      .update(microPrograms)
+      .update(programs)
       .set({ isActive: false })
-      .where(eq(microPrograms.id, programId));
+      .where(eq(programs.id, programId));
 
     if (result[0].affectedRows === 0) {
       throw new NotFoundError("Programa no encontrado");
@@ -293,65 +279,6 @@ export class ProgramsService {
   // =========================================================================
   // Enrollment Methods
   // =========================================================================
-
-  /**
-   * Enroll a member in a program.
-   * Per D-06: one active enrollment per member enforced.
-   */
-  async enrollMember(input: EnrollMemberInput): Promise<number> {
-    // Check for existing active enrollment
-    const existing = await this.db
-      .select({ id: programEnrollments.id })
-      .from(programEnrollments)
-      .where(
-        and(
-          eq(programEnrollments.userId, input.userId),
-          eq(programEnrollments.status, "active"),
-        ),
-      );
-
-    if (existing.length > 0) {
-      throw new ConflictError(
-        "El miembro ya tiene un programa activo. Debe completar, cancelar o esperar que expire antes de inscribirse en otro.",
-      );
-    }
-
-    // Verify program exists and is active
-    const programRows = await this.db
-      .select({ id: microPrograms.id, isActive: microPrograms.isActive })
-      .from(microPrograms)
-      .where(eq(microPrograms.id, input.programId));
-
-    if (programRows.length === 0) {
-      throw new NotFoundError("Programa no encontrado");
-    }
-
-    if (!programRows[0].isActive) {
-      throw new ConflictError(
-        "El programa esta desactivado y no acepta nuevas inscripciones",
-      );
-    }
-
-    const [result] = await this.db.insert(programEnrollments).values({
-      userId: input.userId,
-      programId: input.programId,
-      status: "active",
-      currentWeek: 1,
-      sessionsCompletedThisWeek: 0,
-      paymentAmount: input.paymentAmount,
-      paymentMethod: input.paymentMethod,
-      notes: input.notes,
-    });
-
-    const enrollmentId = result.insertId;
-
-    this.log?.info(
-      { enrollmentId, userId: input.userId, programId: input.programId },
-      "Member enrolled in program",
-    );
-
-    return enrollmentId;
-  }
 
   /**
    * Cancel an enrollment. Per D-29: admin-only action.
@@ -410,9 +337,9 @@ export class ProgramsService {
 
     // Get program duration
     const programRows = await this.db
-      .select({ durationWeeks: microPrograms.durationWeeks })
-      .from(microPrograms)
-      .where(eq(microPrograms.id, enrollment.programId));
+      .select({ durationWeeks: programs.durationWeeks })
+      .from(programs)
+      .where(eq(programs.id, enrollment.programId));
 
     if (programRows.length === 0) {
       throw new NotFoundError("Programa no encontrado");
@@ -421,7 +348,7 @@ export class ProgramsService {
     const durationWeeks = programRows[0].durationWeeks;
     const newWeek = enrollment.currentWeek + 1;
 
-    if (newWeek > durationWeeks) {
+    if (durationWeeks !== null && newWeek > durationWeeks) {
       // Program complete
       await this.db
         .update(programEnrollments)
@@ -466,24 +393,19 @@ export class ProgramsService {
         id: programEnrollments.id,
         userId: programEnrollments.userId,
         programId: programEnrollments.programId,
-        programName: microPrograms.name,
+        programName: programs.name,
         status: programEnrollments.status,
         currentWeek: programEnrollments.currentWeek,
         sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
-        durationWeeks: microPrograms.durationWeeks,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
+        durationWeeks: programs.durationWeeks,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
         completedAt: programEnrollments.completedAt,
         expiredAt: programEnrollments.expiredAt,
         cancelledAt: programEnrollments.cancelledAt,
-        paymentAmount: programEnrollments.paymentAmount,
-        paymentMethod: programEnrollments.paymentMethod,
       })
       .from(programEnrollments)
-      .innerJoin(
-        microPrograms,
-        eq(programEnrollments.programId, microPrograms.id),
-      )
+      .innerJoin(programs, eq(programEnrollments.programId, programs.id))
       .where(eq(programEnrollments.userId, userId))
       .orderBy(
         sql`CASE WHEN ${programEnrollments.status} = 'active' THEN 0 ELSE 1 END`,
@@ -508,24 +430,19 @@ export class ProgramsService {
         id: programEnrollments.id,
         userId: programEnrollments.userId,
         programId: programEnrollments.programId,
-        programName: microPrograms.name,
+        programName: programs.name,
         status: programEnrollments.status,
         currentWeek: programEnrollments.currentWeek,
         sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
-        durationWeeks: microPrograms.durationWeeks,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
+        durationWeeks: programs.durationWeeks,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
         completedAt: programEnrollments.completedAt,
         expiredAt: programEnrollments.expiredAt,
         cancelledAt: programEnrollments.cancelledAt,
-        paymentAmount: programEnrollments.paymentAmount,
-        paymentMethod: programEnrollments.paymentMethod,
       })
       .from(programEnrollments)
-      .innerJoin(
-        microPrograms,
-        eq(programEnrollments.programId, microPrograms.id),
-      )
+      .innerJoin(programs, eq(programEnrollments.programId, programs.id))
       .where(
         and(
           eq(programEnrollments.userId, userId),
@@ -556,19 +473,18 @@ export class ProgramsService {
   async getCatalog(): Promise<MemberProgramCatalogItem[]> {
     const rows = await this.db
       .select({
-        id: microPrograms.id,
-        name: microPrograms.name,
-        description: microPrograms.description,
-        price: microPrograms.price,
-        durationWeeks: microPrograms.durationWeeks,
+        id: programs.id,
+        name: programs.name,
+        description: programs.description,
+        durationWeeks: programs.durationWeeks,
         hasContent: sql<boolean>`EXISTS (
-          SELECT 1 FROM micro_program_content_blocks
-          WHERE micro_program_content_blocks.program_id = ${microPrograms.id}
+          SELECT 1 FROM program_content_blocks
+          WHERE program_content_blocks.program_id = ${programs.id}
         )`.as("has_content"),
       })
-      .from(microPrograms)
-      .where(eq(microPrograms.isActive, true))
-      .orderBy(desc(microPrograms.createdAt));
+      .from(programs)
+      .where(eq(programs.isActive, true))
+      .orderBy(desc(programs.createdAt));
 
     return rows.map((r) => ({
       ...r,
@@ -589,18 +505,15 @@ export class ProgramsService {
       .select({
         enrollmentId: programEnrollments.id,
         programId: programEnrollments.programId,
-        programName: microPrograms.name,
+        programName: programs.name,
         currentWeek: programEnrollments.currentWeek,
-        durationWeeks: microPrograms.durationWeeks,
+        durationWeeks: programs.durationWeeks,
         sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
         enrolledAt: programEnrollments.enrolledAt,
       })
       .from(programEnrollments)
-      .innerJoin(
-        microPrograms,
-        eq(programEnrollments.programId, microPrograms.id),
-      )
+      .innerJoin(programs, eq(programEnrollments.programId, programs.id))
       .where(
         and(
           eq(programEnrollments.userId, userId),
@@ -615,29 +528,26 @@ export class ProgramsService {
     // Fetch content blocks for current week only, with exercise join
     const blockRows = await this.db
       .select({
-        id: microProgramContentBlocks.id,
-        weekNumber: microProgramContentBlocks.weekNumber,
-        sortOrder: microProgramContentBlocks.sortOrder,
-        blockType: microProgramContentBlocks.blockType,
-        title: microProgramContentBlocks.title,
-        content: microProgramContentBlocks.content,
-        videoUrl: microProgramContentBlocks.videoUrl,
-        exerciseId: microProgramContentBlocks.exerciseId,
+        id: programContentBlocks.id,
+        weekNumber: programContentBlocks.weekNumber,
+        sortOrder: programContentBlocks.sortOrder,
+        blockType: programContentBlocks.blockType,
+        title: programContentBlocks.title,
+        content: programContentBlocks.content,
+        videoUrl: programContentBlocks.videoUrl,
+        exerciseId: programContentBlocks.exerciseId,
         exerciseName: exercises.exercise,
         exerciseVideoUrl: exercises.videoUrl,
       })
-      .from(microProgramContentBlocks)
-      .leftJoin(
-        exercises,
-        eq(microProgramContentBlocks.exerciseId, exercises.id),
-      )
+      .from(programContentBlocks)
+      .leftJoin(exercises, eq(programContentBlocks.exerciseId, exercises.id))
       .where(
         and(
-          eq(microProgramContentBlocks.programId, enrollment.programId),
-          eq(microProgramContentBlocks.weekNumber, enrollment.currentWeek),
+          eq(programContentBlocks.programId, enrollment.programId),
+          eq(programContentBlocks.weekNumber, enrollment.currentWeek),
         ),
       )
-      .orderBy(microProgramContentBlocks.sortOrder);
+      .orderBy(programContentBlocks.sortOrder);
 
     const contentBlocks: ContentBlockDetail[] = blockRows.map((b) => ({
       id: b.id,
@@ -658,13 +568,15 @@ export class ProgramsService {
       enrollment.sessionsPerWeekToAdvance;
 
     // Calculate daysUntilExpiry: enrolledAt + (durationWeeks * 7 days) - now
-    const enrolledAtMs = enrollment.enrolledAt.getTime();
-    const expiryMs =
-      enrolledAtMs + enrollment.durationWeeks * 7 * 24 * 60 * 60 * 1000;
-    const nowMs = Date.now();
-    const daysUntilExpiry = Math.ceil(
-      (expiryMs - nowMs) / (24 * 60 * 60 * 1000),
-    );
+    // Indefinite programs (durationWeeks=null) never expire
+    let daysUntilExpiry: number | null = null;
+    if (enrollment.durationWeeks !== null) {
+      const enrolledAtMs = enrollment.enrolledAt.getTime();
+      const expiryMs =
+        enrolledAtMs + enrollment.durationWeeks * 7 * 24 * 60 * 60 * 1000;
+      const nowMs = Date.now();
+      daysUntilExpiry = Math.ceil((expiryMs - nowMs) / (24 * 60 * 60 * 1000));
+    }
 
     return {
       enrollmentId: enrollment.enrollmentId,
@@ -675,7 +587,12 @@ export class ProgramsService {
       sessionsCompletedThisWeek: enrollment.sessionsCompletedThisWeek,
       sessionsPerWeekToAdvance: enrollment.sessionsPerWeekToAdvance,
       isWeekComplete,
-      daysUntilExpiry: daysUntilExpiry > 0 ? daysUntilExpiry : 0,
+      daysUntilExpiry:
+        daysUntilExpiry !== null && daysUntilExpiry > 0
+          ? daysUntilExpiry
+          : daysUntilExpiry === null
+            ? null
+            : 0,
       contentBlocks,
     };
   }
@@ -751,13 +668,13 @@ export class ProgramsService {
     // 2. Load joined program to get thresholds and AURA config
     const programRows = await this.db
       .select({
-        durationWeeks: microPrograms.durationWeeks,
-        sessionsPerWeekToAdvance: microPrograms.sessionsPerWeekToAdvance,
-        auraWeeklyBonus: microPrograms.auraWeeklyBonus,
-        auraCompletionBonus: microPrograms.auraCompletionBonus,
+        durationWeeks: programs.durationWeeks,
+        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+        auraWeeklyBonus: programs.auraWeeklyBonus,
+        auraCompletionBonus: programs.auraCompletionBonus,
       })
-      .from(microPrograms)
-      .where(eq(microPrograms.id, enrollment.programId));
+      .from(programs)
+      .where(eq(programs.id, enrollment.programId));
 
     if (programRows.length === 0) {
       this.log?.warn(
@@ -788,7 +705,10 @@ export class ProgramsService {
     // Use transaction for atomicity
     await this.db.transaction(async (tx) => {
       if (sessionsThresholdMet && calendarWeekArrived) {
-        if (enrollment.currentWeek >= program.durationWeeks) {
+        if (
+          program.durationWeeks !== null &&
+          enrollment.currentWeek >= program.durationWeeks
+        ) {
           // Program completion! Award weekly + completion bonus, mark completed
           try {
             await auraService.award({

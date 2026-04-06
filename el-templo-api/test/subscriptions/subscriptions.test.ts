@@ -20,7 +20,7 @@ import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
-import { microPrograms } from "../../src/db/schema/micro-programs";
+import { programs } from "../../src/db/schema/micro-programs";
 import { programEnrollments } from "../../src/db/schema/program-enrollments";
 
 const BASE_URL = "/api/admin/subscriptions";
@@ -1557,15 +1557,14 @@ describe("Subscriptions API", () => {
     });
 
     /**
-     * Helper: create a micro_program directly in DB for enrollment tests.
+     * Helper: create a program directly in DB for enrollment tests.
      */
     async function createTestProgram(
-      overrides: Partial<typeof microPrograms.$inferInsert> = {},
+      overrides: Partial<typeof programs.$inferInsert> = {},
     ): Promise<number> {
-      const result = await app.db.insert(microPrograms).values({
+      const result = await app.db.insert(programs).values({
         name: overrides.name ?? "Test Program",
         description: overrides.description ?? "Test program for enrollment",
-        price: overrides.price ?? 10000,
         durationWeeks: overrides.durationWeeks ?? 4,
         sessionsPerWeekToAdvance: overrides.sessionsPerWeekToAdvance ?? 3,
         ...overrides,
@@ -1600,9 +1599,7 @@ describe("Subscriptions API", () => {
       const activeSubs = await app.db
         .select()
         .from(subscriptions)
-        .where(
-          eq(subscriptions.userId, member.id as number),
-        );
+        .where(eq(subscriptions.userId, member.id as number));
       const activeCount = activeSubs.filter(
         (s) => s.status === "active",
       ).length;
@@ -1730,12 +1727,8 @@ describe("Subscriptions API", () => {
 
       // Should have 2 enrollments: old cancelled, new active
       expect(enrollments.length).toBeGreaterThanOrEqual(2);
-      const enrollmentA = enrollments.find(
-        (e) => e.programId === programA,
-      );
-      const enrollmentB = enrollments.find(
-        (e) => e.programId === programB,
-      );
+      const enrollmentA = enrollments.find((e) => e.programId === programA);
+      const enrollmentB = enrollments.find((e) => e.programId === programB);
 
       expect(enrollmentA).toBeDefined();
       expect(enrollmentA!.status).toBe("cancelled");

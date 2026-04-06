@@ -8,7 +8,7 @@ import {
   timestamp,
   mysqlEnum,
 } from "drizzle-orm/mysql-core";
-import { microPrograms } from "./micro-programs";
+import { programs } from "./micro-programs";
 
 export const planTierEnum = mysqlEnum("plan_tier", [
   "flex",
@@ -33,7 +33,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   planTier: planTierEnum.notNull(),
   bookingMode: bookingModeEnum.notNull(),
   planCategory: planCategoryEnum.notNull(),
-  linkedProgramId: int("linked_program_id").references(() => microPrograms.id),
+  linkedProgramId: int("linked_program_id").references(() => programs.id),
   priceRegular: int("price_regular").notNull(),
   priceZero: int("price_zero").notNull(),
   priceCreditCard: int("price_credit_card"),

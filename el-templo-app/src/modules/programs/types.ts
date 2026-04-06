@@ -17,7 +17,6 @@ export interface MemberProgramCatalogItem {
   id: number
   name: string
   description: string | null
-  price: number
   durationWeeks: number
   hasContent: boolean
 }

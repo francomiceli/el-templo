@@ -11,14 +11,12 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { ProgramsService } from "./service";
-import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import { ADMIN_ROLES, COACH_ROLES } from "../shared/permissions";
 import type {
   CreateProgramInput,
   UpdateProgramInput,
   ContentBlockInput,
-  EnrollMemberInput,
 } from "./types";
 
 // ---- Fastify JSON Schemas for request validation ----
@@ -44,7 +42,6 @@ const createProgramSchema = {
     required: [
       "name",
       "description",
-      "price",
       "durationWeeks",
       "sessionsPerWeekToAdvance",
       "auraWeeklyBonus",
@@ -54,7 +51,6 @@ const createProgramSchema = {
     properties: {
       name: { type: "string", minLength: 1, maxLength: 150 },
       description: { type: ["string", "null"] },
-      price: { type: "integer", minimum: 0 },
       durationWeeks: { type: "integer", minimum: 1, maximum: 52 },
       sessionsPerWeekToAdvance: { type: "integer", minimum: 1, maximum: 7 },
       auraWeeklyBonus: { type: "integer", minimum: 0 },
@@ -86,7 +82,6 @@ const updateProgramSchema = {
     properties: {
       name: { type: "string", minLength: 1, maxLength: 150 },
       description: { type: ["string", "null"] },
-      price: { type: "integer", minimum: 0 },
       goalPlanType: {
         type: ["string", "null"],
         enum: [
@@ -116,21 +111,6 @@ const addContentBlocksSchema = {
         items: contentBlockSchema,
         minItems: 1,
       },
-    },
-    additionalProperties: false,
-  },
-};
-
-const enrollMemberSchema = {
-  body: {
-    type: "object",
-    required: ["userId", "programId"],
-    properties: {
-      userId: { type: "integer" },
-      programId: { type: "integer" },
-      paymentAmount: { type: ["integer", "null"] },
-      paymentMethod: { type: ["string", "null"], maxLength: 30 },
-      notes: { type: ["string", "null"] },
     },
     additionalProperties: false,
   },
@@ -168,7 +148,6 @@ const userIdParamsSchema = {
 
 export const programRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ProgramsService(fastify.db, fastify.log);
-  const notificationService = new NotificationService(fastify.db, fastify.log);
 
   // =========================================================================
   // Admin Routes — Program CRUD (ADMIN_ROLES)
@@ -233,43 +212,6 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "getAnalytics");
     }
   });
-
-  /**
-   * POST /api/admin/programs/enroll — Enroll a member in a program.
-   * COACH_ROLES per D-35.
-   */
-  fastify.post<{ Body: EnrollMemberInput }>(
-    "/admin/programs/enroll",
-    { schema: enrollMemberSchema },
-    async (request, reply) => {
-      await fastify.authenticate(request, reply);
-      const { role } = request.user;
-      if (!(COACH_ROLES as readonly string[]).includes(role)) {
-        return reply.code(403).send({ error: "Acceso denegado" });
-      }
-
-      try {
-        const enrollmentId = await service.enrollMember(request.body);
-
-        // Queue enrollment confirmation notification (per D-08)
-        try {
-          await notificationService.queueNotification({
-            userId: request.body.userId,
-            templateKey: "program_enrollment",
-          });
-        } catch (notifErr: unknown) {
-          request.log.warn(
-            { err: notifErr, userId: request.body.userId },
-            "Program enrollment notification failed (graceful degradation)",
-          );
-        }
-
-        return reply.code(201).send({ enrollmentId });
-      } catch (err: unknown) {
-        handleServiceError(err, reply, request.log, "enrollMember");
-      }
-    },
-  );
 
   /**
    * GET /api/admin/programs/enrollments/user/:userId — Get enrollments for a user.

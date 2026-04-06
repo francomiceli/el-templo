@@ -763,8 +763,6 @@ export class SubscriptionService {
         currentWeek: 1,
         sessionsCompletedThisWeek: 0,
         weekUnlockedAt: new Date(),
-        paymentAmount: null,
-        paymentMethod: null,
       });
 
       this.log.info(
@@ -1273,8 +1271,6 @@ export class SubscriptionService {
           currentWeek: 1,
           sessionsCompletedThisWeek: 0,
           weekUnlockedAt: new Date(),
-          paymentAmount: null,
-          paymentMethod: null,
         });
 
         this.log.info(
@@ -1516,8 +1512,6 @@ export class SubscriptionService {
           currentWeek: 1,
           sessionsCompletedThisWeek: 0,
           weekUnlockedAt: new Date(),
-          paymentAmount: null,
-          paymentMethod: null,
         });
 
         this.log.info(
@@ -1851,9 +1845,9 @@ export class SubscriptionService {
   ): Promise<string | null> {
     if (!linkedProgramId) return null;
     const [program] = await this.db
-      .select({ goalPlanType: schema.microPrograms.goalPlanType })
-      .from(schema.microPrograms)
-      .where(eq(schema.microPrograms.id, linkedProgramId))
+      .select({ goalPlanType: schema.programs.goalPlanType })
+      .from(schema.programs)
+      .where(eq(schema.programs.id, linkedProgramId))
       .limit(1);
     return program?.goalPlanType ?? null;
   }

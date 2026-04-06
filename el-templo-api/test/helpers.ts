@@ -106,8 +106,8 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
 
   // Layer 0b: program enrollments, onboarding, and check-in tables (depend on users)
   await app.db.delete(schema.programEnrollments);
-  await app.db.delete(schema.microProgramContentBlocks);
-  // NOTE: microPrograms deleted in Layer 3b (after subscriptionPlans due to linkedProgramId FK)
+  await app.db.delete(schema.programContentBlocks);
+  // NOTE: programs deleted in Layer 3b (after subscriptionPlans due to linkedProgramId FK)
   await app.db.delete(schema.checkInResponses);
   await app.db.delete(schema.onboardingAnalytics);
   await app.db.delete(schema.memberProfiles);
@@ -122,7 +122,6 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.sessionEditLogs);
   await app.db.delete(schema.sessionPrescriptions);
   await app.db.delete(schema.savedBlocks);
-  await app.db.delete(schema.memberGoalPlans);
   await app.db.delete(schema.evaluationRequests);
   await app.db.delete(schema.formatCompatibility);
   await app.db.delete(schema.memberLogins);
@@ -141,8 +140,8 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.subscriptions);
   await app.db.delete(schema.schedules);
   await app.db.delete(schema.subscriptionPlans);
-  // Layer 3b: microPrograms depends on subscriptionPlans.linkedProgramId being clear
-  await app.db.delete(schema.microPrograms);
+  // Layer 3b: programs depends on subscriptionPlans.linkedProgramId being clear
+  await app.db.delete(schema.programs);
   await app.db.delete(schema.auraBalances);
   await app.db.delete(schema.activities);
   await app.db.delete(schema.sessions);

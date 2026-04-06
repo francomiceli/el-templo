@@ -15,7 +15,6 @@ describe("Programs Module", () => {
   let memberToken: string;
   let memberId: number;
   let createdProgramId: number;
-  let enrollmentId: number;
 
   const timestamp = Date.now();
   const adminEmail = `prog-admin-${timestamp}@test.com`;
@@ -26,7 +25,6 @@ describe("Programs Module", () => {
   const testProgram = {
     name: `Test Program ${timestamp}`,
     description: "A test micro-program for integration tests",
-    price: 20000,
     durationWeeks: 4,
     sessionsPerWeekToAdvance: 3,
     auraWeeklyBonus: 15,
@@ -155,7 +153,7 @@ describe("Programs Module", () => {
       expect(body.activeEnrollmentCount).toBe(0);
     });
 
-    it("should update program name and price", async () => {
+    it("should update program name", async () => {
       // Create a program first
       const createRes = await app.inject({
         method: "POST",
@@ -169,7 +167,7 @@ describe("Programs Module", () => {
         method: "PUT",
         url: `/api/admin/programs/${id}`,
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: { name: "Updated Program", price: 25000 },
+        payload: { name: "Updated Program" },
       });
 
       expect(res.statusCode).toBe(200);
@@ -182,7 +180,6 @@ describe("Programs Module", () => {
       });
       const detail = JSON.parse(detailRes.body);
       expect(detail.name).toBe("Updated Program");
-      expect(detail.price).toBe(25000);
     });
 
     it("should deactivate program", async () => {
@@ -220,6 +217,21 @@ describe("Programs Module", () => {
   describe("Enrollment lifecycle (admin)", () => {
     let programId: number;
 
+    /** Helper: create enrollment directly in DB (manual enroll route removed). */
+    async function createEnrollment(
+      userId: number,
+      progId: number,
+    ): Promise<number> {
+      const [result] = await app.db.insert(schema.programEnrollments).values({
+        userId,
+        programId: progId,
+        status: "active",
+        currentWeek: 1,
+        sessionsCompletedThisWeek: 0,
+      });
+      return Number(result.insertId);
+    }
+
     beforeEach(async () => {
       // Create a program for enrollment tests
       const createRes = await app.inject({
@@ -231,74 +243,9 @@ describe("Programs Module", () => {
       programId = JSON.parse(createRes.body).id;
     });
 
-    it("should enroll member in program", async () => {
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
-
-      expect(res.statusCode).toBe(201);
-      const body = JSON.parse(res.body);
-      expect(body.enrollmentId).toBeTypeOf("number");
-      enrollmentId = body.enrollmentId;
-    });
-
-    it("should reject duplicate active enrollment", async () => {
-      // First enrollment
-      await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
-
-      // Duplicate enrollment
-      const res = await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
-
-      expect(res.statusCode).toBe(409);
-      const body = JSON.parse(res.body);
-      expect(body.message).toContain("ya tiene un programa activo");
-    });
-
     it("should get enrollments for user", async () => {
-      // Enroll first
-      await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
+      // Enroll directly via DB
+      await createEnrollment(memberId, programId);
 
       const res = await app.inject({
         method: "GET",
@@ -314,20 +261,8 @@ describe("Programs Module", () => {
     });
 
     it("should advance enrollment week", async () => {
-      // Enroll first
-      const enrollRes = await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
-      const eId = JSON.parse(enrollRes.body).enrollmentId;
+      // Enroll directly via DB
+      const eId = await createEnrollment(memberId, programId);
 
       // Advance week
       const res = await app.inject({
@@ -349,20 +284,8 @@ describe("Programs Module", () => {
     });
 
     it("should cancel enrollment", async () => {
-      // Enroll first
-      const enrollRes = await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
-      });
-      const eId = JSON.parse(enrollRes.body).enrollmentId;
+      // Enroll directly via DB
+      const eId = await createEnrollment(memberId, programId);
 
       // Cancel
       const res = await app.inject({
@@ -425,18 +348,13 @@ describe("Programs Module", () => {
     });
 
     it("should return progress with programId when enrolled", async () => {
-      // Enroll via admin
-      await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
+      // Enroll directly via DB
+      await app.db.insert(schema.programEnrollments).values({
+        userId: memberId,
+        programId,
+        status: "active",
+        currentWeek: 1,
+        sessionsCompletedThisWeek: 0,
       });
 
       const res = await app.inject({
@@ -455,18 +373,13 @@ describe("Programs Module", () => {
     });
 
     it("should return has-goal-plan-access true when enrolled", async () => {
-      // Enroll via admin
-      await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
+      // Enroll directly via DB
+      await app.db.insert(schema.programEnrollments).values({
+        userId: memberId,
+        programId,
+        status: "active",
+        currentWeek: 1,
+        sessionsCompletedThisWeek: 0,
       });
 
       const res = await app.inject({
@@ -532,17 +445,13 @@ describe("Programs Module", () => {
       });
       const programId = JSON.parse(createRes.body).id;
 
-      await app.inject({
-        method: "POST",
-        url: "/api/admin/programs/enroll",
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: {
-          userId: memberId,
-          programId,
-          paymentAmount: 20000,
-          paymentMethod: "transferencia",
-          notes: null,
-        },
+      // Enroll directly via DB
+      await app.db.insert(schema.programEnrollments).values({
+        userId: memberId,
+        programId,
+        status: "active",
+        currentWeek: 1,
+        sessionsCompletedThisWeek: 0,
       });
 
       const res = await app.inject({

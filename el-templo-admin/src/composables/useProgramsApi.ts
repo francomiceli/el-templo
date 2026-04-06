@@ -7,8 +7,8 @@ import { ref } from 'vue';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import type {
-  MicroProgram,
-  MicroProgramDetail,
+  Program,
+  ProgramDetail,
   CreateProgramPayload,
   ContentBlockInput,
   ProgramEnrollment,
@@ -21,11 +21,11 @@ export function useProgramsApi() {
 
   // ─── Program CRUD ───────────────────────────────────────────────────
 
-  async function getPrograms(): Promise<MicroProgram[]> {
+  async function getPrograms(): Promise<Program[]> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ programs: MicroProgram[] }>('/admin/programs');
+      const { data } = await api.get<{ programs: Program[] }>('/admin/programs');
       return data.programs;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando programas');
@@ -35,11 +35,11 @@ export function useProgramsApi() {
     }
   }
 
-  async function getProgramDetail(programId: number): Promise<MicroProgramDetail> {
+  async function getProgramDetail(programId: number): Promise<ProgramDetail> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<MicroProgramDetail>(`/admin/programs/${programId}`);
+      const { data } = await api.get<ProgramDetail>(`/admin/programs/${programId}`);
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando detalle del programa');
@@ -63,10 +63,7 @@ export function useProgramsApi() {
     }
   }
 
-  async function updateProgram(
-    programId: number,
-    input: Partial<MicroProgram>,
-  ): Promise<void> {
+  async function updateProgram(programId: number, input: Partial<Program>): Promise<void> {
     loading.value = true;
     error.value = null;
     try {
@@ -79,10 +76,7 @@ export function useProgramsApi() {
     }
   }
 
-  async function addContentBlocks(
-    programId: number,
-    blocks: ContentBlockInput[],
-  ): Promise<void> {
+  async function addContentBlocks(programId: number, blocks: ContentBlockInput[]): Promise<void> {
     loading.value = true;
     error.value = null;
     try {
@@ -109,29 +103,6 @@ export function useProgramsApi() {
   }
 
   // ─── Enrollment Management ──────────────────────────────────────────
-
-  async function enrollMember(input: {
-    userId: number;
-    programId: number;
-    paymentAmount: number | null;
-    paymentMethod: string | null;
-    notes: string | null;
-  }): Promise<number> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const { data } = await api.post<{ enrollmentId: number }>(
-        '/admin/programs/enroll',
-        input,
-      );
-      return data.enrollmentId;
-    } catch (err: unknown) {
-      error.value = extractError(err, 'Error inscribiendo miembro');
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
 
   async function cancelEnrollment(enrollmentId: number): Promise<void> {
     loading.value = true;
@@ -164,7 +135,7 @@ export function useProgramsApi() {
     error.value = null;
     try {
       const { data } = await api.get<{ enrollments: ProgramEnrollment[] }>(
-        `/admin/programs/enrollments/user/${userId}`,
+        `/admin/programs/enrollments/user/${userId}`
       );
       return data.enrollments;
     } catch (err: unknown) {
@@ -207,7 +178,6 @@ export function useProgramsApi() {
     updateProgram,
     addContentBlocks,
     deactivateProgram,
-    enrollMember,
     cancelEnrollment,
     advanceWeek,
     getUserEnrollments,

@@ -64,9 +64,9 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     let goalPlanType: string | null = null;
     if (plan?.linkedProgramId) {
       const [program] = await fastify.db
-        .select({ goalPlanType: schema.microPrograms.goalPlanType })
-        .from(schema.microPrograms)
-        .where(eq(schema.microPrograms.id, plan.linkedProgramId))
+        .select({ goalPlanType: schema.programs.goalPlanType })
+        .from(schema.programs)
+        .where(eq(schema.programs.id, plan.linkedProgramId))
         .limit(1);
       goalPlanType = program?.goalPlanType ?? null;
     }

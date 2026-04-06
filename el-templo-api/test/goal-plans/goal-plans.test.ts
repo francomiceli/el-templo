@@ -48,7 +48,7 @@ describe("Goal Plan Routes", () => {
       "password123",
     );
 
-    // Create a micro_program with goalPlanType (D-07 REVISED: goalPlanType lives on program)
+    // Create a program with goalPlanType (D-07 REVISED: goalPlanType lives on program)
     const programRes = await app.inject({
       method: "POST",
       url: "/api/admin/programs",
@@ -56,7 +56,6 @@ describe("Goal Plan Routes", () => {
       payload: {
         name: "Tren Superior Program",
         description: null,
-        price: 20000,
         durationWeeks: 4,
         sessionsPerWeekToAdvance: 3,
         goalPlanType: "tren_superior",
@@ -288,7 +287,7 @@ describe("Goal Plan Routes", () => {
       expect(goalPlan.goalPlanType).toBe("tren_superior");
     });
 
-    it("assigning a goal plan auto-creates member_goal_plans", async () => {
+    it("assigning a goal plan auto-creates program enrollment", async () => {
       // Use a fresh member to avoid conflicts with existing subscription
       const freshMember = await registerUser(app, {
         email: "goal-plan-auto-assign@test.com",
@@ -316,7 +315,7 @@ describe("Goal Plan Routes", () => {
       });
       expect(assignRes.statusCode).toBe(201);
 
-      // Verify member_goal_plans was auto-created
+      // Verify active goal plan is returned from program enrollment
       const activeRes = await app.inject({
         method: "GET",
         url: "/api/goal-plans/active",

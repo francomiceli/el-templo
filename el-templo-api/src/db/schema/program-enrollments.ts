@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm/mysql-core";
 import { relations } from "drizzle-orm";
 import { users } from "./users";
-import { microPrograms } from "./micro-programs";
+import { programs } from "./micro-programs";
 
 export const programEnrollmentStatusEnum = mysqlEnum("status", [
   "active",
@@ -27,7 +27,7 @@ export const programEnrollments = mysqlTable(
       .references(() => users.id)
       .notNull(),
     programId: int("program_id")
-      .references(() => microPrograms.id)
+      .references(() => programs.id)
       .notNull(),
     status: programEnrollmentStatusEnum.default("active").notNull(),
     currentWeek: int("current_week").default(1).notNull(),
@@ -39,8 +39,6 @@ export const programEnrollments = mysqlTable(
     completedAt: timestamp("completed_at"),
     expiredAt: timestamp("expired_at"),
     cancelledAt: timestamp("cancelled_at"),
-    paymentAmount: int("payment_amount"),
-    paymentMethod: varchar("payment_method", { length: 30 }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
@@ -59,9 +57,9 @@ export const programEnrollmentsRelations = relations(
       fields: [programEnrollments.userId],
       references: [users.id],
     }),
-    program: one(microPrograms, {
+    program: one(programs, {
       fields: [programEnrollments.programId],
-      references: [microPrograms.id],
+      references: [programs.id],
     }),
   }),
 );

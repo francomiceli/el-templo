@@ -115,12 +115,7 @@
 
         <div class="row items-center q-mb-md">
           <div class="text-h6 col">Online</div>
-          <q-btn
-            icon="add"
-            label="Nuevo Plan Online"
-            color="primary"
-            @click="openCreateOnline"
-          />
+          <q-btn icon="add" label="Nuevo Plan Online" color="primary" @click="openCreateOnline" />
         </div>
 
         <q-table
@@ -320,7 +315,7 @@ import {
   type PlanCategory,
 } from 'src/types/subscription';
 import type { PromoListItem } from 'src/types/subscription';
-import type { MicroProgram } from 'src/types/program';
+import type { Program } from 'src/types/program';
 import PlanFormDialog from 'src/components/PlanFormDialog.vue';
 import PromoFormDialog from 'src/components/PromoFormDialog.vue';
 
@@ -349,7 +344,7 @@ const presetCategory = ref<PlanCategory>('presencial');
 // Programs (for linked program names in Online table)
 // =========================================================================
 
-const programs = ref<MicroProgram[]>([]);
+const programs = ref<Program[]>([]);
 
 // =========================================================================
 // Promos State
@@ -364,13 +359,9 @@ const editingPromo = ref<PromoListItem | null>(null);
 // Computed plan lists
 // =========================================================================
 
-const presencialPlans = computed(() =>
-  plans.value.filter((p) => p.planCategory === 'presencial'),
-);
+const presencialPlans = computed(() => plans.value.filter((p) => p.planCategory === 'presencial'));
 
-const onlinePlans = computed(() =>
-  plans.value.filter((p) => p.planCategory !== 'presencial'),
-);
+const onlinePlans = computed(() => plans.value.filter((p) => p.planCategory !== 'presencial'));
 
 // =========================================================================
 // Presencial Table columns

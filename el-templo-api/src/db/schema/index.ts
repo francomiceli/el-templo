@@ -17,7 +17,6 @@ export * from "./completed-sessions";
 export * from "./evaluation-requests";
 export * from "./session-edit-logs";
 export * from "./saved-blocks";
-export * from "./member-goal-plans";
 export * from "./franchise-applications";
 export * from "./gladius-products";
 export * from "./gladius-inquiries";

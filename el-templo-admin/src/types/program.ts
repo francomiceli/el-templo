@@ -58,12 +58,11 @@ export interface ContentBlockDetail extends ContentBlockInput {
 
 // ─── Program Types ───────────────────────────────────────────────────────────
 
-export interface MicroProgram {
+export interface Program {
   id: number;
   name: string;
   description: string | null;
-  price: number;
-  durationWeeks: number;
+  durationWeeks: number | null;
   sessionsPerWeekToAdvance: number;
   auraWeeklyBonus: number;
   auraCompletionBonus: number;
@@ -71,7 +70,7 @@ export interface MicroProgram {
   createdAt: string;
 }
 
-export interface MicroProgramDetail extends MicroProgram {
+export interface ProgramDetail extends Program {
   contentBlocks: ContentBlockDetail[];
   activeEnrollmentCount: number;
 }
@@ -79,7 +78,6 @@ export interface MicroProgramDetail extends MicroProgram {
 export interface CreateProgramPayload {
   name: string;
   description: string | null;
-  price: number;
   durationWeeks: number;
   sessionsPerWeekToAdvance: number;
   auraWeeklyBonus: number;
@@ -103,8 +101,6 @@ export interface ProgramEnrollment {
   completedAt: string | null;
   expiredAt: string | null;
   cancelledAt: string | null;
-  paymentAmount: number | null;
-  paymentMethod: string | null;
 }
 
 // ─── Analytics Types ─────────────────────────────────────────────────────────

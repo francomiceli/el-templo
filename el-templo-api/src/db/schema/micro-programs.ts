@@ -19,13 +19,12 @@ export const contentBlockTypeEnum = mysqlEnum("block_type", [
   "exercise",
 ]);
 
-export const microPrograms = mysqlTable("micro_programs", {
+export const programs = mysqlTable("programs", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 150 }).notNull(),
   description: text("description"),
   goalPlanType: varchar("goal_plan_type", { length: 30 }),
-  price: int("price").notNull(),
-  durationWeeks: int("duration_weeks").notNull(),
+  durationWeeks: int("duration_weeks"),
   sessionsPerWeekToAdvance: int("sessions_per_week_to_advance")
     .notNull()
     .default(3),
@@ -36,12 +35,12 @@ export const microPrograms = mysqlTable("micro_programs", {
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
 
-export const microProgramContentBlocks = mysqlTable(
-  "micro_program_content_blocks",
+export const programContentBlocks = mysqlTable(
+  "program_content_blocks",
   {
     id: int("id").primaryKey().autoincrement(),
     programId: int("program_id")
-      .references(() => microPrograms.id)
+      .references(() => programs.id)
       .notNull(),
     weekNumber: int("week_number").notNull(),
     sortOrder: int("sort_order").notNull().default(0),
@@ -60,19 +59,19 @@ export const microProgramContentBlocks = mysqlTable(
   ],
 );
 
-export const microProgramsRelations = relations(microPrograms, ({ many }) => ({
-  contentBlocks: many(microProgramContentBlocks),
+export const programsRelations = relations(programs, ({ many }) => ({
+  contentBlocks: many(programContentBlocks),
 }));
 
-export const microProgramContentBlocksRelations = relations(
-  microProgramContentBlocks,
+export const programContentBlocksRelations = relations(
+  programContentBlocks,
   ({ one }) => ({
-    program: one(microPrograms, {
-      fields: [microProgramContentBlocks.programId],
-      references: [microPrograms.id],
+    program: one(programs, {
+      fields: [programContentBlocks.programId],
+      references: [programs.id],
     }),
     exercise: one(exercises, {
-      fields: [microProgramContentBlocks.exerciseId],
+      fields: [programContentBlocks.exerciseId],
       references: [exercises.id],
     }),
   }),

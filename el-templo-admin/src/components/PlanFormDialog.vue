@@ -217,7 +217,7 @@ import {
   type BookingMode,
   type PlanCategory,
 } from 'src/types/subscription';
-import type { MicroProgram } from 'src/types/program';
+import type { Program } from 'src/types/program';
 
 const log = createLogger('PlanFormDialog');
 
@@ -244,7 +244,7 @@ const subscriptionsApi = useSubscriptionsApi();
 const programsApi = useProgramsApi();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const submitting = ref(false);
-const programs = ref<MicroProgram[]>([]);
+const programs = ref<Program[]>([]);
 const loadingPrograms = ref(false);
 
 const isEditMode = computed(() => !!props.plan);

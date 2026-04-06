@@ -30,8 +30,7 @@ export interface ContentBlockDetail {
 export interface CreateProgramInput {
   name: string;
   description: string | null;
-  price: number;
-  durationWeeks: number;
+  durationWeeks: number | null;
   sessionsPerWeekToAdvance: number;
   goalPlanType?: string | null;
   auraWeeklyBonus: number;
@@ -42,19 +41,17 @@ export interface CreateProgramInput {
 export interface UpdateProgramInput {
   name?: string;
   description?: string | null;
-  price?: number;
   goalPlanType?: string | null;
   // durationWeeks NOT editable when active enrollments exist (per D-41)
   auraWeeklyBonus?: number;
   auraCompletionBonus?: number;
 }
 
-export interface MicroProgram {
+export interface Program {
   id: number;
   name: string;
   description: string | null;
-  price: number;
-  durationWeeks: number;
+  durationWeeks: number | null;
   sessionsPerWeekToAdvance: number;
   auraWeeklyBonus: number;
   auraCompletionBonus: number;
@@ -62,21 +59,13 @@ export interface MicroProgram {
   createdAt: string;
 }
 
-export interface MicroProgramDetail extends MicroProgram {
+export interface ProgramDetail extends Program {
   contentBlocks: ContentBlockDetail[];
   activeEnrollmentCount: number;
 }
 
 // ---- Enrollment types ----
 export type EnrollmentStatus = "active" | "completed" | "expired" | "cancelled";
-
-export interface EnrollMemberInput {
-  userId: number;
-  programId: number;
-  paymentAmount: number | null;
-  paymentMethod: string | null;
-  notes: string | null;
-}
 
 export interface ProgramEnrollment {
   id: number;
@@ -86,14 +75,12 @@ export interface ProgramEnrollment {
   status: EnrollmentStatus;
   currentWeek: number;
   sessionsCompletedThisWeek: number;
-  durationWeeks: number; // from joined program
+  durationWeeks: number | null; // from joined program
   sessionsPerWeekToAdvance: number; // from joined program
   enrolledAt: string;
   completedAt: string | null;
   expiredAt: string | null;
   cancelledAt: string | null;
-  paymentAmount: number | null;
-  paymentMethod: string | null;
 }
 
 // ---- Member-facing types ----
@@ -101,8 +88,7 @@ export interface MemberProgramCatalogItem {
   id: number;
   name: string;
   description: string | null;
-  price: number;
-  durationWeeks: number;
+  durationWeeks: number | null;
   hasContent: boolean; // false = show "Proximamente" per D-46
 }
 
@@ -111,7 +97,7 @@ export interface MemberEnrollmentProgress {
   programId: number; // needed by PlanesPage to check enrollment per D-47
   programName: string;
   currentWeek: number;
-  durationWeeks: number;
+  durationWeeks: number | null;
   sessionsCompletedThisWeek: number;
   sessionsPerWeekToAdvance: number;
   isWeekComplete: boolean; // derived: sessionsCompleted >= sessionsRequired

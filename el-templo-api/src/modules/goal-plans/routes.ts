@@ -424,7 +424,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
 
         const total = countResult?.count ?? 0;
 
-        // Get paginated members with left join to active goal plans and branch
+        // Get paginated members with left join to active goal plan enrollments
         const members = await fastify.db
           .select({
             userId: schema.users.id,
@@ -433,8 +433,8 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             lastName: schema.users.lastName,
             level: schema.users.level,
             branchName: schema.branches.name,
-            goalPlanType: schema.memberGoalPlans.goalPlanType,
-            startedAt: schema.memberGoalPlans.startedAt,
+            goalPlanType: schema.programs.goalPlanType,
+            startedAt: schema.programEnrollments.enrolledAt,
           })
           .from(schema.users)
           .innerJoin(
@@ -442,10 +442,17 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
             eq(schema.branches.id, schema.users.branchId),
           )
           .leftJoin(
-            schema.memberGoalPlans,
+            schema.programEnrollments,
             and(
-              eq(schema.memberGoalPlans.userId, schema.users.id),
-              eq(schema.memberGoalPlans.isActive, true),
+              eq(schema.programEnrollments.userId, schema.users.id),
+              eq(schema.programEnrollments.status, "active"),
+            ),
+          )
+          .leftJoin(
+            schema.programs,
+            and(
+              eq(schema.programs.id, schema.programEnrollments.programId),
+              sql`${schema.programs.goalPlanType} IS NOT NULL`,
             ),
           )
           .where(and(...conditions))

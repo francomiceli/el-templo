@@ -112,8 +112,9 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
             const oldSegment = profile.segment as MemberSegment | null;
 
             // Calculate new segment (bypass cooldown by calling calculateSegment directly)
-            const newSegment =
-              await segmentationService.calculateSegment(profile.userId);
+            const newSegment = await segmentationService.calculateSegment(
+              profile.userId,
+            );
 
             // Persist the new segment
             await db
@@ -196,9 +197,7 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
             }
           } catch (memberErr: unknown) {
             const mMsg =
-              memberErr instanceof Error
-                ? memberErr.message
-                : "Unknown error";
+              memberErr instanceof Error ? memberErr.message : "Unknown error";
             log.warn(
               { err: mMsg, userId: profile.userId },
               "Segment recalc failed for member",
@@ -222,9 +221,7 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
           const sevenDaysFromNow = new Date(
             Date.now() + 7 * 24 * 60 * 60 * 1000,
           );
-          const sixDaysFromNow = new Date(
-            Date.now() + 6 * 24 * 60 * 60 * 1000,
-          );
+          const sixDaysFromNow = new Date(Date.now() + 6 * 24 * 60 * 60 * 1000);
 
           // enrolledAt + (durationWeeks * 7 days) = expiryDate
           // We want expiryDate to be ~7 days from now (check within a 1-day window)
@@ -235,13 +232,13 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
             })
             .from(s.programEnrollments)
             .innerJoin(
-              s.microPrograms,
-              eq(s.programEnrollments.programId, s.microPrograms.id),
+              s.programs,
+              eq(s.programEnrollments.programId, s.programs.id),
             )
             .where(
               and(
                 eq(s.programEnrollments.status, "active"),
-                sql`DATE_ADD(${s.programEnrollments.enrolledAt}, INTERVAL ${s.microPrograms.durationWeeks} * 7 DAY) BETWEEN ${sixDaysFromNow} AND ${sevenDaysFromNow}`,
+                sql`DATE_ADD(${s.programEnrollments.enrolledAt}, INTERVAL ${s.programs.durationWeeks} * 7 DAY) BETWEEN ${sixDaysFromNow} AND ${sevenDaysFromNow}`,
               ),
             );
 
@@ -255,9 +252,7 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
               renewalWarnings++;
             } catch (renewErr: unknown) {
               const rMsg =
-                renewErr instanceof Error
-                  ? renewErr.message
-                  : "Unknown error";
+                renewErr instanceof Error ? renewErr.message : "Unknown error";
               log.warn(
                 { err: rMsg, userId: enrollment.userId },
                 "Failed to queue renewal warning notification",
@@ -270,13 +265,8 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
           }
         } catch (renewalErr: unknown) {
           const rMsg =
-            renewalErr instanceof Error
-              ? renewalErr.message
-              : "Unknown error";
-          log.error(
-            { err: rMsg },
-            "Program renewal warning check failed",
-          );
+            renewalErr instanceof Error ? renewalErr.message : "Unknown error";
+          log.error({ err: rMsg }, "Program renewal warning check failed");
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : "Unknown error";
@@ -320,9 +310,7 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
             queued++;
           } catch (queueErr: unknown) {
             const qMsg =
-              queueErr instanceof Error
-                ? queueErr.message
-                : "Unknown error";
+              queueErr instanceof Error ? queueErr.message : "Unknown error";
             log.warn(
               { err: qMsg, userId: member.userId },
               "Failed to queue morning energy reminder",
@@ -365,9 +353,7 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
             queued++;
           } catch (queueErr: unknown) {
             const qMsg =
-              queueErr instanceof Error
-                ? queueErr.message
-                : "Unknown error";
+              queueErr instanceof Error ? queueErr.message : "Unknown error";
             log.warn(
               { err: qMsg, userId: member.userId },
               "Failed to queue weekly summary notification",
@@ -389,12 +375,10 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
 
   // ── 5. Auto-seed templates on startup ────────────────────────────────
   const seedService = new NotificationService(db, log);
-  seedService
-    .seedTemplates()
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      log.error({ err: message }, "Template seed failed");
-    });
+  seedService.seedTemplates().catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    log.error({ err: message }, "Template seed failed");
+  });
 
   log.info("Notification cron jobs scheduled");
 }
