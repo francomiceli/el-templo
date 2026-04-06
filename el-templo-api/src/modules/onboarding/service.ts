@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
-import type { Logger } from "pino";
+import type { FastifyBaseLogger } from "fastify";
 import { memberProfiles, onboardingAnalytics } from "../../db/schema";
 import type { AuraService } from "../aura/service";
 import type * as schema from "../../db/schema";
@@ -11,7 +11,7 @@ import type {
   OnboardingProfileV2,
   AnalyticsEventInput,
 } from "./types";
-import { resolveAvatar } from "./avatar-resolution";
+import { resolveAvatar } from "./avatar-resolution.js";
 
 type DbInstance = MySql2Database<typeof schema>;
 
@@ -19,7 +19,7 @@ export class OnboardingService {
   constructor(
     private readonly db: DbInstance,
     private readonly auraService: AuraService,
-    private readonly log?: Logger,
+    private readonly log?: FastifyBaseLogger,
   ) {}
 
   async completeOnboarding(
@@ -181,7 +181,7 @@ export class OnboardingService {
     if (rows.length === 0 || !rows[0].avatarType) return null;
 
     const row = rows[0];
-    const { AVATAR_PROGRAM_MAP } = await import("./avatar-resolution");
+    const { AVATAR_PROGRAM_MAP } = await import("./avatar-resolution.js");
 
     return {
       ageRange: row.ageRange as OnboardingProfileV2["ageRange"],

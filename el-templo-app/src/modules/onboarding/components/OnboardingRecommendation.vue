@@ -1,10 +1,11 @@
 <template>
   <div class="recommendation-screen">
-    <h2 class="recommendation-heading">Tu programa sugerido</h2>
+    <h2 class="recommendation-heading">Listo, te conocemos mejor</h2>
 
     <div class="glass-card">
       <!-- Program info -->
       <div class="program-info">
+        <p class="program-label">Tu programa sugerido</p>
         <h3 class="program-name">{{ programName }}</h3>
         <p class="program-description">{{ programDescription }}</p>
       </div>
@@ -21,15 +22,33 @@
         </div>
       </div>
 
-      <!-- CTA -->
+      <!-- CTA: if user has a plan, enter the app. Otherwise, go to WhatsApp sales -->
       <q-btn
-        label="Entrar al Templo"
+        v-if="hasPlan"
+        label="Empezar a entrenar"
         unelevated
         no-caps
         :loading="submitting"
         class="recommendation-cta full-width"
         @click="emit('enter')"
       />
+      <template v-else>
+        <q-btn
+          unelevated
+          no-caps
+          class="recommendation-cta recommendation-cta--whatsapp full-width"
+          @click="openWhatsApp"
+        >
+          <q-icon
+            name="img:/icons/whatsapp.svg"
+            size="18px"
+            class="q-mr-sm"
+            style="filter: brightness(0) invert(1)"
+          />
+          Quiero este programa
+        </q-btn>
+        <button class="skip-link" @click="emit('enter')">Explorar la app primero</button>
+      </template>
     </div>
   </div>
 </template>
@@ -37,16 +56,25 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-defineProps<{
+const WHATSAPP_NUMBER = '5492235820521'
+
+const props = defineProps<{
   programName: string
   programDescription: string
   auraAwarded: number
   submitting: boolean
+  hasPlan: boolean
 }>()
 
 const emit = defineEmits<{
   enter: []
 }>()
+
+function openWhatsApp(): void {
+  const message = `Hola, acabo de completar mi perfil en la app y me interesa el programa: ${props.programName}`
+  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
+  window.open(url, '_blank')
+}
 
 const showCelebration = ref(false)
 
@@ -211,6 +239,17 @@ $particle-colors: $bronze, $amber;
   }
 }
 
+.program-label {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: rgba($cream, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 4px 0;
+  text-align: center;
+}
+
 // =========================================================================
 // CTA
 // =========================================================================
@@ -238,6 +277,29 @@ $particle-colors: $bronze, $amber;
   &:active {
     transform: scale(0.98);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  &--whatsapp {
+    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
+  }
+}
+
+.skip-link {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: rgba($cream, 0.4);
+  font-family: 'Geologica', sans-serif;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  text-align: center;
+  padding: 8px 0;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: rgba($cream, 0.6);
   }
 }
 </style>

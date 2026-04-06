@@ -29,6 +29,7 @@
                 :program-description="recommendationResult?.programDescription ?? ''"
                 :aura-awarded="auraAwarded"
                 :submitting="submitting"
+                :has-plan="userStore.hasActiveSubscription"
                 @enter="onEnter"
               />
             </Transition>

@@ -176,7 +176,7 @@ export interface QuizQuestionV2 {
 export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   {
     key: 'ageRange',
-    text: '¿En qué etapa estás?',
+    text: '¿Qué edad tenés?',
     options: [
       { value: '18_28', label: '18 a 28 años' },
       { value: '29_40', label: '29 a 40 años' },
@@ -185,7 +185,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
   {
     key: 'trainingBackground',
-    text: '¿Cuál es tu experiencia entrenando?',
+    text: '¿Cómo venís entrenando?',
     options: [
       { value: 'nunca', label: 'Nunca entrené en serio' },
       { value: 'gym', label: 'Gym / pesas' },
@@ -197,7 +197,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
   {
     key: 'goal',
-    text: '¿Qué buscás?',
+    text: '¿Qué querés lograr?',
     genderFiltered: true,
     options: [
       // Universal
@@ -216,7 +216,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
   {
     key: 'painPoint',
-    text: '¿Qué te frena o te frenó antes?',
+    text: '¿Qué te frenó hasta ahora?',
     options: [
       { value: 'tiempo', label: 'No tengo tiempo' },
       { value: 'constancia', label: 'Siempre empiezo y no sigo' },
@@ -228,7 +228,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
   {
     key: 'trainingFrequency',
-    text: '¿Cuántas veces por semana podés entrenar?',
+    text: '¿Cuántos días por semana podés entrenar?',
     options: [
       { value: '2', label: '2 veces' },
       { value: '3', label: '3 veces' },

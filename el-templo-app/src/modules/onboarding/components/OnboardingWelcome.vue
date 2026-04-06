@@ -1,12 +1,12 @@
 <template>
   <div class="welcome-screen">
     <div class="glass-card">
-      <h2 class="welcome-heading">Bienvenido, {{ firstName }}</h2>
+      <h2 class="welcome-heading">Hola, {{ firstName }}</h2>
       <p class="welcome-subtitle text-elegance">
-        Respondé 5 preguntas para personalizar tu experiencia
+        Contanos un poco sobre vos para armar tu camino en El Templo
       </p>
       <q-btn
-        label="Empezar"
+        label="Arrancar"
         unelevated
         no-caps
         class="welcome-cta full-width"

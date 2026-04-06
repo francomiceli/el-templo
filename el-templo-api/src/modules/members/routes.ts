@@ -271,14 +271,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
       const onboardingProfile = profile?.onboardingCompletedAt
         ? {
-            goalType: profile.goalType,
-            goalLabel: GOAL_LABELS[profile.goalType],
-            experienceLevel: profile.experienceLevel,
-            experienceLabel: EXPERIENCE_LABELS[profile.experienceLevel],
-            trainingFocus: profile.trainingFocus,
-            focusLabel: TRAINING_FOCUS_LABELS[profile.trainingFocus],
-            motivationStyle: profile.motivationStyle,
-            motivationLabel: MOTIVATION_LABELS[profile.motivationStyle],
+            goalType: profile.goalType ?? null,
+            goalLabel: profile.goalType ? GOAL_LABELS[profile.goalType] : null,
+            experienceLevel: profile.experienceLevel ?? null,
+            experienceLabel: profile.experienceLevel
+              ? EXPERIENCE_LABELS[profile.experienceLevel]
+              : null,
+            trainingFocus: profile.trainingFocus ?? null,
+            focusLabel: profile.trainingFocus
+              ? TRAINING_FOCUS_LABELS[profile.trainingFocus]
+              : null,
+            motivationStyle: profile.motivationStyle ?? null,
+            motivationLabel: profile.motivationStyle
+              ? MOTIVATION_LABELS[profile.motivationStyle]
+              : null,
             completedAt: profile.onboardingCompletedAt.toISOString(),
           }
         : null;
