@@ -8,15 +8,13 @@
       </div>
 
       <!-- Error state -->
-      <p v-else-if="error" class="stats-card__error">
-        No pudimos cargar tus datos
-      </p>
+      <p v-else-if="error" class="stats-card__error">No pudimos cargar tus datos</p>
 
       <!-- Data state -->
       <div v-else class="stats-card__stats">
         <div class="stats-card__stat">
           <div class="stats-card__stat-row">
-            <q-icon name="fitness_center" class="stats-card__icon" />
+            <q-icon name="img:/icons/entrenar.svg" class="stats-card__icon" />
             <span class="stats-card__stat-value">{{ totalSessions }}</span>
           </div>
           <span class="stats-card__stat-label">Sesiones totales</span>

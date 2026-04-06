@@ -8,7 +8,7 @@
     <!-- No active subscription — blocked state -->
     <div v-else-if="!hasActiveSubscription" class="training-index__blocked">
       <div class="training-index__blocked-content">
-        <q-icon name="fitness_center" size="64px" class="training-index__blocked-icon" />
+        <q-icon name="img:/icons/entrenar.svg" size="64px" class="training-index__blocked-icon" />
         <h2 class="training-index__blocked-title">Activá Tu Plan</h2>
         <p class="training-index__blocked-text">
           No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.

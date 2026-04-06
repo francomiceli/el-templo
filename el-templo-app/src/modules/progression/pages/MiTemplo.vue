@@ -72,14 +72,6 @@
         </div>
       </template>
 
-      <!-- Weekly Summary -->
-      <WeeklySummaryCard
-        :loading="progressionStore.weeklySummaryLoading"
-        :error="progressionStore.weeklySummaryError"
-        :summary="progressionStore.weeklySummary"
-        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
-      />
-
       <!-- Tu Dia Cards — ordered by segment -->
       <template v-for="card in cardOrder" :key="card">
         <template v-if="card === 'session'">
@@ -99,6 +91,14 @@
           :next-class-time="null"
         />
       </template>
+
+      <!-- Weekly Summary -->
+      <WeeklySummaryCard
+        :loading="progressionStore.weeklySummaryLoading"
+        :error="progressionStore.weeklySummaryError"
+        :summary="progressionStore.weeklySummary"
+        :total-sessions="progressionStore.stats?.totalSessions ?? 0"
+      />
 
       <!-- Existing stats, RPE trend, and evaluation sections -->
       <GeneralContent

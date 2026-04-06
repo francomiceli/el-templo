@@ -199,7 +199,7 @@ const mobileTabs = computed<MobileTab[]>(() => {
   const tabs: MobileTab[] = [
     { to: '/mi-templo', icon: 'account_balance', label: 'Mi Templo', badge: true },
     { to: '/training/guia', icon: 'menu_book', label: 'Guía' },
-    { to: '/training', icon: 'fitness_center', label: 'Entrenar' },
+    { to: '/training', icon: 'img:/icons/entrenar.svg', label: 'Entrenar' },
   ]
   tabs.push({ to: '/reservas', icon: 'event_available', label: 'Reservas' })
   tabs.push({ to: '/planes', icon: 'card_membership', label: 'Planes' })

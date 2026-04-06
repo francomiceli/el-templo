@@ -5,7 +5,7 @@
       <div class="col-6">
         <q-card class="stat-card" flat bordered>
           <q-card-section class="stat-card__content">
-            <q-icon name="fitness_center" class="stat-card__icon" />
+            <q-icon name="img:/icons/entrenar.svg" class="stat-card__icon" />
             <div class="stat-card__value">{{ stats.totalSessions }}</div>
             <div class="stat-card__label">Sesiones Totales</div>
           </q-card-section>

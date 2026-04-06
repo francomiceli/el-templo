@@ -3,7 +3,7 @@
     <q-card-section class="session-cta-card__content">
       <div class="session-cta-card__info">
         <q-icon
-          :name="todayCompleted ? 'check_circle' : 'fitness_center'"
+          :name="todayCompleted ? 'check_circle' : 'img:/icons/entrenar.svg'"
           size="32px"
           :color="todayCompleted ? 'positive' : 'primary'"
         />

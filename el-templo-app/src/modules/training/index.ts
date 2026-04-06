@@ -5,14 +5,14 @@ import routes from './routes'
 export const manifest: ModuleManifest = {
   name: 'training',
   label: 'Entrenamiento',
-  icon: 'fitness_center',
+  icon: 'img:/icons/entrenar.svg',
   basePath: '/training',
-  routes
+  routes,
 }
 
 export function registerModule(router: Router): void {
   // Register routes under the 'layout' parent route
-  routes.forEach(route => {
+  routes.forEach((route) => {
     router.addRoute('layout', route)
   })
 }
