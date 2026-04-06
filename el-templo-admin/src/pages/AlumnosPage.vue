@@ -108,19 +108,6 @@
       </div>
     </div>
 
-    <!-- Bulk actions bar -->
-    <div
-      v-if="selectedIds.size > 0"
-      class="row q-mb-md items-center q-pa-sm bg-blue-1 rounded-borders"
-    >
-      <div class="col-auto q-mr-md text-weight-medium">
-        {{ selectedIds.size }} alumno(s) seleccionado(s)
-      </div>
-      <div class="col-auto q-gutter-sm">
-        <q-btn label="Deseleccionar todos" color="grey" size="sm" flat @click="clearSelection" />
-      </div>
-    </div>
-
     <!-- QTable -->
     <q-table
       :rows="members"
@@ -138,27 +125,6 @@
       loading-label="Cargando..."
       @request="onTableRequest"
     >
-      <!-- Selection header -->
-      <template #header-cell-seleccion="props">
-        <q-th :props="props" auto-width>
-          <q-checkbox
-            :model-value="isAllPageSelected"
-            :indeterminate-value="false"
-            @update:model-value="toggleSelectAll"
-          />
-        </q-th>
-      </template>
-
-      <!-- Selection column -->
-      <template #body-cell-seleccion="props">
-        <q-td :props="props" auto-width>
-          <q-checkbox
-            :model-value="selectedIds.has(props.row.id)"
-            @update:model-value="(val: boolean) => toggleSelection(props.row.id, val)"
-          />
-        </q-td>
-      </template>
-
       <!-- Nombre column (clickable) -->
       <template #body-cell-nombre="props">
         <q-td :props="props">
@@ -227,8 +193,8 @@
       <!-- Actions column -->
       <template #body-cell-acciones="props">
         <q-td :props="props">
-          <q-btn flat dense round icon="visibility" color="primary" @click="viewMember(props.row)">
-            <q-tooltip>Ver detalle</q-tooltip>
+          <q-btn flat dense round icon="edit" color="primary" @click="viewMember(props.row)">
+            <q-tooltip>Editar alumno</q-tooltip>
           </q-btn>
         </q-td>
       </template>
@@ -266,7 +232,6 @@ const exporting = ref(false);
 const showCreateDialog = ref(false);
 
 // Selection state
-const selectedIds = ref<Set<number>>(new Set());
 
 // Plans data (including archived for legacy detection)
 const allPlans = ref<Array<{ id: number; name: string; isArchived: boolean; planTier: string }>>(
@@ -338,11 +303,6 @@ const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }
 // Computed
 // =========================================================================
 
-/** Whether all members on the current page are selected */
-const isAllPageSelected = computed(
-  () => members.value.length > 0 && members.value.every((m) => selectedIds.value.has(m.id))
-);
-
 /** Set of archived plan names for quick lookup */
 const archivedPlanNames = computed(() => {
   const names = new Set<string>();
@@ -357,14 +317,6 @@ const archivedPlanNames = computed(() => {
 // =========================================================================
 
 const columns: QTableProps['columns'] = [
-  {
-    name: 'seleccion',
-    label: '',
-    field: 'id',
-    align: 'center',
-    sortable: false,
-    style: 'width: 50px',
-  },
   {
     name: 'nombre',
     label: 'Nombre',
@@ -503,38 +455,6 @@ function segmentLabel(segment: string): string {
 
 function segmentColor(segment: string): string {
   return SEGMENT_COLORS[segment as MemberSegment] ?? 'grey';
-}
-
-// =========================================================================
-// Selection
-// =========================================================================
-
-function toggleSelection(id: number, selected: boolean) {
-  const next = new Set(selectedIds.value);
-  if (selected) {
-    next.add(id);
-  } else {
-    next.delete(id);
-  }
-  selectedIds.value = next;
-}
-
-function toggleSelectAll(selectAll: boolean) {
-  const next = new Set(selectedIds.value);
-  if (selectAll) {
-    for (const m of members.value) {
-      next.add(m.id);
-    }
-  } else {
-    for (const m of members.value) {
-      next.delete(m.id);
-    }
-  }
-  selectedIds.value = next;
-}
-
-function clearSelection() {
-  selectedIds.value = new Set();
 }
 
 // =========================================================================

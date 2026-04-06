@@ -18,7 +18,7 @@
         <div class="plan-card__header">
           <span class="plan-card__name">{{ currentPlan.name }}</span>
           <q-badge
-            :color="tierColor(currentPlan.planTier)"
+            :style="{ backgroundColor: '#96593a' }"
             :label="tierLabel(currentPlan.planTier)"
           />
         </div>
@@ -48,7 +48,7 @@
       >
         <div class="plan-card__header">
           <span class="plan-card__name">{{ exp.name }}</span>
-          <q-badge color="amber-8" label="POR OBJETIVOS" />
+          <q-badge :style="{ backgroundColor: '#96593a' }" label="POR OBJETIVOS" />
         </div>
         <div v-if="exp.description" class="plan-card__desc">{{ exp.description }}</div>
         <div class="plan-card__badges">
@@ -88,7 +88,7 @@
       >
         <div class="plan-card__header">
           <span class="plan-card__name">{{ plan.name }}</span>
-          <q-badge :color="tierColor(plan.planTier)" :label="tierLabel(plan.planTier)" />
+          <q-badge :style="{ backgroundColor: '#96593a' }" :label="tierLabel(plan.planTier)" />
         </div>
         <div v-if="plan.description" class="plan-card__desc">{{ plan.description }}</div>
         <div class="plan-card__badges">
