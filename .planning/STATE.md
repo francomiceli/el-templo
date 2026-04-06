@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.2
-milestone_name: Mica Persona & Bot Refinement
-status: milestone_complete
-stopped_at: "Milestone v5.2 completed"
-last_updated: "2026-04-06T19:44:00Z"
-last_activity: 2026-04-06 -- Milestone v5.2 completed and archived
+milestone: v5.3
+milestone_name: Conversational Sales & Playbook Engine
+status: defining_requirements
+stopped_at: "Milestone v5.3 started — defining requirements"
+last_updated: "2026-04-06T20:30:00Z"
+last_activity: 2026-04-06 -- Milestone v5.3 started
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,14 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and can book classes and register for trials without human intervention.
-**Current focus:** Planning next milestone
+**Current focus:** v5.3 Conversational Sales & Playbook Engine — defining requirements
 
 ## Current Position
 
-Milestone: v5.2 Mica Persona & Bot Refinement — COMPLETE
-Status: milestone_complete
-Progress: ██████████ 100%
-Next: `/gsd:new-milestone` to start next milestone
+Milestone: v5.3 Conversational Sales & Playbook Engine
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Progress: ░░░░░░░░░░ 0%
+Last activity: 2026-04-06 — Milestone v5.3 started
 
 ## Performance Metrics
 

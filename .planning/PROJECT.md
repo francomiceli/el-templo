@@ -9,6 +9,19 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 **Latest shipped:** v5.2 Mica Persona & Bot Refinement (2026-04-06)
 **Bot status:** Production-ready with Mica persona, 12-section knowledge base, 20 response quality tests, and 27 conversation flow tests.
 
+## Current Milestone: v5.3 Conversational Sales & Playbook Engine
+
+**Goal:** Transform Mica from a database-like responder into a conversational salesperson that profiles leads through natural discovery, follows structured playbooks per client state, and adapts proposals based on detected profile.
+
+**Target features:**
+
+- Playbook engine: select active playbook + stage based on client state, inject only the relevant playbook into the system prompt, track stage progression in Redis
+- Discovery mode for leads (PB1): warm intro + max 3 qualifying questions woven naturally into conversation, ONE targeted recommendation per detected profile, soft trial offer
+- State-adaptive playbook prompts (PB2-PB5): trial follow-up, expiring renewal, inactive reactivation, cancellation handling — each with stages, variants, objection handling, and escalation triggers
+- Response quality & avatar adaptation: Mica adapts tone/framing to detected profile (cero_absoluto, gym_crossover, intermedio, retorna), reuses existing Redis profile data, maintains all 14 QA tests + adds per-playbook flow tests
+
+**Out of scope (deferred to v5.4 Kero CRM):** new DB tables, new schedulers, Meta templates, admin panel changes, scoring system, anti-spam rules.
+
 ## Core Value
 
 Members know exactly what to train today, complete guided sessions with block structure and timers, see their progress accumulate, and advance through levels — transforming daily training into visible progression toward mastery.
@@ -43,7 +56,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-Next milestone TBD — run `/gsd:new-milestone` to define
+**v5.3 Conversational Sales & Playbook Engine** — see Current Milestone section above. Detailed REQ-IDs in `.planning/REQUIREMENTS.md`.
 
 ### Out of Scope
 
@@ -128,4 +141,4 @@ Next milestone TBD — run `/gsd:new-milestone` to define
 
 ---
 
-_Last updated: 2026-04-06 after v5.2 milestone completion_
+_Last updated: 2026-04-06 after starting v5.3 Conversational Sales & Playbook Engine milestone_
