@@ -908,8 +908,8 @@ onBeforeUnmount(() => cleanup())
   align-items: center;
   justify-content: center;
   font-family: 'Montserrat', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 800;
   color: $primary;
   text-transform: uppercase;
   letter-spacing: 0.05em;
