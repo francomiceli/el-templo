@@ -261,21 +261,12 @@ async function onSubmit() {
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,
     })
-    if (result?.existingAccount) {
-      $q.notify({
-        type: 'positive',
-        message: result.promoApplied
-          ? 'Bienvenido de vuelta! Tu promo ya esta activa.'
-          : 'Bienvenido de vuelta!',
-      })
-    } else {
-      $q.notify({
-        type: 'positive',
-        message: promoCode.value
-          ? 'Cuenta creada. Tu mes gratis ya esta activo!'
-          : 'Cuenta creada exitosamente',
-      })
-    }
+    $q.notify({
+      type: 'positive',
+      message: result?.promoApplied
+        ? 'Cuenta creada. Tu mes gratis ya esta activo!'
+        : 'Cuenta creada exitosamente',
+    })
     router.push('/')
   } catch (err: unknown) {
     const errorMsg = extractError(err, 'Error al crear cuenta')

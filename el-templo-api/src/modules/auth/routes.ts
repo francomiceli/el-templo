@@ -46,165 +46,36 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         promoCode,
       } = request.body;
 
-      // Check if email or DNI already exists — auto-login instead of rejecting
+      // Reject if email already exists
       const [existingByEmail] = await fastify.db
-        .select({
-          id: users.id,
-          email: users.email,
-          passwordHash: users.passwordHash,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          role: users.role,
-          level: users.level,
-          branchId: users.branchId,
-          isActive: users.isActive,
-        })
+        .select({ id: users.id })
         .from(users)
         .where(eq(users.email, email))
         .limit(1);
 
-      const existingUser =
-        existingByEmail ??
-        (
-          await fastify.db
-            .select({
-              id: users.id,
-              email: users.email,
-              passwordHash: users.passwordHash,
-              firstName: users.firstName,
-              lastName: users.lastName,
-              role: users.role,
-              level: users.level,
-              branchId: users.branchId,
-              isActive: users.isActive,
-            })
-            .from(users)
-            .where(eq(users.dni, dni))
-            .limit(1)
-        )[0] ??
-        null;
-
-      if (existingUser) {
-        // Update password to the one they just submitted
-        const validPassword = await argon2.verify(
-          existingUser.passwordHash,
-          password,
-        );
-        if (!validPassword) {
-          const newHash = await argon2.hash(password);
-          await fastify.db
-            .update(users)
-            .set({ passwordHash: newHash })
-            .where(eq(users.id, existingUser.id));
-        }
-
-        // Apply promo to existing account if applicable
-        let promoApplied = false;
-        if (promoCode) {
-          try {
-            const [promo] = await fastify.db
-              .select()
-              .from(promoPlans)
-              .where(eq(promoPlans.promoCode, promoCode))
-              .limit(1);
-
-            if (promo && promo.isActive) {
-              const now = new Date();
-              if (now >= promo.startDate && now <= promo.expiryDate) {
-                const auraService = new AuraService(fastify.db);
-                const paymentService = new PaymentService(
-                  fastify.db,
-                  fastify.log,
-                );
-                const subscriptionService = new SubscriptionService(
-                  fastify.db,
-                  request.log,
-                  auraService,
-                  paymentService,
-                );
-
-                const today = new Date().toISOString().split("T")[0];
-                await subscriptionService.assignPlan(
-                  existingUser.id,
-                  {
-                    planId: promo.subscriptionPlanId,
-                    branchId: existingUser.branchId,
-                    startDate: today,
-                    priceTypeApplied: "zero",
-                    paymentMethod: "cash",
-                  },
-                  existingUser.id,
-                );
-
-                await fastify.db
-                  .update(promoPlans)
-                  .set({
-                    redemptionCount: sql`${promoPlans.redemptionCount} + 1`,
-                  })
-                  .where(eq(promoPlans.id, promo.id));
-
-                promoApplied = true;
-              }
-            }
-          } catch (err: unknown) {
-            request.log.error(
-              {
-                err: err instanceof Error ? err.message : String(err),
-                promoCode,
-                userId: existingUser.id,
-              },
-              "Promo code assignment to existing user failed (graceful degradation)",
-            );
-          }
-        }
-
-        // Get branch info
-        const [branchRow] = await fastify.db
-          .select({ name: branches.name, isVirtual: branches.isVirtual })
-          .from(branches)
-          .where(eq(branches.id, existingUser.branchId))
-          .limit(1);
-
-        // Check onboarding status
-        const [profile] = await fastify.db
-          .select({
-            completedAt: memberProfiles.onboardingCompletedAt,
-          })
-          .from(memberProfiles)
-          .where(eq(memberProfiles.userId, existingUser.id))
-          .limit(1);
-        const onboardingCompleted = !!profile?.completedAt;
-
-        // Sign JWT and return login response
-        const token = fastify.jwt.sign({
-          userId: existingUser.id,
-          email: existingUser.email,
-          role: existingUser.role,
+      if (existingByEmail) {
+        return reply.code(409).send({
+          error: "Email en uso",
+          message:
+            "Ya existe una cuenta con este email. Intentá iniciar sesión.",
         });
+      }
 
-        request.log.info(
-          { userId: existingUser.id, promoCode, promoApplied },
-          "Existing user auto-logged in via register endpoint",
-        );
+      // Reject if DNI already exists
+      if (dni) {
+        const [existingByDni] = await fastify.db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.dni, dni))
+          .limit(1);
 
-        return {
-          token,
-          user: {
-            id: existingUser.id,
-            email: existingUser.email,
-            firstName: existingUser.firstName,
-            lastName: existingUser.lastName,
-            role: existingUser.role,
-            level: existingUser.level,
-            branchId: existingUser.branchId,
-            branchName: branchRow?.name ?? "",
-            branchIsVirtual: branchRow?.isVirtual ?? false,
-            isActive: existingUser.isActive,
-            onboardingCompleted,
-          },
-          promoApplied,
-          existingAccount: true,
-        };
+        if (existingByDni) {
+          return reply.code(409).send({
+            error: "DNI en uso",
+            message:
+              "Ya existe una cuenta con este DNI. Intentá iniciar sesión.",
+          });
+        }
       }
 
       // Resolve branch: use provided branchId or default to ONLINE
