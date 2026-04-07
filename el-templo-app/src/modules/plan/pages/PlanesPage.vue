@@ -54,7 +54,9 @@
         <div class="plan-card__badges">
           <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" />
           <q-badge outline color="grey-7">{{ exp.durationWeeks }} semanas</q-badge>
-          <q-badge outline color="primary">${{ exp.price.toLocaleString() }}</q-badge>
+          <q-badge v-if="exp.price != null" outline color="primary"
+            >${{ exp.price.toLocaleString() }}</q-badge
+          >
         </div>
         <div v-if="enrolledProgramId === exp.id" class="plan-card__status">
           <q-icon name="check_circle" size="16px" color="positive" />
