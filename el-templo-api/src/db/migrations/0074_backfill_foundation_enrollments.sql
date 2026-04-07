@@ -8,7 +8,7 @@ SELECT DISTINCT s.user_id, @foundation_id, 'active', 1, 0, NOW()
 FROM `subscriptions` s
 INNER JOIN `subscription_plans` sp ON sp.id = s.plan_id
 WHERE sp.plan_category = 'presencial'
-  AND s.status IN ('active', 'paused')
+  AND s.subscription_status IN ('active', 'paused')
   AND s.user_id NOT IN (
     SELECT pe.user_id FROM `program_enrollments` pe WHERE pe.status = 'active'
   );
