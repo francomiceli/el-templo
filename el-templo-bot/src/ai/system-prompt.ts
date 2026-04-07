@@ -10,6 +10,7 @@
 
 import type { ClientState } from "../state/machine.js";
 import type { PlaybookId, StageId } from "../playbooks/types.js";
+import { PLAYBOOKS } from "../playbooks/definitions.js";
 import { getBusinessKnowledge } from "./knowledge.js";
 
 interface SystemPromptOptions {
@@ -17,15 +18,24 @@ interface SystemPromptOptions {
   profileContext?: string;
   /**
    * Resolved active playbook for this turn (set by webhook/handler.ts after
-   * calling `resolvePlaybook`). Plan 82-02 only passes the value through;
-   * plan 82-03 will consume it to inject the matching playbook section.
+   * calling `resolvePlaybook`). When set together with `currentStage`, the
+   * matching playbook section is injected into the prompt — and ONLY that
+   * section. The other four playbooks are never rendered (PBENG-05).
    */
-  activePlaybook?: PlaybookId;
+  activePlaybook?: PlaybookId | null;
   /** Resolved current stage id within the active playbook. See `activePlaybook`. */
-  currentStage?: StageId;
+  currentStage?: StageId | null;
 }
 
-/** State-specific prompt sections — sales-aware, objective-driven */
+/**
+ * State-specific prompt sections — sales-aware, objective-driven.
+ *
+ * TODO(phase-84): consider suppressing STATE_SECTIONS when activePlaybook is
+ * set to avoid double-framing. Today both the short STATE_SECTIONS line and
+ * the more detailed playbook section are rendered together; the playbook
+ * section is more specific and supersedes it conceptually, but we keep both
+ * until plan 84 revisits the final shape of state-adaptive prompts.
+ */
 const STATE_SECTIONS: Record<ClientState, string> = {
   lead: "Esta persona es un _lead nuevo_. Tu objetivo principal es guiarlo hacia una clase de prueba. Responde sus preguntas con entusiasmo, muestra el valor de El Templo, y cuando sientas apertura, ofrece coordinar la prueba gratuita. Usa tecnicas de venta suaves del conocimiento.",
   trial:
@@ -117,6 +127,27 @@ ${getBusinessKnowledge()}`;
     sections.push(
       `\n\nDatos del perfil del cliente:\n${options.profileContext}`,
     );
+  }
+
+  // Append the ACTIVE playbook section — and ONLY that one (PBENG-05).
+  //
+  // Scope contract: under NO circumstances iterate over PLAYBOOKS and
+  // concatenate all of them. The other four playbooks must never appear
+  // in the rendered output. The only path that reads from PLAYBOOKS is
+  // the single-key lookup below.
+  if (options?.activePlaybook && options?.currentStage) {
+    const definition = PLAYBOOKS[options.activePlaybook];
+    if (definition) {
+      const stage =
+        definition.stages.find((s) => s.id === options.currentStage) ??
+        definition.stages.find((s) => s.id === definition.entryStageId);
+      if (stage) {
+        const directive = `Estás ejecutando el playbook ${definition.id}, etapa ${stage.id}. Seguí ESTA guía y sólo ésta. Ignorá cualquier otra guía que hayas visto antes.`;
+        sections.push(
+          `\n\n${directive}\n\n*Playbook activo: ${definition.id} (${stage.id})*\n\n${stage.promptSection}`,
+        );
+      }
+    }
   }
 
   return sections.join("");
