@@ -1,6 +1,6 @@
 <template>
   <div class="recommendation-screen">
-    <h2 class="recommendation-heading">Listo, te conocemos mejor</h2>
+    <h2 class="recommendation-heading">Gracias por tus respuestas!</h2>
 
     <div class="glass-card">
       <!-- Program info -->
