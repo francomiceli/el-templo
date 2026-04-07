@@ -93,6 +93,7 @@ export class GoalPlanService {
 
   /**
    * Check that the member has an active subscription with a goal-plan-enabled plan.
+   * Presencial plans qualify because they get Foundation (which has goal plan sessions).
    * Throws SubscriptionRequiredError if not.
    */
   async checkSubscription(userId: number): Promise<void> {
@@ -110,7 +111,10 @@ export class GoalPlanService {
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
           ),
-          eq(schema.subscriptionPlans.planCategory, "online_goal"),
+          or(
+            eq(schema.subscriptionPlans.planCategory, "online_goal"),
+            eq(schema.subscriptionPlans.planCategory, "presencial"),
+          ),
         ),
       )
       .limit(1);
