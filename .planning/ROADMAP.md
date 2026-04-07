@@ -76,7 +76,14 @@ Plans:
 6. Discovery closes with a soft trial offer ("¿Querés probar con una clase gratis?") rather than a hard sell.
 7. When a lead explicitly insists on direct answers, Mica defers profiling gracefully — she answers the question and does not push another discovery question that turn.
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+Plans:
+
+- [ ] 83-01-PLAN.md — Enrich PB1 promptSection content with discovery rules + TEAM-CORR-01/02/03
+- [ ] 83-02-PLAN.md — Profile tag parser + AvatarProfile type + handler wiring (LLM-emitted <profile> tag, hybrid strategy)
+- [ ] 83-03-PLAN.md — Profile-aware PB1 stage advancement + defer/insistence guard signals
+- [ ] 83-04-PLAN.md — PB1 discovery flow test suite covering DISC-01..07
 
 ---
 
@@ -120,7 +127,7 @@ Plans:
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
-| 83. Discovery Mode for Leads (PB1)          | 0/?            | Not started | -          |
+| 83. Discovery Mode for Leads (PB1)          | 0/4            | Not started | -          |
 | 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -          |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
