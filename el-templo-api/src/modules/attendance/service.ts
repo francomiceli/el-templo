@@ -176,6 +176,7 @@ export class AttendanceService {
       memberId,
       branchId,
       scheduleId: matchingBooking.scheduleId,
+      sessionDate: todayStr,
       status: "confirmado",
       source: "qr",
       checkedInAt: now,
@@ -243,10 +244,12 @@ export class AttendanceService {
     const { memberId, branchId, reason } = input;
 
     // Insert attendance record
+    const todayStr = new Date().toISOString().split("T")[0];
     const result = await this.db.insert(schema.attendance).values({
       memberId,
       branchId,
       scheduleId: null,
+      sessionDate: todayStr,
       status: "confirmado",
       source: "manual",
     });
@@ -346,7 +349,7 @@ export class AttendanceService {
       .where(
         and(
           eq(schema.attendance.scheduleId, scheduleId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
+          eq(schema.attendance.sessionDate, date),
         ),
       );
 
@@ -454,6 +457,7 @@ export class AttendanceService {
       memberId,
       branchId: schedule.branchId,
       scheduleId,
+      sessionDate: date,
       status: "confirmado",
       source: "manual",
     });

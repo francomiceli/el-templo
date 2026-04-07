@@ -2,6 +2,7 @@
 import {
   mysqlTable,
   int,
+  date,
   timestamp,
   mysqlEnum,
   index,
@@ -31,6 +32,7 @@ export const attendance = mysqlTable(
       .references(() => branches.id)
       .notNull(),
     scheduleId: int("schedule_id").references(() => schedules.id),
+    sessionDate: date("session_date", { mode: "string" }).notNull(),
     checkedInAt: timestamp("checked_in_at").defaultNow().notNull(),
     status: attendanceStatusEnum.default("confirmado").notNull(),
     source: attendanceSourceEnum.default("qr").notNull(),
@@ -44,6 +46,10 @@ export const attendance = mysqlTable(
     index("idx_attendance_branch_checked_in").on(
       table.branchId,
       table.checkedInAt,
+    ),
+    index("idx_attendance_schedule_session_date").on(
+      table.scheduleId,
+      table.sessionDate,
     ),
   ],
 );
