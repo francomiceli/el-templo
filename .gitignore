@@ -22,3 +22,6 @@ poc-pdf/
 # Video pipeline artifacts
 el-templo-video-pipeline/
 el-templo-tools/
+
+# iOS signing credentials
+tools/ios-signing/
