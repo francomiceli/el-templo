@@ -25,13 +25,16 @@
       <!-- Planes Tab — Unified Table -->
       <!-- ============================================================== -->
       <q-tab-panel name="planes">
+        <!-- Header with single create button -->
         <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Todos los Planes</div>
+          <div class="col" />
           <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreateDialog" />
         </div>
 
+        <!-- Presenciales Table -->
+        <div class="text-h6 q-mb-sm">Presenciales</div>
         <q-table
-          :rows="plans"
+          :rows="presencialPlans"
           :columns="planColumns"
           row-key="id"
           :loading="loadingPlans"
@@ -39,6 +42,7 @@
           :rows-per-page-options="[20, 50, 100]"
           flat
           bordered
+          class="q-mb-xl"
         >
           <!-- Category column -->
           <template #body-cell-categoria="props">
@@ -79,6 +83,97 @@
                 {{ props.row.classesPerWeek ?? 'Ilimitado' }}
               </template>
               <span v-else class="text-grey-5">—</span>
+            </q-td>
+          </template>
+
+          <!-- Linked program column -->
+          <template #body-cell-programa="props">
+            <q-td :props="props">
+              {{ programName(props.row.linkedProgramId) }}
+            </q-td>
+          </template>
+
+          <!-- Status column -->
+          <template #body-cell-estado="props">
+            <q-td :props="props">
+              <q-badge
+                :color="props.row.isActive ? 'positive' : 'grey'"
+                :label="props.row.isActive ? 'Activo' : 'Inactivo'"
+              />
+            </q-td>
+          </template>
+
+          <!-- Actions column -->
+          <template #body-cell-acciones="props">
+            <q-td :props="props">
+              <q-btn
+                flat
+                dense
+                round
+                icon="edit"
+                color="primary"
+                @click="openEditDialog(props.row)"
+              >
+                <q-tooltip>Editar</q-tooltip>
+              </q-btn>
+              <q-btn
+                v-if="props.row.isActive"
+                flat
+                dense
+                round
+                icon="block"
+                color="negative"
+                @click="confirmDeactivate(props.row)"
+              >
+                <q-tooltip>Desactivar</q-tooltip>
+              </q-btn>
+            </q-td>
+          </template>
+        </q-table>
+
+        <!-- Online Table -->
+        <div class="text-h6 q-mb-sm">Online</div>
+        <q-table
+          :rows="onlinePlans"
+          :columns="planColumns"
+          row-key="id"
+          :loading="loadingPlans"
+          :pagination="{ rowsPerPage: 50 }"
+          :rows-per-page-options="[20, 50, 100]"
+          flat
+          bordered
+        >
+          <!-- Category column -->
+          <template #body-cell-categoria="props">
+            <q-td :props="props">
+              <q-badge
+                :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
+                :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
+              />
+            </q-td>
+          </template>
+
+          <!-- Tier column -->
+          <template #body-cell-tier="props">
+            <q-td :props="props">
+              <span class="text-grey-5">—</span>
+            </q-td>
+          </template>
+
+          <!-- Price column -->
+          <template #body-cell-precio="props">
+            <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
+          </template>
+
+          <!-- Duration column -->
+          <template #body-cell-duracion="props">
+            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
+          </template>
+
+          <!-- Classes column -->
+          <template #body-cell-clases="props">
+            <q-td :props="props">
+              <span class="text-grey-5">—</span>
             </q-td>
           </template>
 
@@ -225,7 +320,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -270,6 +365,13 @@ const presetCategory = ref<PlanCategory>('presencial');
 // =========================================================================
 
 const programs = ref<Program[]>([]);
+
+// =========================================================================
+// Computed plan lists
+// =========================================================================
+
+const presencialPlans = computed(() => plans.value.filter((p) => p.planCategory === 'presencial'));
+const onlinePlans = computed(() => plans.value.filter((p) => p.planCategory !== 'presencial'));
 
 // =========================================================================
 // Promos State
