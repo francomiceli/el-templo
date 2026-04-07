@@ -202,4 +202,153 @@ describe("advanceStageIfComplete", () => {
       expect(results.has("PB1.E4")).toBe(true);
     });
   });
+
+  // ── PB1 phase-83 refinements ───────────────────────────────────────────
+
+  describe("PB1 phase-83 refinements", () => {
+    it("E1A + discoveryAnswered + detectedAvatar=intermedio → PB1.E2B", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          detectedAvatar: "intermedio",
+        }),
+      ).toBe("PB1.E2B");
+    });
+
+    it("E1A + discoveryAnswered + detectedAvatar=retorna → PB1.E2B", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          detectedAvatar: "retorna",
+        }),
+      ).toBe("PB1.E2B");
+    });
+
+    it("E1B + discoveryAnswered + detectedAvatar=intermedio → PB1.E2B", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1B"), {
+          discoveryAnswered: true,
+          detectedAvatar: "intermedio",
+        }),
+      ).toBe("PB1.E2B");
+    });
+
+    it("E1A + discoveryAnswered + detectedAvatar=cero_absoluto → PB1.E2A", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          detectedAvatar: "cero_absoluto",
+        }),
+      ).toBe("PB1.E2A");
+    });
+
+    it("E1A + discoveryAnswered + detectedAvatar=gym_crossover → PB1.E2A", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          detectedAvatar: "gym_crossover",
+        }),
+      ).toBe("PB1.E2A");
+    });
+
+    it("E1A + discoveryAnswered + detectedAvatar=null → PB1.E2A (backward-compat default)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          detectedAvatar: null,
+        }),
+      ).toBe("PB1.E2A");
+    });
+
+    it("E1A + discoveryAnswered + detectedAvatar omitted → PB1.E2A (backward-compat, signal absent)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB1.E2A");
+    });
+
+    it("E1A + discoveryAnswered + directQuestionAsked → null (defer holds stage)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          directQuestionAsked: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("E2A + discoveryAnswered + directQuestionAsked → null (defer holds stage)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E2A"), {
+          discoveryAnswered: true,
+          directQuestionAsked: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("E1A + discoveryAnswered + userInsistedDirect → null (insistence holds stage)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+          discoveryAnswered: true,
+          userInsistedDirect: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("E3 + discoveryAnswered + userInsistedDirect → null (insistence holds even at E3)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E3"), {
+          discoveryAnswered: true,
+          userInsistedDirect: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("E3 + discoveryAnswered + no guards → PB1.E4 (normal path)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E3"), {
+          discoveryAnswered: true,
+          directQuestionAsked: false,
+          userInsistedDirect: false,
+        }),
+      ).toBe("PB1.E4");
+    });
+
+    it("E2B + discoveryAnswered → PB1.E3 (E2B path works, not just E2A)", () => {
+      expect(
+        advanceStageIfComplete(at("PB1", "PB1.E2B"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB1.E3");
+    });
+
+    it("purity guard: does not mutate signals object containing all new fields", () => {
+      const signals: AdvanceSignals = {
+        discoveryAnswered: true,
+        trialProposed: false,
+        userAccepted: false,
+        priceObjection: false,
+        detectedAvatar: "intermedio",
+        directQuestionAsked: false,
+        userInsistedDirect: false,
+      };
+      const frozen: AdvanceSignals = { ...signals };
+      advanceStageIfComplete(at("PB1", "PB1.E1A"), signals);
+      expect(signals).toEqual(frozen);
+    });
+
+    it("purity guard: deterministic across 100 calls with detectedAvatar=intermedio at E1A", () => {
+      const results = new Set<StageId | null>();
+      for (let i = 0; i < 100; i++) {
+        results.add(
+          advanceStageIfComplete(at("PB1", "PB1.E1A"), {
+            discoveryAnswered: true,
+            detectedAvatar: "intermedio",
+          }),
+        );
+      }
+      expect(results.size).toBe(1);
+      expect(results.has("PB1.E2B")).toBe(true);
+    });
+  });
 });
