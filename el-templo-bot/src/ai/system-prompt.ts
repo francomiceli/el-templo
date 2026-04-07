@@ -9,7 +9,7 @@
  */
 
 import type { ClientState } from "../state/machine.js";
-import type { PlaybookId, StageId } from "../playbooks/types.js";
+import type { AvatarProfile, PlaybookId, StageId } from "../playbooks/types.js";
 import { PLAYBOOKS } from "../playbooks/definitions.js";
 import { getBusinessKnowledge } from "./knowledge.js";
 
@@ -25,6 +25,13 @@ interface SystemPromptOptions {
   activePlaybook?: PlaybookId | null;
   /** Resolved current stage id within the active playbook. See `activePlaybook`. */
   currentStage?: StageId | null;
+  /**
+   * Avatar profile previously detected for this lead (read from Redis
+   * playbook state). When set, Mica is told NOT to re-run discovery and to
+   * adapt her tone to the known avatar. When null/undefined and the active
+   * playbook is PB1, Mica is told to detect and emit a `<profile>` tag.
+   */
+  currentAvatar?: AvatarProfile | null;
 }
 
 /**
@@ -126,6 +133,15 @@ ${getBusinessKnowledge()}`;
   if (options?.profileContext) {
     sections.push(
       `\n\nDatos del perfil del cliente:\n${options.profileContext}`,
+    );
+  }
+
+  // Append the known-avatar section BEFORE the playbook section so the
+  // model sees "this lead is already profiled" before reading the stage
+  // instructions. Phase 85 will replace this with per-avatar tone blocks.
+  if (options?.currentAvatar) {
+    sections.push(
+      `\n\n*Perfil detectado*\n\nEste lead ya tiene perfil detectado: ${options.currentAvatar}. NO repitas las preguntas de discovery que ya respondió. Adaptá tu tono y propuesta a este perfil.`,
     );
   }
 

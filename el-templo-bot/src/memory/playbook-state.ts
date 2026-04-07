@@ -19,6 +19,12 @@
  *
  * Mirrors the shape of `memory/session.ts` (same Pino logger, same
  * `isRedisAvailable` guard, same silent-degrade pattern, same TTL).
+ *
+ * Schema evolution: the optional `avatar` field on `PlaybookSessionState`
+ * (added in phase 83-02) is backward-compatible — old entries without the
+ * field deserialize cleanly with `avatar === undefined`. No code changes
+ * to read/write/delete are required because we serialize the whole shape
+ * as JSON and the new field rides through transparently.
  */
 
 import pino from "pino";

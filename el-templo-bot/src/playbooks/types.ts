@@ -58,13 +58,34 @@ export interface PlaybookDefinition {
 }
 
 /**
+ * Simplified 4-avatar model for v5.3 (from 11 in the onboarding quiz design).
+ * Detected conversationally during PB1 discovery and persisted in the playbook
+ * session state. Phase 85 uses this to adapt Mica's tone per avatar.
+ */
+export type AvatarProfile =
+  | "cero_absoluto" // nunca entrenó o no-entrenador
+  | "gym_crossover" // viene de gym/crossfit/pesas
+  | "intermedio" // ya hace calistenia, quiere mejorar
+  | "retorna"; // entrenó antes, volvió después de un parate
+
+/**
  * The shape plan 02 will persist into the Redis session (6h TTL).
  * `updatedAt` is a unix epoch in milliseconds so the handler can
  * expire stale entries without a Date import in the resolver.
+ *
+ * Schema evolution: the optional `avatar` field (added in phase 83-02)
+ * is backward-compatible — old entries written by phase 82-02 without
+ * the field deserialize cleanly with `avatar === undefined`.
  */
 export interface PlaybookSessionState {
   activePlaybook: PlaybookId | null;
   currentStage: StageId | null;
+  /**
+   * Detected avatar profile for the lead. `undefined` means not yet detected,
+   * `null` is reserved for explicit clears (none currently emitted), and a
+   * concrete value means the parser found a `<profile>` tag in a prior turn.
+   */
+  avatar?: AvatarProfile | null;
   updatedAt: number;
 }
 
