@@ -2008,9 +2008,10 @@ Plans:
 1. Build available on TestFlight for internal testers
 2. App installed from TestFlight on at least 2 real iOS devices
 3. Core flows verified on real devices: login, view training, complete a session, view Mi Templo
-4. No critical crashes in TestFlight feedback or Sentry
-5. App submitted for App Store review with all metadata complete
-6. App approved and live on the App Store
+4. Push notifications working on iOS (APNs key uploaded to Firebase, FCM→APNs bridge verified)
+5. No critical crashes in TestFlight feedback or Sentry
+6. App submitted for App Store review with all metadata complete
+7. App approved and live on the App Store
 
 ---
 
