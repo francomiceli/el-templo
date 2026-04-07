@@ -481,13 +481,14 @@ const availablePrograms = computed(() =>
 function executeSwapProgram() {
   if (!swapTargetProgramId.value) return;
 
-  // If upgrading from Foundation (free) to a paid program, warn about payment
+  // If a presencial member upgrades from Foundation (free) to a paid program, warn about payment
+  const isPresencial = presencialSub.value !== null;
   const isFromFoundation =
     activeEnrollment.value?.programName?.toLowerCase().includes('foundation') ?? false;
   const targetProgram = allPrograms.value.find((p) => p.id === swapTargetProgramId.value);
   const isToFoundation = targetProgram?.name?.toLowerCase().includes('foundation') ?? false;
 
-  if (isFromFoundation && !isToFoundation) {
+  if (isPresencial && isFromFoundation && !isToFoundation) {
     $q.dialog({
       title: 'Registrar pago',
       message: `Estas cambiando de Foundation (incluido) a "${targetProgram?.name}". Asegurate de registrar el pago en Caja antes de confirmar el cambio.`,
