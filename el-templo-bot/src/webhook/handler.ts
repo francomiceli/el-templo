@@ -474,7 +474,11 @@ async function processWithAi(
   // whether to advance the stage for the NEXT turn. Overwrites Redis only
   // if the helper returns a non-null next stage.
   if (resolved.playbookId !== null && resolved.stageId !== null) {
-    const signals = computeAdvanceSignals(inboundText, replyText);
+    const signals = computeAdvanceSignals(
+      inboundText,
+      replyText,
+      detectedAvatar ?? priorAvatar ?? null,
+    );
     const nextStage = advanceStageIfComplete(
       { playbookId: resolved.playbookId, stageId: resolved.stageId },
       signals,
@@ -583,6 +587,7 @@ function detectCancellationIntent(text: string): boolean {
 function computeAdvanceSignals(
   inboundText: string,
   replyText: string,
+  detectedAvatar: AvatarProfile | null,
 ): AdvanceSignals {
   const reply = replyText.toLowerCase();
   const inbound = inboundText.toLowerCase();
@@ -609,11 +614,31 @@ function computeAdvanceSignals(
       inbound,
     );
 
+  // Phase 83-03: direct logistical question before discovery is complete.
+  // Regex matches Spanish phrasings for "¿cuánto sale?", "¿qué horarios?",
+  // "¿dónde está?", "¿dónde queda?", "precio", "plan". Intentionally narrow.
+  const directQuestionAsked =
+    /\b(cu[aá]nto sale|qu[eé] precio|cu[aá]nto (cuesta|vale)|qu[eé] horarios?|qu[eé] d[ií]as|d[oó]nde (est[aá]n?|queda|quedan)|direcci[oó]n|sede|qu[eé] planes?)\b/i.test(
+      inbound,
+    );
+
+  // Phase 83-03: user insists on direct answers / refuses discovery.
+  // Match phrases like "solo quiero el precio", "pasame los horarios ya",
+  // "no tengo tiempo para charlar", "respondeme directo". Narrow to avoid
+  // false positives on normal affirmative/interest responses.
+  const userInsistedDirect =
+    /\b(solo (quiero|necesito)|pasame (el|los) (precio|horarios?)|no tengo tiempo|respondeme directo|sin vueltas|al grano|dec[ií]me directo)\b/i.test(
+      inbound,
+    );
+
   return {
     discoveryAnswered,
     trialProposed,
     userAccepted,
     priceObjection,
+    detectedAvatar,
+    directQuestionAsked,
+    userInsistedDirect,
   };
 }
 
