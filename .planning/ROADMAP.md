@@ -10,6 +10,7 @@
 - **v4.3 Android Play Store Launch** - Phases 74-77 (planned)
 - **v4.4 App Engagement & Intelligent Companion** - Phases 78-88 (planned)
 - **v4.5 Planes Online — Digital Monetization** - Phases 89-91 (planned)
+- **v4.6 iOS App Store Launch** - Phases 93-95 (planned)
 
 ---
 
@@ -1580,7 +1581,7 @@ Plans:
 
 - [x] 78-01-PLAN.md — Backend: member_profiles schema, onboarding service, API routes, AURA integration, /auth/me extension, integration tests
 - [x] 78-02-PLAN.md — Member app: 6-screen quiz flow (welcome + 4 questions + result) with atmospheric design, router guard, store extension
-- [ ] 78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification
+- [x] ~~78-03-PLAN.md — Tu Camino card on Mi Camino, admin onboarding profile section, visual verification~~ (dropped — not incorporating into current Mi Templo)
 
 ---
 
@@ -1622,7 +1623,7 @@ Plans:
 Plans:
 
 - [x] 80-01-PLAN.md — Backend weekly summary endpoint + frontend types/store extensions (segment, WeeklySummary)
-- [ ] 80-02-PLAN.md — Tu Dia card components (6 cards) + MiCamino.vue reorganization + GeneralContent refactor + TuCaminoCard removal
+- [x] ~~80-02-PLAN.md — Tu Dia card components (6 cards) + MiCamino.vue reorganization + GeneralContent refactor + TuCaminoCard removal~~ (dropped — not incorporating into current Mi Templo)
 - [x] 80-03-PLAN.md — Post-session RPE contextual message on SessionSummary
 
 ---
@@ -1645,7 +1646,7 @@ Plans:
 Plans:
 
 - [x] 81-01-PLAN.md — Backend: schema migration, StreakService, session/attendance integration, AURA milestones, integration tests
-- [ ] 81-02-PLAN.md — Frontend: StreakRow component on MiCamino, progression types update
+- [x] ~~81-02-PLAN.md — Frontend: StreakRow component on MiCamino, progression types update~~ (dropped — not incorporating into current Mi Templo)
 
 ---
 
@@ -1667,7 +1668,7 @@ Plans:
 
 - [x] 82-01-PLAN.md — Backend: check_in_responses schema, CheckInService, progressive unlock logic, API endpoints, integration tests
 - [x] 82-02-PLAN.md — Frontend: CheckInCard component, store/composable, swipeable row on MiCamino with daily rotation
-- [ ] 82-03-PLAN.md — Feedback loop: SessionCtaCard messaging adapts based on today's check-in answers
+- [x] ~~82-03-PLAN.md — Feedback loop: SessionCtaCard messaging adapts based on today's check-in answers~~ (dropped — not incorporating into current Mi Templo)
 
 ---
 
@@ -1824,19 +1825,19 @@ Plans:
 **Execution Order:**
 Phase 78 (Onboarding) → Phase 79 (Segmentation) + Phase 81 (Streaks, parallel) → Phase 80 (Tu Día) → Phase 82 (Check-ins) → Phase 83 (Upsells) → Phase 84 (Push Notifications)
 
-| Phase                                   | Plans Complete | Status      | Completed  |
-| --------------------------------------- | -------------- | ----------- | ---------- |
-| 78. Onboarding & User Profiling         | 2/3            | In Progress |            |
-| 79. Behavioral Segmentation             | —              | Planned     | —          |
-| 80. "Tu Día" Daily Game Plan            | 2/3            | In Progress |            |
-| 81. Streaks & Engagement Mechanics      | 1/2            | In Progress |            |
-| 82. Progressive Profiling & Check-ins   | 2/3            | In Progress |            |
-| 83. Micro-Program Upsells               | 4/5            | Complete    | 2026-03-25 |
-| 84. Push Notifications Foundation       | 6/7            | Complete    | 2026-03-26 |
-| 85. Guía — Exercise & Mobility Library  | —              | Planned     | —          |
-| 86. QR Promo — Free Month Campaign      | 6/6            | Complete    | 2026-03-28 |
-| 87. Localization — ES-AR vs ES-ES       | —              | Planned     | —          |
-| 88. Reservation Rules — Per-Plan Config | 3/4            | Complete    | 2026-04-03 |
+| Phase                                   | Plans Complete  | Status   | Completed  |
+| --------------------------------------- | --------------- | -------- | ---------- |
+| 78. Onboarding & User Profiling         | 2/3 (3 dropped) | Complete | 2026-04-07 |
+| 79. Behavioral Segmentation             | —               | Planned  | —          |
+| 80. "Tu Día" Daily Game Plan            | 2/3 (3 dropped) | Complete | 2026-04-07 |
+| 81. Streaks & Engagement Mechanics      | 1/2 (2 dropped) | Complete | 2026-04-07 |
+| 82. Progressive Profiling & Check-ins   | 2/3 (3 dropped) | Complete | 2026-04-07 |
+| 83. Micro-Program Upsells               | 4/5             | Complete | 2026-03-25 |
+| 84. Push Notifications Foundation       | 6/7             | Complete | 2026-03-26 |
+| 85. Guía — Exercise & Mobility Library  | —               | Planned  | —          |
+| 86. QR Promo — Free Month Campaign      | 6/6             | Complete | 2026-03-28 |
+| 87. Localization — ES-AR vs ES-ES       | —               | Planned  | —          |
+| 88. Reservation Rules — Per-Plan Config | 3/4             | Complete | 2026-04-03 |
 
 _v4.4 phases added: 2026-03-23 — 7 phases (78-84), 24 requirements mapped (ENG-01 through ENG-24). Research: `.planning/research/app-engagement-upselling-research.md`_
 
@@ -1945,5 +1946,87 @@ Plans:
 | 92. Marketing Deliverables — Launch Collateral  | —                    | Planned     | —          |
 
 _v4.5 phases added: 2026-04-03 — 4 phases (89-92). Strategy: `.docs/planes-online-strategy.md`_
+
+</details>
+
+<details>
+<summary>v4.6 iOS App Store Launch (Phases 93-95)</summary>
+
+## v4.6 Overview
+
+Get the member app published on the Apple App Store. The app already runs as a Capacitor hybrid app with an iOS project scaffolded (`src-capacitor/ios/`). No Mac available locally — all builds go through GitHub Actions with macOS runners. Reuses Play Store assets (descriptions, privacy policy, screenshots) where possible.
+
+**Source:** Existing Capacitor iOS project in `src-capacitor/ios/`, Android build workflows in `.github/workflows/`
+
+## v4.6 Phases
+
+### Phase 93: iOS Build Pipeline (GitHub Actions)
+
+**Goal**: Set up a GitHub Actions workflow on a macOS runner that builds the Capacitor iOS project, signs it with Apple certificates/provisioning profiles stored as GitHub Secrets, and uploads the signed IPA to App Store Connect
+**Depends on**: v4.3 Phase 74 (Capacitor aligned), Phase 75 (GitHub Actions patterns established)
+**Requirements**: IOS-01, IOS-02, IOS-03, IOS-04, IOS-05
+**Success Criteria** (what must be TRUE):
+
+1. Apple Distribution certificate and App Store provisioning profile created and stored as GitHub Secrets
+2. GitHub Actions workflow `build-ios-production.yml` runs on `workflow_dispatch` with macOS runner
+3. Workflow builds Quasar → syncs to Capacitor iOS → archives via xcodebuild → produces signed IPA
+4. Signed IPA/archive uploaded to App Store Connect automatically (Fastlane deliver or altool)
+5. Build version/number management strategy documented and implemented (mirrors Android approach)
+
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 93-01-PLAN.md — Xcode project signing config + version management + SECRETS.md iOS docs
+- [ ] 93-02-PLAN.md — Production iOS build workflow + end-to-end verification
+
+---
+
+### Phase 94: App Store Connect Setup & Listing
+
+**Goal**: Create the app in App Store Connect, fill all required metadata (descriptions, screenshots, privacy policy, age rating), and complete all compliance requirements
+**Depends on**: Phase 93 (need a build uploaded to proceed with review)
+**Requirements**: IOS-06, IOS-07, IOS-08, IOS-09, IOS-10, IOS-11
+**Success Criteria** (what must be TRUE):
+
+1. Bundle ID `com.eltemplo.app` registered in Apple Developer portal with Push Notifications capability enabled
+2. App created in App Store Connect with correct name, primary language (Spanish), SKU
+3. Store listing has: app name, subtitle, description, keywords, screenshots (6.7" + 6.5" iPhone minimum), app icon
+4. Privacy policy URL linked (reuse existing from Play Store)
+5. Age rating questionnaire completed
+6. App Review contact info and demo account credentials configured
+
+---
+
+### Phase 95: TestFlight & App Store Submission
+
+**Goal**: Distribute build via TestFlight for internal testing, validate on real iOS devices, then submit for App Store review — app is live on the App Store
+**Depends on**: Phase 93 (signed build), Phase 94 (listing complete)
+**Requirements**: IOS-12, IOS-13, IOS-14, IOS-15
+**Success Criteria** (what must be TRUE):
+
+1. Build available on TestFlight for internal testers
+2. App installed from TestFlight on at least 2 real iOS devices
+3. Core flows verified on real devices: login, view training, complete a session, view Mi Templo
+4. No critical crashes in TestFlight feedback or Sentry
+5. App submitted for App Store review with all metadata complete
+6. App approved and live on the App Store
+
+---
+
+## v4.6 Progress
+
+**Execution Order:**
+Phase 93 (iOS Build Pipeline) → Phase 94 (App Store Listing) → Phase 95 (TestFlight & Launch)
+
+| Phase                                 | Plans Complete | Status  | Completed |
+| ------------------------------------- | -------------- | ------- | --------- |
+| 93. iOS Build Pipeline                | —              | Planned | —         |
+| 94. App Store Connect Setup & Listing | —              | Planned | —         |
+| 95. TestFlight & App Store Submission | —              | Planned | —         |
+
+---
+
+_v4.6 phases added: 2026-04-07 — 3 phases (93-95), 15 requirements mapped (IOS-01 through IOS-15)_
 
 </details>
