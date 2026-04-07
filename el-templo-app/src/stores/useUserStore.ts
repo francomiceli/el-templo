@@ -79,6 +79,7 @@ export const useUserStore = defineStore('user', () => {
   const subscription = ref<MemberSubscription | null>(null)
   const subscriptionLoading = ref(false)
   const hasActiveProgramEnrollment = ref(false)
+  const enrolledGoalPlanType = ref<string | null>(null)
 
   // Getters
   const fullName = computed(() => {
@@ -111,9 +112,9 @@ export const useUserStore = defineStore('user', () => {
   const onboardingCompleted = computed(() => profile.value?.onboardingCompleted ?? false)
 
   const hasActiveGoalPlan = computed(() => {
-    // Per D-08: program enrollment IS the goal plan gate
-    // Replaces previous subscription check
-    return hasActiveProgramEnrollment.value
+    // Only true when the enrolled program has a goalPlanType (e.g. front_lever, gluteos).
+    // Foundation has goalPlanType=null — it uses regular sessions, not goal plan sessions.
+    return hasActiveProgramEnrollment.value && enrolledGoalPlanType.value !== null
   })
 
   const branchDisplayName = computed(() => {
@@ -170,8 +171,10 @@ export const useUserStore = defineStore('user', () => {
     try {
       const response = await api.get('/members/programs/my-progress')
       hasActiveProgramEnrollment.value = response.status === 200 && !!response.data
+      enrolledGoalPlanType.value = response.data?.goalPlanType ?? null
     } catch {
       hasActiveProgramEnrollment.value = false
+      enrolledGoalPlanType.value = null
     }
   }
 

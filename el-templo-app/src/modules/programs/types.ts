@@ -25,6 +25,7 @@ export interface MemberEnrollmentProgress {
   enrollmentId: number
   programId: number
   programName: string
+  goalPlanType: string | null
   currentWeek: number
   durationWeeks: number
   sessionsCompletedThisWeek: number

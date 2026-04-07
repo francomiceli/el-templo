@@ -96,6 +96,7 @@ export interface MemberEnrollmentProgress {
   enrollmentId: number;
   programId: number; // needed by PlanesPage to check enrollment per D-47
   programName: string;
+  goalPlanType: string | null; // null = regular sessions, non-null = goal plan sessions
   currentWeek: number;
   durationWeeks: number | null;
   sessionsCompletedThisWeek: number;
