@@ -128,6 +128,7 @@ describe("Segmentation", () => {
         memberId: userId,
         branchId: 1,
         checkedInAt,
+        sessionDate: checkedInAt.toISOString().split("T")[0],
       });
     }
   }
@@ -268,6 +269,7 @@ describe("Segmentation", () => {
         memberId: userId,
         branchId: 1,
         checkedInAt: nineWeeksAgo,
+        sessionDate: nineWeeksAgo.toISOString().split("T")[0],
       });
 
       const service = new SegmentationService(app.db, app.log);

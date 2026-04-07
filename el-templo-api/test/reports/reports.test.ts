@@ -131,12 +131,14 @@ describe("Reports API", () => {
           branchId: testBranchId,
           status: "confirmado",
           source: "qr",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
         {
           memberId: member.id,
           branchId: testBranchId,
           status: "confirmado",
           source: "manual",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
       ]);
 
@@ -173,12 +175,14 @@ describe("Reports API", () => {
           branchId: testBranchId,
           status: "confirmado",
           source: "qr",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
         {
           memberId: member.id,
           branchId: testBranchId,
           status: "confirmado",
           source: "manual",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
       ]);
 
@@ -214,12 +218,14 @@ describe("Reports API", () => {
           branchId: testBranchId,
           status: "confirmado",
           source: "qr",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
         {
           memberId: member2.id,
           branchId: testBranchId,
           status: "confirmado",
           source: "qr",
+          sessionDate: new Date().toISOString().split("T")[0],
         },
       ]);
 
@@ -493,6 +499,7 @@ describe("Reports API", () => {
         status: "confirmado",
         source: "qr",
         checkedInAt: oldDate,
+        sessionDate: oldDate.toISOString().split("T")[0],
       });
 
       // Member with recent check-in (today)
@@ -509,6 +516,7 @@ describe("Reports API", () => {
         status: "confirmado",
         source: "qr",
         checkedInAt: new Date(),
+        sessionDate: new Date().toISOString().split("T")[0],
       });
 
       const res = await app.inject({
@@ -557,6 +565,7 @@ describe("Reports API", () => {
         branchId: testBranchId,
         status: "confirmado",
         source: "qr",
+        sessionDate: new Date().toISOString().split("T")[0],
       });
 
       const res = await app.inject({

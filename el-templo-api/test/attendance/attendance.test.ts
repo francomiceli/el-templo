@@ -581,6 +581,7 @@ describe("Attendance API", () => {
         status: "confirmado",
         source: "qr",
         checkedInAt: pastDay,
+        sessionDate: pastDay.toISOString().split("T")[0],
       });
 
       // Now try to check in — should be blocked (weekly limit = 1, already used 1)

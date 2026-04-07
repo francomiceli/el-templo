@@ -456,6 +456,7 @@ describe("Analytics API", () => {
         status: "confirmado",
         source: "manual",
         confirmedAt: new Date(),
+        sessionDate: new Date().toISOString().split("T")[0],
       });
 
       // Use ±1 day range to handle UTC/MySQL timezone boundary mismatches
