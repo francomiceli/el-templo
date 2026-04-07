@@ -339,6 +339,45 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * POST /api/admin/programs/swap — Swap a member's active program.
+   * Cancels current enrollment and creates a new one for the target program.
+   * COACH_ROLES per D-35.
+   */
+  fastify.post<{ Body: { userId: number; programId: number } }>(
+    "/admin/programs/swap",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["userId", "programId"],
+          properties: {
+            userId: { type: "integer" },
+            programId: { type: "integer" },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    async (request, reply) => {
+      await fastify.authenticate(request, reply);
+      const { role } = request.user;
+      if (!(COACH_ROLES as readonly string[]).includes(role)) {
+        return reply.code(403).send({ error: "Acceso denegado" });
+      }
+
+      try {
+        const enrollmentId = await service.swapProgram(
+          request.body.userId,
+          request.body.programId,
+        );
+        return { success: true, enrollmentId };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "swapProgram");
+      }
+    },
+  );
+
+  /**
    * POST /api/admin/programs/enrollments/:enrollmentId/cancel — Cancel enrollment.
    * COACH_ROLES per D-35.
    */

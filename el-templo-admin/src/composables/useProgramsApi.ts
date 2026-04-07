@@ -104,6 +104,19 @@ export function useProgramsApi() {
 
   // ─── Enrollment Management ──────────────────────────────────────────
 
+  async function swapProgram(userId: number, programId: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.post('/admin/programs/swap', { userId, programId });
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cambiando programa');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function cancelEnrollment(enrollmentId: number): Promise<void> {
     loading.value = true;
     error.value = null;
@@ -178,6 +191,7 @@ export function useProgramsApi() {
     updateProgram,
     addContentBlocks,
     deactivateProgram,
+    swapProgram,
     cancelEnrollment,
     advanceWeek,
     getUserEnrollments,

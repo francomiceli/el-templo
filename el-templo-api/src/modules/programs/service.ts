@@ -281,6 +281,52 @@ export class ProgramsService {
   // =========================================================================
 
   /**
+   * Swap a member's active program enrollment.
+   * Cancels the current active enrollment (if any) and creates a new one
+   * for the target program.
+   */
+  async swapProgram(userId: number, newProgramId: number): Promise<number> {
+    // Verify target program exists and is active
+    const [program] = await this.db
+      .select({ id: programs.id, name: programs.name })
+      .from(programs)
+      .where(and(eq(programs.id, newProgramId), eq(programs.isActive, true)));
+
+    if (!program) {
+      throw new NotFoundError("Programa no encontrado o inactivo");
+    }
+
+    // Cancel any existing active enrollment
+    await this.db
+      .update(programEnrollments)
+      .set({ status: "cancelled", cancelledAt: new Date() })
+      .where(
+        and(
+          eq(programEnrollments.userId, userId),
+          eq(programEnrollments.status, "active"),
+        ),
+      );
+
+    // Create new enrollment
+    const result = await this.db.insert(programEnrollments).values({
+      userId,
+      programId: newProgramId,
+      status: "active",
+      currentWeek: 1,
+      sessionsCompletedThisWeek: 0,
+    });
+
+    const enrollmentId = Number(result[0].insertId);
+
+    this.log?.info(
+      { userId, newProgramId, enrollmentId, programName: program.name },
+      "Program swapped",
+    );
+
+    return enrollmentId;
+  }
+
+  /**
    * Cancel an enrollment. Per D-29: admin-only action.
    * Only active enrollments can be cancelled.
    */
