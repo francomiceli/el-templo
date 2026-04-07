@@ -53,6 +53,17 @@ This document lists all the GitHub secrets required for the CI/CD workflows.
 | `ANDROID_KEYSTORE_PASSWORD` | Password for the upload keystore                                   | `your-secure-keystore-password`        |
 | `ANDROID_KEY_PASSWORD`      | Password for the upload key (same as keystore password for PKCS12) | `your-secure-key-password`             |
 
+### iOS Signing (App Store)
+
+| Secret                         | Description                                                         | Example                                |
+| ------------------------------ | ------------------------------------------------------------------- | -------------------------------------- |
+| `IOS_BUILD_CERTIFICATE_BASE64` | Apple Distribution certificate (.p12) encoded as base64             | `MIIKfAIBAzCC...` (long base64 string) |
+| `IOS_P12_PASSWORD`             | Password for the .p12 certificate export                            | `your-secure-p12-password`             |
+| `IOS_PROVISION_PROFILE_BASE64` | App Store provisioning profile (.mobileprovision) encoded as base64 | `MIIKfAIBAzCC...` (long base64 string) |
+| `APPLE_API_KEY_ID`             | App Store Connect API key ID                                        | `ABC123DEFG`                           |
+| `APPLE_API_ISSUER_ID`          | App Store Connect API issuer ID                                     | `12345678-abcd-efgh-ijkl-123456789012` |
+| `APPLE_API_KEY_BASE64`         | App Store Connect API private key (.p8) encoded as base64           | `LS0tLS1CRUdJ...`                      |
+
 ### Optional
 
 | Secret     | Description         | Default |
@@ -131,12 +142,74 @@ Store the original `eltemplo-upload-key.keystore` file securely (cloud storage, 
 
 Delete both `eltemplo-upload-key.keystore` and `eltemplo-upload-key.base64.txt` from your local machine after backing up and adding to GitHub Secrets.
 
+### iOS Distribution Certificate & App Store Connect API Key
+
+The iOS signing secrets are required for building and uploading the app to TestFlight / App Store. Both staging and production workflows use the same signing identity (Apple Distribution certificate for App Store distribution).
+
+#### Step 1: Create Apple Distribution Certificate
+
+1. Go to https://developer.apple.com/account/resources/certificates/list
+2. Click "+" to create a new certificate
+3. Select "Apple Distribution" (NOT "iOS Distribution" which is legacy)
+4. Upload a Certificate Signing Request (CSR) generated from Keychain Access on a Mac, OR generate one via the Apple Developer portal
+5. Download the .cer file
+6. If using a Mac: Double-click to install in Keychain Access, then export as .p12 with a password
+7. If no Mac available: Use the portal's built-in private key download or a third-party tool
+
+#### Step 2: Create App Store Provisioning Profile
+
+1. Go to https://developer.apple.com/account/resources/profiles/list
+2. Click "+" to create a new profile
+3. Select "App Store Connect" under Distribution
+4. Select the app ID: `com.eltemplo.app`
+5. Select the Distribution certificate from Step 1
+6. Name it: `El Templo App Store`
+7. Download the .mobileprovision file
+
+#### Step 3: Create App Store Connect API Key
+
+1. Go to https://appstoreconnect.apple.com/access/integrations/api
+2. Click "+" to generate a new API key
+3. Name: `GitHub Actions Deploy`
+4. Role: `App Manager` (minimum needed for TestFlight upload)
+5. Download the .p8 file (can only be downloaded ONCE)
+6. Note the Key ID and Issuer ID displayed on the page
+
+#### Step 4: Encode for GitHub Secrets
+
+```bash
+# Certificate
+base64 -i distribution_certificate.p12 | pbcopy
+# Paste as IOS_BUILD_CERTIFICATE_BASE64
+
+# Provisioning profile
+base64 -i El_Templo_App_Store.mobileprovision | pbcopy
+# Paste as IOS_PROVISION_PROFILE_BASE64
+
+# API key
+base64 -i AuthKey_ABC123DEFG.p8 | pbcopy
+# Paste as APPLE_API_KEY_BASE64
+```
+
+On Linux (no pbcopy): `base64 -w 0 file.p12` and copy the output.
+
+#### Step 5: Add secrets to GitHub
+
+1. Go to repo **Settings** > **Secrets and variables** > **Actions**
+2. Add all 6 secrets listed in the iOS Signing table above
+
+#### Step 6: Backup
+
+Store the original .p12 certificate, .mobileprovision profile, and .p8 API key securely. The certificate expires after 1 year and will need to be renewed.
+
 ## Environment-Specific Workflows
 
 - **CI workflow** (`ci.yml`): Runs on all pushes and PRs - no secrets required
 - **Deploy workflow** (`deploy.yml`): Runs only on master/main - requires all secrets
 - **Android staging** (`build-android-staging.yml`): Manual trigger - no signing secrets required
 - **Android production** (`build-android-production.yml`): Manual trigger - requires `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`
+- **iOS staging** (`build-ios-staging.yml`): Manual trigger - requires `IOS_BUILD_CERTIFICATE_BASE64`, `IOS_P12_PASSWORD`, `IOS_PROVISION_PROFILE_BASE64`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER_ID`, `APPLE_API_KEY_BASE64`
+- **iOS production** (`build-ios-production.yml`): Manual trigger - requires same iOS secrets as staging (both use same signing identity for App Store distribution)
 
 ## Security Notes
 
