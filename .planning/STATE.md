@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 82-01-PLAN.md (Playbook Engine Foundation)"
-last_updated: "2026-04-07T18:55:00Z"
-last_activity: 2026-04-07 -- Plan 82-01 complete (pure resolvePlaybook + PB1-PB5 registry, 21 tests green)
+stopped_at: "Completed 82-02-PLAN.md (Redis persistence + stage advancement + handler wiring)"
+last_updated: "2026-04-07T19:05:00Z"
+last_activity: 2026-04-07 -- Plan 82-02 complete (Redis playbook-state with 6h TTL, advance helper, handler wired, 35 new tests green, full bot suite 231/231)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 1
-  completed_plans: 1
-  percent: 8
+  total_plans: 2
+  completed_plans: 2
+  percent: 17
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
 Phase: 82 — Playbook Engine (in progress)
-Plan: 82-02 (next) — Handler integration + Redis session persistence
-Status: In progress — plan 82-01 complete
-Progress: █░░░░░░░░░ 8% (0/4 phases, 1/12 plans)
-Last activity: 2026-04-07 — Plan 82-01 complete (pure resolvePlaybook + PB1-PB5 registry, 21 tests green)
+Plan: 82-03 (next) — System prompt injection of only the active playbook section
+Status: In progress — plans 82-01 and 82-02 complete
+Progress: ██░░░░░░░░ 17% (0/4 phases, 2/12 plans)
+Last activity: 2026-04-07 — Plan 82-02 complete (Redis playbook-state with 6h TTL, advance helper, handler wired, 35 new tests green, full bot suite 231/231)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Last activity: 2026-04-07 — Plan 82-01 complete (pure resolvePlaybook + PB1-PB
 | Phase 80 P02 | 2min  | 1 tasks | 1 files  |
 | Phase 81 P01 | 2min  | 2 tasks | 1 files  |
 | Phase 82 P01 | 6min  | 2 tasks | 5 files  |
+| Phase 82 P02 | 12min | 2 tasks | 6 files  |
 
 ## Accumulated Context
 
@@ -83,6 +84,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Completed 82-01-PLAN.md — pure resolvePlaybook + PB1-PB5 registry committed (f0b2ffa2, 5ae1fa2b)
-Resume file: .planning/phases/82-playbook-engine/82-02-PLAN.md
-Next step: `/gsd:execute-phase 82` to continue with plan 82-02 (handler integration + Redis session persistence).
+Stopped at: Completed 82-02-PLAN.md — Redis playbook-state + advance helper + handler wiring committed (9d59c5bb, aff96077)
+Resume file: .planning/phases/82-playbook-engine/82-03-PLAN.md
+Next step: `/gsd:execute-phase 82` to continue with plan 82-03 (system prompt injection of only the active playbook section).

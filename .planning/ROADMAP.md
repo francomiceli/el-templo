@@ -51,12 +51,12 @@ Phase 82 (Engine) → Phase 83 (PB1 Discovery) → Phase 84 (PB2-PB5 prompts) �
 4. When stage completion criteria are met (e.g., discovery answered, trial proposed), the stage advances on the next turn and the new stage id is reflected in Redis.
 5. Stage state survives across turns within a 6h Redis session and resets cleanly when the session expires.
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 
-- [ ] 82-01-PLAN.md — Pure playbook resolver + PB1-PB5 registry + unit tests
-- [ ] 82-02-PLAN.md — Redis persistence (6h TTL) + stage advancement + handler wiring
+- [x] 82-01-PLAN.md — Pure playbook resolver + PB1-PB5 registry + unit tests
+- [x] 82-02-PLAN.md — Redis persistence (6h TTL) + stage advancement + handler wiring
 - [ ] 82-03-PLAN.md — System prompt injection of only the active playbook section
 
 ---
@@ -119,7 +119,7 @@ Plans:
 
 | Phase                                       | Plans Complete | Status      | Completed |
 | ------------------------------------------- | -------------- | ----------- | --------- |
-| 82. Playbook Engine                         | 1/3            | In Progress |           |
+| 82. Playbook Engine                         | 2/3            | In Progress |           |
 | 83. Discovery Mode for Leads (PB1)          | 0/?            | Not started | -         |
 | 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -         |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -         |
