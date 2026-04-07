@@ -166,5 +166,20 @@ ${getBusinessKnowledge()}`;
     }
   }
 
+  // Phase 83-02: profile-detection directive.
+  //
+  // Injected ONLY when we are actively running PB1 discovery AND no avatar
+  // has been detected yet. Once an avatar is known, this directive is
+  // replaced by the "*Perfil detectado*" section rendered further up, so
+  // Mica never tries to re-detect after the first successful detection.
+  //
+  // The instruction lives here (not in the PB1 promptSection) to avoid a
+  // file-level conflict with plan 83-01, which owns definitions.ts.
+  if (options?.activePlaybook === "PB1" && !options?.currentAvatar) {
+    sections.push(
+      "\n\n*Detección de perfil*\n\nCuando tengas señales claras del avatar del lead (`cero_absoluto` = nunca entrenó; `gym_crossover` = viene de gym/crossfit/pesas; `intermedio` = ya hace calistenia; `retorna` = entrenó antes y vuelve después de un parate), al final de tu mensaje agregá exactamente la etiqueta `<profile>VALOR</profile>` (ejemplo: `<profile>gym_crossover</profile>`). El usuario NO va a ver esa etiqueta — la borra el sistema antes de enviar. Si todavía no estás segura, NO inventes: omití la etiqueta y seguí preguntando naturalmente.",
+    );
+  }
+
   return sections.join("");
 }

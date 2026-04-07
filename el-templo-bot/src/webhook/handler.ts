@@ -31,8 +31,12 @@ import {
   advanceStageIfComplete,
   type AdvanceSignals,
 } from "../playbooks/advance.js";
+import {
+  extractProfileTag,
+  stripProfileTag,
+} from "../playbooks/profile-tag.js";
 import { resolvePlaybook } from "../playbooks/resolver.js";
-import type { PlaybookId, StageId } from "../playbooks/types.js";
+import type { AvatarProfile, PlaybookId, StageId } from "../playbooks/types.js";
 import {
   determineClientState,
   updateConversationState,
@@ -282,10 +286,15 @@ async function processWithAi(
     priorPbState,
   );
 
+  // Avatar detected on a prior turn (if any). Read it once so the three
+  // potential setPlaybookState writes below never clobber it with undefined.
+  const priorAvatar: AvatarProfile | null = priorPbState?.avatar ?? null;
+
   if (resolved.playbookId !== null && resolved.stageId !== null) {
     await setPlaybookState(phone, {
       activePlaybook: resolved.playbookId,
       currentStage: resolved.stageId,
+      avatar: priorAvatar ?? undefined,
       updatedAt: Date.now(),
     });
   }
@@ -305,6 +314,9 @@ async function processWithAi(
         // getSystemPrompt to inject the active playbook's promptSection.
         activePlaybook: resolved.playbookId ?? undefined,
         currentStage: resolved.stageId ?? undefined,
+        // Phase 83-02: let Mica know the lead's avatar (if previously
+        // detected) so she does NOT re-run PB1 discovery questions.
+        currentAvatar: priorAvatar,
       }),
     },
   ];
@@ -424,6 +436,36 @@ async function processWithAi(
   // Post-process: strip markdown headers (defense-in-depth for QUAL-01)
   replyText = stripMarkdownHeaders(replyText);
 
+  // ── Phase 83-02: profile tag extraction + strip ────────────────────────
+  // Detect the `<profile>VALUE</profile>` tag Mica may have emitted during
+  // PB1 discovery and remove it from the outbound text. Runs BEFORE
+  // updateSession (so session history stores the clean text) and BEFORE
+  // sendTextMessage (so the user never sees the tag).
+  const detectedAvatar = extractProfileTag(replyText);
+  replyText = stripProfileTag(replyText);
+
+  // Persist the avatar alongside the playbook state when a NEW, different
+  // avatar was detected. Guarded on an active playbook + stage so the
+  // Redis write shape stays consistent. Avoids a redundant write when the
+  // model re-emits the same tag on subsequent turns.
+  if (
+    detectedAvatar !== null &&
+    resolved.playbookId !== null &&
+    resolved.stageId !== null &&
+    detectedAvatar !== priorAvatar
+  ) {
+    await setPlaybookState(phone, {
+      activePlaybook: resolved.playbookId,
+      currentStage: resolved.stageId,
+      avatar: detectedAvatar,
+      updatedAt: Date.now(),
+    });
+    log.info(
+      { phone, detectedAvatar },
+      "Profile avatar detected and persisted",
+    );
+  }
+
   // Store assistant reply in Redis session
   await updateSession(phone, "assistant", replyText);
 
@@ -441,6 +483,9 @@ async function processWithAi(
       await setPlaybookState(phone, {
         activePlaybook: resolved.playbookId,
         currentStage: nextStage,
+        // Preserve the freshly-detected avatar (if any) or the one we
+        // already had — never clobber avatar to undefined on advance.
+        avatar: detectedAvatar ?? priorAvatar ?? undefined,
         updatedAt: Date.now(),
       });
     }
