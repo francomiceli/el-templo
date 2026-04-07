@@ -3,9 +3,9 @@
     <!-- Header -->
     <div class="text-h5 q-mb-md">Alumnos</div>
 
-    <!-- Filter bar -->
-    <div class="row q-col-gutter-sm q-mb-md items-end">
-      <div class="col-12 col-sm-6 col-md-3">
+    <!-- Filter bar — Row 1: search + main filters + actions -->
+    <div class="row q-col-gutter-sm q-mb-sm items-end">
+      <div class="col-12 col-sm-4 col-md-3">
         <q-input
           v-model="filters.search"
           label="Buscar por nombre, email o DNI"
@@ -20,7 +20,7 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-2 col-md-2">
         <q-select
           v-model="filters.planId"
           :options="planFilterOptions"
@@ -42,7 +42,7 @@
           </template>
         </q-select>
       </div>
-      <div class="col-6 col-sm-3 col-md-1">
+      <div class="col-6 col-sm-2 col-md-1">
         <q-select
           v-model="filters.branchId"
           :options="branchFilterOptions"
@@ -54,7 +54,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-1">
+      <div class="col-4 col-sm-1 col-md-1">
         <q-select
           v-model="filters.level"
           :options="levelFilterOptions"
@@ -66,7 +66,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-1">
+      <div class="col-4 col-sm-1 col-md-1">
         <q-select
           v-model="filters.isActive"
           :options="statusFilterOptions"
@@ -78,7 +78,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-2">
+      <div class="col-4 col-sm-2 col-md-2">
         <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
@@ -90,7 +90,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-2 col-md-1">
         <q-select
           v-model="filters.avatarType"
           :options="avatarFilterOptions"
@@ -102,7 +102,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-12 col-sm-3 col-md-2">
+      <div class="col-6 col-sm-auto col-md-1">
         <div class="row no-wrap q-gutter-x-sm justify-end items-center">
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
             <q-tooltip>Exportar a Excel</q-tooltip>
@@ -182,6 +182,19 @@
           <span :class="`text-${levelColor(props.row.level)}`" class="text-weight-bold">
             {{ greekLevel(props.row.level) }}
           </span>
+        </q-td>
+      </template>
+
+      <!-- Avatar column -->
+      <template #body-cell-avatar="props">
+        <q-td :props="props">
+          <q-badge
+            v-if="props.row.avatarType"
+            outline
+            color="grey-7"
+            :label="props.row.avatarType"
+          />
+          <span v-else class="text-grey-5">—</span>
         </q-td>
       </template>
 
@@ -389,6 +402,14 @@ const columns: QTableProps['columns'] = [
     align: 'left',
     sortable: false,
     style: 'width: 80px',
+  },
+  {
+    name: 'avatar',
+    label: 'Avatar',
+    field: 'avatarType',
+    align: 'center',
+    sortable: false,
+    style: 'width: 70px',
   },
   {
     name: 'estado',
