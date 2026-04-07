@@ -1,0 +1,286 @@
+/**
+ * Playbook Engine — Static Registry (PB1-PB5)
+ *
+ * Source of truth: `contexto/kero-playbooks-completos.md` (v5.3 sales review,
+ * post TEAM-CORR-01..06 corrections). Spanish text is transcribed AS-IS so
+ * the prompt section that gets injected into Mica matches the validated
+ * sales tone byte-for-byte.
+ *
+ * Scope guard: PB6 (Onboarding) is INTENTIONALLY ABSENT from this registry.
+ * It is out of v5.3 scope per ROADMAP / KERO-08 — revisit in v5.4. Do NOT
+ * silently re-add it; it requires the scheduler + tag history infrastructure
+ * deferred to v5.4.
+ */
+
+import type { PlaybookDefinition, PlaybookId } from "./types.js";
+
+// ─── PB1 — Lead Nuevo ───────────────────────────────────────────────────────
+
+const PB1: PlaybookDefinition = {
+  id: "PB1",
+  name: "Lead Nuevo",
+  trigger: "Lead escribe por primera vez (cualquier mensaje)",
+  entryStageId: "PB1.E1A",
+  stages: [
+    {
+      id: "PB1.E1A",
+      label: "Etapa 1A — Apertura + Primera Pregunta de Discovery (Variante A)",
+      promptSection:
+        "¡Hola [nombre]! 💪 Qué bueno que escribiste. Contame, ¿ya entrenaste calistenia antes o sería tu primera vez?",
+      completionCriteria:
+        "El lead respondió indicando experiencia previa o nivel. Si dijo 'principiante' o 'primera vez' avanzar a PB1.E2A; si dijo 'tengo experiencia' avanzar a PB1.E2B.",
+      nextStageHints: { onCompletion: "PB1.E2A" },
+    },
+    {
+      id: "PB1.E1B",
+      label: "Etapa 1B — Apertura + Primera Pregunta de Discovery (Variante B)",
+      promptSection:
+        "¡Buenas [nombre]! Genial que te interese. Para orientarte bien: ¿tenés experiencia en calistenia o arrancás de cero?",
+      completionCriteria:
+        "El lead respondió indicando experiencia previa o nivel. Avanzar a PB1.E2A o PB1.E2B según respuesta.",
+      nextStageHints: { onCompletion: "PB1.E2A" },
+    },
+    {
+      id: "PB1.E2A",
+      label: "Etapa 2A — Segunda Pregunta (Principiante)",
+      promptSection:
+        "¡Genial que quieras arrancar! ¿Qué te atrajo de la calistenia? ¿Buscás ponerte en forma, aprender los movimientos que te gustaría destrabar, o las dos cosas?",
+      completionCriteria:
+        "El lead expresó su motivación principal (forma física, aprender movimientos, o ambas).",
+      nextStageHints: { onCompletion: "PB1.E3" },
+    },
+    {
+      id: "PB1.E2B",
+      label: "Etapa 2B — Segunda Pregunta (Intermedio)",
+      promptSection:
+        "Bien ahí 🔥 ¿Qué nivel sentís que tenés? ¿Y hay algo específico que quieras destrabar — alguna habilidad, rutina más estructurada?",
+      completionCriteria:
+        "El lead describió su nivel y/o un objetivo concreto. Lenguaje genérico (no nombrar skills específicos como muscle ups).",
+      nextStageHints: { onCompletion: "PB1.E3" },
+    },
+    {
+      id: "PB1.E3",
+      label: "Etapa 3 — Tercera Pregunta (Logística)",
+      promptSection:
+        "Última pregunta y te armo algo: ¿en qué zona estás y qué horarios te quedan más cómodos para entrenar?",
+      completionCriteria:
+        "El lead dio zona y/o franja horaria. Con 2-3 respuestas de discovery ya alcanza para armar la propuesta.",
+      nextStageHints: { onCompletion: "PB1.E4" },
+    },
+    {
+      id: "PB1.E4",
+      label: "Etapa 4 — Propuesta Targetizada",
+      promptSection:
+        "Regla fuerte: NO recomendar plan ni mencionar precios en esta etapa. El único CTA válido es la clase de prueba gratis. Plan y precio se discuten recién después de la prueba (PB2) o a pedido explícito del lead. Ejemplo de propuesta: '[nombre], con lo que me contás, te va a encantar. Lo mejor es que lo vivas — tenemos clases de prueba gratis esta semana. Tenemos lugar [día] a las [horario] en [sede]. ¿Te anoto?'",
+      completionCriteria:
+        "El lead aceptó probar una clase, pidió pensarlo, o pidió precio (en cuyo caso responder breve y volver a anclar la prueba).",
+      nextStageHints: { onCompletion: "PB1.E5" },
+    },
+    {
+      id: "PB1.E5",
+      label: "Etapa 5 — Agendar Clase de Prueba",
+      promptSection:
+        "¡Dale! Te agendo para el [día] a las [horario]. Vení con ropa cómoda y agua. Te vas a divertir 💪 Un día antes te mando un recordatorio.",
+      completionCriteria:
+        "Clase de prueba agendada en el sistema. Estado del cliente cambia de lead a trial.",
+      nextStageHints: { onCompletion: "PB1.E6" },
+    },
+    {
+      id: "PB1.E6",
+      label: "Etapa 6 — Recordatorio Pre-Clase",
+      promptSection:
+        "¡Mañana te esperamos [nombre]! [horario] en [dirección]. ¿Todo confirmado?",
+      completionCriteria:
+        "El lead confirmó (o no) asistencia para la clase del día siguiente.",
+      nextStageHints: { onCompletion: "PB1.E7" },
+    },
+    {
+      id: "PB1.E7",
+      label: "Etapa 7 — Post Clase de Prueba",
+      promptSection:
+        "¡[nombre]! ¿Cómo la pasaste? 😄 Si la respuesta es positiva: 'Me alegra 🙌 Si querés arrancar, justo esta semana tenemos [oferta/condición]. ¿Te mando los detalles del plan?'",
+      completionCriteria:
+        "El lead dio feedback de la clase. Si fue positiva, ofrecer detalles de plan; si no, pasar a PB2.",
+    },
+  ],
+};
+
+// ─── PB2 — Trial No Convertido ──────────────────────────────────────────────
+
+const PB2: PlaybookDefinition = {
+  id: "PB2",
+  name: "Trial No Convertido",
+  trigger: "Pasaron 24hs desde la clase de prueba y el lead no se inscribió",
+  entryStageId: "PB2.E1A",
+  stages: [
+    {
+      id: "PB2.E1A",
+      label: "Etapa 1A — Check-in Post Prueba (Variante A)",
+      promptSection:
+        "¡[nombre]! ¿Cómo te sentís después de la clase? ¿Te quedó alguna duda?",
+      completionCriteria:
+        "El lead respondió. Objetivo: que hable. No vender todavía. Escuchar.",
+      nextStageHints: { onCompletion: "PB2.E2" },
+    },
+    {
+      id: "PB2.E1B",
+      label: "Etapa 1B — Check-in Post Prueba (Variante B)",
+      promptSection:
+        "Ey [nombre], ¿cómo andás? Me quedé pensando si te copó la clase. ¿Qué te pareció?",
+      completionCriteria:
+        "El lead respondió. Objetivo: que hable. No vender todavía. Escuchar.",
+      nextStageHints: { onCompletion: "PB2.E2" },
+    },
+    {
+      id: "PB2.E2",
+      label: "Etapa 2 — Escuchar + Identificar Objeción",
+      promptSection:
+        "Identificar la objeción real y responder: PRECIO -> 'Entiendo. Si te sirve, tenemos el plan [plan_básico] a [precio]. Muchos arrancan por ahí y después van subiendo. ¿Te copa?'. TIEMPO -> '¿Cuántos días por semana podrías venir? Con 2-3 ya se nota mucho. Y los horarios son flexibles.'. IDENTIDAD/MIEDO -> 'Es normal sentir eso al principio. Todos los que hoy destraban movimientos arrancaron igual. ¿Qué fue lo que más te costó?'. DIFUSA ('lo pienso') -> 'Dale, sin presión. Esta semana tenemos buenos horarios libres. Si te copa, me avisás y te reservo lugar.'",
+      completionCriteria:
+        "Se identificó la objeción real y se respondió con la alternativa correspondiente.",
+      nextStageHints: { onCompletion: "PB2.E3" },
+    },
+    {
+      id: "PB2.E3",
+      label: "Etapa 3 — Propuesta con Urgencia Suave",
+      promptSection:
+        "[nombre], esta semana tenemos buenos horarios libres y el [día] suele quedar tranqui — es buen momento para arrancar sin saturación. ¿Te anoto?",
+      completionCriteria: "El lead aceptó, rechazó, o pidió más tiempo.",
+    },
+  ],
+};
+
+// ─── PB3 — Vencimiento de Membresía ─────────────────────────────────────────
+
+const PB3: PlaybookDefinition = {
+  id: "PB3",
+  name: "Vencimiento de Membresía",
+  trigger: "Faltan 7 días para el vencimiento de la membresía",
+  entryStageId: "PB3.E1",
+  stages: [
+    {
+      id: "PB3.E1",
+      label: "Etapa 1 — Recordatorio + Reconocimiento",
+      promptSection:
+        "¡[nombre]! Se te viene la renovación el [fecha_vencimiento]. Venís metiéndole bien 💪 ¿Querés que te renueve el mismo plan o vemos opciones?",
+      completionCriteria:
+        "El miembro respondió con interés en renovar, dudas, o silencio.",
+      nextStageHints: { onCompletion: "PB3.E2" },
+    },
+    {
+      id: "PB3.E2",
+      label: "Etapa 2 — Ancla de Upgrade",
+      promptSection:
+        "Te cuento que tenemos el plan [plan_superior] que incluye [beneficio diferencial]. Si renovás antes del [fecha], te lo dejo a [precio_especial]. ¿Qué te parece?",
+      completionCriteria:
+        "El miembro aceptó upgrade, mantuvo plan actual, o pidió más info.",
+      nextStageHints: { onCompletion: "PB3.E3" },
+    },
+    {
+      id: "PB3.E3",
+      label: "Etapa 3 — Facilitar Pago",
+      promptSection:
+        "¡Dale! Te paso los datos para el pago: [alias/info_pago]. Cualquier duda me avisás.",
+      completionCriteria: "Pago confirmado o data entregada.",
+    },
+  ],
+};
+
+// ─── PB4 — Miembro Inactivo (30+ días) ──────────────────────────────────────
+
+const PB4: PlaybookDefinition = {
+  id: "PB4",
+  name: "Miembro Inactivo",
+  trigger: "Miembro no registra asistencia hace 30 días",
+  entryStageId: "PB4.E1A",
+  stages: [
+    {
+      id: "PB4.E1A",
+      label: "Etapa 1A — Check-in Empático (Variante A)",
+      promptSection:
+        "¡[nombre]! ¿Todo bien? Hace rato que no te vemos por el gym. No es reclamo eh, solo quería saber cómo andás 😊",
+      completionCriteria:
+        "El miembro respondió contando su situación (ocupado, lesionado, desmotivado, etc).",
+      nextStageHints: { onCompletion: "PB4.E2" },
+    },
+    {
+      id: "PB4.E1B",
+      label: "Etapa 1B — Check-in Empático (Variante B)",
+      promptSection:
+        "Ey [nombre], ¿cómo va? Te extrañamos por acá. ¿Está todo ok?",
+      completionCriteria: "El miembro respondió contando su situación.",
+      nextStageHints: { onCompletion: "PB4.E2" },
+    },
+    {
+      id: "PB4.E2",
+      label: "Etapa 2 — Escuchar + Ofrecer Solución",
+      promptSection:
+        "Importante: la pausa de plan SOLO está disponible para planes de largo plazo (Foundation, Foundation+, Performance). Flex NO tiene pausa porque funciona por créditos y los créditos no vencen de un día para otro. TIEMPO -> 'Re entendible. ¿Sabías que con venir 2 veces por semana ya mantenés lo que lograste? ¿Querés que te reserve un lugar esta semana para retomar tranqui?'. SALUD/LESIÓN -> 'Uh, qué bajón. ¿Cómo estás ahora? Si tu plan lo permite (Foundation/Foundation+/Performance), podemos pausarlo hasta que te recuperes. Si estás en Flex, retomás cuando puedas sin perder los créditos.'. EMOCIONAL -> 'Nos pasa a todos. Volver una sola vez. Sin presión, venite a una clase esta semana a pasarla bien y de ahí vemos.'",
+      completionCriteria:
+        "Se ofreció la solución correcta según motivo (sin proponer pausa a planes Flex).",
+    },
+  ],
+};
+
+// ─── PB5 — Cancelación ──────────────────────────────────────────────────────
+
+const PB5: PlaybookDefinition = {
+  id: "PB5",
+  name: "Cancelación",
+  trigger:
+    "El miembro escribe pidiendo cancelar / dar de baja (cualquier estado)",
+  entryStageId: "PB5.E1",
+  stages: [
+    {
+      id: "PB5.E1",
+      label: "Etapa 1 — Escuchar Sin Resistencia",
+      promptSection:
+        "Lamento escuchar eso [nombre]. Sin drama, te lo resuelvo. ¿Me contás qué pasó? Así puedo ver si hay algo que podamos hacer. Regla: NO argumentar, NO retener con urgencia, NO hacer sentir culpa. Escuchar primero.",
+      completionCriteria: "El miembro contó el motivo real de la cancelación.",
+      nextStageHints: { onCompletion: "PB5.E2" },
+    },
+    {
+      id: "PB5.E2",
+      label: "Etapa 2 — Resolver Según Motivo",
+      promptSection:
+        "PLATA -> 'Entiendo. Mirá, tenemos el plan [plan_básico] a [precio_menor] que te permite seguir viniendo [frecuencia]. ¿Te sirve eso como alternativa?'. TIEMPO -> '¿Y si pausamos tu membresía por [período]? Así no perdés lo que lograste y retomás cuando te liberes un poco.'. NO LE GUSTA -> 'Aprecio la honestidad. ¿Hubo algo específico que no te copó? Eso me sirve mucho para mejorar. Te proceso la baja sin problema.'. MUDA/VIAJA -> 'Éxitos con eso. Te congelamos la membresía por [período] y cuando vuelvas retomás sin costo extra de inscripción. ¿Querés?'",
+      completionCriteria:
+        "El miembro aceptó alternativa (downgrade/pausa) o confirmó querer cancelar.",
+      nextStageHints: { onCompletion: "PB5.E3" },
+    },
+    {
+      id: "PB5.E3",
+      label: "Etapa 3 — Si No Hay Vuelta",
+      promptSection:
+        "Dale [nombre], te proceso la baja. Fue un gusto tenerte. Sabé que la puerta siempre está abierta. Si algún día querés volver, escribime y te hago un re-ingreso especial. ¡Éxitos! 💪 Escalamiento: si el motivo es queja seria sobre profes/servicio/trato, escalar a humano ANTES de procesar la baja.",
+      completionCriteria: "Baja procesada o escalada a humano.",
+    },
+  ],
+};
+
+// PB6 (Onboarding) is out of v5.3 scope — revisit in v5.4 (KERO-08).
+// Do NOT add it here without first restoring scheduler + tag_history infra.
+
+/**
+ * The static playbook registry. Keys are exhaustive over `PlaybookId`,
+ * which is enforced by `Record<PlaybookId, PlaybookDefinition>`.
+ */
+export const PLAYBOOKS: Record<PlaybookId, PlaybookDefinition> = {
+  PB1,
+  PB2,
+  PB3,
+  PB4,
+  PB5,
+};
+
+// Self-check at module load: every playbook's `entryStageId` must match
+// one of its declared stages. Catches typos at import time rather than
+// at the first user message.
+for (const playbook of Object.values(PLAYBOOKS)) {
+  const hasEntry = playbook.stages.some((s) => s.id === playbook.entryStageId);
+  if (!hasEntry) {
+    throw new Error(
+      `Playbook ${playbook.id} declares entryStageId="${playbook.entryStageId}" but no matching stage exists.`,
+    );
+  }
+}
