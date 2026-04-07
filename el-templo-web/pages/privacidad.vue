@@ -87,6 +87,17 @@ useHead({
       </section>
 
       <section class="privacy__section">
+        <h2>Descargo de responsabilidad</h2>
+        <p>
+          Las sesiones y recomendaciones de El Templo son orientativas y no
+          reemplazan el asesoramiento médico profesional. Consultá con un
+          profesional de la salud antes de iniciar cualquier programa de
+          ejercicio. El Templo no se responsabiliza por lesiones derivadas del
+          uso de la app.
+        </p>
+      </section>
+
+      <section class="privacy__section">
         <h2>Cambios en esta política</h2>
         <p>
           Si actualizamos esta política, lo publicamos acá con la nueva fecha.
