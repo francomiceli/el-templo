@@ -18,9 +18,13 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
-      <!-- Program/Premium card — top of page -->
-      <ProgramProgressCard v-if="programProgress" :progress="programProgress" />
+      <!-- Program/Premium card — only for paid (non-plan-linked) programs -->
+      <ProgramProgressCard
+        v-if="programProgress && !programProgress.isLinkedToSubscription"
+        :progress="programProgress"
+      />
 
+      <!-- Upsell: virtual users get carousel, presencial with linked program get CTA -->
       <template v-else-if="showUpsellBadge">
         <div class="premium-carousel">
           <div class="premium-carousel__dots">

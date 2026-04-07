@@ -102,6 +102,7 @@ export interface MemberEnrollmentProgress {
   sessionsPerWeekToAdvance: number;
   isWeekComplete: boolean; // derived: sessionsCompleted >= sessionsRequired
   daysUntilExpiry: number | null; // for renewal badge per D-16
+  isLinkedToSubscription: boolean; // true = came free with presencial plan, false = separately acquired
   contentBlocks: ContentBlockDetail[]; // current week's blocks only
 }
 

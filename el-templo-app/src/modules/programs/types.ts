@@ -31,5 +31,6 @@ export interface MemberEnrollmentProgress {
   sessionsPerWeekToAdvance: number
   isWeekComplete: boolean
   daysUntilExpiry: number | null
+  isLinkedToSubscription: boolean
   contentBlocks: ContentBlockDetail[]
 }

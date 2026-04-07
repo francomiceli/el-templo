@@ -22,41 +22,39 @@
         </div>
       </div>
 
-      <!-- CTA: if user has a plan, enter the app. Otherwise, go to WhatsApp sales -->
+      <!-- CTA: WhatsApp only when the recommendation is a paid program (not Foundation) -->
       <q-btn
-        v-if="hasPlan"
-        label="Empezar a entrenar"
+        v-if="!hasPlan && isUpgradeRecommendation"
+        unelevated
+        no-caps
+        class="recommendation-cta recommendation-cta--whatsapp full-width q-mb-sm"
+        @click="openWhatsApp"
+      >
+        <q-icon
+          name="img:/icons/whatsapp.svg"
+          size="18px"
+          class="q-mr-sm"
+          style="filter: brightness(0) invert(1)"
+        />
+        Quiero este programa
+      </q-btn>
+      <q-btn
+        label="Entrar al Templo"
         unelevated
         no-caps
         :loading="submitting"
         class="recommendation-cta full-width"
         @click="emit('enter')"
       />
-      <template v-else>
-        <q-btn
-          unelevated
-          no-caps
-          class="recommendation-cta recommendation-cta--whatsapp full-width"
-          @click="openWhatsApp"
-        >
-          <q-icon
-            name="img:/icons/whatsapp.svg"
-            size="18px"
-            class="q-mr-sm"
-            style="filter: brightness(0) invert(1)"
-          />
-          Quiero este programa
-        </q-btn>
-        <button class="skip-link" @click="emit('enter')">Explorar la app primero</button>
-      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const WHATSAPP_NUMBER = '5492235820521'
+const FOUNDATION_PROGRAM = 'Foundation - Cuerpo Completo'
 
 const props = defineProps<{
   programName: string
@@ -65,6 +63,9 @@ const props = defineProps<{
   submitting: boolean
   hasPlan: boolean
 }>()
+
+/** True when the recommendation is a paid program (not the free Foundation included with presencial plans) */
+const isUpgradeRecommendation = computed(() => props.programName !== FOUNDATION_PROGRAM)
 
 const emit = defineEmits<{
   enter: []
@@ -281,25 +282,6 @@ $particle-colors: $bronze, $amber;
 
   &--whatsapp {
     background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
-  }
-}
-
-.skip-link {
-  display: block;
-  width: 100%;
-  margin-top: 12px;
-  background: none;
-  border: none;
-  color: rgba($cream, 0.4);
-  font-family: 'Geologica', sans-serif;
-  font-size: 0.8125rem;
-  cursor: pointer;
-  text-align: center;
-  padding: 8px 0;
-  transition: color 0.2s ease;
-
-  &:hover {
-    color: rgba($cream, 0.6);
   }
 }
 </style>

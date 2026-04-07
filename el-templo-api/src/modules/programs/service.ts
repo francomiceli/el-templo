@@ -8,6 +8,8 @@ import {
   programContentBlocks,
   programEnrollments,
   exercises,
+  subscriptions,
+  subscriptionPlans,
 } from "../../db/schema";
 import { NotFoundError, ConflictError } from "../shared/errors";
 import type { AuraService } from "../aura/service";
@@ -624,6 +626,31 @@ export class ProgramsService {
       daysUntilExpiry = Math.ceil((expiryMs - nowMs) / (24 * 60 * 60 * 1000));
     }
 
+    // Check if enrollment came from the subscription plan's linkedProgramId
+    // (i.e. presencial members who get Foundation for free with their plan)
+    let isLinkedToSubscription = false;
+    const subRows = await this.db
+      .select({ linkedProgramId: subscriptionPlans.linkedProgramId })
+      .from(subscriptions)
+      .innerJoin(
+        subscriptionPlans,
+        eq(subscriptions.planId, subscriptionPlans.id),
+      )
+      .where(
+        and(
+          eq(subscriptions.userId, userId),
+          sql`${subscriptions.status} IN ('active', 'paused')`,
+        ),
+      )
+      .limit(1);
+
+    if (
+      subRows.length > 0 &&
+      subRows[0].linkedProgramId === enrollment.programId
+    ) {
+      isLinkedToSubscription = true;
+    }
+
     return {
       enrollmentId: enrollment.enrollmentId,
       programId: enrollment.programId,
@@ -639,6 +666,7 @@ export class ProgramsService {
           : daysUntilExpiry === null
             ? null
             : 0,
+      isLinkedToSubscription,
       contentBlocks,
     };
   }
