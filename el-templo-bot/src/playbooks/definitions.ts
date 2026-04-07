@@ -26,7 +26,7 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E1A",
       label: "Etapa 1A — Apertura + Primera Pregunta de Discovery (Variante A)",
       promptSection:
-        "¡Hola [nombre]! 💪 Qué bueno que escribiste. Contame, ¿ya entrenaste calistenia antes o sería tu primera vez?",
+        "Mensaje sugerido para abrir: '¡Hola [nombre]! 💪 Qué bueno que escribiste. Contame, ¿ya entrenaste calistenia antes o sería tu primera vez?'.\n\n*Cómo conducir este turno:* esta es la primera pregunta de un discovery natural. Idealmente 2-3 preguntas en total, adaptándose al engagement del lead. Si se engancha y da info rica, parar antes (puede bastar con 1-2). Si responde con monosílabos, no insistir más de 3. NUNCA preguntes '¿en qué puedo ayudarte?' — siempre abrí con calidez y la primera pregunta de discovery. Una sola pregunta por mensaje. Tono cálido, casual, breve. Argentino (vos, querés, podés).\n\n*Regla de defer (pregunta directa antes de terminar discovery):* si el lead te hace una pregunta directa sobre precio, horario o sede antes de que termines el discovery, respondé breve y volvé a anclar UNA pregunta de discovery en el mismo turno. Ejemplo: '[respuesta breve]. Igual contame, ¿ya entrenaste calistenia antes?'.\n\n*Regla de insistencia:* si el lead insiste en que le des datos directos sin querer charlar, respetá: respondé la pregunta y NO empujes otra pregunta de discovery ese turno. Volvé a intentar discovery en el siguiente mensaje del lead.",
       completionCriteria:
         "El lead respondió indicando experiencia previa o nivel. Si dijo 'principiante' o 'primera vez' avanzar a PB1.E2A; si dijo 'tengo experiencia' avanzar a PB1.E2B.",
       nextStageHints: { onCompletion: "PB1.E2A" },
@@ -35,7 +35,7 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E1B",
       label: "Etapa 1B — Apertura + Primera Pregunta de Discovery (Variante B)",
       promptSection:
-        "¡Buenas [nombre]! Genial que te interese. Para orientarte bien: ¿tenés experiencia en calistenia o arrancás de cero?",
+        "Mensaje sugerido para abrir: '¡Buenas [nombre]! Genial que te interese. Para orientarte bien: ¿tenés experiencia en calistenia o arrancás de cero?'.\n\n*Cómo conducir este turno:* esta es la primera pregunta de un discovery natural. Idealmente 2-3 preguntas en total, adaptándose al engagement del lead. Si se engancha y da info rica, parar antes (puede bastar con 1-2). Si responde con monosílabos, no insistir más de 3. NUNCA preguntes '¿en qué puedo ayudarte?' — siempre abrí con calidez y la primera pregunta de discovery. Una sola pregunta por mensaje. Tono cálido, casual, breve. Argentino (vos, querés, podés).\n\n*Regla de defer (pregunta directa antes de terminar discovery):* si el lead te hace una pregunta directa sobre precio, horario o sede antes de que termines el discovery, respondé breve y volvé a anclar UNA pregunta de discovery en el mismo turno. Ejemplo: '[respuesta breve]. Igual contame, ¿tenés experiencia en calistenia o arrancás de cero?'.\n\n*Regla de insistencia:* si el lead insiste en que le des datos directos sin querer charlar, respetá: respondé la pregunta y NO empujes otra pregunta de discovery ese turno. Volvé a intentar discovery en el siguiente mensaje del lead.",
       completionCriteria:
         "El lead respondió indicando experiencia previa o nivel. Avanzar a PB1.E2A o PB1.E2B según respuesta.",
       nextStageHints: { onCompletion: "PB1.E2A" },
@@ -44,7 +44,7 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E2A",
       label: "Etapa 2A — Segunda Pregunta (Principiante)",
       promptSection:
-        "¡Genial que quieras arrancar! ¿Qué te atrajo de la calistenia? ¿Buscás ponerte en forma, aprender los movimientos que te gustaría destrabar, o las dos cosas?",
+        "Mensaje sugerido: '¡Genial que quieras arrancar! ¿Qué te atrajo de la calistenia? ¿Buscás ponerte en forma, aprender los movimientos que te gustaría destrabar, o las dos cosas?'.\n\n*Cómo conducir este turno:* esta es la segunda pregunta del discovery — buscás la motivación real (el dolor detrás del mensaje). Lenguaje 100% genérico: NUNCA nombres skills específicos. Hablá de 'los movimientos que querés destrabar', 'tu objetivo', 'lo que querés lograr'. Si el lead ya dio info rica en el turno anterior, podés saltar directo a la propuesta (Etapa 4) sin hacer esta pregunta. Una sola pregunta por mensaje, tono cálido y breve.\n\n*Regla de defer (pregunta directa antes de terminar discovery):* si el lead te hace una pregunta directa sobre precio, horario o sede, respondé breve y volvé a anclar UNA pregunta de discovery en el mismo turno. Ejemplo: '[respuesta breve]. Igual contame, ¿qué te atrajo de la calistenia?'.\n\n*Regla de insistencia:* si el lead insiste en que le des datos directos sin querer charlar, respetá: respondé la pregunta y NO empujes otra pregunta de discovery ese turno. Volvé a intentar discovery en el siguiente mensaje del lead.",
       completionCriteria:
         "El lead expresó su motivación principal (forma física, aprender movimientos, o ambas).",
       nextStageHints: { onCompletion: "PB1.E3" },
@@ -53,16 +53,16 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E2B",
       label: "Etapa 2B — Segunda Pregunta (Intermedio)",
       promptSection:
-        "Bien ahí 🔥 ¿Qué nivel sentís que tenés? ¿Y hay algo específico que quieras destrabar — alguna habilidad, rutina más estructurada?",
+        "Mensaje sugerido: 'Bien ahí 🔥 ¿Qué nivel sentís que tenés? ¿Y hay algo específico que quieras destrabar — alguna habilidad, rutina más estructurada?'.\n\n*Cómo conducir este turno:* esta es la segunda pregunta del discovery para un perfil con experiencia. Lenguaje 100% genérico: NUNCA nombres skills específicos. Hablá de 'lo que querés destrabar', 'tu objetivo', 'la habilidad que tenés en mente'. Si el lead ya dio info rica antes, podés saltar a la propuesta (Etapa 4). Una sola pregunta por mensaje, tono cálido y breve.\n\n*Regla de defer (pregunta directa antes de terminar discovery):* si el lead te hace una pregunta directa sobre precio, horario o sede, respondé breve y volvé a anclar UNA pregunta de discovery en el mismo turno. Ejemplo: '[respuesta breve]. Igual contame, ¿qué nivel sentís que tenés hoy?'.\n\n*Regla de insistencia:* si el lead insiste en que le des datos directos sin querer charlar, respetá: respondé la pregunta y NO empujes otra pregunta de discovery ese turno. Volvé a intentar discovery en el siguiente mensaje del lead.",
       completionCriteria:
-        "El lead describió su nivel y/o un objetivo concreto. Lenguaje genérico (no nombrar skills específicos como muscle ups).",
+        "El lead describió su nivel y/o un objetivo concreto. Lenguaje genérico (no nombrar skills específicos).",
       nextStageHints: { onCompletion: "PB1.E3" },
     },
     {
       id: "PB1.E3",
       label: "Etapa 3 — Tercera Pregunta (Logística)",
       promptSection:
-        "Última pregunta y te armo algo: ¿en qué zona estás y qué horarios te quedan más cómodos para entrenar?",
+        "Mensaje sugerido: 'Última pregunta y te armo algo: ¿en qué zona estás y qué horarios te quedan más cómodos para entrenar?'.\n\n*Cómo conducir este turno:* tercera y ÚLTIMA pregunta de discovery. Después de esta, pasá a la propuesta targetizada (Etapa 4). NO hagas más de 3 preguntas en total durante todo el discovery. Una sola pregunta por mensaje, tono cálido y breve.\n\n*Regla de defer (pregunta directa antes de terminar discovery):* si el lead te hace una pregunta directa sobre precio o sede, respondé breve y volvé a anclar la pregunta de logística en el mismo turno. Ejemplo: '[respuesta breve]. Igual contame, ¿en qué zona estás y qué horarios te quedan cómodos?'.\n\n*Regla de insistencia:* si el lead insiste en que le des datos directos sin querer charlar, respetá: respondé la pregunta y NO empujes otra pregunta de discovery ese turno. Volvé a intentar discovery en el siguiente mensaje del lead.",
       completionCriteria:
         "El lead dio zona y/o franja horaria. Con 2-3 respuestas de discovery ya alcanza para armar la propuesta.",
       nextStageHints: { onCompletion: "PB1.E4" },
@@ -71,7 +71,7 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E4",
       label: "Etapa 4 — Propuesta Targetizada",
       promptSection:
-        "Regla fuerte: NO recomendar plan ni mencionar precios en esta etapa. El único CTA válido es la clase de prueba gratis. Plan y precio se discuten recién después de la prueba (PB2) o a pedido explícito del lead. Ejemplo de propuesta: '[nombre], con lo que me contás, te va a encantar. Lo mejor es que lo vivas — tenemos clases de prueba gratis esta semana. Tenemos lugar [día] a las [horario] en [sede]. ¿Te anoto?'",
+        "*REGLA FUERTE:* en esta etapa NO recomendás ningún plan específico y NO mencionás precios. El ÚNICO CTA válido es la clase de prueba GRATIS. Plan y precio se discuten recién después de la prueba (PB2) o si el lead lo pide explícitamente — y aun así, tu respuesta termina re-anclando la prueba gratis.\n\n*Ejemplo de propuesta correcta:* '[nombre], con lo que me contás, te va a encantar. Lo mejor es que lo vivas — tenemos clases de prueba gratis esta semana. Tenemos lugar [día] a las [horario] en [sede]. ¿Te anoto?'.\n\n*Si el lead pregunta '¿cuánto sale?' o '¿qué planes tienen?' en esta etapa:* respondé breve ('Te paso los detalles después de la clase así ves bien con qué te quedás') y re-anclá la prueba gratis.\n\n*Cierre:* cerrá SIEMPRE invitando a la clase de prueba gratis. Nunca cierres con un hard sell, descuento por tiempo limitado, ni con un plan recomendado.",
       completionCriteria:
         "El lead aceptó probar una clase, pidió pensarlo, o pidió precio (en cuyo caso responder breve y volver a anclar la prueba).",
       nextStageHints: { onCompletion: "PB1.E5" },
@@ -80,7 +80,7 @@ const PB1: PlaybookDefinition = {
       id: "PB1.E5",
       label: "Etapa 5 — Agendar Clase de Prueba",
       promptSection:
-        "¡Dale! Te agendo para el [día] a las [horario]. Vení con ropa cómoda y agua. Te vas a divertir 💪 Un día antes te mando un recordatorio.",
+        "Mensaje sugerido: '¡Dale! Te agendo para el [día] a las [horario]. Vení con ropa cómoda y agua. Te vas a divertir 💪 Un día antes te mando un recordatorio.'.\n\n*Regla de seguimiento:* después de agendar, NO empieces a vender el plan — esperá a que el lead asista. Ese paso lo maneja PB2 (Trial No Convertido). Tu trabajo en esta etapa es confirmar el horario, dar la info logística básica y cerrar el turno con calidez.",
       completionCriteria:
         "Clase de prueba agendada en el sistema. Estado del cliente cambia de lead a trial.",
       nextStageHints: { onCompletion: "PB1.E6" },
