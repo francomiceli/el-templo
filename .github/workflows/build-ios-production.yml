@@ -52,9 +52,16 @@ jobs:
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
-      - name: Sync Capacitor iOS
-        working-directory: el-templo-app
-        run: npx cap sync ios
+      - name: Install Capacitor dependencies
+        working-directory: el-templo-app/src-capacitor
+        run: pnpm install --frozen-lockfile
+
+      - name: Sync web assets and native plugins
+        working-directory: el-templo-app/src-capacitor
+        run: |
+          mkdir -p www
+          cp -r ../dist/spa/* www/
+          npx cap sync ios
 
       - name: Install CocoaPods
         working-directory: el-templo-app/src-capacitor/ios/App
