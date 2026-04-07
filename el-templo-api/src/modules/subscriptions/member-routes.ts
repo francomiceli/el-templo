@@ -120,6 +120,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         durationDays: p.durationDays,
         classesPerWeek: p.classesPerWeek,
         planCategory: p.planCategory,
+        linkedProgramId: p.linkedProgramId ?? null,
         goalPlanType: p.goalPlanType,
         goalPlanZones: meta?.zones ?? null,
       };

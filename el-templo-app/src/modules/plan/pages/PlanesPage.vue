@@ -162,7 +162,7 @@ const { getCatalog, getMyProgress } = useProgramsApi()
 const experiencias = ref<MemberProgramCatalogItem[]>([])
 const enrolledProgramId = ref<number | null>(null)
 
-const allRegularPlans = computed(() => plans.value)
+const allRegularPlans = computed(() => plans.value.filter((p) => !p.linkedProgramId))
 
 const hasSubscription = computed(() => !!userStore.subscription)
 
