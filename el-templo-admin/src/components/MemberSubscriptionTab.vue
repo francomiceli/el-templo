@@ -478,7 +478,28 @@ const availablePrograms = computed(() =>
   allPrograms.value.filter((p) => p.isActive && p.id !== activeEnrollment.value?.programId)
 );
 
-async function executeSwapProgram() {
+function executeSwapProgram() {
+  if (!swapTargetProgramId.value) return;
+
+  // If upgrading from Foundation (free) to a paid program, warn about payment
+  const isFromFoundation =
+    activeEnrollment.value?.programName?.toLowerCase().includes('foundation') ?? false;
+  const targetProgram = allPrograms.value.find((p) => p.id === swapTargetProgramId.value);
+  const isToFoundation = targetProgram?.name?.toLowerCase().includes('foundation') ?? false;
+
+  if (isFromFoundation && !isToFoundation) {
+    $q.dialog({
+      title: 'Registrar pago',
+      message: `Estas cambiando de Foundation (incluido) a "${targetProgram?.name}". Asegurate de registrar el pago en Caja antes de confirmar el cambio.`,
+      cancel: { flat: true, label: 'Cancelar' },
+      ok: { color: 'primary', label: 'Ya registre el pago, continuar' },
+    }).onOk(() => doSwapProgram());
+  } else {
+    doSwapProgram();
+  }
+}
+
+async function doSwapProgram() {
   if (!swapTargetProgramId.value) return;
   swapLoading.value = true;
   try {
