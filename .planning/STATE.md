@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 82-03-PLAN.md (system prompt single-playbook-section injection)"
-last_updated: "2026-04-07T19:09:00Z"
-last_activity: 2026-04-07 -- Plan 82-03 complete (getSystemPrompt single-key PLAYBOOKS lookup, 12 new tests, full bot suite 243/243; PBENG-05 closed)
+stopped_at: "Completed 83-01-PLAN.md (PB1 discovery promptSections enriched)"
+last_updated: "2026-04-07T20:00:00Z"
+last_activity: 2026-04-07 -- Plan 83-01 complete (PB1 stages E1A/E1B/E2A/E2B/E3/E4/E5 carry discovery meta-rule + defer rule + insistence rule + REGLA FUERTE; DISC-01..04,06,07 closed; 243/243 tests green)
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 3
-  completed_plans: 3
-  percent: 25
+  total_plans: 12
+  completed_plans: 4
+  percent: 33
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 82 — Playbook Engine (complete)
-Plan: 82-03 (complete) — System prompt injection of only the active playbook section
-Status: Phase 82 complete — plans 82-01, 82-02, 82-03 done. PBENG-05 closed.
-Progress: ███░░░░░░░ 25% (1/4 phases, 3/12 plans)
-Last activity: 2026-04-07 — Plan 82-03 complete (getSystemPrompt single-key PLAYBOOKS lookup, 12 new tests, full bot suite 243/243; PBENG-05 closed)
+Phase: 83 — Discovery Mode for Leads (in progress)
+Plan: 83-01 (complete) — PB1 promptSection enrichment with discovery rules
+Status: Phase 83 in progress — 1/4 plans done (83-02, 83-03, 83-04 pending)
+Progress: ███░░░░░░░ 33% (1/4 phases, 4/12 plans)
+Last activity: 2026-04-07 — Plan 83-01 complete (PB1 stages carry 2-3 adaptive discovery rule, defer/insistence rules, REGLA FUERTE no-plan/no-price block, soft trial close; DISC-01..04,06,07 closed; 243/243 bot tests green)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Last activity: 2026-04-07 — Plan 82-03 complete (getSystemPrompt single-key PL
 | Phase 82 P01 | 6min  | 2 tasks | 5 files  |
 | Phase 82 P02 | 12min | 2 tasks | 6 files  |
 | Phase 82 P03 | 3min  | 2 tasks | 2 files  |
+| Phase 83 P01 | 15min | 1 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -87,6 +88,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Completed 82-03-PLAN.md — system prompt single-playbook-section injection committed (e5ee7c6c, a45bd2c1). Phase 82 done.
-Resume file: .planning/phases/83-pb1-discovery/ (next phase — PB1 discovery flow)
-Next step: `/gsd:execute-phase 83` to start phase 83 (PB1 discovery / avatar detection). If phase 83 plans not yet drafted, run `/gsd:plan-phase 83` first.
+Stopped at: Completed 83-01-PLAN.md — PB1 discovery promptSections enriched (commit 9f321905). 1/4 plans done in phase 83.
+Resume file: .planning/phases/83-discovery-mode-for-leads/83-02-PLAN.md
+Next step: `/gsd:execute-phase 83` to continue phase 83 (plans 83-02, 83-03, 83-04 pending).

@@ -19,13 +19,13 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 
 ### Discovery Mode for Leads (PB1)
 
-- [ ] **DISC-01**: When `clientState=lead`, Mica's first message is a warm intro + first qualifying question (never "¿en qué puedo ayudarte?")
-- [ ] **DISC-02**: Mica asks max 3 qualifying questions, one at a time, woven naturally into conversation
-- [ ] **DISC-03**: When a lead asks a direct question (price/schedule/location) before discovery is complete, Mica answers briefly then asks one qualifying question
-- [ ] **DISC-04**: After 2-3 answers, Mica makes ONE targeted recommendation matched to the detected profile
+- [x] **DISC-01**: When `clientState=lead`, Mica's first message is a warm intro + first qualifying question (never "¿en qué puedo ayudarte?")
+- [x] **DISC-02**: Mica asks max 3 qualifying questions, one at a time, woven naturally into conversation
+- [x] **DISC-03**: When a lead asks a direct question (price/schedule/location) before discovery is complete, Mica answers briefly then asks one qualifying question
+- [x] **DISC-04**: After 2-3 answers, Mica makes ONE targeted recommendation matched to the detected profile
 - [ ] **DISC-05**: Mica detects and stores a profile (`cero_absoluto | gym_crossover | intermedio | retorna`) in Redis session based on lead responses
-- [ ] **DISC-06**: Discovery flow closes with a soft trial offer ("¿Querés probar con una clase gratis?")
-- [ ] **DISC-07**: If a lead insists on direct answers, discovery defers gracefully — answer first, defer profiling
+- [x] **DISC-06**: Discovery flow closes with a soft trial offer ("¿Querés probar con una clase gratis?")
+- [x] **DISC-07**: If a lead insists on direct answers, discovery defers gracefully — answer first, defer profiling
 
 ### State-Adaptive Playbook Prompts (PB2-PB5)
 
@@ -93,13 +93,13 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 | PBENG-04    | Phase 82 | Complete |
 | PBENG-05    | Phase 82 | Complete |
 | PBENG-06    | Phase 82 | Complete |
-| DISC-01     | Phase 83 | Pending  |
-| DISC-02     | Phase 83 | Pending  |
-| DISC-03     | Phase 83 | Pending  |
-| DISC-04     | Phase 83 | Pending  |
+| DISC-01     | Phase 83 | Complete |
+| DISC-02     | Phase 83 | Complete |
+| DISC-03     | Phase 83 | Complete |
+| DISC-04     | Phase 83 | Complete |
 | DISC-05     | Phase 83 | Pending  |
-| DISC-06     | Phase 83 | Pending  |
-| DISC-07     | Phase 83 | Pending  |
+| DISC-06     | Phase 83 | Complete |
+| DISC-07     | Phase 83 | Complete |
 | PBPR-01     | Phase 84 | Pending  |
 | PBPR-02     | Phase 84 | Pending  |
 | PBPR-03     | Phase 84 | Pending  |

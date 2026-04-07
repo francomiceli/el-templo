@@ -76,7 +76,7 @@ Plans:
 6. Discovery closes with a soft trial offer ("¿Querés probar con una clase gratis?") rather than a hard sell.
 7. When a lead explicitly insists on direct answers, Mica defers profiling gracefully — she answers the question and does not push another discovery question that turn.
 
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 
@@ -127,7 +127,7 @@ Plans:
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
-| 83. Discovery Mode for Leads (PB1)          | 0/4            | Not started | -          |
+| 83. Discovery Mode for Leads (PB1)          | 1/4            | In Progress |            |
 | 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -          |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
