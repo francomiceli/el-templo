@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 83-01-PLAN.md (PB1 discovery promptSections enriched)"
-last_updated: "2026-04-07T20:00:00Z"
-last_activity: 2026-04-07 -- Plan 83-01 complete (PB1 stages E1A/E1B/E2A/E2B/E3/E4/E5 carry discovery meta-rule + defer rule + insistence rule + REGLA FUERTE; DISC-01..04,06,07 closed; 243/243 tests green)
+stopped_at: "Completed 83-02-PLAN.md (profile-tag detection + Redis persistence)"
+last_updated: "2026-04-07T20:20:12Z"
+last_activity: 2026-04-07 -- Plan 83-02 complete (AvatarProfile type, pure profile-tag parser with 22 tests, webhook handler extract+persist+strip wiring, conditional system-prompt directives, DISC-05 closed; 265/265 bot tests green)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 12
-  completed_plans: 4
-  percent: 33
+  completed_plans: 5
+  percent: 42
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
 Phase: 83 — Discovery Mode for Leads (in progress)
-Plan: 83-01 (complete) — PB1 promptSection enrichment with discovery rules
-Status: Phase 83 in progress — 1/4 plans done (83-02, 83-03, 83-04 pending)
-Progress: ███░░░░░░░ 33% (1/4 phases, 4/12 plans)
-Last activity: 2026-04-07 — Plan 83-01 complete (PB1 stages carry 2-3 adaptive discovery rule, defer/insistence rules, REGLA FUERTE no-plan/no-price block, soft trial close; DISC-01..04,06,07 closed; 243/243 bot tests green)
+Plan: 83-02 (complete) — Profile-tag detection, Redis persistence, conditional system-prompt directives
+Status: Phase 83 in progress — 2/4 plans done (83-03, 83-04 pending)
+Progress: ████░░░░░░ 42% (1/4 phases, 5/12 plans)
+Last activity: 2026-04-07 — Plan 83-02 complete (AvatarProfile type + optional avatar field on PlaybookSessionState, pure profile-tag.ts parser with extractProfileTag/stripProfileTag/PROFILE_TAG_REGEX, handler extracts+persists+strips <profile> tag and preserves avatar across all 3 setPlaybookState write sites, system-prompt injects "Detección de perfil" only during PB1+!avatar and "Perfil detectado" when known, 22 new unit tests, DISC-05 closed; 265/265 bot tests green)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Last activity: 2026-04-07 — Plan 83-01 complete (PB1 stages carry 2-3 adaptive
 | Phase 82 P02 | 12min | 2 tasks | 6 files  |
 | Phase 82 P03 | 3min  | 2 tasks | 2 files  |
 | Phase 83 P01 | 15min | 1 tasks | 1 files  |
+| Phase 83 P02 | 38min | 3 tasks | 6 files  |
 
 ## Accumulated Context
 
@@ -68,6 +69,7 @@ Recent decisions affecting current work:
 - Stage state lives in Redis session (6h TTL). Cross-session durability is a v5.4 concern.
 - [Phase 82]: System prompt header format locked: '_Playbook activo: PBx (PBx.Ey)_' (uses playbook id, not name; WhatsApp bold not markdown headers)
 - [Phase 82]: STATE_SECTIONS dual-framing decision deferred to phase 84 (TODO comment in place); both render together for now to preserve v5.2 AVAT-03 baseline
+- [Phase 83]: Hybrid LLM + structured <profile> tag chosen for avatar detection (Strategy C): pure rules can't handle Spanish nuance, dedicated tool would burn an extra model turn
 
 ### Pending Todos
 
@@ -88,6 +90,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Completed 83-01-PLAN.md — PB1 discovery promptSections enriched (commit 9f321905). 1/4 plans done in phase 83.
-Resume file: .planning/phases/83-discovery-mode-for-leads/83-02-PLAN.md
-Next step: `/gsd:execute-phase 83` to continue phase 83 (plans 83-02, 83-03, 83-04 pending).
+Stopped at: Completed 83-02-PLAN.md — profile-tag detection wired end-to-end (commits 12951844, c8b28afc, af85be6b). 2/4 plans done in phase 83.
+Resume file: .planning/phases/83-discovery-mode-for-leads/83-03-PLAN.md
+Next step: `/gsd:execute-phase 83` to continue phase 83 (plans 83-03, 83-04 pending).

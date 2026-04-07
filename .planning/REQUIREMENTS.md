@@ -23,7 +23,7 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 - [x] **DISC-02**: Mica asks max 3 qualifying questions, one at a time, woven naturally into conversation
 - [x] **DISC-03**: When a lead asks a direct question (price/schedule/location) before discovery is complete, Mica answers briefly then asks one qualifying question
 - [x] **DISC-04**: After 2-3 answers, Mica makes ONE targeted recommendation matched to the detected profile
-- [ ] **DISC-05**: Mica detects and stores a profile (`cero_absoluto | gym_crossover | intermedio | retorna`) in Redis session based on lead responses
+- [x] **DISC-05**: Mica detects and stores a profile (`cero_absoluto | gym_crossover | intermedio | retorna`) in Redis session based on lead responses
 - [x] **DISC-06**: Discovery flow closes with a soft trial offer ("¿Querés probar con una clase gratis?")
 - [x] **DISC-07**: If a lead insists on direct answers, discovery defers gracefully — answer first, defer profiling
 
@@ -97,7 +97,7 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 | DISC-02     | Phase 83 | Complete |
 | DISC-03     | Phase 83 | Complete |
 | DISC-04     | Phase 83 | Complete |
-| DISC-05     | Phase 83 | Pending  |
+| DISC-05     | Phase 83 | Complete |
 | DISC-06     | Phase 83 | Complete |
 | DISC-07     | Phase 83 | Complete |
 | PBPR-01     | Phase 84 | Pending  |
