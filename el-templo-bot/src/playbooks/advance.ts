@@ -9,14 +9,15 @@
  * that plans 83 and 84 genuinely need are wired. Everything else returns
  * `null` (no advance) so the resolver keeps the same stage on the next turn.
  *
- * Smart profile-based branching (PB1.E1->E2A vs E2B based on detected
- * avatar) is intentionally deferred to phase 83 — for now, PB1.E1A/E1B
- * always advances to PB1.E2A.
+ * Phase 83-03 wired the smart profile-based branching: PB1.E1A/E1B advances
+ * to PB1.E2A for cero_absoluto / gym_crossover and to PB1.E2B for
+ * intermedio / retorna. The defer + insistence guards also live here so the
+ * engine reinforces the prompt-level rules from plan 83-01.
  *
  * NO IO. NO Redis. NO logger. Trivially unit-testable.
  */
 
-import type { PlaybookId, StageId } from "./types.js";
+import type { AvatarProfile, PlaybookId, StageId } from "./types.js";
 
 /**
  * Coarse signals derived by the handler from the current turn.
@@ -35,6 +36,33 @@ export interface AdvanceSignals {
   userAccepted?: boolean;
   /** The user raised a priced objection */
   priceObjection?: boolean;
+
+  // ── NEW in phase 83 ────────────────────────────────────────────────────
+
+  /**
+   * Avatar detected this turn (from the <profile> tag Mica emitted and the
+   * webhook handler extracted). Used to branch PB1.E1 → E2A vs E2B.
+   * Pass the NEWLY detected avatar for this turn OR the prior stored avatar
+   * if the handler wants to honor a previous detection. Null/undefined means
+   * "no profile signal" and the default branching rule applies.
+   */
+  detectedAvatar?: AvatarProfile | null;
+
+  /**
+   * True when the user's inbound message is a direct logistical question
+   * (price, schedule, location) asked BEFORE discovery finished. When true,
+   * the discovery stage HOLDS (no advance) — Mica is expected to answer
+   * briefly and re-anchor discovery on the same turn, per DISC-03.
+   */
+  directQuestionAsked?: boolean;
+
+  /**
+   * True when the user has EXPLICITLY refused to engage with discovery
+   * ("solo quiero el precio", "pasame los horarios", "no tengo tiempo para
+   * charlar", etc). When true, the discovery stage HOLDS and Mica defers
+   * profiling that turn (DISC-07).
+   */
+  userInsistedDirect?: boolean;
 }
 
 /**
@@ -51,15 +79,29 @@ export function advanceStageIfComplete(
 
   // ── PB1: Lead Nuevo ─────────────────────────────────────────────────────
   if (playbookId === "PB1") {
-    // E1A / E1B → E2A (default Principiante).
-    // TODO(phase-83): branch on detected avatar (cero_absoluto / gym_crossover
-    // → E2A, intermedio / retorna → E2B). For now we always pick E2A so the
-    // engine has a deterministic next stage; the smart split lands when the
-    // profile detector exists.
+    // Guard: the user insisted on direct answers OR asked a direct question
+    // this turn — hold the discovery stage so Mica re-anchors on the next
+    // inbound message. This reinforces the defer rule from PB1 promptSections
+    // (see plan 83-01). DISC-03 + DISC-07.
+    if (
+      signals.userInsistedDirect === true ||
+      signals.directQuestionAsked === true
+    ) {
+      return null;
+    }
+
+    // E1A / E1B → E2A or E2B depending on detected avatar.
+    //   cero_absoluto, gym_crossover → E2A (principiante variant)
+    //   intermedio, retorna           → E2B (experienced variant)
+    //   null/undefined                → default to E2A (backward compatible)
     if (
       (stageId === "PB1.E1A" || stageId === "PB1.E1B") &&
       signals.discoveryAnswered === true
     ) {
+      const avatar = signals.detectedAvatar ?? null;
+      if (avatar === "intermedio" || avatar === "retorna") {
+        return "PB1.E2B";
+      }
       return "PB1.E2A";
     }
 
@@ -71,7 +113,8 @@ export function advanceStageIfComplete(
       return "PB1.E3";
     }
 
-    // E3 → E4 (propuesta targetizada)
+    // E3 → E4 (propuesta targetizada). After E3 we ALWAYS exit discovery,
+    // enforcing the 2-3 question cap regardless of how rich the answers were.
     if (stageId === "PB1.E3" && signals.discoveryAnswered === true) {
       return "PB1.E4";
     }
