@@ -110,6 +110,9 @@ jobs:
             -archivePath $RUNNER_TEMP/app.xcarchive \
             archive \
             CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM=6D9R97DGAK \
+            PROVISIONING_PROFILE_SPECIFIER="El Templo App Store Distribution" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
 
       - name: Create ExportOptions.plist
@@ -123,6 +126,15 @@ jobs:
             <string>app-store</string>
             <key>destination</key>
             <string>upload</string>
+            <key>teamID</key>
+            <string>6D9R97DGAK</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.eltemplo.app</key>
+              <string>El Templo App Store Distribution</string>
+            </dict>
           </dict>
           </plist>
           PLIST
