@@ -1294,6 +1294,38 @@ export class SubscriptionService {
         );
       }
 
+      // Auto-migrate member from virtual branch to subscription's physical branch
+      const [memberForMigration] = await this.db
+        .select({ branchId: schema.users.branchId })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId));
+
+      if (
+        memberForMigration &&
+        memberForMigration.branchId !== input.branchId
+      ) {
+        const [currentBranch] = await this.db
+          .select({ isVirtual: schema.branches.isVirtual })
+          .from(schema.branches)
+          .where(eq(schema.branches.id, memberForMigration.branchId));
+
+        if (currentBranch?.isVirtual) {
+          await this.db
+            .update(schema.users)
+            .set({ branchId: input.branchId })
+            .where(eq(schema.users.id, userId));
+
+          this.log.info(
+            {
+              userId,
+              fromBranchId: memberForMigration.branchId,
+              toBranchId: input.branchId,
+            },
+            "Auto-migrated member from virtual branch to subscription branch on plan change",
+          );
+        }
+      }
+
       const newSub = await this.getSubscriptionById(newSubscriptionId);
       if (!newSub) {
         throw new Error(
