@@ -10,12 +10,12 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 
 ### Playbook Engine
 
-- [ ] **PBENG-01**: Engine selects active playbook (PB1-PB5) based on contact's clientState (lead/trial/active/inactive/expired)
-- [ ] **PBENG-02**: Engine tracks current stage within active playbook (e.g., `PB1.E2A`)
+- [x] **PBENG-01**: Engine selects active playbook (PB1-PB5) based on contact's clientState (lead/trial/active/inactive/expired)
+- [x] **PBENG-02**: Engine tracks current stage within active playbook (e.g., `PB1.E2A`)
 - [ ] **PBENG-03**: Engine persists `{activePlaybook, currentStage}` in Redis session (no MySQL writes in v5.3)
 - [ ] **PBENG-04**: Engine advances stage when stage completion criteria are met
 - [ ] **PBENG-05**: Only the active playbook section is injected into the system prompt (other 4 playbooks excluded)
-- [ ] **PBENG-06**: Engine exposes a pure function `resolvePlaybook(contact, session) → {playbookId, stageId}` covered by unit tests
+- [x] **PBENG-06**: Engine exposes a pure function `resolvePlaybook(contact, session) → {playbookId, stageId}` covered by unit tests
 
 ### Discovery Mode for Leads (PB1)
 
@@ -85,32 +85,32 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 
 ## Traceability
 
-| Requirement | Phase    | Status  |
-| ----------- | -------- | ------- |
-| PBENG-01    | Phase 82 | Pending |
-| PBENG-02    | Phase 82 | Pending |
-| PBENG-03    | Phase 82 | Pending |
-| PBENG-04    | Phase 82 | Pending |
-| PBENG-05    | Phase 82 | Pending |
-| PBENG-06    | Phase 82 | Pending |
-| DISC-01     | Phase 83 | Pending |
-| DISC-02     | Phase 83 | Pending |
-| DISC-03     | Phase 83 | Pending |
-| DISC-04     | Phase 83 | Pending |
-| DISC-05     | Phase 83 | Pending |
-| DISC-06     | Phase 83 | Pending |
-| DISC-07     | Phase 83 | Pending |
-| PBPR-01     | Phase 84 | Pending |
-| PBPR-02     | Phase 84 | Pending |
-| PBPR-03     | Phase 84 | Pending |
-| PBPR-04     | Phase 84 | Pending |
-| PBPR-05     | Phase 84 | Pending |
-| PBPR-06     | Phase 84 | Pending |
-| AVAT-01     | Phase 85 | Pending |
-| AVAT-02     | Phase 85 | Pending |
-| AVAT-03     | Phase 85 | Pending |
-| AVAT-04     | Phase 85 | Pending |
-| AVAT-05     | Phase 85 | Pending |
+| Requirement | Phase    | Status   |
+| ----------- | -------- | -------- |
+| PBENG-01    | Phase 82 | Complete |
+| PBENG-02    | Phase 82 | Complete |
+| PBENG-03    | Phase 82 | Pending  |
+| PBENG-04    | Phase 82 | Pending  |
+| PBENG-05    | Phase 82 | Pending  |
+| PBENG-06    | Phase 82 | Complete |
+| DISC-01     | Phase 83 | Pending  |
+| DISC-02     | Phase 83 | Pending  |
+| DISC-03     | Phase 83 | Pending  |
+| DISC-04     | Phase 83 | Pending  |
+| DISC-05     | Phase 83 | Pending  |
+| DISC-06     | Phase 83 | Pending  |
+| DISC-07     | Phase 83 | Pending  |
+| PBPR-01     | Phase 84 | Pending  |
+| PBPR-02     | Phase 84 | Pending  |
+| PBPR-03     | Phase 84 | Pending  |
+| PBPR-04     | Phase 84 | Pending  |
+| PBPR-05     | Phase 84 | Pending  |
+| PBPR-06     | Phase 84 | Pending  |
+| AVAT-01     | Phase 85 | Pending  |
+| AVAT-02     | Phase 85 | Pending  |
+| AVAT-03     | Phase 85 | Pending  |
+| AVAT-04     | Phase 85 | Pending  |
+| AVAT-05     | Phase 85 | Pending  |
 
 **Coverage:**
 
