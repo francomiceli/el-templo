@@ -410,8 +410,8 @@ describe("Goal Plan Routes", () => {
       expect(body.stats.cycleEndDate).toBeTruthy();
       expect(body.stats.totalCompletions).toBeGreaterThanOrEqual(0);
       expect(typeof body.stats.cycleComplete).toBe("boolean");
-      // Plan has durationDays=30, so cycleWeeks should be ceil(30/7) = 5
-      expect(body.stats.cycleWeeks).toBe(5);
+      // Program has durationWeeks=4
+      expect(body.stats.cycleWeeks).toBe(4);
     });
 
     it("returns 401 when not authenticated", async () => {
