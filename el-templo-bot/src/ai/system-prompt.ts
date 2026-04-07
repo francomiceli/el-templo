@@ -9,11 +9,20 @@
  */
 
 import type { ClientState } from "../state/machine.js";
+import type { PlaybookId, StageId } from "../playbooks/types.js";
 import { getBusinessKnowledge } from "./knowledge.js";
 
 interface SystemPromptOptions {
   clientState?: ClientState;
   profileContext?: string;
+  /**
+   * Resolved active playbook for this turn (set by webhook/handler.ts after
+   * calling `resolvePlaybook`). Plan 82-02 only passes the value through;
+   * plan 82-03 will consume it to inject the matching playbook section.
+   */
+  activePlaybook?: PlaybookId;
+  /** Resolved current stage id within the active playbook. See `activePlaybook`. */
+  currentStage?: StageId;
 }
 
 /** State-specific prompt sections — sales-aware, objective-driven */

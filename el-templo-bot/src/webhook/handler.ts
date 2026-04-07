@@ -22,7 +22,17 @@ import {
   buildProfileContext,
 } from "../memory/profile.js";
 import type { CustomerProfile } from "../memory/profile.js";
+import {
+  getPlaybookState,
+  setPlaybookState,
+} from "../memory/playbook-state.js";
 import { getSession, updateSession } from "../memory/session.js";
+import {
+  advanceStageIfComplete,
+  type AdvanceSignals,
+} from "../playbooks/advance.js";
+import { resolvePlaybook } from "../playbooks/resolver.js";
+import type { PlaybookId, StageId } from "../playbooks/types.js";
 import {
   determineClientState,
   updateConversationState,
@@ -260,6 +270,26 @@ async function processWithAi(
   // Build message history -- Redis session is primary, MySQL is fallback
   const session = await getSession(phone);
 
+  // ── Playbook engine (Phase 82) ─────────────────────────────────────────
+  // Read prior state, run the pure resolver, persist BEFORE the AI call so
+  // a crash mid-turn does not leave a hole in the engine state.
+  const priorPbState = await getPlaybookState(phone);
+  const resolved = resolvePlaybook(
+    {
+      clientState,
+      cancellationIntent: detectCancellationIntent(inboundText),
+    },
+    priorPbState,
+  );
+
+  if (resolved.playbookId !== null && resolved.stageId !== null) {
+    await setPlaybookState(phone, {
+      activePlaybook: resolved.playbookId,
+      currentStage: resolved.stageId,
+      updatedAt: Date.now(),
+    });
+  }
+
   // Build state-adaptive system prompt with profile context
   const profileContext = currentProfile
     ? buildProfileContext(currentProfile)
@@ -271,6 +301,10 @@ async function processWithAi(
       content: getSystemPrompt({
         clientState,
         profileContext: profileContext || undefined,
+        // Pass playbook fields through; plan 82-03 will consume them in
+        // getSystemPrompt to inject the active playbook's promptSection.
+        activePlaybook: resolved.playbookId ?? undefined,
+        currentStage: resolved.stageId ?? undefined,
       }),
     },
   ];
@@ -393,6 +427,25 @@ async function processWithAi(
   // Store assistant reply in Redis session
   await updateSession(phone, "assistant", replyText);
 
+  // ── Playbook engine (Phase 82): post-AI stage advancement ──────────────
+  // Compute coarse signals from the inbound + outbound text and decide
+  // whether to advance the stage for the NEXT turn. Overwrites Redis only
+  // if the helper returns a non-null next stage.
+  if (resolved.playbookId !== null && resolved.stageId !== null) {
+    const signals = computeAdvanceSignals(inboundText, replyText);
+    const nextStage = advanceStageIfComplete(
+      { playbookId: resolved.playbookId, stageId: resolved.stageId },
+      signals,
+    );
+    if (nextStage !== null) {
+      await setPlaybookState(phone, {
+        activePlaybook: resolved.playbookId,
+        currentStage: nextStage,
+        updatedAt: Date.now(),
+      });
+    }
+  }
+
   // Fire-and-forget profile extraction -- never blocks the main response
   extractAndUpdateProfile(
     provider,
@@ -460,6 +513,63 @@ async function processWithAi(
       );
     }
   }
+}
+
+/**
+ * Detect cancellation intent in an inbound user message.
+ *
+ * Narrow Spanish keyword regex covering the explicit phrases that should
+ * route the conversation into PB5 (Cancelación). Plan 84 will expand this;
+ * for v5.3 the resolver only needs a deterministic boolean and the false
+ * positives of a broader detector would be more harmful than missed cases.
+ */
+function detectCancellationIntent(text: string): boolean {
+  return /\b(cancelar|dar de baja|quiero irme|quiero salir|darme de baja)\b/i.test(
+    text,
+  );
+}
+
+/**
+ * Compute coarse advancement signals from this turn's inbound + outbound text.
+ *
+ * v5.3 uses simple keyword/regex matching — phase 83 may upgrade to a
+ * model-driven detector. Kept intentionally narrow to avoid false advances.
+ */
+function computeAdvanceSignals(
+  inboundText: string,
+  replyText: string,
+): AdvanceSignals {
+  const reply = replyText.toLowerCase();
+  const inbound = inboundText.toLowerCase();
+
+  // Mica asked a question this turn (any "?" in the reply) AND the user
+  // sent a non-trivial reply. The combination is treated as "discovery turn
+  // happened" for engine progression purposes.
+  const discoveryAnswered = reply.includes("?") && inbound.trim().length > 0;
+
+  // Mica proposed the trial in her last reply
+  const trialProposed = /\b(prueba|probar|clase de prueba|gratis)\b/i.test(
+    replyText,
+  );
+
+  // User explicitly accepted (Spanish affirmative phrases)
+  const userAccepted =
+    /\b(s[ií]|dale|anotame|anótame|anotame|me anoto|me sumo|listo|perfecto|genial)\b/i.test(
+      inbound,
+    );
+
+  // User raised a price-shaped objection
+  const priceObjection =
+    /\b(caro|carisimo|car[ií]simo|precio|no me alcanza|no puedo pagar|muy caro|barato|descuento)\b/i.test(
+      inbound,
+    );
+
+  return {
+    discoveryAnswered,
+    trialProposed,
+    userAccepted,
+    priceObjection,
+  };
 }
 
 /**
