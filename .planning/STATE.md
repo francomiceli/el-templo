@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 83-03-PLAN.md (profile-aware PB1 branching + defer/insistence guards)"
-last_updated: "2026-04-07T23:06:00Z"
-last_activity: 2026-04-07 -- Plan 83-03 complete (AdvanceSignals extended with detectedAvatar/directQuestionAsked/userInsistedDirect, PB1.E1A/E1B branches to E2A vs E2B by avatar, defer+insistence guards hold discovery stage, computeAdvanceSignals regex extension, 15 new advance tests, TODO(phase-83) removed, DISC-02/DISC-05/DISC-07 closed; 280/280 bot tests green)
+stopped_at: "Completed 83-04-PLAN.md (PB1 discovery flow conversation tests; phase 83 complete)"
+last_updated: "2026-04-07T23:15:00Z"
+last_activity: 2026-04-07 -- Plan 83-04 complete (19 pure Vitest cases in pb1-discovery-flow.test.ts, one describe per DISC-01..07, stage-scoped content assertions via stageContent() helper, defer+insistence rules asserted across all 5 discovery stages, full bot suite 299/299 green; phase 83 fully closed, all 7 DISC requirements covered at prompt+engine+test layers)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 12
-  completed_plans: 6
-  percent: 50
+  completed_plans: 7
+  percent: 58
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 83 — Discovery Mode for Leads (in progress)
-Plan: 83-03 (complete) — Profile-aware PB1 branching + defer/insistence stage guards
-Status: Phase 83 in progress — 3/4 plans done (83-04 pending)
-Progress: █████░░░░░ 50% (1/4 phases, 6/12 plans)
-Last activity: 2026-04-07 — Plan 83-03 complete (AdvanceSignals gained detectedAvatar/directQuestionAsked/userInsistedDirect, PB1.E1A/E1B → E2B for intermedio/retorna and → E2A otherwise, defer+insistence guards hold discovery stage when user asks direct logistical questions or refuses profiling, computeAdvanceSignals extended with Spanish regex for both guards, phase-82 TODO removed from advance.ts, 15 new unit tests incl. purity+determinism, DISC-02/DISC-05/DISC-07 closed; 280/280 bot tests green)
+Phase: 83 — Discovery Mode for Leads (COMPLETE)
+Plan: 83-04 (complete) — PB1 discovery flow conversation tests
+Status: Phase 83 COMPLETE — 4/4 plans done. Next: phase 84 (PB2-PB5 state-driven prompts)
+Progress: ██████░░░░ 58% (1/4 phases, 7/12 plans)
+Last activity: 2026-04-07 — Plan 83-04 complete (19 pure Vitest cases in el-templo-bot/test/pb1-discovery-flow.test.ts, exactly one describe block per DISC-01..07, stage-scoped content assertions via a stageContent() helper that reads PLAYBOOKS.PB1.stages directly so business knowledge in the base prompt does not poison negative checks, defer+insistence rules asserted across all 5 discovery stages, profile-tag parser round-trips all 4 avatars, intermedio→E2B branching locked in, full bot suite 299/299 green up from 280, phase 83 fully closed)
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Last activity: 2026-04-07 — Plan 83-03 complete (AdvanceSignals gained detecte
 | Phase 83 P01 | 15min | 1 tasks | 1 files  |
 | Phase 83 P02 | 38min | 3 tasks | 6 files  |
 | Phase 83 P03 | 25min | 3 tasks | 3 files  |
+| Phase 83 P04 | 20min | 1 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -91,6 +92,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Completed 83-03-PLAN.md — profile-aware PB1 branching + defer/insistence guards (commits 185d3df1, 8a5d562a, a9450ac3). 3/4 plans done in phase 83.
-Resume file: .planning/phases/83-discovery-mode-for-leads/83-04-PLAN.md
-Next step: `/gsd:execute-phase 83` to continue phase 83 (plan 83-04 pending).
+Stopped at: Completed 83-04-PLAN.md — PB1 discovery flow conversation tests (commit bd2f53bf). Phase 83 fully complete (4/4 plans). All 7 DISC requirements covered at prompt + engine + test layers; bot suite 299/299 green.
+Resume file: .planning/phases/84-state-adaptive-playbook-prompts/84-01-PLAN.md (when authored)
+Next step: `/gsd:plan-phase 84` to author phase 84 (PB2-PB5 state-driven prompts).

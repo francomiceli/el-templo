@@ -24,7 +24,7 @@
 ### Phases
 
 - [x] **Phase 82: Playbook Engine** — Active-playbook + stage resolver, Redis persistence, prompt injection of only the active PB (completed 2026-04-07)
-- [ ] **Phase 83: Discovery Mode for Leads (PB1)** — Warm intro, max 3 qualifying questions, profile detection, ONE targeted recommendation, soft trial offer
+- [x] **Phase 83: Discovery Mode for Leads (PB1)** — Warm intro, max 3 qualifying questions, profile detection, ONE targeted recommendation, soft trial offer (completed 2026-04-07)
 - [ ] **Phase 84: State-Adaptive Playbook Prompts (PB2-PB5)** — Trial follow-up, vencimiento, inactivo, cancelacion playbook prompts with stages, objections, escalation
 - [ ] **Phase 85: Avatar Adaptation & Quality** — Tone adapts to detected avatar, profile reuse across sessions, full QA + per-playbook flow tests
 
@@ -76,7 +76,7 @@ Plans:
 6. Discovery closes with a soft trial offer ("¿Querés probar con una clase gratis?") rather than a hard sell.
 7. When a lead explicitly insists on direct answers, Mica defers profiling gracefully — she answers the question and does not push another discovery question that turn.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 
@@ -127,7 +127,7 @@ Plans:
 | Phase                                       | Plans Complete | Status      | Completed  |
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
-| 83. Discovery Mode for Leads (PB1)          | 3/4            | In Progress |            |
+| 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete    | 2026-04-07 |
 | 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -          |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
