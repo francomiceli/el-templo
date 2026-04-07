@@ -22,105 +22,17 @@
 
     <q-tab-panels v-model="activeTab" animated>
       <!-- ============================================================== -->
-      <!-- Planes Tab -->
+      <!-- Planes Tab — Unified Table -->
       <!-- ============================================================== -->
       <q-tab-panel name="planes">
-        <!-- ============================================================ -->
-        <!-- Presenciales Section -->
-        <!-- ============================================================ -->
         <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Presenciales</div>
-          <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreatePresencial" />
+          <div class="text-h6 col">Todos los Planes</div>
+          <q-btn icon="add" label="Nuevo Plan" color="primary" @click="openCreateDialog" />
         </div>
 
         <q-table
-          :rows="presencialPlans"
-          :columns="presencialColumns"
-          row-key="id"
-          :loading="loadingPlans"
-          :pagination="{ rowsPerPage: 50 }"
-          :rows-per-page-options="[20, 50, 100]"
-          flat
-          bordered
-        >
-          <!-- Tier column -->
-          <template #body-cell-tier="props">
-            <q-td :props="props">
-              <q-badge
-                :color="tierColor(props.row.planTier)"
-                :label="tierLabel(props.row.planTier)"
-              />
-            </q-td>
-          </template>
-
-          <!-- Price column -->
-          <template #body-cell-precio="props">
-            <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
-          </template>
-
-          <!-- Duration column -->
-          <template #body-cell-duracion="props">
-            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
-          </template>
-
-          <!-- Classes column -->
-          <template #body-cell-clases="props">
-            <q-td :props="props">
-              {{ props.row.classesPerWeek ?? 'Ilimitado' }}
-            </q-td>
-          </template>
-
-          <!-- Status column -->
-          <template #body-cell-estado="props">
-            <q-td :props="props">
-              <q-badge
-                :color="props.row.isActive ? 'positive' : 'grey'"
-                :label="props.row.isActive ? 'Activo' : 'Inactivo'"
-              />
-            </q-td>
-          </template>
-
-          <!-- Actions column -->
-          <template #body-cell-acciones="props">
-            <q-td :props="props">
-              <q-btn
-                flat
-                dense
-                round
-                icon="edit"
-                color="primary"
-                @click="openEditDialog(props.row)"
-              >
-                <q-tooltip>Editar</q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="props.row.isActive"
-                flat
-                dense
-                round
-                icon="block"
-                color="negative"
-                @click="confirmDeactivate(props.row)"
-              >
-                <q-tooltip>Desactivar</q-tooltip>
-              </q-btn>
-            </q-td>
-          </template>
-        </q-table>
-
-        <!-- ============================================================ -->
-        <!-- Online Section -->
-        <!-- ============================================================ -->
-        <div class="q-mb-xl" />
-
-        <div class="row items-center q-mb-md">
-          <div class="text-h6 col">Online</div>
-          <q-btn icon="add" label="Nuevo Plan Online" color="primary" @click="openCreateOnline" />
-        </div>
-
-        <q-table
-          :rows="onlinePlans"
-          :columns="onlineColumns"
+          :rows="plans"
+          :columns="planColumns"
           row-key="id"
           :loading="loadingPlans"
           :pagination="{ rowsPerPage: 50 }"
@@ -138,17 +50,35 @@
             </q-td>
           </template>
 
-          <!-- Monthly price column -->
-          <template #body-cell-precioMensual="props">
+          <!-- Tier column -->
+          <template #body-cell-tier="props">
+            <q-td :props="props">
+              <q-badge
+                v-if="props.row.planCategory === 'presencial'"
+                :color="tierColor(props.row.planTier)"
+                :label="tierLabel(props.row.planTier)"
+              />
+              <span v-else class="text-grey-5">—</span>
+            </q-td>
+          </template>
+
+          <!-- Price column -->
+          <template #body-cell-precio="props">
             <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
           </template>
 
-          <!-- Weekly price column -->
-          <template #body-cell-precioSemanal="props">
+          <!-- Duration column -->
+          <template #body-cell-duracion="props">
+            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
+          </template>
+
+          <!-- Classes column -->
+          <template #body-cell-clases="props">
             <q-td :props="props">
-              <span class="text-caption text-grey-7">
-                ${{ Math.round(props.row.priceRegular / 4.33).toLocaleString() }}/sem
-              </span>
+              <template v-if="props.row.planCategory === 'presencial'">
+                {{ props.row.classesPerWeek ?? 'Ilimitado' }}
+              </template>
+              <span v-else class="text-grey-5">—</span>
             </q-td>
           </template>
 
@@ -159,13 +89,8 @@
             </q-td>
           </template>
 
-          <!-- Duration column -->
-          <template #body-cell-onlineDuracion="props">
-            <q-td :props="props"> {{ props.row.durationDays }} dias </q-td>
-          </template>
-
           <!-- Status column -->
-          <template #body-cell-onlineEstado="props">
+          <template #body-cell-estado="props">
             <q-td :props="props">
               <q-badge
                 :color="props.row.isActive ? 'positive' : 'grey'"
@@ -175,7 +100,7 @@
           </template>
 
           <!-- Actions column -->
-          <template #body-cell-onlineAcciones="props">
+          <template #body-cell-acciones="props">
             <q-td :props="props">
               <q-btn
                 flat
@@ -300,7 +225,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -341,7 +266,7 @@ const editingPlan = ref<PlanListItem | null>(null);
 const presetCategory = ref<PlanCategory>('presencial');
 
 // =========================================================================
-// Programs (for linked program names in Online table)
+// Programs (for linked program names)
 // =========================================================================
 
 const programs = ref<Program[]>([]);
@@ -356,24 +281,24 @@ const showPromoDialog = ref(false);
 const editingPromo = ref<PromoListItem | null>(null);
 
 // =========================================================================
-// Computed plan lists
+// Unified Plan Table columns
 // =========================================================================
 
-const presencialPlans = computed(() => plans.value.filter((p) => p.planCategory === 'presencial'));
-
-const onlinePlans = computed(() => plans.value.filter((p) => p.planCategory !== 'presencial'));
-
-// =========================================================================
-// Presencial Table columns
-// =========================================================================
-
-const presencialColumns: QTableProps['columns'] = [
+const planColumns: QTableProps['columns'] = [
   {
     name: 'name',
     label: 'Nombre',
     field: 'name',
     align: 'left',
     sortable: true,
+  },
+  {
+    name: 'categoria',
+    label: 'Categoria',
+    field: 'planCategory',
+    align: 'left',
+    sortable: true,
+    style: 'width: 140px',
   },
   {
     name: 'tier',
@@ -408,6 +333,14 @@ const presencialColumns: QTableProps['columns'] = [
     style: 'width: 110px',
   },
   {
+    name: 'programa',
+    label: 'Programa',
+    field: 'linkedProgramId',
+    align: 'left',
+    sortable: false,
+    style: 'width: 180px',
+  },
+  {
     name: 'estado',
     label: 'Estado',
     field: 'isActive',
@@ -417,76 +350,6 @@ const presencialColumns: QTableProps['columns'] = [
   },
   {
     name: 'acciones',
-    label: 'Acciones',
-    field: 'id',
-    align: 'center',
-    sortable: false,
-    style: 'width: 100px',
-  },
-];
-
-// =========================================================================
-// Online Table columns
-// =========================================================================
-
-const onlineColumns: QTableProps['columns'] = [
-  {
-    name: 'name',
-    label: 'Nombre',
-    field: 'name',
-    align: 'left',
-    sortable: true,
-  },
-  {
-    name: 'categoria',
-    label: 'Categoria',
-    field: 'planCategory',
-    align: 'left',
-    sortable: true,
-    style: 'width: 140px',
-  },
-  {
-    name: 'precioMensual',
-    label: 'Precio Mensual',
-    field: 'priceRegular',
-    align: 'right',
-    sortable: true,
-    style: 'width: 130px',
-  },
-  {
-    name: 'precioSemanal',
-    label: 'Precio Semanal',
-    field: 'priceRegular',
-    align: 'right',
-    sortable: false,
-    style: 'width: 130px',
-  },
-  {
-    name: 'programa',
-    label: 'Programa Vinculado',
-    field: 'linkedProgramId',
-    align: 'left',
-    sortable: false,
-    style: 'width: 180px',
-  },
-  {
-    name: 'onlineDuracion',
-    label: 'Duracion',
-    field: 'durationDays',
-    align: 'right',
-    sortable: true,
-    style: 'width: 100px',
-  },
-  {
-    name: 'onlineEstado',
-    label: 'Estado',
-    field: 'isActive',
-    align: 'center',
-    sortable: true,
-    style: 'width: 100px',
-  },
-  {
-    name: 'onlineAcciones',
     label: 'Acciones',
     field: 'id',
     align: 'center',
@@ -557,9 +420,9 @@ function tierColor(tier: PlanTier): string {
 // =========================================================================
 
 function programName(programId: number | null): string {
-  if (!programId) return '-';
+  if (!programId) return '—';
   const program = programs.value.find((p) => p.id === programId);
-  return program?.name ?? '-';
+  return program?.name ?? '—';
 }
 
 // =========================================================================
@@ -592,15 +455,9 @@ async function loadPrograms() {
 // Plan Dialog actions
 // =========================================================================
 
-function openCreatePresencial() {
+function openCreateDialog() {
   editingPlan.value = null;
   presetCategory.value = 'presencial';
-  showFormDialog.value = true;
-}
-
-function openCreateOnline() {
-  editingPlan.value = null;
-  presetCategory.value = 'online_regular';
   showFormDialog.value = true;
 }
 

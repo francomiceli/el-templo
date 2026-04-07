@@ -199,10 +199,11 @@ export class GoalPlanService {
    * Returns null if no active goal plan or no goal plan subscription.
    */
   async getCycleStats(userId: number): Promise<CycleStats | null> {
-    // Step 1: Get active enrollment with goal plan type
+    // Step 1: Get active enrollment with goal plan type and program duration
     const [enrollment] = await this.db
       .select({
         goalPlanType: schema.programs.goalPlanType,
+        durationWeeks: schema.programs.durationWeeks,
         enrolledAt: schema.programEnrollments.enrolledAt,
       })
       .from(schema.programEnrollments)
@@ -221,32 +222,13 @@ export class GoalPlanService {
 
     if (!enrollment || !enrollment.goalPlanType) return null;
 
-    // Step 2: Get the member's active goal plan subscription to get durationDays
-    const [sub] = await this.db
-      .select({ durationDays: schema.subscriptionPlans.durationDays })
-      .from(schema.subscriptions)
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
-      )
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-          ),
-          eq(schema.subscriptionPlans.planCategory, "online_goal"),
-        ),
-      )
-      .limit(1);
+    // Indefinite programs don't have cycle stats
+    if (!enrollment.durationWeeks) return null;
 
-    if (!sub) return null;
+    const cycleWeeks = enrollment.durationWeeks;
+    const durationDays = cycleWeeks * 7;
 
-    const durationDays = sub.durationDays;
-    const cycleWeeks = Math.ceil(durationDays / 7);
-
-    // Step 3: Calculate cycle end date and current week
+    // Step 2: Calculate cycle end date and current week
     const startedAt = enrollment.enrolledAt;
     const cycleEndDate = new Date(
       startedAt.getTime() + durationDays * 24 * 60 * 60 * 1000,
