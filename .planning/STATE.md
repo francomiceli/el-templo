@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 83-02-PLAN.md (profile-tag detection + Redis persistence)"
-last_updated: "2026-04-07T20:20:12Z"
-last_activity: 2026-04-07 -- Plan 83-02 complete (AvatarProfile type, pure profile-tag parser with 22 tests, webhook handler extract+persist+strip wiring, conditional system-prompt directives, DISC-05 closed; 265/265 bot tests green)
+stopped_at: "Completed 83-03-PLAN.md (profile-aware PB1 branching + defer/insistence guards)"
+last_updated: "2026-04-07T23:06:00Z"
+last_activity: 2026-04-07 -- Plan 83-03 complete (AdvanceSignals extended with detectedAvatar/directQuestionAsked/userInsistedDirect, PB1.E1A/E1B branches to E2A vs E2B by avatar, defer+insistence guards hold discovery stage, computeAdvanceSignals regex extension, 15 new advance tests, TODO(phase-83) removed, DISC-02/DISC-05/DISC-07 closed; 280/280 bot tests green)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 12
-  completed_plans: 5
-  percent: 42
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
 Phase: 83 — Discovery Mode for Leads (in progress)
-Plan: 83-02 (complete) — Profile-tag detection, Redis persistence, conditional system-prompt directives
-Status: Phase 83 in progress — 2/4 plans done (83-03, 83-04 pending)
-Progress: ████░░░░░░ 42% (1/4 phases, 5/12 plans)
-Last activity: 2026-04-07 — Plan 83-02 complete (AvatarProfile type + optional avatar field on PlaybookSessionState, pure profile-tag.ts parser with extractProfileTag/stripProfileTag/PROFILE_TAG_REGEX, handler extracts+persists+strips <profile> tag and preserves avatar across all 3 setPlaybookState write sites, system-prompt injects "Detección de perfil" only during PB1+!avatar and "Perfil detectado" when known, 22 new unit tests, DISC-05 closed; 265/265 bot tests green)
+Plan: 83-03 (complete) — Profile-aware PB1 branching + defer/insistence stage guards
+Status: Phase 83 in progress — 3/4 plans done (83-04 pending)
+Progress: █████░░░░░ 50% (1/4 phases, 6/12 plans)
+Last activity: 2026-04-07 — Plan 83-03 complete (AdvanceSignals gained detectedAvatar/directQuestionAsked/userInsistedDirect, PB1.E1A/E1B → E2B for intermedio/retorna and → E2A otherwise, defer+insistence guards hold discovery stage when user asks direct logistical questions or refuses profiling, computeAdvanceSignals extended with Spanish regex for both guards, phase-82 TODO removed from advance.ts, 15 new unit tests incl. purity+determinism, DISC-02/DISC-05/DISC-07 closed; 280/280 bot tests green)
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Last activity: 2026-04-07 — Plan 83-02 complete (AvatarProfile type + optional
 | Phase 82 P03 | 3min  | 2 tasks | 2 files  |
 | Phase 83 P01 | 15min | 1 tasks | 1 files  |
 | Phase 83 P02 | 38min | 3 tasks | 6 files  |
+| Phase 83 P03 | 25min | 3 tasks | 3 files  |
 
 ## Accumulated Context
 
@@ -90,6 +91,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-07
-Stopped at: Completed 83-02-PLAN.md — profile-tag detection wired end-to-end (commits 12951844, c8b28afc, af85be6b). 2/4 plans done in phase 83.
-Resume file: .planning/phases/83-discovery-mode-for-leads/83-03-PLAN.md
-Next step: `/gsd:execute-phase 83` to continue phase 83 (plans 83-03, 83-04 pending).
+Stopped at: Completed 83-03-PLAN.md — profile-aware PB1 branching + defer/insistence guards (commits 185d3df1, 8a5d562a, a9450ac3). 3/4 plans done in phase 83.
+Resume file: .planning/phases/83-discovery-mode-for-leads/83-04-PLAN.md
+Next step: `/gsd:execute-phase 83` to continue phase 83 (plan 83-04 pending).
