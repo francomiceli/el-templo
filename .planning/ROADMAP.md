@@ -23,7 +23,7 @@
 
 ### Phases
 
-- [ ] **Phase 82: Playbook Engine** — Active-playbook + stage resolver, Redis persistence, prompt injection of only the active PB
+- [x] **Phase 82: Playbook Engine** — Active-playbook + stage resolver, Redis persistence, prompt injection of only the active PB (completed 2026-04-07)
 - [ ] **Phase 83: Discovery Mode for Leads (PB1)** — Warm intro, max 3 qualifying questions, profile detection, ONE targeted recommendation, soft trial offer
 - [ ] **Phase 84: State-Adaptive Playbook Prompts (PB2-PB5)** — Trial follow-up, vencimiento, inactivo, cancelacion playbook prompts with stages, objections, escalation
 - [ ] **Phase 85: Avatar Adaptation & Quality** — Tone adapts to detected avatar, profile reuse across sessions, full QA + per-playbook flow tests
@@ -51,7 +51,7 @@ Phase 82 (Engine) → Phase 83 (PB1 Discovery) → Phase 84 (PB2-PB5 prompts) �
 4. When stage completion criteria are met (e.g., discovery answered, trial proposed), the stage advances on the next turn and the new stage id is reflected in Redis.
 5. Stage state survives across turns within a 6h Redis session and resets cleanly when the session expires.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -117,12 +117,12 @@ Plans:
 
 ## v5.3 Progress
 
-| Phase                                       | Plans Complete | Status      | Completed |
-| ------------------------------------------- | -------------- | ----------- | --------- |
-| 82. Playbook Engine                         | 2/3            | In Progress |           |
-| 83. Discovery Mode for Leads (PB1)          | 0/?            | Not started | -         |
-| 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -         |
-| 85. Avatar Adaptation & Quality             | 0/?            | Not started | -         |
+| Phase                                       | Plans Complete | Status      | Completed  |
+| ------------------------------------------- | -------------- | ----------- | ---------- |
+| 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
+| 83. Discovery Mode for Leads (PB1)          | 0/?            | Not started | -          |
+| 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -          |
+| 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
 **Coverage:** 24/24 v5.3 requirements mapped ✓
 

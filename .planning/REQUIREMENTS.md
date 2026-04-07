@@ -14,7 +14,7 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 - [x] **PBENG-02**: Engine tracks current stage within active playbook (e.g., `PB1.E2A`)
 - [x] **PBENG-03**: Engine persists `{activePlaybook, currentStage}` in Redis session (no MySQL writes in v5.3)
 - [x] **PBENG-04**: Engine advances stage when stage completion criteria are met
-- [ ] **PBENG-05**: Only the active playbook section is injected into the system prompt (other 4 playbooks excluded)
+- [x] **PBENG-05**: Only the active playbook section is injected into the system prompt (other 4 playbooks excluded)
 - [x] **PBENG-06**: Engine exposes a pure function `resolvePlaybook(contact, session) → {playbookId, stageId}` covered by unit tests
 
 ### Discovery Mode for Leads (PB1)
@@ -91,7 +91,7 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 | PBENG-02    | Phase 82 | Complete |
 | PBENG-03    | Phase 82 | Complete |
 | PBENG-04    | Phase 82 | Complete |
-| PBENG-05    | Phase 82 | Pending  |
+| PBENG-05    | Phase 82 | Complete |
 | PBENG-06    | Phase 82 | Complete |
 | DISC-01     | Phase 83 | Pending  |
 | DISC-02     | Phase 83 | Pending  |
