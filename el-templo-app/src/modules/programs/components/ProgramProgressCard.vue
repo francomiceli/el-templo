@@ -8,28 +8,27 @@
       <div class="prog-sparkle" />
       <div class="prog-bottom-line" />
 
-      <!-- Header: badge -->
-      <div class="prog-header">
-        <div class="prog-badge">
-          <svg class="prog-badge-icon" width="12" height="12" viewBox="0 0 12 12">
-            <polygon
-              points="6,0.5 7.5,4.2 11.5,4.5 8.5,7.2 9.3,11.2 6,9.2 2.7,11.2 3.5,7.2 0.5,4.5 4.5,4.2"
-              fill="#C4956A"
-              opacity=".9"
-            />
-          </svg>
-          <span class="prog-badge-text">Tu Programa</span>
+      <!-- Header + Title + CTA arrow -->
+      <div class="prog-top" @click="goToTraining">
+        <div class="prog-top__info">
+          <div class="prog-header">
+            <div class="prog-badge">
+              <svg class="prog-badge-icon" width="12" height="12" viewBox="0 0 12 12">
+                <polygon
+                  points="6,0.5 7.5,4.2 11.5,4.5 8.5,7.2 9.3,11.2 6,9.2 2.7,11.2 3.5,7.2 0.5,4.5 4.5,4.2"
+                  fill="#C4956A"
+                  opacity=".9"
+                />
+              </svg>
+              <span class="prog-badge-text">Tu Programa</span>
+            </div>
+          </div>
+          <h3 class="prog-title">{{ progress.programName }}</h3>
         </div>
-        <q-badge v-if="progress.durationWeeks" class="prog-week-badge" outline>
-          Semana {{ progress.currentWeek }} de {{ progress.durationWeeks }}
-        </q-badge>
-        <q-badge v-else class="prog-week-badge" outline>
-          Semana {{ progress.currentWeek }}
-        </q-badge>
+        <div class="prog-arrow">
+          <q-icon name="chevron_right" size="24px" />
+        </div>
       </div>
-
-      <!-- Title -->
-      <h3 class="prog-title">{{ progress.programName }}</h3>
 
       <!-- Weekly sessions bar -->
       <div class="prog-bar-section">
@@ -114,10 +113,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
 import type { MemberEnrollmentProgress, ContentBlockDetail, ContentBlockType } from '../types'
 
 const log = createLogger('ProgramProgressCard')
+const router = useRouter()
 
 const props = defineProps<{
   progress: MemberEnrollmentProgress
@@ -195,6 +196,10 @@ function handleBlockClick(block: ContentBlockDetail) {
     default:
       log.warn('Unknown block type clicked', { blockType: block.blockType })
   }
+}
+
+function goToTraining() {
+  router.push('/training')
 }
 
 function openRenewalWhatsApp() {
@@ -352,9 +357,32 @@ function openRenewalWhatsApp() {
   );
 }
 
+.prog-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin-bottom: 14px;
+}
+
+.prog-top__info {
+  flex: 1;
+}
+
+.prog-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #c4956a, #a07850);
+  color: #fff;
+  flex-shrink: 0;
+}
+
 .prog-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   position: relative;
   margin-bottom: 4px;
@@ -382,20 +410,13 @@ function openRenewalWhatsApp() {
   text-transform: uppercase;
 }
 
-.prog-week-badge {
-  background: transparent !important;
-  border-color: rgba(196, 149, 106, 0.4) !important;
-  color: rgba(240, 230, 214, 0.7) !important;
-  font-size: 10px;
-}
-
 .prog-title {
   font-size: 20px;
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
   line-height: 1.3;
-  padding: 8px 0 14px;
+  padding: 4px 0 0;
   margin: 0;
 }
 
