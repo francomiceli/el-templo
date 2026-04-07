@@ -164,7 +164,7 @@ async function loadPreferences() {
 async function togglePreference(key: string, value: boolean) {
   preferences[key] = value
   try {
-    await api.put('/notifications/preferences', { preferences: { [key]: value } })
+    await api.put('/notifications/preferences', { category: key, enabled: value })
   } catch (err: unknown) {
     // Revert on failure
     preferences[key] = !value
