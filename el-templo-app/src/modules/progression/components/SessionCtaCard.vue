@@ -16,15 +16,6 @@
             <p class="session-cta-card__subtitle">
               {{ routeName || 'Podés entrenar desde donde quieras' }}
             </p>
-            <q-chip
-              v-if="isGoalPlan"
-              outline
-              dense
-              color="secondary"
-              class="session-cta-card__chip"
-            >
-              Por Objetivos
-            </q-chip>
           </template>
           <template v-else>
             <div class="session-cta-card__completed-row">
@@ -131,11 +122,6 @@ function handleClick() {
     font-weight: 500;
     color: $warning;
     margin: 0 0 2px 0;
-  }
-
-  &__chip {
-    margin-top: 4px;
-    font-size: 10px;
   }
 
   &__completed-row {

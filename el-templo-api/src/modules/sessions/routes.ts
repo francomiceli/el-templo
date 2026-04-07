@@ -242,10 +242,30 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 2. Extract memberLevel
       const memberLevel = user.level as ExerciseLevel;
 
-      // 3. Derive week number from the requested weekStart date
+      // 3. Check if member has an active program with a goalPlanType
+      const [enrollment] = await fastify.db
+        .select({
+          goalPlanType: schema.programs.goalPlanType,
+        })
+        .from(schema.programEnrollments)
+        .innerJoin(
+          schema.programs,
+          eq(schema.programs.id, schema.programEnrollments.programId),
+        )
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.status, "active"),
+          ),
+        )
+        .limit(1);
+
+      const goalPlanType = enrollment?.goalPlanType ?? null;
+
+      // 4. Derive week number from the requested weekStart date
       const week = dateToWeekNumber(weekStart);
 
-      // 4. Generate dates for the week (Mon-Sun)
+      // 5. Generate dates for the week (Mon-Sun)
       const monday = new Date(weekStart + "T00:00:00");
       const weekDates: string[] = [];
       for (let i = 0; i < 7; i++) {
@@ -257,14 +277,19 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         weekDates.push(`${year}-${month}-${day}`);
       }
 
-      // 5. Build dayIds for all training days and batch fetch
+      // 6. Build dayIds based on program type
+      // Goal plan programs: GP-{type}-W{week}-{day}-{level}
+      // Regular programs: W{week}-{day}-{level}
       const dateToDay = new Map<string, string>();
       const dayIds: string[] = [];
       for (const date of weekDates) {
         const dayName = dateToDayName(date);
         dateToDay.set(date, dayName);
         if (dayName !== "domingo") {
-          dayIds.push(`W${week}-${dayName}-${memberLevel}`);
+          const dayId = goalPlanType
+            ? `GP-${goalPlanType}-W${week}-${dayName}-${memberLevel}`
+            : `W${week}-${dayName}-${memberLevel}`;
+          dayIds.push(dayId);
         }
       }
 
@@ -281,14 +306,16 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           sessionsMap[date] = null;
           continue;
         }
-        const dayId = `W${week}-${dayName}-${memberLevel}`;
+        const dayId = goalPlanType
+          ? `GP-${goalPlanType}-W${week}-${dayName}-${memberLevel}`
+          : `W${week}-${dayName}-${memberLevel}`;
         const session = batchSessions.get(dayId);
         sessionsMap[date] = session
           ? sessionToResponse(session, formatDescriptions)
           : null;
       }
 
-      // 6. Fetch completed dates for this week
+      // 7. Fetch completed dates for this week
       const lastDate = weekDates[weekDates.length - 1];
       const completedRows = await fastify.db
         .select({ date: schema.completedSessions.date })
