@@ -2012,6 +2012,7 @@ Plans:
 5. No critical crashes in TestFlight feedback or Sentry
 6. App submitted for App Store review with all metadata complete
 7. App approved and live on the App Store
+8. **Before April 28, 2026**: Update GitHub Actions iOS workflow to use Xcode 26 / iOS 26 SDK (ITMS-90725 warning — current build uses iOS 18.5 SDK, which will be rejected after that date)
 
 ---
 
@@ -2029,5 +2030,51 @@ Phase 93 (iOS Build Pipeline) → Phase 94 (App Store Listing) → Phase 95 (Tes
 ---
 
 _v4.6 phases added: 2026-04-07 — 3 phases (93-95), 15 requirements mapped (IOS-01 through IOS-15)_
+
+</details>
+
+<details>
+<summary>v4.7 Full Body Goal Plan & Equipment Tagging (Phase 96)</summary>
+
+## v4.7 Overview
+
+Add a **Full Body** goal plan type under "Por Objetivos" for home calisthenics with no equipment. Introduce equipment tagging on exercises, with a coach-driven auto-tagging workflow during goal plan session editing — Nach's curation process becomes the data enrichment mechanism.
+
+**Origin:** Coach request (Nach, 2026-04-08) — need programs for "calistenia desde 0 en casa" that don't require bars/rings.
+
+## v4.7 Phases
+
+### Phase 96: Full Body Goal Plan Type & Exercise Equipment Tagging
+
+**Goal**: Add `full_body` as a new goal plan type using all available routes, add an `equipment` enum column to exercises, expose it in admin, and build an auto-tagging splash during full_body session editing so coaches organically enrich exercise equipment data as they curate sessions
+**Depends on**: Phase 89 (Online Plans infra)
+**Success Criteria** (what must be TRUE):
+
+1. `full_body` exists as a goalPlanType with all 24 routes, tier `principiante`, and proper metadata (name, description, zones, idealFor)
+2. Exercises table has `equipment` column — enum: `barras`, `anillas`, `cajon`, `ninguno` — nullable (NULL = untagged)
+3. Migration SQL generated and committed
+4. Admin exercises page shows `equipment` as an inline-editable dropdown (consistent with existing effort dropdown pattern)
+5. Admin goal plan session editing: when goalPlanType is `full_body`, on session save/approve a confirmation splash lists all exercises in the session and offers to tag them as `ninguno` (no equipment)
+6. Confirming the splash bulk-updates the exercises' `equipment` field in the database
+7. Program and subscription plan can be created in admin with `goalPlanType = 'full_body'`
+
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 096-01-PLAN.md — API: full_body goal plan type (types, constants, schema validation) + exercises equipment column + migration + bulk-update endpoint
+- [ ] 096-02-PLAN.md — Admin: full_body in admin types, ExercisesPage equipment dropdown, SessionEditPage auto-tagging splash
+
+---
+
+## v4.7 Progress
+
+| Phase                                                     | Plans Complete | Status  | Completed |
+| --------------------------------------------------------- | -------------- | ------- | --------- |
+| 96. Full Body Goal Plan Type & Exercise Equipment Tagging | —              | Planned | —         |
+
+---
+
+_v4.7 phases added: 2026-04-08 — 1 phase (96), origin: coach request for no-equipment home programs_
 
 </details>
