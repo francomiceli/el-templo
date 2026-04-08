@@ -117,7 +117,7 @@ const PB2: PlaybookDefinition = {
       id: "PB2.E1A",
       label: "Etapa 1A — Check-in Post Prueba (Variante A)",
       promptSection:
-        "¡[nombre]! ¿Cómo te sentís después de la clase? ¿Te quedó alguna duda?",
+        "Mensaje sugerido para abrir: '¡[nombre]! ¿Cómo te sentís después de la clase? ¿Te quedó alguna duda?'.\n\n*Cómo conducir este turno:* el objetivo es que el lead hable. Escuchá primero, NO vendas todavía. Tono cálido, breve, argentino (vos, querés, podés, te copa, dale, contame). Una sola pregunta por mensaje.\n\n*Regla de tono:* sin presión, sin urgencia agresiva, sin empujar el plan en este turno. Este es un check-in post-prueba — tu trabajo acá es abrir la conversación y dejar que el lead te cuente cómo la pasó y qué le quedó dando vueltas.\n\n*Si el lead responde con algo sustantivo* (positivo, negativo, duda, objeción) el motor avanza a la Etapa 2 para identificar y resolver la objeción real.",
       completionCriteria:
         "El lead respondió. Objetivo: que hable. No vender todavía. Escuchar.",
       nextStageHints: { onCompletion: "PB2.E2" },
@@ -126,7 +126,7 @@ const PB2: PlaybookDefinition = {
       id: "PB2.E1B",
       label: "Etapa 1B — Check-in Post Prueba (Variante B)",
       promptSection:
-        "Ey [nombre], ¿cómo andás? Me quedé pensando si te copó la clase. ¿Qué te pareció?",
+        "Mensaje sugerido para abrir: 'Ey [nombre], ¿cómo andás? Me quedé pensando si te copó la clase. ¿Qué te pareció?'.\n\n*Cómo conducir este turno:* el objetivo es que el lead hable. Escuchá primero, NO vendas todavía. Tono cálido, breve, argentino (vos, querés, podés, te copa, dale, contame). Una sola pregunta por mensaje.\n\n*Regla de tono:* sin presión, sin urgencia agresiva, sin empujar el plan en este turno. Este es un check-in post-prueba — tu trabajo acá es abrir la conversación y dejar que el lead te cuente cómo la pasó y qué le quedó dando vueltas.\n\n*Si el lead responde con algo sustantivo* (positivo, negativo, duda, objeción) el motor avanza a la Etapa 2 para identificar y resolver la objeción real.",
       completionCriteria:
         "El lead respondió. Objetivo: que hable. No vender todavía. Escuchar.",
       nextStageHints: { onCompletion: "PB2.E2" },
@@ -135,16 +135,16 @@ const PB2: PlaybookDefinition = {
       id: "PB2.E2",
       label: "Etapa 2 — Escuchar + Identificar Objeción",
       promptSection:
-        "Identificar la objeción real y responder: PRECIO -> 'Entiendo. Si te sirve, tenemos el plan [plan_básico] a [precio]. Muchos arrancan por ahí y después van subiendo. ¿Te copa?'. TIEMPO -> '¿Cuántos días por semana podrías venir? Con 2-3 ya se nota mucho. Y los horarios son flexibles.'. IDENTIDAD/MIEDO -> 'Es normal sentir eso al principio. Todos los que hoy destraban movimientos arrancaron igual. ¿Qué fue lo que más te costó?'. DIFUSA ('lo pienso') -> 'Dale, sin presión. Esta semana tenemos buenos horarios libres. Si te copa, me avisás y te reservo lugar.'",
+        "En este turno tenés que leer la respuesta del lead, identificar cuál de las cuatro objeciones reales está en juego, y contestar con el script correspondiente. Una sola pregunta/propuesta por mensaje. Tono cálido, breve, tuteo argentino.\n\n*Objeción precio* ('me gustó pero es caro', 'está caro', 'no me alcanza'):\nScript: 'Entiendo. ¿Sabés qué? Si te sirve, tenemos el plan [plan_básico] a [precio]. Muchos arrancan por ahí y después van subiendo. ¿Te copa?'.\n\n*Objeción tiempo* ('no sé si tengo tiempo', 'ando con poco tiempo', 'no sé si voy a poder venir'):\nScript: '¿Cuántos días por semana podrías venir? Con 2-3 ya se nota mucho. Y los horarios son flexibles: [horarios disponibles].'.\n\n*Objeción identidad/miedo* ('no sé si es para mí', 'me cuesta', 'no me veo haciendo eso'):\nScript: 'Es normal sentir eso al principio. Todos los que hoy destraban los movimientos que se proponen arrancaron igual. ¿Qué fue lo que más te costó? Porque eso es exactamente lo que más rápido mejora.'.\n\n*Objeción difusa* ('lo pienso', 'voy a ver', 'te aviso', 'dejame pensarlo'):\nScript: 'Dale, sin presión. Esta semana tenemos buenos horarios libres. Si te copa, me avisás y te reservo lugar.'.\n\n*Regla crítica de framing (TEAM-CORR-06):* la disponibilidad se encuadra SIEMPRE como 'esta semana tenemos buenos horarios libres' o 'el [día] suele quedar tranqui'. NUNCA uses framings de arranque grupal ni lenguaje tipo 'esta semana empieza' como excusa de urgencia — ese framing está deprecado. La urgencia viene de la disponibilidad real de horarios libres, no de un arranque colectivo.\n\n*Regla de transición:* después de responder CUALQUIERA de las cuatro objeciones, el motor avanza al siguiente turno con la propuesta de urgencia suave (Etapa 3). No insistas, no descuentes, no cierres duro en este mismo mensaje — la propuesta final vive en Etapa 3.",
       completionCriteria:
-        "Se identificó la objeción real y se respondió con la alternativa correspondiente.",
+        "Se identificó la objeción real y se respondió con la alternativa correspondiente. Cualquier respuesta sustantiva del lead habilita la transición a PB2.E3.",
       nextStageHints: { onCompletion: "PB2.E3" },
     },
     {
       id: "PB2.E3",
       label: "Etapa 3 — Propuesta con Urgencia Suave",
       promptSection:
-        "[nombre], esta semana tenemos buenos horarios libres y el [día] suele quedar tranqui — es buen momento para arrancar sin saturación. ¿Te anoto?",
+        "Mensaje sugerido: '[nombre], esta semana tenemos buenos horarios libres y el [día] suele quedar tranqui — es buen momento para arrancar sin saturación. ¿Te anoto?'.\n\n*Regla de cierre:* urgencia SUAVE, no falsa. Sin descuentos por tiempo limitado, sin deadlines inventados, sin tácticas de scarcity. El único ancla válido es la disponibilidad real de horarios esta semana.\n\n*Si el lead pasa o pide más tiempo,* dejá la puerta abierta sin presión: 'Dale, sin drama. Cualquier cosa me escribís.' — y cerrá el turno. NO insistas en el mismo mensaje, NO ofrezcas descuentos para retenerlo.\n\n*Regla crítica de framing (TEAM-CORR-06):* la disponibilidad se encuadra como 'buenos horarios libres esta semana' o 'el [día] queda tranqui'. NUNCA uses lenguaje de arranque grupal ni framings colectivos — ese framing está deprecado.",
       completionCriteria: "El lead aceptó, rechazó, o pidió más tiempo.",
     },
   ],
