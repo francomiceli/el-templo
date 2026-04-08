@@ -110,6 +110,16 @@ export class BookingService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
+    // 5b. Overdue check: block if subscription has no payment recorded
+    const isPaid = await this.paymentService.isSubscriptionPaid(
+      subscription.id,
+    );
+    if (!isPaid) {
+      throw new BadRequestError(
+        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+      );
+    }
+
     // 6. Monthly budget check: if classesRemaining is tracked and exhausted
     if (
       subscription.classesRemaining !== null &&
@@ -179,51 +189,51 @@ export class BookingService {
       );
     }
 
-    // 9. Check capacity
-    const activeCount = await this.countActiveBookings(scheduleId, date);
-    const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
+    // 9. Check capacity + insert in transaction to prevent overbooking
+    const bookingId = await this.db.transaction(async (tx) => {
+      const activeCount = await this.countActiveBookings(scheduleId, date, tx);
+      const maxCapacity = await this.getBranchCapacity(scheduleRow.branchId);
 
-    let status: "reservado" | "lista_espera" = "reservado";
-    let waitlistPosition: number | null = null;
+      let status: "reservado" | "lista_espera" = "reservado";
+      let waitlistPosition: number | null = null;
 
-    if (activeCount >= maxCapacity) {
-      status = "lista_espera";
-      // Get max waitlist position
-      const [maxPos] = await this.db
-        .select({
-          maxPos: sql<number>`COALESCE(MAX(${schema.bookings.waitlistPosition}), 0)`,
-        })
-        .from(schema.bookings)
-        .where(
-          and(
-            eq(schema.bookings.scheduleId, scheduleId),
-            eq(schema.bookings.bookingDate, date),
-            eq(schema.bookings.status, "lista_espera"),
-          ),
-        );
-      waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
-    }
+      if (activeCount >= maxCapacity) {
+        status = "lista_espera";
+        const [maxPos] = await tx
+          .select({
+            maxPos: sql<number>`COALESCE(MAX(${schema.bookings.waitlistPosition}), 0)`,
+          })
+          .from(schema.bookings)
+          .where(
+            and(
+              eq(schema.bookings.scheduleId, scheduleId),
+              eq(schema.bookings.bookingDate, date),
+              eq(schema.bookings.status, "lista_espera"),
+            ),
+          );
+        waitlistPosition = (Number(maxPos?.maxPos) ?? 0) + 1;
+      }
 
-    // 10. Insert booking
-    // If there's a cancelled duplicate, delete it first to avoid unique constraint
-    if (
-      duplicate &&
-      (duplicate.status === "cancelado" || duplicate.status === "no_show")
-    ) {
-      await this.db
-        .delete(schema.bookings)
-        .where(eq(schema.bookings.id, duplicate.id));
-    }
+      // If there's a cancelled duplicate, delete it first to avoid unique constraint
+      if (
+        duplicate &&
+        (duplicate.status === "cancelado" || duplicate.status === "no_show")
+      ) {
+        await tx
+          .delete(schema.bookings)
+          .where(eq(schema.bookings.id, duplicate.id));
+      }
 
-    const result = await this.db.insert(schema.bookings).values({
-      memberId,
-      scheduleId,
-      bookingDate: date,
-      status,
-      waitlistPosition,
+      const result = await tx.insert(schema.bookings).values({
+        memberId,
+        scheduleId,
+        bookingDate: date,
+        status,
+        waitlistPosition,
+      });
+
+      return Number(result[0].insertId);
     });
-
-    const bookingId = Number(result[0].insertId);
     const booking = await this.getBookingRecord(bookingId);
     if (!booking) throw new Error("Failed to retrieve newly created booking");
 
@@ -410,15 +420,56 @@ export class BookingService {
 
   /**
    * Admin add booking (skip subscription/overdue checks, enforce capacity).
+   * Returns warnings for subscription issues without blocking.
    */
   async adminAddBooking(
     scheduleId: number,
     memberId: number,
     date: string,
-  ): Promise<BookingRecord> {
+  ): Promise<{ booking: BookingRecord; warnings: string[] }> {
+    const warnings: string[] = [];
+
     // Validate schedule
     const scheduleRow = await this.getScheduleSlotRaw(scheduleId);
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
+
+    // Check subscription status for warnings (don't block)
+    const subscription =
+      await this.subscriptionService.getMemberSubscription(memberId);
+    if (!subscription) {
+      warnings.push("Sin suscripcion activa");
+    } else {
+      const isPaid = await this.paymentService.isSubscriptionPaid(
+        subscription.id,
+      );
+      if (!isPaid) {
+        warnings.push("Pago pendiente");
+      }
+      if (
+        subscription.classesRemaining !== null &&
+        subscription.classesRemaining <= 0
+      ) {
+        warnings.push("Clases del periodo agotadas");
+      }
+
+      // Weekly limit warning
+      const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
+      if (classesPerWeek !== null) {
+        const { monday, saturday } = getWeekRange(
+          new Date(date + "T12:00:00Z"),
+        );
+        const weeklyCount = await this.countWeeklyBookings(
+          memberId,
+          monday,
+          saturday,
+        );
+        if (weeklyCount >= classesPerWeek) {
+          warnings.push(
+            `Limite semanal alcanzado (${weeklyCount}/${classesPerWeek})`,
+          );
+        }
+      }
+    }
 
     // Check no duplicate
     const [duplicate] = await this.db
@@ -489,11 +540,11 @@ export class BookingService {
     if (!booking) throw new Error("Failed to retrieve admin booking");
 
     this.log.info(
-      { memberId, scheduleId, date, status, bookingId },
+      { memberId, scheduleId, date, status, bookingId, warnings },
       "Admin booking created",
     );
 
-    return booking;
+    return { booking, warnings };
   }
 
   /**
@@ -761,58 +812,60 @@ export class BookingService {
     scheduleId: number,
     bookingDate: string,
   ): Promise<void> {
-    // Find the first waitlisted booking (lowest position)
-    const [first] = await this.db
-      .select({
-        id: schema.bookings.id,
-        waitlistPosition: schema.bookings.waitlistPosition,
-      })
-      .from(schema.bookings)
-      .where(
-        and(
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.bookingDate, bookingDate),
-          eq(schema.bookings.status, "lista_espera"),
-        ),
-      )
-      .orderBy(asc(schema.bookings.waitlistPosition))
-      .limit(1);
+    await this.db.transaction(async (tx) => {
+      // Find the first waitlisted booking (lowest position)
+      const [first] = await tx
+        .select({
+          id: schema.bookings.id,
+          waitlistPosition: schema.bookings.waitlistPosition,
+        })
+        .from(schema.bookings)
+        .where(
+          and(
+            eq(schema.bookings.scheduleId, scheduleId),
+            eq(schema.bookings.bookingDate, bookingDate),
+            eq(schema.bookings.status, "lista_espera"),
+          ),
+        )
+        .orderBy(asc(schema.bookings.waitlistPosition))
+        .limit(1);
 
-    if (!first) return;
+      if (!first) return;
 
-    // Promote to reservado
-    await this.db
-      .update(schema.bookings)
-      .set({ status: "reservado", waitlistPosition: null })
-      .where(eq(schema.bookings.id, first.id));
-
-    // Reorder remaining waitlist positions
-    const remaining = await this.db
-      .select({
-        id: schema.bookings.id,
-        waitlistPosition: schema.bookings.waitlistPosition,
-      })
-      .from(schema.bookings)
-      .where(
-        and(
-          eq(schema.bookings.scheduleId, scheduleId),
-          eq(schema.bookings.bookingDate, bookingDate),
-          eq(schema.bookings.status, "lista_espera"),
-        ),
-      )
-      .orderBy(asc(schema.bookings.waitlistPosition));
-
-    for (let i = 0; i < remaining.length; i++) {
-      await this.db
+      // Promote to reservado
+      await tx
         .update(schema.bookings)
-        .set({ waitlistPosition: i + 1 })
-        .where(eq(schema.bookings.id, remaining[i].id));
-    }
+        .set({ status: "reservado", waitlistPosition: null })
+        .where(eq(schema.bookings.id, first.id));
 
-    this.log.info(
-      { scheduleId, bookingDate, promotedBookingId: first.id },
-      "Waitlist member promoted",
-    );
+      // Reorder remaining waitlist positions
+      const remaining = await tx
+        .select({
+          id: schema.bookings.id,
+          waitlistPosition: schema.bookings.waitlistPosition,
+        })
+        .from(schema.bookings)
+        .where(
+          and(
+            eq(schema.bookings.scheduleId, scheduleId),
+            eq(schema.bookings.bookingDate, bookingDate),
+            eq(schema.bookings.status, "lista_espera"),
+          ),
+        )
+        .orderBy(asc(schema.bookings.waitlistPosition));
+
+      for (let i = 0; i < remaining.length; i++) {
+        await tx
+          .update(schema.bookings)
+          .set({ waitlistPosition: i + 1 })
+          .where(eq(schema.bookings.id, remaining[i].id));
+      }
+
+      this.log.info(
+        { scheduleId, bookingDate, promotedBookingId: first.id },
+        "Waitlist member promoted",
+      );
+    });
   }
 
   /**
@@ -822,8 +875,10 @@ export class BookingService {
   private async countActiveBookings(
     scheduleId: number,
     date: string,
+    db?: MySql2Database<typeof schema>,
   ): Promise<number> {
-    const [result] = await this.db
+    const q = db ?? this.db;
+    const [result] = await q
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.bookings)
       .where(

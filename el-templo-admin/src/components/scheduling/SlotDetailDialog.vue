@@ -235,12 +235,17 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
 async function onAddBooking() {
   if (!slotAddMember.value || !props.scheduleId) return;
   try {
-    await schedulingApi.adminAddBooking({
+    const result = await schedulingApi.adminAddBooking({
       scheduleId: props.scheduleId,
       memberId: slotAddMember.value.id,
       date: props.date,
     });
     $q.notify({ type: 'positive', message: 'Reserva agregada' });
+    if (result.warnings?.length) {
+      for (const warning of result.warnings) {
+        $q.notify({ type: 'warning', message: warning, timeout: 5000 });
+      }
+    }
     slotAddMember.value = null;
     memberSearchResults.value = [];
     await loadSlotDetail(props.scheduleId, props.date);

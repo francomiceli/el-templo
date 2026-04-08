@@ -372,6 +372,25 @@ export class PaymentService {
     };
   }
 
+  // ─── Overdue Check ─────────────────────────────────────────────────────
+
+  /**
+   * Check if a subscription has been paid (has at least one non-voided payment).
+   */
+  async isSubscriptionPaid(subscriptionId: number): Promise<boolean> {
+    const [result] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.subscriptionId, subscriptionId),
+          isNull(schema.payments.voidedAt),
+        ),
+      );
+
+    return Number(result?.count ?? 0) > 0;
+  }
+
   // ─── Private Helpers ───────────────────────────────────────────────────
 
   /**

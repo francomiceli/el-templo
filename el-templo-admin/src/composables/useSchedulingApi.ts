@@ -172,11 +172,14 @@ export function useSchedulingApi() {
     scheduleId: number;
     memberId: number;
     date: string;
-  }): Promise<BookingRecord> {
+  }): Promise<{ booking: BookingRecord; warnings: string[] }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data: result } = await api.post<BookingRecord>('/admin/scheduling/bookings', data);
+      const { data: result } = await api.post<{ booking: BookingRecord; warnings: string[] }>(
+        '/admin/scheduling/bookings',
+        data
+      );
       return result;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error agregando reserva');

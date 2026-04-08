@@ -244,12 +244,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Body: { scheduleId: number; memberId: number; date: string };
   }>("/bookings", { schema: adminAddBookingSchema }, async (request, reply) => {
     try {
-      const booking = await bookingService.adminAddBooking(
+      const result = await bookingService.adminAddBooking(
         request.body.scheduleId,
         request.body.memberId,
         request.body.date,
       );
-      return reply.code(201).send(booking);
+      return reply.code(201).send(result);
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "admin add booking");
     }

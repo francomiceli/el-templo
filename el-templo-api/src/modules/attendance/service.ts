@@ -11,6 +11,7 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
+import { getWeekRange } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
@@ -57,6 +58,16 @@ export class AttendanceService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
+    // Overdue check: block if subscription has no payment recorded
+    const isPaid = await this.paymentService.isSubscriptionPaid(
+      subscription.id,
+    );
+    if (!isPaid) {
+      throw new BadRequestError(
+        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+      );
+    }
+
     // Check branch enforcement for single-branch plans
     const [planRow] = await this.db
       .select({
@@ -100,26 +111,11 @@ export class AttendanceService {
       throw new BadRequestError("Agotaste tus clases del periodo");
     }
 
-    // One check-in per day
+    // One check-in per day + insert in transaction to prevent double attendance
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
 
-    const [existingToday] = await this.db
-      .select({ id: schema.attendance.id })
-      .from(schema.attendance)
-      .where(
-        and(
-          eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
-        ),
-      )
-      .limit(1);
-
-    if (existingToday) {
-      throw new BadRequestError("Ya registraste asistencia hoy");
-    }
-
-    // Find today's booking within the check-in time window (±20 min of class start)
+    // Find today's bookings before the transaction (read-only, no race concern)
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const windowMinutes = 20;
 
@@ -148,7 +144,6 @@ export class AttendanceService {
         ),
       );
 
-    // Find the booking whose class startTime falls within ±20 min of now
     const matchingBooking = bookingsInRange.find((b) => {
       const [h, m] = b.startTime.split(":").map(Number);
       const classMinutes = h * 60 + m;
@@ -157,7 +152,6 @@ export class AttendanceService {
 
     if (!matchingBooking) {
       if (bookingsInRange.length > 0) {
-        // Has bookings today but none in the current time window
         const times = bookingsInRange
           .map((b) => b.startTime)
           .sort()
@@ -171,20 +165,65 @@ export class AttendanceService {
       );
     }
 
-    // Insert attendance record linked to the specific class
-    const result = await this.db.insert(schema.attendance).values({
-      memberId,
-      branchId,
-      scheduleId: matchingBooking.scheduleId,
-      sessionDate: todayStr,
-      status: "confirmado",
-      source: "qr",
-      checkedInAt: now,
+    // Wrap duplicate check + insert + decrement in transaction
+    const recordId = await this.db.transaction(async (tx) => {
+      // Re-check one-per-day inside transaction
+      const [existingToday] = await tx
+        .select({ id: schema.attendance.id })
+        .from(schema.attendance)
+        .where(
+          and(
+            eq(schema.attendance.memberId, memberId),
+            sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+          ),
+        )
+        .limit(1);
+
+      if (existingToday) {
+        throw new BadRequestError("Ya registraste asistencia hoy");
+      }
+
+      // Insert attendance record
+      const result = await tx.insert(schema.attendance).values({
+        memberId,
+        branchId,
+        scheduleId: matchingBooking.scheduleId,
+        sessionDate: todayStr,
+        status: "confirmado",
+        source: "qr",
+        checkedInAt: now,
+      });
+
+      const id = Number(result[0].insertId);
+
+      // Decrement classesRemaining if tracked
+      if (
+        subscription.classesRemaining !== null &&
+        subscription.classesRemaining > 0
+      ) {
+        await tx
+          .update(schema.subscriptions)
+          .set({
+            classesRemaining: sql`${schema.subscriptions.classesRemaining} - 1`,
+          })
+          .where(
+            and(
+              eq(schema.subscriptions.id, subscription.id),
+              sql`${schema.subscriptions.classesRemaining} > 0`,
+            ),
+          );
+      }
+
+      // Update booking status to qr_escaneado
+      await tx
+        .update(schema.bookings)
+        .set({ status: "qr_escaneado" })
+        .where(eq(schema.bookings.id, matchingBooking.id));
+
+      return id;
     });
 
-    const recordId = Number(result[0].insertId);
-
-    // Award AURA immediately on QR check-in
+    // Award AURA outside transaction (has its own transaction internally)
     await this.auraService.award({
       userId: memberId,
       sourceType: "attendance",
@@ -193,30 +232,6 @@ export class AttendanceService {
       amount: 10,
       description: "Asistencia confirmada",
     });
-
-    // Decrement classesRemaining if tracked
-    if (
-      subscription.classesRemaining !== null &&
-      subscription.classesRemaining > 0
-    ) {
-      await this.db
-        .update(schema.subscriptions)
-        .set({
-          classesRemaining: sql`${schema.subscriptions.classesRemaining} - 1`,
-        })
-        .where(
-          and(
-            eq(schema.subscriptions.id, subscription.id),
-            sql`${schema.subscriptions.classesRemaining} > 0`,
-          ),
-        );
-    }
-
-    // Update booking status to qr_escaneado
-    await this.db
-      .update(schema.bookings)
-      .set({ status: "qr_escaneado" })
-      .where(eq(schema.bookings.id, matchingBooking.id));
 
     this.log.info(
       {
@@ -438,12 +453,36 @@ export class AttendanceService {
       throw new BadRequestError("Horario no encontrado");
     }
 
+    // One check-in per day guard
+    const [existingToday] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${date}`,
+        ),
+      )
+      .limit(1);
+
+    if (existingToday) {
+      throw new BadRequestError(
+        "El miembro ya tiene asistencia registrada en esta fecha",
+      );
+    }
+
     // Check subscription status for warnings (don't block)
     const subscription =
       await this.subscriptionService.getMemberSubscription(memberId);
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
     } else {
+      const isPaid = await this.paymentService.isSubscriptionPaid(
+        subscription.id,
+      );
+      if (!isPaid) {
+        warnings.push("Pago pendiente");
+      }
       if (
         subscription.classesRemaining !== null &&
         subscription.classesRemaining <= 0
@@ -760,24 +799,11 @@ export class AttendanceService {
   }
 
   /**
-   * Count this member's attendance records in the current Mon-Sun calendar week.
+   * Count this member's attendance records in the current Mon-Sat calendar week.
+   * Uses getWeekRange (UTC-based) to match booking-service week boundaries.
    */
   private async countWeeklyAttendance(memberId: number): Promise<number> {
-    // Calculate current week boundaries (Mon-Sun)
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ...
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + mondayOffset);
-    monday.setHours(0, 0, 0, 0);
-
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-
-    const mondayStr = monday.toISOString().split("T")[0];
-    const sundayStr = sunday.toISOString().split("T")[0];
+    const { monday, saturday } = getWeekRange(new Date());
 
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
@@ -785,8 +811,8 @@ export class AttendanceService {
       .where(
         and(
           eq(schema.attendance.memberId, memberId),
-          sql`DATE(${schema.attendance.checkedInAt}) >= ${mondayStr}`,
-          sql`DATE(${schema.attendance.checkedInAt}) <= ${sundayStr}`,
+          sql`DATE(${schema.attendance.checkedInAt}) >= ${monday}`,
+          sql`DATE(${schema.attendance.checkedInAt}) <= ${saturday}`,
         ),
       );
 
