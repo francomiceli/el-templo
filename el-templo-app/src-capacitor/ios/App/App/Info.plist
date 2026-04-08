@@ -45,5 +45,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>El Templo necesita acceso a la cámara para escanear el código QR de asistencia</string>
 </dict>
 </plist>
