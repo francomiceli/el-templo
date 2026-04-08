@@ -15,6 +15,7 @@
         loop
         muted
         playsinline
+        preload="auto"
         :poster="posterUrl"
         :src="videoUrl"
         @canplay="onVideoReady"
