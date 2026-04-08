@@ -62,7 +62,7 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-6 col-sm">
         <q-select
           v-model="filters.category"
           :options="categoryOptions"
@@ -74,7 +74,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-4 col-sm">
         <q-select
           v-model="filters.level"
           :options="levelOptions"
@@ -86,7 +86,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2">
+      <div class="col-4 col-sm">
         <q-select
           v-model="filters.route"
           :options="routeOptions"
@@ -98,7 +98,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-1">
+      <div class="col-4 col-sm">
         <q-select
           v-model="filters.effort"
           :options="effortOptions"
@@ -110,7 +110,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-1">
+      <div class="col-4 col-sm">
         <q-select
           v-model="filters.equipment"
           :options="equipmentFilterOptions"
@@ -122,7 +122,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-12 col-sm-2">
+      <div class="col-12 col-sm-auto">
         <q-btn-toggle
           v-model="videoFilter"
           toggle-color="primary"

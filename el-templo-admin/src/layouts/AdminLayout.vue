@@ -10,7 +10,7 @@
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="drawer" show-if-above bordered>
+    <q-drawer v-model="drawer" show-if-above bordered :width="220">
       <q-list>
         <!-- Entrenamiento -->
         <template v-if="isCoachRole">
