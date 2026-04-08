@@ -10,10 +10,8 @@
         <q-item-label class="choice-role-name text-body1">
           {{ title }}
         </q-item-label>
-        <div class="choice-meta">
-          <span class="choice-meta__hint">{{ subtitle }}</span>
-          <span class="choice-meta__count">{{ options.length }} opciones</span>
-        </div>
+        <div class="choice-meta__hint">A elección</div>
+        <div class="choice-meta__count">{{ optionCountLabel }} opciones</div>
       </q-item-section>
     </template>
 
@@ -57,6 +55,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Block, Prescription } from '../types/session'
 import { getRouteName } from '../utils/routeNames'
 
@@ -72,15 +71,16 @@ export interface BlockChoiceOption {
 interface Props {
   /** Header title */
   title: string
-  /** Subtitle hint text */
-  subtitle?: string
   /** Available options */
   options: BlockChoiceOption[]
 }
 
-withDefaults(defineProps<Props>(), {
-  subtitle: '2 opciones disponibles',
-})
+const props = defineProps<Props>()
+
+const WORD_NUMBERS = ['Cero', 'Una', 'Dos', 'Tres', 'Cuatro', 'Cinco', 'Seis']
+const optionCountLabel = computed(
+  () => WORD_NUMBERS[props.options.length] ?? `${props.options.length}`,
+)
 
 /**
  * Format prescription inline (compact format for exercise list)
@@ -137,26 +137,18 @@ function formatPrescription(exercise: Prescription): string {
   color: $primary;
 }
 
-.choice-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 4px;
+.choice-meta__hint {
+  font-size: 10px;
+  font-weight: 500;
+  color: color.adjust($secondary, $lightness: -10%);
+  font-style: italic;
+  margin-top: 2px;
+}
 
-  &__hint {
-    font-size: 13px;
-    font-weight: 500;
-    color: color.adjust($secondary, $lightness: -10%);
-    font-style: italic;
-  }
-
-  &__count {
-    font-size: 12px;
-    color: color.adjust($secondary, $lightness: -5%);
-    background: rgba($secondary, 0.15);
-    padding: 2px 6px;
-    border-radius: 4px;
-  }
+.choice-meta__count {
+  font-size: 10px;
+  color: color.adjust($secondary, $lightness: -5%);
+  margin-top: 1px;
 }
 
 .choice-options {
