@@ -107,6 +107,48 @@
       @update:model-value="onBlockSwapClose"
       @swapped="onBlockSwapComplete"
     />
+
+    <!-- Equipment Auto-Tagging Splash (full_body goal plans) -->
+    <q-dialog v-model="showEquipmentSplash" persistent>
+      <q-card style="min-width: 480px; max-width: 600px">
+        <q-card-section>
+          <div class="text-h6">Etiquetar Ejercicios — Equipamiento</div>
+          <div class="text-body2 text-grey-7 q-mt-sm">
+            Esta sesion de Full Body contiene {{ splashExercises.length }} ejercicios. Marcarlos
+            como <strong>"ninguno"</strong> (sin equipamiento)?
+          </div>
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-section style="max-height: 300px; overflow-y: auto">
+          <q-list dense>
+            <q-item v-for="ex in splashExercises" :key="ex.exerciseId">
+              <q-item-section avatar>
+                <q-icon name="fitness_center" color="grey-6" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>{{ ex.exerciseName }}</q-item-label>
+                <q-item-label caption>ID: {{ ex.exerciseId }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+
+        <q-separator />
+
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Omitir" color="grey" @click="showEquipmentSplash = false" />
+          <q-btn
+            label="Marcar como Ninguno"
+            icon="check"
+            color="positive"
+            :loading="taggingInProgress"
+            @click="confirmEquipmentTagging"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -118,6 +160,7 @@ import axios from 'axios';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { formatWeekLabel, urlParamToWeek, weekToUrlParam } from 'src/utils/weekDates';
 import { useEditApi } from 'src/composables/useEditApi';
+import { useExercisesApi } from 'src/composables/useExercisesApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
 import EditableBlockCard from 'src/components/sessions/EditableBlockCard.vue';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
@@ -144,6 +187,7 @@ const router = useRouter();
 const $q = useQuasar();
 const sessionsApi = useSessionsApi();
 const editApi = useEditApi();
+const exercisesApi = useExercisesApi();
 const adminStore = useAdminStore();
 
 function createEmptyExercise(name = ''): SessionExercise {
@@ -203,6 +247,11 @@ const blockSwap = ref<BlockSwapState | null>(null);
 
 // Scroll position saved before dialogs open
 const preDialogScrollY = ref(0);
+
+// Equipment auto-tagging splash state
+const showEquipmentSplash = ref(false);
+const splashExercises = ref<Array<{ exerciseId: number; exerciseName: string }>>([]);
+const taggingInProgress = ref(false);
 
 // Status computeds
 const allApproved = computed(
@@ -352,10 +401,63 @@ async function handleApproveDay() {
       refreshDay();
       adminStore.fetchPendingCount();
       adminStore.checkSessionCoverage();
+
+      // After successful approve, show equipment tagging splash for full_body
+      if (goalPlanType.value === 'full_body') {
+        showEquipmentTaggingSplash();
+      }
     } catch {
       $q.notify({ type: 'negative', message: 'Error aprobando sesiones' });
     }
   });
+}
+
+function showEquipmentTaggingSplash() {
+  // Collect unique exercises from all sessions in this day
+  const exerciseMap = new Map<number, string>();
+  for (const session of sessions.value) {
+    for (const block of session.blocks) {
+      for (const ex of block.exercises) {
+        if (ex.exerciseId && !exerciseMap.has(ex.exerciseId)) {
+          exerciseMap.set(ex.exerciseId, ex.exerciseName);
+        }
+      }
+      // Also include mobility exercises
+      if (
+        block.mobilityExercise?.exerciseId &&
+        !exerciseMap.has(block.mobilityExercise.exerciseId)
+      ) {
+        exerciseMap.set(block.mobilityExercise.exerciseId, block.mobilityExercise.exerciseName);
+      }
+    }
+  }
+
+  if (exerciseMap.size === 0) return;
+
+  splashExercises.value = Array.from(exerciseMap.entries()).map(
+    ([exerciseId, exerciseName]) => ({
+      exerciseId,
+      exerciseName,
+    }),
+  );
+  showEquipmentSplash.value = true;
+}
+
+async function confirmEquipmentTagging() {
+  taggingInProgress.value = true;
+  try {
+    const ids = splashExercises.value.map((e) => e.exerciseId);
+    const result = await exercisesApi.bulkUpdateEquipment(ids, 'ninguno');
+    $q.notify({
+      type: 'positive',
+      message: `${result.updatedCount} ejercicios marcados como "ninguno" (sin equipamiento)`,
+    });
+    showEquipmentSplash.value = false;
+  } catch {
+    $q.notify({ type: 'negative', message: 'Error actualizando equipamiento' });
+  } finally {
+    taggingInProgress.value = false;
+  }
 }
 
 async function handleRevertDay() {

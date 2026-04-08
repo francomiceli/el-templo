@@ -110,6 +110,18 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <div class="col-6 col-sm-1">
+        <q-select
+          v-model="filters.equipment"
+          :options="equipmentFilterOptions"
+          label="Equipo"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
       <div class="col-12 col-sm-2">
         <q-btn-toggle
           v-model="videoFilter"
@@ -188,6 +200,25 @@
             @update:model-value="(val: string) => onInlineEffortChange(props.row.id, val)"
           />
           <span v-else>{{ props.row.effort }}</span>
+        </q-td>
+      </template>
+
+      <!-- Equipment column: inline select, always editable -->
+      <template #body-cell-equipment="props">
+        <q-td :props="props">
+          <q-select
+            :model-value="props.row.equipment"
+            :options="inlineEquipmentOptions"
+            :label="props.row.equipment ? undefined : 'Sin asignar'"
+            dense
+            outlined
+            emit-value
+            map-options
+            clearable
+            style="min-width: 120px"
+            :color="props.row.equipment ? 'primary' : 'warning'"
+            @update:model-value="(val: string | null) => onInlineEquipmentChange(props.row.id, val)"
+          />
         </q-td>
       </template>
 
@@ -646,6 +677,7 @@ const filters = reactive({
   level: '',
   route: '',
   effort: '',
+  equipment: '',
 });
 
 const tablePagination = ref({
@@ -687,6 +719,24 @@ const effortOptions = [
   { label: 'ISO', value: 'ISO' },
 ];
 
+const equipmentFilterOptions = [
+  { label: 'Todos', value: '' },
+  { label: 'Sin asignar', value: 'empty' },
+  { label: 'Barras', value: 'barras' },
+  { label: 'Anillas', value: 'anillas' },
+  { label: 'Paralelas', value: 'paralelas' },
+  { label: 'Cajon', value: 'cajon' },
+  { label: 'Ninguno', value: 'ninguno' },
+];
+
+const inlineEquipmentOptions = [
+  { label: 'Barras', value: 'barras' },
+  { label: 'Anillas', value: 'anillas' },
+  { label: 'Paralelas', value: 'paralelas' },
+  { label: 'Cajon', value: 'cajon' },
+  { label: 'Ninguno', value: 'ninguno' },
+];
+
 const videoStatusOptions = [
   { label: 'Todos', value: 'all' },
   { label: 'Con Video', value: 'with' },
@@ -704,6 +754,14 @@ const columns: QTableProps['columns'] = [
   { name: 'level', label: 'Nivel', field: 'level', align: 'left', sortable: false },
   { name: 'route', label: 'Ruta', field: 'route', align: 'left', sortable: false },
   { name: 'effort', label: 'Contraccion', field: 'effort', align: 'left', sortable: false },
+  {
+    name: 'equipment',
+    label: 'Equipo',
+    field: 'equipment',
+    align: 'left',
+    sortable: false,
+    style: 'width: 130px',
+  },
   {
     name: 'video',
     label: 'Video',
@@ -739,6 +797,7 @@ async function loadExercises() {
       level: filters.level || undefined,
       route: filters.route || undefined,
       effort: filters.effort || undefined,
+      equipment: filters.equipment || undefined,
       hasVideo: hasVideoValue ?? null,
     });
 
@@ -780,6 +839,19 @@ async function onInlineEffortChange(exerciseId: number, effort: string) {
   try {
     await exercisesApi.updateExercise(exerciseId, { effort });
     $q.notify({ type: 'positive', message: `Contraccion actualizada a ${effort}` });
+    loadExercises();
+  } catch {
+    // Error handled by composable
+  }
+}
+
+async function onInlineEquipmentChange(exerciseId: number, equipment: string | null) {
+  try {
+    await exercisesApi.updateExercise(exerciseId, { equipment });
+    $q.notify({
+      type: 'positive',
+      message: equipment ? `Equipo actualizado a ${equipment}` : 'Equipo removido',
+    });
     loadExercises();
   } catch {
     // Error handled by composable
