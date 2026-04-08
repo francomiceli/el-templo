@@ -326,3 +326,13 @@ _Last phase: 78_
 ---
 
 _Last phase: 81_
+
+## v5.3 Conversational Sales & Playbook Engine (Shipped: 2026-04-08)
+
+**Phases completed:** 71 phases, 260 plans, 30 tasks
+
+**Key accomplishments:**
+
+- (none recorded)
+
+---
