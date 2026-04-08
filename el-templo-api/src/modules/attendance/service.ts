@@ -111,9 +111,24 @@ export class AttendanceService {
       throw new BadRequestError("Agotaste tus clases del periodo");
     }
 
-    // One check-in per day + insert in transaction to prevent double attendance
+    // One check-in per day (fast-path guard; authoritative check inside transaction)
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0];
+
+    const [alreadyCheckedIn] = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, memberId),
+          sql`DATE(${schema.attendance.checkedInAt}) = ${todayStr}`,
+        ),
+      )
+      .limit(1);
+
+    if (alreadyCheckedIn) {
+      throw new BadRequestError("Ya registraste asistencia hoy");
+    }
 
     // Find today's bookings before the transaction (read-only, no race concern)
     const nowMinutes = now.getHours() * 60 + now.getMinutes();

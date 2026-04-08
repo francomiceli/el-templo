@@ -238,7 +238,7 @@ export class BookingService {
     if (!booking) throw new Error("Failed to retrieve newly created booking");
 
     this.log.info(
-      { memberId, scheduleId, date, status, bookingId },
+      { memberId, scheduleId, date, status: booking.status, bookingId },
       "Booking created",
     );
 

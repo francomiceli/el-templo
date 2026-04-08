@@ -276,7 +276,13 @@ export const adminAddBookingSchema = {
     },
   },
   response: {
-    201: bookingRecordSchema,
+    201: {
+      type: "object",
+      properties: {
+        booking: bookingRecordSchema,
+        warnings: { type: "array", items: { type: "string" } },
+      },
+    },
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,

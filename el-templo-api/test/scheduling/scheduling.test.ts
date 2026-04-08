@@ -763,7 +763,7 @@ describe("Scheduling API", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.status).toBe("reservado");
+      expect(body.booking.status).toBe("reservado");
     });
 
     it("Admin remove booking cancels and promotes lista_espera", async () => {
@@ -803,7 +803,7 @@ describe("Scheduling API", () => {
         },
       });
       const booking1 = JSON.parse(res1.body);
-      expect(booking1.status).toBe("reservado");
+      expect(booking1.booking.status).toBe("reservado");
 
       // Admin adds member 2 (lista_espera because full)
       const res2 = await app.inject({
@@ -817,12 +817,12 @@ describe("Scheduling API", () => {
         },
       });
       const booking2 = JSON.parse(res2.body);
-      expect(booking2.status).toBe("lista_espera");
+      expect(booking2.booking.status).toBe("lista_espera");
 
       // Admin removes member 1
       const removeRes = await app.inject({
         method: "DELETE",
-        url: `${ADMIN_URL}/bookings/${booking1.id}`,
+        url: `${ADMIN_URL}/bookings/${booking1.booking.id}`,
         headers: { authorization: `Bearer ${adminToken}` },
       });
       expect(removeRes.statusCode).toBe(200);
@@ -831,7 +831,7 @@ describe("Scheduling API", () => {
       const [promotedBooking] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.id, booking2.id));
+        .where(eq(bookings.id, booking2.booking.id));
       expect(promotedBooking.status).toBe("reservado");
 
       // Reset capacity
@@ -909,7 +909,7 @@ describe("Scheduling API", () => {
         },
       });
       const booking = JSON.parse(bookRes.body);
-      expect(booking.status).toBe("reservado");
+      expect(booking.booking.status).toBe("reservado");
 
       // Add holiday for that date
       const holidayRes = await app.inject({
@@ -929,7 +929,7 @@ describe("Scheduling API", () => {
       const [cancelledBooking] = await app.db
         .select({ status: bookings.status })
         .from(bookings)
-        .where(eq(bookings.id, booking.id));
+        .where(eq(bookings.id, booking.booking.id));
       expect(cancelledBooking.status).toBe("cancelado");
     });
 
