@@ -38,11 +38,11 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 
 ### Avatar Adaptation & Quality
 
-- [ ] **AVAT-01**: Mica adapts tone/framing to detected avatar profile (4 distinct voices: cero_absoluto, gym_crossover, intermedio, retorna)
-- [ ] **AVAT-02**: When Redis session already has a profile, Mica skips already-answered discovery questions
+- [x] **AVAT-01**: Mica adapts tone/framing to detected avatar profile (4 distinct voices: cero_absoluto, gym_crossover, intermedio, retorna)
+- [x] **AVAT-02**: When Redis session already has a profile, Mica skips already-answered discovery questions
 - [ ] **AVAT-03**: All 14 existing QA test questions still pass with playbook engine active
 - [ ] **AVAT-04**: New conversation flow tests cover each playbook (PB1-PB5) end-to-end with at least one happy path and one objection path
-- [ ] **AVAT-05**: New tests verify avatar-specific tone keywords appear when profile is set
+- [x] **AVAT-05**: New tests verify avatar-specific tone keywords appear when profile is set
 
 ## v5.4+ Requirements (Deferred — Kero CRM)
 
@@ -106,11 +106,11 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 | PBPR-04     | Phase 84 | Complete |
 | PBPR-05     | Phase 84 | Complete |
 | PBPR-06     | Phase 84 | Complete |
-| AVAT-01     | Phase 85 | Pending  |
-| AVAT-02     | Phase 85 | Pending  |
+| AVAT-01     | Phase 85 | Complete |
+| AVAT-02     | Phase 85 | Complete |
 | AVAT-03     | Phase 85 | Pending  |
 | AVAT-04     | Phase 85 | Pending  |
-| AVAT-05     | Phase 85 | Pending  |
+| AVAT-05     | Phase 85 | Complete |
 
 **Coverage:**
 
