@@ -181,7 +181,33 @@
         <!-- Goal plan type selection -->
         <q-card v-if="isGoalPlanFutureWeek" flat bordered class="q-mb-md">
           <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Tipos de Plan por Objetivos</div>
+            <div class="row items-center justify-between q-mb-sm">
+              <div class="text-subtitle1">Tipos de Plan por Objetivos</div>
+              <div class="q-gutter-x-sm">
+                <q-btn
+                  flat
+                  dense
+                  size="sm"
+                  label="Todos"
+                  color="primary"
+                  :disable="selectedGoalPlanTypes.length === ALL_GOAL_PLAN_TYPES.length"
+                  @click="selectedGoalPlanTypes = [...ALL_GOAL_PLAN_TYPES]"
+                />
+                <q-btn
+                  flat
+                  dense
+                  size="sm"
+                  label="Ninguno"
+                  color="grey"
+                  :disable="selectedGoalPlanTypes.length === 0"
+                  @click="selectedGoalPlanTypes = []"
+                />
+              </div>
+            </div>
+
+            <div class="text-caption text-grey q-mb-md">
+              {{ selectedGoalPlanTypes.length }} de {{ ALL_GOAL_PLAN_TYPES.length }} seleccionados
+            </div>
 
             <!-- Grouped by tier -->
             <div v-for="tier in goalPlanTiers" :key="tier.key" class="q-mb-md">
@@ -196,12 +222,15 @@
                   clickable
                   :color="selectedGoalPlanTypes.includes(jt.type) ? tier.color : 'grey-3'"
                   :text-color="selectedGoalPlanTypes.includes(jt.type) ? 'white' : 'grey-8'"
+                  icon="check"
                   @click="toggleGoalPlanType(jt.type)"
                 >
                   {{ jt.label }}
                 </q-chip>
               </div>
             </div>
+
+            <q-separator class="q-my-md" />
 
             <!-- Regenerate option -->
             <q-checkbox
@@ -215,7 +244,7 @@
               <q-btn
                 color="primary"
                 icon="auto_awesome"
-                label="Generar Todo"
+                :label="`Generar ${selectedGoalPlanTypes.length} Tipo${selectedGoalPlanTypes.length !== 1 ? 's' : ''}`"
                 :loading="goalPlanGenerating"
                 :disable="selectedGoalPlanTypes.length === 0"
                 @click="handleGoalPlanGenerateAll"
@@ -577,7 +606,7 @@ const StatusIndicator = defineComponent({
 // Goal Plans tab state
 // ============================================================
 const goalPlanWeek = ref(2);
-const selectedGoalPlanTypes = ref<GoalPlanType[]>([...ALL_GOAL_PLAN_TYPES]);
+const selectedGoalPlanTypes = ref<GoalPlanType[]>([]);
 const goalPlanRegenerate = ref(false);
 const goalPlanGenerating = ref(false);
 const goalPlanTypeLoading = ref<GoalPlanType | null>(null);
@@ -610,7 +639,7 @@ const allGoalPlanTypesList = computed(() =>
     type: jt,
     label: GOAL_PLAN_TYPE_LABELS[jt],
     tier: GOAL_PLAN_TIER_MAP[jt],
-  })),
+  }))
 );
 
 function toggleGoalPlanType(jt: GoalPlanType) {

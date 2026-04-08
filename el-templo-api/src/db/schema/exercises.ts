@@ -14,14 +14,6 @@ export const exerciseLevelEnum = mysqlEnum("exercise_level", [
   "spartan",
 ]);
 
-export const exerciseEquipmentEnum = mysqlEnum("exercise_equipment", [
-  "barras",
-  "anillas",
-  "paralelas",
-  "cajon",
-  "ninguno",
-]);
-
 export const exercises = mysqlTable(
   "exercises",
   {
@@ -40,7 +32,9 @@ export const exercises = mysqlTable(
     dificultadLineal: int("dificultad_lineal").notNull().default(1),
     route: varchar("route", { length: 20 }).notNull(),
     mobilityRelated: varchar("mobility_related", { length: 100 }),
-    equipment: exerciseEquipmentEnum,
+    equipment: varchar("equipment", { length: 20 }).$type<
+      "barras" | "anillas" | "paralelas" | "cajon" | "ninguno"
+    >(),
     videoUrl: varchar("video_url", { length: 500 }),
   },
   (table) => [
