@@ -124,7 +124,12 @@ Plans:
 4. A new test suite covers each playbook (PB1-PB5) end-to-end with at least one happy path and one objection path per playbook.
 5. New tests assert that avatar-specific tone keywords appear in Mica's responses when the corresponding profile is set.
 
-**Plans:** TBD
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 85-01-PLAN.md — Per-avatar tone guide in system-prompt.ts + resolver-level skip-to-recommendation when avatar is known + AVAT-05 keyword test suite
+- [ ] 85-02-PLAN.md — AVAT-03 v5.2 QA regression lock + per-playbook flow coverage suite (PB1-PB5 happy + objection paths)
 
 ---
 
@@ -135,7 +140,7 @@ Plans:
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
 | 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete    | 2026-04-07 |
 | 84. State-Adaptive Playbook Prompts PB2-PB5 | 3/3            | Complete    | 2026-04-08 |
-| 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
+| 85. Avatar Adaptation & Quality             | 0/2            | Not started | -          |
 
 **Coverage:** 24/24 v5.3 requirements mapped ✓
 
