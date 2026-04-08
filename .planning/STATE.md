@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 84-01-PLAN.md (PB2 + PB3 promptSection enrichment with A/B variants and inline objection scripts)"
-last_updated: "2026-04-08T01:10:00Z"
-last_activity: 2026-04-08 -- Plan 84-01 complete (PB2 Trial No Convertido + PB3 Vencimiento pre-expiry stages enriched verbatim from kero-playbooks-completos.md; PB2.E1A/E1B check-in A/B, PB2.E2 with 4 inline objection branches, PB2.E3 soft-urgency; PB3.E1A/E1B new pre-expiry reminders A/B, PB3.E2 upgrade anchor with 3 objection branches, PB3.E3 facilitate pago; entryStageId PB3 rebased to PB3.E1A; full bot suite 299/299 green; zero grupo-nuevo/cohorte/post-expiry leakage; PBPR-01 + PBPR-02 closed)
+stopped_at: "Completed 84-02-PLAN.md (PB4 + PB5 promptSection enrichment with plan-conditional pause and request_human escalation triggers)"
+last_updated: "2026-04-08T02:30:00Z"
+last_activity: 2026-04-08 -- Plan 84-02 complete (PB4 Miembro Inactivo + PB5 Cancelación stages enriched verbatim from kero-playbooks-completos.md; PB4.E1A/E1B empathetic A/B with anti-pressure rule, PB4.E2 with 4 objection branches (tiempo/salud/emocional/económica) + TEAM-CORR-04 plan-conditional pause + explicit escalation trigger list invoking request_human; PB5.E1 sin-resistencia, PB5.E2 with 4 motivo branches and duplicated pause-conditional aviso for Flex, PB5.E3 explicit escalation triggers + visible human handoff safety net; handler.ts and system-prompt.ts untouched since 84-01; full bot suite 299/299 green; PBPR-03 + PBPR-04 + PBPR-06 closed)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 12
-  completed_plans: 8
-  percent: 67
+  completed_plans: 9
+  percent: 75
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 84 — State-Adaptive Playbook Prompts (in progress, 1/3 plans)
-Plan: 84-01 (complete) — PB2 + PB3 promptSection enrichment
-Status: Phase 84 in progress — 1/3 plans done. Next: 84-02 (PB4/PB5 enrichment) then 84-03 (isolation + transition tests)
-Progress: ███████░░░ 67% (1/4 phases, 8/12 plans)
-Last activity: 2026-04-08 — Plan 84-01 complete. PB2 (Trial No Convertido) stages enriched with A/B check-ins + 4 inline objection scripts + soft-urgency proposal; PB3 (Vencimiento pre-expiry) rebased with A/B warm reminders (entryStageId PB3.E1 → PB3.E1A), upgrade anchor with 3 objection branches, payment facilitation. Scripts transcribed verbatim from contexto/kero-playbooks-completos.md. TEAM-CORR-06 enforced (zero "grupo nuevo"/"cohorte"), pre-expiry framing enforced in PB3 (zero "se te venció"). 2 test files updated (playbook-resolver, playbook-advance) for the PB3.E1A rename. Full bot suite 299/299 green. PBPR-01 + PBPR-02 closed.
+Phase: 84 — State-Adaptive Playbook Prompts (in progress, 2/3 plans)
+Plan: 84-02 (complete) — PB4 + PB5 promptSection enrichment
+Status: Phase 84 in progress — 2/3 plans done. Next: 84-03 (isolation + transition + dual-guard regression tests)
+Progress: ████████░░ 75% (1/4 phases, 9/12 plans)
+Last activity: 2026-04-08 — Plan 84-02 complete. PB4 (Miembro Inactivo) stages enriched with A/B empathetic check-ins + 4 objection branches (tiempo, salud/lesión, emocional, económica) + TEAM-CORR-04 plan-conditional pause (Foundation/Foundation+/Performance only; Flex uses 'los créditos no vencen') + explicit escalation trigger list invoking request_human. PB5 (Cancelación) rewritten with sin-resistencia E1, 4 motivo branches in E2 (plata/tiempo/no le gusta/se muda) with duplicated pause-conditional aviso, and E3 with explicit escalation triggers + visible human handoff safety net. Scripts verbatim from contexto/kero-playbooks-completos.md. handler.ts and system-prompt.ts byte-identical to 84-01 — request_human tool reused without modification. Full bot suite 299/299 green. PBPR-03 + PBPR-04 + PBPR-06 closed.
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Last activity: 2026-04-08 — Plan 84-01 complete. PB2 (Trial No Convertido) sta
 | Phase 83 P03 | 25min | 3 tasks | 3 files  |
 | Phase 83 P04 | 20min | 1 tasks | 1 files  |
 | Phase 84 P01 | 12min | 2 tasks | 3 files  |
+| Phase 84 P02 | 8min  | 2 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -92,7 +93,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-07
-Stopped at: Completed 83-04-PLAN.md — PB1 discovery flow conversation tests (commit bd2f53bf). Phase 83 fully complete (4/4 plans). All 7 DISC requirements covered at prompt + engine + test layers; bot suite 299/299 green.
-Resume file: .planning/phases/84-state-adaptive-playbook-prompts/84-01-PLAN.md (when authored)
-Next step: `/gsd:plan-phase 84` to author phase 84 (PB2-PB5 state-driven prompts).
+Last session: 2026-04-08
+Stopped at: Completed 84-02-PLAN.md — PB4 + PB5 promptSection enrichment (commits 24548c46 + 39ad6f24). handler.ts and system-prompt.ts untouched; request_human tool reused via prompt instruction only. Full bot suite 299/299 green.
+Resume file: .planning/phases/84-state-adaptive-playbook-prompts/84-03-PLAN.md
+Next step: `/gsd:execute-plan 84-03` — isolation, transition, and dual-guard regression tests for the enriched PB1-PB5 prompt injection pipeline.
