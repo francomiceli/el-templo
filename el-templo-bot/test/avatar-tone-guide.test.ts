@@ -20,30 +20,14 @@ import { describe, it, expect } from "vitest";
 
 import { getSystemPrompt } from "../src/ai/system-prompt.js";
 import { PLAYBOOKS } from "../src/playbooks/index.js";
-import type { AvatarProfile, PlaybookId } from "../src/playbooks/types.js";
-
-const ALL_AVATARS: AvatarProfile[] = [
-  "cero_absoluto",
-  "gym_crossover",
-  "intermedio",
-  "retorna",
-];
+import type { PlaybookId } from "../src/playbooks/types.js";
+import {
+  ALL_AVATARS,
+  AVATAR_KEYWORDS,
+  ALL_AVATAR_KEYWORDS as ALL_KEYWORDS,
+} from "./fixtures/avatar-keywords.js";
 
 const ALL_PLAYBOOKS: PlaybookId[] = ["PB1", "PB2", "PB3", "PB4", "PB5"];
-
-/**
- * Canonical per-avatar keyword map. Each avatar has 2 distinguishable Spanish
- * phrases that AVATAR_TONE_GUIDES MUST contain. The phrases must be unique
- * per avatar — no overlap allowed.
- */
-const AVATAR_KEYWORDS: Record<AvatarProfile, [string, string]> = {
-  cero_absoluto: ["primer paso", "sin saber nada"],
-  gym_crossover: ["ya tenés base", "cambio de estímulo"],
-  intermedio: ["siguiente nivel", "afinar técnica"],
-  retorna: ["volver con cabeza", "retomar sin romperte"],
-};
-
-const ALL_KEYWORDS: string[] = ALL_AVATARS.flatMap((a) => AVATAR_KEYWORDS[a]);
 
 // ─── AVAT-05 — per-avatar tone keywords appear when profile is set ──────────
 
