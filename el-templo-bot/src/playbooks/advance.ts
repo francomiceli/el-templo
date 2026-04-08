@@ -14,6 +14,14 @@
  * intermedio / retorna. The defer + insistence guards also live here so the
  * engine reinforces the prompt-level rules from plan 83-01.
  *
+ * Phase 84-03 wired stage transitions for PB3, PB4, and PB5, and refined
+ * PB2.E2 → PB2.E3 to fire on `discoveryAnswered` (any substantive reply
+ * after objection handling) instead of only `priceObjection`. Plan 84-01
+ * enriched PB2.E2 with four objection branches (precio, tiempo, identidad,
+ * difusa); conditioning the advance on `priceObjection` alone would have
+ * stranded three of the four branches on PB2.E2 forever. The broadened
+ * trigger matches the same convention used for PB2.E1A/E1B → PB2.E2.
+ *
  * NO IO. NO Redis. NO logger. Trivially unit-testable.
  */
 
@@ -137,16 +145,74 @@ export function advanceStageIfComplete(
       return "PB2.E2";
     }
 
-    // E2 → E3 when the user raises a price objection
-    if (stageId === "PB2.E2" && signals.priceObjection === true) {
+    // E2 → E3 on any substantive user reply after objection handling.
+    // Plan 84-01 enriched PB2.E2 with four objection branches (precio,
+    // tiempo, identidad, difusa); we no longer condition advancement on
+    // priceObjection alone — every branch ends with the soft-urgency
+    // proposal in the next turn, so any discoveryAnswered signal advances.
+    if (stageId === "PB2.E2" && signals.discoveryAnswered === true) {
       return "PB2.E3";
     }
 
     return null;
   }
 
-  // ── PB3, PB4, PB5: no advancement rules in v5.3 ─────────────────────────
-  // Phase 84 will introduce stage-level transitions for these. For now they
-  // stay on their entry stage (or wherever the resolver left them).
+  // ── PB3: Vencimiento de Membresía ───────────────────────────────────────
+  if (playbookId === "PB3") {
+    // E1A / E1B → E2 (ancla de upgrade) when the user shows interest in
+    // exploring options. Reuses discoveryAnswered as the "user replied
+    // engagedly" signal — same convention as PB2.
+    if (
+      (stageId === "PB3.E1A" || stageId === "PB3.E1B") &&
+      signals.discoveryAnswered === true
+    ) {
+      return "PB3.E2";
+    }
+
+    // E2 → E3 (facilitar pago) when the user accepts the upgrade or just
+    // confirms renewal of the current plan.
+    if (stageId === "PB3.E2" && signals.userAccepted === true) {
+      return "PB3.E3";
+    }
+
+    return null;
+  }
+
+  // ── PB4: Miembro Inactivo ───────────────────────────────────────────────
+  if (playbookId === "PB4") {
+    // E1A / E1B → E2 (escuchar + ofrecer solución) on any user reply.
+    // PB4 is empathy-first: the moment the inactive member responds, Mica
+    // transitions to the listen+solution stage. There is no further
+    // automatic advance from E2 in v5.3 — escalation (if triggered) is
+    // handled by the handler's existing humanTakeoverTriggered path.
+    if (
+      (stageId === "PB4.E1A" || stageId === "PB4.E1B") &&
+      signals.discoveryAnswered === true
+    ) {
+      return "PB4.E2";
+    }
+
+    return null;
+  }
+
+  // ── PB5: Cancelación ────────────────────────────────────────────────────
+  if (playbookId === "PB5") {
+    // E1 → E2 (resolver según motivo) when the user explained their reason.
+    // We treat any substantive reply as a motivo signal.
+    if (stageId === "PB5.E1" && signals.discoveryAnswered === true) {
+      return "PB5.E2";
+    }
+
+    // E2 → E3 (procesar baja or escalate) when the user accepts an
+    // alternative. We don't have a dedicated "refused" signal in v5.3 —
+    // the refusal path is owned by Mica's reasoning + the prompt rule in
+    // PB5.E3. Engine-level: only advance on userAccepted.
+    if (stageId === "PB5.E2" && signals.userAccepted === true) {
+      return "PB5.E3";
+    }
+
+    return null;
+  }
+
   return null;
 }

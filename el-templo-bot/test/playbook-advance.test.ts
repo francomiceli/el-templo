@@ -120,17 +120,35 @@ describe("advanceStageIfComplete", () => {
       ).toBe("PB2.E2");
     });
 
-    it("PB2.E2 + priceObjection → PB2.E3", () => {
-      expect(
-        advanceStageIfComplete(at("PB2", "PB2.E2"), { priceObjection: true }),
-      ).toBe("PB2.E3");
-    });
-
-    it("PB2.E2 + only discoveryAnswered → null (needs price objection)", () => {
+    it("PB2.E2 + discoveryAnswered → PB2.E3 (phase 84 broadened trigger)", () => {
       expect(
         advanceStageIfComplete(at("PB2", "PB2.E2"), {
           discoveryAnswered: true,
         }),
+      ).toBe("PB2.E3");
+    });
+
+    it("PB2.E2 + priceObjection ALONE → null (regression: priceObjection no longer gates advance)", () => {
+      // Plan 84-03: PB2.E2 was enriched with four objection branches, so
+      // the old priceObjection-only trigger is dropped. The broadened
+      // discoveryAnswered trigger is now the only path to PB2.E3.
+      expect(
+        advanceStageIfComplete(at("PB2", "PB2.E2"), { priceObjection: true }),
+      ).toBeNull();
+    });
+
+    it("PB2.E2 + priceObjection AND discoveryAnswered → PB2.E3 (discoveryAnswered carries it)", () => {
+      expect(
+        advanceStageIfComplete(at("PB2", "PB2.E2"), {
+          priceObjection: true,
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB2.E3");
+    });
+
+    it("PB2.E2 + no signals → null", () => {
+      expect(
+        advanceStageIfComplete(at("PB2", "PB2.E2"), NO_SIGNALS),
       ).toBeNull();
     });
 
@@ -139,36 +157,149 @@ describe("advanceStageIfComplete", () => {
         advanceStageIfComplete(at("PB2", "PB2.E3"), {
           priceObjection: true,
           userAccepted: true,
+          discoveryAnswered: true,
         }),
       ).toBeNull();
     });
   });
 
-  // ── PB3 / PB4 / PB5 ────────────────────────────────────────────────────
+  // ── PB3 transitions (phase 84) ─────────────────────────────────────────
 
-  describe("PB3 / PB4 / PB5 (no advancement rules in v5.3)", () => {
-    it("PB3.E1A + any signals → null", () => {
+  describe("PB3 transitions (phase 84)", () => {
+    it("PB3.E1A + discoveryAnswered → PB3.E2", () => {
       expect(
         advanceStageIfComplete(at("PB3", "PB3.E1A"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB3.E2");
+    });
+
+    it("PB3.E1B + discoveryAnswered → PB3.E2", () => {
+      expect(
+        advanceStageIfComplete(at("PB3", "PB3.E1B"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB3.E2");
+    });
+
+    it("PB3.E2 + userAccepted → PB3.E3", () => {
+      expect(
+        advanceStageIfComplete(at("PB3", "PB3.E2"), { userAccepted: true }),
+      ).toBe("PB3.E3");
+    });
+
+    it("PB3.E1A + no signals → null (holds)", () => {
+      expect(
+        advanceStageIfComplete(at("PB3", "PB3.E1A"), NO_SIGNALS),
+      ).toBeNull();
+    });
+
+    it("PB3.E2 + only discoveryAnswered → null (needs explicit accept)", () => {
+      expect(
+        advanceStageIfComplete(at("PB3", "PB3.E2"), {
+          discoveryAnswered: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("PB3.E3 + any signals → null (terminal)", () => {
+      expect(
+        advanceStageIfComplete(at("PB3", "PB3.E3"), {
+          discoveryAnswered: true,
+          userAccepted: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("purity: PB3 transitions do not mutate signals", () => {
+      const signals: AdvanceSignals = { discoveryAnswered: true };
+      const frozen = { ...signals };
+      advanceStageIfComplete(at("PB3", "PB3.E1A"), signals);
+      expect(signals).toEqual(frozen);
+    });
+  });
+
+  // ── PB4 transitions (phase 84) ─────────────────────────────────────────
+
+  describe("PB4 transitions (phase 84)", () => {
+    it("PB4.E1A + discoveryAnswered → PB4.E2", () => {
+      expect(
+        advanceStageIfComplete(at("PB4", "PB4.E1A"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB4.E2");
+    });
+
+    it("PB4.E1B + discoveryAnswered → PB4.E2", () => {
+      expect(
+        advanceStageIfComplete(at("PB4", "PB4.E1B"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB4.E2");
+    });
+
+    it("PB4.E1A + no signals → null (holds)", () => {
+      expect(
+        advanceStageIfComplete(at("PB4", "PB4.E1A"), NO_SIGNALS),
+      ).toBeNull();
+    });
+
+    it("PB4.E2 + any signals → null (terminal in v5.3; escalation owned by handler)", () => {
+      expect(
+        advanceStageIfComplete(at("PB4", "PB4.E2"), {
           discoveryAnswered: true,
           userAccepted: true,
           priceObjection: true,
         }),
       ).toBeNull();
     });
+  });
 
-    it("PB4.E1A + any signals → null", () => {
+  // ── PB5 transitions (phase 84) ─────────────────────────────────────────
+
+  describe("PB5 transitions (phase 84)", () => {
+    it("PB5.E1 + discoveryAnswered → PB5.E2 (user explained motivo)", () => {
       expect(
-        advanceStageIfComplete(at("PB4", "PB4.E1A"), {
+        advanceStageIfComplete(at("PB5", "PB5.E1"), {
+          discoveryAnswered: true,
+        }),
+      ).toBe("PB5.E2");
+    });
+
+    it("PB5.E2 + userAccepted → PB5.E3 (user accepted alternative)", () => {
+      expect(
+        advanceStageIfComplete(at("PB5", "PB5.E2"), { userAccepted: true }),
+      ).toBe("PB5.E3");
+    });
+
+    it("PB5.E2 + only discoveryAnswered → null (conservative: holds without accept)", () => {
+      expect(
+        advanceStageIfComplete(at("PB5", "PB5.E2"), {
           discoveryAnswered: true,
         }),
       ).toBeNull();
     });
 
-    it("PB5.E1 + any signals → null", () => {
+    it("PB5.E1 + no signals → null (holds)", () => {
       expect(
-        advanceStageIfComplete(at("PB5", "PB5.E1"), { userAccepted: true }),
+        advanceStageIfComplete(at("PB5", "PB5.E1"), NO_SIGNALS),
       ).toBeNull();
+    });
+
+    it("PB5.E3 + any signals → null (terminal)", () => {
+      expect(
+        advanceStageIfComplete(at("PB5", "PB5.E3"), {
+          discoveryAnswered: true,
+          userAccepted: true,
+        }),
+      ).toBeNull();
+    });
+
+    it("purity: PB5 transitions do not mutate signals", () => {
+      const signals: AdvanceSignals = { userAccepted: true };
+      const frozen = { ...signals };
+      advanceStageIfComplete(at("PB5", "PB5.E2"), signals);
+      expect(signals).toEqual(frozen);
     });
   });
 
