@@ -4,7 +4,7 @@
  * Admin endpoints for micro-program CRUD, enrollment lifecycle management.
  * Member endpoints for program catalog and enrollment progress.
  *
- * Admin CRUD: ADMIN_ROLES (admin, owner)
+ * Admin CRUD: CAJA_ROLES (recepcionista, admin, owner)
  * Enrollment management: COACH_ROLES (coach, admin, owner) per D-35
  * Member: authenticated members
  */
@@ -12,7 +12,7 @@
 import { FastifyPluginAsync } from "fastify";
 import { ProgramsService } from "./service";
 import { handleServiceError } from "../shared/error-handler";
-import { ADMIN_ROLES, COACH_ROLES } from "../shared/permissions";
+import { CAJA_ROLES, COACH_ROLES } from "../shared/permissions";
 import type {
   CreateProgramInput,
   UpdateProgramInput,
@@ -150,7 +150,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ProgramsService(fastify.db, fastify.log);
 
   // =========================================================================
-  // Admin Routes — Program CRUD (ADMIN_ROLES)
+  // Admin Routes — Program CRUD (CAJA_ROLES)
   // =========================================================================
 
   /**
@@ -162,7 +162,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -181,7 +181,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/admin/programs", async (request, reply) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
-    if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+    if (!(CAJA_ROLES as readonly string[]).includes(role)) {
       return reply.code(403).send({ error: "Acceso denegado" });
     }
 
@@ -201,7 +201,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/admin/programs/analytics", async (request, reply) => {
     await fastify.authenticate(request, reply);
     const { role } = request.user;
-    if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+    if (!(CAJA_ROLES as readonly string[]).includes(role)) {
       return reply.code(403).send({ error: "Acceso denegado" });
     }
 
@@ -247,7 +247,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -275,7 +275,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -300,7 +300,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
@@ -325,7 +325,7 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       await fastify.authenticate(request, reply);
       const { role } = request.user;
-      if (!(ADMIN_ROLES as readonly string[]).includes(role)) {
+      if (!(CAJA_ROLES as readonly string[]).includes(role)) {
         return reply.code(403).send({ error: "Acceso denegado" });
       }
 
