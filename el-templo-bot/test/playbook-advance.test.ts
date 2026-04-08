@@ -147,9 +147,9 @@ describe("advanceStageIfComplete", () => {
   // ── PB3 / PB4 / PB5 ────────────────────────────────────────────────────
 
   describe("PB3 / PB4 / PB5 (no advancement rules in v5.3)", () => {
-    it("PB3.E1 + any signals → null", () => {
+    it("PB3.E1A + any signals → null", () => {
       expect(
-        advanceStageIfComplete(at("PB3", "PB3.E1"), {
+        advanceStageIfComplete(at("PB3", "PB3.E1A"), {
           discoveryAnswered: true,
           userAccepted: true,
           priceObjection: true,

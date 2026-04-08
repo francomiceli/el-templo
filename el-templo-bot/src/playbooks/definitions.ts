@@ -156,13 +156,22 @@ const PB3: PlaybookDefinition = {
   id: "PB3",
   name: "Vencimiento de Membresía",
   trigger: "Faltan 7 días para el vencimiento de la membresía",
-  entryStageId: "PB3.E1",
+  entryStageId: "PB3.E1A",
   stages: [
     {
-      id: "PB3.E1",
-      label: "Etapa 1 — Recordatorio + Reconocimiento",
+      id: "PB3.E1A",
+      label: "Etapa 1A — Recordatorio + Reconocimiento (Variante A)",
       promptSection:
-        "¡[nombre]! Se te viene la renovación el [fecha_vencimiento]. Venís metiéndole bien 💪 ¿Querés que te renueve el mismo plan o vemos opciones?",
+        "Mensaje sugerido para abrir: '¡[nombre]! Se te viene la renovación el [fecha_vencimiento]. Venís metiéndole bien 💪 ¿Querés que te renueve el mismo plan o vemos opciones?'.\n\n*Cómo conducir este turno:* tono cálido, reconocé el esfuerzo del miembro, NO presiones. La renovación es una conversación, no una venta dura. Una sola pregunta por mensaje. Argentino (vos, querés, podés, te copa, dale).\n\n*Regla de defer (pregunta directa):* si el miembro pregunta directamente por upgrade, precio o beneficios, respondé breve y avanzá a la Etapa 2 (ancla de upgrade) en el siguiente turno. No empujes el upgrade en este primer turno — este mensaje es un recordatorio cálido, no una propuesta de cambio de plan.\n\n*Framing crítico — PRE-vencimiento:* este mensaje es SIEMPRE previo al vencimiento ('se te viene la renovación', 'antes del vencimiento', 'en unos días vence'). NUNCA uses lenguaje post-vencimiento ni reactivación — ese framing pertenece a PB4 (miembro inactivo). El miembro de PB3 todavía tiene plan activo, tu trabajo es avisarle con tiempo y facilitarle la renovación.",
+      completionCriteria:
+        "El miembro respondió con interés en renovar, dudas, o silencio.",
+      nextStageHints: { onCompletion: "PB3.E2" },
+    },
+    {
+      id: "PB3.E1B",
+      label: "Etapa 1B — Recordatorio + Reconocimiento (Variante B)",
+      promptSection:
+        "Mensaje sugerido para abrir: 'Ey [nombre], en unos días vence tu plan. Venís sumando bien — ¿lo renovamos igual o querés que te cuente alternativas?'.\n\n*Cómo conducir este turno:* tono cálido, reconocé el esfuerzo del miembro, NO presiones. La renovación es una conversación, no una venta dura. Una sola pregunta por mensaje. Argentino (vos, querés, podés, te copa, dale).\n\n*Regla de defer (pregunta directa):* si el miembro pregunta directamente por upgrade, precio o beneficios, respondé breve y avanzá a la Etapa 2 (ancla de upgrade) en el siguiente turno.\n\n*Framing crítico — PRE-vencimiento:* este mensaje es SIEMPRE previo al vencimiento. NUNCA uses lenguaje de reactivación ni de cuenta caducada — ese framing pertenece a PB4.",
       completionCriteria:
         "El miembro respondió con interés en renovar, dudas, o silencio.",
       nextStageHints: { onCompletion: "PB3.E2" },
@@ -171,7 +180,7 @@ const PB3: PlaybookDefinition = {
       id: "PB3.E2",
       label: "Etapa 2 — Ancla de Upgrade",
       promptSection:
-        "Te cuento que tenemos el plan [plan_superior] que incluye [beneficio diferencial]. Si renovás antes del [fecha], te lo dejo a [precio_especial]. ¿Qué te parece?",
+        "Mensaje sugerido: 'Te cuento que tenemos el plan [plan_superior] que incluye [beneficio diferencial]. Si renovás antes del [fecha], te lo dejo a [precio_especial]. ¿Qué te parece?'.\n\n*Cuándo usar este turno:* SOLO si el miembro mostró interés en explorar opciones en la Etapa 1. Si ya pidió renovar el mismo plan, saltá directo a la Etapa 3 (facilitar pago) — NUNCA empujes un upgrade a un miembro que ya decidió mantener su plan actual.\n\n*Manejo de objeciones:*\n\n- *Objeción precio* ('está caro', 'no me alcanza ahora'):\n  Respuesta: 'Re entendible. Mantenemos tu plan actual entonces, sin drama. Te paso los datos para el pago.' (transición directa a la Etapa 3).\n\n- *Objeción duda* ('lo pienso', 'dejame ver'):\n  Respuesta: 'Dale, tenés hasta [fecha]. Cualquier cosa me escribís. Si querés que renueve el actual nomás, también.'.\n\n- *Objeción comparación* ('qué incluye exactamente', 'cuál es la diferencia'):\n  Respuesta breve con el beneficio diferencial concreto y volvé a anclar el CTA del upgrade en el mismo mensaje.\n\n*Regla de cierre de turno:* una sola propuesta/pregunta por mensaje. No descuentes por urgencia falsa. No insistas si el miembro ya dijo que no.",
       completionCriteria:
         "El miembro aceptó upgrade, mantuvo plan actual, o pidió más info.",
       nextStageHints: { onCompletion: "PB3.E3" },
@@ -180,7 +189,7 @@ const PB3: PlaybookDefinition = {
       id: "PB3.E3",
       label: "Etapa 3 — Facilitar Pago",
       promptSection:
-        "¡Dale! Te paso los datos para el pago: [alias/info_pago]. Cualquier duda me avisás.",
+        "Mensaje sugerido: '¡Dale! Te paso los datos para el pago: [alias/info_pago]. Cualquier duda me avisás.'.\n\n*Regla de cierre:* después de pasar el alias, NO sigas vendiendo. Cerrá con calidez: 'Cuando confirmés me avisás y te dejo lista la renovación.'. No repitas el upgrade, no mandes mensajes adicionales, no empujes nada más en este turno.\n\n*Si el miembro no responde o no paga:* la lógica de follow-up vive en el scheduler de v5.4. En v5.3 Mica cierra el turno acá y espera el próximo mensaje del miembro. No generes follow-ups proactivos desde este prompt.",
       completionCriteria: "Pago confirmado o data entregada.",
     },
   ],

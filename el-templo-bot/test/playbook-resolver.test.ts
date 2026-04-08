@@ -54,10 +54,10 @@ describe("resolvePlaybook — fresh state mapping", () => {
     });
   });
 
-  it("expired_member -> PB3 entry stage (PB3.E1)", () => {
+  it("expired_member -> PB3 entry stage (PB3.E1A)", () => {
     expect(resolvePlaybook(contact("expired_member"), null)).toEqual({
       playbookId: "PB3",
-      stageId: "PB3.E1",
+      stageId: "PB3.E1A",
     });
   });
 
@@ -129,7 +129,7 @@ describe("resolvePlaybook — session reuse", () => {
       contact("expired_member"),
       session("PB1", "PB1.E2A"),
     );
-    expect(result).toEqual({ playbookId: "PB3", stageId: "PB3.E1" });
+    expect(result).toEqual({ playbookId: "PB3", stageId: "PB3.E1A" });
   });
 
   it("discards a session whose stageId does not exist in the registry", () => {
