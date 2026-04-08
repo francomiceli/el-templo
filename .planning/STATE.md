@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
-status: in_progress
-stopped_at: "Completed 85-01-PLAN.md (AVAT-01/AVAT-02/AVAT-05 — per-avatar Tone Guides + resolver Rule 2.5 skip-to-recommendation; bot suite 393/393 green)"
-last_updated: "2026-04-08T02:20:00Z"
-last_activity: 2026-04-08 -- Plan 85-01 complete (AVATAR_TONE_GUIDES with 4 distinct Spanish blocks injected for ALL playbooks when currentAvatar is set; resolver Rule 2.5 routes lead + known avatar + no in-flight stage -> PB1.E4 skipping discovery; resolver purity preserved; new avatar-tone-guide.test.ts 29 cases + 11 new resolver tests; handler.ts/definitions.ts/advance.ts untouched; full bot suite 393/393 green, up from 353; AVAT-01/AVAT-02/AVAT-05 closed)
+status: complete
+stopped_at: "Completed 85-02-PLAN.md (AVAT-03/AVAT-04 — v5.3 regression net: annotated QA lock + per-playbook flow coverage suite; bot suite 413/413 green). Phase 85 complete (2/2). v5.3 milestone COMPLETE."
+last_updated: "2026-04-08T02:37:00Z"
+last_activity: 2026-04-08 -- Plan 85-02 complete (AVAT-03/AVAT-04 closed; v5.3 milestone DONE). AVAT-03 locked via annotation on conversation-flows.test.ts 'QA questions answered correctly' describe block + 1 integrative it() rendering getSystemPrompt with PB1.E1A active + currentAvatar gym_crossover and asserting 11 canonical Q1..Q14 tokens still present — catches the failure mode where a future edit to system-prompt.ts accidentally suppresses base knowledge when a playbook section is injected; Q1..Q14 source unchanged. AVAT-04 locked via NEW playbook-flow-coverage.test.ts (~300 lines, 19 tests, 6 describe blocks): 5 per-PB blocks each with happy+objection paths walking advanceStageIfComplete AND asserting stageContent promptSection tokens (PB1 default E1A->E2A->E3->E4 + intermedio E1A->E2B + defer guard; PB2 E1A->E2->E3 + phase 84-03 priceObjection-alone-holds regression + 4-branch objection content; PB3 E1A->E2->E3 with PRE-vencimiento framing + userAccepted-only guard + upgrade anchor; PB4 E1A->E2 + terminal guard + TEAM-CORR-04 plan-conditional pause + request_human; PB5 E1->E2->E3 + sin-resistencia rule + userAccepted-only guard + TEAM-CORR-04 dual-guard + E3 escalation + buen termino) plus a cross-cutting block asserting intermedio tone keywords render alongside the 'Perfil detectado' header for every PB entry stage (seam between plan 85-01 tone guide and AVAT-04 coverage). AVATAR_KEYWORDS extracted to test/fixtures/avatar-keywords.ts (DRY — both avatar-tone-guide.test.ts and the new suite import from there). Purity invariant preserved: zero production-code imports of drizzle/prisma/mysql/redis/ioredis/webhook/vi.mock; runs in <200ms. Full bot suite 413/413 green (up from 393; +20 tests from this plan). Zero source code changes — pure test plan, git diff limited to el-templo-bot/test/**. Phase 85 complete 2/2. v5.3 milestone COMPLETE: 4 phases + 12 plans shipped.
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
-  percent: 92
+  completed_plans: 12
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 85 — Avatar Adaptation & Quality (IN PROGRESS, 1/? plans)
-Plan: 85-01 (complete) — Per-avatar Tone Guides + resolver skip-to-recommendation
-Status: Plan 85-01 complete (AVAT-01/AVAT-02/AVAT-05 closed). Next: remainder of phase 85 (full v5.3 regression, any end-to-end avatar flow tests).
-Progress: ██████████ 92% (2/4 phases, 11/12 plans)
-Last activity: 2026-04-08 — Plan 85-01 complete. Replaced phase 83-02 1-line "Perfil detectado" stub with `AVATAR_TONE_GUIDES: Record<AvatarProfile, string>` const in system-prompt.ts carrying 4 distinct Spanish tone blocks (cero_absoluto/gym_crossover/intermedio/retorna), each with a framing line, 3-4 tone rules, propuesta anchor (Foundation/Performance/Flex), and 2 unique keywords. Tone guide injection is unconditional on activePlaybook — renders for PB1-PB5, so returning leads who later enter PB2 (trial) still hear adapted tone (AVAT-01). Added resolver Rule 2.5 between session reuse (Rule 2) and fresh state mapping (Rule 3): when (clientState=lead && session.avatar set && no in-flight stage) the resolver routes to PB1.E4 (targeted recommendation), skipping E1A/E1B/E2A/E2B/E3 discovery questions the avatar has already answered (AVAT-02). Rule 2.5 uses a PLAYBOOKS.PB1.stages lookup over a bare literal so a future rename surfaces at test time. Resolver purity invariant preserved: zero new imports, zero IO, zero Date, zero console — verified by grep. New avatar-tone-guide.test.ts with 29 cases across 6 describe blocks (per-avatar keyword presence, 12 cross-avatar uniqueness pairs, PB1-PB5 applicability, absent-when-no-avatar, Perfil detectado header compat, 100x determinism). Extended playbook-resolver.test.ts with 11 new Rule 2.5 cases (4 avatars + 6 negative/edge + 1 cancellation-still-wins). handler.ts, definitions.ts, advance.ts empty diff vs pre-plan baseline — scope held. Full bot suite 393/393 green (was 353 baseline; +40 tests). AVAT-01/AVAT-02/AVAT-05 closed.
+Milestone: v5.3 Conversational Sales & Playbook Engine — **COMPLETE**
+Phase: 85 — Avatar Adaptation & Quality (COMPLETE, 2/2 plans)
+Plan: 85-02 (complete) — v5.3 quality lock (AVAT-03 annotation + AVAT-04 per-PB flow coverage suite)
+Status: v5.3 milestone complete. All 4 phases (82, 83, 84, 85) and all 12 plans shipped. Full bot suite 413/413 green. Next: v5.4 scope (Kero CRM — DB tables, schedulers, Meta templates, admin panel).
+Progress: ██████████ 100% (4/4 phases, 12/12 plans)
+Last activity: 2026-04-08 — Plan 85-02 complete. v5.3 milestone DONE. Replaced phase 83-02 1-line "Perfil detectado" stub with `AVATAR_TONE_GUIDES: Record<AvatarProfile, string>` const in system-prompt.ts carrying 4 distinct Spanish tone blocks (cero_absoluto/gym_crossover/intermedio/retorna), each with a framing line, 3-4 tone rules, propuesta anchor (Foundation/Performance/Flex), and 2 unique keywords. Tone guide injection is unconditional on activePlaybook — renders for PB1-PB5, so returning leads who later enter PB2 (trial) still hear adapted tone (AVAT-01). Added resolver Rule 2.5 between session reuse (Rule 2) and fresh state mapping (Rule 3): when (clientState=lead && session.avatar set && no in-flight stage) the resolver routes to PB1.E4 (targeted recommendation), skipping E1A/E1B/E2A/E2B/E3 discovery questions the avatar has already answered (AVAT-02). Rule 2.5 uses a PLAYBOOKS.PB1.stages lookup over a bare literal so a future rename surfaces at test time. Resolver purity invariant preserved: zero new imports, zero IO, zero Date, zero console — verified by grep. New avatar-tone-guide.test.ts with 29 cases across 6 describe blocks (per-avatar keyword presence, 12 cross-avatar uniqueness pairs, PB1-PB5 applicability, absent-when-no-avatar, Perfil detectado header compat, 100x determinism). Extended playbook-resolver.test.ts with 11 new Rule 2.5 cases (4 avatars + 6 negative/edge + 1 cancellation-still-wins). handler.ts, definitions.ts, advance.ts empty diff vs pre-plan baseline — scope held. Full bot suite 393/393 green (was 353 baseline; +40 tests). AVAT-01/AVAT-02/AVAT-05 closed.
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Last activity: 2026-04-08 — Plan 85-01 complete. Replaced phase 83-02 1-line "
 | Phase 84 P02 | 8min  | 2 tasks | 1 files  |
 | Phase 84 P03 | 15min | 3 tasks | 3 files  |
 | Phase 85 P01 | 18min | 3 tasks | 4 files  |
+| Phase 85 P02 | 12min | 2 tasks | 4 files  |
 
 ## Accumulated Context
 
@@ -79,6 +80,9 @@ Recent decisions affecting current work:
 - [Phase 85]: Tone guide injection is unconditional on activePlaybook — renders for PB1-PB5 so returning leads keep adapted tone in trial/expired/inactive, not just during discovery
 - [Phase 85]: Resolver Rule 2.5 (skip-to-recommendation) routes to PB1.E4 (not PB1.E5) so the recommendation itself is still delivered conversationally before the trial close; advance.ts E4→E5 transition from phase 83-03 handles the next turn
 - [Phase 85]: AVAT-05 keyword source-of-truth lives in the test file (not an exported const) — the test IS the contract the prompt prose must honor
+- [Phase 85-02]: AVAT-03 locked via annotation + 1 integrative engine-on test (not by rewriting Q1..Q14) — preserves the v5.2 acceptance contract as a historical reference while still proving the engine-on path doesn't regress the baseline
+- [Phase 85-02]: AVATAR_KEYWORDS extracted to test/fixtures/avatar-keywords.ts as a shared test fixture imported by both avatar-tone-guide.test.ts and playbook-flow-coverage.test.ts — DRY per CLAUDE.md engineering preferences
+- [Phase 85-02]: One combined playbook-flow-coverage.test.ts (not 5 per-PB files) — shared stageContent helper + describe blocks fit in ~300 lines with no duplication gain from splitting
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-08
-Stopped at: Completed 85-01-PLAN.md — AVATAR_TONE_GUIDES const + resolver Rule 2.5 skip-to-recommendation + avatar-tone-guide.test.ts (commits b5f16a72 + 09930ad6 + 293b7f31). handler.ts/definitions.ts/advance.ts untouched. Full bot suite 393/393 green (was 353). AVAT-01/AVAT-02/AVAT-05 closed.
-Resume file: .planning/phases/85-avatar-adaptation-and-quality/
-Next step: plan phase 85 remainder — full v5.3 end-to-end regression, any avatar-driven flow tests, and phase close-out.
+Stopped at: Completed 85-02-PLAN.md — AVAT-03 annotation lock + playbook-flow-coverage.test.ts per-PB flow suite + AVATAR_KEYWORDS fixture extraction (commits d3b7ed23 + 00444ab0). Phase 85 complete 2/2. v5.3 milestone COMPLETE (4 phases, 12 plans, bot suite 413/413 green). Zero source changes in this plan.
+Resume file: .planning/ROADMAP.md (next milestone: v5.4 Kero CRM)
+Next step: plan v5.4 scope — Kero CRM DB tables, schedulers, Meta templates, admin panel integration.

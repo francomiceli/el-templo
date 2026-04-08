@@ -9,7 +9,7 @@
 - ✅ **v5.0 WhatsApp AI Chatbot** — Phases 67-73 (shipped 2026-03-26)
 - ✅ **v5.1 Production Readiness & Business Data** — Phases 74-78 (shipped 2026-03-27)
 - ✅ **v5.2 Mica Persona & Bot Refinement** — Phases 79-81 (shipped 2026-04-06)
-- 🚧 **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (active)
+- ✅ **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (shipped 2026-04-08)
 
 ---
 
@@ -26,7 +26,7 @@
 - [x] **Phase 82: Playbook Engine** — Active-playbook + stage resolver, Redis persistence, prompt injection of only the active PB (completed 2026-04-07)
 - [x] **Phase 83: Discovery Mode for Leads (PB1)** — Warm intro, max 3 qualifying questions, profile detection, ONE targeted recommendation, soft trial offer (completed 2026-04-07)
 - [x] **Phase 84: State-Adaptive Playbook Prompts (PB2-PB5)** — Trial follow-up, vencimiento, inactivo, cancelacion playbook prompts with stages, objections, escalation (completed 2026-04-08)
-- [ ] **Phase 85: Avatar Adaptation & Quality** — Tone adapts to detected avatar, profile reuse across sessions, full QA + per-playbook flow tests
+- [x] **Phase 85: Avatar Adaptation & Quality** — Tone adapts to detected avatar, profile reuse across sessions, full QA + per-playbook flow tests (completed 2026-04-08)
 
 ### Execution Order
 
@@ -124,23 +124,23 @@ Plans:
 4. A new test suite covers each playbook (PB1-PB5) end-to-end with at least one happy path and one objection path per playbook.
 5. New tests assert that avatar-specific tone keywords appear in Mica's responses when the corresponding profile is set.
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 85-01-PLAN.md — Per-avatar tone guide in system-prompt.ts + resolver-level skip-to-recommendation when avatar is known + AVAT-05 keyword test suite
-- [ ] 85-02-PLAN.md — AVAT-03 v5.2 QA regression lock + per-playbook flow coverage suite (PB1-PB5 happy + objection paths)
+- [x] 85-01-PLAN.md — Per-avatar tone guide in system-prompt.ts + resolver-level skip-to-recommendation when avatar is known + AVAT-05 keyword test suite
+- [x] 85-02-PLAN.md — AVAT-03 v5.2 QA regression lock + per-playbook flow coverage suite (PB1-PB5 happy + objection paths)
 
 ---
 
 ## v5.3 Progress
 
-| Phase                                       | Plans Complete | Status      | Completed  |
-| ------------------------------------------- | -------------- | ----------- | ---------- |
-| 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
-| 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete    | 2026-04-07 |
-| 84. State-Adaptive Playbook Prompts PB2-PB5 | 3/3            | Complete    | 2026-04-08 |
-| 85. Avatar Adaptation & Quality             | 1/2            | In Progress |            |
+| Phase                                       | Plans Complete | Status   | Completed  |
+| ------------------------------------------- | -------------- | -------- | ---------- |
+| 82. Playbook Engine                         | 3/3            | Complete | 2026-04-07 |
+| 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete | 2026-04-07 |
+| 84. State-Adaptive Playbook Prompts PB2-PB5 | 3/3            | Complete | 2026-04-08 |
+| 85. Avatar Adaptation & Quality             | 2/2            | Complete | 2026-04-08 |
 
 **Coverage:** 24/24 v5.3 requirements mapped ✓
 
