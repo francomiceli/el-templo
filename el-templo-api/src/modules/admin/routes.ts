@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { AdminSessionService, SessionFilter } from "./service";
 import { AdminEditService } from "./edit-service";
@@ -772,6 +772,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       route?: string;
       effort?: string;
       hasVideo?: boolean;
+      equipment?: string;
     };
   }>("/exercises", { schema: listExercisesSchema }, async (request) => {
     const result = await ExerciseService.listExercises(
@@ -890,7 +891,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
   // PATCH /admin/exercises/:exerciseId - Update exercise fields
   fastify.patch<{
     Params: { exerciseId: number };
-    Body: { effort?: string; exercise?: string };
+    Body: { effort?: string; exercise?: string; equipment?: string | null };
   }>(
     "/exercises/:exerciseId",
     {
@@ -905,6 +906,17 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           properties: {
             effort: { type: "string", enum: ["CON", "EXC", "ISO", ""] },
             exercise: { type: "string", minLength: 1, maxLength: 255 },
+            equipment: {
+              type: ["string", "null"],
+              enum: [
+                "barras",
+                "anillas",
+                "paralelas",
+                "cajon",
+                "ninguno",
+                null,
+              ],
+            },
           },
         },
       },
@@ -919,6 +931,10 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (request.body.exercise !== undefined) {
         updates.exercise = request.body.exercise.trim();
+      }
+
+      if (request.body.equipment !== undefined) {
+        updates.equipment = request.body.equipment;
       }
 
       if (Object.keys(updates).length === 0) {
@@ -942,6 +958,57 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       request.log.info({ exerciseId, updates }, "Exercise updated");
 
       return updated;
+    },
+  );
+
+  // POST /admin/exercises/bulk-update-equipment - Bulk update equipment field
+  fastify.post<{
+    Body: { exerciseIds: number[]; equipment: string };
+  }>(
+    "/exercises/bulk-update-equipment",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["exerciseIds", "equipment"],
+          properties: {
+            exerciseIds: {
+              type: "array",
+              items: { type: "integer" },
+              minItems: 1,
+            },
+            equipment: {
+              type: "string",
+              enum: ["barras", "anillas", "paralelas", "cajon", "ninguno"],
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { exerciseIds, equipment } = request.body;
+
+      const result = await fastify.db
+        .update(schema.exercises)
+        .set({
+          equipment: equipment as
+            | "barras"
+            | "anillas"
+            | "paralelas"
+            | "cajon"
+            | "ninguno",
+        })
+        .where(inArray(schema.exercises.id, exerciseIds));
+
+      request.log.info(
+        { exerciseIds, equipment, affected: result[0].affectedRows },
+        "Bulk equipment update",
+      );
+
+      return {
+        success: true,
+        updatedCount: result[0].affectedRows,
+      };
     },
   );
 

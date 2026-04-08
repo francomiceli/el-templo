@@ -20,6 +20,7 @@ export interface ExerciseListFilters {
   route?: string;
   effort?: string;
   hasVideo?: boolean;
+  equipment?: string;
 }
 
 export interface ExerciseListItem {
@@ -32,6 +33,7 @@ export interface ExerciseListItem {
   difficulty: number;
   dificultadLineal: number;
   videoUrl: string | null;
+  equipment: string | null;
 }
 
 export interface ExerciseListResult {
@@ -86,6 +88,22 @@ export class ExerciseService {
       conditions.push(isNull(schema.exercises.videoUrl));
     }
 
+    if (filters.equipment === "empty") {
+      conditions.push(isNull(schema.exercises.equipment));
+    } else if (filters.equipment) {
+      conditions.push(
+        eq(
+          schema.exercises.equipment,
+          filters.equipment as
+            | "barras"
+            | "anillas"
+            | "paralelas"
+            | "cajon"
+            | "ninguno",
+        ),
+      );
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Count total matching exercises
@@ -109,6 +127,7 @@ export class ExerciseService {
         difficulty: schema.exercises.difficulty,
         dificultadLineal: schema.exercises.dificultadLineal,
         videoUrl: schema.exercises.videoUrl,
+        equipment: schema.exercises.equipment,
       })
       .from(schema.exercises)
       .where(whereClause)
@@ -121,6 +140,7 @@ export class ExerciseService {
         ...ex,
         level: ex.level ?? null,
         videoUrl: ex.videoUrl ?? null,
+        equipment: ex.equipment ?? null,
       })),
       total,
       page,
