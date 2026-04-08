@@ -204,7 +204,7 @@ export async function createStaffUser(
       passwordHash,
       firstName: data.firstName,
       lastName: data.lastName,
-      role: data.role as "coach" | "admin" | "owner" | "recepcionista",
+      role: data.role as "coach" | "admin" | "owner" | "gestion",
       branchId: data.branchId,
     })
     .$returningId();

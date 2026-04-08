@@ -293,13 +293,13 @@ describe("User Management Routes", () => {
   // =====================================================================
 
   describe("Role enforcement", () => {
-    it("recepcionista gets 403 on user management endpoints", async () => {
+    it("gestion gets 403 on user management endpoints", async () => {
       await createStaffUser(app, {
         email: "recep@test.com",
         password: "testpass123",
         firstName: "Test",
         lastName: "Recep",
-        role: "recepcionista",
+        role: "gestion",
         branchId: 1,
       });
       const recepToken = await getAuthToken(
