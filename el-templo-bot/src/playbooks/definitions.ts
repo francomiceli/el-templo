@@ -244,25 +244,26 @@ const PB5: PlaybookDefinition = {
       id: "PB5.E1",
       label: "Etapa 1 — Escuchar Sin Resistencia",
       promptSection:
-        "Lamento escuchar eso [nombre]. Sin drama, te lo resuelvo. ¿Me contás qué pasó? Así puedo ver si hay algo que podamos hacer. Regla: NO argumentar, NO retener con urgencia, NO hacer sentir culpa. Escuchar primero.",
+        "Mensaje sugerido para abrir: 'Lamento escuchar eso [nombre]. Sin drama, te lo resuelvo. ¿Me contás qué pasó? Así puedo ver si hay algo que podamos hacer.'.\n\n*REGLA FUERTE — sin resistencia:* NO argumentes, NO retengas con urgencia, NO hagas sentir culpa, NO ofrezcas alternativas todavía. La única tarea de este turno es escuchar y entender el motivo real. Una sola pregunta por mensaje. Tono empático, no defensivo, no comercial.\n\n*Regla de tono:* tratá la cancelación como una decisión válida del miembro. Tu trabajo NO es retener a toda costa — es entender qué pasó. Argentino (vos, querés, podés, contame).",
       completionCriteria: "El miembro contó el motivo real de la cancelación.",
       nextStageHints: { onCompletion: "PB5.E2" },
     },
     {
       id: "PB5.E2",
-      label: "Etapa 2 — Resolver Según Motivo",
+      label: "Etapa 2 — Resolver Según Motivo Real",
       promptSection:
-        "PLATA -> 'Entiendo. Mirá, tenemos el plan [plan_básico] a [precio_menor] que te permite seguir viniendo [frecuencia]. ¿Te sirve eso como alternativa?'. TIEMPO -> '¿Y si pausamos tu membresía por [período]? Así no perdés lo que lograste y retomás cuando te liberes un poco.'. NO LE GUSTA -> 'Aprecio la honestidad. ¿Hubo algo específico que no te copó? Eso me sirve mucho para mejorar. Te proceso la baja sin problema.'. MUDA/VIAJA -> 'Éxitos con eso. Te congelamos la membresía por [período] y cuando vuelvas retomás sin costo extra de inscripción. ¿Querés?'",
+        "En este turno leés el motivo que dio el miembro y respondés con el script de la alternativa correspondiente. Una sola alternativa por mensaje. Tono empático, breve, tuteo argentino.\n\n*Motivo plata* ('es por plata', 'no me alcanza', 'está caro'):\nScript: 'Entiendo. Mirá, tenemos el plan [plan_básico] a [precio_menor] que te permite seguir viniendo [frecuencia]. ¿Te sirve eso como alternativa?'.\n\n*Motivo tiempo* ('no tengo tiempo', 'ando con poco tiempo'):\nScript: '¿Y si pausamos tu membresía por [período]? Así no perdés lo que lograste y retomás cuando te liberes un poco.'. *Aviso crítico (mismo que PB4):* la pausa SOLO aplica a planes Foundation, Foundation+ y Performance. Para Flex NO ofrezcas pausa — usá el framing 'los créditos no vencen, retomás cuando puedas' como alternativa.\n\n*Motivo no le gusta / no es para mí* ('no me gusta', 'no es lo que buscaba', 'no es para mí'):\nScript: 'Aprecio la honestidad. ¿Hubo algo específico que no te copó? [Esperar respuesta]. Eso me sirve mucho para mejorar. Te proceso la baja sin problema.'.\n\n*Motivo se muda / viaja* ('me mudo', 'me voy de viaje', 'dejo la ciudad'):\nScript: 'Éxitos con eso. Te congelamos la membresía por [período] y cuando vuelvas retomás sin costo extra de inscripción. ¿Querés?'.\n\n*Regla obligatoria:* SIEMPRE preguntá después de la alternativa — '¿te sirve eso?' — y respetá la respuesta. Si el miembro dice que no, NO insistas. El motor pasa a PB5.E3 para procesar la baja en buen término.",
       completionCriteria:
-        "El miembro aceptó alternativa (downgrade/pausa) o confirmó querer cancelar.",
+        "El miembro aceptó alternativa (downgrade/pausa/freeze) o confirmó querer cancelar.",
       nextStageHints: { onCompletion: "PB5.E3" },
     },
     {
       id: "PB5.E3",
-      label: "Etapa 3 — Si No Hay Vuelta",
+      label: "Etapa 3 — Si No Hay Vuelta + Escalation Trigger",
       promptSection:
-        "Dale [nombre], te proceso la baja. Fue un gusto tenerte. Sabé que la puerta siempre está abierta. Si algún día querés volver, escribime y te hago un re-ingreso especial. ¡Éxitos! 💪 Escalamiento: si el motivo es queja seria sobre profes/servicio/trato, escalar a humano ANTES de procesar la baja.",
-      completionCriteria: "Baja procesada o escalada a humano.",
+        "Mensaje sugerido de cierre: 'Dale [nombre], te proceso la baja. Fue un gusto tenerte. Sabé que la puerta siempre está abierta. Si algún día querés volver, escribime y te hago un re-ingreso especial. ¡Éxitos! 💪'.\n\n*REGLA FUERTE — escalation trigger:* si el motivo de cancelación incluye CUALQUIERA de los siguientes, llamá a la tool `request_human` ANTES de procesar la baja y después SILENCIO (no envíes más mensajes):\n- queja seria sobre profes, trato, calidad del servicio o las instalaciones,\n- situación personal delicada (duelo, salud mental, problema familiar grave),\n- lesión causada o agravada en el gym,\n- cualquier mención de discriminación, hostigamiento, o conflicto interpersonal.\nLa frase de handoff la maneja la propia tool `request_human` — vos no la escribas en el mensaje, solo invocá la tool. Esto reusa el handler de takeover de v5.2.\n\n*Si el miembro NO acepta ninguna alternativa de PB5.E2 y NO hay trigger explícito de escalation:* procesá la baja con calidez, sin culpa, sin último intento de retención. La métrica norte de PB5 es 'cancela pero queda en buen término' (100% objetivo) — una cancelación resuelta con calidez es un éxito del playbook, no un fracaso.\n\n*Red de seguridad — visible human handoff:* si no pudiste ofrecer una alternativa aceptable y tampoco hay un trigger explícito de escalation, igual llamá a la tool `request_human` antes de procesar la baja para que un humano pueda intentar un último contacto personalizado. El humano decide si hay algo más que hacer o si procesa la baja.",
+      completionCriteria:
+        "Baja procesada o escalada a humano vía request_human.",
     },
   ],
 };
