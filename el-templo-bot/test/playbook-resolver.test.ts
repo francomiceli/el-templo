@@ -37,6 +37,19 @@ function session(
   };
 }
 
+function sessionWithAvatar(
+  activePlaybook: PlaybookSessionState["activePlaybook"],
+  currentStage: PlaybookSessionState["currentStage"],
+  avatar: PlaybookSessionState["avatar"],
+): PlaybookSessionState {
+  return {
+    activePlaybook,
+    currentStage,
+    avatar,
+    updatedAt: 1_700_000_000_000,
+  };
+}
+
 // ─── Fresh state -> playbook mapping ────────────────────────────────────────
 
 describe("resolvePlaybook — fresh state mapping", () => {
@@ -150,6 +163,98 @@ describe("resolvePlaybook — session reuse", () => {
   it("session with null fields is treated as no session", () => {
     const result = resolvePlaybook(contact("trial"), session(null, null));
     expect(result).toEqual({ playbookId: "PB2", stageId: "PB2.E1A" });
+  });
+});
+
+// ─── Rule 2.5 — phase 85 skip-to-recommendation (AVAT-02) ───────────────────
+
+describe("resolvePlaybook — Rule 2.5 phase 85 skip-to-recommendation", () => {
+  it("lead + session.avatar=cero_absoluto + no in-flight stage -> PB1.E4", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, "cero_absoluto"),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E4" });
+  });
+
+  it("lead + session.avatar=gym_crossover + no in-flight stage -> PB1.E4", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, "gym_crossover"),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E4" });
+  });
+
+  it("lead + session.avatar=intermedio + no in-flight stage -> PB1.E4", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, "intermedio"),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E4" });
+  });
+
+  it("lead + session.avatar=retorna + no in-flight stage -> PB1.E4", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, "retorna"),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E4" });
+  });
+
+  it("lead + session.avatar=undefined -> falls through to Rule 3 (PB1.E1A)", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, undefined),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E1A" });
+  });
+
+  it("lead + session.avatar=null -> falls through to Rule 3 (PB1.E1A)", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar(null, null, null),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E1A" });
+  });
+
+  it("lead + in-flight PB1.E2B + avatar=intermedio -> Rule 2 still wins (returns PB1.E2B, not PB1.E4)", () => {
+    const result = resolvePlaybook(
+      contact("lead"),
+      sessionWithAvatar("PB1", "PB1.E2B", "intermedio"),
+    );
+    expect(result).toEqual({ playbookId: "PB1", stageId: "PB1.E2B" });
+  });
+
+  it("trial + session.avatar=gym_crossover -> Rule 2.5 does NOT fire (returns PB2 entry)", () => {
+    const result = resolvePlaybook(
+      contact("trial"),
+      sessionWithAvatar(null, null, "gym_crossover"),
+    );
+    expect(result).toEqual({ playbookId: "PB2", stageId: "PB2.E1A" });
+  });
+
+  it("active_member + session.avatar=intermedio -> Rule 2.5 does NOT fire (returns {null, null})", () => {
+    const result = resolvePlaybook(
+      contact("active_member"),
+      sessionWithAvatar(null, null, "intermedio"),
+    );
+    expect(result).toEqual({ playbookId: null, stageId: null });
+  });
+
+  it("expired_member + session.avatar=retorna -> Rule 2.5 does NOT fire (returns PB3 entry)", () => {
+    const result = resolvePlaybook(
+      contact("expired_member"),
+      sessionWithAvatar(null, null, "retorna"),
+    );
+    expect(result).toEqual({ playbookId: "PB3", stageId: "PB3.E1A" });
+  });
+
+  it("lead + cancellationIntent + session.avatar set -> Rule 1 still wins (PB5)", () => {
+    const result = resolvePlaybook(
+      contact("lead", true),
+      sessionWithAvatar(null, null, "cero_absoluto"),
+    );
+    expect(result).toEqual({ playbookId: "PB5", stageId: "PB5.E1" });
   });
 });
 
