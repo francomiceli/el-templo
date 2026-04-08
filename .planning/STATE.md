@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 84-02-PLAN.md (PB4 + PB5 promptSection enrichment with plan-conditional pause and request_human escalation triggers)"
-last_updated: "2026-04-08T02:30:00Z"
-last_activity: 2026-04-08 -- Plan 84-02 complete (PB4 Miembro Inactivo + PB5 Cancelación stages enriched verbatim from kero-playbooks-completos.md; PB4.E1A/E1B empathetic A/B with anti-pressure rule, PB4.E2 with 4 objection branches (tiempo/salud/emocional/económica) + TEAM-CORR-04 plan-conditional pause + explicit escalation trigger list invoking request_human; PB5.E1 sin-resistencia, PB5.E2 with 4 motivo branches and duplicated pause-conditional aviso for Flex, PB5.E3 explicit escalation triggers + visible human handoff safety net; handler.ts and system-prompt.ts untouched since 84-01; full bot suite 299/299 green; PBPR-03 + PBPR-04 + PBPR-06 closed)
+stopped_at: "Completed 84-03-PLAN.md (PB3/PB4/PB5 transitions + PB2.E2 broadened trigger + cross-state isolation regression suite; PBPR-05 closed; phase 84 complete)"
+last_updated: "2026-04-08T03:00:00Z"
+last_activity: 2026-04-08 -- Plan 84-03 complete (advance.ts wired PB3/PB4/PB5 stage transitions and broadened PB2.E2 → PB2.E3 from priceObjection-only to discoveryAnswered so all 4 PB2 objection branches advance; advance.ts purity invariant preserved; playbook-advance.test.ts +17 new tests across 3 new describe blocks; new pb2-pb5-isolation.test.ts with pre-flight signature audit + 5×5 cross-state matrix + escalation reuse + v5.3 scope guards including TEAM-CORR-04 dual-guard for PB4.E2 + PB5.E2; full bot suite 353/353 green; PBPR-05 closed; phase 84 complete 3/3)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 12
-  completed_plans: 9
-  percent: 75
+  completed_plans: 10
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 84 — State-Adaptive Playbook Prompts (in progress, 2/3 plans)
-Plan: 84-02 (complete) — PB4 + PB5 promptSection enrichment
-Status: Phase 84 in progress — 2/3 plans done. Next: 84-03 (isolation + transition + dual-guard regression tests)
-Progress: ████████░░ 75% (1/4 phases, 9/12 plans)
-Last activity: 2026-04-08 — Plan 84-02 complete. PB4 (Miembro Inactivo) stages enriched with A/B empathetic check-ins + 4 objection branches (tiempo, salud/lesión, emocional, económica) + TEAM-CORR-04 plan-conditional pause (Foundation/Foundation+/Performance only; Flex uses 'los créditos no vencen') + explicit escalation trigger list invoking request_human. PB5 (Cancelación) rewritten with sin-resistencia E1, 4 motivo branches in E2 (plata/tiempo/no le gusta/se muda) with duplicated pause-conditional aviso, and E3 with explicit escalation triggers + visible human handoff safety net. Scripts verbatim from contexto/kero-playbooks-completos.md. handler.ts and system-prompt.ts byte-identical to 84-01 — request_human tool reused without modification. Full bot suite 299/299 green. PBPR-03 + PBPR-04 + PBPR-06 closed.
+Phase: 84 — State-Adaptive Playbook Prompts (COMPLETE, 3/3 plans)
+Plan: 84-03 (complete) — Advance transitions + cross-state isolation regression suite
+Status: Phase 84 complete. Next: phase 85 (avatar polish + full v5.3 regression).
+Progress: █████████░ 83% (2/4 phases, 10/12 plans)
+Last activity: 2026-04-08 — Plan 84-03 complete. advance.ts wired PB3 (E1A/E1B→E2, E2→E3), PB4 (E1A/E1B→E2), PB5 (E1→E2, E2→E3) stage transitions and broadened PB2.E2 → PB2.E3 from priceObjection-only to discoveryAnswered so all four PB2 objection branches (precio, tiempo, identidad, difusa) actually advance to soft-urgency. advance.ts purity invariant preserved (zero IO/Redis/Date/console). playbook-advance.test.ts +17 new tests across 3 new describe blocks (PB3/PB4/PB5) plus regression asserting priceObjection alone no longer advances PB2.E2. New pb2-pb5-isolation.test.ts (38 tests) with pre-flight signature audit (catches mis-located signatures at authoring time — already paid for itself by catching a case mismatch on first run), 5×5 cross-state isolation matrix proving each playbook's distinctive content stays isolated, escalation reuse for PB4.E2/PB5.E3, base-prompt canonical handoff phrase asserted at system-prompt.ts:94, v5.3 scope guards including TEAM-CORR-04 dual-guard naming Foundation/Foundation+/Performance/Flex in BOTH PB4.E2 AND PB5.E2. handler.ts + system-prompt.ts UNTOUCHED across the entire phase (empty diff vs 4854f30f). Full bot suite 353/353 green (299 baseline + 54 new). PBPR-05 closed.
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Last activity: 2026-04-08 — Plan 84-02 complete. PB4 (Miembro Inactivo) stages
 | Phase 83 P04 | 20min | 1 tasks | 1 files  |
 | Phase 84 P01 | 12min | 2 tasks | 3 files  |
 | Phase 84 P02 | 8min  | 2 tasks | 1 files  |
+| Phase 84 P03 | 15min | 3 tasks | 3 files  |
 
 ## Accumulated Context
 

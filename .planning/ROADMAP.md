@@ -25,7 +25,7 @@
 
 - [x] **Phase 82: Playbook Engine** — Active-playbook + stage resolver, Redis persistence, prompt injection of only the active PB (completed 2026-04-07)
 - [x] **Phase 83: Discovery Mode for Leads (PB1)** — Warm intro, max 3 qualifying questions, profile detection, ONE targeted recommendation, soft trial offer (completed 2026-04-07)
-- [ ] **Phase 84: State-Adaptive Playbook Prompts (PB2-PB5)** — Trial follow-up, vencimiento, inactivo, cancelacion playbook prompts with stages, objections, escalation
+- [x] **Phase 84: State-Adaptive Playbook Prompts (PB2-PB5)** — Trial follow-up, vencimiento, inactivo, cancelacion playbook prompts with stages, objections, escalation (completed 2026-04-08)
 - [ ] **Phase 85: Avatar Adaptation & Quality** — Tone adapts to detected avatar, profile reuse across sessions, full QA + per-playbook flow tests
 
 ### Execution Order
@@ -101,7 +101,7 @@ Plans:
 5. Objection-handling scripts for each playbook only appear in the rendered prompt when that playbook is active (verified by inspecting prompt output across all 5 states).
 6. Each playbook defines explicit escalation triggers, and when a trigger fires Mica produces the v5.2 escalation phrase and the conversation is flagged for human takeover.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -134,7 +134,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
 | 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete    | 2026-04-07 |
-| 84. State-Adaptive Playbook Prompts PB2-PB5 | 2/3            | In Progress |            |
+| 84. State-Adaptive Playbook Prompts PB2-PB5 | 3/3            | Complete    | 2026-04-08 |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
 **Coverage:** 24/24 v5.3 requirements mapped ✓
