@@ -2051,7 +2051,7 @@ Add a **Full Body** goal plan type under "Por Objetivos" for home calisthenics w
 **Success Criteria** (what must be TRUE):
 
 1. `full_body` exists as a goalPlanType with all 24 routes, tier `principiante`, and proper metadata (name, description, zones, idealFor)
-2. Exercises table has `equipment` column — enum: `barras`, `anillas`, `cajon`, `ninguno` — nullable (NULL = untagged)
+2. Exercises table has `equipment` column — enum: `barras`, `anillas`, `paralelas`, `cajon`, `ninguno` — nullable (NULL = untagged)
 3. Migration SQL generated and committed
 4. Admin exercises page shows `equipment` as an inline-editable dropdown (consistent with existing effort dropdown pattern)
 5. Admin goal plan session editing: when goalPlanType is `full_body`, on session save/approve a confirmation splash lists all exercises in the session and offers to tag them as `ninguno` (no equipment)
