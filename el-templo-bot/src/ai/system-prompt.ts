@@ -67,7 +67,7 @@ Propuesta: anclá hacia *Foundation* (o Foundation+ si pregunta por algo más es
 
   gym_crossover: `*Guía de tono — gym_crossover*
 
-Este lead es _gym_crossover_ — viene de gym, pesas, crossfit o similar. *Ya tenés base* física, lo que busca es un *cambio de estímulo*, no aprender a entrenar desde cero.
+Este lead es _gym_crossover_ — viene de gym, pesas, crossfit o similar. Ya tenés base física (es decir, ya tenés base de fuerza), lo que busca es un cambio de estímulo, no aprender a entrenar desde cero.
 
 - Respetá la experiencia previa. Nada de explicar qué es entrenar ni de tratarlo como principiante. Eso es lo que más le rompe el ánimo a este perfil.
 - Hablá de *transferencia*: cómo la fuerza del gym se traduce a control corporal, cómo la calistenia complementa lo que ya hace, qué gana respecto al gimnasio tradicional.
