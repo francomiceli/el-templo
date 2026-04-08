@@ -186,7 +186,7 @@ describe("Goal Plan Routes", () => {
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body).toHaveProperty("goalPlans");
-      expect(body.goalPlans).toHaveLength(8);
+      expect(body.goalPlans).toHaveLength(9);
 
       // Verify structure of each goal plan
       for (const goalPlan of body.goalPlans) {
