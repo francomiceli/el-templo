@@ -224,6 +224,7 @@ export const generateGoalPlanSessionsSchema = {
           "traccion",
           "planche",
           "front_lever",
+          "full_body",
         ],
       },
       days: {

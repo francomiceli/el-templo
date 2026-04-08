@@ -6,7 +6,8 @@ export type GoalPlanType =
   | "empuje"
   | "traccion"
   | "planche"
-  | "front_lever";
+  | "front_lever"
+  | "full_body";
 
 export type GoalPlanTier = "principiante" | "intermedio" | "avanzado";
 

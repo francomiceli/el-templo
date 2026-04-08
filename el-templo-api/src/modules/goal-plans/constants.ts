@@ -74,6 +74,34 @@ export const GOAL_PLAN_ROUTE_MAP: Record<GoalPlanType, string[]> = {
   // Avanzado tier
   planche: ["PL", "PLPU", "OAPU", "PHS"], // Planche + complementary push
   front_lever: ["FL", "FLR", "OAR"], // Front lever + horizontal pull
+
+  // Principiante tier — Full Body (all routes)
+  full_body: [
+    "HS",
+    "HSPU",
+    "PHS",
+    "OAPU",
+    "PLPU",
+    "MU",
+    "OAP",
+    "OAR",
+    "BL",
+    "HD/ID",
+    "MN/RP",
+    "FL",
+    "FLR",
+    "TTB",
+    "SU",
+    "SS",
+    "PS",
+    "QC",
+    "DS",
+    "NC",
+    "HT",
+    "L",
+    "PL",
+    "HR",
+  ],
 };
 
 export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
@@ -85,6 +113,7 @@ export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   "traccion",
   "planche",
   "front_lever",
+  "full_body",
 ];
 
 export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
@@ -96,6 +125,7 @@ export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
   traccion: "intermedio",
   planche: "avanzado",
   front_lever: "avanzado",
+  full_body: "principiante",
 };
 
 /**
@@ -183,5 +213,15 @@ export const GOAL_PLAN_METADATA: GoalPlanMetadata[] = [
     zones: ["Espalda", "Core", "Dorsales"],
     idealFor:
       "Atletas avanzados con objetivo tecnico claro en front lever. Requiere base solida en traccion.",
+  },
+  {
+    type: "full_body",
+    name: "Full Body",
+    tier: "principiante",
+    description:
+      "Entrenamiento integral de cuerpo completo utilizando todas las rutas disponibles. Ideal para calistenia en casa sin equipamiento. Combina empuje, traccion, piernas y core en cada sesion.",
+    zones: ["Tren Superior", "Tren Inferior", "Core", "Caderas"],
+    idealFor:
+      "Principiantes que buscan un entrenamiento completo de calistenia en casa sin necesidad de equipamiento.",
   },
 ];
