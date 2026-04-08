@@ -8,6 +8,7 @@ export interface Exercise {
   difficulty: number;
   dificultadLineal: number;
   videoUrl: string | null; // full assembled URL (from API)
+  equipment: string | null; // barras, anillas, paralelas, cajon, ninguno, or null (untagged)
 }
 
 export interface ExerciseListResponse {
@@ -39,4 +40,5 @@ export interface ExerciseFilters {
   route: string;
   effort: string;
   hasVideo: boolean | null; // null = all, true = with video, false = without
+  equipment: string; // filter by equipment value
 }

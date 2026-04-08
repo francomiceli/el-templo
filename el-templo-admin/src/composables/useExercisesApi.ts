@@ -61,6 +61,7 @@ export function useExercisesApi() {
       if (filters.route) params.route = filters.route;
       if (filters.effort) params.effort = filters.effort;
       if (filters.hasVideo != null) params.hasVideo = filters.hasVideo;
+      if (filters.equipment) params.equipment = filters.equipment;
 
       const { data } = await api.get<ExerciseListResponse>('/admin/exercises', {
         params,
@@ -97,7 +98,7 @@ export function useExercisesApi() {
 
   async function updateExercise(
     exerciseId: number,
-    fields: { effort?: string; exercise?: string }
+    fields: { effort?: string; exercise?: string; equipment?: string | null }
   ): Promise<Exercise> {
     try {
       const { data } = await api.patch<Exercise>(`/admin/exercises/${exerciseId}`, fields);
@@ -122,6 +123,28 @@ export function useExercisesApi() {
     }
   }
 
+  async function bulkUpdateEquipment(
+    exerciseIds: number[],
+    equipment: string,
+  ): Promise<{ updatedCount: number }> {
+    try {
+      const { data } = await api.post<{ success: boolean; updatedCount: number }>(
+        '/admin/exercises/bulk-update-equipment',
+        { exerciseIds, equipment },
+      );
+      allExercisesCache = null; // invalidate cache
+      return { updatedCount: data.updatedCount };
+    } catch (err: unknown) {
+      const message = extractError(err, 'Error actualizando equipamiento');
+      log.error('Failed to bulk update equipment', {
+        exerciseIds,
+        error: message,
+      });
+      Notify.create({ type: 'negative', message });
+      throw err;
+    }
+  }
+
   return {
     loading,
     error,
@@ -129,6 +152,7 @@ export function useExercisesApi() {
     fetchAllExercises,
     createExercise,
     updateExercise,
+    bulkUpdateEquipment,
     deleteVideo,
   };
 }

@@ -6,7 +6,8 @@ export type GoalPlanType =
   | 'empuje'
   | 'traccion'
   | 'planche'
-  | 'front_lever';
+  | 'front_lever'
+  | 'full_body';
 
 export type GoalPlanTier = 'principiante' | 'intermedio' | 'avanzado';
 
@@ -81,6 +82,7 @@ export const ALL_GOAL_PLAN_TYPES: GoalPlanType[] = [
   'traccion',
   'planche',
   'front_lever',
+  'full_body',
 ];
 
 export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
@@ -92,6 +94,7 @@ export const GOAL_PLAN_TIER_MAP: Record<GoalPlanType, GoalPlanTier> = {
   traccion: 'intermedio',
   planche: 'avanzado',
   front_lever: 'avanzado',
+  full_body: 'principiante',
 };
 
 export const GOAL_PLAN_TYPE_LABELS: Record<GoalPlanType, string> = {
@@ -103,6 +106,7 @@ export const GOAL_PLAN_TYPE_LABELS: Record<GoalPlanType, string> = {
   traccion: 'Traccion',
   planche: 'Planche',
   front_lever: 'Front Lever',
+  full_body: 'Full Body',
 };
 
 export const GOAL_PLAN_TIER_LABELS: Record<GoalPlanTier, string> = {
@@ -128,6 +132,7 @@ export const GOAL_PLAN_TYPE_OPTIONS = [
   { label: 'Traccion', value: 'traccion' },
   { label: 'Planche', value: 'planche' },
   { label: 'Front Lever', value: 'front_lever' },
+  { label: 'Full Body', value: 'full_body' },
 ];
 
 /** Badge colors for goalPlanType values (used in ProgramasPage and ProgramWizardDialog) */
@@ -140,4 +145,5 @@ export const GOAL_PLAN_TYPE_COLORS: Record<string, string> = {
   traccion: 'orange',
   planche: 'pink',
   front_lever: 'deep-purple',
+  full_body: 'green-7',
 };
