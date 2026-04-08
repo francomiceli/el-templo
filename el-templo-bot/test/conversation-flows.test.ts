@@ -18,6 +18,15 @@ import { getSystemPrompt } from "../src/ai/system-prompt.js";
 // ─── TEST-01: 14 QA Questions ──────────────────────────────────────────────────
 
 describe("QA questions answered correctly", () => {
+  // AVAT-03 lock (phase 85): these 14 questions verify the v5.2 baseline
+  // still answers correctly under the v5.3 playbook engine. Tests render
+  // getSystemPrompt() with NO playbook context (no activePlaybook, no
+  // currentStage, no currentAvatar) so they exercise the base prompt
+  // exactly as v5.2 did. If any of Q1..Q14 ever regress, the v5.3 base
+  // prompt has drifted from the v5.2 contract — fix at the source, not
+  // in the test.
+  //
+  // Re-verified: phase 85-02
   const knowledge = getBusinessKnowledge();
   const prompt = getSystemPrompt();
 
@@ -129,6 +138,33 @@ describe("QA questions answered correctly", () => {
   it("Q14: Como se si mi membresia esta activa o cuando vence — app help section", () => {
     expect(knowledge).toContain("Ver membresia");
     expect(knowledge).toContain("Mis servicios/membresias");
+  });
+
+  it("AVAT-03: Q1-Q14 baseline still passes when engine renders an active playbook section", () => {
+    // Render the prompt with PB1.E1A active AND a known avatar — the most
+    // "loaded" possible prompt — and assert that the canonical business
+    // knowledge tokens from Q1..Q14 are still present. This catches the
+    // failure mode where a future edit to system-prompt.ts accidentally
+    // suppresses the base knowledge when a playbook is active.
+    const loadedPrompt = getSystemPrompt({
+      clientState: "lead",
+      activePlaybook: "PB1",
+      currentStage: "PB1.E1A",
+      currentAvatar: "gym_crossover",
+    });
+    // Sample of canonical Q1..Q14 tokens (one per question, picked from
+    // the existing assertions above for traceability).
+    expect(loadedPrompt).toContain("Constitucion"); // Q1
+    expect(loadedPrompt).toMatch(/renovar|renovacion/i); // Q2
+    expect(loadedPrompt).toMatch(/[Ll]unes a viernes/); // Q3
+    expect(loadedPrompt).toMatch(/[Ee]fectivo/); // Q4
+    expect(loadedPrompt).toContain("Boarding Pass"); // Q5/Q12
+    expect(loadedPrompt).toContain("Hasta 6 por semana"); // Q6
+    expect(loadedPrompt).toMatch(/60 min/); // Q7
+    expect(loadedPrompt).toContain("Performance"); // Q8/Q11
+    expect(loadedPrompt).toContain("ROM"); // Q9
+    expect(loadedPrompt).toMatch(/congelamiento/i); // Q11
+    expect(loadedPrompt).toContain("Ver membresia"); // Q14
   });
 });
 
