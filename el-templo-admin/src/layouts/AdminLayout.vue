@@ -190,8 +190,8 @@ const isCoachRole = computed(() => ['coach', 'owner'].includes(userRole.value));
 // admin, owner can see admin pages (planes, analiticas)
 const isAdminRole = computed(() => ['admin', 'owner'].includes(userRole.value));
 
-// recepcionista, admin, owner can see caja and reportes
-const isCajaRole = computed(() => ['recepcionista', 'admin', 'owner'].includes(userRole.value));
+// gestion, admin, owner can see caja and reportes
+const isCajaRole = computed(() => ['gestion', 'admin', 'owner'].includes(userRole.value));
 
 // owner only for content pages, franquicias, usuarios
 const isOwnerRole = computed(() => userRole.value === 'owner');

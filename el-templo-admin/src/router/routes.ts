@@ -41,36 +41,36 @@ const routes: RouteRecordRaw[] = [
         path: 'alumnos',
         component: () => import('pages/AlumnosPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
         },
       },
       {
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
         },
       },
       {
         path: 'planes',
         component: () => import('pages/PlanesPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'programas',
         component: () => import('pages/ProgramasPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'caja',
         component: () => import('pages/CajaPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'horarios',
         component: () => import('pages/HorariosPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'recepcionista'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
         },
       },
       {
@@ -81,7 +81,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'reportes',
         component: () => import('pages/ReportesPage.vue'),
-        meta: { allowedRoles: ['recepcionista', 'admin', 'owner'] as AdminRole[] },
+        meta: { allowedRoles: ['gestion', 'admin', 'owner'] as AdminRole[] },
       },
       {
         path: 'blog',

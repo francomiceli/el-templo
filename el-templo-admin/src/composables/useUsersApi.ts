@@ -18,7 +18,7 @@ export interface CreateStaffInput {
   lastName: string;
   email: string;
   password: string;
-  role: 'coach' | 'admin' | 'owner' | 'recepcionista';
+  role: 'coach' | 'admin' | 'owner' | 'gestion';
   branchId: number;
 }
 
@@ -27,7 +27,7 @@ export interface UpdateStaffInput {
   lastName?: string;
   email?: string;
   password?: string;
-  role?: 'coach' | 'admin' | 'owner' | 'recepcionista';
+  role?: 'coach' | 'admin' | 'owner' | 'gestion';
   branchId?: number;
 }
 

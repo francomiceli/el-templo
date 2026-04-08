@@ -4,7 +4,7 @@
  * Admin endpoints for micro-program CRUD, enrollment lifecycle management.
  * Member endpoints for program catalog and enrollment progress.
  *
- * Admin CRUD: CAJA_ROLES (recepcionista, admin, owner)
+ * Admin CRUD: CAJA_ROLES (gestion, admin, owner)
  * Enrollment management: COACH_ROLES (coach, admin, owner) per D-35
  * Member: authenticated members
  */

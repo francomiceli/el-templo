@@ -5,7 +5,7 @@
  * and inactive members reports. Each report has a data endpoint and
  * an Excel export endpoint.
  *
- * All endpoints require recepcionista/admin/owner role.
+ * All endpoints require gestion/admin/owner role.
  */
 
 import { FastifyPluginAsync } from "fastify";
@@ -35,7 +35,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
 
   /**
-   * Guard: require recepcionista/admin/owner role on all routes.
+   * Guard: require gestion/admin/owner role on all routes.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);

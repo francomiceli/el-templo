@@ -2,7 +2,7 @@
  * User Management Service
  *
  * Business logic for staff user CRUD (create, list, update, toggle active).
- * Owner-only operations for managing coach, admin, owner, and recepcionista users.
+ * Owner-only operations for managing coach, admin, owner, and gestion users.
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";

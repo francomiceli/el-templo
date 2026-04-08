@@ -16,7 +16,7 @@ export const roleEnum = mysqlEnum("role", [
   "coach",
   "admin",
   "owner",
-  "recepcionista",
+  "gestion",
 ]);
 export const levelEnum = mysqlEnum("level", [
   "alfa",
@@ -25,7 +25,12 @@ export const levelEnum = mysqlEnum("level", [
   "omega",
   "spartan",
 ]);
-export const genderEnum = mysqlEnum("gender", ["male", "female", "other", "unspecified"]);
+export const genderEnum = mysqlEnum("gender", [
+  "male",
+  "female",
+  "other",
+  "unspecified",
+]);
 export const documentTypeEnum = mysqlEnum("document_type", [
   "DNI",
   "Pasaporte",

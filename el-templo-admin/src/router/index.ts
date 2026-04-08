@@ -44,7 +44,7 @@ export default defineRouter(function () {
         owner: '/sessions',
         admin: '/alumnos',
         coach: '/sessions',
-        recepcionista: '/alumnos',
+        gestion: '/alumnos',
       };
       return defaultPages[role] || '/sessions';
     }

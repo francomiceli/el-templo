@@ -4,7 +4,7 @@
  * Admin endpoints for member CRUD, profile management,
  * DNI uniqueness checks, and internal notes.
  *
- * All routes require authentication and coach/admin/owner/recepcionista role.
+ * All routes require authentication and coach/admin/owner/gestion role.
  */
 
 import { FastifyPluginAsync } from "fastify";

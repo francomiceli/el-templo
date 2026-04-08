@@ -4,7 +4,7 @@
  * Admin endpoints for payment recording, voiding, member payment
  * history, global payment list, and financial summary.
  *
- * All routes require authentication and coach/admin/owner/recepcionista role.
+ * All routes require authentication and coach/admin/owner/gestion role.
  */
 
 import { FastifyPluginAsync } from "fastify";
