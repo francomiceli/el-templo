@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3
 milestone_name: Conversational Sales & Playbook Engine
 status: in_progress
-stopped_at: "Completed 83-04-PLAN.md (PB1 discovery flow conversation tests; phase 83 complete)"
-last_updated: "2026-04-07T23:15:00Z"
-last_activity: 2026-04-07 -- Plan 83-04 complete (19 pure Vitest cases in pb1-discovery-flow.test.ts, one describe per DISC-01..07, stage-scoped content assertions via stageContent() helper, defer+insistence rules asserted across all 5 discovery stages, full bot suite 299/299 green; phase 83 fully closed, all 7 DISC requirements covered at prompt+engine+test layers)
+stopped_at: "Completed 84-01-PLAN.md (PB2 + PB3 promptSection enrichment with A/B variants and inline objection scripts)"
+last_updated: "2026-04-08T01:10:00Z"
+last_activity: 2026-04-08 -- Plan 84-01 complete (PB2 Trial No Convertido + PB3 Vencimiento pre-expiry stages enriched verbatim from kero-playbooks-completos.md; PB2.E1A/E1B check-in A/B, PB2.E2 with 4 inline objection branches, PB2.E3 soft-urgency; PB3.E1A/E1B new pre-expiry reminders A/B, PB3.E2 upgrade anchor with 3 objection branches, PB3.E3 facilitate pago; entryStageId PB3 rebased to PB3.E1A; full bot suite 299/299 green; zero grupo-nuevo/cohorte/post-expiry leakage; PBPR-01 + PBPR-02 closed)
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 12
-  completed_plans: 7
-  percent: 58
+  completed_plans: 8
+  percent: 67
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Milestone: v5.3 Conversational Sales & Playbook Engine
-Phase: 83 — Discovery Mode for Leads (COMPLETE)
-Plan: 83-04 (complete) — PB1 discovery flow conversation tests
-Status: Phase 83 COMPLETE — 4/4 plans done. Next: phase 84 (PB2-PB5 state-driven prompts)
-Progress: ██████░░░░ 58% (1/4 phases, 7/12 plans)
-Last activity: 2026-04-07 — Plan 83-04 complete (19 pure Vitest cases in el-templo-bot/test/pb1-discovery-flow.test.ts, exactly one describe block per DISC-01..07, stage-scoped content assertions via a stageContent() helper that reads PLAYBOOKS.PB1.stages directly so business knowledge in the base prompt does not poison negative checks, defer+insistence rules asserted across all 5 discovery stages, profile-tag parser round-trips all 4 avatars, intermedio→E2B branching locked in, full bot suite 299/299 green up from 280, phase 83 fully closed)
+Phase: 84 — State-Adaptive Playbook Prompts (in progress, 1/3 plans)
+Plan: 84-01 (complete) — PB2 + PB3 promptSection enrichment
+Status: Phase 84 in progress — 1/3 plans done. Next: 84-02 (PB4/PB5 enrichment) then 84-03 (isolation + transition tests)
+Progress: ███████░░░ 67% (1/4 phases, 8/12 plans)
+Last activity: 2026-04-08 — Plan 84-01 complete. PB2 (Trial No Convertido) stages enriched with A/B check-ins + 4 inline objection scripts + soft-urgency proposal; PB3 (Vencimiento pre-expiry) rebased with A/B warm reminders (entryStageId PB3.E1 → PB3.E1A), upgrade anchor with 3 objection branches, payment facilitation. Scripts transcribed verbatim from contexto/kero-playbooks-completos.md. TEAM-CORR-06 enforced (zero "grupo nuevo"/"cohorte"), pre-expiry framing enforced in PB3 (zero "se te venció"). 2 test files updated (playbook-resolver, playbook-advance) for the PB3.E1A rename. Full bot suite 299/299 green. PBPR-01 + PBPR-02 closed.
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Last activity: 2026-04-07 — Plan 83-04 complete (19 pure Vitest cases in el-te
 | Phase 83 P02 | 38min | 3 tasks | 6 files  |
 | Phase 83 P03 | 25min | 3 tasks | 3 files  |
 | Phase 83 P04 | 20min | 1 tasks | 1 files  |
+| Phase 84 P01 | 12min | 2 tasks | 3 files  |
 
 ## Accumulated Context
 

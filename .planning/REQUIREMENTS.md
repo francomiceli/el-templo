@@ -29,8 +29,8 @@ Requirements for the Conversational Sales & Playbook Engine milestone. Each maps
 
 ### State-Adaptive Playbook Prompts (PB2-PB5)
 
-- [ ] **PBPR-01**: PB2 (trial no convertido) prompt sections: check-in → listen → handle objection → soft urgency proposal, with stage variants A/B
-- [ ] **PBPR-02**: PB3 (vencimiento) prompt sections: warm reminder → price-anchor upgrade → facilitate payment, with stage variants A/B
+- [x] **PBPR-01**: PB2 (trial no convertido) prompt sections: check-in → listen → handle objection → soft urgency proposal, with stage variants A/B
+- [x] **PBPR-02**: PB3 (vencimiento) prompt sections: warm reminder → price-anchor upgrade → facilitate payment, with stage variants A/B
 - [ ] **PBPR-03**: PB4 (inactivo 30+ días) prompt sections: empathy → listen → soft solution → no-pressure exit, with stage variants A/B
 - [ ] **PBPR-04**: PB5 (cancelación) prompt sections: listen without resistance → understand real reason → offer alternative → escalate if no solution
 - [ ] **PBPR-05**: Each playbook ships objection-handling scripts loaded into the prompt only when that playbook is active
@@ -100,8 +100,8 @@ Explicitly excluded from v5.3 to keep the milestone focused on prompt-layer beha
 | DISC-05     | Phase 83 | Complete |
 | DISC-06     | Phase 83 | Complete |
 | DISC-07     | Phase 83 | Complete |
-| PBPR-01     | Phase 84 | Pending  |
-| PBPR-02     | Phase 84 | Pending  |
+| PBPR-01     | Phase 84 | Complete |
+| PBPR-02     | Phase 84 | Complete |
 | PBPR-03     | Phase 84 | Pending  |
 | PBPR-04     | Phase 84 | Pending  |
 | PBPR-05     | Phase 84 | Pending  |

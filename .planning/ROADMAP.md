@@ -101,11 +101,11 @@ Plans:
 5. Objection-handling scripts for each playbook only appear in the rendered prompt when that playbook is active (verified by inspecting prompt output across all 5 states).
 6. Each playbook defines explicit escalation triggers, and when a trigger fires Mica produces the v5.2 escalation phrase and the conversation is flagged for human takeover.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 84-01-PLAN.md — Enrich PB2 + PB3 promptSections (trial follow-up + vencimiento) with A/B variants and objection scripts
+- [x] 84-01-PLAN.md — Enrich PB2 + PB3 promptSections (trial follow-up + vencimiento) with A/B variants and objection scripts
 - [ ] 84-02-PLAN.md — Enrich PB4 + PB5 promptSections (inactivo + cancelación) with conditional pause logic and explicit request_human escalation
 - [ ] 84-03-PLAN.md — PB3/PB4/PB5 stage advancement transitions + cross-state isolation regression suite (PBPR-05)
 
@@ -134,7 +134,7 @@ Plans:
 | ------------------------------------------- | -------------- | ----------- | ---------- |
 | 82. Playbook Engine                         | 3/3            | Complete    | 2026-04-07 |
 | 83. Discovery Mode for Leads (PB1)          | 4/4            | Complete    | 2026-04-07 |
-| 84. State-Adaptive Playbook Prompts PB2-PB5 | 0/?            | Not started | -          |
+| 84. State-Adaptive Playbook Prompts PB2-PB5 | 1/3            | In Progress |            |
 | 85. Avatar Adaptation & Quality             | 0/?            | Not started | -          |
 
 **Coverage:** 24/24 v5.3 requirements mapped ✓
