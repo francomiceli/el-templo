@@ -211,9 +211,8 @@ function createMockDb(exercises = MOCK_EXERCISES) {
 describe("ROM Generator", () => {
   describe("generateRomSession", () => {
     it("returns DaySession with session_mode='rom' and 3 ROM blocks", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -237,9 +236,8 @@ describe("ROM Generator", () => {
     });
 
     it("each block has exactly 3 CON exercises with reps from [20, 30, 40]", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -257,17 +255,14 @@ describe("ROM Generator", () => {
         }
 
         // All three rep values are used (20, 30, 40)
-        const reps = block.exercises.map(
-          (ex: { reps: number }) => ex.reps,
-        );
+        const reps = block.exercises.map((ex: { reps: number }) => ex.reps);
         expect(reps.sort()).toEqual([20, 30, 40]);
       }
     });
 
     it("alfa tier exercises have dificultadLineal <= 3", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -284,9 +279,8 @@ describe("ROM Generator", () => {
     });
 
     it("delta tier exercises have dificultadLineal > 3", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -303,9 +297,8 @@ describe("ROM Generator", () => {
     });
 
     it("ROM blocks have format { type: 'for_quality', rounds: 3 } and rest=30", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -316,8 +309,9 @@ describe("ROM Generator", () => {
 
       for (const block of session.blocks) {
         expect(block.formatParams).toEqual({
-          type: "for_quality",
+          type: "rom",
           rounds: 3,
+          restSeconds: 30,
         });
 
         for (const ex of block.exercises) {
@@ -327,9 +321,8 @@ describe("ROM Generator", () => {
     });
 
     it("exercises in each block match body zone mapping", async () => {
-      const { generateRomSession, ROM_ZONE_MOBILITY_MAP } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession, ROM_ZONE_MOBILITY_MAP } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -367,13 +360,11 @@ describe("ROM Generator", () => {
       // Only 3 PL exercises with dificultadLineal <= 3 — exactly enough, no fallback needed
       // Test with just 2 to force fallback
       const thinnerPool = thinPoolExercises.filter(
-        (ex) =>
-          !(ex.mobilityRelated === "PL" && ex.dificultadLineal === 3),
+        (ex) => !(ex.mobilityRelated === "PL" && ex.dificultadLineal === 3),
       );
 
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb(thinnerPool);
 
       // Should not throw
@@ -394,9 +385,8 @@ describe("ROM Generator", () => {
     });
 
     it("sets correct session-level fields", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -414,9 +404,8 @@ describe("ROM Generator", () => {
     });
 
     it("sets correct block-level fields", async () => {
-      const { generateRomSession } = await import(
-        "../../src/modules/sessions/rom-generator"
-      );
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
       const session = await generateRomSession(
         db as Parameters<typeof generateRomSession>[0],
@@ -429,7 +418,7 @@ describe("ROM Generator", () => {
         expect(block.pattern).toBe("MOVILIDAD");
         expect(block.intensity).toBe(50);
         expect(block.repsBudget).toBe(270);
-        expect(block.format).toEqual({ formatId: 0, name: "For Quality" });
+        expect(block.format).toEqual({ formatId: 0, name: "ROM" });
         expect(block.mobilityExercise).toBeUndefined();
         // Each exercise should have exerciseType 'main'
         for (const ex of block.exercises) {
