@@ -112,7 +112,7 @@ export class ExerciseService {
       .from(schema.exercises)
       .where(whereClause);
 
-    const total = countRow?.count ?? 0;
+    const total = Number(countRow?.count ?? 0);
     const totalPages = Math.ceil(total / limit);
 
     // Fetch exercises for current page
