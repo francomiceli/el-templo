@@ -11,6 +11,7 @@
 - **v4.4 App Engagement & Intelligent Companion** - Phases 78-88 (planned)
 - **v4.5 Planes Online — Digital Monetization** - Phases 89-91 (planned)
 - **v4.6 iOS App Store Launch** - Phases 93-95 (planned)
+- **v4.7 Full Body & ROM — Coach Session Requests** - Phases 96-97 (planned)
 
 ---
 
@@ -2034,13 +2035,16 @@ _v4.6 phases added: 2026-04-07 — 3 phases (93-95), 15 requirements mapped (IOS
 </details>
 
 <details>
-<summary>v4.7 Full Body Goal Plan & Equipment Tagging (Phase 96)</summary>
+<summary>v4.7 Full Body & ROM — Coach Session Requests (Phases 96-97)</summary>
 
 ## v4.7 Overview
 
-Add a **Full Body** goal plan type under "Por Objetivos" for home calisthenics with no equipment. Introduce equipment tagging on exercises, with a coach-driven auto-tagging workflow during goal plan session editing — Nach's curation process becomes the data enrichment mechanism.
+Two coach-driven session system enhancements:
 
-**Origin:** Coach request (Nach, 2026-04-08) — need programs for "calistenia desde 0 en casa" that don't require bars/rings.
+1. **Full Body** goal plan type under "Por Objetivos" for home calisthenics with no equipment. Introduce equipment tagging on exercises, with a coach-driven auto-tagging workflow during goal plan session editing — Nach's curation process becomes the data enrichment mechanism.
+2. **ROM Mode** — Saturday mobility sessions replacing regular SPOM training. Three body-zone blocks (Lower/Core/Upper), two tiers (Básico=alfa / Avanzado=delta), pure mobility exercises. Coach builds sessions via existing edit interface.
+
+**Origin:** Coach requests (Nach, 2026-04-08) — Full Body for no-equipment home programs; ROM Mode for Saturday mobility classes.
 
 ## v4.7 Phases
 
@@ -2067,14 +2071,43 @@ Plans:
 
 ---
 
+### Phase 97: ROM Mode — Saturday Mobility Sessions
+
+**Goal**: Modify the session pipeline and admin editing flow so Saturdays produce ROM-mode sessions: two tiers (alfa=Básico, delta=Avanzado), three NUCLEUS-type blocks (ROM_LOWER, ROM_CORE, ROM_UPPER) with mobility exercises, simple round-based format. Coach refines via existing edit interface.
+**Depends on**: None (uses existing session infrastructure)
+**Success Criteria** (what must be TRUE):
+
+1. `sessions` table has `session_mode` column — `'regular'` (default) or `'rom'`
+2. Migration SQL generated and committed
+3. Session generation for `day = 'sabado'` produces ROM sessions: only `alfa_delta` level group, blocks INITIUM + ROM_LOWER + ROM_CORE + ROM_UPPER
+4. ROM generator selects mobility exercises using `mobility_related` mapping: `LS (LUNGES)` → ROM_LOWER, `FL + TTB/HF + MN` → ROM_CORE, `PL` → ROM_UPPER
+5. ROM blocks use a simple round-based format (For Quality X3 or similar)
+6. Admin SessionsPage displays ROM sessions correctly for Saturday (2 levels instead of 4, ROM block labels)
+7. Admin SessionEditPage: exercise swap for ROM blocks shows full mobility pool (no route filtering), coach can swap freely
+8. PDF generation detects `session_mode = 'rom'` and renders 2-tier layout (Básico/Avanzado) with LOWER/CORE/UPPER block headers
+9. Member app detects `session_mode = 'rom'` and shows ROM layout: 3 blocks (no Deuteros selector), 2 tiers
+10. No ATHLOS/EPIKOS blocks generated for ROM sessions
+11. Existing regular sessions (Mon-Fri) unaffected
+
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 097-01-PLAN.md — API: `session_mode` column + migration, ROM session generation pipeline (mobility selection by body zone mapping, block roles, format)
+- [ ] 097-02-PLAN.md — Admin: SessionsPage ROM display, SessionEditPage ROM editing (mobility pool for ROM blocks, no DESCANSO ACTIVO), PDF 2-tier ROM layout
+- [ ] 097-03-PLAN.md — App: ROM day detection, simplified block display (3 blocks, 2 tiers, no Deuteros selector)
+
+---
+
 ## v4.7 Progress
 
 | Phase                                                     | Plans Complete | Status  | Completed |
 | --------------------------------------------------------- | -------------- | ------- | --------- |
 | 96. Full Body Goal Plan Type & Exercise Equipment Tagging | —              | Planned | —         |
+| 97. ROM Mode — Saturday Mobility Sessions                 | —              | Planned | —         |
 
 ---
 
-_v4.7 phases added: 2026-04-08 — 1 phase (96), origin: coach request for no-equipment home programs_
+_v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_
 
 </details>
