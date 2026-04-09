@@ -15,13 +15,13 @@ created: 2026-04-09
 
 ## Design System
 
-| Property          | Value                                                                                                     |
-| ----------------- | --------------------------------------------------------------------------------------------------------- |
-| Tool              | none (Quasar Framework)                                                                                   |
-| Preset            | not applicable                                                                                            |
-| Component library | Quasar v2 (QCard, QBadge, QToggle, QBtn, QDialog, QSelect, QIcon)                                         |
-| Icon library      | Material Icons (Quasar default)                                                                           |
-| Font              | Geologica 400/500/600 (body, admin), Montserrat 600/700/800 (headings, block names), Cinzel (PDF headers) |
+| Property          | Value                                                                                         |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Tool              | none (Quasar Framework)                                                                       |
+| Preset            | not applicable                                                                                |
+| Component library | Quasar v2 (QCard, QBadge, QToggle, QBtn, QDialog, QSelect, QIcon)                             |
+| Icon library      | Material Icons (Quasar default)                                                               |
+| Font              | Geologica 400/700 (body, admin), Montserrat 700 (headings, block names), Cinzel (PDF headers) |
 
 ---
 
@@ -43,16 +43,16 @@ Exceptions: none — reuse existing Quasar spacing utilities throughout. No cust
 
 ## Typography
 
-| Role                           | Size             | Weight         | Line Height | Font Family |
-| ------------------------------ | ---------------- | -------------- | ----------- | ----------- |
-| Body                           | 14px             | 400 (regular)  | 1.5         | Geologica   |
-| Label / Caption                | 12px             | 400 (regular)  | 1.4         | Geologica   |
-| Subtitle                       | 16px             | 600 (semibold) | 1.4         | Geologica   |
-| Block Name (member app)        | 16px             | 700 (bold)     | 1.2         | Montserrat  |
-| Block Name (admin card header) | 20px (`text-h6`) | 700 (bold)     | 1.2         | Montserrat  |
-| Page Heading                   | 20px (`text-h5`) | 700 (bold)     | 1.2         | Montserrat  |
+| Role                           | Size             | Weight        | Line Height | Font Family |
+| ------------------------------ | ---------------- | ------------- | ----------- | ----------- |
+| Body                           | 14px             | 400 (regular) | 1.5         | Geologica   |
+| Label / Caption                | 12px             | 400 (regular) | 1.4         | Geologica   |
+| Subtitle                       | 16px             | 700 (bold)    | 1.4         | Geologica   |
+| Block Name (member app)        | 16px             | 700 (bold)    | 1.2         | Montserrat  |
+| Block Name (admin card header) | 20px (`text-h6`) | 700 (bold)    | 1.2         | Montserrat  |
+| Page Heading                   | 20px (`text-h5`) | 700 (bold)    | 1.2         | Montserrat  |
 
-Source: existing `app.scss` and `quasar.variables.scss` — no new font sizes or weights introduced.
+Two-weight system: 400 (regular) for body text and labels, 700 (bold) for all emphasized roles (subtitles, block names, headings). Source: existing `app.scss` and `quasar.variables.scss` — no new font weights introduced.
 
 ---
 
@@ -76,6 +76,15 @@ Source: existing `app.scss` and `quasar.variables.scss` — no new font sizes or
 | ROM tier labels (admin level rows)  | `amber-8` for alfa (Basico), `deep-orange-7` for delta (Avanzado) | Reuse existing `levelColor()` mapping — alfa and delta keep their current colors                  |
 
 Accent reserved for: primary CTA buttons ("Comenzar", "Generar Sesiones"), active tab indicators, edit action icons, approval checkmarks. Never for ROM badges or informational labels.
+
+---
+
+## Visual Focal Points
+
+| Screen                             | Primary Focal Element                                       | Rationale                                                                                                                 |
+| ---------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| SessionsPage (admin) — ROM day     | ROM badge (`q-badge color="info"`) next to day label        | The badge is the primary new visual anchor that distinguishes ROM days from regular days at a glance                      |
+| DayCard (member app) — ROM session | ROM badge in `day-card__header-left` + "Movilidad" subtitle | The ROM badge and "Movilidad" route label together signal this is a different session type; the badge draws the eye first |
 
 ---
 
