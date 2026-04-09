@@ -2093,18 +2093,18 @@ Plans:
 
 Plans:
 
-- [ ] 97-01-PLAN.md — API foundation: schema (session_mode + day_modes), ROM generator, generateWeek integration, day-modes endpoint, member level mapping, exercise swap body-zone filtering
-- [ ] 97-02-PLAN.md — Admin UI: SessionsPage ROM display + day mode toggles, block editing (ROM headers, hidden mobility), exercise swap zone filtering, PDF 2-row stacked layout
-- [ ] 97-03-PLAN.md — Member app: frontend types + block colors, DayCard ROM badge + Movilidad subtitle, useSessionPlayer ROM flow (no Deuteros selector)
+- [x] 97-01-PLAN.md — API foundation: schema (session_mode + day_modes), ROM generator, generateWeek integration, day-modes endpoint, member level mapping, exercise swap body-zone filtering
+- [x] 97-02-PLAN.md — Admin UI: SessionsPage ROM display + day mode toggles, block editing (ROM headers, hidden mobility), exercise swap zone filtering, PDF 2-row stacked layout
+- [x] 97-03-PLAN.md — Member app: frontend types + block colors, DayCard ROM badge + Movilidad subtitle, useSessionPlayer ROM flow (no Deuteros selector)
 
 ---
 
 ## v4.7 Progress
 
-| Phase                                                     | Plans Complete | Status  | Completed |
-| --------------------------------------------------------- | -------------- | ------- | --------- |
-| 96. Full Body Goal Plan Type & Exercise Equipment Tagging | —              | Planned | —         |
-| 97. ROM Mode — Saturday Mobility Sessions                 | —              | Planned | —         |
+| Phase                                                     | Plans Complete | Status   | Completed  |
+| --------------------------------------------------------- | -------------- | -------- | ---------- |
+| 96. Full Body Goal Plan Type & Exercise Equipment Tagging | —              | Planned  | —          |
+| 97. ROM Mode — Saturday Mobility Sessions                 | 3/3            | Complete | 2026-04-09 |
 
 ---
 
