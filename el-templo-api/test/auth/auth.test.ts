@@ -176,7 +176,7 @@ describe("Auth Routes", () => {
       expect(body.message).toContain("Sucursal invalida");
     });
 
-    it("returns 400 when DNI is missing", async () => {
+    it("registers successfully without DNI (optional)", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/auth/register",
@@ -191,10 +191,10 @@ describe("Auth Routes", () => {
         },
       });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(200);
     });
 
-    it("returns 400 when phone is missing", async () => {
+    it("registers successfully without phone (optional)", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/auth/register",
@@ -205,10 +205,11 @@ describe("Auth Routes", () => {
           firstName: "No",
           lastName: "Phone",
           dni: "AUTH-NOPHONE-001",
+          gender: "male",
         },
       });
 
-      expect(res.statusCode).toBe(400);
+      expect(res.statusCode).toBe(200);
     });
   });
 
