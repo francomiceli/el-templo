@@ -67,6 +67,24 @@
           </q-btn>
         </div>
 
+        <!-- Day mode toggles (ROM configuration) -->
+        <div class="row items-center q-mb-md q-gutter-sm">
+          <span class="text-subtitle2 text-weight-bold">Modo por dia</span>
+          <q-space />
+          <div class="row items-center q-gutter-md">
+            <div v-for="dm in dayModes" :key="dm.dayOfWeek" class="column items-center">
+              <span class="text-caption">{{ DAY_ABBREVIATIONS[dm.dayOfWeek] }}</span>
+              <q-toggle
+                :model-value="dm.sessionMode === 'rom'"
+                :disable="dayModesSaving"
+                label="ROM"
+                dense
+                @update:model-value="(val: boolean) => toggleDayMode(dm.dayOfWeek, val ? 'rom' : 'regular')"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- Loading -->
         <div v-if="sessionsApi.loading.value" class="flex flex-center q-pa-xl">
           <q-spinner-dots size="50px" color="primary" />
@@ -81,6 +99,12 @@
                 <div class="text-subtitle1 text-weight-bold">
                   {{ dayLabel(dayGroup.day) }}
                 </div>
+                <q-badge
+                  v-if="isDayGroupRom(dayGroup)"
+                  color="info"
+                  label="ROM"
+                  class="q-ml-sm"
+                />
                 <q-space />
                 <div class="row items-center no-wrap q-gutter-sm">
                   <q-btn
@@ -349,6 +373,7 @@ import {
 } from 'src/utils/weekDates';
 import { useSessionsApi } from 'src/composables/useSessionsApi';
 import { useAdminStore } from 'src/stores/useAdminStore';
+import { api } from 'src/boot/axios';
 import MemberPreviewDialog from 'src/components/sessions/MemberPreviewDialog.vue';
 import {
   ALL_GOAL_PLAN_TYPES,
@@ -394,7 +419,56 @@ const showGeneralDatePicker = ref(false);
 
 const DAYS = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 const DISPLAY_LEVELS = ['alfa', 'delta', 'sigma', 'omega', 'spartan'];
+const ROM_DISPLAY_LEVELS = ['alfa', 'delta'];
 const PDF_LEVELS = ['alfa', 'delta', 'sigma', 'omega'];
+
+const DAY_ABBREVIATIONS: Record<number, string> = {
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mie',
+  4: 'Jue',
+  5: 'Vie',
+  6: 'Sab',
+};
+
+// Day mode state
+interface DayModeEntry {
+  dayOfWeek: number;
+  sessionMode: string;
+}
+const dayModes = ref<DayModeEntry[]>([]);
+const dayModesSaving = ref(false);
+
+function isDayGroupRom(dayGroup: DayGroup): boolean {
+  return dayGroup.sessions.some((s) => s.sessionMode === 'rom');
+}
+
+async function loadDayModes() {
+  try {
+    const { data } = await api.get<{ modes: DayModeEntry[] }>('/admin/sessions/day-modes');
+    dayModes.value = data.modes;
+  } catch {
+    log.error('Failed to load day modes', {});
+  }
+}
+
+async function toggleDayMode(dayOfWeek: number, newMode: string) {
+  dayModesSaving.value = true;
+  try {
+    await api.put('/admin/sessions/day-modes', {
+      modes: [{ dayOfWeek, sessionMode: newMode }],
+    });
+    $q.notify({ type: 'positive', message: 'Configuracion de dias actualizada' });
+    await loadDayModes();
+  } catch {
+    $q.notify({
+      type: 'negative',
+      message: 'No se pudo guardar la configuracion. Intenta de nuevo.',
+    });
+  } finally {
+    dayModesSaving.value = false;
+  }
+}
 
 interface DayLevelStatus {
   memberLevel: string;
@@ -414,7 +488,9 @@ interface DayGroup {
 const dayGroups = computed<DayGroup[]>(() => {
   return DAYS.map((day) => {
     const daySessions = sessions.value.filter((s) => s.day === day);
-    const levels = DISPLAY_LEVELS.map((level) => {
+    const isRom = daySessions.some((s) => s.sessionMode === 'rom');
+    const displayLevels = isRom ? ROM_DISPLAY_LEVELS : DISPLAY_LEVELS;
+    const levels = displayLevels.map((level) => {
       const session = daySessions.find((s) => s.memberLevel === level);
       return {
         memberLevel: level,
@@ -779,6 +855,7 @@ watch(activeTab, (newTab) => {
 onMounted(() => {
   syncWeekUrl();
   loadSessions();
+  loadDayModes();
   // If starting on goalPlans tab, load goal plan sessions too
   if (activeTab.value === 'goalPlans') {
     loadGoalPlanSessions();
