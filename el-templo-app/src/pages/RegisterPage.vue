@@ -67,8 +67,7 @@
 
               <q-input
                 v-model="dni"
-                label="DNI"
-                :rules="dniRules"
+                label="DNI (opcional)"
                 lazy-rules
                 dark
                 outlined
@@ -79,8 +78,7 @@
 
               <q-input
                 v-model="phone"
-                label="Teléfono"
-                :rules="phoneRules"
+                label="Teléfono (opcional)"
                 lazy-rules
                 dark
                 outlined
@@ -219,9 +217,7 @@ const promoCode = computed(() => {
 
 const requiredRule = (val: string) => !!val || 'Este campo es requerido'
 
-const dniRules = [(val: string) => !!val || 'El DNI es requerido']
-
-const phoneRules = [(val: string) => !!val || 'El telefono es requerido']
+// DNI and phone are optional per App Store guideline 5.1.1(v)
 
 const emailRules = [
   (val: string) => !!val || 'El email es requerido',
@@ -255,8 +251,8 @@ async function onSubmit() {
       password: password.value,
       firstName: firstName.value,
       lastName: lastName.value,
-      dni: dni.value,
-      phone: phone.value,
+      dni: dni.value || undefined,
+      phone: phone.value || undefined,
       gender: gender.value as string,
       branchId: branchIdParam,
       promoCode: promoCode.value ?? undefined,

@@ -65,6 +65,7 @@ export const users = mysqlTable(
     }),
     photoUrl: varchar("photo_url", { length: 500 }),
     isActive: boolean("is_active").default(true).notNull(),
+    deletedAt: timestamp("deleted_at"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),

@@ -104,19 +104,71 @@
         </q-item>
       </q-list>
     </div>
+
+    <!-- Delete Account -->
+    <div class="settings-card q-mb-md">
+      <div
+        class="settings-card__item settings-card__item--clickable settings-card__item--danger"
+        @click="showDeleteDialog = true"
+      >
+        <q-icon name="delete_forever" size="22px" color="negative" />
+        <span class="settings-card__label settings-card__label--danger">Eliminar cuenta</span>
+        <q-icon name="chevron_right" size="20px" color="grey-5" class="settings-card__chevron" />
+      </div>
+    </div>
+
+    <!-- Delete Account Dialog -->
+    <q-dialog v-model="showDeleteDialog" persistent>
+      <q-card style="min-width: 320px">
+        <q-card-section>
+          <div class="text-h6 text-negative">Eliminar cuenta</div>
+        </q-card-section>
+        <q-card-section>
+          <p class="q-mb-sm">
+            Esta accion es <strong>permanente</strong>. Se eliminaran todos tus datos personales y
+            no podras recuperar tu cuenta.
+          </p>
+          <q-input
+            v-model="deletePassword"
+            type="password"
+            label="Confirma tu contraseña"
+            outlined
+            dense
+            :error="!!deleteError"
+            :error-message="deleteError"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancelar" @click="cancelDelete" />
+          <q-btn
+            flat
+            label="Eliminar cuenta"
+            color="negative"
+            :loading="deleteLoading"
+            :disable="!deletePassword"
+            @click="confirmDeleteAccount"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from 'stores/useUserStore'
+import { useAuthStore } from 'stores/useAuthStore'
 import { formatDate } from 'src/utils/format-date'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import { extractError } from 'src/utils/extract-error'
 import TemploLoader from 'src/components/TemploLoader.vue'
 
 const log = createLogger('ProfilePage')
+const router = useRouter()
 const userStore = useUserStore()
+const authStore = useAuthStore()
 
 // Notification categories (per D-18)
 const notificationCategories = [
@@ -172,6 +224,31 @@ async function togglePreference(key: string, value: boolean) {
       key,
       error: err instanceof Error ? err.message : String(err),
     })
+  }
+}
+
+// Delete account
+const showDeleteDialog = ref(false)
+const deletePassword = ref('')
+const deleteLoading = ref(false)
+const deleteError = ref('')
+
+function cancelDelete() {
+  showDeleteDialog.value = false
+  deletePassword.value = ''
+  deleteError.value = ''
+}
+
+async function confirmDeleteAccount() {
+  deleteLoading.value = true
+  deleteError.value = ''
+  try {
+    await authStore.deleteAccount(deletePassword.value)
+    router.replace('/login')
+  } catch (err: unknown) {
+    deleteError.value = extractError(err, 'Error al eliminar cuenta')
+  } finally {
+    deleteLoading.value = false
   }
 }
 
@@ -368,6 +445,16 @@ onMounted(async () => {
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
+}
+
+.settings-card__item--danger {
+  &:active {
+    background: rgba($negative, 0.04);
+  }
+}
+
+.settings-card__label--danger {
+  color: $negative !important;
 }
 
 .notification-list {

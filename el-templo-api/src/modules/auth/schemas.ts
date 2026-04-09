@@ -1,23 +1,15 @@
 export const registerSchema = {
   body: {
     type: "object",
-    required: [
-      "email",
-      "password",
-      "firstName",
-      "lastName",
-      "dni",
-      "phone",
-      "gender",
-    ],
+    required: ["email", "password", "firstName", "lastName", "gender"],
     properties: {
       email: { type: "string", format: "email" },
       password: { type: "string", minLength: 8 },
       branchId: { type: "integer" },
       firstName: { type: "string", minLength: 1 },
       lastName: { type: "string", minLength: 1 },
-      dni: { type: "string", minLength: 1 },
-      phone: { type: "string", minLength: 1 },
+      dni: { type: "string" },
+      phone: { type: "string" },
       gender: {
         type: "string",
         enum: ["male", "female", "other", "unspecified"],

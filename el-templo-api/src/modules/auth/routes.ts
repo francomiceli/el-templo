@@ -17,8 +17,8 @@ interface RegisterBody {
   branchId?: number;
   firstName: string;
   lastName: string;
-  dni: string;
-  phone: string;
+  dni?: string;
+  phone?: string;
   gender: "male" | "female" | "other" | "unspecified";
   promoCode?: string;
 }
@@ -242,6 +242,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: users.level,
           branchId: users.branchId,
           isActive: users.isActive,
+          deletedAt: users.deletedAt,
         })
         .from(users)
         .where(eq(users.email, email))
@@ -254,6 +255,15 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const user = userResults[0];
+
+      if (user.deletedAt) {
+        return reply
+          .code(401)
+          .send({
+            error: "No autorizado",
+            message: "Esta cuenta fue eliminada",
+          });
+      }
 
       // Verify password
       const validPassword = await argon2.verify(user.passwordHash, password);
@@ -463,6 +473,91 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         .where(eq(users.id, userId));
 
       return { message: "Contraseña actualizada" };
+    },
+  );
+
+  // POST /me/delete-account
+  fastify.post<{ Body: { password: string } }>(
+    "/me/delete-account",
+    {
+      onRequest: [fastify.authenticate],
+      schema: {
+        body: {
+          type: "object",
+          required: ["password"],
+          properties: {
+            password: { type: "string" },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { userId } = request.user;
+
+      // Fetch current user
+      const [user] = await fastify.db
+        .select({
+          passwordHash: users.passwordHash,
+          deletedAt: users.deletedAt,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Usuario no encontrado" });
+      }
+
+      if (user.deletedAt) {
+        return reply
+          .code(400)
+          .send({
+            error: "Solicitud invalida",
+            message: "Cuenta ya eliminada",
+          });
+      }
+
+      // Verify password
+      const valid = await argon2.verify(
+        user.passwordHash,
+        request.body.password,
+      );
+      if (!valid) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Contraseña incorrecta",
+        });
+      }
+
+      // Anonymize PII and mark as deleted
+      const now = new Date();
+      const anonymizedId = `deleted_${userId}_${now.getTime()}`;
+      await fastify.db
+        .update(users)
+        .set({
+          email: `${anonymizedId}@deleted.local`,
+          firstName: "Eliminado",
+          lastName: "Eliminado",
+          dni: null,
+          phone: null,
+          address: null,
+          dateOfBirth: null,
+          gender: "unspecified",
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+          emergencyContactRelationship: null,
+          photoUrl: null,
+          passwordHash: "DELETED",
+          isActive: false,
+          deletedAt: now,
+        })
+        .where(eq(users.id, userId));
+
+      request.log.info({ userId }, "Account deleted and anonymized");
+
+      return { message: "Cuenta eliminada exitosamente" };
     },
   );
 };

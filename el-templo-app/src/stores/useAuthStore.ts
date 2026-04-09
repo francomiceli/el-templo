@@ -65,8 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
     password: string
     firstName: string
     lastName: string
-    dni: string
-    phone: string
+    dni?: string
+    phone?: string
     gender: string
     branchId?: number
     promoCode?: string
@@ -104,6 +104,11 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     const userStore = useUserStore()
     userStore.clearProfile()
+  }
+
+  async function deleteAccount(password: string) {
+    await api.post('/auth/me/delete-account', { password })
+    await logout()
   }
 
   function setAuth(newToken: string, newUser: AuthUser) {
@@ -145,6 +150,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
+    deleteAccount,
     setAuth,
     clearAuth,
     setInitialized,
