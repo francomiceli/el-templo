@@ -69,6 +69,10 @@ function formatNameWithParams(
     case 'death_by_unbroken':
       return p.timeCapMinutes ? `${name} ${p.timeCapMinutes}'` : name;
 
+    // ROM (rounds + rest)
+    case 'rom':
+      return p.rounds ? `${p.rounds} Rondas · Descanso ${p.restSeconds || 30}s` : name;
+
     // Rounds-only formats
     case 'complex':
     case 'for_quality':

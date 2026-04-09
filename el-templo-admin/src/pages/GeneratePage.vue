@@ -22,10 +22,10 @@
       <!-- GENERAL TAB (existing functionality, unchanged) -->
       <!-- ============================================================ -->
       <q-tab-panel name="general" class="q-pa-none">
-        <!-- Week selector - ONLY FUTURE WEEKS (currentWeek + 1 minimum) -->
-        <q-card flat bordered class="q-mb-md">
+        <!-- Generation controls -->
+        <q-card flat bordered class="q-mb-md" style="max-width: 480px">
           <q-card-section>
-            <div class="row items-center q-gutter-md">
+            <div class="row items-center q-gutter-md q-mb-md">
               <q-select
                 v-model="selectedWeek"
                 :options="weekOptions"
@@ -38,60 +38,55 @@
                 @update:model-value="loadWeekSummary"
               />
             </div>
-          </q-card-section>
-        </q-card>
 
-        <!-- Hierarchical regeneration controls (future weeks only) -->
-        <q-card v-if="weekSummary && isFutureWeek" flat bordered class="q-mb-md">
-          <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Nivel de Regeneracion</div>
+            <template v-if="weekSummary && isFutureWeek">
+              <q-separator class="q-mb-md" />
 
-            <q-option-group
-              v-model="generationScope"
-              :options="scopeOptions"
-              inline
-              class="q-mb-md"
-            />
+              <div class="text-caption text-grey-7 q-mb-sm">Alcance de generacion</div>
+              <q-option-group v-model="generationScope" :options="scopeOptions" class="q-mb-md" />
 
-            <!-- Day selector (visible for 'day' and 'day_level' scopes) -->
-            <div v-if="generationScope !== 'week'" class="q-mb-md">
-              <div class="text-caption q-mb-sm">Seleccionar Dia:</div>
-              <q-btn-toggle
-                v-model="selectedDay"
-                toggle-color="primary"
-                :options="dayOptions"
-                spread
-              />
-            </div>
+              <!-- Day selector (visible for 'day' and 'day_level' scopes) -->
+              <div v-if="generationScope !== 'week'" class="q-mb-md">
+                <div class="text-caption text-grey-7 q-mb-sm">Dia:</div>
+                <q-btn-toggle
+                  v-model="selectedDay"
+                  toggle-color="primary"
+                  :options="dayOptions"
+                  spread
+                />
+              </div>
 
-            <!-- Level selector (visible only for 'day_level' scope) -->
-            <div v-if="generationScope === 'day_level'" class="q-mb-md">
-              <div class="text-caption q-mb-sm">Seleccionar Nivel:</div>
-              <q-btn-toggle
-                v-model="selectedLevel"
-                toggle-color="primary"
-                :options="levelOptions"
-              />
-            </div>
+              <!-- Level selector (visible only for 'day_level' scope) -->
+              <div v-if="generationScope === 'day_level'" class="q-mb-md">
+                <div class="text-caption text-grey-7 q-mb-sm">Nivel:</div>
+                <q-btn-toggle
+                  v-model="selectedLevel"
+                  toggle-color="primary"
+                  :options="levelOptions"
+                />
+              </div>
 
-            <!-- Generate button -->
-            <div class="row q-gutter-md q-mt-md">
-              <q-btn
-                color="primary"
-                icon="auto_awesome"
-                :label="generateButtonLabel"
-                :loading="generateApi.loading.value"
-                :disable="!canGenerate"
-                @click="handleGenerate"
-              />
-            </div>
+              <!-- Generate button -->
+              <div class="row q-gutter-md">
+                <q-btn
+                  color="primary"
+                  icon="auto_awesome"
+                  :label="generateButtonLabel"
+                  :loading="generateApi.loading.value"
+                  :disable="!canGenerate"
+                  @click="handleGenerate"
+                />
+              </div>
+            </template>
           </q-card-section>
         </q-card>
 
         <!-- Week summary -->
         <q-card v-if="weekSummary" flat bordered>
           <q-card-section>
-            <div class="text-subtitle1 q-mb-md">Estado de {{ formatWeekLabel(selectedWeek) }}</div>
+            <div class="text-subtitle1 q-mb-md">
+              Sesiones generadas — {{ formatWeekLabel(selectedWeek) }}
+            </div>
 
             <q-table
               :rows="summaryRows"
@@ -102,9 +97,30 @@
               hide-pagination
               :pagination="{ rowsPerPage: 0 }"
             >
-              <template #body-cell-alfa_delta="props">
+              <template #body-cell-modo="props">
                 <q-td :props="props">
-                  <StatusIndicator :status="props.row.alfa_delta" :locked="!isFutureWeek" />
+                  <q-select
+                    :model-value="props.row.modo"
+                    :options="MODE_OPTIONS"
+                    dense
+                    borderless
+                    emit-value
+                    map-options
+                    options-dense
+                    class="text-caption"
+                    style="min-width: 70px; max-width: 80px"
+                    @update:model-value="(val: string) => updateDayMode(props.row.day, val)"
+                  />
+                </q-td>
+              </template>
+              <template #body-cell-alfa="props">
+                <q-td :props="props">
+                  <StatusIndicator :status="props.row.alfa" :locked="!isFutureWeek" />
+                </q-td>
+              </template>
+              <template #body-cell-delta="props">
+                <q-td :props="props">
+                  <StatusIndicator :status="props.row.delta" :locked="!isFutureWeek" />
                 </q-td>
               </template>
               <template #body-cell-sigma="props">
@@ -115,6 +131,11 @@
               <template #body-cell-omega="props">
                 <q-td :props="props">
                   <StatusIndicator :status="props.row.omega" :locked="!isFutureWeek" />
+                </q-td>
+              </template>
+              <template #body-cell-spartan="props">
+                <q-td :props="props">
+                  <StatusIndicator :status="props.row.spartan" :locked="!isFutureWeek" />
                 </q-td>
               </template>
             </q-table>
@@ -139,6 +160,7 @@
             Omitidas: {{ lastResult.skipped }} (ya existian).
           </span>
           <span v-if="lastResult.failed"> Fallaron: {{ lastResult.failed }}. </span>
+          <template #action><span /></template>
         </q-banner>
 
         <!-- Warnings detail -->
@@ -317,6 +339,7 @@ import { ref, computed, onMounted, defineComponent, h } from 'vue';
 import { useQuasar, QIcon } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatWeekLabel } from 'src/utils/weekDates';
+import { api } from 'src/boot/axios';
 import {
   useGenerateApi,
   type WeekSummary,
@@ -339,6 +362,52 @@ const $q = useQuasar();
 const generateApi = useGenerateApi();
 const goalPlanApi = useGoalPlanAdminApi();
 
+// Day modes (ROM configuration)
+interface DayModeEntry {
+  dayOfWeek: number;
+  sessionMode: string;
+}
+const dayModes = ref<DayModeEntry[]>([]);
+const DAY_OF_WEEK_MAP: Record<string, number> = {
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+};
+const MODE_OPTIONS = [
+  { label: 'Regular', value: 'regular' },
+  { label: 'ROM', value: 'rom' },
+];
+
+function getDayMode(day: string): string {
+  const dow = DAY_OF_WEEK_MAP[day];
+  return dayModes.value.find((dm) => dm.dayOfWeek === dow)?.sessionMode || 'regular';
+}
+
+async function loadDayModes() {
+  try {
+    const { data } = await api.get<DayModeEntry[]>('/admin/sessions/day-modes');
+    dayModes.value = data;
+  } catch {
+    log.error('Failed to load day modes', {});
+  }
+}
+
+async function updateDayMode(day: string, newMode: string) {
+  const dow = DAY_OF_WEEK_MAP[day];
+  try {
+    await api.put('/admin/sessions/day-modes', {
+      modes: [{ dayOfWeek: dow, sessionMode: newMode }],
+    });
+    await loadDayModes();
+    $q.notify({ type: 'positive', message: 'Tipo de sesion actualizado' });
+  } catch {
+    $q.notify({ type: 'negative', message: 'No se pudo actualizar el modo' });
+  }
+}
+
 // ============================================================
 // Shared state
 // ============================================================
@@ -347,7 +416,7 @@ const activeTab = ref('general');
 // Week selector options: all future weeks until end of cycle (week 52)
 const weekOptions = computed(() => {
   const options = [];
-  for (let w = currentWeek.value + 1; w <= 52; w++) {
+  for (let w = 1; w <= 52; w++) {
     options.push({ label: formatWeekLabel(w), value: w });
   }
   return options;
@@ -390,9 +459,12 @@ const levelOptions = [
 
 const summaryColumns = [
   { name: 'day', label: 'Dia', field: 'dayLabel', align: 'left' as const },
-  { name: 'alfa_delta', label: 'a/D', field: 'alfa_delta', align: 'center' as const },
-  { name: 'sigma', label: 'S', field: 'sigma', align: 'center' as const },
-  { name: 'omega', label: 'O', field: 'omega', align: 'center' as const },
+  { name: 'modo', label: 'Tipo de Sesion', field: 'modo', align: 'left' as const },
+  { name: 'alfa', label: 'Alfa', field: 'alfa', align: 'center' as const },
+  { name: 'delta', label: 'Delta', field: 'delta', align: 'center' as const },
+  { name: 'sigma', label: 'Sigma', field: 'sigma', align: 'center' as const },
+  { name: 'omega', label: 'Omega', field: 'omega', align: 'center' as const },
+  { name: 'spartan', label: 'Spartan', field: 'spartan', align: 'center' as const },
 ];
 
 const summaryRows = computed(() => {
@@ -406,13 +478,23 @@ const summaryRows = computed(() => {
     sabado: 'Sabado',
   };
 
-  return weekSummary.value.days.map((d) => ({
-    day: d.day,
-    dayLabel: dayLabels[d.day] || d.day,
-    alfa_delta: d.levels.find((l) => l.levelGroup === 'alfa_delta')?.status || null,
-    sigma: d.levels.find((l) => l.levelGroup === 'sigma')?.status || null,
-    omega: d.levels.find((l) => l.levelGroup === 'omega')?.status || null,
-  }));
+  return weekSummary.value.days.map((d) => {
+    const modo = getDayMode(d.day);
+    const alfaDeltaStatus = d.levels.find((l) => l.levelGroup === 'alfa_delta')?.status || null;
+    return {
+      day: d.day,
+      dayLabel: dayLabels[d.day] || d.day,
+      modo,
+      alfa: alfaDeltaStatus,
+      delta: alfaDeltaStatus,
+      sigma:
+        modo === 'rom' ? 'rom_na' : d.levels.find((l) => l.levelGroup === 'sigma')?.status || null,
+      omega:
+        modo === 'rom' ? 'rom_na' : d.levels.find((l) => l.levelGroup === 'omega')?.status || null,
+      spartan:
+        modo === 'rom' ? 'rom_na' : d.levels.find((l) => l.levelGroup === 'omega')?.status || null,
+    };
+  });
 });
 
 const lastResultBannerClass = computed(() => {
@@ -445,9 +527,21 @@ const hasExistingSessionsInScope = computed(() => {
   }
 });
 
-const isFutureWeek = computed(() => selectedWeek.value > currentWeek.value);
+const isFutureWeek = computed(() => selectedWeek.value >= currentWeek.value);
 
-const canGenerate = computed(() => isFutureWeek.value);
+const isPastDay = computed(() => {
+  if (selectedWeek.value > currentWeek.value) return false;
+  if (selectedWeek.value < currentWeek.value) return true;
+  // Current week: check if selected day is in the past
+  if (generationScope.value === 'week') return false; // whole week always allowed for current week
+  const dayOrder = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const todayIdx = new Date().getDay(); // 0=Sun, 1=Mon..6=Sat
+  const todayDayIdx = todayIdx === 0 ? 6 : todayIdx - 1; // map to 0=Mon..5=Sat
+  const selectedDayIdx = dayOrder.indexOf(selectedDay.value);
+  return selectedDayIdx < todayDayIdx;
+});
+
+const canGenerate = computed(() => isFutureWeek.value && !isPastDay.value);
 
 const generateButtonLabel = computed(() => {
   if (generationScope.value === 'week') {
@@ -478,10 +572,10 @@ async function loadWeekSummary() {
 }
 
 async function handleGenerate() {
-  if (selectedWeek.value <= currentWeek.value) {
+  if (selectedWeek.value < currentWeek.value) {
     $q.notify({
       type: 'warning',
-      message: 'No se pueden generar semanas pasadas o la semana actual',
+      message: 'No se pueden generar semanas pasadas',
     });
     return;
   }
@@ -571,6 +665,10 @@ const StatusIndicator = defineComponent({
   },
   setup(props) {
     return () => {
+      if (props.status === 'rom_na') {
+        return h('span', { class: 'text-grey-4 text-caption' }, '—');
+      }
+
       if (props.locked) {
         return h(QIcon, {
           name: props.status ? 'lock' : 'remove',
@@ -579,25 +677,13 @@ const StatusIndicator = defineComponent({
         });
       }
 
-      const iconName =
-        props.status === 'approved'
-          ? 'check_circle'
-          : props.status === 'pending_review'
-            ? 'pending'
-            : 'remove';
-
-      const iconColor =
-        props.status === 'approved'
-          ? 'positive'
-          : props.status === 'pending_review'
-            ? 'warning'
-            : 'grey-5';
-
-      return h(QIcon, {
-        name: iconName,
-        color: iconColor,
-        size: 'sm',
-      });
+      if (props.status === 'approved') {
+        return h('span', { class: 'text-positive text-caption text-weight-medium' }, 'Aprobada');
+      }
+      if (props.status === 'pending_review') {
+        return h('span', { class: 'text-warning text-caption text-weight-medium' }, 'Pendiente');
+      }
+      return h('span', { class: 'text-grey-5 text-caption' }, '—');
     };
   },
 });
@@ -716,6 +802,7 @@ onMounted(async () => {
   }
   selectedWeek.value = currentWeek.value + 1;
   goalPlanWeek.value = currentWeek.value + 1;
+  loadDayModes();
   loadWeekSummary();
 });
 </script>

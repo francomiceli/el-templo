@@ -458,7 +458,15 @@ async function fetchPool() {
   loading.value = true;
   pool.value = [];
   try {
-    if (props.mobilityMode) {
+    if (props.romZone) {
+      const response = await editApi.fetchExercisePool({
+        route: props.blockRoute,
+        blockId: props.blockId,
+        pattern: props.blockPattern,
+        blockRole: props.romZone,
+      });
+      pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
+    } else if (props.mobilityMode) {
       const response = await editApi.fetchMobilityPool(props.blockRoute);
       pool.value = (response.exercises as PoolExerciseWithSource[]) || [];
     } else {

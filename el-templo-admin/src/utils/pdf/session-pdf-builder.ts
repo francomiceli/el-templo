@@ -843,71 +843,63 @@ function buildDeuterosSplitPages(deut1: PdfBlockPage, deut2: PdfBlockPage): Cont
 
 // ROM tier labels (replaces Greek symbols for ROM sessions)
 const ROM_TIER_LABELS: Record<string, string> = {
-  alfa: 'BASICO',
-  delta: 'AVANZADO',
+  alfa: 'Básico',
+  delta: 'Avanzado',
 };
 
-// Full-width box width for ROM tiers: page width (3840) - page margins (60) - inner margins (120)
-const ROM_BOX_WIDTH = 3660;
-
 /**
- * ROM block page: 2-row stacked layout (BASICO full-width top, AVANZADO full-width bottom)
- * Each zone gets its own page with Spanish header and "For Quality" subtitle.
+ * ROM block page: PYROS/INITIUM-style clean layout with side-by-side tiers.
+ * Big zone header, subtitle, then Básico (left) and Avanzado (right) exercise lists.
+ * No bordered boxes — open, spacious layout like the INITIUM page.
  */
 function buildRomBlockPage(block: PdfBlockPage): Content[] {
   const levelBlocks = block.levelBlocks || [];
-  const targetBoxHeight = 680;
+  const exerciseGap = 32;
 
   const content: Content[] = [
     { text: '', pageBreak: 'before' as const },
-    { text: '', margin: [0, 32, 0, 0] },
+    { text: '', margin: [0, 100, 0, 0] },
   ];
 
-  // Zone header with shadow (same pattern as regular blocks)
-  const headerText = block.role; // Already translated: TREN INFERIOR, ZONA MEDIA, TREN SUPERIOR
+  // Zone header — large Cinzel, like PYROS: "ROM - TREN INFERIOR"
+  const headerText = `ROM - ${block.role}`;
   content.push({
     text: headerText,
-    fontSize: 130,
-    bold: true,
-    color: SAND,
-    alignment: 'center' as const,
-    characterSpacing: 6,
-    font: 'Cinzel',
-    opacity: 0.25,
-    margin: [6, 4, 0, 0],
-  });
-  content.push({
-    text: headerText,
-    fontSize: 130,
+    fontSize: 200,
     bold: true,
     color: NAVY,
     alignment: 'center' as const,
-    characterSpacing: 6,
+    characterSpacing: 14,
     font: 'Cinzel',
-    margin: [0, -138, 0, 0],
   });
 
-  // Format subtitle: "For Quality  ·  3 Rondas  ·  Descanso 30s"
+  // Format subtitle — all caps, italic, gold: "3 RONDAS - DESCANSO 30S"
+  const subtitleText = (block.formatName || '3 Rondas · Descanso 30s')
+    .toUpperCase()
+    .replace(/·/g, '-');
   content.push({
-    text: 'For Quality  \u00B7  3 Rondas  \u00B7  Descanso 30s',
-    fontSize: 68,
+    text: subtitleText,
+    fontSize: 100,
     bold: true,
+    italics: true,
     color: GOLD,
     alignment: 'center' as const,
-    margin: [0, 16, 0, 0],
+    characterSpacing: 6,
+    margin: [0, 24, 0, 0],
     font: 'NunitoSans',
   });
 
-  content.push({ text: '', margin: [0, 56, 0, 0] });
+  content.push({ text: '', margin: [0, 120, 0, 0] });
 
-  // Two full-width tier rows stacked vertically
-  for (const lb of levelBlocks) {
-    const tierLabel = ROM_TIER_LABELS[lb.level] || lb.level.toUpperCase();
+  // Build tier column — clean layout with bordered box (like regular level boxes)
+  const ROM_COL_BOX_WIDTH = 1700;
+  const buildTierColumn = (lb: PdfLevelBlock) => {
+    const tierLabel = ROM_TIER_LABELS[lb.level] || lb.level;
     const exerciseCount = lb.exercises.length;
-    const lineHeight = 84;
+    const lineHeight = 100;
+    const lineGap = 24;
     const minBoxHeight = 80 + exerciseCount * lineHeight;
-    const boxHeight = Math.max(targetBoxHeight, minBoxHeight);
-    const lineGap = 20;
+    const boxHeight = Math.max(800, minBoxHeight);
     const contentHeight = exerciseCount * lineHeight;
 
     const exerciseLines = lb.exercises.map((ex) => {
@@ -917,61 +909,86 @@ function buildRomBlockPage(block: PdfBlockPage): Content[] {
         columns: [
           {
             text: `\u2022  ${ex.name} ${contraction}`,
-            fontSize: 64,
+            fontSize: 72,
             bold: true,
             color: NAVY,
-            width: '*',
+            width: '80%',
             font: 'NunitoSans',
           },
           {
             text: volume,
-            fontSize: 64,
+            fontSize: 72,
             color: NAVY,
-            width: 'auto',
+            width: '20%',
+            margin: [0, 0, 30, 0] as [number, number, number, number],
             alignment: 'right' as const,
             bold: true,
             font: 'NunitoSans',
           },
         ],
-        margin: [50, lineGap, 50, 0],
+        margin: [50, lineGap, 50, 0] as [number, number, number, number],
       };
     });
 
-    // Tier label
-    content.push({
-      text: tierLabel,
-      fontSize: 94,
-      bold: true,
-      color: NAVY,
-      margin: [60, 0, 0, 16],
-      characterSpacing: 4,
-      font: 'Cinzel',
-    });
-
-    // Exercise box with rounded border
-    content.push({
-      canvas: [
+    return {
+      stack: [
+        // Tier label — gold, like route names in regular blocks
         {
-          type: 'rect' as const,
-          x: 0,
-          y: 0,
-          w: ROM_BOX_WIDTH,
-          h: boxHeight,
-          r: 40,
-          lineWidth: 8,
-          lineColor: GOLD,
+          text: tierLabel,
+          fontSize: 100,
+          bold: true,
+          color: GOLD,
+          font: 'NunitoSans',
+          characterSpacing: 4,
+          margin: [0, 0, 0, 24] as [number, number, number, number],
+        },
+        // Exercise box with rounded border
+        {
+          canvas: [
+            {
+              type: 'rect' as const,
+              x: 0,
+              y: 0,
+              w: ROM_COL_BOX_WIDTH,
+              h: boxHeight,
+              r: 40,
+              lineWidth: 8,
+              lineColor: GOLD,
+            },
+          ],
+        } as unknown as Content,
+        // Exercise content overlapping the canvas rect
+        {
+          stack: exerciseLines,
+          margin: [20, -(boxHeight - 24), 20, Math.max(32, boxHeight - 24 - contentHeight)] as [
+            number,
+            number,
+            number,
+            number,
+          ],
         },
       ],
-      margin: [60, 0, 60, 0],
-    } as unknown as Content);
+      width: '*',
+    };
+  };
 
-    // Exercise content overlapping the canvas rect
+  // Side-by-side: Básico left, Avanzado right
+  const alfa = levelBlocks.find((lb) => lb.level === 'alfa');
+  const delta = levelBlocks.find((lb) => lb.level === 'delta');
+
+  if (alfa && delta) {
     content.push({
-      stack: exerciseLines,
-      margin: [80, -(boxHeight - 24), 80, Math.max(32, boxHeight - 24 - contentHeight)],
-    });
-
-    content.push({ text: '', margin: [0, 48, 0, 0] });
+      columns: [
+        buildTierColumn(alfa),
+        { text: '', width: 120 }, // gap
+        buildTierColumn(delta),
+      ],
+      margin: [100, 0, 100, 0],
+    } as unknown as Content);
+  } else {
+    for (const lb of levelBlocks) {
+      content.push(buildTierColumn(lb) as unknown as Content);
+    }
   }
 
   return content;

@@ -74,6 +74,9 @@ export type FormatParams =
   | { type: "unbroken_chipper" }
   | { type: "ub_test" }
 
+  // ── ROM (Range of Motion) ────────────────────────────────────────────────
+  | { type: "rom"; rounds: number; restSeconds: number }
+
   // ── Technical / Skill-focused ───────────────────────────────────────────
   | { type: "complex"; rounds: number }
   | { type: "for_quality"; rounds: number }
@@ -313,6 +316,9 @@ function buildExactMap(
     unbroken_reps: () => ({ type: "unbroken_reps" }),
     unbroken_chipper: () => ({ type: "unbroken_chipper" }),
     ub_test: () => ({ type: "ub_test" }),
+
+    // ROM
+    rom: () => ({ type: "rom", rounds: 3, restSeconds: 30 }),
 
     // Technical
     complex: () => ({ type: "complex", rounds: DEFAULTS.COMPLEX_ROUNDS }),
@@ -618,6 +624,10 @@ export function formatParamsLabel(params: FormatParams): string {
       return "Unbroken Chipper";
     case "ub_test":
       return "UB Test";
+
+    // ROM
+    case "rom":
+      return `ROM - ${params.rounds} rondas - ${params.restSeconds}s descanso`;
 
     // Technical
     case "complex":

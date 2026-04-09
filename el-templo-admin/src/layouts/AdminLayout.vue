@@ -154,7 +154,10 @@
 
     <q-page-container>
       <!-- Low sessions alert banner -->
-      <q-banner v-if="isCoachRole && adminStore.lowSessionsAlert" class="bg-warning text-white">
+      <q-banner
+        v-if="isCoachRole && adminStore.lowSessionsAlert && $route.path !== '/generate'"
+        class="bg-warning text-white"
+      >
         <template #avatar>
           <q-icon name="warning" />
         </template>

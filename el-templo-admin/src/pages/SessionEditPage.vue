@@ -91,6 +91,7 @@
       :block-pattern="swapDialog.blockPattern"
       :mode="swapDialog.mode"
       :mobility-mode="swapDialog.mobilityMode"
+      :rom-zone="swapDialog.blockRole.startsWith('ROM_') ? swapDialog.blockRole : undefined"
       @update:model-value="onSwapDialogClose"
       @swapped="onDialogComplete"
       @added="onDialogComplete"
@@ -233,6 +234,7 @@ interface SwapDialogState {
   blockId: number;
   blockRoute: string;
   blockPattern: string;
+  blockRole: string;
   exercise: SessionExercise;
 }
 const swapDialog = ref<SwapDialogState | null>(null);
@@ -434,12 +436,10 @@ function showEquipmentTaggingSplash() {
 
   if (exerciseMap.size === 0) return;
 
-  splashExercises.value = Array.from(exerciseMap.entries()).map(
-    ([exerciseId, exerciseName]) => ({
-      exerciseId,
-      exerciseName,
-    }),
-  );
+  splashExercises.value = Array.from(exerciseMap.entries()).map(([exerciseId, exerciseName]) => ({
+    exerciseId,
+    exerciseName,
+  }));
   showEquipmentSplash.value = true;
 }
 
@@ -524,6 +524,7 @@ function onSwapExercise(payload: {
   exercise: SessionExercise;
   blockRoute: string;
   blockPattern: string;
+  blockRole: string;
 }) {
   preDialogScrollY.value = window.scrollY;
   swapDialog.value = {
@@ -533,6 +534,7 @@ function onSwapExercise(payload: {
     blockId: payload.blockId,
     blockRoute: payload.blockRoute,
     blockPattern: payload.blockPattern,
+    blockRole: payload.blockRole,
     exercise: payload.exercise,
   };
 }
@@ -552,6 +554,7 @@ function onAddExercise(payload: {
     blockId: payload.blockId,
     blockRoute: payload.blockRoute,
     blockPattern: payload.blockPattern,
+    blockRole: payload.blockRole,
     exercise: createEmptyExercise('Nuevo ejercicio'),
   };
 }
@@ -565,6 +568,7 @@ function onSwapMobility(payload: { sessionId: number; blockId: number; blockRout
     blockId: payload.blockId,
     blockRoute: payload.blockRoute,
     blockPattern: '',
+    blockRole: '',
     exercise: createEmptyExercise(),
   };
 }

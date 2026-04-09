@@ -322,6 +322,7 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
       contraction?: string;
       blockId: number;
       pattern?: string;
+      blockRole?: string;
     };
   }>(
     "/exercises/pool",

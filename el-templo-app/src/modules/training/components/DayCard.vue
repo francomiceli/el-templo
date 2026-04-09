@@ -5,12 +5,12 @@
       <div class="day-card__header-top">
         <div class="day-card__header-left">
           <span class="day-card__day-name">{{ day.dayName }}</span>
-          <q-badge v-if="isRomSession" color="info" label="ROM" class="q-ml-xs" />
           <span class="day-card__date">{{ formatDate(day.date) }}</span>
         </div>
       </div>
       <div v-if="day.session" class="day-card__header-subtitle">
         <span class="day-card__route">{{ getSessionRouteName(day.session) }}</span>
+        <q-badge v-if="isRomSession" color="info" label="ROM" class="q-ml-xs" />
       </div>
     </div>
 

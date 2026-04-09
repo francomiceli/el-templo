@@ -617,6 +617,7 @@ function onSwapExercise(payload: { exercise: SessionExercise }) {
     exercise: payload.exercise,
     blockRoute: selectedBlock.value.route,
     blockPattern: selectedBlock.value.pattern,
+    blockRole: selectedBlock.value.role,
   });
 }
 

@@ -1,22 +1,26 @@
-import { MySql2Database } from 'drizzle-orm/mysql2';
-import { eq, and, gte, sql } from 'drizzle-orm';
-import * as schema from '../../db/schema';
-import type { ExerciseQueryInput, SpomLookupInput } from './schemas';
+import { MySql2Database } from "drizzle-orm/mysql2";
+import { eq, and, gte, sql } from "drizzle-orm";
+import * as schema from "../../db/schema";
+import type { ExerciseQueryInput, SpomLookupInput } from "./schemas";
 
 export class SpomService {
   constructor(private db: MySql2Database<typeof schema>) {}
 
-  // Get current SPOM week
-  async getCurrentWeek(): Promise<number> {
-    const [config] = await this.db
-      .select({ currentWeek: schema.spomConfig.currentWeek })
-      .from(schema.spomConfig)
-      .where(eq(schema.spomConfig.id, 1));
-    return config?.currentWeek ?? 1;
+  // Get current SPOM week — derived from today's date, not DB
+  // WEEK_ONE_MONDAY = 2026-02-23 (same anchor as sessions/routes.ts)
+  getCurrentWeek(): number {
+    const WEEK_ONE_MONDAY = new Date("2026-02-23T00:00:00");
+    const now = new Date();
+    const diffMs = now.getTime() - WEEK_ONE_MONDAY.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const week = Math.floor(diffDays / 7) + 1;
+    return Math.max(1, Math.min(52, week));
   }
 
   // Update SPOM week (admin only)
-  async updateCurrentWeek(week: number): Promise<{ currentWeek: number; updatedAt: Date }> {
+  async updateCurrentWeek(
+    week: number,
+  ): Promise<{ currentWeek: number; updatedAt: Date }> {
     await this.db
       .update(schema.spomConfig)
       .set({ currentWeek: week })
@@ -42,10 +46,12 @@ export class SpomService {
     const [rule] = await this.db
       .select()
       .from(schema.spomRules)
-      .where(and(
-        eq(schema.spomRules.week, input.week),
-        eq(schema.spomRules.routeId, route.id)
-      ));
+      .where(
+        and(
+          eq(schema.spomRules.week, input.week),
+          eq(schema.spomRules.routeId, route.id),
+        ),
+      );
 
     return rule;
   }
@@ -87,10 +93,12 @@ export class SpomService {
     const [rule] = await this.db
       .select()
       .from(schema.contractionRules)
-      .where(and(
-        eq(schema.contractionRules.intensity, intensity),
-        eq(schema.contractionRules.totalExercises, totalExercises)
-      ));
+      .where(
+        and(
+          eq(schema.contractionRules.intensity, intensity),
+          eq(schema.contractionRules.totalExercises, totalExercises),
+        ),
+      );
     return rule;
   }
 
@@ -99,16 +107,32 @@ export class SpomService {
     const [entry] = await this.db
       .select()
       .from(schema.weeklyRotator)
-      .where(and(
-        eq(schema.weeklyRotator.week, week),
-        eq(schema.weeklyRotator.day, day as 'lunes' | 'martes' | 'miercoles' | 'jueves' | 'viernes' | 'sabado'),
-        eq(schema.weeklyRotator.levelGroup, levelGroup as 'alfa_delta' | 'sigma' | 'omega')
-      ));
+      .where(
+        and(
+          eq(schema.weeklyRotator.week, week),
+          eq(
+            schema.weeklyRotator.day,
+            day as
+              | "lunes"
+              | "martes"
+              | "miercoles"
+              | "jueves"
+              | "viernes"
+              | "sabado",
+          ),
+          eq(
+            schema.weeklyRotator.levelGroup,
+            levelGroup as "alfa_delta" | "sigma" | "omega",
+          ),
+        ),
+      );
     return entry;
   }
 
   // Get route by ID - converts route FK to route code for session generation
-  async getRouteById(routeId: number): Promise<{ id: number; code: string; displayName: string | null } | null> {
+  async getRouteById(
+    routeId: number,
+  ): Promise<{ id: number; code: string; displayName: string | null } | null> {
     const [route] = await this.db
       .select()
       .from(schema.routes)
@@ -121,14 +145,14 @@ export class SpomService {
     const counts: Record<string, number> = {};
 
     const tables = [
-      ['routes', schema.routes],
-      ['spom_rules', schema.spomRules],
-      ['intensity_rules', schema.intensityRules],
-      ['contraction_rules', schema.contractionRules],
-      ['weekly_rotator', schema.weeklyRotator],
-      ['formats', schema.formats],
-      ['format_compatibility', schema.formatCompatibility],
-      ['exercises', schema.exercises],
+      ["routes", schema.routes],
+      ["spom_rules", schema.spomRules],
+      ["intensity_rules", schema.intensityRules],
+      ["contraction_rules", schema.contractionRules],
+      ["weekly_rotator", schema.weeklyRotator],
+      ["formats", schema.formats],
+      ["format_compatibility", schema.formatCompatibility],
+      ["exercises", schema.exercises],
     ] as const;
 
     for (const [name, table] of tables) {

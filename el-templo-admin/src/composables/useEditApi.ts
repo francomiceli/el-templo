@@ -35,6 +35,7 @@ export function useEditApi() {
     blockId: number;
     contraction?: string;
     pattern?: string;
+    blockRole?: string;
   }): Promise<ExercisePoolResponse> {
     return apiCall(async () => {
       const { data } = await api.get<ExercisePoolResponse>('/admin/exercises/pool', { params });

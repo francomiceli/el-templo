@@ -165,6 +165,9 @@ const BLOCK_NAMES: Record<string, string> = {
   DEUTEROS_2: 'Deuteros',
   ATHLOS: 'Athlos',
   EPIKOS: 'Epikos',
+  ROM_LOWER: 'Tren Inferior',
+  ROM_CORE: 'Zona Media',
+  ROM_UPPER: 'Tren Superior',
 }
 
 interface Props {
@@ -343,6 +346,13 @@ const detailFormatParamsSummary = computed(() => {
     return dash > 0 ? format.slice(dash + 1) : ''
   }
   const parts: string[] = []
+  // ROM format: show rounds + rest
+  if (p.type === 'rom') {
+    if ('rounds' in p && typeof p.rounds === 'number') parts.push(`${p.rounds} rondas`)
+    if ('restSeconds' in p && typeof p.restSeconds === 'number')
+      parts.push(`descanso ${p.restSeconds}s`)
+    return parts.join(' · ')
+  }
   if ('minutes' in p && typeof p.minutes === 'number') parts.push(`${p.minutes} min`)
   if ('rounds' in p && typeof p.rounds === 'number') parts.push(`${p.rounds} rondas`)
   if ('totalMinutes' in p && typeof p.totalMinutes === 'number') parts.push(`${p.totalMinutes} min`)
@@ -427,6 +437,7 @@ const compactListData = computed(() => {
 // Computed display values
 const viewingRouteName = computed(() => {
   if (!viewingBlock.value) return ''
+  if (viewingBlock.value.role.startsWith('ROM_')) return 'ROM'
   return getRouteName(viewingBlock.value.route)
 })
 

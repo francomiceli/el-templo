@@ -111,6 +111,17 @@ export async function generateRomSession(
         ex.dificultadLineal <= maxDifficulty,
     );
 
+    // Fallback: if CON filter excludes all, include untagged exercises (many mobility
+    // stretches have no effort/contraction tagged in the DB)
+    if (eligible.length === 0) {
+      eligible = zoneExercises.filter(
+        (ex) =>
+          (!ex.effort || ex.effort.trim() === "") &&
+          ex.dificultadLineal >= minDifficulty &&
+          ex.dificultadLineal <= maxDifficulty,
+      );
+    }
+
     // Graceful fallback: if fewer than 3 exercises, relax difficulty filter (per T-97-04)
     if (eligible.length < 3) {
       sessionTrace.push({
@@ -132,8 +143,13 @@ export async function generateRomSession(
         },
       });
 
-      // Fall back to all CON mobility exercises in this zone regardless of difficulty
+      // Fall back: relax difficulty, prefer CON, then untagged
       eligible = zoneExercises.filter((ex) => ex.effort === "CON");
+      if (eligible.length === 0) {
+        eligible = zoneExercises.filter(
+          (ex) => !ex.effort || ex.effort.trim() === "",
+        );
+      }
     }
 
     // Pick 3 random exercises (Fisher-Yates shuffle, take first 3)
@@ -163,8 +179,8 @@ export async function generateRomSession(
       pattern: "MOVILIDAD",
       intensity: ROM_INTENSITY,
       repsBudget: ROM_REPS_BUDGET,
-      format: { formatId: 0, name: "For Quality" },
-      formatParams: { type: "for_quality", rounds: 3 },
+      format: { formatId: 0, name: "ROM" },
+      formatParams: { type: "rom", rounds: 3, restSeconds: ROM_REST_SECONDS },
       exercises,
       trace: [],
       mobilityExercise: undefined,

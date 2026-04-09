@@ -13,10 +13,16 @@
         </q-item-label>
         <div class="block-meta">
           <div class="block-meta__row">
-            <span v-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{
+            <span v-if="block.role.startsWith('ROM_')" class="block-meta__route">{{
+              { ROM_LOWER: 'Lower', ROM_CORE: 'Core', ROM_UPPER: 'Upper' }[block.role] || block.role
+            }}</span>
+            <span v-else-if="block.route && block.route != 'INITIUM'" class="block-meta__route">{{
               getRouteName(block.route)
             }}</span>
-            <span v-if="block.intensity && block.route != 'INITIUM'" class="block-meta__intensity">
+            <span
+              v-if="block.intensity && block.route != 'INITIUM' && !block.role.startsWith('ROM_')"
+              class="block-meta__intensity"
+            >
               <span class="block-meta__label">INT</span> {{ block.intensity }}%
             </span>
           </div>

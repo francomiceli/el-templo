@@ -180,6 +180,36 @@
       />
     </div>
 
+    <!-- ROM (rounds + rest) -->
+    <div v-else-if="localParams && localParams.type === 'rom'" class="row items-center q-gutter-sm">
+      <q-input
+        v-model.number="localParams.rounds"
+        type="number"
+        dense
+        outlined
+        :dark="dark"
+        :min="1"
+        :max="10"
+        label="Rondas"
+        style="min-width: 100px"
+        @blur="onBlur"
+        @keyup.enter="onBlur"
+      />
+      <q-input
+        v-model.number="localParams.restSeconds"
+        type="number"
+        dense
+        outlined
+        :dark="dark"
+        :min="0"
+        :max="120"
+        label="Descanso (seg)"
+        style="min-width: 130px"
+        @blur="onBlur"
+        @keyup.enter="onBlur"
+      />
+    </div>
+
     <!-- Complex / For Quality (rounds only) -->
     <div
       v-else-if="localParams && ['complex', 'for_quality'].includes(String(localParams.type))"
@@ -729,6 +759,7 @@ const defaultsMap: Record<string, FormatParamsLocal> = {
 
   // Technical
   complex: { type: 'complex', rounds: 3 },
+  rom: { type: 'rom', rounds: 3, restSeconds: 30 },
   for_quality: { type: 'for_quality', rounds: 3 },
   for_tech: { type: 'for_tech', minutes: 12 },
   tempo_sets: { type: 'tempo_sets', tempo: '3-1-1-0' },
