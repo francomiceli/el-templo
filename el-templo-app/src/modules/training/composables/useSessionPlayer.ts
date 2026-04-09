@@ -59,13 +59,32 @@ export function useSessionPlayer(session: Session) {
   let anchorTime = 0;         // Date.now() when timer was last started
 
   /**
-   * Get the 4 playable blocks based on Deuteros choice
+   * Whether the session contains Deuteros blocks (regular SPOM sessions)
+   * ROM and other non-Deuteros sessions skip the choice screen entirely.
+   */
+  const hasDeuterosBlocks = computed(() => {
+    return session.blocks.some(
+      (b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS_2',
+    );
+  });
+
+  /**
+   * Get playable blocks based on session type
    *
-   * Before choice: Returns INITIUM, NUCLEUS only (user must choose Deuteros)
-   * After choice: Returns INITIUM, NUCLEUS, chosen DEUTEROS, ATHLOS/EPIKOS
+   * Regular sessions (with Deuteros):
+   *   Before choice: Returns INITIUM, NUCLEUS only (user must choose Deuteros)
+   *   After choice: Returns INITIUM, NUCLEUS, chosen DEUTEROS, ATHLOS/EPIKOS
+   *
+   * ROM / non-Deuteros sessions:
+   *   All blocks in sortOrder, no choice needed
    */
   const playableBlocks = computed<Block[]>(() => {
     const blocks = session.blocks;
+
+    // ROM or any session without Deuteros: play all blocks in sortOrder, no choice
+    if (!hasDeuterosBlocks.value) {
+      return [...blocks].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
 
     // Find blocks by role
     const initium = blocks.find(b => b.role === 'INITIUM');
@@ -114,6 +133,11 @@ export function useSessionPlayer(session: Session) {
    * Progress as fraction (0-1)
    */
   const progress = computed(() => {
+    if (!hasDeuterosBlocks.value) {
+      // ROM or non-Deuteros session: progress based on total blocks
+      const totalBlocks = playableBlocks.value.length;
+      return totalBlocks > 0 ? completedBlocks.value.length / totalBlocks : 0;
+    }
     if (!deuterosChoice.value) {
       // Before Deuteros choice, show progress based on 2 blocks
       return currentBlockIndex.value / 2;
@@ -126,6 +150,7 @@ export function useSessionPlayer(session: Session) {
    * Whether we're at the Deuteros choice point
    */
   const needsDeuterosChoice = computed(() => {
+    if (!hasDeuterosBlocks.value) return false;
     return !deuterosChoice.value && currentBlockIndex.value >= 2;
   });
 
@@ -133,6 +158,10 @@ export function useSessionPlayer(session: Session) {
    * Whether the session is complete
    */
   const isSessionComplete = computed(() => {
+    if (!hasDeuterosBlocks.value) {
+      // ROM or non-Deuteros: complete when all playable blocks are done
+      return completedBlocks.value.length >= playableBlocks.value.length && playableBlocks.value.length > 0;
+    }
     return completedBlocks.value.length >= 4;
   });
 
@@ -399,6 +428,7 @@ export function useSessionPlayer(session: Session) {
     currentBlockFormat,
     progress,
     needsDeuterosChoice,
+    hasDeuterosBlocks,
     isSessionComplete,
     deuteros1Block,
     deuteros2Block,
