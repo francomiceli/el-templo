@@ -2093,9 +2093,9 @@ Plans:
 
 Plans:
 
-- [ ] 097-01-PLAN.md — API: `session_mode` column + migration, ROM session generation pipeline (mobility selection by body zone mapping, block roles, format)
-- [ ] 097-02-PLAN.md — Admin: SessionsPage ROM display, SessionEditPage ROM editing (mobility pool for ROM blocks, no DESCANSO ACTIVO), PDF 2-tier ROM layout
-- [ ] 097-03-PLAN.md — App: ROM day detection, simplified block display (3 blocks, 2 tiers, no Deuteros selector)
+- [ ] 97-01-PLAN.md — API foundation: schema (session_mode + day_modes), ROM generator, generateWeek integration, day-modes endpoint, member level mapping, exercise swap body-zone filtering
+- [ ] 97-02-PLAN.md — Admin UI: SessionsPage ROM display + day mode toggles, block editing (ROM headers, hidden mobility), exercise swap zone filtering, PDF 2-row stacked layout
+- [ ] 97-03-PLAN.md — Member app: frontend types + block colors, DayCard ROM badge + Movilidad subtitle, useSessionPlayer ROM flow (no Deuteros selector)
 
 ---
 
