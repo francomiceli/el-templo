@@ -41,6 +41,10 @@ const FORMAT_COMPATIBILITY: Record<BlockRole, readonly string[]> = {
     "Complex",
     "I Go You Go",
   ],
+  // ROM blocks use fixed For Quality format
+  ROM_LOWER: ["For Quality"],
+  ROM_CORE: ["For Quality"],
+  ROM_UPPER: ["For Quality"],
 };
 
 /** Budget tolerance percentage (10% overage allowed) */

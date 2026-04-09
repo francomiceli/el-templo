@@ -37,6 +37,11 @@ function roleToBlock(
       return "athlos";
     case "EPIKOS":
       return "epikos";
+    // ROM roles bypass the pipeline entirely — this should never be called for ROM blocks
+    case "ROM_LOWER":
+    case "ROM_CORE":
+    case "ROM_UPPER":
+      return "initium"; // Fallback; ROM blocks never reach stage-5
   }
 }
 

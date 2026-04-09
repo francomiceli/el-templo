@@ -455,6 +455,9 @@ export class SessionGeneratorService {
         ...(session.goalPlanType
           ? { goalPlanType: session.goalPlanType }
           : {}),
+        ...(session.sessionMode
+          ? { sessionMode: session.sessionMode }
+          : {}),
       });
 
       const newSessionId = sessionResult.insertId;
@@ -731,6 +734,9 @@ export class SessionGeneratorService {
         memberLevel,
         blocks: blockPlans,
         trace: (session.traceJson as TraceEvent[]) ?? [],
+        ...(session.sessionMode && session.sessionMode !== "regular"
+          ? { sessionMode: session.sessionMode as "regular" | "rom" }
+          : {}),
       });
     }
 
@@ -859,6 +865,9 @@ export class SessionGeneratorService {
       memberLevel,
       blocks: blockPlans,
       trace: (session.traceJson as TraceEvent[]) ?? [],
+      ...(session.sessionMode && session.sessionMode !== "regular"
+        ? { sessionMode: session.sessionMode as "regular" | "rom" }
+        : {}),
     };
   }
 }

@@ -29,6 +29,10 @@ const INTENSITY_RANGES: Record<BlockRole, { min: number; max: number }> = {
   DEUTEROS_2: { min: 50, max: 85 },
   ATHLOS: { min: 30, max: 70 },
   EPIKOS: { min: 30, max: 70 },
+  // ROM blocks use fixed moderate intensity
+  ROM_LOWER: { min: 30, max: 70 },
+  ROM_CORE: { min: 30, max: 70 },
+  ROM_UPPER: { min: 30, max: 70 },
 };
 
 /**
@@ -49,8 +53,18 @@ export function validateSession(session: DaySession): SessionValidationResult {
   const sessionErrors: string[] = [];
   const blockResults: BlockValidationResult[] = [];
 
-  // Check 1: Block count
-  if (session.blocks.length < MIN_BLOCKS) {
+  // Detect ROM session (3 body-zone blocks, different structure from regular)
+  const isRomSession = session.sessionMode === "rom" ||
+    session.blocks.some((b) => b.role.startsWith("ROM_"));
+
+  // Check 1: Block count (ROM = 3, regular = 4-5)
+  if (isRomSession) {
+    if (session.blocks.length !== 3) {
+      sessionErrors.push(
+        `ROM session has ${session.blocks.length} blocks (expected: 3)`
+      );
+    }
+  } else if (session.blocks.length < MIN_BLOCKS) {
     sessionErrors.push(
       `Session has only ${session.blocks.length} blocks (minimum: ${MIN_BLOCKS})`
     );
@@ -110,16 +124,16 @@ export function validateSession(session: DaySession): SessionValidationResult {
     );
   }
 
-  // Check 6: INITIUM should be first
-  if (session.blocks.length > 0 && session.blocks[0].role !== 'INITIUM') {
+  // Check 6: INITIUM should be first (regular sessions only; ROM starts with ROM_LOWER)
+  if (!isRomSession && session.blocks.length > 0 && session.blocks[0].role !== 'INITIUM') {
     sessionWarnings.push(
       `First block is ${session.blocks[0].role}, expected INITIUM`
     );
   }
 
-  // Check 7: Final block should be ATHLOS or EPIKOS
+  // Check 7: Final block should be ATHLOS or EPIKOS (regular sessions only)
   const lastBlock = session.blocks[session.blocks.length - 1];
-  if (lastBlock && lastBlock.role !== 'ATHLOS' && lastBlock.role !== 'EPIKOS') {
+  if (!isRomSession && lastBlock && lastBlock.role !== 'ATHLOS' && lastBlock.role !== 'EPIKOS') {
     sessionWarnings.push(
       `Last block is ${lastBlock.role}, expected ATHLOS or EPIKOS`
     );

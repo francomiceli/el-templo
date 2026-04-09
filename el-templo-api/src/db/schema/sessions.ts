@@ -24,6 +24,11 @@ export const sessions = mysqlTable(
     // Goal plan support: null = general Entrenamiento, non-null = goal plan type code
     goalPlanType: varchar("goal_plan_type", { length: 30 }),
 
+    // Session mode: 'regular' (default SPOM) or 'rom' (mobility-focused)
+    sessionMode: varchar("session_mode", { length: 10 })
+      .default("regular")
+      .notNull(),
+
     // Admin workflow columns
     status: varchar("status", { length: 20 })
       .default("pending_review")

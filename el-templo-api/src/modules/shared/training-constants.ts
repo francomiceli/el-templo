@@ -24,6 +24,16 @@ export const DAY_OF_WEEK_MAP: Record<number, TrainingDay> = {
   6: "sabado",
 };
 
+/** Map Spanish day name to day_of_week number (for day_modes table lookup) */
+export const DAY_NAME_TO_NUMBER: Record<string, number> = {
+  lunes: 1,
+  martes: 2,
+  miercoles: 3,
+  jueves: 4,
+  viernes: 5,
+  sabado: 6,
+};
+
 /** Sort order for mobility exercises (always last in block) */
 export const MOBILITY_SORT_ORDER = 999;
 

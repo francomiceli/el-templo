@@ -16,14 +16,17 @@ export type LevelGroup = "alfa_delta" | "sigma" | "omega";
 /** Individual exercise level - member's actual training level */
 export type ExerciseLevel = "alfa" | "delta" | "sigma" | "omega" | "spartan";
 
-/** Block roles in a training session (5 blocks total) */
+/** Block roles in a training session (5 blocks for regular, 3 for ROM) */
 export type BlockRole =
   | "INITIUM"
   | "NUCLEUS"
   | "DEUTEROS_1"
   | "DEUTEROS_2"
   | "ATHLOS"
-  | "EPIKOS";
+  | "EPIKOS"
+  | "ROM_LOWER"
+  | "ROM_CORE"
+  | "ROM_UPPER";
 
 /** Final block type - alternates by week */
 export type FinalBlockRole = "ATHLOS" | "EPIKOS";
@@ -136,4 +139,6 @@ export interface DaySession {
   readonly trace: readonly TraceEvent[];
   /** Goal plan type for goal plan sessions. Null/undefined for general Entrenamiento. */
   readonly goalPlanType?: string | null;
+  /** Session mode: 'regular' (default SPOM) or 'rom' (mobility-focused) */
+  readonly sessionMode?: "regular" | "rom";
 }
