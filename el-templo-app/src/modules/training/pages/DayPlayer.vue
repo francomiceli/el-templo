@@ -248,6 +248,9 @@ const BLOCK_NAMES: Record<string, string> = {
   DEUTEROS_2: 'Deuteros',
   ATHLOS: 'Athlos',
   EPIKOS: 'Epikos',
+  ROM_LOWER: 'Tren Inferior',
+  ROM_CORE: 'Zona Media',
+  ROM_UPPER: 'Tren Superior',
 }
 
 function onSplashStart(): void {
