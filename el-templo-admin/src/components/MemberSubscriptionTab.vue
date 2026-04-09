@@ -286,7 +286,6 @@ import {
   PLAN_TIER_LABELS,
   STATUS_LABELS,
   STATUS_COLORS,
-  PRICE_TYPE_LABELS,
   PLAN_CATEGORY_LABELS,
   PLAN_CATEGORY_COLORS,
   type SubscriptionDetail,
@@ -295,7 +294,6 @@ import {
   type PlanTier,
   type PlanCategory,
   type SubscriptionStatus,
-  type PriceType,
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
