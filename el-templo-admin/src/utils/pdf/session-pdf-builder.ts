@@ -841,6 +841,142 @@ function buildDeuterosSplitPages(deut1: PdfBlockPage, deut2: PdfBlockPage): Cont
   return content;
 }
 
+// ROM tier labels (replaces Greek symbols for ROM sessions)
+const ROM_TIER_LABELS: Record<string, string> = {
+  alfa: 'BASICO',
+  delta: 'AVANZADO',
+};
+
+// Full-width box width for ROM tiers: page width (3840) - page margins (60) - inner margins (120)
+const ROM_BOX_WIDTH = 3660;
+
+/**
+ * ROM block page: 2-row stacked layout (BASICO full-width top, AVANZADO full-width bottom)
+ * Each zone gets its own page with Spanish header and "For Quality" subtitle.
+ */
+function buildRomBlockPage(block: PdfBlockPage): Content[] {
+  const levelBlocks = block.levelBlocks || [];
+  const targetBoxHeight = 680;
+
+  const content: Content[] = [
+    { text: '', pageBreak: 'before' as const },
+    { text: '', margin: [0, 32, 0, 0] },
+  ];
+
+  // Zone header with shadow (same pattern as regular blocks)
+  const headerText = block.role; // Already translated: TREN INFERIOR, ZONA MEDIA, TREN SUPERIOR
+  content.push({
+    text: headerText,
+    fontSize: 130,
+    bold: true,
+    color: SAND,
+    alignment: 'center' as const,
+    characterSpacing: 6,
+    font: 'Cinzel',
+    opacity: 0.25,
+    margin: [6, 4, 0, 0],
+  });
+  content.push({
+    text: headerText,
+    fontSize: 130,
+    bold: true,
+    color: NAVY,
+    alignment: 'center' as const,
+    characterSpacing: 6,
+    font: 'Cinzel',
+    margin: [0, -138, 0, 0],
+  });
+
+  // Format subtitle: "For Quality  ·  3 Rondas  ·  Descanso 30s"
+  content.push({
+    text: 'For Quality  \u00B7  3 Rondas  \u00B7  Descanso 30s',
+    fontSize: 68,
+    bold: true,
+    color: GOLD,
+    alignment: 'center' as const,
+    margin: [0, 16, 0, 0],
+    font: 'NunitoSans',
+  });
+
+  content.push({ text: '', margin: [0, 56, 0, 0] });
+
+  // Two full-width tier rows stacked vertically
+  for (const lb of levelBlocks) {
+    const tierLabel = ROM_TIER_LABELS[lb.level] || lb.level.toUpperCase();
+    const exerciseCount = lb.exercises.length;
+    const lineHeight = 84;
+    const minBoxHeight = 80 + exerciseCount * lineHeight;
+    const boxHeight = Math.max(targetBoxHeight, minBoxHeight);
+    const lineGap = 20;
+    const contentHeight = exerciseCount * lineHeight;
+
+    const exerciseLines = lb.exercises.map((ex) => {
+      const contraction = CONTRACTION_ABBR[ex.contraction] || ex.contraction;
+      const volume = buildExerciseVolume(ex);
+      return {
+        columns: [
+          {
+            text: `\u2022  ${ex.name} ${contraction}`,
+            fontSize: 64,
+            bold: true,
+            color: NAVY,
+            width: '*',
+            font: 'NunitoSans',
+          },
+          {
+            text: volume,
+            fontSize: 64,
+            color: NAVY,
+            width: 'auto',
+            alignment: 'right' as const,
+            bold: true,
+            font: 'NunitoSans',
+          },
+        ],
+        margin: [50, lineGap, 50, 0],
+      };
+    });
+
+    // Tier label
+    content.push({
+      text: tierLabel,
+      fontSize: 94,
+      bold: true,
+      color: NAVY,
+      margin: [60, 0, 0, 16],
+      characterSpacing: 4,
+      font: 'Cinzel',
+    });
+
+    // Exercise box with rounded border
+    content.push({
+      canvas: [
+        {
+          type: 'rect' as const,
+          x: 0,
+          y: 0,
+          w: ROM_BOX_WIDTH,
+          h: boxHeight,
+          r: 40,
+          lineWidth: 8,
+          lineColor: GOLD,
+        },
+      ],
+      margin: [60, 0, 60, 0],
+    } as unknown as Content);
+
+    // Exercise content overlapping the canvas rect
+    content.push({
+      stack: exerciseLines,
+      margin: [80, -(boxHeight - 24), 80, Math.max(32, boxHeight - 24 - contentHeight)],
+    });
+
+    content.push({ text: '', margin: [0, 48, 0, 0] });
+  }
+
+  return content;
+}
+
 /**
  * Build document content for a single day (6 pages)
  */
@@ -855,26 +991,36 @@ export function buildDayContent(day: PdfDaySession): Content[] {
     margin: [0, 400, 0, 0] as [number, number, number, number],
   });
 
-  // 2. Process blocks
-  const initium = day.blocks.find((b) => b.role === 'INITIUM');
-  const nucleus = day.blocks.find((b) => b.role === 'NUCLEUS');
-  const deut1 = day.blocks.find((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
-  const deut2 = day.blocks.find((b) => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
-  const epikos = day.blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
+  // 2. Check if this is a ROM day
+  const isRomDay = day.blocks.some((b) => b.isRom);
 
-  if (initium) content.push(...buildInitiumPage(initium));
-  if (nucleus) content.push(...buildFullBlockPage(nucleus));
-  if (deut1 && deut2) {
-    content.push(...buildDeuterosSplitPages(deut1, deut2));
-  } else if (deut1) {
-    content.push(...buildFullBlockPage(deut1));
-  } else if (deut2) {
-    content.push(...buildFullBlockPage(deut2));
+  if (isRomDay) {
+    // ROM day: each zone gets its own page (3 pages, no INITIUM)
+    for (const block of day.blocks) {
+      content.push(...buildRomBlockPage(block));
+    }
+  } else {
+    // Regular day: standard block layout
+    const initium = day.blocks.find((b) => b.role === 'INITIUM');
+    const nucleus = day.blocks.find((b) => b.role === 'NUCLEUS');
+    const deut1 = day.blocks.find((b) => b.role === 'DEUTEROS_1' || b.role === 'DEUTEROS I');
+    const deut2 = day.blocks.find((b) => b.role === 'DEUTEROS_2' || b.role === 'DEUTEROS II');
+    const epikos = day.blocks.find((b) => b.role === 'EPIKOS' || b.role === 'ATHLOS');
+
+    if (initium) content.push(...buildInitiumPage(initium));
+    if (nucleus) content.push(...buildFullBlockPage(nucleus));
+    if (deut1 && deut2) {
+      content.push(...buildDeuterosSplitPages(deut1, deut2));
+    } else if (deut1) {
+      content.push(...buildFullBlockPage(deut1));
+    } else if (deut2) {
+      content.push(...buildFullBlockPage(deut2));
+    }
+    if (epikos) content.push(...buildFullBlockPage(epikos));
   }
-  if (epikos) content.push(...buildFullBlockPage(epikos));
 
   // 3. Closing page (rotate quotes by week + day for variety)
-  const dayOrder = ['LUNES', 'MARTES', 'MIÉRCOLES', 'JUEVES', 'VIERNES', 'SÁBADO'];
+  const dayOrder = ['LUNES', 'MARTES', 'MI\u00C9RCOLES', 'JUEVES', 'VIERNES', 'S\u00C1BADO'];
   const dayIdx = dayOrder.indexOf(day.dayName);
   content.push(...buildClosingPage(day.week * 7 + (dayIdx >= 0 ? dayIdx : 0)));
 

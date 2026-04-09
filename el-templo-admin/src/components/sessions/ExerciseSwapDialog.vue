@@ -8,6 +8,9 @@
       <!-- Header -->
       <q-card-section class="row items-center q-pb-none">
         <div class="text-h6">{{ dialogTitle }}</div>
+        <q-badge v-if="romZone" outline color="info" class="q-ml-sm">
+          {{ ROM_ZONE_LABELS[romZone] || romZone }}
+        </q-badge>
         <q-space />
         <q-btn icon="close" flat round dense :disable="swapping" v-close-popup />
       </q-card-section>
@@ -271,6 +274,12 @@ interface PatternChip {
   count: number;
 }
 
+const ROM_ZONE_LABELS: Record<string, string> = {
+  ROM_LOWER: 'Tren Inferior',
+  ROM_CORE: 'Zona Media',
+  ROM_UPPER: 'Tren Superior',
+};
+
 const props = withDefaults(
   defineProps<{
     modelValue: boolean;
@@ -281,10 +290,12 @@ const props = withDefaults(
     blockPattern: string;
     mode?: 'swap' | 'add';
     mobilityMode?: boolean;
+    romZone?: string;
   }>(),
   {
     mode: 'swap',
     mobilityMode: false,
+    romZone: undefined,
   }
 );
 

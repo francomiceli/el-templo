@@ -13,7 +13,7 @@
           class="role-select text-h6"
           @update:model-value="onRoleChange"
         />
-        <div v-else class="text-h6">{{ blockGroup.role }}</div>
+        <div v-else class="text-h6">{{ displayRoleName }}</div>
 
         <!-- Format dropdown (inline next to block name) -->
         <q-select
@@ -186,8 +186,8 @@
       </q-card-actions>
     </template>
 
-    <!-- Descanso Activo section (shared across all levels, outside level tabs) -->
-    <template v-if="!isInitium && sharedMobility">
+    <!-- Descanso Activo section (shared across all levels, outside level tabs; hidden for ROM blocks) -->
+    <template v-if="!isInitium && !isRomBlock && sharedMobility">
       <q-separator class="q-my-sm" />
       <div class="q-px-md q-pb-md">
         <div class="text-caption text-weight-bold text-grey-7 q-mb-xs">DESCANSO ACTIVO</div>
@@ -352,6 +352,18 @@ const emit = defineEmits<{
 const $q = useQuasar();
 const editApi = useEditApi();
 
+// ROM block detection and display names
+const ROLE_DISPLAY_NAMES: Record<string, string> = {
+  ROM_LOWER: 'TREN INFERIOR',
+  ROM_CORE: 'ZONA MEDIA',
+  ROM_UPPER: 'TREN SUPERIOR',
+};
+
+const isRomBlock = computed(() => props.blockGroup.role?.startsWith('ROM_') ?? false);
+const displayRoleName = computed(
+  () => ROLE_DISPLAY_NAMES[props.blockGroup.role] || props.blockGroup.role
+);
+
 // Level tab state
 const selectedLevel = ref(props.blockGroup.levelBlocks[0]?.memberLevel || '');
 
@@ -378,6 +390,7 @@ const selectedBlock = computed(() => selectedLevelBlock.value?.block ?? null);
 
 const blockColor = computed(() => {
   const role = props.blockGroup.role?.toLowerCase() || '';
+  if (role.startsWith('rom_')) return 'blue-grey-7';
   if (role.includes('initium')) return 'brown-5';
   if (role.includes('nucleus')) return 'deep-orange-8';
   if (role.includes('deuteros')) return 'brown-8';

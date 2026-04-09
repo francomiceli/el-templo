@@ -28,7 +28,7 @@ export interface PdfLevelBlock {
 }
 
 export interface PdfBlockPage {
-  role: string; // INITIUM, NUCLEUS, DEUTEROS I, DEUTEROS II, EPIKOS, ATHLOS
+  role: string; // INITIUM, NUCLEUS, DEUTEROS I, DEUTEROS II, EPIKOS, ATHLOS, or ROM zone names
   blockName?: string; // e.g., "PYROS" for INITIUM
   formatName: string; // e.g., "TIME CAP 10'", "AMRAP 12'"
   mobility?: string; // e.g., "ASSISTED SPAGAT DELTA 20\""
@@ -37,6 +37,8 @@ export interface PdfBlockPage {
   simpleExercises?: string[];
   // For NUCLEUS/DEUTEROS/EPIKOS: per-level grid
   levelBlocks?: PdfLevelBlock[];
+  // ROM mode flag — signals PDF builder to use 2-row stacked layout
+  isRom?: boolean;
 }
 
 export interface PdfDaySession {

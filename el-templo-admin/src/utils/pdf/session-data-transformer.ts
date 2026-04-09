@@ -294,6 +294,14 @@ function buildGridPage(
   };
 }
 
+// ROM zone constants for PDF transformer
+const ROM_ZONES = ['ROM_LOWER', 'ROM_CORE', 'ROM_UPPER'] as const;
+const ROM_ZONE_LABELS: Record<string, string> = {
+  ROM_LOWER: 'TREN INFERIOR',
+  ROM_CORE: 'ZONA MEDIA',
+  ROM_UPPER: 'TREN SUPERIOR',
+};
+
 /**
  * Transform multiple sessions (one per level) into a single PdfDaySession
  * with multi-level grids for each block.
@@ -312,6 +320,38 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
   }
 
   const blocks: PdfBlockPage[] = [];
+
+  // Detect ROM sessions: check if any session has ROM block roles
+  const isRom = sessions.some((s) => s.blocks.some((b) => b.role.startsWith('ROM_')));
+
+  if (isRom) {
+    // ROM sessions: 3 zone blocks, 2 tiers (alfa=BASICO, delta=AVANZADO)
+    for (const zone of ROM_ZONES) {
+      const levelBlocks: PdfLevelBlock[] = [];
+      let formatName = '';
+
+      for (const level of ['alfa', 'delta']) {
+        const session = sessionsByLevel.get(level);
+        if (!session) continue;
+        const block = session.blocks.find((b) => b.role === zone);
+        if (!block) continue;
+        if (!formatName) formatName = formatNameWithParams(block.formatName, block.formatParams);
+        levelBlocks.push(blockToLevelBlock(block, level));
+      }
+
+      if (levelBlocks.length > 0) {
+        blocks.push({
+          role: ROM_ZONE_LABELS[zone] || zone,
+          formatName,
+          mobility: undefined, // No mobility slot for ROM (per D-10)
+          levelBlocks,
+          isRom: true,
+        });
+      }
+    }
+
+    return { dayName, week, blocks };
+  }
 
   // INITIUM: same across all levels - grab from any session
   for (const s of sessions) {
