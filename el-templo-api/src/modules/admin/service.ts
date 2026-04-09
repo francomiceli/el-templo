@@ -18,6 +18,7 @@ import { SpomService } from "../spom/service";
 import {
   TRAINING_DAYS,
   DAY_OF_WEEK_MAP,
+  DAY_NAME_TO_NUMBER,
   parseDayId,
 } from "../shared/training-constants";
 
@@ -52,6 +53,7 @@ export interface AdminSessionSummary {
   status: SessionStatus;
   blockCount: number;
   goalPlanType: string | null;
+  sessionMode: string;
   approvedAt: Date | null;
   approvedBy: number | null;
   approvedByName: string | null;
@@ -110,6 +112,7 @@ export class AdminSessionService {
         status: schema.sessions.status,
         blockCount: schema.sessions.blockCount,
         goalPlanType: schema.sessions.goalPlanType,
+        sessionMode: schema.sessions.sessionMode,
         approvedAt: schema.sessions.approvedAt,
         approvedBy: schema.sessions.approvedBy,
         approvedBySystem: schema.sessions.approvedBySystem,
@@ -153,12 +156,22 @@ export class AdminSessionService {
             .orderBy(asc(schema.sessionBlocks.sortOrder))
         : [];
 
+    // ROM display names for block roles
+    const ROM_DISPLAY: Record<string, string> = {
+      ROM_LOWER: "Tren Inferior",
+      ROM_CORE: "Zona Media",
+      ROM_UPPER: "Tren Superior",
+    };
+
     // Build routes summary map: sessionId -> "I, N: SU 55%, D1: PHS 60%, D2: HT 65%, A: FLR 60%"
     const routesBySession = new Map<number, string>();
     for (const sessionId of sessionIds) {
       const sessionBlocks = blocks.filter((b) => b.sessionId === sessionId);
       const routesSummary = sessionBlocks
         .map((b) => {
+          // ROM blocks show zone display names
+          if (b.role.startsWith("ROM_"))
+            return ROM_DISPLAY[b.role] || b.role;
           if (b.role === "INITIUM") return "I";
           let label = b.role.charAt(0);
           if (b.role === "DEUTEROS_1") label = "D1";
@@ -183,6 +196,7 @@ export class AdminSessionService {
           status: s.status as SessionStatus,
           blockCount: s.blockCount,
           goalPlanType: s.goalPlanType ?? null,
+          sessionMode: s.sessionMode || "regular",
           approvedAt: s.approvedAt,
           approvedBy: s.approvedBy,
           approvedByName:
@@ -641,9 +655,56 @@ export class AdminSessionService {
 
     // Import SessionGeneratorService dynamically to avoid circular deps
     const { SessionGeneratorService } = await import("../sessions/service.js");
+    const { generateRomSession } = await import(
+      "../sessions/rom-generator.js"
+    );
     const sessionService = new SessionGeneratorService(this.db);
 
+    // Load day modes for ROM routing (per D-17)
+    const dayModeRows = await this.db.select().from(schema.dayModes);
+    const dayModeMap = new Map(
+      dayModeRows.map((r) => [r.dayOfWeek, r.sessionMode]),
+    );
+
     for (const day of days) {
+      // Check day mode for ROM routing
+      const dayNumber = DAY_NAME_TO_NUMBER[day];
+      const dayMode = dayNumber
+        ? dayModeMap.get(dayNumber) || "regular"
+        : "regular";
+
+      if (dayMode === "rom") {
+        // ROM generation: only alfa and delta (per D-04)
+        for (const memberLevel of ["alfa", "delta"] as const) {
+          const dayId = `W${week}-${day}-${memberLevel}`;
+          const existing = await sessionService.getSessionByDayId(dayId);
+          if (existing && !options.regenerate) {
+            skipped++;
+            continue;
+          }
+          if (existing && options.regenerate) {
+            await this.db
+              .delete(schema.sessions)
+              .where(eq(schema.sessions.dayId, dayId));
+          }
+          try {
+            const session = await generateRomSession(
+              this.db,
+              week,
+              day,
+              memberLevel,
+            );
+            await sessionService.saveSession(session);
+            generated++;
+          } catch (err: unknown) {
+            failed++;
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            warnings.push(`${dayId} (ROM): ${errorMsg}`);
+          }
+        }
+        continue; // Skip the regular levelGroups loop for ROM days
+      }
+
       // Shared formats for cross-level consistency per day
       // Captured from the first generated level, then forced on subsequent levels
       let sharedFormats:

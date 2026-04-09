@@ -12,6 +12,7 @@ export interface SessionSummary {
   status: SessionStatus;
   blockCount: number;
   goalPlanType: string | null;
+  sessionMode?: 'regular' | 'rom';
   approvedAt: string | null;
   approvedBy: number | null;
   approvedByName: string | null;

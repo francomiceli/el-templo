@@ -3,7 +3,7 @@ import { eq, sql, and, gte, lte } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
-import { DAY_OF_WEEK_MAP } from "../shared/training-constants";
+import { DAY_OF_WEEK_MAP, DAY_NAME_TO_NUMBER } from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   getDailySessionSchema,
@@ -81,6 +81,7 @@ function sessionToResponse(
     day: session.day,
     levelGroup: session.levelGroup,
     memberLevel: session.memberLevel,
+    sessionMode: session.sessionMode || "regular",
     blockCount: session.blocks.length,
     blocks: session.blocks.map((block, idx) => {
       // Separate main exercises from mobility
@@ -199,10 +200,23 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No hay sesiones los domingos" });
       }
 
-      // 5. Build dayId with memberLevel
-      const dayId = `W${week}-${dayName}-${memberLevel}`;
+      // 5. Check if this day is a ROM day and map level accordingly (per D-29)
+      const dayNumber = DAY_NAME_TO_NUMBER[dayName];
+      let effectiveLevel: string = memberLevel;
+      if (dayNumber) {
+        const [dayModeRow] = await fastify.db
+          .select()
+          .from(schema.dayModes)
+          .where(eq(schema.dayModes.dayOfWeek, dayNumber));
+        if (dayModeRow?.sessionMode === "rom") {
+          effectiveLevel = memberLevel === "alfa" ? "alfa" : "delta";
+        }
+      }
 
-      // 6. Check DB for approved session only (no auto-generation for members)
+      // 6. Build dayId with effective level
+      const dayId = `W${week}-${dayName}-${effectiveLevel}`;
+
+      // 7. Check DB for approved session only (no auto-generation for members)
       const session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
       if (!session) {
         return reply.status(404).send({
@@ -277,18 +291,34 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         weekDates.push(`${year}-${month}-${day}`);
       }
 
-      // 6. Build dayIds based on program type
+      // 6. Load day modes for ROM level mapping (per D-29)
+      const dayModeRows = await fastify.db.select().from(schema.dayModes);
+      const romDayNumbers = new Set(
+        dayModeRows
+          .filter((r) => r.sessionMode === "rom")
+          .map((r) => r.dayOfWeek),
+      );
+
+      // 7. Build dayIds based on program type
       // Goal plan programs: GP-{type}-W{week}-{day}-{level}
       // Regular programs: W{week}-{day}-{level}
+      // ROM days map non-alfa levels to delta (per D-29)
       const dateToDay = new Map<string, string>();
       const dayIds: string[] = [];
       for (const date of weekDates) {
         const dayName = dateToDayName(date);
         dateToDay.set(date, dayName);
         if (dayName !== "domingo") {
+          const dayNum = DAY_NAME_TO_NUMBER[dayName];
+          const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
+          const effectiveLevel = isRomDay
+            ? memberLevel === "alfa"
+              ? "alfa"
+              : "delta"
+            : memberLevel;
           const dayId = goalPlanType
-            ? `GP-${goalPlanType}-W${week}-${dayName}-${memberLevel}`
-            : `W${week}-${dayName}-${memberLevel}`;
+            ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
+            : `W${week}-${dayName}-${effectiveLevel}`;
           dayIds.push(dayId);
         }
       }
@@ -306,9 +336,16 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           sessionsMap[date] = null;
           continue;
         }
+        const dayNum = DAY_NAME_TO_NUMBER[dayName];
+        const isRomDay = dayNum ? romDayNumbers.has(dayNum) : false;
+        const effectiveLevel = isRomDay
+          ? memberLevel === "alfa"
+            ? "alfa"
+            : "delta"
+          : memberLevel;
         const dayId = goalPlanType
-          ? `GP-${goalPlanType}-W${week}-${dayName}-${memberLevel}`
-          : `W${week}-${dayName}-${memberLevel}`;
+          ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
+          : `W${week}-${dayName}-${effectiveLevel}`;
         const session = batchSessions.get(dayId);
         sessionsMap[date] = session
           ? sessionToResponse(session, formatDescriptions)

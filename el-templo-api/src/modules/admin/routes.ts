@@ -59,6 +59,78 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // GET /admin/sessions/day-modes - Get all day mode configurations
+  fastify.get(
+    "/sessions/day-modes",
+    {
+      schema: {
+        response: {
+          200: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "number" },
+                dayOfWeek: { type: "number" },
+                sessionMode: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    async () => {
+      const rows = await fastify.db.select().from(schema.dayModes);
+      return rows;
+    },
+  );
+
+  // PUT /admin/sessions/day-modes - Update day mode configurations
+  fastify.put<{
+    Body: {
+      modes: Array<{ dayOfWeek: number; sessionMode: string }>;
+    };
+  }>(
+    "/sessions/day-modes",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["modes"],
+          properties: {
+            modes: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["dayOfWeek", "sessionMode"],
+                properties: {
+                  dayOfWeek: { type: "number", minimum: 1, maximum: 6 },
+                  sessionMode: {
+                    type: "string",
+                    enum: ["regular", "rom"],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const { modes } = request.body;
+
+      for (const mode of modes) {
+        await fastify.db
+          .update(schema.dayModes)
+          .set({ sessionMode: mode.sessionMode })
+          .where(eq(schema.dayModes.dayOfWeek, mode.dayOfWeek));
+      }
+
+      const updated = await fastify.db.select().from(schema.dayModes);
+      return updated;
+    },
+  );
+
   // GET /admin/sessions - List sessions with filters
   fastify.get("/sessions", { schema: getSessionsSchema }, async (request) => {
     const filter = request.query as SessionFilter;

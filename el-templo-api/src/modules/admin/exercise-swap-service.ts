@@ -34,6 +34,13 @@ export class ExerciseSwapService {
   // getExercisePool - Query exercises for swap candidates
   // =========================================================================
 
+  /** ROM body zone to mobilityRelated field mapping (per D-22) */
+  private static ROM_ZONE_MOBILITY_MAP: Record<string, string[]> = {
+    ROM_LOWER: ["LS ( LUNGES )"],
+    ROM_CORE: ["FL", "TTB / HF", "MN"],
+    ROM_UPPER: ["PL"],
+  };
+
   async getExercisePool(
     params: ExercisePoolParams,
   ): Promise<ExercisePoolItem[]> {
@@ -46,6 +53,12 @@ export class ExerciseSwapService {
       excludeExerciseIds,
       targetDifficulty,
     } = params;
+
+    // ROM blocks: filter by body zone using mobilityRelated mapping (per D-22)
+    const isRom = blockRole?.startsWith("ROM_");
+    if (isRom && blockRole) {
+      return this.getRomExercisePool(params);
+    }
 
     // INITIUM uses FLOW pattern / Movilidad category instead of route-based lookup
     // (route='INITIUM' is a marker, not a real route in the exercises table)
@@ -194,6 +207,84 @@ export class ExerciseSwapService {
 
     return results.map((ex) => ({
       ...ex,
+      videoUrl: assembleVideoUrl(ex.videoUrl),
+      patternSource: "pattern_1" as const,
+    }));
+  }
+
+  // =========================================================================
+  // getRomExercisePool - Body-zone filtered pool for ROM blocks (per D-22)
+  // =========================================================================
+
+  private async getRomExercisePool(
+    params: ExercisePoolParams,
+  ): Promise<ExercisePoolItem[]> {
+    const { blockRole, excludeExerciseIds, targetDifficulty, contraction } =
+      params;
+
+    const mobilityKeys =
+      ExerciseSwapService.ROM_ZONE_MOBILITY_MAP[blockRole || ""] || [];
+
+    // Query all mobility exercises
+    const allMobility = await this.db
+      .select({
+        id: schema.exercises.id,
+        exercise: schema.exercises.exercise,
+        effort: schema.exercises.effort,
+        dificultadLineal: schema.exercises.dificultadLineal,
+        pattern: schema.exercises.pattern,
+        category: schema.exercises.category,
+        route: schema.exercises.route,
+        mobilityRelated: schema.exercises.mobilityRelated,
+        videoUrl: schema.exercises.videoUrl,
+      })
+      .from(schema.exercises)
+      .where(eq(schema.exercises.pattern, "MOVILIDAD"));
+
+    // Filter by body zone
+    let pool = allMobility.filter((ex) => {
+      if (!ex.mobilityRelated) return false;
+      return mobilityKeys.some((key) => ex.mobilityRelated!.includes(key));
+    });
+
+    // Apply contraction filter if specified
+    if (contraction) {
+      pool = pool.filter(
+        (ex) => ex.effort.toUpperCase() === contraction.toUpperCase(),
+      );
+    }
+
+    // Apply max difficulty filter
+    if (params.maxDifficulty !== undefined) {
+      pool = pool.filter(
+        (ex) => ex.dificultadLineal <= params.maxDifficulty!,
+      );
+    }
+
+    // Exclude exercises already in the block
+    if (excludeExerciseIds.length > 0) {
+      pool = pool.filter((ex) => !excludeExerciseIds.includes(ex.id));
+    }
+
+    // Sort by closest difficulty to target
+    if (targetDifficulty !== undefined) {
+      pool.sort(
+        (a, b) =>
+          Math.abs(a.dificultadLineal - targetDifficulty) -
+          Math.abs(b.dificultadLineal - targetDifficulty),
+      );
+    } else {
+      pool.sort((a, b) => a.dificultadLineal - b.dificultadLineal);
+    }
+
+    return pool.map((ex) => ({
+      id: ex.id,
+      exercise: ex.exercise,
+      effort: ex.effort,
+      dificultadLineal: ex.dificultadLineal,
+      pattern: ex.pattern,
+      category: ex.category,
+      route: ex.route,
       videoUrl: assembleVideoUrl(ex.videoUrl),
       patternSource: "pattern_1" as const,
     }));
