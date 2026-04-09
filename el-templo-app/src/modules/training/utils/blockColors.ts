@@ -29,6 +29,9 @@ export function getBlockColorClass(role: BlockRole): string {
     DEUTEROS_2: 'block-bg--deuteros-2',
     ATHLOS: 'block-bg--athlos',
     EPIKOS: 'block-bg--athlos',
+    ROM_LOWER: 'block-bg--default',
+    ROM_CORE: 'block-bg--default',
+    ROM_UPPER: 'block-bg--default',
   }
   return opacityMap[role] || 'block-bg--default'
 }
@@ -51,6 +54,9 @@ export function getBlockAccentColor(role: BlockRole): string {
     DEUTEROS_2: 'secondary', // Aged Gold - accessory option 2
     ATHLOS: 'secondary', // Aged Gold - challenge
     EPIKOS: 'secondary', // Aged Gold - epic challenge
+    ROM_LOWER: 'secondary', // Aged Gold - ROM mobility
+    ROM_CORE: 'secondary', // Aged Gold - ROM mobility
+    ROM_UPPER: 'secondary', // Aged Gold - ROM mobility
   }
   return colorMap[role] || 'primary'
 }
@@ -71,6 +77,9 @@ export function getBlockCSSColor(role: BlockRole): string {
     DEUTEROS_2: BRAND_AGED_GOLD, // Aged Gold - accessory option 2
     ATHLOS: BRAND_AGED_GOLD, // Aged Gold - challenge
     EPIKOS: BRAND_AGED_GOLD, // Aged Gold - epic challenge
+    ROM_LOWER: BRAND_AGED_GOLD, // Aged Gold - ROM mobility
+    ROM_CORE: BRAND_AGED_GOLD, // Aged Gold - ROM mobility
+    ROM_UPPER: BRAND_AGED_GOLD, // Aged Gold - ROM mobility
   }
   return colorMap[role] || BRAND_TERRACOTTA
 }

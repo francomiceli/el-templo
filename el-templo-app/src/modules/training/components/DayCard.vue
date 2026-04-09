@@ -5,6 +5,7 @@
       <div class="day-card__header-top">
         <div class="day-card__header-left">
           <span class="day-card__day-name">{{ day.dayName }}</span>
+          <q-badge v-if="isRomSession" color="info" label="ROM" class="q-ml-xs" />
           <span class="day-card__date">{{ formatDate(day.date) }}</span>
         </div>
       </div>
@@ -135,6 +136,14 @@ const cardClasses = computed(() => {
 })
 
 /**
+ * Whether the session is a ROM mobility session
+ */
+const isRomSession = computed(() => {
+  if (!props.day.session?.blocks) return false
+  return props.day.session.blocks.some((b) => b.role.startsWith('ROM_'))
+})
+
+/**
  * Sort blocks by sortOrder
  */
 const sortedBlocks = computed(() => {
@@ -156,6 +165,12 @@ interface ChoiceOption {
  */
 const groupedBlocks = computed(() => {
   const blocks = sortedBlocks.value
+
+  // ROM sessions: all blocks displayed sequentially, no choice card
+  if (isRomSession.value) {
+    return blocks.map((block) => ({ type: 'block' as const, block }))
+  }
+
   const deuteros1 = blocks.find((b) => b.role === 'DEUTEROS_1')
   const deuteros2 = blocks.find((b) => b.role === 'DEUTEROS_2')
 
@@ -219,6 +234,10 @@ function formatDate(date: string): string {
 function getSessionRouteName(session: typeof props.day.session): string {
   if (!session || session.blocks.length === 0) {
     return ''
+  }
+  // ROM sessions show 'Movilidad' instead of route name
+  if (session.blocks.some((b) => b.role.startsWith('ROM_'))) {
+    return 'Movilidad'
   }
   const mainBlock = session.blocks.find((b) => b.role === 'NUCLEUS') || session.blocks[0]
   return getRouteName(mainBlock.route)

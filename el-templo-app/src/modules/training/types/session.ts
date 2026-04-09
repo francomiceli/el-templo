@@ -16,6 +16,9 @@ export type BlockRole =
   | 'DEUTEROS_2' // Second secondary block
   | 'ATHLOS' // Challenge block (odd weeks)
   | 'EPIKOS' // Epic challenge block (even weeks)
+  | 'ROM_LOWER' // ROM mobility - lower body (Tren Inferior)
+  | 'ROM_CORE' // ROM mobility - core (Zona Media)
+  | 'ROM_UPPER' // ROM mobility - upper body (Tren Superior)
 
 /**
  * Individual exercise prescription within a block
@@ -132,6 +135,9 @@ export interface Session {
 
   /** Ordered list of training blocks */
   blocks: Block[]
+
+  /** Session mode: 'regular' for SPOM training, 'rom' for ROM mobility */
+  sessionMode?: 'regular' | 'rom'
 }
 
 /**

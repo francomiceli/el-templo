@@ -76,6 +76,9 @@ function formatRole(role: BlockRole): string {
     DEUTEROS_2: 'Deuteros 2',
     ATHLOS: 'Athlos',
     EPIKOS: 'Epikos',
+    ROM_LOWER: 'Tren Inferior',
+    ROM_CORE: 'Zona Media',
+    ROM_UPPER: 'Tren Superior',
   }
   return roleNames[role] || role
 }
