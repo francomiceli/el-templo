@@ -123,8 +123,8 @@
             }"
             @click="viewBlock(blockIndexOf(block))"
           >
+            <q-icon name="arrow_back" size="12px" class="q-mr-xs" />
             {{ BLOCK_NAMES[block.role] || block.role }}
-            <q-icon name="check" size="12px" class="q-ml-xs" />
           </button>
         </div>
       </div>

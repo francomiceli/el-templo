@@ -9,8 +9,8 @@ const log = createLogger('useVideoUpload');
 /** Uploads are only enabled in production (not in dev or staging) */
 export const uploadsEnabled = !import.meta.env.VITE_APP_ENVIRONMENT && import.meta.env.PROD;
 
-/** Max file size: 20 MB */
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+/** Max file size: 40 MB */
+const MAX_FILE_SIZE = 40 * 1024 * 1024;
 
 /** Max video duration in seconds */
 const MAX_DURATION_SECONDS = 20;
@@ -50,7 +50,7 @@ export function useVideoUpload() {
     if (file.size > MAX_FILE_SIZE) {
       Notify.create({
         type: 'negative',
-        message: 'Archivo demasiado grande (max 20MB)',
+        message: 'Archivo demasiado grande (max 40MB)',
       });
       return;
     }

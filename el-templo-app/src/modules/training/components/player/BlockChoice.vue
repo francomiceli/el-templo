@@ -163,7 +163,7 @@ const buttonLabel = computed(() => {
   &__title {
     font-family: 'Montserrat', sans-serif;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 800;
     color: rgba($primary, 0.6);
     text-transform: uppercase;
     letter-spacing: 0.05em;

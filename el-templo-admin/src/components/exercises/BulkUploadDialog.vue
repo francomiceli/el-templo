@@ -27,7 +27,7 @@
         >
           <q-icon name="cloud_upload" size="48px" color="grey-5" />
           <div class="text-body1 q-mt-sm">Arrastra archivos aqui o haz clic para seleccionar</div>
-          <div class="text-caption text-grey-6">Solo archivos MP4 (max 20MB cada uno)</div>
+          <div class="text-caption text-grey-6">Solo archivos MP4 (max 40MB cada uno)</div>
         </div>
 
         <input
@@ -275,7 +275,7 @@ interface FileEntry {
 // Constants
 // =========================================================================
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_SIZE = 40 * 1024 * 1024; // 40 MB
 
 // =========================================================================
 // State
@@ -320,7 +320,7 @@ function processFiles(files: FileList | File[]) {
         status: 'error',
         exerciseId: null,
         exerciseName: null,
-        errorMessage: `Archivo demasiado grande (${formatFileSize(file.size)}, max 20MB)`,
+        errorMessage: `Archivo demasiado grande (${formatFileSize(file.size)}, max 40MB)`,
         selectedExercise: null,
         uploadStatus: 'pending',
         uploadProgress: 0,
