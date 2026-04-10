@@ -183,6 +183,22 @@
         </q-td>
       </template>
 
+      <!-- Category column: inline editable select -->
+      <template #body-cell-category="props">
+        <q-td :props="props">
+          <q-select
+            :model-value="props.row.category"
+            :options="createCategoryOptions"
+            dense
+            outlined
+            emit-value
+            map-options
+            style="min-width: 140px"
+            @update:model-value="(val: string) => onInlineCategoryChange(props.row.id, val)"
+          />
+        </q-td>
+      </template>
+
       <!-- Effort column: inline select when empty -->
       <template #body-cell-effort="props">
         <q-td :props="props">
@@ -829,6 +845,16 @@ async function saveEditName(exerciseId: number) {
     await exercisesApi.updateExercise(exerciseId, { exercise: newName });
     $q.notify({ type: 'positive', message: 'Nombre actualizado' });
     cancelEditName();
+    loadExercises();
+  } catch {
+    // Error handled by composable
+  }
+}
+
+async function onInlineCategoryChange(exerciseId: number, category: string) {
+  try {
+    await exercisesApi.updateExercise(exerciseId, { category });
+    $q.notify({ type: 'positive', message: `Categoria actualizada a ${category}` });
     loadExercises();
   } catch {
     // Error handled by composable

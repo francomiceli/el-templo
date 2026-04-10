@@ -1012,8 +1012,11 @@ export function buildDayContent(day: PdfDaySession): Content[] {
   const isRomDay = day.blocks.some((b) => b.isRom);
 
   if (isRomDay) {
-    // ROM day: each zone gets its own page (3 pages, no INITIUM)
+    // ROM day: INITIUM warmup page + each zone gets its own page
+    const initium = day.blocks.find((b) => b.role === 'INITIUM');
+    if (initium) content.push(...buildInitiumPage(initium));
     for (const block of day.blocks) {
+      if (block.role === 'INITIUM') continue; // already rendered above
       content.push(...buildRomBlockPage(block));
     }
   } else {

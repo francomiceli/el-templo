@@ -98,7 +98,7 @@ export function useExercisesApi() {
 
   async function updateExercise(
     exerciseId: number,
-    fields: { effort?: string; exercise?: string; equipment?: string | null }
+    fields: { effort?: string; exercise?: string; equipment?: string | null; category?: string }
   ): Promise<Exercise> {
     try {
       const { data } = await api.patch<Exercise>(`/admin/exercises/${exerciseId}`, fields);
@@ -125,12 +125,12 @@ export function useExercisesApi() {
 
   async function bulkUpdateEquipment(
     exerciseIds: number[],
-    equipment: string,
+    equipment: string
   ): Promise<{ updatedCount: number }> {
     try {
       const { data } = await api.post<{ success: boolean; updatedCount: number }>(
         '/admin/exercises/bulk-update-equipment',
-        { exerciseIds, equipment },
+        { exerciseIds, equipment }
       );
       allExercisesCache = null; // invalidate cache
       return { updatedCount: data.updatedCount };

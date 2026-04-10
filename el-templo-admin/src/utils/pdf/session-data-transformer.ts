@@ -71,7 +71,7 @@ function formatNameWithParams(
 
     // ROM (rounds + rest)
     case 'rom':
-      return p.rounds ? `${p.rounds} Rondas · Descanso ${p.restSeconds || 30}s` : name;
+      return p.rounds ? `${p.rounds} Rondas · Hold ${p.restSeconds || 30}s` : name;
 
     // Rounds-only formats
     case 'complex':
@@ -329,7 +329,24 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
   const isRom = sessions.some((s) => s.blocks.some((b) => b.role.startsWith('ROM_')));
 
   if (isRom) {
-    // ROM sessions: 3 zone blocks, 2 tiers (alfa=BASICO, delta=AVANZADO)
+    // ROM sessions: INITIUM warmup + 3 zone blocks, 2 tiers (alfa=BASICO, delta=AVANZADO)
+
+    // INITIUM: same across all levels — grab from any session
+    for (const s of sessions) {
+      const initium = s.blocks.find((b) => b.role === 'INITIUM');
+      if (initium) {
+        blocks.push({
+          role: 'INITIUM',
+          blockName: initium.pattern || 'PYROS',
+          formatName: formatNameWithParams(initium.formatName, initium.formatParams),
+          simpleExercises: initium.exercises.map((e) =>
+            formatInitiumExercise(e, initium.formatName)
+          ),
+        });
+        break;
+      }
+    }
+
     for (const zone of ROM_ZONES) {
       const levelBlocks: PdfLevelBlock[] = [];
       let formatName = '';

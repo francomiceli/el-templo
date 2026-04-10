@@ -1,10 +1,11 @@
 /**
  * ROM Session Generator
  *
- * Generates ROM (Range of Motion) mobility sessions with 3 body-zone blocks:
+ * Generates ROM (Range of Motion) mobility sessions with 4 blocks:
+ * INITIUM (warmup), then 3 body-zone blocks:
  * ROM_LOWER (Tren Inferior), ROM_CORE (Zona Media), ROM_UPPER (Tren Superior).
  *
- * Each block has 3 CON exercises with shuffled [20, 30, 40] reps,
+ * Each zone block has 3 CON exercises with shuffled [20, 30, 40] reps,
  * For Quality x3 format, and 30s rest.
  *
  * Two tiers: alfa (Basico, dificultadLineal 1-3) and delta (Avanzado, 4-6).
@@ -22,6 +23,8 @@ import type {
   TraceEvent,
 } from "./types";
 import { LEVEL_DIFFICULTY_MAP } from "../shared/training-constants";
+import { runInitiumPipeline } from "./pipeline/initium-pipeline";
+import { createInitialContext } from "./pipeline/context";
 
 /** Body zone to mobilityRelated field mapping (per D-11) */
 export const ROM_ZONE_MOBILITY_MAP: Record<string, string[]> = {
@@ -93,6 +96,35 @@ export async function generateRomSession(
   const minDifficulty = memberLevel === "alfa" ? 1 : 4;
 
   const blocks: BlockPlan[] = [];
+
+  // Generate INITIUM warmup block (generic selection — no nucleusRoute for ROM)
+  const initiumCtx = createInitialContext(
+    week,
+    day,
+    "alfa_delta",
+    memberLevel,
+    "INITIUM",
+  );
+  const initiumBlock = await runInitiumPipeline(initiumCtx, db);
+  blocks.push(initiumBlock);
+
+  sessionTrace.push({
+    ts: new Date().toISOString(),
+    severity: "INFO",
+    code: "ROM_INITIUM_GENERATED",
+    where: {
+      week,
+      day,
+      levelGroup: "alfa_delta",
+      memberLevel,
+      blockId: initiumBlock.blockId,
+      role: "INITIUM",
+    },
+    decision: {
+      exerciseCount: initiumBlock.exercises.length,
+      format: initiumBlock.format.name,
+    },
+  });
 
   for (const role of ROM_BLOCK_ROLES) {
     const mobilityKeys = ROM_ZONE_MOBILITY_MAP[role];

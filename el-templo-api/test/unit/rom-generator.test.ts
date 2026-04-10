@@ -5,13 +5,82 @@
  * exercise selection, prescription, and session structure.
  *
  * Uses mocked DB queries to test pure generation logic.
+ * INITIUM pipeline is mocked to isolate ROM zone generation.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DaySession, BlockPlan } from "../../src/modules/sessions/types";
+import type {
+  DaySession,
+  BlockPlan,
+  BlockRole,
+} from "../../src/modules/sessions/types";
 
-// We'll dynamically import after the module exists
-// For now, define the expected shape
+// Mock INITIUM pipeline to avoid complex DB queries
+const MOCK_INITIUM_BLOCK: BlockPlan = {
+  blockId: "W1-sabado-alfa-INITIUM",
+  role: "INITIUM" as BlockRole,
+  route: "INITIUM",
+  pattern: "FLOW",
+  intensity: 30,
+  repsBudget: 80,
+  format: { formatId: 1, name: "Flow" },
+  formatParams: { type: "standard" as const },
+  exercises: [
+    {
+      exerciseId: 100,
+      name: "Mock Warmup 1",
+      contraction: "CON" as const,
+      reps: 30,
+      seconds: 0,
+      rest: 45,
+      dificultadLineal: 1,
+    },
+    {
+      exerciseId: 101,
+      name: "Mock Warmup 2",
+      contraction: "CON" as const,
+      reps: 30,
+      seconds: 0,
+      rest: 45,
+      dificultadLineal: 2,
+    },
+    {
+      exerciseId: 102,
+      name: "Mock Warmup 3",
+      contraction: "EXC" as const,
+      reps: 30,
+      seconds: 0,
+      rest: 45,
+      dificultadLineal: 1,
+    },
+    {
+      exerciseId: 103,
+      name: "Mock Warmup 4",
+      contraction: "CON" as const,
+      reps: 30,
+      seconds: 0,
+      rest: 45,
+      dificultadLineal: 2,
+    },
+  ],
+  trace: [],
+};
+
+vi.mock("../../src/modules/sessions/pipeline/initium-pipeline", () => ({
+  runInitiumPipeline: vi.fn().mockResolvedValue(MOCK_INITIUM_BLOCK),
+}));
+
+vi.mock("../../src/modules/sessions/pipeline/context", () => ({
+  createInitialContext: vi.fn().mockReturnValue({
+    week: 1,
+    day: "sabado",
+    levelGroup: "alfa_delta",
+    memberLevel: "alfa",
+    blockId: "W1-sabado-alfa-INITIUM",
+    role: "INITIUM",
+    trace: [],
+  }),
+}));
 
 // Mock exercise data matching real DB shape
 const MOCK_EXERCISES = [
@@ -210,7 +279,7 @@ function createMockDb(exercises = MOCK_EXERCISES) {
 
 describe("ROM Generator", () => {
   describe("generateRomSession", () => {
-    it("returns DaySession with session_mode='rom' and 3 ROM blocks", async () => {
+    it("returns DaySession with session_mode='rom', INITIUM first, then 3 ROM blocks", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -222,20 +291,20 @@ describe("ROM Generator", () => {
       );
 
       expect(session.sessionMode).toBe("rom");
-      expect(session.blocks).toHaveLength(3);
+      expect(session.blocks).toHaveLength(4);
 
       const roles = session.blocks.map((b: BlockPlan) => b.role);
+      expect(roles[0]).toBe("INITIUM");
       expect(roles).toContain("ROM_LOWER");
       expect(roles).toContain("ROM_CORE");
       expect(roles).toContain("ROM_UPPER");
 
-      // No INITIUM, ATHLOS, or EPIKOS
-      expect(roles).not.toContain("INITIUM");
+      // No ATHLOS or EPIKOS
       expect(roles).not.toContain("ATHLOS");
       expect(roles).not.toContain("EPIKOS");
     });
 
-    it("each block has exactly 3 CON exercises with reps from [20, 30, 40]", async () => {
+    it("each ROM zone block has exactly 3 CON exercises with reps from [20, 30, 40]", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -246,7 +315,12 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      expect(romBlocks).toHaveLength(3);
+
+      for (const block of romBlocks) {
         expect(block.exercises).toHaveLength(3);
 
         // All exercises are CON
@@ -260,7 +334,7 @@ describe("ROM Generator", () => {
       }
     });
 
-    it("alfa tier exercises have dificultadLineal <= 3", async () => {
+    it("alfa tier ROM zone exercises have dificultadLineal <= 3", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -271,14 +345,17 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      for (const block of romBlocks) {
         for (const ex of block.exercises) {
           expect(ex.dificultadLineal).toBeLessThanOrEqual(3);
         }
       }
     });
 
-    it("delta tier exercises have dificultadLineal > 3", async () => {
+    it("delta tier ROM zone exercises have dificultadLineal > 3", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -289,14 +366,17 @@ describe("ROM Generator", () => {
         "delta",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      for (const block of romBlocks) {
         for (const ex of block.exercises) {
           expect(ex.dificultadLineal).toBeGreaterThan(3);
         }
       }
     });
 
-    it("ROM blocks have format { type: 'for_quality', rounds: 3 } and rest=30", async () => {
+    it("ROM zone blocks have format { type: 'rom', rounds: 3 } and rest=30", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -307,7 +387,10 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      for (const block of romBlocks) {
         expect(block.formatParams).toEqual({
           type: "rom",
           rounds: 3,
@@ -320,7 +403,7 @@ describe("ROM Generator", () => {
       }
     });
 
-    it("exercises in each block match body zone mapping", async () => {
+    it("exercises in each ROM zone block match body zone mapping", async () => {
       const { generateRomSession, ROM_ZONE_MOBILITY_MAP } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -331,7 +414,10 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      for (const block of romBlocks) {
         const zoneKeys =
           ROM_ZONE_MOBILITY_MAP[
             block.role as keyof typeof ROM_ZONE_MOBILITY_MAP
@@ -375,7 +461,7 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      expect(session.blocks).toHaveLength(3);
+      expect(session.blocks).toHaveLength(4);
       // ROM_UPPER block should still have exercises (via fallback)
       const upperBlock = session.blocks.find(
         (b: BlockPlan) => b.role === "ROM_UPPER",
@@ -403,7 +489,7 @@ describe("ROM Generator", () => {
       expect(session.goalPlanType).toBeNull();
     });
 
-    it("sets correct block-level fields", async () => {
+    it("sets correct block-level fields on ROM zone blocks", async () => {
       const { generateRomSession } =
         await import("../../src/modules/sessions/rom-generator");
       const db = createMockDb();
@@ -414,7 +500,10 @@ describe("ROM Generator", () => {
         "alfa",
       );
 
-      for (const block of session.blocks) {
+      const romBlocks = session.blocks.filter(
+        (b: BlockPlan) => b.role !== "INITIUM",
+      );
+      for (const block of romBlocks) {
         expect(block.pattern).toBe("MOVILIDAD");
         expect(block.intensity).toBe(50);
         expect(block.repsBudget).toBe(270);
@@ -425,6 +514,24 @@ describe("ROM Generator", () => {
           expect(ex.exerciseType).toBe("main");
         }
       }
+    });
+
+    it("INITIUM block is generated with warmup parameters", async () => {
+      const { generateRomSession } =
+        await import("../../src/modules/sessions/rom-generator");
+      const db = createMockDb();
+      const session = await generateRomSession(
+        db as Parameters<typeof generateRomSession>[0],
+        1,
+        "sabado",
+        "alfa",
+      );
+
+      const initium = session.blocks[0];
+      expect(initium.role).toBe("INITIUM");
+      expect(initium.route).toBe("INITIUM");
+      expect(initium.intensity).toBe(30);
+      expect(initium.exercises.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

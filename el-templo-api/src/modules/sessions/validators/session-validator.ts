@@ -5,8 +5,8 @@
  * Checks block count, block validity, deduplication, intensity progression.
  */
 
-import type { DaySession, BlockRole } from '../types';
-import { validateBlock, BlockValidationResult } from './block-validator';
+import type { DaySession, BlockRole } from "../types";
+import { validateBlock, BlockValidationResult } from "./block-validator";
 
 /** Validation result for a complete session */
 export interface SessionValidationResult {
@@ -54,23 +54,24 @@ export function validateSession(session: DaySession): SessionValidationResult {
   const blockResults: BlockValidationResult[] = [];
 
   // Detect ROM session (3 body-zone blocks, different structure from regular)
-  const isRomSession = session.sessionMode === "rom" ||
+  const isRomSession =
+    session.sessionMode === "rom" ||
     session.blocks.some((b) => b.role.startsWith("ROM_"));
 
-  // Check 1: Block count (ROM = 3, regular = 4-5)
+  // Check 1: Block count (ROM = 4: INITIUM + 3 zones, regular = 4-5)
   if (isRomSession) {
-    if (session.blocks.length !== 3) {
+    if (session.blocks.length !== 4) {
       sessionErrors.push(
-        `ROM session has ${session.blocks.length} blocks (expected: 3)`
+        `ROM session has ${session.blocks.length} blocks (expected: 4)`,
       );
     }
   } else if (session.blocks.length < MIN_BLOCKS) {
     sessionErrors.push(
-      `Session has only ${session.blocks.length} blocks (minimum: ${MIN_BLOCKS})`
+      `Session has only ${session.blocks.length} blocks (minimum: ${MIN_BLOCKS})`,
     );
   } else if (session.blocks.length > MAX_BLOCKS) {
     sessionWarnings.push(
-      `Session has ${session.blocks.length} blocks (expected: ${MIN_BLOCKS}-${MAX_BLOCKS})`
+      `Session has ${session.blocks.length} blocks (expected: ${MIN_BLOCKS}-${MAX_BLOCKS})`,
     );
   }
 
@@ -96,7 +97,7 @@ export function validateSession(session: DaySession): SessionValidationResult {
 
   if (duplicates.length > 0) {
     sessionWarnings.push(
-      `Duplicate exercises across blocks: ${duplicates.join(', ')}`
+      `Duplicate exercises across blocks: ${duplicates.join(", ")}`,
     );
   }
 
@@ -106,45 +107,46 @@ export function validateSession(session: DaySession): SessionValidationResult {
     if (expected) {
       if (block.intensity < expected.min) {
         sessionWarnings.push(
-          `${block.role} intensity (${block.intensity}) below expected range (${expected.min}-${expected.max})`
+          `${block.role} intensity (${block.intensity}) below expected range (${expected.min}-${expected.max})`,
         );
       } else if (block.intensity > expected.max) {
         sessionWarnings.push(
-          `${block.role} intensity (${block.intensity}) above expected range (${expected.min}-${expected.max})`
+          `${block.role} intensity (${block.intensity}) above expected range (${expected.min}-${expected.max})`,
         );
       }
     }
   }
 
   // Check 5: Route diversity
-  const routes = new Set(session.blocks.map(b => b.route));
+  const routes = new Set(session.blocks.map((b) => b.route));
   if (routes.size === 1 && session.blocks.length > 1) {
-    sessionWarnings.push(
-      `All blocks use the same route: ${[...routes][0]}`
-    );
+    sessionWarnings.push(`All blocks use the same route: ${[...routes][0]}`);
   }
 
-  // Check 6: INITIUM should be first (regular sessions only; ROM starts with ROM_LOWER)
-  if (!isRomSession && session.blocks.length > 0 && session.blocks[0].role !== 'INITIUM') {
+  // Check 6: INITIUM should be first (both regular and ROM sessions)
+  if (session.blocks.length > 0 && session.blocks[0].role !== "INITIUM") {
     sessionWarnings.push(
-      `First block is ${session.blocks[0].role}, expected INITIUM`
+      `First block is ${session.blocks[0].role}, expected INITIUM`,
     );
   }
 
   // Check 7: Final block should be ATHLOS or EPIKOS (regular sessions only)
   const lastBlock = session.blocks[session.blocks.length - 1];
-  if (!isRomSession && lastBlock && lastBlock.role !== 'ATHLOS' && lastBlock.role !== 'EPIKOS') {
+  if (
+    !isRomSession &&
+    lastBlock &&
+    lastBlock.role !== "ATHLOS" &&
+    lastBlock.role !== "EPIKOS"
+  ) {
     sessionWarnings.push(
-      `Last block is ${lastBlock.role}, expected ATHLOS or EPIKOS`
+      `Last block is ${lastBlock.role}, expected ATHLOS or EPIKOS`,
     );
   }
 
   // Aggregate errors from blocks
-  const blockErrors = blockResults.filter(r => !r.valid);
+  const blockErrors = blockResults.filter((r) => !r.valid);
   if (blockErrors.length > 0) {
-    sessionErrors.push(
-      `${blockErrors.length} block(s) failed validation`
-    );
+    sessionErrors.push(`${blockErrors.length} block(s) failed validation`);
   }
 
   const valid = sessionErrors.length === 0 && blockErrors.length === 0;
@@ -175,12 +177,12 @@ export function validateSessionForTrace(session: DaySession): {
 
   const allErrors = [
     ...result.sessionErrors,
-    ...result.blockResults.flatMap(b => b.errors),
+    ...result.blockResults.flatMap((b) => b.errors),
   ];
 
   const allWarnings = [
     ...result.sessionWarnings,
-    ...result.blockResults.flatMap(b => b.warnings),
+    ...result.blockResults.flatMap((b) => b.warnings),
   ];
 
   return {
