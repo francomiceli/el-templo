@@ -353,10 +353,43 @@ export function parseWebhookPayload(
   }
 
   if (message.type !== "text" || !message.text?.body) {
-    // Non-text, non-interactive message — ignore silently
+    // Non-text, non-interactive message. Return a parsed message with the
+    // original type so the handler can reply with a friendly fallback
+    // (quick-16 fix 3). We previously returned null and silently ignored
+    // these, which made the bot look broken to users.
+    //
+    // Status/reaction/button/order/unknown still fall through to null —
+    // those are genuinely not user-authored content.
+    const inboundType = message.type;
+    const nonTextTypes: ReadonlyArray<typeof inboundType> = [
+      "image",
+      "audio",
+      "document",
+      "sticker",
+      "location",
+      "contacts",
+    ];
+    if (nonTextTypes.includes(inboundType)) {
+      return {
+        phone: message.from,
+        contactName: contact?.profile?.name || "Unknown",
+        text: `[${inboundType} message]`,
+        messageType: inboundType as
+          | "image"
+          | "audio"
+          | "document"
+          | "sticker"
+          | "location"
+          | "contacts",
+        whatsappMessageId: message.id,
+        timestamp: parseInt(message.timestamp, 10),
+        rawPayload: body,
+      };
+    }
+
     log.debug(
       { type: message.type, from: message.from },
-      "Ignoring non-text message",
+      "Ignoring non-user-authored message",
     );
     return null;
   }

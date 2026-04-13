@@ -26,7 +26,13 @@ import {
   getPlaybookState,
   setPlaybookState,
 } from "../memory/playbook-state.js";
-import { getSession, updateSession } from "../memory/session.js";
+import {
+  getSession,
+  updateSession,
+  isDebounceActive,
+  setDebounce,
+  deleteDebounce,
+} from "../memory/session.js";
 import {
   advanceStageIfComplete,
   type AdvanceSignals,
@@ -67,8 +73,50 @@ interface MessageRow {
   message_direction: string;
 }
 
+/**
+ * Determines whether a returning-conversation system note should be injected.
+ * Returns true when MySQL history contains at least one assistant (outbound) message,
+ * indicating this is a conversation that already had bot/human interaction.
+ */
+export function shouldInjectReturningNote(
+  historyRows: { message_direction: string }[],
+): boolean {
+  return historyRows.some(
+    (row) =>
+      row.message_direction === "outbound_bot" ||
+      row.message_direction === "outbound_human",
+  );
+}
+
 const MAX_TOOL_ITERATIONS = 5;
 const MAX_MESSAGE_LENGTH = 800;
+
+/** quick-16 fix 2: debounce delay to absorb consecutive messages. */
+const DEBOUNCE_DELAY_MS = 3000;
+/** quick-16 fix 2: safety-net TTL in case a handler crashes mid-turn. */
+const DEBOUNCE_TTL_SECONDS = 10;
+
+/**
+ * quick-16 fix 3: friendly fallback when the user sends a non-text message
+ * (audio, image, video, document, location, sticker, …). WhatsApp users
+ * expect *some* reply; silently ignoring looks like the bot is broken.
+ */
+export function getNonTextFallback(messageType: string): string {
+  switch (messageType) {
+    case "audio":
+      return "Escuché que me mandaste un audio, pero por ahora no puedo escucharlos. ¿Me lo podés escribir? 🙌";
+    case "image":
+      return "Recibí tu imagen, pero por ahora solo puedo responder a mensajes de texto. ¿Me contás por acá qué necesitás?";
+    case "video":
+      return "Recibí tu video, pero por ahora solo puedo responder a mensajes de texto. ¿Me contás por acá qué necesitás?";
+    case "document":
+      return "Recibí tu archivo, pero por ahora solo puedo responder a mensajes de texto. ¿Me escribís lo que necesitás?";
+    case "location":
+      return "Recibí tu ubicación, gracias 🙌 ¿Me contás qué necesitás saber?";
+    default:
+      return "Por ahora solo puedo leer mensajes de texto. ¿Me lo escribís por acá? 🙌";
+  }
+}
 
 const FALLBACK_MESSAGE =
   "Disculpa, no pude procesar tu consulta. Intenta de nuevo o escribi 'hablar con alguien' para que te ayude una persona.";
@@ -203,6 +251,43 @@ export async function handleInboundMessage(
     }
   }
 
+  // Non-text fallback (quick-16 fix 3). Respond with a friendly prompt
+  // instead of silently ignoring audio/image/video/document/location.
+  if (message.messageType !== "text") {
+    const fallback = getNonTextFallback(message.messageType);
+    try {
+      const sentWamid = await sendTextMessage(message.phone, fallback);
+      await db.execute(
+        sql`INSERT INTO whatsapp_messages (conversation_id, message_direction, content, wa_message_type, whatsapp_message_id, raw_payload, created_at)
+            VALUES (${conversationId}, 'inbound', ${message.text}, ${message.messageType}, ${message.whatsappMessageId}, ${JSON.stringify(message.rawPayload)}, NOW())`,
+      );
+      await db.execute(
+        sql`INSERT INTO whatsapp_messages (conversation_id, message_direction, content, wa_message_type, whatsapp_message_id, created_at)
+            VALUES (${conversationId}, 'outbound_bot', ${fallback}, 'text', ${sentWamid}, NOW())`,
+      );
+      await updateSession(message.phone, "user", message.text);
+      await updateSession(message.phone, "assistant", fallback);
+      log.info(
+        { conversationId, messageType: message.messageType },
+        "Sent non-text fallback",
+      );
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (isDuplicateEntryError(err)) {
+        log.warn(
+          { wamid: message.whatsappMessageId },
+          "Duplicate non-text message detected, skipping",
+        );
+        return;
+      }
+      log.error(
+        { err: errorMessage, conversationId, phone: message.phone },
+        "Failed to send non-text fallback",
+      );
+    }
+    return;
+  }
+
   // 2. Dedup check -- insert inbound message
   try {
     await db.execute(
@@ -271,7 +356,50 @@ async function processWithAi(
   // Store inbound message in Redis session (before AI call so future lookups include it)
   await updateSession(phone, "user", inboundText);
 
-  // Build message history -- Redis session is primary, MySQL is fallback
+  // ── Debounce (quick-16 fix 2) ──────────────────────────────────────────
+  // If another handler is already in-flight for this phone, bail out early.
+  // The in-flight handler will pick up our just-stored inbound when it
+  // re-reads the session after its delay.
+  const debounceKey = `wa:debounce:${phone}`;
+  const alreadyProcessing = await isDebounceActive(debounceKey);
+  if (alreadyProcessing) {
+    log.info({ phone }, "Debounce: in-flight handler exists, skipping AI call");
+    return;
+  }
+  await setDebounce(debounceKey, DEBOUNCE_TTL_SECONDS);
+  try {
+    await new Promise((resolve) => setTimeout(resolve, DEBOUNCE_DELAY_MS));
+    await processWithAiInner(
+      db,
+      log,
+      conversationId,
+      phone,
+      inboundText,
+      clientState,
+      currentProfile,
+    );
+  } finally {
+    await deleteDebounce(debounceKey);
+  }
+}
+
+/**
+ * Inner implementation of the AI pipeline. Extracted from `processWithAi`
+ * so the outer function can wrap it in a Redis-backed debounce (quick-16
+ * fix 2) without indenting the entire body.
+ */
+async function processWithAiInner(
+  db: DB,
+  log: FastifyBaseLogger,
+  conversationId: number,
+  phone: string,
+  inboundText: string,
+  clientState: ClientState,
+  currentProfile: CustomerProfile | null,
+): Promise<void> {
+  // Build message history -- Redis session is primary, MySQL is fallback.
+  // Re-read AFTER the debounce delay so we pick up any messages that
+  // arrived during the wait window.
   const session = await getSession(phone);
 
   // ── Playbook engine (Phase 82) ─────────────────────────────────────────
@@ -284,6 +412,17 @@ async function processWithAi(
       cancellationIntent: detectCancellationIntent(inboundText),
     },
     priorPbState,
+  );
+
+  log.info(
+    {
+      phone,
+      clientState,
+      playbook: resolved.playbookId,
+      stage: resolved.stageId,
+      reusedFromSession: priorPbState !== null,
+    },
+    "Playbook resolved for incoming message",
   );
 
   // Avatar detected on a prior turn (if any). Read it once so the three
@@ -304,20 +443,36 @@ async function processWithAi(
     ? buildProfileContext(currentProfile)
     : undefined;
 
+  const renderedSystemPrompt = getSystemPrompt({
+    clientState,
+    profileContext: profileContext || undefined,
+    // Pass playbook fields through; plan 82-03 will consume them in
+    // getSystemPrompt to inject the active playbook's promptSection.
+    activePlaybook: resolved.playbookId ?? undefined,
+    currentStage: resolved.stageId ?? undefined,
+    // Phase 83-02: let Mica know the lead's avatar (if previously
+    // detected) so she does NOT re-run PB1 discovery questions.
+    currentAvatar: priorAvatar,
+  });
+
+  // Diagnostic: confirm playbook bytes actually land in the rendered prompt.
+  log.info(
+    {
+      phone,
+      activePlaybook: resolved.playbookId,
+      activeStage: resolved.stageId,
+      promptLength: renderedSystemPrompt.length,
+      containsPlaybookHeader:
+        renderedSystemPrompt.includes("*Playbook activo:"),
+      containsReglaFuerte: renderedSystemPrompt.includes("REGLA FUERTE"),
+    },
+    "System prompt rendered for AI call",
+  );
+
   const messages: ChatMessage[] = [
     {
       role: "system",
-      content: getSystemPrompt({
-        clientState,
-        profileContext: profileContext || undefined,
-        // Pass playbook fields through; plan 82-03 will consume them in
-        // getSystemPrompt to inject the active playbook's promptSection.
-        activePlaybook: resolved.playbookId ?? undefined,
-        currentStage: resolved.stageId ?? undefined,
-        // Phase 83-02: let Mica know the lead's avatar (if previously
-        // detected) so she does NOT re-run PB1 discovery questions.
-        currentAvatar: priorAvatar,
-      }),
+      content: renderedSystemPrompt,
     },
   ];
 
@@ -354,6 +509,16 @@ async function processWithAi(
       ) {
         messages.push({ role: "assistant", content: row.content });
       }
+    }
+
+    // Returning-conversation guard: if MySQL history shows prior bot/human
+    // interaction, inject a system note so Mica doesn't re-introduce herself.
+    if (shouldInjectReturningNote(historyRows)) {
+      messages.push({
+        role: "system",
+        content:
+          "[Sistema: esta es una conversación existente que se reanuda después de una pausa. NO te presentes de nuevo — el lead ya sabe quién sos. Continuá la conversación desde donde quedó, respondiendo directamente a lo que el usuario acaba de decir.]",
+      });
     }
   }
 
@@ -435,6 +600,8 @@ async function processWithAi(
 
   // Post-process: strip markdown headers (defense-in-depth for QUAL-01)
   replyText = stripMarkdownHeaders(replyText);
+  // Post-process: convert `**bold**` → `*bold*` (quick-16 fix 1)
+  replyText = normalizeWhatsAppFormatting(replyText);
 
   // ── Phase 83-02: profile tag extraction + strip ────────────────────────
   // Detect the `<profile>VALUE</profile>` tag Mica may have emitted during
@@ -478,6 +645,7 @@ async function processWithAi(
       inboundText,
       replyText,
       detectedAvatar ?? priorAvatar ?? null,
+      resolved.stageId,
     );
     const nextStage = advanceStageIfComplete(
       { playbookId: resolved.playbookId, stageId: resolved.stageId },
@@ -492,6 +660,15 @@ async function processWithAi(
         avatar: detectedAvatar ?? priorAvatar ?? undefined,
         updatedAt: Date.now(),
       });
+      log.info(
+        {
+          phone,
+          playbook: resolved.playbookId,
+          from: resolved.stageId,
+          to: nextStage,
+        },
+        "Playbook stage advanced",
+      );
     }
   }
 
@@ -579,34 +756,186 @@ function detectCancellationIntent(text: string): boolean {
 }
 
 /**
+ * Returns true if the inbound user message is itself a question.
+ *
+ * Two conditions count as "question":
+ *   1. Ends with `?`.
+ *   2. Starts (case-insensitive, after trim) with a Spanish interrogative
+ *      lead word — "qué", "cómo", "sos", "eres", "hay", "tienen", "para"...
+ *
+ * Extracted from `computeAdvanceSignals` so P0-1's discovery heuristic
+ * remains unit-testable without spinning up a full handler test.
+ */
+export function isQuestion(inbound: string): boolean {
+  const trimmed = inbound.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed.endsWith("?")) return true;
+  const lower = trimmed.toLowerCase();
+  const starters = [
+    "qué",
+    "que",
+    "quién",
+    "quien",
+    "cuándo",
+    "cuando",
+    "dónde",
+    "donde",
+    "cuánto",
+    "cuanto",
+    "cómo",
+    "como",
+    "sos",
+    "eres",
+    "hay",
+    "tienen",
+    "cuales",
+    "cuáles",
+    "para",
+  ];
+  for (const starter of starters) {
+    if (lower === starter) return true;
+    if (lower.startsWith(starter + " ")) return true;
+    if (lower.startsWith(starter + ",")) return true;
+    if (lower.startsWith(starter + "?")) return true;
+  }
+  return false;
+}
+
+/**
+ * Returns true if the inbound is a meta-identity query ("sos una IA?",
+ * "eres un bot?", "qué modelo sos?", etc.). These must never count as a
+ * valid discovery answer — they break persona, not complete it.
+ */
+export function isMetaIdentityQuery(inbound: string): boolean {
+  return /\b(sos una? ia|eres una? ia|sos un bot|bot\?|modelo sos|qué modelo|que modelo|sos real|eres real|humana|humano|inteligencia artificial|chatgpt|gpt|claude|openai|anthropic)\b/i.test(
+    inbound,
+  );
+}
+
+/**
+ * Returns true if the inbound is a bare greeting ("hola", "buenas",
+ * "hey"). A greeting is not an answer to a discovery question — it is
+ * the opening of the conversation.
+ */
+export function isBareGreeting(inbound: string): boolean {
+  return /^(hola|buenas|hey|holis|buen[oa]s? (día|dia|tarde|noche)s?)[\s\.\!¡]*$/i.test(
+    inbound.trim(),
+  );
+}
+
+/**
+ * Returns true if the inbound has enough substance to plausibly be a
+ * discovery answer: at least 3 words OR ≥ 20 characters. This lets
+ * short-but-meaningful replies like "vengo de crossfit" through while
+ * still filtering monosyllables like "sí" / "ok".
+ */
+export function hasMinimumContent(inbound: string): boolean {
+  const trimmed = inbound.trim();
+  if (trimmed.length >= 20) return true;
+  const wordCount = trimmed.split(/\s+/).filter((w) => w.length > 0).length;
+  return wordCount >= 3;
+}
+
+/**
  * Compute coarse advancement signals from this turn's inbound + outbound text.
  *
  * v5.3 uses simple keyword/regex matching — phase 83 may upgrade to a
  * model-driven detector. Kept intentionally narrow to avoid false advances.
  */
-function computeAdvanceSignals(
+/**
+ * Stage-aware content gate for `discoveryAnswered`.
+ *
+ * Returns true if the inbound contains at least one keyword that plausibly
+ * answers the discovery question for the given stage. When `stageId` is
+ * null OR the stage is outside the PB1 discovery range (E1A/E1B/E2A/E2B/E3),
+ * returns true so callers fall back to the existing 4-gate check.
+ *
+ * Quick 15 (P0-3): closes the gap where "Hola buenas, quería consultar por
+ * calistenia" passed `hasMinimumContent` but did NOT actually answer an
+ * experience question.
+ */
+export function hasStageSpecificContent(
+  inbound: string,
+  stageId: StageId | null,
+): boolean {
+  if (stageId === null) return true; // no stage info → don't add extra gate
+
+  const lower = inbound.toLowerCase();
+
+  // PB1.E1A / E1B — experience/history question.
+  //
+  // NOTE: regex uses non-word-boundary matching for accented forms because
+  // JS `\b` is ASCII-only — `\bentrené\b` would never match. We use
+  // (^|[^\p{L}]) lookbehind via alternation instead.
+  if (stageId === "PB1.E1A" || stageId === "PB1.E1B") {
+    return /(^|[^a-záéíóúñ])(entren[oaé]|entrené|entrenaba|hice|hago|vengo de|años?|meses?|semanas?|primera vez|nunca|principiante|empezar|arranco|arrancar|experiencia|gym|gimnasio|crossfit|pesas|running|yoga|pilates|deporte|activ[oa]|sedentari[oa])([^a-záéíóúñ]|$)/i.test(
+      lower,
+    );
+  }
+
+  // PB1.E2A / E2B — motivation/goals question
+  if (stageId === "PB1.E2A" || stageId === "PB1.E2B") {
+    return /\b(quiero|busco|me gustar[íi]a|necesito|objetivo|meta|bajar|tonificar|fuerza|salud|aprender|mejorar|cambiar|sentirme|verme|forma|figura|peso|m[úu]sculo|cuerpo|disfrutar|divertirme|desaf[íi]o|skills?|destrabar|superar)\b/i.test(
+      lower,
+    );
+  }
+
+  // PB1.E3 — zone/schedule question
+  if (stageId === "PB1.E3") {
+    return (
+      /\b(centro|puerto|mogotes|constituci[óo]n|jujuy|moreno|alem|mario bravo|ma[ñn]ana|tarde|noche|lunes|martes|mi[ée]rcoles|jueves|viernes|s[áa]bado|domingo|temprano|despu[ée]s|antes|cerca|lejos|zona|queda)\b/i.test(
+        lower,
+      ) ||
+      /\d+\s?(hs|h|am|pm)/i.test(lower) ||
+      /\d+:\d+/.test(lower)
+    );
+  }
+
+  // Other stages (E4, E5, non-PB1) — no stage-specific check, pass through
+  return true;
+}
+
+export function computeAdvanceSignals(
   inboundText: string,
   replyText: string,
   detectedAvatar: AvatarProfile | null,
+  currentStage: StageId | null,
 ): AdvanceSignals {
-  const reply = replyText.toLowerCase();
   const inbound = inboundText.toLowerCase();
 
-  // Mica asked a question this turn (any "?" in the reply) AND the user
-  // sent a non-trivial reply. The combination is treated as "discovery turn
-  // happened" for engine progression purposes.
-  const discoveryAnswered = reply.includes("?") && inbound.trim().length > 0;
+  // A turn counts as a real discovery answer ONLY when the user's inbound
+  // is not itself a question, not a meta-identity query, not a bare
+  // greeting, has enough substance to plausibly carry an answer, AND
+  // contains keywords that plausibly answer the CURRENT stage's question.
+  //
+  // Historically this was `reply.includes("?") && inbound.trim().length > 0`
+  // which advanced the stage on ANY non-empty reply — including the user's
+  // own questions. P0-1 (quick 14) replaced that with content-based rules.
+  // Quick 15 (P0-3) adds the stage-specific content gate.
+  const discoveryAnswered =
+    !isQuestion(inboundText) &&
+    !isMetaIdentityQuery(inboundText) &&
+    !isBareGreeting(inboundText) &&
+    hasMinimumContent(inboundText) &&
+    hasStageSpecificContent(inboundText, currentStage);
 
   // Mica proposed the trial in her last reply
   const trialProposed = /\b(prueba|probar|clase de prueba|gratis)\b/i.test(
     replyText,
   );
 
-  // User explicitly accepted (Spanish affirmative phrases)
+  // User explicitly accepted (Spanish affirmative phrases).
+  //
+  // P1-5 (quick 14) removed `perfecto` and `genial` from this list: both
+  // are extremely common in follow-up framings like "genial, cuándo hay
+  // clases?" where the user is NOT accepting but adding a new question.
+  // Kept tokens are unambiguous acceptance markers.
   const userAccepted =
-    /\b(s[ií]|dale|anotame|anótame|anotame|me anoto|me sumo|listo|perfecto|genial)\b/i.test(
+    /\b(dale|anotame|anótame|me anoto|listo|obvio|claro|ok|okey|va)\b/i.test(
       inbound,
-    );
+    ) ||
+    /^s[ií][\s\.\!¡]*$/i.test(inboundText.trim()) ||
+    /\bs[ií]\b(?!\s+no\b)/i.test(inbound);
 
   // User raised a price-shaped objection
   const priceObjection =
@@ -622,14 +951,20 @@ function computeAdvanceSignals(
       inbound,
     );
 
-  // Phase 83-03: user insists on direct answers / refuses discovery.
-  // Match phrases like "solo quiero el precio", "pasame los horarios ya",
-  // "no tengo tiempo para charlar", "respondeme directo". Narrow to avoid
-  // false positives on normal affirmative/interest responses.
+  // Phase 83-03 + P1-6 (quick 14): user insists on direct answers /
+  // refuses discovery. In addition to the original narrow phrases, we
+  // also flag bare price queries ("precio?", "cuánto sale", "mandame los
+  // precios") because those should short-circuit discovery defer.
   const userInsistedDirect =
     /\b(solo (quiero|necesito)|pasame (el|los) (precio|horarios?)|no tengo tiempo|respondeme directo|sin vueltas|al grano|dec[ií]me directo)\b/i.test(
       inbound,
-    );
+    ) ||
+    /^precios?\s*\??$/i.test(inboundText.trim()) ||
+    /cu[aá]nto sale/i.test(inbound) ||
+    /mandame (los )?precios?/i.test(inbound) ||
+    /pasame (los )?precios?/i.test(inbound) ||
+    /decime (el |los )?precios?/i.test(inbound) ||
+    /quiero saber (el |los )?precios?/i.test(inbound);
 
   return {
     discoveryAnswered,
@@ -648,10 +983,27 @@ function computeAdvanceSignals(
  * The system prompt instructs the AI not to use them, but this
  * is defense-in-depth for when the AI ignores the instruction.
  */
-function stripMarkdownHeaders(text: string): string {
+export function stripMarkdownHeaders(text: string): string {
   // Replace lines starting with # (1-3 hashes) followed by space and text
   // with just the text in *bold* (WhatsApp formatting)
   return text.replace(/^#{1,3}\s+(.+)$/gm, "*$1*");
+}
+
+/**
+ * Normalize WhatsApp formatting (quick-16, fix 1).
+ *
+ * Converts GitHub-flavoured markdown `**bold**` to WhatsApp's `*bold*`.
+ * WhatsApp uses single asterisks for bold; a double asterisk renders as a
+ * literal `**` to the user which looks broken. Runs after
+ * `stripMarkdownHeaders` as defense-in-depth for when the AI emits
+ * markdown bold despite the system prompt telling it not to.
+ *
+ * Non-greedy pattern `\*\*([^\n*]+?)\*\*` matches paired `**` on a single
+ * line with no intervening `*`. Legitimate single-asterisk bold
+ * (`*already bold*`) is left untouched.
+ */
+export function normalizeWhatsAppFormatting(text: string): string {
+  return text.replace(/\*\*([^\n*]+?)\*\*/g, "*$1*");
 }
 
 /**

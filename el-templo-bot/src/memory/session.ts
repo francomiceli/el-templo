@@ -109,6 +109,66 @@ export async function updateSession(
   }
 }
 
+// ─── Debounce helpers (quick-16, fix 2) ─────────────────────────────────────
+//
+// Used by the webhook handler to coalesce two messages that arrive within a
+// short window (~3s) from the same phone into a single AI call. The first
+// handler sets the key and sleeps; any second handler that lands while the
+// key is still present detects it and returns early (its inbound is already
+// in the session, so the in-flight first handler picks it up after the
+// delay). All three helpers gracefully degrade if Redis is unavailable.
+
+/**
+ * Check whether a debounce key is currently held (another handler is
+ * already in-flight for this phone). Returns false when Redis is down.
+ */
+export async function isDebounceActive(key: string): Promise<boolean> {
+  if (!isRedisAvailable()) {
+    return false;
+  }
+  try {
+    const value = await redis.get(key);
+    return value !== null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, key }, "Failed to read debounce key");
+    return false;
+  }
+}
+
+/**
+ * Set a debounce key with a TTL. No-op if Redis is unavailable.
+ */
+export async function setDebounce(
+  key: string,
+  ttlSeconds: number,
+): Promise<void> {
+  if (!isRedisAvailable()) {
+    return;
+  }
+  try {
+    await redis.set(key, "1", "EX", ttlSeconds);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, key }, "Failed to set debounce key");
+  }
+}
+
+/**
+ * Delete a debounce key. No-op if Redis is unavailable.
+ */
+export async function deleteDebounce(key: string): Promise<void> {
+  if (!isRedisAvailable()) {
+    return;
+  }
+  try {
+    await redis.del(key);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ err: message, key }, "Failed to delete debounce key");
+  }
+}
+
 /**
  * Delete a session context. For manual cleanup or session reset.
  */

@@ -143,7 +143,16 @@ export interface ParsedInboundMessage {
   phone: string;
   contactName: string;
   text: string;
-  messageType: "text" | "image" | "audio" | "document";
+  messageType:
+    | "text"
+    | "image"
+    | "audio"
+    | "video"
+    | "document"
+    | "sticker"
+    | "location"
+    | "contacts"
+    | "unknown";
   whatsappMessageId: string;
   timestamp: number;
   rawPayload: MetaWebhookPayload;
