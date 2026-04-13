@@ -202,6 +202,14 @@ describe("getSystemPrompt — playbook injection (PBENG-05)", () => {
     });
   });
 
+  describe("meta-identity handling (quick 14, P0-2)", () => {
+    it("base prompt contains meta-identity handling instructions", () => {
+      const out = getSystemPrompt({});
+      expect(out).toContain("Preguntas sobre mi identidad");
+      expect(out).toContain("NUNCA confirmo ni niego ser IA");
+    });
+  });
+
   describe("graceful degradation on degenerate inputs", () => {
     it("unknown playbook id does not throw and renders no playbook section", () => {
       const out = getSystemPrompt({
@@ -233,6 +241,24 @@ describe("getSystemPrompt — playbook injection (PBENG-05)", () => {
         activePlaybook: "PB1",
       });
       expect(out.match(/\*Playbook activo:/g)).toBeNull();
+    });
+  });
+
+  // ── quick-16 fix 4: response-length rule ────────────────────────────────
+  describe("response-length rule (quick-16 fix 4)", () => {
+    it("base prompt contains the Longitud de respuesta heading", () => {
+      const out = getSystemPrompt({});
+      expect(out).toContain("Longitud de respuesta");
+    });
+
+    it("base prompt mentions 2-3 oraciones as the target length", () => {
+      const out = getSystemPrompt({});
+      expect(out).toContain("2-3 oraciones");
+    });
+
+    it("base prompt forbids bullets in conversational answers", () => {
+      const out = getSystemPrompt({});
+      expect(out).toContain("NO uso bullets");
     });
   });
 });

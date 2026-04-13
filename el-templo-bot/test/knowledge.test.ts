@@ -273,8 +273,12 @@ describe("System prompt integration", () => {
     expect(prompt).toContain("request_human");
   });
 
-  it("contains escalation phrase", () => {
-    expect(prompt).toContain("Te paso con alguien del equipo");
+  it("contains escalation rule for request_human", () => {
+    // P1-4 (quick 14): the base prompt no longer owns the handoff phrase
+    // verbatim — the tool owns it. We just assert the rule mentions the
+    // tool and the silence directive.
+    expect(prompt).toContain("request_human");
+    expect(prompt).toMatch(/SILENCIO/);
   });
 
   it("contains business knowledge (prompt length > 3000 chars)", () => {
@@ -394,16 +398,17 @@ describe("Response quality (QUAL-01 through QUAL-07)", () => {
     });
   });
 
-  // QUAL-07: Exact escalation phrase with emoji
-  describe("QUAL-07: Escalation phrase and silence", () => {
-    it("system prompt contains exact escalation phrase with emoji", () => {
-      expect(systemPrompt).toContain(
-        "Te paso con alguien del equipo, te escriben enseguida \u{1F64C}",
-      );
+  // QUAL-07: Escalation rule mentions request_human + silence directive.
+  // P1-4 (quick 14): the handoff phrase is now owned by the tool, not the
+  // base prompt — the prompt only instructs Mica to invoke the tool and
+  // stay silent afterwards.
+  describe("QUAL-07: Escalation rule and silence", () => {
+    it("system prompt references request_human tool", () => {
+      expect(systemPrompt).toContain("request_human");
     });
 
     it("system prompt instructs silence after escalation", () => {
-      expect(systemPrompt).toMatch(/te escriben enseguida.*[Ss]ilencio/is);
+      expect(systemPrompt).toMatch(/SILENCIO/);
     });
   });
 

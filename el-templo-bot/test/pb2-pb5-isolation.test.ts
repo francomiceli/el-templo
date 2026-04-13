@@ -109,15 +109,13 @@ describe("PBPR-06: escalation reuses v5.2 request_human tool", () => {
     expect(prompt).toContain("request_human");
   });
 
-  // Verified 2026-04-07 in system-prompt.ts line 94: the canonical
-  // escalation phrase is hard-coded in the request_human rule of the
-  // base prompt. Asserting against the no-playbook render proves it
-  // ships on every turn regardless of state.
-  it("base prompt (no playbook) contains the canonical escalation phrase", () => {
+  // P1-4 (quick 14): the canonical handoff phrase is now owned by the
+  // `request_human` tool, not the base prompt. The prompt only instructs
+  // Mica to invoke the tool and stay silent afterwards.
+  it("base prompt (no playbook) references request_human escalation rule", () => {
     const prompt = getSystemPrompt({});
-    expect(prompt).toContain(
-      "Te paso con alguien del equipo, te escriben enseguida",
-    );
+    expect(prompt).toContain("request_human");
+    expect(prompt).toMatch(/SILENCIO/);
   });
 });
 

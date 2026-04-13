@@ -224,14 +224,13 @@ describe("Conversation flow correctness", () => {
     ).toHaveLength(0);
   });
 
-  it("Escalation uses exact phrase", () => {
+  it("Escalation rule references tool + silence", () => {
+    // P1-4 (quick 14): the handoff phrase is now owned by the
+    // `request_human` tool itself, not the base prompt. The prompt only
+    // tells Mica to invoke the tool and go silent afterwards.
     const prompt = getSystemPrompt();
-    expect(prompt).toContain(
-      "Te paso con alguien del equipo, te escriben enseguida \u{1F64C}",
-    );
-    expect(prompt).toMatch(
-      /te escriben enseguida.*[Ss][Ii][Ll][Ee][Nn][Cc][Ii][Oo]/s,
-    );
+    expect(prompt).toContain("request_human");
+    expect(prompt).toMatch(/SILENCIO/);
   });
 
   it("Trial registration asks minimal data", () => {
@@ -251,9 +250,9 @@ describe("Mica tone rules", () => {
   it("System prompt contains Argentine tuteo instructions", () => {
     expect(prompt).toMatch(/tuteo argentino/i);
     expect(prompt).toContain("vos");
-    expect(prompt).toContain("queres");
-    expect(prompt).toContain("podes");
-    expect(prompt).toContain("tenes");
+    expect(prompt).toContain("querés");
+    expect(prompt).toContain("podés");
+    expect(prompt).toContain("tenés");
   });
 
   it("System prompt limits emojis to 1-2 per message", () => {

@@ -455,6 +455,9 @@ describe("handleInboundMessage - human takeover segment suppression", () => {
     vi.doMock("../src/memory/session", () => ({
       getSession: async () => null,
       updateSession: async () => {},
+      isDebounceActive: async () => false,
+      setDebounce: async () => {},
+      deleteDebounce: async () => {},
     }));
 
     vi.doMock("../src/memory/profile", () => ({
@@ -508,13 +511,18 @@ describe("handleInboundMessage - human takeover segment suppression", () => {
       silent: vi.fn(),
     };
 
-    await handleInboundMessage(mockDb as never, mockLog as never, {
-      phone: "5491100000001",
-      contactName: "Test User",
-      text: "quiero hablar con alguien",
-      whatsappMessageId: "wamid_test_001",
-      rawPayload: {},
-    });
+    await handleInboundMessage(
+      mockDb as never,
+      mockLog as never,
+      {
+        phone: "5491100000001",
+        contactName: "Test User",
+        text: "quiero hablar con alguien",
+        messageType: "text",
+        whatsappMessageId: "wamid_test_001",
+        rawPayload: {},
+      } as never,
+    );
 
     // Only 1 segment should have been sent (the handoff message)
     expect(sendCalls).toHaveLength(1);

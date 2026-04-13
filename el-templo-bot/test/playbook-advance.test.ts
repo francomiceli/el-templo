@@ -12,6 +12,14 @@ import {
   advanceStageIfComplete,
   type AdvanceSignals,
 } from "../src/playbooks/advance";
+import {
+  computeAdvanceSignals,
+  isQuestion,
+  isMetaIdentityQuery,
+  isBareGreeting,
+  hasMinimumContent,
+  hasStageSpecificContent,
+} from "../src/webhook/handler";
 import type { PlaybookId, StageId } from "../src/playbooks/types";
 
 function at(playbookId: PlaybookId, stageId: StageId) {
@@ -481,5 +489,311 @@ describe("advanceStageIfComplete", () => {
       expect(results.size).toBe(1);
       expect(results.has("PB1.E2B")).toBe(true);
     });
+  });
+});
+
+// ─── computeAdvanceSignals helpers (quick 14, P0-1) ─────────────────────────
+//
+// These tests cover the replacement for the broken
+// `reply.includes("?") && inbound.trim().length > 0` heuristic that used
+// to advance PB1 on any non-empty user reply — including the user's own
+// questions ("Sos una IA?", "Quien sos?").
+
+describe("computeAdvanceSignals — discoveryAnswered heuristic (P0-1)", () => {
+  const REPLY_WITH_QUESTION = "algo con ?";
+
+  function signals(inbound: string) {
+    return computeAdvanceSignals(inbound, REPLY_WITH_QUESTION, null, null);
+  }
+
+  it("bare greeting 'Hola' is not a discovery answer", () => {
+    expect(signals("Hola").discoveryAnswered).toBe(false);
+  });
+
+  it("meta-identity 'Quien sos?' is not a discovery answer", () => {
+    expect(signals("Quien sos?").discoveryAnswered).toBe(false);
+  });
+
+  it("meta-identity 'Sos una IA?' is not a discovery answer", () => {
+    expect(signals("Sos una IA?").discoveryAnswered).toBe(false);
+  });
+
+  it("substantive reply 'nunca entrené en mi vida' counts as discovery", () => {
+    expect(signals("nunca entrené en mi vida").discoveryAnswered).toBe(true);
+  });
+
+  it("substantive reply 'quiero ponerme en forma' counts as discovery", () => {
+    expect(signals("quiero ponerme en forma").discoveryAnswered).toBe(true);
+  });
+
+  it("monosyllable 'sí' does not count as discovery", () => {
+    expect(signals("sí").discoveryAnswered).toBe(false);
+  });
+
+  it("short inbound that ends with '?' does not count as discovery", () => {
+    expect(signals("dale, cuándo?").discoveryAnswered).toBe(false);
+  });
+
+  it("long inbound 'vengo de crossfit hace 2 años' counts as discovery", () => {
+    expect(signals("vengo de crossfit hace 2 años").discoveryAnswered).toBe(
+      true,
+    );
+  });
+
+  it("meta-identity variant 'eres un bot?' is not a discovery answer", () => {
+    expect(signals("eres un bot?").discoveryAnswered).toBe(false);
+  });
+
+  it("helper isQuestion recognises trailing '?'", () => {
+    expect(isQuestion("hola?")).toBe(true);
+  });
+
+  it("helper isQuestion recognises 'qué' starter without '?'", () => {
+    expect(isQuestion("qué tal")).toBe(true);
+  });
+
+  it("helper isMetaIdentityQuery catches 'inteligencia artificial'", () => {
+    expect(isMetaIdentityQuery("sos una inteligencia artificial")).toBe(true);
+  });
+
+  it("helper isBareGreeting catches 'buenas tardes!'", () => {
+    expect(isBareGreeting("buenas tardes!")).toBe(true);
+  });
+
+  it("helper hasMinimumContent true for 20-char borderline", () => {
+    expect(hasMinimumContent("vengo de crossfit abc")).toBe(true);
+  });
+
+  it("helper hasMinimumContent false for 'ok'", () => {
+    expect(hasMinimumContent("ok")).toBe(false);
+  });
+});
+
+// ─── computeAdvanceSignals — userAccepted narrowing (P1-5) ──────────────────
+
+describe("computeAdvanceSignals — userAccepted regex narrowing (P1-5)", () => {
+  it("'genial, cuándo hay clases?' does NOT count as acceptance", () => {
+    const s = computeAdvanceSignals(
+      "genial, cuándo hay clases?",
+      "ok",
+      null,
+      null,
+    );
+    expect(s.userAccepted).toBe(false);
+  });
+
+  it("'perfecto, qué precio tiene?' does NOT count as acceptance", () => {
+    const s = computeAdvanceSignals(
+      "perfecto, qué precio tiene?",
+      "ok",
+      null,
+      null,
+    );
+    expect(s.userAccepted).toBe(false);
+  });
+
+  it("'dale' still counts as acceptance", () => {
+    const s = computeAdvanceSignals("dale", "ok", null, null);
+    expect(s.userAccepted).toBe(true);
+  });
+
+  it("'sí' standalone still counts as acceptance", () => {
+    const s = computeAdvanceSignals("sí", "ok", null, null);
+    expect(s.userAccepted).toBe(true);
+  });
+
+  it("'anotame' still counts as acceptance", () => {
+    const s = computeAdvanceSignals("anotame por favor", "ok", null, null);
+    expect(s.userAccepted).toBe(true);
+  });
+});
+
+// ─── computeAdvanceSignals — userInsistedDirect broadening (P1-6) ───────────
+
+describe("computeAdvanceSignals — userInsistedDirect broadening (P1-6)", () => {
+  it("'precio?' triggers userInsistedDirect", () => {
+    const s = computeAdvanceSignals("precio?", "ok", null, null);
+    expect(s.userInsistedDirect).toBe(true);
+  });
+
+  it("'cuánto sale' triggers userInsistedDirect", () => {
+    const s = computeAdvanceSignals("cuánto sale", "ok", null, null);
+    expect(s.userInsistedDirect).toBe(true);
+  });
+
+  it("'mandame los precios' triggers userInsistedDirect", () => {
+    const s = computeAdvanceSignals("mandame los precios", "ok", null, null);
+    expect(s.userInsistedDirect).toBe(true);
+  });
+
+  it("'quiero saber el precio' triggers userInsistedDirect", () => {
+    const s = computeAdvanceSignals("quiero saber el precio", "ok", null, null);
+    expect(s.userInsistedDirect).toBe(true);
+  });
+});
+
+// ─── computeAdvanceSignals — stage-specific content gate (P0-3 / quick 15) ──
+//
+// "Hola buenas, quería consultar por calistenia" used to slip past
+// `discoveryAnswered` because it has 5+ words (passes hasMinimumContent).
+// hasStageSpecificContent now requires the inbound to contain at least one
+// keyword that plausibly answers the CURRENT stage's question.
+
+describe("hasStageSpecificContent + discoveryAnswered — stage gate (P0-3)", () => {
+  it("'Hola buenas, quería consultar por calistenia' at PB1.E1A → false", () => {
+    expect(
+      hasStageSpecificContent(
+        "Hola buenas, quería consultar por calistenia",
+        "PB1.E1A",
+      ),
+    ).toBe(false);
+    const s = computeAdvanceSignals(
+      "Hola buenas, quería consultar por calistenia",
+      "algo con ?",
+      null,
+      "PB1.E1A",
+    );
+    expect(s.discoveryAnswered).toBe(false);
+  });
+
+  it("'nunca entrené en mi vida' at PB1.E1A → true", () => {
+    expect(hasStageSpecificContent("nunca entrené en mi vida", "PB1.E1A")).toBe(
+      true,
+    );
+    const s = computeAdvanceSignals(
+      "nunca entrené en mi vida",
+      "algo con ?",
+      null,
+      "PB1.E1A",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'hace 2 años que hago crossfit' at PB1.E1A → true", () => {
+    expect(
+      hasStageSpecificContent("hace 2 años que hago crossfit", "PB1.E1A"),
+    ).toBe(true);
+    const s = computeAdvanceSignals(
+      "hace 2 años que hago crossfit",
+      "algo con ?",
+      null,
+      "PB1.E1A",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'vengo del gym hace años' at PB1.E1B → true", () => {
+    expect(hasStageSpecificContent("vengo del gym hace años", "PB1.E1B")).toBe(
+      true,
+    );
+    const s = computeAdvanceSignals(
+      "vengo del gym hace años",
+      "algo con ?",
+      null,
+      "PB1.E1B",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'quiero aprender skills' at PB1.E2A → true", () => {
+    expect(hasStageSpecificContent("quiero aprender skills", "PB1.E2A")).toBe(
+      true,
+    );
+    const s = computeAdvanceSignals(
+      "quiero aprender skills",
+      "algo con ?",
+      null,
+      "PB1.E2A",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'busco ponerme en forma' at PB1.E2A → true", () => {
+    expect(hasStageSpecificContent("busco ponerme en forma", "PB1.E2A")).toBe(
+      true,
+    );
+    const s = computeAdvanceSignals(
+      "busco ponerme en forma",
+      "algo con ?",
+      null,
+      "PB1.E2A",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'me queda cerca mogotes' at PB1.E3 → true", () => {
+    expect(hasStageSpecificContent("me queda cerca mogotes", "PB1.E3")).toBe(
+      true,
+    );
+    const s = computeAdvanceSignals(
+      "me queda cerca mogotes",
+      "algo con ?",
+      null,
+      "PB1.E3",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'puedo los martes a la tarde' at PB1.E3 → true", () => {
+    expect(
+      hasStageSpecificContent("puedo los martes a la tarde", "PB1.E3"),
+    ).toBe(true);
+    const s = computeAdvanceSignals(
+      "puedo los martes a la tarde",
+      "algo con ?",
+      null,
+      "PB1.E3",
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("'no sé, cualquier cosa me sirve' at PB1.E2A → false", () => {
+    expect(
+      hasStageSpecificContent("no sé, cualquier cosa me sirve", "PB1.E2A"),
+    ).toBe(false);
+    const s = computeAdvanceSignals(
+      "no sé, cualquier cosa me sirve",
+      "algo con ?",
+      null,
+      "PB1.E2A",
+    );
+    expect(s.discoveryAnswered).toBe(false);
+  });
+
+  it("'algo random sin keywords' at PB1.E3 → false", () => {
+    expect(hasStageSpecificContent("algo random sin keywords", "PB1.E3")).toBe(
+      false,
+    );
+    const s = computeAdvanceSignals(
+      "algo random sin keywords",
+      "algo con ?",
+      null,
+      "PB1.E3",
+    );
+    expect(s.discoveryAnswered).toBe(false);
+  });
+
+  it("stage=null → hasStageSpecificContent passes through (true)", () => {
+    expect(
+      hasStageSpecificContent(
+        "Hola buenas, quería consultar por calistenia",
+        null,
+      ),
+    ).toBe(true);
+    // discoveryAnswered still subject to other gates; here it's not a
+    // question, not meta, not bare greeting, has min content → true.
+    const s = computeAdvanceSignals(
+      "Hola buenas, quería consultar por calistenia",
+      "algo con ?",
+      null,
+      null,
+    );
+    expect(s.discoveryAnswered).toBe(true);
+  });
+
+  it("stage=PB1.E4 → hasStageSpecificContent passes through (true)", () => {
+    expect(
+      hasStageSpecificContent("cualquier texto sin keywords", "PB1.E4"),
+    ).toBe(true);
   });
 });
