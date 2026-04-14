@@ -61,7 +61,10 @@
 1. When a PB1.E1A lead replies with a single-word/single-keyword answer (e.g., "primera vez"), `hasStageSpecificContent` returns `false` and the conversation stays in E1A — Mica continues asking discovery questions.
 2. PB1.E1A advancement to E2A requires more than one signal (multi-keyword combination, or a minimum user-turn count, or a multi-signal gate — exact mechanism decided in plan).
 3. The change is scoped to the existing heuristic — no model-driven detector, no playbook restructure, no new stages.
-   **Plans**: TBD
+
+**Plans:** 1 plan
+
+- [ ] 90-01-PLAN.md — Category-diversity content gate (STAGE-01) + AND turn-count composition (STAGE-02) + escape hatch + completionCriteria rewrite, single atomic commit
 
 ### Phase 91: PB1 Objection Handling
 
