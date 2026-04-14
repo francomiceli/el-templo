@@ -843,12 +843,50 @@ export function hasMinimumContent(inbound: string): boolean {
  * model-driven detector. Kept intentionally narrow to avoid false advances.
  */
 /**
+ * Category map for the PB1.E1A / PB1.E1B content gate (STAGE-01, v5.3.2 Phase 90).
+ *
+ * The pre-90 gate matched a single union regex of ~25 keywords and accepted
+ * any single match as "answered". Post-90 we partition the same keyword set
+ * into four semantic categories and require matches across ≥ 2 categories
+ * to count as a substantive discovery answer.
+ *
+ * Examples:
+ *   "primera vez"                  → 1 category (level)                → false
+ *   "nunca entrené, quiero arrancar" → 2 categories (level + experience) → true
+ *   "hice crossfit hace 2 años"     → 3 categories (experience + context + duration) → true
+ *
+ * Each regex uses the same `(^|[^a-záéíóúñ])(...)([^a-záéíóúñ]|$)` non-word-boundary
+ * style as the pre-90 single regex because JS `\b` is ASCII-only — `\bentrené\b`
+ * would never match. Every keyword from the pre-90 union is preserved; none
+ * was dropped during the partition. "experiencia" is grouped with `experience`
+ * (it is the prototypical exemplar). "empezar"/"arrancar"/"arranco" are grouped
+ * with `level` because they mark a starting-point for an inexperienced lead.
+ * "deporte" is grouped with `context` (discipline / training context).
+ */
+const E1A_E1B_CATEGORIES: Record<string, RegExp> = {
+  level:
+    /(^|[^a-záéíóúñ])(principiante|primera vez|nunca|arrancar|arranco|empezar)([^a-záéíóúñ]|$)/i,
+  experience:
+    /(^|[^a-záéíóúñ])(entren[oaé]|entrené|entrenaba|hice|hago|vengo de|experiencia|activ[oa]|sedentari[oa])([^a-záéíóúñ]|$)/i,
+  duration: /(^|[^a-záéíóúñ])(a[ñn]os?|meses?|semanas?)([^a-záéíóúñ]|$)/i,
+  context:
+    /(^|[^a-záéíóúñ])(gym|gimnasio|crossfit|pesas|running|yoga|pilates|deporte)([^a-záéíóúñ]|$)/i,
+};
+
+/**
  * Stage-aware content gate for `discoveryAnswered`.
  *
- * Returns true if the inbound contains at least one keyword that plausibly
- * answers the discovery question for the given stage. When `stageId` is
- * null OR the stage is outside the PB1 discovery range (E1A/E1B/E2A/E2B/E3),
- * returns true so callers fall back to the existing 4-gate check.
+ * Returns true if the inbound contains keywords that plausibly answer the
+ * discovery question for the given stage. When `stageId` is null OR the
+ * stage is outside the PB1 discovery range (E1A/E1B/E2A/E2B/E3), returns
+ * true so callers fall back to the existing 4-gate check.
+ *
+ * STAGE-01 (v5.3.2 Phase 90) — for PB1.E1A and PB1.E1B specifically the gate
+ * requires matches across ≥ 2 distinct semantic categories from
+ * `E1A_E1B_CATEGORIES` (level / experience / duration / context). This closes
+ * the false-advance observed in the live test where a single keyword like
+ * "primera vez" was enough to advance E1A → E2A after a single user turn.
+ * Sibling stages (E2A/E2B/E3) keep their pre-90 single-match semantics.
  *
  * Quick 15 (P0-3): closes the gap where "Hola buenas, quería consultar por
  * calistenia" passed `hasMinimumContent` but did NOT actually answer an
@@ -862,15 +900,12 @@ export function hasStageSpecificContent(
 
   const lower = inbound.toLowerCase();
 
-  // PB1.E1A / E1B — experience/history question.
-  //
-  // NOTE: regex uses non-word-boundary matching for accented forms because
-  // JS `\b` is ASCII-only — `\bentrené\b` would never match. We use
-  // (^|[^\p{L}]) lookbehind via alternation instead.
+  // STAGE-01 (v5.3.2 Phase 90): category-diversity gate — E1A+E1B only
   if (stageId === "PB1.E1A" || stageId === "PB1.E1B") {
-    return /(^|[^a-záéíóúñ])(entren[oaé]|entrené|entrenaba|hice|hago|vengo de|años?|meses?|semanas?|primera vez|nunca|principiante|empezar|arranco|arrancar|experiencia|gym|gimnasio|crossfit|pesas|running|yoga|pilates|deporte|activ[oa]|sedentari[oa])([^a-záéíóúñ]|$)/i.test(
-      lower,
-    );
+    const matchedCategories = Object.values(E1A_E1B_CATEGORIES).filter((rx) =>
+      rx.test(lower),
+    ).length;
+    return matchedCategories >= 2;
   }
 
   // PB1.E2A / E2B — motivation/goals question
