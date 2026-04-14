@@ -5,11 +5,46 @@
  * as typed constants and composed into a markdown string for injection
  * into the system prompt.
  *
- * 12 sections: Que es El Templo, ROM, Planes y Precios, Reglas Zero,
- * Horarios por Sede, Clase de Prueba, App (DeportNet), Politicas,
- * Tecnicas de Venta, Manejo de Objeciones, Estrategias de Retencion,
- * 12 Reglas de Oro.
+ * Sections are stored as a module-level ordered array of tagged entries
+ * (`SECTIONS`) and filtered at call time by client lifecycle state:
+ *
+ * - `getBusinessKnowledge()` — returns the full set (backward compat).
+ * - `getBusinessKnowledge('lead')` — returns ONLY sections tagged `'discovery'`.
+ *   PB1 leads during discovery never see retention, upgrade paths, app
+ *   troubleshooting, or member policies — only the content they need to
+ *   decide to book a trial.
+ * - `getBusinessKnowledge('trial' | 'active_member' | 'inactive_member' |
+ *    'expired_member')` — returns the full set (identical content to the
+ *   no-arg call, zero regression for non-lead states).
+ *
+ * 14 sections (post v5.3.1 splits): Que es El Templo, ROM, Planes y Precios
+ * (base), Mejora de plan (upgrade paths, split out of Planes y Precios),
+ * Reglas Zero, Horarios por Sede, Clase de Prueba, App (DeportNet), Politicas,
+ * Tecnicas de Venta, Objeciones de venta (split from Manejo de Objeciones),
+ * Objeciones de retención (split from Manejo de Objeciones), Estrategias de
+ * Retencion, 12 Reglas de Oro.
+ *
+ * Original 1–12 section order is preserved — the two splits insert a new
+ * entry immediately after the parent section so flow is unchanged.
  */
+
+import type { ClientState } from "../state/machine.js";
+
+/**
+ * Tag vocabulary is intentionally narrow for v5.3.1. Future tags
+ * (member-only, admin, locale) can be added without renaming. A section
+ * is "discovery-relevant" iff it carries the 'discovery' tag.
+ */
+type SectionTag = "discovery";
+
+interface KnowledgeSection {
+  /** Human-readable title used only for debugging / tests. Not rendered. */
+  title: string;
+  /** Full formatted body including its own *bold* heading and content. */
+  body: string;
+  /** Tags. Presence of 'discovery' = include for `clientState === 'lead'`. */
+  tags: ReadonlyArray<SectionTag>;
+}
 
 // ---------------------------------------------------------------------------
 // 1. Pricing
@@ -311,10 +346,11 @@ const SALES_TECHNIQUES = `*Tecnicas de venta:*
 - *Mostrar Flex primero:* Es el mas accesible y popular. Solo ofrecer Foundation/Performance si preguntan mas o al renovar.`;
 
 // ---------------------------------------------------------------------------
-// 10. Objection handling
+// 10a. Objections — sales (discovery: caro, tiempo, miedo, pensarlo,
+// otro lado, lejos, pagar por clase)
 // ---------------------------------------------------------------------------
 
-const OBJECTION_HANDLING = `*Manejo de objeciones comunes:*
+const OBJECTIONS_SALES = `*Manejo de objeciones comunes:*
 
 1. *"Es caro"*
    - Ancla contra el costo diario: un plan Flex son 8 clases, o sea ~$10,000 por clase guiada por profesores.
@@ -348,7 +384,13 @@ const OBJECTION_HANDLING = `*Manejo de objeciones comunes:*
 
 7. *"Puedo pagar por clase?"*
    - Clase suelta: $20,000.
-   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.
+   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.`;
+
+// ---------------------------------------------------------------------------
+// 10b. Objections — retention (no me convencio / tengo dudas)
+// ---------------------------------------------------------------------------
+
+const OBJECTIONS_RETENTION = `*Manejo de objeciones (retencion):*
 
 8. *"No me convencio / tengo dudas"*
    - Antes de aceptar, hacer UNA pregunta suave: "Que es lo que te genera dudas? Capaz puedo ayudarte con eso."
@@ -430,17 +472,20 @@ function formatCreditCardPlans(): string {
 }
 
 /**
- * Returns a formatted string containing all El Templo business
- * knowledge (12 sections), suitable for injection into the AI system prompt.
+ * Ordered knowledge sections. Preserves the original 1–12 section flow,
+ * with two splits (section 3 → Planes y Precios + Mejora de plan; section 10
+ * → Objeciones de venta + Objeciones de retención) that align content with
+ * the discovery/member audience boundary.
  *
- * Uses WhatsApp-compatible formatting: *bold* for emphasis, bullet lists
- * with - or bullet points, no ### markdown headers.
+ * A section is included for `clientState === 'lead'` iff its `tags` array
+ * contains `'discovery'`. All other states receive every entry.
  */
-export function getBusinessKnowledge(): string {
-  const sections: string[] = [];
-
-  // 1. Que es El Templo
-  sections.push(`*Que es El Templo*
+const SECTIONS: ReadonlyArray<KnowledgeSection> = [
+  // 1. Que es El Templo — discovery
+  {
+    title: "Que es El Templo",
+    tags: ["discovery"],
+    body: `*Que es El Templo*
 
 El Templo es un centro de entrenamiento especializado en *Calistenia*, un metodo que usa tu propio cuerpo como herramienta principal para ganar fuerza, equilibrio y control.
 
@@ -459,15 +504,25 @@ Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
 - Base Solida
 - Movilidad
 
-Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza real de forma integral.`);
+Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza real de forma integral.`,
+  },
 
-  // 2. ROM
-  sections.push(`*Calisthenics ROM (Range of Motion)*
+  // 2. ROM — full only
+  {
+    title: "ROM",
+    tags: [],
+    body: `*Calisthenics ROM (Range of Motion)*
 
-${ROM_DATA}`);
+${ROM_DATA}`,
+  },
 
-  // 3. Planes y Precios
-  sections.push(`*Planes y Membresias*
+  // 3. Planes y Precios (base) — discovery
+  // NOTE: The original section ended with `*Mejora de plan:*\n${UPGRADE_PATHS}`.
+  // That block is split out into section 4 below so leads never see upgrade paths.
+  {
+    title: "Planes y Precios",
+    tags: ["discovery"],
+    body: `*Planes y Membresias*
 
 *Planes Flex (1 mes):*
 ${FLEX_PLANS.map(formatPlan).join("\n")}
@@ -481,18 +536,32 @@ ${formatPlan(PERFORMANCE_PLAN)}
 *Clase suelta:* $20,000
 
 *Planes con Tarjeta de Credito (tarjeta fisica, miercoles y sabados):*
-${formatCreditCardPlans()}
+${formatCreditCardPlans()}`,
+  },
 
-*Mejora de plan:*
-${UPGRADE_PATHS}`);
+  // 4. Mejora de plan — full only (split from Planes y Precios)
+  {
+    title: "Mejora de plan",
+    tags: [],
+    body: `*Mejora de plan*
 
-  // 4. Reglas Zero
-  sections.push(`*Precios Zero (Descuentos)*
+${UPGRADE_PATHS}`,
+  },
 
-${ZERO_RULES}`);
+  // 5. Reglas Zero — discovery
+  {
+    title: "Reglas Zero",
+    tags: ["discovery"],
+    body: `*Precios Zero (Descuentos)*
 
-  // 5. Horarios por Sede
-  sections.push(`*Horarios por Sede*
+${ZERO_RULES}`,
+  },
+
+  // 6. Horarios por Sede — discovery
+  {
+    title: "Horarios por Sede",
+    tags: ["discovery"],
+    body: `*Horarios por Sede*
 
 Actividad: Calistenia (todas las sedes). Las clases duran 60 minutos, guiadas por profesores, con 4 bloques de entrenamiento.
 
@@ -508,42 +577,101 @@ Clases de ROM: sabados en sedes con horario sabatino (Moreno y Alem).
 - Puerto / La Perla: Av. Constitución 6745
 - Mogotes / Punta Mogotes / barrio sur: Mario Bravo 618 (también conocida como sede Mogotes)
 - Alem / Perla Norte / Stella Maris: Alem 3958
-- Si el lead menciona una zona que no está en esta lista, preguntale por una referencia cercana antes de sugerir una sede.`);
+- Si el lead menciona una zona que no está en esta lista, preguntale por una referencia cercana antes de sugerir una sede.`,
+  },
 
-  // 6. Clase de Prueba
-  sections.push(`*Clase de Prueba*
+  // 7. Clase de Prueba — discovery
+  {
+    title: "Clase de Prueba",
+    tags: ["discovery"],
+    body: `*Clase de Prueba*
 
-${TRIAL_FLOW}`);
+${TRIAL_FLOW}`,
+  },
 
-  // 7. App (DeportNet)
-  sections.push(`*Ayuda con la App (DeportNet)*
+  // 8. App (DeportNet) — full only
+  {
+    title: "App (DeportNet)",
+    tags: [],
+    body: `*Ayuda con la App (DeportNet)*
 
-${APP_HELP}`);
+${APP_HELP}`,
+  },
 
-  // 8. Politicas
-  sections.push(`*Politicas del Centro*
+  // 9. Politicas — full only
+  {
+    title: "Politicas",
+    tags: [],
+    body: `*Politicas del Centro*
 
-${POLICIES}`);
+${POLICIES}`,
+  },
 
-  // 9. Tecnicas de Venta
-  sections.push(`*Tecnicas de Venta*
+  // 10. Tecnicas de Venta — discovery
+  {
+    title: "Tecnicas de Venta",
+    tags: ["discovery"],
+    body: `*Tecnicas de Venta*
 
-${SALES_TECHNIQUES}`);
+${SALES_TECHNIQUES}`,
+  },
 
-  // 10. Manejo de Objeciones
-  sections.push(`*Manejo de Objeciones*
+  // 11. Objeciones de venta — discovery (split from Manejo de Objeciones, items 1–7)
+  {
+    title: "Objeciones de venta",
+    tags: ["discovery"],
+    body: `*Objeciones de venta*
 
-${OBJECTION_HANDLING}`);
+${OBJECTIONS_SALES}`,
+  },
 
-  // 11. Estrategias de Retencion
-  sections.push(`*Estrategias de Retencion*
+  // 12. Objeciones de retención — full only (split from Manejo de Objeciones, item 8)
+  {
+    title: "Objeciones de retención",
+    tags: [],
+    body: `*Objeciones de retención*
 
-${RETENTION_STRATEGIES}`);
+${OBJECTIONS_RETENTION}`,
+  },
 
-  // 12. Reglas de Oro
-  sections.push(`*Reglas de Oro*
+  // 13. Estrategias de Retencion — full only
+  {
+    title: "Estrategias de Retencion",
+    tags: [],
+    body: `*Estrategias de Retencion*
 
-${GOLDEN_RULES}`);
+${RETENTION_STRATEGIES}`,
+  },
 
-  return sections.join("\n\n");
+  // 14. Reglas de Oro — discovery (universal: carries discovery tag so leads still see it)
+  {
+    title: "Reglas de Oro",
+    tags: ["discovery"],
+    body: `*Reglas de Oro*
+
+${GOLDEN_RULES}`,
+  },
+];
+
+/**
+ * Returns a formatted string containing El Templo business knowledge for
+ * injection into the AI system prompt.
+ *
+ * Behavior:
+ * - No argument, or any non-`'lead'` state → full 14-section set
+ *   (backward compat, zero regression for trial/active/inactive/expired).
+ * - `clientState === 'lead'` → only sections tagged `'discovery'` (8 sections):
+ *   Que es El Templo, Planes y Precios (base), Reglas Zero, Horarios por Sede,
+ *   Clase de Prueba, Tecnicas de Venta, Objeciones de venta, Reglas de Oro.
+ *
+ * Uses WhatsApp-compatible formatting: *bold* for emphasis, bullet lists
+ * with - or bullet points, no ### markdown headers. Original 1–12 section
+ * order is preserved (filtered, not reordered).
+ */
+export function getBusinessKnowledge(clientState?: ClientState): string {
+  const selected =
+    clientState === "lead"
+      ? SECTIONS.filter((s) => s.tags.includes("discovery"))
+      : SECTIONS;
+  return selected.map((s) => s.body).join("\n\n");
 }
