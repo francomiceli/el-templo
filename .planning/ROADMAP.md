@@ -65,7 +65,14 @@ Plans:
 2. knowledge.ts contains the team-provided method description (verbatim long-form) plus a 2-sentence elevator pitch
 3. When a lead asks about method internals (progressions, periodization), the prompt instructs Mica to deflect with "lo sentis cuando llegas" and re-anchor the trial CTA
 4. The method section is tagged as discovery-relevant and included in the PB1 lead knowledge gate
-   **Plans**: TBD
+
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 87-01-PLAN.md — Consolidate Boarding Pass: canonical definition in Reglas Zero + 7 pointer-form references
+- [ ] 87-02-PLAN.md — Add Metodo (elevator + detalle) sections + deflection rule in system-prompt.ts framing (CHECKPOINT on KGATE-05 headroom)
+- [ ] 87-03-PLAN.md — Lock BP consolidation, method sections, and deflection rule with new test assertions
 
 #### Phase 88: Quality Regression Lock
 
@@ -84,7 +91,7 @@ Plans:
 | Phase                                  | Plans Complete | Status      | Completed  |
 | -------------------------------------- | -------------- | ----------- | ---------- |
 | 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
-| 87. Boarding Pass + Method Description | 0/TBD          | Not started | -          |
+| 87. Boarding Pass + Method Description | 0/3            | Not started | -          |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -          |
 
 ---
