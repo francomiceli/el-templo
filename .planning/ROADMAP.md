@@ -28,7 +28,7 @@
 
 ### Phases
 
-- [ ] **Phase 86: Knowledge Gating** - State-gated knowledge injection so PB1 leads see only discovery-relevant sections
+- [x] **Phase 86: Knowledge Gating** - State-gated knowledge injection so PB1 leads see only discovery-relevant sections (completed 2026-04-14)
 - [ ] **Phase 87: Boarding Pass + Method Description** - Consolidate Boarding Pass to one definition, add team method description with deflection rule
 - [ ] **Phase 88: Quality Regression Lock** - Full test suite green + new state-gated and prompt-size regression tests
 
@@ -46,7 +46,7 @@
 3. Calling `getBusinessKnowledge()` with no argument returns the full knowledge set (backward compat)
 4. The PB1.E1A rendered prompt is at least 20% smaller (in characters) than the pre-refactor baseline (revised from 35% during execution — framing in system-prompt.ts is universal behavior; knowledge block alone meets 37% structural target)
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -81,11 +81,11 @@ Plans:
 
 ### Progress
 
-| Phase                                  | Plans Complete | Status      | Completed |
-| -------------------------------------- | -------------- | ----------- | --------- |
-| 86. Knowledge Gating                   | 2/3            | In Progress |           |
-| 87. Boarding Pass + Method Description | 0/TBD          | Not started | -         |
-| 88. Quality Regression Lock            | 0/TBD          | Not started | -         |
+| Phase                                  | Plans Complete | Status      | Completed  |
+| -------------------------------------- | -------------- | ----------- | ---------- |
+| 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
+| 87. Boarding Pass + Method Description | 0/TBD          | Not started | -          |
+| 88. Quality Regression Lock            | 0/TBD          | Not started | -          |
 
 ---
 

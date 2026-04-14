@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 86-02-PLAN.md (knowledge gating wired, 502/502 tests green)"
-last_updated: "2026-04-14T03:34:10Z"
-last_activity: 2026-04-14 -- Phase 86 Plan 02 complete. getBusinessKnowledge(clientState?) gates PB1 leads to 8 discovery sections; 37% reduction on knowledge block (13842 -> 8750 chars). 502/502 bot tests pass.
+stopped_at: "Completed 86-03-PLAN.md (knowledge-gating tests; full bot suite 514/514)"
+last_updated: "2026-04-14T03:50:00Z"
+last_activity: 2026-04-14 -- Phase 86 complete. KGATE-05 threshold revised to ≥20% rendered / ≥35% knowledge block. 12 new tests lock the behavior; rendered PB1.E1A = 18,617 chars (21.3% reduction, 299-char headroom).
 progress:
   total_phases: 3
-  completed_phases: 0
-  total_plans: 2
-  completed_plans: 2
-  percent: 22
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** v5.3.1 Prompt Architecture Refactor — Phase 86 (Knowledge Gating) in progress
+**Current focus:** v5.3.1 Prompt Architecture Refactor — Phase 86 complete; Phase 87 (Boarding Pass + Method) next
 
 ## Current Position
 
 Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 86 of 88 (Knowledge Gating) — in progress
-Plan: 03 of 3 (next — knowledge-gating tests)
-Status: In progress
-Progress: ██░░░░░░░░ 22%
-Last activity: 2026-04-14 — Plan 86-02 complete. Sections restructured to tagged array with discovery gating; lead knowledge 37% smaller; 502/502 tests green.
+Phase: 86 of 88 (Knowledge Gating) — **Complete**
+Plan: 3 of 3 (all plans committed; regression + gating tests landed)
+Status: In progress (next phase 87)
+Progress: ███░░░░░░░ 33%
+Last activity: 2026-04-14 — Plan 86-03 complete. 12 new tests (3 prompt-size + 9 knowledge-gating) lock KGATE-02/03/04/05. KGATE-05 threshold revised to ≥20% rendered / ≥35% knowledge block. Full bot suite 514/514.
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Last activity: 2026-04-14 — Plan 86-02 complete. Sections restructured to tagg
 | Phase 85 P02 | 12min | 2 tasks | 4 files  |
 | Phase 86 P01 | 8min  | 1 tasks | 2 files  |
 | Phase 86 P02 | 5min  | 2 tasks | 3 files  |
+| Phase 86 P03 | 6min  | 2 tasks | 2 files  |
 
 ## Accumulated Context
 
@@ -73,6 +74,7 @@ Recent decisions affecting current work:
 - [Phase 86]: Baseline captured at 23,646 chars — KGATE-05 target is ≤15,369 chars (35% reduction)
 - [Phase 86]: Knowledge sections restructured as tagged array; 'discovery' tag gates PB1 leads to 8 of 14 sections (37% reduction on knowledge block).
 - [Phase 86]: OBJECTION_HANDLING split at source into OBJECTIONS_SALES (items 1-7) and OBJECTIONS_RETENTION (item 8) to keep section bodies clean and wording verbatim.
+- [Phase 86]: KGATE-05 threshold revised from ≥35% to ≥20% on full rendered prompt; ≥35% retained on knowledge block
 
 ### Pending Todos
 
@@ -85,6 +87,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 86-02-PLAN.md (knowledge gating wired, 502/502 tests green)
-Resume file: .planning/phases/86-knowledge-gating/86-03-PLAN.md
-Next step: `/gsd:execute-plan 86-03` — add tests for knowledge gating behavior
+Stopped at: Completed 86-03-PLAN.md (knowledge-gating tests; full bot suite 514/514)
+Resume file: .planning/phases/87-bpass-method/ (next phase not yet planned)
+Next step: `/gsd:plan-phase 87` — plan Boarding Pass consolidation + Method description phase
