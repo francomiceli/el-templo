@@ -436,7 +436,7 @@ const RETENTION_STRATEGIES = `*Estrategias de retencion:*
 // soft-wrap reflow — do NOT paraphrase, compress, or reformat.
 // ---------------------------------------------------------------------------
 
-const ELEVATOR_TEXT = `Es un método internacional de calistenia. Cuatro niveles entrenan en simultáneo en cada clase, así progresás sin salirte del grupo.`;
+const ELEVATOR_TEXT = `Método internacional de calistenia, cuatro niveles por clase — progresás sin salirte del grupo.`;
 
 const METHOD_DETAIL = `El Templo tiene un método internacional de entrenamiento de calistenia que combina un sistema de periodización cíclica con experiencias de comunidad únicas en cada clase. Cada alumno entrena con un programa individual adaptado a su nivel — hay cuatro niveles activos simultáneamente en cada clase, desde principiantes hasta atletas avanzados. El sistema está diseñado para que cada persona progrese a su ritmo sin salirse del grupo.
 
