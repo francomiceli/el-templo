@@ -85,7 +85,7 @@ Plans:
 2. New tests verify that lead state gets discovery-relevant sections only and active/trial/inactive/expired states get the full knowledge set
 3. A prompt-size regression test measures PB1.E1A rendered prompt and asserts >= 35% reduction vs the documented pre-refactor baseline
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 
@@ -98,7 +98,7 @@ Plans:
 | -------------------------------------- | -------------- | ----------- | ---------- |
 | 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
 | 87. Boarding Pass + Method Description | 3/3            | Complete    | 2026-04-14 |
-| 88. Quality Regression Lock            | 0/2            | Not started | -          |
+| 88. Quality Regression Lock            | 1/2            | In Progress |            |
 
 ---
 

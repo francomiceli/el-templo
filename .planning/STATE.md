@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 87-03-PLAN.md (regression tests: BP consolidation + method + deflection; 534/534 tests; Phase 87 complete)"
-last_updated: "2026-04-14T05:09:00Z"
-last_activity: 2026-04-14 -- Plan 87-03 complete. Regression locks added for BPASS-01/02/03, METHOD-01/02/03/04 via 3 new describe blocks in knowledge-gating.test.ts. Block A adapted to post-87-02 reality (zero pointers). 534/534 tests pass. Phase 87 complete.
+stopped_at: "Completed 88-01-PLAN.md (QREG-01/QREG-03 wording reconciled in REQUIREMENTS.md; 534+ tests + prompt-size.test.ts dual-threshold cited)"
+last_updated: "2026-04-14T05:33:00Z"
+last_activity: 2026-04-14 -- Plan 88-01 complete. QREG-01 rewritten to cite 534+ bot tests and defer assertion-modification rationale to phase SUMMARYs. QREG-03 rewritten to name el-templo-bot/test/ai/prompt-size.test.ts and document the dual-threshold (>=20% rendered AND >=35% knowledge block). Traceability table and QREG-02 untouched.
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 67
+  total_plans: 7
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 ## Current Position
 
 Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 88 of 88 (Regression tests — combined 86+87 output validation) — **Pending**
-Plan: 3 of 3 of Phase 87 complete; Phase 87 done (regression locks in place for all 7 requirements)
-Status: Phase 87 complete
-Progress: ███████░░░ 67%
-Last activity: 2026-04-14 — Plan 87-03 complete. Regression locks for BPASS-01/02/03 + METHOD-01/02/03/04 via 3 new describe blocks in knowledge-gating.test.ts. Block A adapted to actual Wave-2 state (zero pointer-form residue after 87-02 remediation). 534/534 bot tests pass (514 baseline + 20 new, including parametrised it.each expansions). Rendered PB1.E1A lead still 18,858 chars (58-char KGATE-05 headroom, unchanged as expected for test-only plan).
+Phase: 88 of 88 (Quality Regression Lock — 86+87 output certification) — **In Progress**
+Plan: 1 of 2 of Phase 88 complete (88-01 REQUIREMENTS.md reconciliation)
+Status: Phase 88 in progress
+Progress: ████████░░ 78%
+Last activity: 2026-04-14 — Plan 88-01 complete. QREG-01 and QREG-03 bullets in `.planning/REQUIREMENTS.md` reconciled to post-86/87 reality: QREG-01 now cites 534+ bot tests and phase-SUMMARY discipline for any assertion modifications; QREG-03 names `el-templo-bot/test/ai/prompt-size.test.ts` as the enforcing artifact and documents the dual-threshold (>=20% rendered prompt AND >=35% knowledge block) per KGATE-05 revision (commit 46caba53). Traceability table and QREG-02 left untouched. Footer date bumped to 2026-04-14.
 
 ## Performance Metrics
 
@@ -60,6 +60,7 @@ Last activity: 2026-04-14 — Plan 87-03 complete. Regression locks for BPASS-01
 | Phase 87 P01 | 2 min | 1 tasks | 1 files  |
 | Phase 87 P02 | 6min  | 3 tasks | 2 files  |
 | Phase 87 P03 | 7min  | 1 tasks | 1 files  |
+| Phase 88 P01 | 2 min | 1 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 87-03]: Block A pointer-count assertion adapted to BP-name preservation (>=7) after verifying 87-02 remediation dropped all `(ver *Reglas Zero*)` pointers. Added zero-residue pointer lock as 5th assertion to preserve removed-pattern intent
 - [Phase 87-03]: Re-explanation-detection exclusion zone bounded by `*Precios Zero (Descuentos)*` heading (not by canonical opener fragment) — otherwise the canonical `*Boarding Pass (primer mes en El Templo):*` title itself registers as a non-canonical BP mention
 - [Phase 87-03]: Net test delta +20 (spec-14) explained by `it.each` parametrised expansions across 4 non-lead states in Blocks B and C — matches spec intent
+- [Phase 88-01]: REQUIREMENTS.md reconciliation isolated to QREG-01 and QREG-03 bullets + footer date; traceability table and QREG-02 intentionally untouched to preserve ID stability for milestone-exit SUMMARY
+- [Phase 88-01]: QREG wording uses pointer-to-SUMMARY pattern (cites 86-02 SUMMARY for AVAT-03 alignment, 86-03 SUMMARY + commit 46caba53 for KGATE-05 dual-threshold revision) rather than duplicating rationale in the requirements ledger
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 87-03-PLAN.md (regression tests for BP + method + deflection; 534/534 tests; Phase 87 complete)
-Resume file: .planning/phases/88-\*/88-01-PLAN.md (when Phase 88 plans are drafted)
-Next step: Phase 88 — regression tests validating combined 86+87 output (test-only milestone-level locks)
+Stopped at: Completed 88-01-PLAN.md (QREG-01/QREG-03 reconciliation in REQUIREMENTS.md)
+Resume file: .planning/phases/88-quality-regression-lock/88-02-PLAN.md (when drafted)
+Next step: Phase 88 Plan 2 — bot suite certify run + boundary-case assertions + PB1.E1A snapshot tripwire + milestone-exit SUMMARY
