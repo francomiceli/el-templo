@@ -41,7 +41,10 @@
 2. The "Planes y Precios" section is no longer present in the rendered PB1 lead prompt (its `discovery` tag has been removed, so it filters out for leads).
 3. When a PB1 lead asks "¿qué es el templo?" or "¿qué método usan?", Mica's response uses at least two of the three team hooks ("método internacional", "cuatro niveles simultáneos", "no salirse del grupo").
 4. When a PB1 lead asks about the Boarding Pass, Mica's reply names BOTH benefits — the free first trial class AND the discounted first membership (precios Zero) — not just one.
-   **Plans**: TBD
+
+**Plans:** 1 plan
+
+- [ ] 89-01-PLAN.md — Apply four knowledge fixes + price-deferral framing rule in a single atomic task-set (with user review gate for the three draft wordings), regenerate PB1.E1A snapshot
 
 **Notes:**
 
@@ -93,7 +96,7 @@
 
 | Phase                                      | Milestone | Plans Complete | Status      | Completed |
 | ------------------------------------------ | --------- | -------------- | ----------- | --------- |
-| 89. Knowledge Fixes                        | v5.3.2    | 0/TBD          | Not started | -         |
+| 89. Knowledge Fixes                        | v5.3.2    | 0/1            | Not started | -         |
 | 90. Stage Heuristic Tightening             | v5.3.2    | 0/TBD          | Not started | -         |
 | 91. PB1 Objection Handling                 | v5.3.2    | 0/TBD          | Not started | -         |
 | 92. Regression Lock + Live Test Validation | v5.3.2    | 0/TBD          | Not started | -         |
