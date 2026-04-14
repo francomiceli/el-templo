@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3.2
 milestone_name: Post-v5.3.1 Live Test Fixes
-status: roadmap_ready
-stopped_at: "v5.3.2 roadmap created (phases 89-92) — ready for /gsd:plan-phase 89"
-last_updated: "2026-04-14T07:00:00Z"
-last_activity: 2026-04-14 -- v5.3.2 roadmap created. 4 phases (89 Knowledge Fixes, 90 Stage Heuristic Tightening, 91 PB1 Objection Handling, 92 Regression Lock + Live Test Validation). All 11 requirements mapped (KFIX-01..04 → 89; STAGE-01..02 → 90; OBJN-01..02 → 91; RLOK-01..03 → 92). Dependencies linear (89 → 90 → 91 → 92). Phase 89 is net-positive on KGATE-05 headroom (removes Planes y Precios from discovery); PB1.E1A snapshot will intentionally regenerate after 89. Phase 92 is the only test-only phase.
+status: phase_in_progress
+stopped_at: "Completed 89-01-PLAN.md — v5.3.2 KFIX-01/02/03/04 shipped + 5 test alignments"
+last_updated: "2026-04-14T18:15:03Z"
+last_activity: 2026-04-14 -- Phase 89-01 complete. KFIX-01/02/03/04 shipped atomically (commit 8575095c). Rendered PB1.E1A lead 19,052 → 18,291 chars; KGATE-05 headroom 625 chars banked for phases 90-92. 537/537 bot tests green. 5 test alignments applied in-place (mirrors v5.3.1 AVAT-03 pattern, user-approved). Ready for `/gsd:plan-phase 90`.
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 1
+  completed_plans: 1
+  percent: 25
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-14)
 ## Current Position
 
 Milestone: v5.3.2 Post-v5.3.1 Live Test Fixes
-Phase: 89 — Knowledge Fixes (not started)
-Plan: —
-Status: Roadmap ready
-Progress: ░░░░░░░░░░ 0% (0/4 phases)
-Last activity: 2026-04-14 — v5.3.2 roadmap created. 4 phases, 11 requirements, 100% coverage. Ready for `/gsd:plan-phase 89`.
+Phase: 89 — Knowledge Fixes (complete)
+Plan: 89-01 (complete); next: Phase 90 Stage Heuristic Tightening
+Status: Phase 89 complete
+Progress: ██▌░░░░░░░ 25% (1/4 phases)
+Last activity: 2026-04-14 — Phase 89-01 complete. KFIX-01..04 shipped atomically (commit 8575095c). 625-char KGATE-05 headroom banked. 537/537 tests green. Ready for `/gsd:plan-phase 90`.
 
 ## Performance Metrics
 
@@ -40,28 +40,29 @@ Last activity: 2026-04-14 — v5.3.2 roadmap created. 4 phases, 11 requirements,
 
 **By Phase (v5.3):**
 
-| Phase        | Plans | Total   | Avg/Plan |
-| ------------ | ----- | ------- | -------- |
-| Phase 82 P01 | 6min  | 2 tasks | 5 files  |
-| Phase 82 P02 | 12min | 2 tasks | 6 files  |
-| Phase 82 P03 | 3min  | 2 tasks | 2 files  |
-| Phase 83 P01 | 15min | 1 tasks | 1 files  |
-| Phase 83 P02 | 38min | 3 tasks | 6 files  |
-| Phase 83 P03 | 25min | 3 tasks | 3 files  |
-| Phase 83 P04 | 20min | 1 tasks | 1 files  |
-| Phase 84 P01 | 12min | 2 tasks | 3 files  |
-| Phase 84 P02 | 8min  | 2 tasks | 1 files  |
-| Phase 84 P03 | 15min | 3 tasks | 3 files  |
-| Phase 85 P01 | 18min | 3 tasks | 4 files  |
-| Phase 85 P02 | 12min | 2 tasks | 4 files  |
-| Phase 86 P01 | 8min  | 1 tasks | 2 files  |
-| Phase 86 P02 | 5min  | 2 tasks | 3 files  |
-| Phase 86 P03 | 6min  | 2 tasks | 2 files  |
-| Phase 87 P01 | 2 min | 1 tasks | 1 files  |
-| Phase 87 P02 | 6min  | 3 tasks | 2 files  |
-| Phase 87 P03 | 7min  | 1 tasks | 1 files  |
-| Phase 88 P01 | 2 min | 1 tasks | 1 files  |
-| Phase 88 P02 | 14min | 4 tasks | 4 files  |
+| Phase                        | Plans | Total   | Avg/Plan |
+| ---------------------------- | ----- | ------- | -------- |
+| Phase 82 P01                 | 6min  | 2 tasks | 5 files  |
+| Phase 82 P02                 | 12min | 2 tasks | 6 files  |
+| Phase 82 P03                 | 3min  | 2 tasks | 2 files  |
+| Phase 83 P01                 | 15min | 1 tasks | 1 files  |
+| Phase 83 P02                 | 38min | 3 tasks | 6 files  |
+| Phase 83 P03                 | 25min | 3 tasks | 3 files  |
+| Phase 83 P04                 | 20min | 1 tasks | 1 files  |
+| Phase 84 P01                 | 12min | 2 tasks | 3 files  |
+| Phase 84 P02                 | 8min  | 2 tasks | 1 files  |
+| Phase 84 P03                 | 15min | 3 tasks | 3 files  |
+| Phase 85 P01                 | 18min | 3 tasks | 4 files  |
+| Phase 85 P02                 | 12min | 2 tasks | 4 files  |
+| Phase 86 P01                 | 8min  | 1 tasks | 2 files  |
+| Phase 86 P02                 | 5min  | 2 tasks | 3 files  |
+| Phase 86 P03                 | 6min  | 2 tasks | 2 files  |
+| Phase 87 P01                 | 2 min | 1 tasks | 1 files  |
+| Phase 87 P02                 | 6min  | 3 tasks | 2 files  |
+| Phase 87 P03                 | 7min  | 1 tasks | 1 files  |
+| Phase 88 P01                 | 2 min | 1 tasks | 1 files  |
+| Phase 88 P02                 | 14min | 4 tasks | 4 files  |
+| Phase 89-knowledge-fixes P01 | 45min | 3 tasks | 5 files  |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Recent decisions affecting current work:
 - [v5.3.2 snapshot]: PB1.E1A rendered-prompt fixture (`el-templo-bot/test/fixtures/pb1-e1a-lead-rendered.snap.txt`) will intentionally regenerate after Phase 89 per v5.3.1 update discipline. Regeneration is expected; must be committed in the same PR.
 - [v5.3.2 OBJN-02]: Mechanism choice (new stage vs conditional branch vs universal framing rule) deferred to Phase 91 discuss/plan — NOT pre-decided in roadmap.
 - [v5.3.1 carryover]: knowledge.ts remains the PRIMARY content target; system-prompt.ts is the universal-framing channel. Resolver/advance/definitions/handler untouched. No new playbook stages unless Phase 91 selects the "new stage" option for OBJN-02.
+- [Phase 89-knowledge-fixes]: Option A test alignment: update 5 existing assertions in-place rather than author new tests (mirrors v5.3.1 AVAT-03 alignment)
+- [Phase 89-knowledge-fixes]: Accept 625-char KGATE-05 headroom; Phase 91 worst-case ~400 chars fits within buffer
 
 ### Pending Todos
 

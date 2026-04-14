@@ -13,10 +13,10 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 
 <!-- Phase 89 — move prices out of the lead prompt; improve elevator reach; restore Boarding Pass dual-benefit visibility -->
 
-- [ ] **KFIX-01**: The "Planes y Precios" section no longer appears in the rendered PB1 lead prompt (remove `discovery` tag), eliminating price injection that contradicts the E2A "no prices during discovery" rule
-- [ ] **KFIX-02**: The rendered PB1.E1A lead prompt contains zero membership plan price numbers (Flex, Foundation, Foundation+, Performance monthly prices). Nominal trial class pricing ($20,000) remains allowed as a pedagogical anchor for the Boarding Pass benefit framing.
-- [ ] **KFIX-03**: When a lead asks "¿qué es el templo?" or "¿qué método usan?", Mica's response uses at least two of the three team hooks ("método internacional", "cuatro niveles simultáneos" or variants, "no salirse del grupo"); achieved via elevator repositioning, content restoration, and/or a framing rule
-- [ ] **KFIX-04**: The canonical Boarding Pass definition (in "Reglas Zero") surfaces both benefits clearly in the PB1 lead prompt — free first trial class AND discounted first membership (precios Zero) — so Mica does not answer with only one benefit
+- [x] **KFIX-01**: The "Planes y Precios" section no longer appears in the rendered PB1 lead prompt (remove `discovery` tag), eliminating price injection that contradicts the E2A "no prices during discovery" rule
+- [x] **KFIX-02**: The rendered PB1.E1A lead prompt contains zero membership plan price numbers (Flex, Foundation, Foundation+, Performance monthly prices). Nominal trial class pricing ($20,000) remains allowed as a pedagogical anchor for the Boarding Pass benefit framing.
+- [x] **KFIX-03**: When a lead asks "¿qué es el templo?" or "¿qué método usan?", Mica's response uses at least two of the three team hooks ("método internacional", "cuatro niveles simultáneos" or variants, "no salirse del grupo"); achieved via elevator repositioning, content restoration, and/or a framing rule
+- [x] **KFIX-04**: The canonical Boarding Pass definition (in "Reglas Zero") surfaces both benefits clearly in the PB1 lead prompt — free first trial class AND discounted first membership (precios Zero) — so Mica does not answer with only one benefit
 
 ### Stage Heuristic Tightening
 
@@ -53,19 +53,19 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 
 ## Traceability
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| KFIX-01     | 89    | Pending |
-| KFIX-02     | 89    | Pending |
-| KFIX-03     | 89    | Pending |
-| KFIX-04     | 89    | Pending |
-| STAGE-01    | 90    | Pending |
-| STAGE-02    | 90    | Pending |
-| OBJN-01     | 91    | Pending |
-| OBJN-02     | 91    | Pending |
-| RLOK-01     | 92    | Pending |
-| RLOK-02     | 92    | Pending |
-| RLOK-03     | 92    | Pending |
+| Requirement | Phase | Status   |
+| ----------- | ----- | -------- |
+| KFIX-01     | 89    | Complete |
+| KFIX-02     | 89    | Complete |
+| KFIX-03     | 89    | Complete |
+| KFIX-04     | 89    | Complete |
+| STAGE-01    | 90    | Pending  |
+| STAGE-02    | 90    | Pending  |
+| OBJN-01     | 91    | Pending  |
+| OBJN-02     | 91    | Pending  |
+| RLOK-01     | 92    | Pending  |
+| RLOK-02     | 92    | Pending  |
+| RLOK-03     | 92    | Pending  |
 
 **Coverage:**
 

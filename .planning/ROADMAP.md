@@ -23,7 +23,7 @@
 
 ### Phases
 
-- [ ] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit
+- [x] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit (completed 2026-04-14)
 - [ ] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword
 - [ ] **Phase 91: PB1 Objection Handling** — Mica asks WHY when leads reject during discovery; explicit instruction added to PB1
 - [ ] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice
@@ -42,7 +42,7 @@
 3. When a PB1 lead asks "¿qué es el templo?" or "¿qué método usan?", Mica's response uses at least two of the three team hooks ("método internacional", "cuatro niveles simultáneos", "no salirse del grupo").
 4. When a PB1 lead asks about the Boarding Pass, Mica's reply names BOTH benefits — the free first trial class AND the discounted first membership (precios Zero) — not just one.
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 - [ ] 89-01-PLAN.md — Apply four knowledge fixes + price-deferral framing rule in a single atomic task-set (with user review gate for the three draft wordings), regenerate PB1.E1A snapshot
 
@@ -96,7 +96,7 @@
 
 | Phase                                      | Milestone | Plans Complete | Status      | Completed |
 | ------------------------------------------ | --------- | -------------- | ----------- | --------- |
-| 89. Knowledge Fixes                        | v5.3.2    | 0/1            | Not started | -         |
+| 89. Knowledge Fixes                        | 1/1       | Complete       | 2026-04-14  | -         |
 | 90. Stage Heuristic Tightening             | v5.3.2    | 0/TBD          | Not started | -         |
 | 91. PB1 Objection Handling                 | v5.3.2    | 0/TBD          | Not started | -         |
 | 92. Regression Lock + Live Test Validation | v5.3.2    | 0/TBD          | Not started | -         |
