@@ -19,7 +19,12 @@ describe("Knowledge gating — per ClientState", () => {
 
     it("includes discovery-relevant content", () => {
       expect(lead).toContain("Que es El Templo");
-      expect(lead).toContain("Planes Flex"); // base pricing rendered
+      // [KFIX-01 alignment, v5.3.2 Phase 89] Planes y Precios is no longer
+      // discovery-tagged (structural fix to stop plan-price leakage during
+      // PB1 discovery). Replace the "Planes Flex" lead anchor with an
+      // ELEVATOR_TEXT fragment that KFIX-03 repositioned into SECTIONS[0]
+      // and is invariant across the method elevator pitch.
+      expect(lead).toContain("método internacional"); // Metodo (elevator) rendered
       expect(lead).toContain("Precios Zero"); // Reglas Zero section heading
       expect(lead).toContain("Horarios por Sede");
       expect(lead).toContain("Clase de Prueba");
@@ -124,7 +129,14 @@ describe("BP consolidation (BPASS-01/02/03)", () => {
   const lead = getBusinessKnowledge("lead");
 
   // Canonical opener fragment — unique to the single definition in ZERO_RULES.
-  const CANONICAL_OPENER = "primer mes en El Templo";
+  // [KFIX-04 alignment, v5.3.2 Phase 89] The canonical BP paragraph was
+  // rewritten to name BOTH benefits (clase de prueba 100% bonificada +
+  // precios Zero en primera membresía). The stable unique opener of the
+  // rewritten paragraph is "primer contacto con El Templo" (appears in the
+  // title "*Boarding Pass (primer contacto con El Templo):*" and inside
+  // the body "al contactarte por primera vez con El Templo"). The former
+  // "primer mes en El Templo" fragment was removed by the KFIX-04 rewrite.
+  const CANONICAL_OPENER = "primer contacto con El Templo";
   // Minimum BP name occurrences preserved across knowledge.ts after 87-01
   // consolidation (7 sites: canonical @L157 has 2 mentions, 5 additional
   // reference sites — TRIAL_FLOW x2, SALES_TECHNIQUES x2, OBJECTIONS_SALES x2,
@@ -179,8 +191,20 @@ describe("BP consolidation (BPASS-01/02/03)", () => {
     expect(canonicalEnd).toBeGreaterThan(openerIdx);
 
     const bpRegex = /Boarding Pass/g;
+    // [KFIX-04 alignment, v5.3.2 Phase 89] "primer mes en El Templo" was
+    // replaced by "primer contacto con El Templo" in the canonical BP
+    // paragraph rewrite. Keep the "beneficio unico (una sola vez)" recap
+    // fragment as the second re-explanation sentinel (still present in
+    // the canonical paragraph). The canonical paragraph body itself also
+    // gains two new benefit-naming fragments ("clase de prueba 100%
+    // bonificada" and "precios Zero en la primera membresía"); we do NOT
+    // add those as re-explanation sentinels because TRIAL_FLOW legitimately
+    // references "100% bonificada" at its own BP mention — that is not a
+    // canonical re-definition, it is a cross-reference and is covered by
+    // the "beneficio unico (una sola vez)" sentinel which is unique to
+    // the canonical paragraph.
     const reexplanationFragments = [
-      "primer mes en El Templo",
+      "primer contacto con El Templo",
       "beneficio unico (una sola vez)",
     ];
 

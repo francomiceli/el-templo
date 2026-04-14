@@ -165,11 +165,25 @@ describe("QA questions answered correctly", () => {
     expect(leadPrompt).toMatch(/renovar|renovacion/i); // Q2
     expect(leadPrompt).toMatch(/[Ll]unes a viernes/); // Q3
     expect(leadPrompt).toContain("Boarding Pass"); // Q5/Q12
-    expect(leadPrompt).toContain("Hasta 6 por semana"); // Q6
+    // [KFIX-01 alignment, v5.3.2 Phase 89] "Hasta 6 por semana" lived in
+    // Planes y Precios which is no longer discovery-tagged for PB1 leads.
+    // Replace with a Metodo (elevator) anchor — KFIX-03 repositioned the
+    // elevator to SECTIONS[0] and restored a team-hooked body that is
+    // invariant across lead/non-lead renders. "método internacional" is
+    // the most-stable fragment of the three elevator hooks.
+    expect(leadPrompt).toContain("método internacional"); // Q6 (post-KFIX anchor)
     expect(leadPrompt).toMatch(/60 min/); // Q7
     expect(leadPrompt).toContain("Performance"); // Q8/Q11
     expect(leadPrompt).toContain("ROM"); // Q9
-    expect(leadPrompt).toMatch(/congelamiento/i); // Q11
+    // [KFIX-01 alignment, v5.3.2 Phase 89] "congelamiento" lived in the
+    // Planes y Precios / Mejora de plan body text which is no longer
+    // discovery-tagged for PB1 leads. SALES_TECHNIQUES still references
+    // the upsell narrative via "congelar precio" (a noun-verb variant of
+    // the same concept). Widen the regex to accept both "congelar" and
+    // "congelamiento" so the test continues to assert the underlying
+    // price-lock concept reaches PB1 leads through the discovery-tagged
+    // SALES_TECHNIQUES section.
+    expect(leadPrompt).toMatch(/congela(miento|r)/i); // Q11
 
     // Non-lead states still receive the full knowledge set (KGATE-03):
     // Q4 (*efectivo*) and Q14 (*Ver membresia*) must be present for a

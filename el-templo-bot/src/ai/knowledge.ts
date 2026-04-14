@@ -17,16 +17,21 @@
  *    'expired_member')` — returns the full set (identical content to the
  *   no-arg call, zero regression for non-lead states).
  *
- * 16 sections (post v5.3.1 splits + 87-02 method additions): Que es El Templo,
- * Metodo (elevator) [NEW 87-02, discovery], Metodo (detalle) [NEW 87-02,
- * full-only], ROM, Planes y Precios (base), Mejora de plan (upgrade paths,
- * split out of Planes y Precios), Reglas Zero, Horarios por Sede, Clase de
- * Prueba, App (DeportNet), Politicas, Tecnicas de Venta, Objeciones de venta
- * (split from Manejo de Objeciones), Objeciones de retención (split from
- * Manejo de Objeciones), Estrategias de Retencion, 12 Reglas de Oro.
+ * 16 sections (post v5.3.1 splits + 87-02 method additions + 89-01 reposition):
+ * Metodo (elevator) [NEW 87-02, discovery — repositioned to SECTIONS[0] in
+ * KFIX-03 so leads encounter team-preferred method framing first], Que es El
+ * Templo, Metodo (detalle) [NEW 87-02, full-only], ROM, Planes y Precios
+ * (base — untagged in KFIX-01 so lead prompt no longer carries plan prices),
+ * Mejora de plan (upgrade paths, split out of Planes y Precios), Reglas Zero,
+ * Horarios por Sede, Clase de Prueba, App (DeportNet), Politicas, Tecnicas
+ * de Venta, Objeciones de venta (split from Manejo de Objeciones), Objeciones
+ * de retención (split from Manejo de Objeciones), Estrategias de Retencion,
+ * 12 Reglas de Oro.
  *
  * Original 1–12 section order is preserved — the two splits insert a new
- * entry immediately after the parent section so flow is unchanged.
+ * entry immediately after the parent section so flow is unchanged. The only
+ * post-87-02 reorder is the KFIX-03 swap of SECTIONS[0] ↔ [1] (elevator
+ * ahead of Que es El Templo).
  */
 
 import type { ClientState } from "../state/machine.js";
@@ -154,7 +159,7 @@ const CREDIT_CARD_PLANS: CreditCardPlan[] = [
 
 const ZERO_RULES = `Los precios *Zero* son descuentos especiales que se aplican en dos casos:
 
-1. *Boarding Pass (primer mes en El Templo):* Cuando una persona inicia por primera vez y presenta su Boarding Pass, puede acceder a los precios Zero en cualquier membresia. Es un beneficio unico (una sola vez).
+1. *Boarding Pass (primer contacto con El Templo):* El Boarding Pass es un pase digital único que recibís al contactarte por primera vez con El Templo. Tiene dos beneficios: (1) la clase de prueba 100% bonificada, y (2) precios Zero en la primera membresía que contrates. Es un beneficio único (una sola vez).
 
 2. *Conversion a plan de largo plazo:* Cuando una persona comienza con un plan mensual (Flex) en su primer mes, al renovar puede acceder a los precios Zero exclusivamente en planes de largo plazo (Foundation, Foundation+, Performance).
 
@@ -430,13 +435,15 @@ const RETENTION_STRATEGIES = `*Estrategias de retencion:*
 // ---------------------------------------------------------------------------
 // 12b. Method — elevator pitch (≤200 chars, discovery-tagged) + verbatim
 // long-form (team-authored, full-only). See 87-CONTEXT.md pending_content.
-// ELEVATOR_TEXT preserves three team hooks: "método internacional", "cuatro
-// niveles simultáneos", "no salirse del grupo". Tuteo ("progresás").
+// ELEVATOR_TEXT restored to ~136 chars in KFIX-03 — three team hooks
+// preserved ("método internacional", "cuatro niveles simultáneos", "no
+// salirte del grupo") with conversational warmth restored after v5.3.1
+// compression. Tuteo ("progresás", "salirte"). Team voice opening.
 // METHOD_DETAIL is byte-for-byte verbatim from the team source modulo
 // soft-wrap reflow — do NOT paraphrase, compress, or reformat.
 // ---------------------------------------------------------------------------
 
-const ELEVATOR_TEXT = `Método internacional de calistenia, cuatro niveles por clase — progresás sin salirte del grupo.`;
+const ELEVATOR_TEXT = `Tenemos un método internacional de calistenia con cuatro niveles simultáneos en cada clase — progresás a tu ritmo sin salirte del grupo.`;
 
 const METHOD_DETAIL = `El Templo tiene un método internacional de entrenamiento de calistenia que combina un sistema de periodización cíclica con experiencias de comunidad únicas en cada clase. Cada alumno entrena con un programa individual adaptado a su nivel — hay cuatro niveles activos simultáneamente en cada clase, desde principiantes hasta atletas avanzados. El sistema está diseñado para que cada persona progrese a su ritmo sin salirse del grupo.
 
@@ -494,18 +501,37 @@ function formatCreditCardPlans(): string {
  * Ordered knowledge sections. 16 entries. Preserves the original 1–12
  * section flow with two splits (section 3 → Planes y Precios + Mejora de
  * plan; section 10 → Objeciones de venta + Objeciones de retención) and
- * two phase-87-02 additions placed immediately after "Que es El Templo":
- *   [1] Metodo (elevator) — discovery-tagged, ≤200 chars
+ * two phase-87-02 additions (elevator + detalle). KFIX-03 (Phase 89)
+ * repositions the elevator to SECTIONS[0] so it precedes "Que es El Templo":
+ *   [0] Metodo (elevator) — discovery-tagged, ~136 chars (was [1])
+ *   [1] Que es El Templo  — discovery-tagged (was [0])
  *   [2] Metodo (detalle)  — full-only (untagged), verbatim team text
  * These align method content with the discovery/member audience boundary:
- * leads get the compressed elevator; non-leads get both elevator and the
- * long-form detalle.
+ * leads get the compressed elevator FIRST (so the team-preferred framing is
+ * what the model encounters on method questions before the generic
+ * calisthenics description); non-leads get both elevator and the long-form
+ * detalle.
  *
  * A section is included for `clientState === 'lead'` iff its `tags` array
  * contains `'discovery'`. All other states receive every entry.
  */
 const SECTIONS: ReadonlyArray<KnowledgeSection> = [
-  // 1. Que es El Templo — discovery
+  // 1. Metodo (elevator) — discovery (87-02, repositioned to [0] in KFIX-03)
+  // [KFIX-03] Elevator repositioned ahead of 'Que es El Templo' so model
+  // encounters team-preferred method framing first on method questions.
+  // Was SECTIONS[1], now SECTIONS[0]. ELEVATOR_TEXT restored to ~136 chars
+  // with three team hooks preserved: "método internacional", "cuatro niveles
+  // simultáneos", "no salirte del grupo". Tuteo ("progresás", "salirte").
+  // No emoji, no inline bold/italic inside the body.
+  {
+    title: "Metodo (elevator)",
+    tags: ["discovery"],
+    body: `*Metodo (elevator)*
+
+${ELEVATOR_TEXT}`,
+  },
+
+  // 2. Que es El Templo — discovery (was SECTIONS[0], now [1] post-KFIX-03)
   {
     title: "Que es El Templo",
     tags: ["discovery"],
@@ -531,20 +557,6 @@ Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
 Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza real de forma integral.`,
   },
 
-  // 2. Metodo (elevator) — discovery (87-02)
-  // Compressed 2-sentence pitch (≤200 chars content-only). Drafted from the
-  // verbatim team long-form in the next entry, preserving the three hooks
-  // required by CONTEXT.md: "método internacional", "cuatro niveles
-  // simultáneos", "no salirse del grupo". Tuteo ("progresás"). No emoji,
-  // no inline bold/italic inside the body.
-  {
-    title: "Metodo (elevator)",
-    tags: ["discovery"],
-    body: `*Metodo (elevator)*
-
-${ELEVATOR_TEXT}`,
-  },
-
   // 3. Metodo (detalle) — full only (87-02)
   // VERBATIM team-authored long-form from 87-CONTEXT.md <pending_content>.
   // Byte-for-byte preservation is required (modulo soft-wrap reflow into
@@ -567,12 +579,17 @@ ${METHOD_DETAIL}`,
 ${ROM_DATA}`,
   },
 
-  // 5. Planes y Precios (base) — discovery
+  // 5. Planes y Precios (base) — full only (untagged in KFIX-01)
+  // [KFIX-01] 'discovery' tag removed — plan prices no longer injected
+  // into PB1 lead prompt. Section still renders for non-lead states
+  // (trial/active/inactive/expired). Structural fix for E2A
+  // no-prices-during-discovery rule: removes the temptation at source
+  // so gpt-4o-mini has no membership prices to leak during discovery.
   // NOTE: The original section ended with `*Mejora de plan:*\n${UPGRADE_PATHS}`.
   // That block is split out into the following section so leads never see upgrade paths.
   {
     title: "Planes y Precios",
-    tags: ["discovery"],
+    tags: [],
     body: `*Planes y Membresias*
 
 *Planes Flex (1 mes):*
@@ -711,10 +728,12 @@ ${GOLDEN_RULES}`,
  * Behavior:
  * - No argument, or any non-`'lead'` state → full 16-section set
  *   (backward compat, zero regression for trial/active/inactive/expired).
- * - `clientState === 'lead'` → only sections tagged `'discovery'` (9 sections):
- *   Que es El Templo, Metodo (elevator), Planes y Precios (base), Reglas Zero,
- *   Horarios por Sede, Clase de Prueba, Tecnicas de Venta, Objeciones de venta,
- *   Reglas de Oro.
+ * - `clientState === 'lead'` → only sections tagged `'discovery'` (8 sections
+ *   post-KFIX-01): Metodo (elevator), Que es El Templo, Reglas Zero, Horarios
+ *   por Sede, Clase de Prueba, Tecnicas de Venta, Objeciones de venta,
+ *   Reglas de Oro. Planes y Precios is NOT discovery-tagged post-KFIX-01
+ *   (lead prompt carries zero membership plan prices — trial $20,000 lives
+ *   in Clase de Prueba as the Boarding Pass anchor).
  *
  * Uses WhatsApp-compatible formatting: *bold* for emphasis, bullet lists
  * with - or bullet points, no ### markdown headers. Original 1–12 section
