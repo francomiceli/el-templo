@@ -82,10 +82,25 @@ Out of scope: rewriting existing sections, new knowledge topics beyond method, p
 
 ### Verbatim long-form method description (METHOD-01)
 
-> _User to paste team-provided verbatim text here before running `/gsd:plan-phase 87`._
->
-> _Replace this blockquote with the raw text exactly as provided by the team. Do not edit._
+El Templo tiene un método internacional de entrenamiento de calistenia que combina un sistema de
+periodización cíclica con experiencias de comunidad únicas en cada clase. Cada alumno entrena con un
+programa individual adaptado a su nivel — hay cuatro niveles activos simultáneamente en cada clase,
+desde principiantes hasta atletas avanzados. El sistema está diseñado para que cada persona progrese a
+su ritmo sin salirse del grupo.
 
+Pero El Templo no es solo entrenamiento. Cada clase tiene momentos distintos que no vas a encontrar en
+otro lado. Hay momentos donde el entrenamiento se convierte en juego — movimiento grupal, conexión
+desde el primer minuto. Hay momentos donde profundizamos en un solo movimiento con tiempo y guía real
+del entrenador. Hay momentos donde conectás todo lo que entrenaste en secuencias fluidas. Hay momentos
+donde tu entrenador te lleva a probar los movimientos que más querés lograr. Hay momentos donde
+trabajamos verticales. Hay momentos donde entrenamos la cabeza además del cuerpo — respiración, foco,
+calma.
+
+No todos los días son iguales — hay distintos tipos de clases a lo largo de la semana, cada una con su
+propio foco y experiencia.
+
+La app complementa el presencial. Cada alumno puede seguir su programa individual en la app y seguir
+progresando fuera del local.
 </pending_content>
 
 <deferred>
