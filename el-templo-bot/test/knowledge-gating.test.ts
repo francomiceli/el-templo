@@ -81,6 +81,38 @@ describe("Knowledge gating — per ClientState", () => {
       expect(getBusinessKnowledge(undefined)).toBe(full);
     });
   });
+
+  // ── AVAT-03 alignment context (do not revert) ────────────────────────────
+  // Phase 86-02 aligned the AVAT-03 assertion expectations: member-only tokens
+  // like "efectivo" and "Ver membresia" no longer appear in lead-state rendered
+  // prompts (by design — knowledge gating). The aligned assertion covers both
+  // KGATE-02 (lead exclusion) and KGATE-03 (non-lead inclusion) paths. Future
+  // readers inspecting AVAT-03 coverage across this file, prompt-size.test.ts,
+  // and conversation-flows.test.ts should NOT "restore" pre-86-02 expectations.
+  // See: .planning/phases/86-knowledge-gating/86-02-SUMMARY.md
+  describe("Boundary cases (Phase 88 regression lock)", () => {
+    // Locks the current defensive behavior. If knowledge.ts ever starts
+    // throwing or returning an empty string for unknown states, this test
+    // surfaces it before it ships.
+    it("unknown runtime ClientState string falls through to full knowledge set (defensive)", () => {
+      // Cast a bogus value to simulate a runtime-only corruption (e.g., legacy
+      // Redis data or a future ClientState rename that leaves stale strings
+      // in memory). Current implementation treats anything other than "lead"
+      // as "return the full set".
+      const bogus = getBusinessKnowledge(
+        "totally_not_a_state" as unknown as ClientState,
+      );
+      expect(bogus).toBe(full);
+    });
+
+    it("null, undefined, and no-arg all return the full knowledge set (KGATE-04 backward compat)", () => {
+      expect(getBusinessKnowledge(undefined)).toBe(full);
+      // null cast — exercised in case callers pass a Redis miss as null
+      // rather than the idiomatic undefined.
+      expect(getBusinessKnowledge(null as unknown as ClientState)).toBe(full);
+      expect(getBusinessKnowledge()).toBe(full);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
