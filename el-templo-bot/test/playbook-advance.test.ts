@@ -660,11 +660,18 @@ describe("hasStageSpecificContent + discoveryAnswered — stage gate (P0-3)", ()
     expect(hasStageSpecificContent("nunca entrené en mi vida", "PB1.E1A")).toBe(
       true,
     );
+    // [STAGE-02 alignment, v5.3.2 Phase 90]
+    // Pre-90: `discoveryAnswered` was content_gate ∧ existing_gates.
+    // Post-90: adds AND turn_count ≥ 2 for E1A/E1B. This assertion now
+    // passes a turnCountIncludingThis=2 so it exercises the content-gate
+    // branch as before. Authoritative behavioral lock lives in Phase 92
+    // (RLOK-01).
     const s = computeAdvanceSignals(
       "nunca entrené en mi vida",
       "algo con ?",
       null,
       "PB1.E1A",
+      2,
     );
     expect(s.discoveryAnswered).toBe(true);
   });
@@ -673,11 +680,13 @@ describe("hasStageSpecificContent + discoveryAnswered — stage gate (P0-3)", ()
     expect(
       hasStageSpecificContent("hace 2 años que hago crossfit", "PB1.E1A"),
     ).toBe(true);
+    // [STAGE-02 alignment, v5.3.2 Phase 90] — see note above.
     const s = computeAdvanceSignals(
       "hace 2 años que hago crossfit",
       "algo con ?",
       null,
       "PB1.E1A",
+      2,
     );
     expect(s.discoveryAnswered).toBe(true);
   });
@@ -686,11 +695,13 @@ describe("hasStageSpecificContent + discoveryAnswered — stage gate (P0-3)", ()
     expect(hasStageSpecificContent("vengo del gym hace años", "PB1.E1B")).toBe(
       true,
     );
+    // [STAGE-02 alignment, v5.3.2 Phase 90] — see note above.
     const s = computeAdvanceSignals(
       "vengo del gym hace años",
       "algo con ?",
       null,
       "PB1.E1B",
+      2,
     );
     expect(s.discoveryAnswered).toBe(true);
   });

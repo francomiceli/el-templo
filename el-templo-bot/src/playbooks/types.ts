@@ -86,6 +86,13 @@ export interface PlaybookSessionState {
    * concrete value means the parser found a `<profile>` tag in a prior turn.
    */
   avatar?: AvatarProfile | null;
+  /**
+   * Count of substantive user turns observed while the conversation was in
+   * PB1.E1A or PB1.E1B (uses `hasMinimumContent` as the "substantive" check).
+   * Used by STAGE-02 AND gate and the infinite-loop escape hatch (v5.3.2 P90).
+   * Optional + backward-compatible: absent on pre-90 entries, treated as 0.
+   */
+  discoveryTurnCount?: number;
   updatedAt: number;
 }
 

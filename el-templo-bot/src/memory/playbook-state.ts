@@ -25,6 +25,10 @@
  * field deserialize cleanly with `avatar === undefined`. No code changes
  * to read/write/delete are required because we serialize the whole shape
  * as JSON and the new field rides through transparently.
+ *
+ * Same backward-compat story for the `discoveryTurnCount` field added in
+ * v5.3.2 Phase 90 (STAGE-02 AND gate + infinite-loop escape hatch). Pre-90
+ * entries deserialize with the field absent; the handler treats absent as 0.
  */
 
 import pino from "pino";

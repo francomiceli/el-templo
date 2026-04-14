@@ -434,6 +434,9 @@ async function processWithAiInner(
       activePlaybook: resolved.playbookId,
       currentStage: resolved.stageId,
       avatar: priorAvatar ?? undefined,
+      // Preserve discoveryTurnCount across the pre-AI persistence write
+      // so STAGE-02's counter survives a crash-between-writes.
+      discoveryTurnCount: priorPbState?.discoveryTurnCount,
       updatedAt: Date.now(),
     });
   }
@@ -625,6 +628,8 @@ async function processWithAiInner(
       activePlaybook: resolved.playbookId,
       currentStage: resolved.stageId,
       avatar: detectedAvatar,
+      // Preserve discoveryTurnCount through avatar-only writes.
+      discoveryTurnCount: priorPbState?.discoveryTurnCount,
       updatedAt: Date.now(),
     });
     log.info(
@@ -641,16 +646,69 @@ async function processWithAiInner(
   // whether to advance the stage for the NEXT turn. Overwrites Redis only
   // if the helper returns a non-null next stage.
   if (resolved.playbookId !== null && resolved.stageId !== null) {
+    // STAGE-02 (v5.3.2 Phase 90): track substantive user turns inside
+    // PB1.E1A/E1B. Increment only while the stage is E1A or E1B and the
+    // current inbound is a substantive user turn (same definition as the
+    // pieces of `discoveryAnswered` minus the stage-content gate, so the
+    // counter advances even on monosyllabic-but-substantive replies that
+    // don't pass the category gate — those are exactly the leads the
+    // escape hatch must catch).
+    const isSubstantiveTurn =
+      !isQuestion(inboundText) &&
+      !isMetaIdentityQuery(inboundText) &&
+      !isBareGreeting(inboundText) &&
+      hasMinimumContent(inboundText);
+    const inDiscoveryE1 =
+      resolved.stageId === "PB1.E1A" || resolved.stageId === "PB1.E1B";
+    const priorTurnCount = priorPbState?.discoveryTurnCount ?? 0;
+    const newTurnCount =
+      inDiscoveryE1 && isSubstantiveTurn ? priorTurnCount + 1 : priorTurnCount;
+
     const signals = computeAdvanceSignals(
       inboundText,
       replyText,
       detectedAvatar ?? priorAvatar ?? null,
       resolved.stageId,
+      newTurnCount,
     );
-    const nextStage = advanceStageIfComplete(
+    let nextStage = advanceStageIfComplete(
       { playbookId: resolved.playbookId, stageId: resolved.stageId },
       signals,
     );
+
+    // Escape hatch (STAGE-02, Phase 90): if the lead has produced N=3
+    // substantive turns inside E1A/E1B without ever passing the content
+    // gate, force-advance to PB1.E2A so the conversation does not loop
+    // indefinitely on monosyllabic / regex-miss replies. Pino warn is the
+    // observability surface — no admin alert, no test failure.
+    const escapeFired =
+      inDiscoveryE1 &&
+      isSubstantiveTurn &&
+      newTurnCount >= 3 &&
+      !hasStageSpecificContent(inboundText, resolved.stageId);
+    if (escapeFired) {
+      const recentUserMessages = session
+        ? session.messages
+            .filter((m) => m.role === "user")
+            .slice(-3)
+            .map((m) => m.content)
+        : [];
+      log.warn(
+        {
+          event: "discovery_escape_fired",
+          stageId: resolved.stageId,
+          phone,
+          turnCount: newTurnCount,
+          recentUserMessages,
+        },
+        "discovery escape fired",
+      );
+      // Force-advance to canonical next stage if the heuristic didn't already.
+      if (nextStage === null) {
+        nextStage = "PB1.E2A";
+      }
+    }
+
     if (nextStage !== null) {
       await setPlaybookState(phone, {
         activePlaybook: resolved.playbookId,
@@ -658,6 +716,9 @@ async function processWithAiInner(
         // Preserve the freshly-detected avatar (if any) or the one we
         // already had — never clobber avatar to undefined on advance.
         avatar: detectedAvatar ?? priorAvatar ?? undefined,
+        // Preserve the turn count (do NOT reset on advance) — Phase 92 may
+        // want to assert on it in escape-fired paths.
+        discoveryTurnCount: newTurnCount,
         updatedAt: Date.now(),
       });
       log.info(
@@ -666,9 +727,20 @@ async function processWithAiInner(
           playbook: resolved.playbookId,
           from: resolved.stageId,
           to: nextStage,
+          escapeFired,
         },
         "Playbook stage advanced",
       );
+    } else if (newTurnCount !== priorTurnCount) {
+      // No stage advance, but the turn counter changed — persist it so the
+      // next turn sees the up-to-date count for the AND gate / escape hatch.
+      await setPlaybookState(phone, {
+        activePlaybook: resolved.playbookId,
+        currentStage: resolved.stageId,
+        avatar: detectedAvatar ?? priorAvatar ?? undefined,
+        discoveryTurnCount: newTurnCount,
+        updatedAt: Date.now(),
+      });
     }
   }
 
@@ -935,6 +1007,15 @@ export function computeAdvanceSignals(
   replyText: string,
   detectedAvatar: AvatarProfile | null,
   currentStage: StageId | null,
+  /**
+   * STAGE-02 (v5.3.2 Phase 90): turn count INCLUDING the current turn for
+   * E1A/E1B. Defaults to 1 so callers that don't track the count get the
+   * pre-90 effective semantics for non-E1A/E1B stages (where the AND gate
+   * does not apply). For E1A/E1B the AND gate requires this value to be
+   * ≥ 2 — i.e. the lead has answered substantively at least twice — which
+   * implements the playbook's "idealmente 2-3 preguntas en total" intent.
+   */
+  turnCountIncludingThis: number = 1,
 ): AdvanceSignals {
   const inbound = inboundText.toLowerCase();
 
@@ -947,12 +1028,21 @@ export function computeAdvanceSignals(
   // which advanced the stage on ANY non-empty reply — including the user's
   // own questions. P0-1 (quick 14) replaced that with content-based rules.
   // Quick 15 (P0-3) adds the stage-specific content gate.
+  //
+  // STAGE-02 (v5.3.2 Phase 90): for PB1.E1A and PB1.E1B specifically,
+  // `discoveryAnswered` additionally requires `turnCountIncludingThis >= 2`
+  // — AND composition (not OR) so a rich first turn still does not advance.
+  // Sibling stages keep pre-90 semantics (no turn-count gate, single match).
+  const inDiscoveryE1 =
+    currentStage === "PB1.E1A" || currentStage === "PB1.E1B";
+  const turnCountGate = inDiscoveryE1 ? turnCountIncludingThis >= 2 : true;
   const discoveryAnswered =
     !isQuestion(inboundText) &&
     !isMetaIdentityQuery(inboundText) &&
     !isBareGreeting(inboundText) &&
     hasMinimumContent(inboundText) &&
-    hasStageSpecificContent(inboundText, currentStage);
+    hasStageSpecificContent(inboundText, currentStage) &&
+    turnCountGate;
 
   // Mica proposed the trial in her last reply
   const trialProposed = /\b(prueba|probar|clase de prueba|gratis)\b/i.test(
