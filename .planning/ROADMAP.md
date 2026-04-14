@@ -11,6 +11,92 @@
 - ✅ **v5.2 Mica Persona & Bot Refinement** — Phases 79-81 (shipped 2026-04-06)
 - ✅ **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (shipped 2026-04-08)
 - ✅ **v5.3.1 Prompt Architecture Refactor** — Phases 86-88 (shipped 2026-04-14)
+- 🚧 **v5.3.2 Post-v5.3.1 Live Test Fixes** — Phases 89-92 (in progress)
+
+---
+
+## 🚧 v5.3.2 Post-v5.3.1 Live Test Fixes (In Progress)
+
+**Milestone Goal:** Fix four behavioral problems surfaced by the first post-v5.3.1 live conversation — price leakage during discovery, overly permissive stage advancement, unused method elevator, and missing PB1 objection handling — with targeted low-risk changes (no state-machine redesign, no new playbooks, no model-driven detector).
+
+**Target ship:** TBD (1-2 sessions, tactical scope)
+
+### Phases
+
+- [ ] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit
+- [ ] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword
+- [ ] **Phase 91: PB1 Objection Handling** — Mica asks WHY when leads reject during discovery; explicit instruction added to PB1
+- [ ] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice
+
+## Phase Details
+
+### Phase 89: Knowledge Fixes
+
+**Goal**: PB1 lead prompt no longer leaks membership plan prices during discovery, the method elevator pitch is actually reachable when leads ask "qué es el templo/método?", and the canonical Boarding Pass surfaces both benefits clearly.
+**Depends on**: Nothing (first phase of v5.3.2; layers on the v5.3.1 state-gated knowledge architecture)
+**Requirements**: KFIX-01, KFIX-02, KFIX-03, KFIX-04
+**Success Criteria** (what must be TRUE):
+
+1. The rendered PB1.E1A lead prompt contains zero membership plan price numbers (Flex/Foundation/Foundation+/Performance monthly prices). Trial class nominal price ($20,000) remains as the Boarding Pass benefit anchor.
+2. The "Planes y Precios" section is no longer present in the rendered PB1 lead prompt (its `discovery` tag has been removed, so it filters out for leads).
+3. When a PB1 lead asks "¿qué es el templo?" or "¿qué método usan?", Mica's response uses at least two of the three team hooks ("método internacional", "cuatro niveles simultáneos", "no salirse del grupo").
+4. When a PB1 lead asks about the Boarding Pass, Mica's reply names BOTH benefits — the free first trial class AND the discounted first membership (precios Zero) — not just one.
+   **Plans**: TBD
+
+**Notes:**
+
+- KGATE-05 budget: this phase is NET-FREES headroom by removing "Planes y Precios" from the lead-gated set. Subsequent phases (90, 91) should note any budget consumption.
+- The PB1.E1A snapshot fixture (`el-templo-bot/test/fixtures/pb1-e1a-lead-rendered.snap.txt`) will intentionally regenerate after this phase per the v5.3.1 update discipline. This regeneration is expected behavior, not a regression — the regenerated fixture must be committed in the same PR.
+
+### Phase 90: Stage Heuristic Tightening
+
+**Goal**: PB1.E1A no longer advances to E2A on a single-keyword answer; the heuristic and `completionCriteria` align with the promptSection's "idealmente 2-3 preguntas" intent.
+**Depends on**: Phase 89 (stage-completion changes layer on top of the prompt no longer carrying prices, so combined behavior is testable in the right order)
+**Requirements**: STAGE-01, STAGE-02
+**Success Criteria** (what must be TRUE):
+
+1. When a PB1.E1A lead replies with a single-word/single-keyword answer (e.g., "primera vez"), `hasStageSpecificContent` returns `false` and the conversation stays in E1A — Mica continues asking discovery questions.
+2. PB1.E1A advancement to E2A requires more than one signal (multi-keyword combination, or a minimum user-turn count, or a multi-signal gate — exact mechanism decided in plan).
+3. The change is scoped to the existing heuristic — no model-driven detector, no playbook restructure, no new stages.
+   **Plans**: TBD
+
+### Phase 91: PB1 Objection Handling
+
+**Goal**: When a lead signals rejection during discovery, Mica asks WHY before closing the conversation instead of defaulting to "tomá tu tiempo, saludos". PB1 carries an explicit instruction for this case.
+**Depends on**: Phase 90 (objection-handling design may interact with stage completion logic — e.g., a rejection signal could be an additional gate)
+**Requirements**: OBJN-01, OBJN-02
+**Success Criteria** (what must be TRUE):
+
+1. When a PB1 lead says "no me interesa" / "no creo" / "no voy a hacerlo" during discovery, Mica's next reply asks an open WHY question (curious, non-defensive) before any closing phrase.
+2. PB1 contains an explicit instruction for the "lead rejects during discovery" case — implemented as either a new stage (e.g., PB1.E_objection), a conditional branch on an existing stage, or a universal framing rule in `system-prompt.ts`. The chosen mechanism is documented in the plan SUMMARY.
+3. Mica's WHY-question reply does NOT regress the PB1.E4 REGLA FUERTE (no specific plan or price mentioned) and does NOT escalate to `request_human` for a soft objection.
+   **Plans**: TBD
+
+### Phase 92: Regression Lock + Live Test Validation
+
+**Goal**: Every fix from phases 89-91 is locked with targeted assertions; the full bot test suite remains green with zero regressions to QT11-18 fixes and v5.3.1 state-gating/prompt-size behavior; a guided live-test conversation confirms the four success criteria in practice.
+**Depends on**: Phases 89, 90, 91 (regression lock validates combined output of all fixes)
+**Requirements**: RLOK-01, RLOK-02, RLOK-03
+**Success Criteria** (what must be TRUE):
+
+1. Targeted assertions exist (and pass) for each of KFIX-01, KFIX-02, KFIX-03, KFIX-04, STAGE-01, STAGE-02, OBJN-01 — added to the existing bot test suite.
+2. Full bot test suite (`pnpm test` in `el-templo-bot/`) passes with zero regressions in QT11-18 fixes and v5.3.1 state-gating / prompt-size behavior. The regenerated PB1.E1A snapshot from Phase 89 is committed and the byte-equal test passes.
+3. A guided live-test conversation (5-10 turns covering price-during-discovery, method question, discovery rejection, and Boarding Pass explanation) confirms all four phase-89/90/91 success-criteria sets are met in practice — documented in the phase SUMMARY with the conversation transcript.
+   **Plans**: TBD
+
+**Notes:**
+
+- This is the only test-only phase of v5.3.2 (parallel to Phase 88 in v5.3.1).
+- KGATE-05 dual-threshold (≥20% rendered AND ≥35% knowledge block) MUST still pass after Phase 89's net-positive headroom shift.
+
+## Progress
+
+| Phase                                      | Milestone | Plans Complete | Status      | Completed |
+| ------------------------------------------ | --------- | -------------- | ----------- | --------- |
+| 89. Knowledge Fixes                        | v5.3.2    | 0/TBD          | Not started | -         |
+| 90. Stage Heuristic Tightening             | v5.3.2    | 0/TBD          | Not started | -         |
+| 91. PB1 Objection Handling                 | v5.3.2    | 0/TBD          | Not started | -         |
+| 92. Regression Lock + Live Test Validation | v5.3.2    | 0/TBD          | Not started | -         |
 
 ---
 
