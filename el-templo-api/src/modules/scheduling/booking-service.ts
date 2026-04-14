@@ -111,13 +111,16 @@ export class BookingService {
     }
 
     // 5b. Overdue check: block if subscription has no payment recorded
-    const isPaid = await this.paymentService.isSubscriptionPaid(
-      subscription.id,
-    );
-    if (!isPaid) {
-      throw new BadRequestError(
-        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+    // Skip for zero-price subscriptions — nothing to pay
+    if (subscription.pricePaid > 0) {
+      const isPaid = await this.paymentService.isSubscriptionPaid(
+        subscription.id,
       );
+      if (!isPaid) {
+        throw new BadRequestError(
+          "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+        );
+      }
     }
 
     // 6. Monthly budget check: if classesRemaining is tracked and exhausted
@@ -439,11 +442,13 @@ export class BookingService {
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
     } else {
-      const isPaid = await this.paymentService.isSubscriptionPaid(
-        subscription.id,
-      );
-      if (!isPaid) {
-        warnings.push("Pago pendiente");
+      if (subscription.pricePaid > 0) {
+        const isPaid = await this.paymentService.isSubscriptionPaid(
+          subscription.id,
+        );
+        if (!isPaid) {
+          warnings.push("Pago pendiente");
+        }
       }
       if (
         subscription.classesRemaining !== null &&

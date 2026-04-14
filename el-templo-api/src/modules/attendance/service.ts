@@ -59,13 +59,16 @@ export class AttendanceService {
     }
 
     // Overdue check: block if subscription has no payment recorded
-    const isPaid = await this.paymentService.isSubscriptionPaid(
-      subscription.id,
-    );
-    if (!isPaid) {
-      throw new BadRequestError(
-        "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+    // Skip for zero-price subscriptions — nothing to pay
+    if (subscription.pricePaid > 0) {
+      const isPaid = await this.paymentService.isSubscriptionPaid(
+        subscription.id,
       );
+      if (!isPaid) {
+        throw new BadRequestError(
+          "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
+        );
+      }
     }
 
     // Check branch enforcement for single-branch plans
