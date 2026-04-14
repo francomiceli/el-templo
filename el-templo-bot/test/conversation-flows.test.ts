@@ -146,25 +146,42 @@ describe("QA questions answered correctly", () => {
     // knowledge tokens from Q1..Q14 are still present. This catches the
     // failure mode where a future edit to system-prompt.ts accidentally
     // suppresses the base knowledge when a playbook is active.
-    const loadedPrompt = getSystemPrompt({
+    //
+    // Phase 86 note: with knowledge gating, a PB1 lead no longer sees
+    // member-only content (payment methods, app help, retention,
+    // upgrade paths, policies). Q4 (*efectivo*) and Q14 (*Ver membresia*)
+    // live in the Politicas and App sections respectively and are
+    // intentionally filtered out for `clientState === 'lead'` (KGATE-02).
+    // The lead assertions below cover the discovery-set tokens; the
+    // non-lead assertion immediately after verifies the full set still
+    // reaches other states.
+    const leadPrompt = getSystemPrompt({
       clientState: "lead",
       activePlaybook: "PB1",
       currentStage: "PB1.E1A",
       currentAvatar: "gym_crossover",
     });
-    // Sample of canonical Q1..Q14 tokens (one per question, picked from
-    // the existing assertions above for traceability).
-    expect(loadedPrompt).toContain("Constitucion"); // Q1
-    expect(loadedPrompt).toMatch(/renovar|renovacion/i); // Q2
-    expect(loadedPrompt).toMatch(/[Ll]unes a viernes/); // Q3
-    expect(loadedPrompt).toMatch(/[Ee]fectivo/); // Q4
-    expect(loadedPrompt).toContain("Boarding Pass"); // Q5/Q12
-    expect(loadedPrompt).toContain("Hasta 6 por semana"); // Q6
-    expect(loadedPrompt).toMatch(/60 min/); // Q7
-    expect(loadedPrompt).toContain("Performance"); // Q8/Q11
-    expect(loadedPrompt).toContain("ROM"); // Q9
-    expect(loadedPrompt).toMatch(/congelamiento/i); // Q11
-    expect(loadedPrompt).toContain("Ver membresia"); // Q14
+    expect(leadPrompt).toContain("Constitucion"); // Q1
+    expect(leadPrompt).toMatch(/renovar|renovacion/i); // Q2
+    expect(leadPrompt).toMatch(/[Ll]unes a viernes/); // Q3
+    expect(leadPrompt).toContain("Boarding Pass"); // Q5/Q12
+    expect(leadPrompt).toContain("Hasta 6 por semana"); // Q6
+    expect(leadPrompt).toMatch(/60 min/); // Q7
+    expect(leadPrompt).toContain("Performance"); // Q8/Q11
+    expect(leadPrompt).toContain("ROM"); // Q9
+    expect(leadPrompt).toMatch(/congelamiento/i); // Q11
+
+    // Non-lead states still receive the full knowledge set (KGATE-03):
+    // Q4 (*efectivo*) and Q14 (*Ver membresia*) must be present for a
+    // trial user even when a PB1 section is active.
+    const trialPrompt = getSystemPrompt({
+      clientState: "trial",
+      activePlaybook: "PB1",
+      currentStage: "PB1.E1A",
+      currentAvatar: "gym_crossover",
+    });
+    expect(trialPrompt).toMatch(/[Ee]fectivo/); // Q4
+    expect(trialPrompt).toContain("Ver membresia"); // Q14
   });
 });
 
