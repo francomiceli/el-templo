@@ -45,7 +45,14 @@
 2. A trial/active/inactive/expired contact receives the full 12-section knowledge set (zero regression from v5.2 behavior)
 3. Calling `getBusinessKnowledge()` with no argument returns the full knowledge set (backward compat)
 4. The PB1.E1A rendered prompt is at least 35% smaller (in characters) than the pre-refactor baseline
-   **Plans**: TBD
+
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 86-01-PLAN.md — Capture pre-refactor PB1.E1A baseline fixture + BASELINE_CHARS constant
+- [ ] 86-02-PLAN.md — Refactor knowledge.ts to tagged sections with state gating + wire system-prompt call site
+- [ ] 86-03-PLAN.md — Add prompt-size regression test (KGATE-05) and per-state content gating tests
 
 #### Phase 87: Boarding Pass + Method Description
 
@@ -76,7 +83,7 @@
 
 | Phase                                  | Plans Complete | Status      | Completed |
 | -------------------------------------- | -------------- | ----------- | --------- |
-| 86. Knowledge Gating                   | 0/TBD          | Not started | -         |
+| 86. Knowledge Gating                   | 0/3            | Planned     | -         |
 | 87. Boarding Pass + Method Description | 0/TBD          | Not started | -         |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -         |
 
