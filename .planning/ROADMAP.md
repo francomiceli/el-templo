@@ -46,11 +46,11 @@
 3. Calling `getBusinessKnowledge()` with no argument returns the full knowledge set (backward compat)
 4. The PB1.E1A rendered prompt is at least 35% smaller (in characters) than the pre-refactor baseline
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
-- [ ] 86-01-PLAN.md — Capture pre-refactor PB1.E1A baseline fixture + BASELINE_CHARS constant
+- [x] 86-01-PLAN.md — Capture pre-refactor PB1.E1A baseline fixture + BASELINE_CHARS constant
 - [ ] 86-02-PLAN.md — Refactor knowledge.ts to tagged sections with state gating + wire system-prompt call site
 - [ ] 86-03-PLAN.md — Add prompt-size regression test (KGATE-05) and per-state content gating tests
 
@@ -83,7 +83,7 @@ Plans:
 
 | Phase                                  | Plans Complete | Status      | Completed |
 | -------------------------------------- | -------------- | ----------- | --------- |
-| 86. Knowledge Gating                   | 0/3            | Planned     | -         |
+| 86. Knowledge Gating                   | 1/3            | In Progress |           |
 | 87. Boarding Pass + Method Description | 0/TBD          | Not started | -         |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -         |
 

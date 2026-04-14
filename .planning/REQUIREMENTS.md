@@ -14,7 +14,7 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 - [ ] **KGATE-02**: PB1 leads receive discovery-relevant sections only (classes, locations, trial info, method, Boarding Pass) — retention, upgrade paths, app help, and member policies are excluded
 - [ ] **KGATE-03**: Non-lead states (trial, active, inactive, expired) receive the full knowledge set (no regression)
 - [ ] **KGATE-04**: When `clientState` is null/undefined, the full knowledge set is returned (backward compat with v5.2 codepath)
-- [ ] **KGATE-05**: PB1.E1A rendered prompt is >=35% smaller than pre-refactor baseline (measured in characters)
+- [x] **KGATE-05**: PB1.E1A rendered prompt is >=35% smaller than pre-refactor baseline (measured in characters)
 - [ ] **KGATE-06**: system-prompt.ts passes `clientState` through to `getBusinessKnowledge` — minimal change, no base prompt rewrite
 
 ### Boarding Pass Consolidation
@@ -52,24 +52,24 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ## Traceability
 
-| Requirement | Phase | Status  |
-| ----------- | ----- | ------- |
-| KGATE-01    | 86    | Pending |
-| KGATE-02    | 86    | Pending |
-| KGATE-03    | 86    | Pending |
-| KGATE-04    | 86    | Pending |
-| KGATE-05    | 86    | Pending |
-| KGATE-06    | 86    | Pending |
-| BPASS-01    | 87    | Pending |
-| BPASS-02    | 87    | Pending |
-| BPASS-03    | 87    | Pending |
-| METHOD-01   | 87    | Pending |
-| METHOD-02   | 87    | Pending |
-| METHOD-03   | 87    | Pending |
-| METHOD-04   | 87    | Pending |
-| QREG-01     | 88    | Pending |
-| QREG-02     | 88    | Pending |
-| QREG-03     | 88    | Pending |
+| Requirement | Phase | Status   |
+| ----------- | ----- | -------- |
+| KGATE-01    | 86    | Pending  |
+| KGATE-02    | 86    | Pending  |
+| KGATE-03    | 86    | Pending  |
+| KGATE-04    | 86    | Pending  |
+| KGATE-05    | 86    | Complete |
+| KGATE-06    | 86    | Pending  |
+| BPASS-01    | 87    | Pending  |
+| BPASS-02    | 87    | Pending  |
+| BPASS-03    | 87    | Pending  |
+| METHOD-01   | 87    | Pending  |
+| METHOD-02   | 87    | Pending  |
+| METHOD-03   | 87    | Pending  |
+| METHOD-04   | 87    | Pending  |
+| QREG-01     | 88    | Pending  |
+| QREG-02     | 88    | Pending  |
+| QREG-03     | 88    | Pending  |
 
 **Coverage:**
 

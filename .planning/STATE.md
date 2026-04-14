@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
-status: ready_to_plan
-stopped_at: "Roadmap created for v5.3.1 (3 phases, 16 requirements mapped). Ready for phase 86 planning."
-last_updated: "2026-04-13T12:00:00Z"
-last_activity: 2026-04-13 -- Roadmap created for v5.3.1 Prompt Architecture Refactor. 3 phases (86-88), 16 requirements mapped with 100% coverage.
+status: in_progress
+stopped_at: "Completed 86-01-PLAN.md (baseline fixture captured, BASELINE_CHARS=23646)"
+last_updated: "2026-04-14T03:26:02Z"
+last_activity: 2026-04-14 -- Phase 86 Plan 01 complete. Pre-refactor PB1.E1A baseline frozen at 23,646 chars. KGATE-05 target locked.
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 1
+  completed_plans: 1
+  percent: 11
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** v5.3.1 Prompt Architecture Refactor — Phase 86 (Knowledge Gating) ready to plan
+**Current focus:** v5.3.1 Prompt Architecture Refactor — Phase 86 (Knowledge Gating) in progress
 
 ## Current Position
 
 Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 86 of 88 (Knowledge Gating) — ready to plan
-Plan: --
-Status: Ready to plan
-Progress: ░░░░░░░░░░ 0%
-Last activity: 2026-04-13 — Roadmap created (3 phases, 16 requirements, 100% coverage)
+Phase: 86 of 88 (Knowledge Gating) — in progress
+Plan: 02 of 3 (next — Refactor knowledge.ts with state gating)
+Status: In progress
+Progress: █░░░░░░░░░ 11%
+Last activity: 2026-04-14 — Plan 86-01 complete. Baseline fixture captured (23,646 chars, all 12 knowledge sections confirmed).
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Last activity: 2026-04-13 — Roadmap created (3 phases, 16 requirements, 100% c
 | Phase 84 P03 | 15min | 3 tasks | 3 files  |
 | Phase 85 P01 | 18min | 3 tasks | 4 files  |
 | Phase 85 P02 | 12min | 2 tasks | 4 files  |
+| Phase 86 P01 | 8min  | 1 tasks | 2 files  |
 
 ## Accumulated Context
 
@@ -68,6 +69,7 @@ Recent decisions affecting current work:
 - [v5.3.1]: Do NOT add or rename playbook stages. Stage structure frozen.
 - [QT17 audit]: Knowledge section is 57% of total prompt (~11,500 chars). Active stage instruction is only 4-8%. State-gating targets ~35% reduction for PB1 leads.
 - [QT17 audit]: Boarding Pass scattered across 6 knowledge sections with 9 mentions — needs consolidation to ONE canonical definition.
+- [Phase 86]: Baseline captured at 23,646 chars — KGATE-05 target is ≤15,369 chars (35% reduction)
 
 ### Pending Todos
 
@@ -79,7 +81,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-13
-Stopped at: Roadmap created for v5.3.1 Prompt Architecture Refactor (phases 86-88, 16 requirements mapped).
-Resume file: .planning/ROADMAP.md
-Next step: `/gsd:plan-phase 86` — plan Knowledge Gating phase
+Last session: 2026-04-14
+Stopped at: Completed 86-01-PLAN.md (baseline fixture captured, BASELINE_CHARS=23646)
+Resume file: .planning/phases/86-knowledge-gating/86-02-PLAN.md
+Next step: `/gsd:execute-plan 86-02` — refactor knowledge.ts with state gating
