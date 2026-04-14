@@ -21,7 +21,6 @@ import { SchedulingService } from "./service";
 import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
-import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
@@ -62,7 +61,6 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     holidayService,
   );
 
-  const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
   const subscriptionService = new SubscriptionService(
     fastify.db,
@@ -72,7 +70,6 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
-    paymentService,
     subscriptionService,
   );
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
@@ -326,7 +323,6 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     holidayService,
   );
 
-  const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
   const subscriptionService = new SubscriptionService(
     fastify.db,
@@ -336,7 +332,6 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
-    paymentService,
     subscriptionService,
   );
   subscriptionService.setBookingService(bookingService);

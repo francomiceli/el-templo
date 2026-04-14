@@ -2,7 +2,7 @@
  * Attendance Service
  *
  * Business logic for QR token validation, member check-in
- * (with subscription/overdue/branch/class-tracking enforcement),
+ * (with subscription/branch/class-tracking enforcement),
  * force check-in override, and attendance queries.
  */
 
@@ -13,7 +13,6 @@ import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
 import { getWeekRange } from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
-import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import type {
@@ -27,7 +26,6 @@ export class AttendanceService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-    private paymentService: PaymentService,
     private subscriptionService: SubscriptionService,
     private auraService: AuraService,
   ) {}
@@ -56,19 +54,6 @@ export class AttendanceService {
       await this.subscriptionService.getMemberSubscription(memberId);
     if (!subscription) {
       throw new BadRequestError("No tenes una suscripcion activa");
-    }
-
-    // Overdue check: block if subscription has no payment recorded
-    // Skip for zero-price subscriptions — nothing to pay
-    if (subscription.pricePaid > 0) {
-      const isPaid = await this.paymentService.isSubscriptionPaid(
-        subscription.id,
-      );
-      if (!isPaid) {
-        throw new BadRequestError(
-          "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
-        );
-      }
     }
 
     // Check branch enforcement for single-branch plans
@@ -495,12 +480,6 @@ export class AttendanceService {
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
     } else {
-      const isPaid = await this.paymentService.isSubscriptionPaid(
-        subscription.id,
-      );
-      if (!isPaid) {
-        warnings.push("Pago pendiente");
-      }
       if (
         subscription.classesRemaining !== null &&
         subscription.classesRemaining <= 0

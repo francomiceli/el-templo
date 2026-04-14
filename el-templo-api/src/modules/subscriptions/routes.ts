@@ -62,7 +62,6 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
-    paymentService,
     subscriptionService,
   );
   subscriptionService.setBookingService(bookingService);

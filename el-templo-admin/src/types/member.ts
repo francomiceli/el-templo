@@ -53,7 +53,6 @@ export interface MemberListItem {
   branchId: number;
   branchName: string;
   isActive: boolean;
-  isOverdue: boolean;
   documentType: string | null;
   photoUrl: string | null;
   planName: string | null;

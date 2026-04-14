@@ -2,7 +2,7 @@
  * Booking Service
  *
  * Booking lifecycle: reserve, cancel, waitlist auto-promote,
- * capacity enforcement, weekly limit, overdue block, fixed-day/budget enforcement,
+ * capacity enforcement, weekly limit, fixed-day/budget enforcement,
  * grace period check, admin add/remove.
  * Extracted from SchedulingService for single-responsibility.
  */
@@ -11,7 +11,6 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, sql, asc, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import {
   addDays,
@@ -34,7 +33,6 @@ export class BookingService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-    private paymentService: PaymentService,
     private subscriptionService: SubscriptionService,
   ) {}
 
@@ -110,20 +108,7 @@ export class BookingService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
-    // 5b. Overdue check: block if subscription has no payment recorded
-    // Skip for zero-price subscriptions — nothing to pay
-    if (subscription.pricePaid > 0) {
-      const isPaid = await this.paymentService.isSubscriptionPaid(
-        subscription.id,
-      );
-      if (!isPaid) {
-        throw new BadRequestError(
-          "Tu suscripcion tiene un pago pendiente. Acercate a recepcion para regularizar.",
-        );
-      }
-    }
-
-    // 6. Monthly budget check: if classesRemaining is tracked and exhausted
+    // 5b. Monthly budget check: if classesRemaining is tracked and exhausted
     if (
       subscription.classesRemaining !== null &&
       subscription.classesRemaining <= 0
@@ -442,14 +427,6 @@ export class BookingService {
     if (!subscription) {
       warnings.push("Sin suscripcion activa");
     } else {
-      if (subscription.pricePaid > 0) {
-        const isPaid = await this.paymentService.isSubscriptionPaid(
-          subscription.id,
-        );
-        if (!isPaid) {
-          warnings.push("Pago pendiente");
-        }
-      }
       if (
         subscription.classesRemaining !== null &&
         subscription.classesRemaining <= 0

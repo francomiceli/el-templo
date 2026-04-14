@@ -286,11 +286,6 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
             }
           }
 
-          if (m.isOverdue) {
-            statusLabel = 'Pago pendiente';
-            statusColor = 'warning';
-          }
-
           return {
             id: m.id,
             displayLabel:

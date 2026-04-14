@@ -9,7 +9,6 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { AttendanceService } from "./service";
-import { PaymentService } from "../payments/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
@@ -30,7 +29,6 @@ import { ATTENDANCE_ROLES } from "../shared/permissions";
 // =============================================================================
 
 export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
-  const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
   const subscriptionService = new SubscriptionService(
     fastify.db,
@@ -40,7 +38,6 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
-    paymentService,
     subscriptionService,
     auraService,
   );
@@ -156,7 +153,6 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
 // =============================================================================
 
 export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
-  const paymentService = new PaymentService(fastify.db, fastify.log);
   const auraService = new AuraService(fastify.db);
   const subscriptionService = new SubscriptionService(
     fastify.db,
@@ -166,7 +162,6 @@ export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const attendanceService = new AttendanceService(
     fastify.db,
     fastify.log,
-    paymentService,
     subscriptionService,
     auraService,
   );
