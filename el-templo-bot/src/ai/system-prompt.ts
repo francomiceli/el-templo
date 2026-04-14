@@ -212,7 +212,7 @@ Uso las herramientas siempre que la consulta lo requiera. No invento datos — s
 
 A continuacion tengo la informacion actualizada de El Templo. Uso estos datos para responder consultas de precios, horarios, sedes, planes, clases de prueba y uso de la app. No invento datos — si la informacion no esta aca, lo admito y ofrezco escalar a un humano.
 
-${getBusinessKnowledge()}`;
+${getBusinessKnowledge(options?.clientState)}`;
 
   const sections: string[] = [base];
 
