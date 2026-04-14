@@ -29,7 +29,7 @@
 ### Phases
 
 - [x] **Phase 86: Knowledge Gating** - State-gated knowledge injection so PB1 leads see only discovery-relevant sections (completed 2026-04-14)
-- [ ] **Phase 87: Boarding Pass + Method Description** - Consolidate Boarding Pass to one definition, add team method description with deflection rule
+- [x] **Phase 87: Boarding Pass + Method Description** - Consolidate Boarding Pass to one definition, add team method description with deflection rule (completed 2026-04-14)
 - [ ] **Phase 88: Quality Regression Lock** - Full test suite green + new state-gated and prompt-size regression tests
 
 ### Phase Details
@@ -66,7 +66,7 @@ Plans:
 3. When a lead asks about method internals (progressions, periodization), the prompt instructs Mica to deflect with "lo sentis cuando llegas" and re-anchor the trial CTA
 4. The method section is tagged as discovery-relevant and included in the PB1 lead knowledge gate
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 
@@ -91,7 +91,7 @@ Plans:
 | Phase                                  | Plans Complete | Status      | Completed  |
 | -------------------------------------- | -------------- | ----------- | ---------- |
 | 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
-| 87. Boarding Pass + Method Description | 2/3            | In Progress |            |
+| 87. Boarding Pass + Method Description | 3/3            | Complete    | 2026-04-14 |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -          |
 
 ---

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 87-02-PLAN.md (Method sections + deflection rule; 514/514 tests; PB1.E1A lead = 18,858 chars, 58-char KGATE-05 headroom)"
-last_updated: "2026-04-14T04:56:36Z"
-last_activity: 2026-04-14 -- Plan 87-02 complete. Method (elevator + detalle) added; universal deflection rule in system-prompt.ts. Remediation applied (elevator→95 chars + 6 BP pointers dropped in discovery-tagged sections). 514/514 tests pass. KGATE-05 headroom 58 chars.
+stopped_at: "Completed 87-03-PLAN.md (regression tests: BP consolidation + method + deflection; 534/534 tests; Phase 87 complete)"
+last_updated: "2026-04-14T05:09:00Z"
+last_activity: 2026-04-14 -- Plan 87-03 complete. Regression locks added for BPASS-01/02/03, METHOD-01/02/03/04 via 3 new describe blocks in knowledge-gating.test.ts. Block A adapted to post-87-02 reality (zero pointers). 534/534 tests pass. Phase 87 complete.
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 55
+  completed_plans: 6
+  percent: 67
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** v5.3.1 Prompt Architecture Refactor — Phase 86 complete; Phase 87 (Boarding Pass + Method) next
+**Current focus:** v5.3.1 Prompt Architecture Refactor — Phases 86 + 87 complete; Phase 88 (regression tests) next
 
 ## Current Position
 
 Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 87 of 88 (Boarding Pass + Method Description) — **In progress**
-Plan: 2 of 3 complete (BP consolidation + Method sections + deflection rule landed; regression tests next)
-Status: In progress
-Progress: █████░░░░░ 55%
-Last activity: 2026-04-14 — Plan 87-02 complete. Method (elevator) + Method (detalle) sections added to knowledge.ts; universal method-internals deflection rule added to system-prompt.ts framing. Remediation applied at KGATE-05 checkpoint (elevator compressed 131→95 chars; 6 BP pointers dropped in discovery-tagged sections). 514/514 tests pass. Rendered PB1.E1A lead = 18,858 chars (58-char KGATE-05 headroom).
+Phase: 88 of 88 (Regression tests — combined 86+87 output validation) — **Pending**
+Plan: 3 of 3 of Phase 87 complete; Phase 87 done (regression locks in place for all 7 requirements)
+Status: Phase 87 complete
+Progress: ███████░░░ 67%
+Last activity: 2026-04-14 — Plan 87-03 complete. Regression locks for BPASS-01/02/03 + METHOD-01/02/03/04 via 3 new describe blocks in knowledge-gating.test.ts. Block A adapted to actual Wave-2 state (zero pointer-form residue after 87-02 remediation). 534/534 bot tests pass (514 baseline + 20 new, including parametrised it.each expansions). Rendered PB1.E1A lead still 18,858 chars (58-char KGATE-05 headroom, unchanged as expected for test-only plan).
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Last activity: 2026-04-14 — Plan 87-02 complete. Method (elevator) + Method (d
 | Phase 86 P03 | 6min  | 2 tasks | 2 files  |
 | Phase 87 P01 | 2 min | 1 tasks | 1 files  |
 | Phase 87 P02 | 6min  | 3 tasks | 2 files  |
+| Phase 87 P03 | 7min  | 1 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -86,6 +87,9 @@ Recent decisions affecting current work:
 - [Phase 87-02]: Method-internals deflection rule placed in system-prompt.ts _Reglas de conversacion_ block (universal framing, not knowledge.ts) — reaches all client states
 - [Phase 87-02]: All 6 `(ver *Reglas Zero*)` pointer suffixes dropped from discovery-tagged sections per user remediation (b); canonical BP definition and name-at-site preserved
 - [Phase 87-02]: KGATE-05 headroom for 87-03 = 58 chars (rendered PB1.E1A lead 18,858 / threshold 18,916) — 87-03 is test-only per v5.3.1, no further budget pressure expected
+- [Phase 87-03]: Block A pointer-count assertion adapted to BP-name preservation (>=7) after verifying 87-02 remediation dropped all `(ver *Reglas Zero*)` pointers. Added zero-residue pointer lock as 5th assertion to preserve removed-pattern intent
+- [Phase 87-03]: Re-explanation-detection exclusion zone bounded by `*Precios Zero (Descuentos)*` heading (not by canonical opener fragment) — otherwise the canonical `*Boarding Pass (primer mes en El Templo):*` title itself registers as a non-canonical BP mention
+- [Phase 87-03]: Net test delta +20 (spec-14) explained by `it.each` parametrised expansions across 4 non-lead states in Blocks B and C — matches spec intent
 
 ### Pending Todos
 
@@ -98,6 +102,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 87-02-PLAN.md (Method sections + deflection rule; 514/514 tests; PB1.E1A lead = 18,858 chars, 58-char KGATE-05 headroom)
-Resume file: .planning/phases/87-boarding-pass-method-description/87-03-PLAN.md
-Next step: `/gsd:execute-phase 87` — execute 87-03 (regression tests for method sections + deflection rule; test-only, zero source changes)
+Stopped at: Completed 87-03-PLAN.md (regression tests for BP + method + deflection; 534/534 tests; Phase 87 complete)
+Resume file: .planning/phases/88-\*/88-01-PLAN.md (when Phase 88 plans are drafted)
+Next step: Phase 88 — regression tests validating combined 86+87 output (test-only milestone-level locks)
