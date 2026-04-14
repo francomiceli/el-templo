@@ -84,7 +84,13 @@ Plans:
 1. All 502 existing bot tests pass with zero modifications to test assertions
 2. New tests verify that lead state gets discovery-relevant sections only and active/trial/inactive/expired states get the full knowledge set
 3. A prompt-size regression test measures PB1.E1A rendered prompt and asserts >= 35% reduction vs the documented pre-refactor baseline
-   **Plans**: TBD
+
+**Plans:** 2 plans
+
+Plans:
+
+- [ ] 88-01-PLAN.md — Reconcile QREG-01 / QREG-03 wording in REQUIREMENTS.md (docs-only)
+- [ ] 88-02-PLAN.md — Certify suite + boundary assertions + PB1.E1A snapshot tripwire + milestone-exit SUMMARY
 
 ### Progress
 
@@ -92,7 +98,7 @@ Plans:
 | -------------------------------------- | -------------- | ----------- | ---------- |
 | 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
 | 87. Boarding Pass + Method Description | 3/3            | Complete    | 2026-04-14 |
-| 88. Quality Regression Lock            | 0/TBD          | Not started | -          |
+| 88. Quality Regression Lock            | 0/2            | Not started | -          |
 
 ---
 
