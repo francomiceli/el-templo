@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 86-03-PLAN.md (knowledge-gating tests; full bot suite 514/514)"
-last_updated: "2026-04-14T03:50:00Z"
-last_activity: 2026-04-14 -- Phase 86 complete. KGATE-05 threshold revised to ≥20% rendered / ≥35% knowledge block. 12 new tests lock the behavior; rendered PB1.E1A = 18,617 chars (21.3% reduction, 299-char headroom).
+stopped_at: "Completed 87-01-PLAN.md (Boarding Pass consolidation; 514/514 tests; PB1.E1A lead = 18,626 chars, 21.23% reduction)"
+last_updated: "2026-04-14T04:40:00Z"
+last_activity: 2026-04-14 -- Plan 87-01 complete. BP consolidated to 1 canonical + 6 pointers; line 243 removed. 514/514 tests pass. KGATE-05 holds at 21.23% (≥20% threshold, 197-char headroom for 87-02 elevator).
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 33
+  total_plans: 6
+  completed_plans: 4
+  percent: 44
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 ## Current Position
 
 Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 86 of 88 (Knowledge Gating) — **Complete**
-Plan: 3 of 3 (all plans committed; regression + gating tests landed)
-Status: In progress (next phase 87)
-Progress: ███░░░░░░░ 33%
-Last activity: 2026-04-14 — Plan 86-03 complete. 12 new tests (3 prompt-size + 9 knowledge-gating) lock KGATE-02/03/04/05. KGATE-05 threshold revised to ≥20% rendered / ≥35% knowledge block. Full bot suite 514/514.
+Phase: 87 of 88 (Boarding Pass + Method Description) — **In progress**
+Plan: 1 of 3 complete (BP consolidation landed; method sections next)
+Status: In progress
+Progress: ████░░░░░░ 44%
+Last activity: 2026-04-14 — Plan 87-01 complete. BP consolidated to 1 canonical (Reglas Zero, unchanged) + 6 pointer-form references; TRIAL_FLOW L243 re-explanation removed. 514/514 tests pass. KGATE-05 holds at 21.23% rendered reduction (197-char headroom into 87-02).
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Last activity: 2026-04-14 — Plan 86-03 complete. 12 new tests (3 prompt-size +
 | Phase 86 P01 | 8min  | 1 tasks | 2 files  |
 | Phase 86 P02 | 5min  | 2 tasks | 3 files  |
 | Phase 86 P03 | 6min  | 2 tasks | 2 files  |
+| Phase 87 P01 | 2 min | 1 tasks | 1 files  |
 
 ## Accumulated Context
 
@@ -75,6 +76,10 @@ Recent decisions affecting current work:
 - [Phase 86]: Knowledge sections restructured as tagged array; 'discovery' tag gates PB1 leads to 8 of 14 sections (37% reduction on knowledge block).
 - [Phase 86]: OBJECTION_HANDLING split at source into OBJECTIONS_SALES (items 1-7) and OBJECTIONS_RETENTION (item 8) to keep section bodies clean and wording verbatim.
 - [Phase 86]: KGATE-05 threshold revised from ≥35% to ≥20% on full rendered prompt; ≥35% retained on knowledge block
+- [Phase 87-01]: Canonical Boarding Pass in Reglas Zero preserved; 6 non-canonical sites converted to `Boarding Pass (ver *Reglas Zero*)` pointer form
+- [Phase 87-01]: TRIAL_FLOW L243 bullet removed rather than preserved with pointer — redundant with pointer on same-section L242
+- [Phase 87-01]: Line 357 `(primera vez)` parenthetical dropped as partial re-explanation; canonical already says "beneficio unico (una sola vez)"
+- [Phase 87-01]: KGATE-05 headroom for 87-02 = 197 chars (rendered PB1.E1A lead 18,626 / 20%-floor 18,823)
 
 ### Pending Todos
 
@@ -87,6 +92,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 86-03-PLAN.md (knowledge-gating tests; full bot suite 514/514)
-Resume file: .planning/phases/87-bpass-method/ (next phase not yet planned)
-Next step: `/gsd:plan-phase 87` — plan Boarding Pass consolidation + Method description phase
+Stopped at: Completed 87-01-PLAN.md (Boarding Pass consolidation; 514/514 tests; PB1.E1A lead = 18,626 chars)
+Resume file: .planning/phases/87-boarding-pass-method-description/87-02-PLAN.md
+Next step: `/gsd:execute-phase 87` — execute 87-02 (Metodo elevator + detalle + deflection rule; CHECKPOINT on KGATE-05 headroom)

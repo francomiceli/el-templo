@@ -66,7 +66,7 @@ Plans:
 3. When a lead asks about method internals (progressions, periodization), the prompt instructs Mica to deflect with "lo sentis cuando llegas" and re-anchor the trial CTA
 4. The method section is tagged as discovery-relevant and included in the PB1 lead knowledge gate
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 
@@ -91,7 +91,7 @@ Plans:
 | Phase                                  | Plans Complete | Status      | Completed  |
 | -------------------------------------- | -------------- | ----------- | ---------- |
 | 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
-| 87. Boarding Pass + Method Description | 0/3            | Not started | -          |
+| 87. Boarding Pass + Method Description | 1/3            | In Progress |            |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -          |
 
 ---

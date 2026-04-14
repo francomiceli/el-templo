@@ -19,9 +19,9 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ### Boarding Pass Consolidation
 
-- [ ] **BPASS-01**: knowledge.ts contains exactly ONE canonical Boarding Pass definition
-- [ ] **BPASS-02**: All other Boarding Pass mentions reference the canonical definition rather than re-explaining it
-- [ ] **BPASS-03**: Boarding Pass is NOT explained differently in any section (zero contradictory framings)
+- [x] **BPASS-01**: knowledge.ts contains exactly ONE canonical Boarding Pass definition
+- [x] **BPASS-02**: All other Boarding Pass mentions reference the canonical definition rather than re-explaining it
+- [x] **BPASS-03**: Boarding Pass is NOT explained differently in any section (zero contradictory framings)
 
 ### Method Description
 
@@ -60,9 +60,9 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 | KGATE-04    | 86    | Complete |
 | KGATE-05    | 86    | Complete |
 | KGATE-06    | 86    | Complete |
-| BPASS-01    | 87    | Pending  |
-| BPASS-02    | 87    | Pending  |
-| BPASS-03    | 87    | Pending  |
+| BPASS-01    | 87    | Complete |
+| BPASS-02    | 87    | Complete |
+| BPASS-03    | 87    | Complete |
 | METHOD-01   | 87    | Pending  |
 | METHOD-02   | 87    | Pending  |
 | METHOD-03   | 87    | Pending  |
