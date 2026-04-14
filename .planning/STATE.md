@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 87-01-PLAN.md (Boarding Pass consolidation; 514/514 tests; PB1.E1A lead = 18,626 chars, 21.23% reduction)"
-last_updated: "2026-04-14T04:40:00Z"
-last_activity: 2026-04-14 -- Plan 87-01 complete. BP consolidated to 1 canonical + 6 pointers; line 243 removed. 514/514 tests pass. KGATE-05 holds at 21.23% (≥20% threshold, 197-char headroom for 87-02 elevator).
+stopped_at: "Completed 87-02-PLAN.md (Method sections + deflection rule; 514/514 tests; PB1.E1A lead = 18,858 chars, 58-char KGATE-05 headroom)"
+last_updated: "2026-04-14T04:56:36Z"
+last_activity: 2026-04-14 -- Plan 87-02 complete. Method (elevator + detalle) added; universal deflection rule in system-prompt.ts. Remediation applied (elevator→95 chars + 6 BP pointers dropped in discovery-tagged sections). 514/514 tests pass. KGATE-05 headroom 58 chars.
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
-  percent: 44
+  completed_plans: 5
+  percent: 55
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 Milestone: v5.3.1 Prompt Architecture Refactor
 Phase: 87 of 88 (Boarding Pass + Method Description) — **In progress**
-Plan: 1 of 3 complete (BP consolidation landed; method sections next)
+Plan: 2 of 3 complete (BP consolidation + Method sections + deflection rule landed; regression tests next)
 Status: In progress
-Progress: ████░░░░░░ 44%
-Last activity: 2026-04-14 — Plan 87-01 complete. BP consolidated to 1 canonical (Reglas Zero, unchanged) + 6 pointer-form references; TRIAL_FLOW L243 re-explanation removed. 514/514 tests pass. KGATE-05 holds at 21.23% rendered reduction (197-char headroom into 87-02).
+Progress: █████░░░░░ 55%
+Last activity: 2026-04-14 — Plan 87-02 complete. Method (elevator) + Method (detalle) sections added to knowledge.ts; universal method-internals deflection rule added to system-prompt.ts framing. Remediation applied at KGATE-05 checkpoint (elevator compressed 131→95 chars; 6 BP pointers dropped in discovery-tagged sections). 514/514 tests pass. Rendered PB1.E1A lead = 18,858 chars (58-char KGATE-05 headroom).
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Last activity: 2026-04-14 — Plan 87-01 complete. BP consolidated to 1 canonica
 | Phase 86 P02 | 5min  | 2 tasks | 3 files  |
 | Phase 86 P03 | 6min  | 2 tasks | 2 files  |
 | Phase 87 P01 | 2 min | 1 tasks | 1 files  |
+| Phase 87 P02 | 6min  | 3 tasks | 2 files  |
 
 ## Accumulated Context
 
@@ -80,6 +81,11 @@ Recent decisions affecting current work:
 - [Phase 87-01]: TRIAL_FLOW L243 bullet removed rather than preserved with pointer — redundant with pointer on same-section L242
 - [Phase 87-01]: Line 357 `(primera vez)` parenthetical dropped as partial re-explanation; canonical already says "beneficio unico (una sola vez)"
 - [Phase 87-01]: KGATE-05 headroom for 87-02 = 197 chars (rendered PB1.E1A lead 18,626 / 20%-floor 18,823)
+- [Phase 87-02]: Method split into two sections — elevator (95 chars, discovery-tagged) + detalle (verbatim team text, untagged/full-only)
+- [Phase 87-02]: Elevator compressed to 95 chars (vs plan budget of ≤200) after KGATE-05 checkpoint — preserves all three team hooks and tuteo
+- [Phase 87-02]: Method-internals deflection rule placed in system-prompt.ts _Reglas de conversacion_ block (universal framing, not knowledge.ts) — reaches all client states
+- [Phase 87-02]: All 6 `(ver *Reglas Zero*)` pointer suffixes dropped from discovery-tagged sections per user remediation (b); canonical BP definition and name-at-site preserved
+- [Phase 87-02]: KGATE-05 headroom for 87-03 = 58 chars (rendered PB1.E1A lead 18,858 / threshold 18,916) — 87-03 is test-only per v5.3.1, no further budget pressure expected
 
 ### Pending Todos
 
@@ -92,6 +98,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 87-01-PLAN.md (Boarding Pass consolidation; 514/514 tests; PB1.E1A lead = 18,626 chars)
-Resume file: .planning/phases/87-boarding-pass-method-description/87-02-PLAN.md
-Next step: `/gsd:execute-phase 87` — execute 87-02 (Metodo elevator + detalle + deflection rule; CHECKPOINT on KGATE-05 headroom)
+Stopped at: Completed 87-02-PLAN.md (Method sections + deflection rule; 514/514 tests; PB1.E1A lead = 18,858 chars, 58-char KGATE-05 headroom)
+Resume file: .planning/phases/87-boarding-pass-method-description/87-03-PLAN.md
+Next step: `/gsd:execute-phase 87` — execute 87-03 (regression tests for method sections + deflection rule; test-only, zero source changes)

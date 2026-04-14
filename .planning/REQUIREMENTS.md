@@ -25,10 +25,10 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ### Method Description
 
-- [ ] **METHOD-01**: knowledge.ts contains the team-provided method description as a new section (verbatim long-form source)
-- [ ] **METHOD-02**: A 2-sentence elevator pitch version exists for conversational use
-- [ ] **METHOD-03**: "Lo sentis cuando llegas" deflection rule is present for method-internals questions
-- [ ] **METHOD-04**: Method section is included in the PB1 lead knowledge gate (discovery-relevant)
+- [x] **METHOD-01**: knowledge.ts contains the team-provided method description as a new section (verbatim long-form source)
+- [x] **METHOD-02**: A 2-sentence elevator pitch version exists for conversational use
+- [x] **METHOD-03**: "Lo sentis cuando llegas" deflection rule is present for method-internals questions
+- [x] **METHOD-04**: Method section is included in the PB1 lead knowledge gate (discovery-relevant)
 
 ### Quality Regression
 
@@ -63,10 +63,10 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 | BPASS-01    | 87    | Complete |
 | BPASS-02    | 87    | Complete |
 | BPASS-03    | 87    | Complete |
-| METHOD-01   | 87    | Pending  |
-| METHOD-02   | 87    | Pending  |
-| METHOD-03   | 87    | Pending  |
-| METHOD-04   | 87    | Pending  |
+| METHOD-01   | 87    | Complete |
+| METHOD-02   | 87    | Complete |
+| METHOD-03   | 87    | Complete |
+| METHOD-04   | 87    | Complete |
 | QREG-01     | 88    | Pending  |
 | QREG-02     | 88    | Pending  |
 | QREG-03     | 88    | Pending  |
