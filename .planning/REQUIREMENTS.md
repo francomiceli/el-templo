@@ -14,7 +14,7 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 - [ ] **KGATE-02**: PB1 leads receive discovery-relevant sections only (classes, locations, trial info, method, Boarding Pass) — retention, upgrade paths, app help, and member policies are excluded
 - [ ] **KGATE-03**: Non-lead states (trial, active, inactive, expired) receive the full knowledge set (no regression)
 - [ ] **KGATE-04**: When `clientState` is null/undefined, the full knowledge set is returned (backward compat with v5.2 codepath)
-- [ ] **KGATE-05**: PB1.E1A rendered prompt is ≥35% smaller than pre-refactor baseline (measured in characters)
+- [ ] **KGATE-05**: PB1.E1A rendered prompt is >=35% smaller than pre-refactor baseline (measured in characters)
 - [ ] **KGATE-06**: system-prompt.ts passes `clientState` through to `getBusinessKnowledge` — minimal change, no base prompt rewrite
 
 ### Boarding Pass Consolidation
@@ -27,14 +27,14 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 - [ ] **METHOD-01**: knowledge.ts contains the team-provided method description as a new section (verbatim long-form source)
 - [ ] **METHOD-02**: A 2-sentence elevator pitch version exists for conversational use
-- [ ] **METHOD-03**: "Lo sentís cuando llegás" deflection rule is present for method-internals questions
+- [ ] **METHOD-03**: "Lo sentis cuando llegas" deflection rule is present for method-internals questions
 - [ ] **METHOD-04**: Method section is included in the PB1 lead knowledge gate (discovery-relevant)
 
 ### Quality Regression
 
 - [ ] **QREG-01**: All 502 existing tests pass with zero modifications to test assertions
 - [ ] **QREG-02**: New tests verify per-state content presence/absence
-- [ ] **QREG-03**: New test measures PB1.E1A rendered prompt size and asserts ≥35% reduction vs documented baseline
+- [ ] **QREG-03**: New test measures PB1.E1A rendered prompt size and asserts >=35% reduction vs documented baseline
 
 ## v5.4+ Requirements (Deferred — Kero CRM)
 
@@ -52,20 +52,32 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ## Traceability
 
-| Requirement   | Phase | Status  |
-| ------------- | ----- | ------- |
-| KGATE-01..06  | TBD   | Pending |
-| BPASS-01..03  | TBD   | Pending |
-| METHOD-01..04 | TBD   | Pending |
-| QREG-01..03   | TBD   | Pending |
+| Requirement | Phase | Status  |
+| ----------- | ----- | ------- |
+| KGATE-01    | 86    | Pending |
+| KGATE-02    | 86    | Pending |
+| KGATE-03    | 86    | Pending |
+| KGATE-04    | 86    | Pending |
+| KGATE-05    | 86    | Pending |
+| KGATE-06    | 86    | Pending |
+| BPASS-01    | 87    | Pending |
+| BPASS-02    | 87    | Pending |
+| BPASS-03    | 87    | Pending |
+| METHOD-01   | 87    | Pending |
+| METHOD-02   | 87    | Pending |
+| METHOD-03   | 87    | Pending |
+| METHOD-04   | 87    | Pending |
+| QREG-01     | 88    | Pending |
+| QREG-02     | 88    | Pending |
+| QREG-03     | 88    | Pending |
 
 **Coverage:**
 
-- v5.3.1 requirements: 15 total
-- Mapped to phases: 0 (pending roadmapper)
-- Unmapped: 15
+- v5.3.1 requirements: 16 total
+- Mapped to phases: 16/16
+- Unmapped: 0
 
 ---
 
 _Requirements defined: 2026-04-13_
-_Last updated: 2026-04-13 after starting v5.3.1 milestone_
+_Last updated: 2026-04-13 after roadmap creation_
