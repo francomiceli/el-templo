@@ -10,12 +10,12 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ### Knowledge Gating
 
-- [ ] **KGATE-01**: `getBusinessKnowledge` accepts a `clientState` parameter and returns ONLY sections relevant to that state
-- [ ] **KGATE-02**: PB1 leads receive discovery-relevant sections only (classes, locations, trial info, method, Boarding Pass) — retention, upgrade paths, app help, and member policies are excluded
-- [ ] **KGATE-03**: Non-lead states (trial, active, inactive, expired) receive the full knowledge set (no regression)
-- [ ] **KGATE-04**: When `clientState` is null/undefined, the full knowledge set is returned (backward compat with v5.2 codepath)
+- [x] **KGATE-01**: `getBusinessKnowledge` accepts a `clientState` parameter and returns ONLY sections relevant to that state
+- [x] **KGATE-02**: PB1 leads receive discovery-relevant sections only (classes, locations, trial info, method, Boarding Pass) — retention, upgrade paths, app help, and member policies are excluded
+- [x] **KGATE-03**: Non-lead states (trial, active, inactive, expired) receive the full knowledge set (no regression)
+- [x] **KGATE-04**: When `clientState` is null/undefined, the full knowledge set is returned (backward compat with v5.2 codepath)
 - [x] **KGATE-05**: PB1.E1A rendered prompt is >=35% smaller than pre-refactor baseline (measured in characters)
-- [ ] **KGATE-06**: system-prompt.ts passes `clientState` through to `getBusinessKnowledge` — minimal change, no base prompt rewrite
+- [x] **KGATE-06**: system-prompt.ts passes `clientState` through to `getBusinessKnowledge` — minimal change, no base prompt rewrite
 
 ### Boarding Pass Consolidation
 
@@ -54,12 +54,12 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 | Requirement | Phase | Status   |
 | ----------- | ----- | -------- |
-| KGATE-01    | 86    | Pending  |
-| KGATE-02    | 86    | Pending  |
-| KGATE-03    | 86    | Pending  |
-| KGATE-04    | 86    | Pending  |
+| KGATE-01    | 86    | Complete |
+| KGATE-02    | 86    | Complete |
+| KGATE-03    | 86    | Complete |
+| KGATE-04    | 86    | Complete |
 | KGATE-05    | 86    | Complete |
-| KGATE-06    | 86    | Pending  |
+| KGATE-06    | 86    | Complete |
 | BPASS-01    | 87    | Pending  |
 | BPASS-02    | 87    | Pending  |
 | BPASS-03    | 87    | Pending  |

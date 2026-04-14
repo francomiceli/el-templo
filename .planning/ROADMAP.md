@@ -46,7 +46,7 @@
 3. Calling `getBusinessKnowledge()` with no argument returns the full knowledge set (backward compat)
 4. The PB1.E1A rendered prompt is at least 35% smaller (in characters) than the pre-refactor baseline
 
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 
@@ -83,7 +83,7 @@ Plans:
 
 | Phase                                  | Plans Complete | Status      | Completed |
 | -------------------------------------- | -------------- | ----------- | --------- |
-| 86. Knowledge Gating                   | 1/3            | In Progress |           |
+| 86. Knowledge Gating                   | 2/3            | In Progress |           |
 | 87. Boarding Pass + Method Description | 0/TBD          | Not started | -         |
 | 88. Quality Regression Lock            | 0/TBD          | Not started | -         |
 

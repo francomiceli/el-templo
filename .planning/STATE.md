@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
 status: in_progress
-stopped_at: "Completed 86-01-PLAN.md (baseline fixture captured, BASELINE_CHARS=23646)"
-last_updated: "2026-04-14T03:26:02Z"
-last_activity: 2026-04-14 -- Phase 86 Plan 01 complete. Pre-refactor PB1.E1A baseline frozen at 23,646 chars. KGATE-05 target locked.
+stopped_at: "Completed 86-02-PLAN.md (knowledge gating wired, 502/502 tests green)"
+last_updated: "2026-04-14T03:34:10Z"
+last_activity: 2026-04-14 -- Phase 86 Plan 02 complete. getBusinessKnowledge(clientState?) gates PB1 leads to 8 discovery sections; 37% reduction on knowledge block (13842 -> 8750 chars). 502/502 bot tests pass.
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 1
-  completed_plans: 1
-  percent: 11
+  total_plans: 2
+  completed_plans: 2
+  percent: 22
 ---
 
 # Project State
@@ -27,10 +27,10 @@ See: .planning/PROJECT.md (updated 2026-04-13)
 
 Milestone: v5.3.1 Prompt Architecture Refactor
 Phase: 86 of 88 (Knowledge Gating) — in progress
-Plan: 02 of 3 (next — Refactor knowledge.ts with state gating)
+Plan: 03 of 3 (next — knowledge-gating tests)
 Status: In progress
-Progress: █░░░░░░░░░ 11%
-Last activity: 2026-04-14 — Plan 86-01 complete. Baseline fixture captured (23,646 chars, all 12 knowledge sections confirmed).
+Progress: ██░░░░░░░░ 22%
+Last activity: 2026-04-14 — Plan 86-02 complete. Sections restructured to tagged array with discovery gating; lead knowledge 37% smaller; 502/502 tests green.
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Last activity: 2026-04-14 — Plan 86-01 complete. Baseline fixture captured (23
 | Phase 85 P01 | 18min | 3 tasks | 4 files  |
 | Phase 85 P02 | 12min | 2 tasks | 4 files  |
 | Phase 86 P01 | 8min  | 1 tasks | 2 files  |
+| Phase 86 P02 | 5min  | 2 tasks | 3 files  |
 
 ## Accumulated Context
 
@@ -70,6 +71,8 @@ Recent decisions affecting current work:
 - [QT17 audit]: Knowledge section is 57% of total prompt (~11,500 chars). Active stage instruction is only 4-8%. State-gating targets ~35% reduction for PB1 leads.
 - [QT17 audit]: Boarding Pass scattered across 6 knowledge sections with 9 mentions — needs consolidation to ONE canonical definition.
 - [Phase 86]: Baseline captured at 23,646 chars — KGATE-05 target is ≤15,369 chars (35% reduction)
+- [Phase 86]: Knowledge sections restructured as tagged array; 'discovery' tag gates PB1 leads to 8 of 14 sections (37% reduction on knowledge block).
+- [Phase 86]: OBJECTION_HANDLING split at source into OBJECTIONS_SALES (items 1-7) and OBJECTIONS_RETENTION (item 8) to keep section bodies clean and wording verbatim.
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 86-01-PLAN.md (baseline fixture captured, BASELINE_CHARS=23646)
-Resume file: .planning/phases/86-knowledge-gating/86-02-PLAN.md
-Next step: `/gsd:execute-plan 86-02` — refactor knowledge.ts with state gating
+Stopped at: Completed 86-02-PLAN.md (knowledge gating wired, 502/502 tests green)
+Resume file: .planning/phases/86-knowledge-gating/86-03-PLAN.md
+Next step: `/gsd:execute-plan 86-03` — add tests for knowledge gating behavior
