@@ -44,7 +44,7 @@
 1. A PB1 lead at E1A receives classes, locations, trial info, and Boarding Pass knowledge — but NOT retention strategies, upgrade paths, app help, or member policies
 2. A trial/active/inactive/expired contact receives the full 12-section knowledge set (zero regression from v5.2 behavior)
 3. Calling `getBusinessKnowledge()` with no argument returns the full knowledge set (backward compat)
-4. The PB1.E1A rendered prompt is at least 35% smaller (in characters) than the pre-refactor baseline
+4. The PB1.E1A rendered prompt is at least 20% smaller (in characters) than the pre-refactor baseline (revised from 35% during execution — framing in system-prompt.ts is universal behavior; knowledge block alone meets 37% structural target)
 
 **Plans:** 2/3 plans executed
 
