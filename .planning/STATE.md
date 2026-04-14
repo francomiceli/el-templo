@@ -1,35 +1,35 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.3.1
-milestone_name: Prompt Architecture Refactor
-status: complete
-stopped_at: "Completed 88-02-PLAN.md — v5.3.1 Prompt Architecture Refactor shipped (537/537 tests, 16/16 requirements verified, PB1.E1A lead snapshot tripwire locked)"
-last_updated: "2026-04-14T05:51:00Z"
-last_activity: 2026-04-14 -- Plan 88-02 complete. Phase 88 certified 534/534 baseline; added 2 boundary tests (unknown ClientState fallthrough + null/undefined/no-arg KGATE-04 lock) + AVAT-03 context anchor; committed PB1.E1A lead rendered-prompt snapshot (18,858 chars, 58-char headroom vs 18,916 threshold — soft-warn). Milestone-exit SUMMARY covers all 16 v5.3.1 requirements (15 verified, 1 modified-with-rationale = KGATE-05 threshold revision). Final: 537/537 passing across 25 files, tsc clean, zero source changes in el-templo-bot/src/. v5.3.1 READY TO SHIP.
+milestone: v5.3.2
+milestone_name: Post-v5.3.1 Live Test Fixes
+status: defining_requirements
+stopped_at: "v5.3.2 milestone started — defining requirements from live-test evidence"
+last_updated: "2026-04-14T06:00:00Z"
+last_activity: 2026-04-14 -- v5.3.2 started. First post-v5.3.1 live test surfaced 4 behavioral problems (price leakage during discovery, overly permissive stage advancement, unused method elevator, missing PB1 objection handling). Milestone scoped as targeted patch — no state machine redesign, no new playbooks. 4 phases planned (89 Knowledge fixes, 90 Stage heuristic, 91 PB1 objection, 92 Regression + live test). Research skipped (tactical fixes on known codebase).
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-13)
+See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** v5.3.1 Prompt Architecture Refactor — **COMPLETE** (16/16 requirements verified, 537/537 tests green)
+**Current focus:** v5.3.2 Post-v5.3.1 Live Test Fixes — defining requirements
 
 ## Current Position
 
-Milestone: v5.3.1 Prompt Architecture Refactor — **COMPLETE**
-Phase: 88 of 88 (Quality Regression Lock) — Complete
-Plan: 2 of 2 of Phase 88 complete
-Status: v5.3.1 shipped — ready to merge / tag
-Progress: ██████████ 100%
+Milestone: v5.3.2 Post-v5.3.1 Live Test Fixes
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Progress: ░░░░░░░░░░ 0%
 Last activity: 2026-04-14 — Plan 88-02 complete. Phase 88 certified the full bot suite (534/534 baseline → 537/537 with additions) and tsc clean; added boundary-case locks (unknown ClientState fallthrough, null/undefined/no-arg KGATE-04 backward compat) and an AVAT-03 context anchor comment to `el-templo-bot/test/knowledge-gating.test.ts`; committed a single PB1.E1A lead rendered-prompt snapshot fixture (`el-templo-bot/test/fixtures/pb1-e1a-lead-rendered.snap.txt`, 18,858 chars) with byte-equal test `el-templo-bot/test/ai/rendered-prompt-snapshot.test.ts` and documented update discipline. Milestone-exit SUMMARY gives each of the 16 v5.3.1 requirements a status line (15 verified, 1 modified-with-rationale = KGATE-05 threshold revision). Headroom vs KGATE-05 threshold is 58 chars (soft-warn only; no hard assertion added per CONTEXT). Zero source changes in `el-templo-bot/src/` across Phase 88.
 
 ## Performance Metrics

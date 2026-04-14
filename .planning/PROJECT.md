@@ -9,7 +9,17 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 **Latest shipped:** v5.3.1 Prompt Architecture Refactor (2026-04-14)
 **Bot status:** Mica runs a 5-playbook engine with avatar adaptation, 537 tests, state-gated knowledge injection (PB1 leads see only discovery-relevant sections — 20.25% total / 42.30% knowledge-block prompt reduction), canonical Boarding Pass definition, team method description with universal "lo sentis cuando llegas" deflection rule, stage-specific discovery gates, Argentine tuteo enforcement, debounce, non-text fallback, off-topic handling, and zone-to-branch recommendations.
 
-## Current Milestone: (none active — next milestone TBD)
+## Current Milestone: v5.3.2 — Post-v5.3.1 Live Test Fixes
+
+**Goal:** Fix four behavioral problems surfaced by the first post-v5.3.1 live conversation — price leakage during discovery, overly permissive stage advancement, unused method elevator, and missing objection handling in PB1 — with targeted low-risk changes, not a state-machine redesign.
+
+**Target fixes:**
+
+- Remove prices from the PB1 lead prompt (move "Planes y Precios" out of `discovery` tag); keep Boarding Pass dual-benefit visible
+- Tighten `hasStageSpecificContent` so E1A→E2A advancement requires more than a single keyword match
+- Make the method elevator pitch actually get used when a lead asks "qué es el templo/método?"
+- Add objection handling for leads who reject during discovery (PB1 conditional branch, new stage, or universal framing rule)
+- Lock all four fixes with new regression tests + guided live-test validation
 
 ## Core Value
 
@@ -158,4 +168,4 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ---
 
-_Last updated: 2026-04-14 after v5.3.1 milestone_
+_Last updated: 2026-04-14 after v5.3.2 start_
