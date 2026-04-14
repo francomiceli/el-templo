@@ -17,12 +17,13 @@
  *    'expired_member')` — returns the full set (identical content to the
  *   no-arg call, zero regression for non-lead states).
  *
- * 14 sections (post v5.3.1 splits): Que es El Templo, ROM, Planes y Precios
- * (base), Mejora de plan (upgrade paths, split out of Planes y Precios),
- * Reglas Zero, Horarios por Sede, Clase de Prueba, App (DeportNet), Politicas,
- * Tecnicas de Venta, Objeciones de venta (split from Manejo de Objeciones),
- * Objeciones de retención (split from Manejo de Objeciones), Estrategias de
- * Retencion, 12 Reglas de Oro.
+ * 16 sections (post v5.3.1 splits + 87-02 method additions): Que es El Templo,
+ * Metodo (elevator) [NEW 87-02, discovery], Metodo (detalle) [NEW 87-02,
+ * full-only], ROM, Planes y Precios (base), Mejora de plan (upgrade paths,
+ * split out of Planes y Precios), Reglas Zero, Horarios por Sede, Clase de
+ * Prueba, App (DeportNet), Politicas, Tecnicas de Venta, Objeciones de venta
+ * (split from Manejo de Objeciones), Objeciones de retención (split from
+ * Manejo de Objeciones), Estrategias de Retencion, 12 Reglas de Oro.
  *
  * Original 1–12 section order is preserved — the two splits insert a new
  * entry immediately after the parent section so flow is unchanged.
@@ -427,6 +428,25 @@ const RETENTION_STRATEGIES = `*Estrategias de retencion:*
 - Guiar hacia contratacion de nueva membresia.`;
 
 // ---------------------------------------------------------------------------
+// 12b. Method — elevator pitch (≤200 chars, discovery-tagged) + verbatim
+// long-form (team-authored, full-only). See 87-CONTEXT.md pending_content.
+// ELEVATOR_TEXT preserves three team hooks: "método internacional", "cuatro
+// niveles simultáneos", "no salirse del grupo". Tuteo ("progresás").
+// METHOD_DETAIL is byte-for-byte verbatim from the team source modulo
+// soft-wrap reflow — do NOT paraphrase, compress, or reformat.
+// ---------------------------------------------------------------------------
+
+const ELEVATOR_TEXT = `Es un método internacional de calistenia. Cuatro niveles entrenan en simultáneo en cada clase, así progresás sin salirte del grupo.`;
+
+const METHOD_DETAIL = `El Templo tiene un método internacional de entrenamiento de calistenia que combina un sistema de periodización cíclica con experiencias de comunidad únicas en cada clase. Cada alumno entrena con un programa individual adaptado a su nivel — hay cuatro niveles activos simultáneamente en cada clase, desde principiantes hasta atletas avanzados. El sistema está diseñado para que cada persona progrese a su ritmo sin salirse del grupo.
+
+Pero El Templo no es solo entrenamiento. Cada clase tiene momentos distintos que no vas a encontrar en otro lado. Hay momentos donde el entrenamiento se convierte en juego — movimiento grupal, conexión desde el primer minuto. Hay momentos donde profundizamos en un solo movimiento con tiempo y guía real del entrenador. Hay momentos donde conectás todo lo que entrenaste en secuencias fluidas. Hay momentos donde tu entrenador te lleva a probar los movimientos que más querés lograr. Hay momentos donde trabajamos verticales. Hay momentos donde entrenamos la cabeza además del cuerpo — respiración, foco, calma.
+
+No todos los días son iguales — hay distintos tipos de clases a lo largo de la semana, cada una con su propio foco y experiencia.
+
+La app complementa el presencial. Cada alumno puede seguir su programa individual en la app y seguir progresando fuera del local.`;
+
+// ---------------------------------------------------------------------------
 // 12. Golden rules
 // ---------------------------------------------------------------------------
 
@@ -471,10 +491,15 @@ function formatCreditCardPlans(): string {
 }
 
 /**
- * Ordered knowledge sections. Preserves the original 1–12 section flow,
- * with two splits (section 3 → Planes y Precios + Mejora de plan; section 10
- * → Objeciones de venta + Objeciones de retención) that align content with
- * the discovery/member audience boundary.
+ * Ordered knowledge sections. 16 entries. Preserves the original 1–12
+ * section flow with two splits (section 3 → Planes y Precios + Mejora de
+ * plan; section 10 → Objeciones de venta + Objeciones de retención) and
+ * two phase-87-02 additions placed immediately after "Que es El Templo":
+ *   [1] Metodo (elevator) — discovery-tagged, ≤200 chars
+ *   [2] Metodo (detalle)  — full-only (untagged), verbatim team text
+ * These align method content with the discovery/member audience boundary:
+ * leads get the compressed elevator; non-leads get both elevator and the
+ * long-form detalle.
  *
  * A section is included for `clientState === 'lead'` iff its `tags` array
  * contains `'discovery'`. All other states receive every entry.
@@ -506,7 +531,34 @@ Son 100% guiadas por profesores, divididas en 4 bloques de trabajo:
 Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza real de forma integral.`,
   },
 
-  // 2. ROM — full only
+  // 2. Metodo (elevator) — discovery (87-02)
+  // Compressed 2-sentence pitch (≤200 chars content-only). Drafted from the
+  // verbatim team long-form in the next entry, preserving the three hooks
+  // required by CONTEXT.md: "método internacional", "cuatro niveles
+  // simultáneos", "no salirse del grupo". Tuteo ("progresás"). No emoji,
+  // no inline bold/italic inside the body.
+  {
+    title: "Metodo (elevator)",
+    tags: ["discovery"],
+    body: `*Metodo (elevator)*
+
+${ELEVATOR_TEXT}`,
+  },
+
+  // 3. Metodo (detalle) — full only (87-02)
+  // VERBATIM team-authored long-form from 87-CONTEXT.md <pending_content>.
+  // Byte-for-byte preservation is required (modulo soft-wrap reflow into
+  // flowing paragraphs). Do NOT paraphrase, compress, reformat into bullets,
+  // or add headings. Tagging this 'discovery' would blow KGATE-05 headroom.
+  {
+    title: "Metodo (detalle)",
+    tags: [],
+    body: `*Metodo (detalle)*
+
+${METHOD_DETAIL}`,
+  },
+
+  // 4. ROM — full only
   {
     title: "ROM",
     tags: [],
@@ -515,9 +567,9 @@ Se entrena descalzo. Todo esta pensado para mejorar tu postura y ganar fuerza re
 ${ROM_DATA}`,
   },
 
-  // 3. Planes y Precios (base) — discovery
+  // 5. Planes y Precios (base) — discovery
   // NOTE: The original section ended with `*Mejora de plan:*\n${UPGRADE_PATHS}`.
-  // That block is split out into section 4 below so leads never see upgrade paths.
+  // That block is split out into the following section so leads never see upgrade paths.
   {
     title: "Planes y Precios",
     tags: ["discovery"],
@@ -538,7 +590,7 @@ ${formatPlan(PERFORMANCE_PLAN)}
 ${formatCreditCardPlans()}`,
   },
 
-  // 4. Mejora de plan — full only (split from Planes y Precios)
+  // 6. Mejora de plan — full only (split from Planes y Precios)
   {
     title: "Mejora de plan",
     tags: [],
@@ -547,7 +599,7 @@ ${formatCreditCardPlans()}`,
 ${UPGRADE_PATHS}`,
   },
 
-  // 5. Reglas Zero — discovery
+  // 7. Reglas Zero — discovery
   {
     title: "Reglas Zero",
     tags: ["discovery"],
@@ -556,7 +608,7 @@ ${UPGRADE_PATHS}`,
 ${ZERO_RULES}`,
   },
 
-  // 6. Horarios por Sede — discovery
+  // 8. Horarios por Sede — discovery
   {
     title: "Horarios por Sede",
     tags: ["discovery"],
@@ -579,7 +631,7 @@ Clases de ROM: sabados en sedes con horario sabatino (Moreno y Alem).
 - Si el lead menciona una zona que no está en esta lista, preguntale por una referencia cercana antes de sugerir una sede.`,
   },
 
-  // 7. Clase de Prueba — discovery
+  // 9. Clase de Prueba — discovery
   {
     title: "Clase de Prueba",
     tags: ["discovery"],
@@ -588,7 +640,7 @@ Clases de ROM: sabados en sedes con horario sabatino (Moreno y Alem).
 ${TRIAL_FLOW}`,
   },
 
-  // 8. App (DeportNet) — full only
+  // 10. App (DeportNet) — full only
   {
     title: "App (DeportNet)",
     tags: [],
@@ -597,7 +649,7 @@ ${TRIAL_FLOW}`,
 ${APP_HELP}`,
   },
 
-  // 9. Politicas — full only
+  // 11. Politicas — full only
   {
     title: "Politicas",
     tags: [],
@@ -606,7 +658,7 @@ ${APP_HELP}`,
 ${POLICIES}`,
   },
 
-  // 10. Tecnicas de Venta — discovery
+  // 12. Tecnicas de Venta — discovery
   {
     title: "Tecnicas de Venta",
     tags: ["discovery"],
@@ -615,7 +667,7 @@ ${POLICIES}`,
 ${SALES_TECHNIQUES}`,
   },
 
-  // 11. Objeciones de venta — discovery (split from Manejo de Objeciones, items 1–7)
+  // 13. Objeciones de venta — discovery (split from Manejo de Objeciones, items 1–7)
   {
     title: "Objeciones de venta",
     tags: ["discovery"],
@@ -624,7 +676,7 @@ ${SALES_TECHNIQUES}`,
 ${OBJECTIONS_SALES}`,
   },
 
-  // 12. Objeciones de retención — full only (split from Manejo de Objeciones, item 8)
+  // 14. Objeciones de retención — full only (split from Manejo de Objeciones, item 8)
   {
     title: "Objeciones de retención",
     tags: [],
@@ -633,7 +685,7 @@ ${OBJECTIONS_SALES}`,
 ${OBJECTIONS_RETENTION}`,
   },
 
-  // 13. Estrategias de Retencion — full only
+  // 15. Estrategias de Retencion — full only
   {
     title: "Estrategias de Retencion",
     tags: [],
@@ -642,7 +694,7 @@ ${OBJECTIONS_RETENTION}`,
 ${RETENTION_STRATEGIES}`,
   },
 
-  // 14. Reglas de Oro — discovery (universal: carries discovery tag so leads still see it)
+  // 16. Reglas de Oro — discovery (universal: carries discovery tag so leads still see it)
   {
     title: "Reglas de Oro",
     tags: ["discovery"],
@@ -657,11 +709,12 @@ ${GOLDEN_RULES}`,
  * injection into the AI system prompt.
  *
  * Behavior:
- * - No argument, or any non-`'lead'` state → full 14-section set
+ * - No argument, or any non-`'lead'` state → full 16-section set
  *   (backward compat, zero regression for trial/active/inactive/expired).
- * - `clientState === 'lead'` → only sections tagged `'discovery'` (8 sections):
- *   Que es El Templo, Planes y Precios (base), Reglas Zero, Horarios por Sede,
- *   Clase de Prueba, Tecnicas de Venta, Objeciones de venta, Reglas de Oro.
+ * - `clientState === 'lead'` → only sections tagged `'discovery'` (9 sections):
+ *   Que es El Templo, Metodo (elevator), Planes y Precios (base), Reglas Zero,
+ *   Horarios por Sede, Clase de Prueba, Tecnicas de Venta, Objeciones de venta,
+ *   Reglas de Oro.
  *
  * Uses WhatsApp-compatible formatting: *bold* for emphasis, bullet lists
  * with - or bullet points, no ### markdown headers. Original 1–12 section
