@@ -1,8 +1,8 @@
 ---
 gsd_state_version: 1.0
-milestone: v5.3
-milestone_name: Conversational Sales & Playbook Engine
-status: milestone_complete
+milestone: v5.3.1
+milestone_name: Prompt Architecture Refactor
+status: defining_requirements
 stopped_at: "Completed 85-02-PLAN.md (AVAT-03/AVAT-04 — v5.3 regression net: annotated QA lock + per-playbook flow coverage suite; bot suite 413/413 green). Phase 85 complete (2/2). v5.3 milestone COMPLETE."
 last_updated: "2026-04-08T02:37:00Z"
 last_activity: 2026-04-08 -- Plan 85-02 complete (AVAT-03/AVAT-04 closed; v5.3 milestone DONE). AVAT-03 locked via annotation on conversation-flows.test.ts 'QA questions answered correctly' describe block + 1 integrative it() rendering getSystemPrompt with PB1.E1A active + currentAvatar gym_crossover and asserting 11 canonical Q1..Q14 tokens still present — catches the failure mode where a future edit to system-prompt.ts accidentally suppresses base knowledge when a playbook section is injected; Q1..Q14 source unchanged. AVAT-04 locked via NEW playbook-flow-coverage.test.ts (~300 lines, 19 tests, 6 describe blocks): 5 per-PB blocks each with happy+objection paths walking advanceStageIfComplete AND asserting stageContent promptSection tokens (PB1 default E1A->E2A->E3->E4 + intermedio E1A->E2B + defer guard; PB2 E1A->E2->E3 + phase 84-03 priceObjection-alone-holds regression + 4-branch objection content; PB3 E1A->E2->E3 with PRE-vencimiento framing + userAccepted-only guard + upgrade anchor; PB4 E1A->E2 + terminal guard + TEAM-CORR-04 plan-conditional pause + request_human; PB5 E1->E2->E3 + sin-resistencia rule + userAccepted-only guard + TEAM-CORR-04 dual-guard + E3 escalation + buen termino) plus a cross-cutting block asserting intermedio tone keywords render alongside the 'Perfil detectado' header for every PB entry stage (seam between plan 85-01 tone guide and AVAT-04 coverage). AVATAR_KEYWORDS extracted to test/fixtures/avatar-keywords.ts (DRY — both avatar-tone-guide.test.ts and the new suite import from there). Purity invariant preserved: zero production-code imports of drizzle/prisma/mysql/redis/ioredis/webhook/vi.mock; runs in <200ms. Full bot suite 413/413 green (up from 393; +20 tests from this plan). Zero source code changes — pure test plan, git diff limited to el-templo-bot/test/**. Phase 85 complete 2/2. v5.3 milestone COMPLETE: 4 phases + 12 plans shipped.
@@ -18,17 +18,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-08)
+See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** Planning next milestone (likely v5.4 Kero CRM Infrastructure)
+**Current focus:** v5.3.1 Prompt Architecture Refactor — defining requirements
 
 ## Current Position
 
-Milestone: v5.3 Conversational Sales & Playbook Engine — **SHIPPED 2026-04-08**
-Status: milestone_complete
-Progress: ██████████ 100% (4/4 phases, 12/12 plans)
-Next: `/gsd:new-milestone` to start v5.4
+Milestone: v5.3.1 Prompt Architecture Refactor
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Progress: ░░░░░░░░░░ 0%
+Last activity: 2026-04-13 — Milestone v5.3.1 started
 Last activity: 2026-04-08 — Plan 85-02 complete. v5.3 milestone DONE. Replaced phase 83-02 1-line "Perfil detectado" stub with `AVATAR_TONE_GUIDES: Record<AvatarProfile, string>` const in system-prompt.ts carrying 4 distinct Spanish tone blocks (cero_absoluto/gym_crossover/intermedio/retorna), each with a framing line, 3-4 tone rules, propuesta anchor (Foundation/Performance/Flex), and 2 unique keywords. Tone guide injection is unconditional on activePlaybook — renders for PB1-PB5, so returning leads who later enter PB2 (trial) still hear adapted tone (AVAT-01). Added resolver Rule 2.5 between session reuse (Rule 2) and fresh state mapping (Rule 3): when (clientState=lead && session.avatar set && no in-flight stage) the resolver routes to PB1.E4 (targeted recommendation), skipping E1A/E1B/E2A/E2B/E3 discovery questions the avatar has already answered (AVAT-02). Rule 2.5 uses a PLAYBOOKS.PB1.stages lookup over a bare literal so a future rename surfaces at test time. Resolver purity invariant preserved: zero new imports, zero IO, zero Date, zero console — verified by grep. New avatar-tone-guide.test.ts with 29 cases across 6 describe blocks (per-avatar keyword presence, 12 cross-avatar uniqueness pairs, PB1-PB5 applicability, absent-when-no-avatar, Perfil detectado header compat, 100x determinism). Extended playbook-resolver.test.ts with 11 new Rule 2.5 cases (4 avatars + 6 negative/edge + 1 cancellation-still-wins). handler.ts, definitions.ts, advance.ts empty diff vs pre-plan baseline — scope held. Full bot suite 393/393 green (was 353 baseline; +40 tests). AVAT-01/AVAT-02/AVAT-05 closed.
 
 ## Performance Metrics

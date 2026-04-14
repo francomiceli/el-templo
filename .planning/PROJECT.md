@@ -6,8 +6,25 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 
 ## Current State
 
-**Latest shipped:** v5.3 Conversational Sales & Playbook Engine (2026-04-08)
-**Bot status:** Mica is now a conversational salesperson with a 5-playbook engine (PB1 lead discovery + PB2-PB5 state-driven flows), avatar-aware tone adaptation across 4 profiles, profile-tag detection with Redis 6h persistence, profile-aware skip-to-recommendation, and 413 tests covering discovery, isolation, and per-playbook regression. Zero new DB tables or schedulers — all persistence stayed in Redis per scope.
+**Latest shipped:** v5.3 Conversational Sales & Playbook Engine (2026-04-08) + QT11-18 post-ship fixes (2026-04-13)
+**Bot status:** Mica runs a 5-playbook engine with avatar adaptation, 502 tests, stage-specific discovery gates, Argentine tuteo enforcement, debounce, non-text fallback, off-topic handling, and zone-to-branch recommendations. Post-v5.3 live testing (QT11-18) fixed the double-framing conflict, advancement signal heuristics, and persona issues.
+
+## Current Milestone: v5.3.1 Prompt Architecture Refactor
+
+**Goal:** Fix the structural cause of price leakage and prompt dilution by gating business knowledge per client state, consolidating the Boarding Pass definition, and integrating the team's new method description.
+
+**Target features:**
+
+- State-gated knowledge injection: PB1 leads get ONLY discovery-relevant knowledge sections; retention/upgrade/policy sections gated behind non-lead states. Target ~35-40% prompt size reduction for PB1.E1A.
+- Boarding Pass consolidation: replace 9 scattered mentions across knowledge.ts with ONE canonical definition
+- Method description integration: new team-provided content about the 4-level system, cyclical periodization, class moments, and "lo sentís cuando llegás" deflection for method-internals questions
+
+**Hard constraints:**
+
+- Do NOT touch: resolver.ts, advance.ts, definitions.ts, debounce, non-text handling, markdown normalization
+- Do NOT add or rename playbook stages
+- Minimal changes to system-prompt.ts (only wire new getBusinessKnowledge signature)
+- All 502 existing tests must stay green
 
 ## Core Value
 
@@ -47,7 +64,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-Next milestone TBD — likely **v5.4 Kero CRM Infrastructure** (DB persistence of stage transitions, 10 schedulers, 19 Meta templates, admin dashboard, lead scoring, anti-spam, tag_history). All v5.4 candidates documented in `.planning/quick/KERO-FULL-SYNTHESIS.md` and `.planning/milestones/v5.3-MILESTONE-AUDIT.md`.
+**v5.3.1 Prompt Architecture Refactor** — see Current Milestone section. Detailed REQ-IDs in `.planning/REQUIREMENTS.md`.
 
 ### Out of Scope
 
@@ -144,4 +161,4 @@ Next milestone TBD — likely **v5.4 Kero CRM Infrastructure** (DB persistence o
 
 ---
 
-_Last updated: 2026-04-08 after v5.3 Conversational Sales & Playbook Engine milestone_
+_Last updated: 2026-04-13 after starting v5.3.1 Prompt Architecture Refactor milestone_
