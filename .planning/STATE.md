@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v5.3.1
 milestone_name: Prompt Architecture Refactor
-status: in_progress
-stopped_at: "Completed 88-01-PLAN.md (QREG-01/QREG-03 wording reconciled in REQUIREMENTS.md; 534+ tests + prompt-size.test.ts dual-threshold cited)"
-last_updated: "2026-04-14T05:33:00Z"
-last_activity: 2026-04-14 -- Plan 88-01 complete. QREG-01 rewritten to cite 534+ bot tests and defer assertion-modification rationale to phase SUMMARYs. QREG-03 rewritten to name el-templo-bot/test/ai/prompt-size.test.ts and document the dual-threshold (>=20% rendered AND >=35% knowledge block). Traceability table and QREG-02 untouched.
+status: complete
+stopped_at: "Completed 88-02-PLAN.md — v5.3.1 Prompt Architecture Refactor shipped (537/537 tests, 16/16 requirements verified, PB1.E1A lead snapshot tripwire locked)"
+last_updated: "2026-04-14T05:51:00Z"
+last_activity: 2026-04-14 -- Plan 88-02 complete. Phase 88 certified 534/534 baseline; added 2 boundary tests (unknown ClientState fallthrough + null/undefined/no-arg KGATE-04 lock) + AVAT-03 context anchor; committed PB1.E1A lead rendered-prompt snapshot (18,858 chars, 58-char headroom vs 18,916 threshold — soft-warn). Milestone-exit SUMMARY covers all 16 v5.3.1 requirements (15 verified, 1 modified-with-rationale = KGATE-05 threshold revision). Final: 537/537 passing across 25 files, tsc clean, zero source changes in el-templo-bot/src/. v5.3.1 READY TO SHIP.
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 78
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-13)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation.
-**Current focus:** v5.3.1 Prompt Architecture Refactor — Phases 86 + 87 complete; Phase 88 (regression tests) next
+**Current focus:** v5.3.1 Prompt Architecture Refactor — **COMPLETE** (16/16 requirements verified, 537/537 tests green)
 
 ## Current Position
 
-Milestone: v5.3.1 Prompt Architecture Refactor
-Phase: 88 of 88 (Quality Regression Lock — 86+87 output certification) — **In Progress**
-Plan: 1 of 2 of Phase 88 complete (88-01 REQUIREMENTS.md reconciliation)
-Status: Phase 88 in progress
-Progress: ████████░░ 78%
-Last activity: 2026-04-14 — Plan 88-01 complete. QREG-01 and QREG-03 bullets in `.planning/REQUIREMENTS.md` reconciled to post-86/87 reality: QREG-01 now cites 534+ bot tests and phase-SUMMARY discipline for any assertion modifications; QREG-03 names `el-templo-bot/test/ai/prompt-size.test.ts` as the enforcing artifact and documents the dual-threshold (>=20% rendered prompt AND >=35% knowledge block) per KGATE-05 revision (commit 46caba53). Traceability table and QREG-02 left untouched. Footer date bumped to 2026-04-14.
+Milestone: v5.3.1 Prompt Architecture Refactor — **COMPLETE**
+Phase: 88 of 88 (Quality Regression Lock) — Complete
+Plan: 2 of 2 of Phase 88 complete
+Status: v5.3.1 shipped — ready to merge / tag
+Progress: ██████████ 100%
+Last activity: 2026-04-14 — Plan 88-02 complete. Phase 88 certified the full bot suite (534/534 baseline → 537/537 with additions) and tsc clean; added boundary-case locks (unknown ClientState fallthrough, null/undefined/no-arg KGATE-04 backward compat) and an AVAT-03 context anchor comment to `el-templo-bot/test/knowledge-gating.test.ts`; committed a single PB1.E1A lead rendered-prompt snapshot fixture (`el-templo-bot/test/fixtures/pb1-e1a-lead-rendered.snap.txt`, 18,858 chars) with byte-equal test `el-templo-bot/test/ai/rendered-prompt-snapshot.test.ts` and documented update discipline. Milestone-exit SUMMARY gives each of the 16 v5.3.1 requirements a status line (15 verified, 1 modified-with-rationale = KGATE-05 threshold revision). Headroom vs KGATE-05 threshold is 58 chars (soft-warn only; no hard assertion added per CONTEXT). Zero source changes in `el-templo-bot/src/` across Phase 88.
 
 ## Performance Metrics
 
@@ -61,6 +61,7 @@ Last activity: 2026-04-14 — Plan 88-01 complete. QREG-01 and QREG-03 bullets i
 | Phase 87 P02 | 6min  | 3 tasks | 2 files  |
 | Phase 87 P03 | 7min  | 1 tasks | 1 files  |
 | Phase 88 P01 | 2 min | 1 tasks | 1 files  |
+| Phase 88 P02 | 14min | 4 tasks | 4 files  |
 
 ## Accumulated Context
 
@@ -93,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 87-03]: Net test delta +20 (spec-14) explained by `it.each` parametrised expansions across 4 non-lead states in Blocks B and C — matches spec intent
 - [Phase 88-01]: REQUIREMENTS.md reconciliation isolated to QREG-01 and QREG-03 bullets + footer date; traceability table and QREG-02 intentionally untouched to preserve ID stability for milestone-exit SUMMARY
 - [Phase 88-01]: QREG wording uses pointer-to-SUMMARY pattern (cites 86-02 SUMMARY for AVAT-03 alignment, 86-03 SUMMARY + commit 46caba53 for KGATE-05 dual-threshold revision) rather than duplicating rationale in the requirements ledger
+- [Phase 88-02]: Snapshot tripwire is psychological, not a correctness gate — behavioral locks live in knowledge-gating.test.ts and prompt-size.test.ts; snapshot exists so unintentional drift surfaces in PR review
+- [Phase 88-02]: No hard headroom assertion added to prompt-size.test.ts despite 58-char margin — minimum-margin assertion would block justified future content additions; SUMMARY soft-warn is the intended signal
+- [Phase 88-02]: AVAT-03 context anchor placed inline (block comment above new Boundary cases describe) in knowledge-gating.test.ts rather than as a separate test — maximizes reviewer visibility without test-suite bloat
+- [v5.3.1 MILESTONE COMPLETE]: 3 phases, 8 plans, 16 requirements verified. Rendered PB1.E1A lead 23,646 → 18,858 chars (20.25% reduction). Knowledge block 42.30% reduction for leads. Bot test count 514 → 537 (+23 regression locks). Zero source changes in Phase 88.
 
 ### Pending Todos
 
@@ -105,6 +110,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-14
-Stopped at: Completed 88-01-PLAN.md (QREG-01/QREG-03 reconciliation in REQUIREMENTS.md)
-Resume file: .planning/phases/88-quality-regression-lock/88-02-PLAN.md (when drafted)
-Next step: Phase 88 Plan 2 — bot suite certify run + boundary-case assertions + PB1.E1A snapshot tripwire + milestone-exit SUMMARY
+Stopped at: Completed 88-02-PLAN.md — v5.3.1 Prompt Architecture Refactor SHIPPED (537/537 tests, 16/16 requirements verified)
+Resume file: (none — milestone complete; next milestone TBD)
+Next step: Tag v5.3.1 release / open next milestone planning (candidates: v5.4 Kero CRM, or v5.3.2 polish pass)

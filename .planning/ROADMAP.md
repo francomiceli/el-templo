@@ -10,7 +10,7 @@
 - ✅ **v5.1 Production Readiness & Business Data** — Phases 74-78 (shipped 2026-03-27)
 - ✅ **v5.2 Mica Persona & Bot Refinement** — Phases 79-81 (shipped 2026-04-06)
 - ✅ **v5.3 Conversational Sales & Playbook Engine** — Phases 82-85 (shipped 2026-04-08)
-- **v5.3.1 Prompt Architecture Refactor** — Phases 86-88 (in progress)
+- ✅ **v5.3.1 Prompt Architecture Refactor** — Phases 86-88 (shipped 2026-04-14)
 
 ---
 
@@ -30,7 +30,7 @@
 
 - [x] **Phase 86: Knowledge Gating** - State-gated knowledge injection so PB1 leads see only discovery-relevant sections (completed 2026-04-14)
 - [x] **Phase 87: Boarding Pass + Method Description** - Consolidate Boarding Pass to one definition, add team method description with deflection rule (completed 2026-04-14)
-- [ ] **Phase 88: Quality Regression Lock** - Full test suite green + new state-gated and prompt-size regression tests
+- [x] **Phase 88: Quality Regression Lock** - Full test suite green + new state-gated and prompt-size regression tests (completed 2026-04-14)
 
 ### Phase Details
 
@@ -51,8 +51,8 @@
 Plans:
 
 - [x] 86-01-PLAN.md — Capture pre-refactor PB1.E1A baseline fixture + BASELINE_CHARS constant
-- [ ] 86-02-PLAN.md — Refactor knowledge.ts to tagged sections with state gating + wire system-prompt call site
-- [ ] 86-03-PLAN.md — Add prompt-size regression test (KGATE-05) and per-state content gating tests
+- [x] 86-02-PLAN.md — Refactor knowledge.ts to tagged sections with state gating + wire system-prompt call site
+- [x] 86-03-PLAN.md — Add prompt-size regression test (KGATE-05) and per-state content gating tests
 
 #### Phase 87: Boarding Pass + Method Description
 
@@ -70,9 +70,9 @@ Plans:
 
 Plans:
 
-- [ ] 87-01-PLAN.md — Consolidate Boarding Pass: canonical definition in Reglas Zero + 7 pointer-form references
-- [ ] 87-02-PLAN.md — Add Metodo (elevator + detalle) sections + deflection rule in system-prompt.ts framing (CHECKPOINT on KGATE-05 headroom)
-- [ ] 87-03-PLAN.md — Lock BP consolidation, method sections, and deflection rule with new test assertions
+- [x] 87-01-PLAN.md — Consolidate Boarding Pass: canonical definition in Reglas Zero + 7 pointer-form references
+- [x] 87-02-PLAN.md — Add Metodo (elevator + detalle) sections + deflection rule in system-prompt.ts framing (CHECKPOINT on KGATE-05 headroom)
+- [x] 87-03-PLAN.md — Lock BP consolidation, method sections, and deflection rule with new test assertions
 
 #### Phase 88: Quality Regression Lock
 
@@ -85,20 +85,20 @@ Plans:
 2. New tests verify that lead state gets discovery-relevant sections only and active/trial/inactive/expired states get the full knowledge set
 3. A prompt-size regression test measures PB1.E1A rendered prompt and asserts >= 35% reduction vs the documented pre-refactor baseline
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 
-- [ ] 88-01-PLAN.md — Reconcile QREG-01 / QREG-03 wording in REQUIREMENTS.md (docs-only)
-- [ ] 88-02-PLAN.md — Certify suite + boundary assertions + PB1.E1A snapshot tripwire + milestone-exit SUMMARY
+- [x] 88-01-PLAN.md — Reconcile QREG-01 / QREG-03 wording in REQUIREMENTS.md (docs-only)
+- [x] 88-02-PLAN.md — Certify suite + boundary assertions + PB1.E1A snapshot tripwire + milestone-exit SUMMARY
 
 ### Progress
 
-| Phase                                  | Plans Complete | Status      | Completed  |
-| -------------------------------------- | -------------- | ----------- | ---------- |
-| 86. Knowledge Gating                   | 3/3            | Complete    | 2026-04-14 |
-| 87. Boarding Pass + Method Description | 3/3            | Complete    | 2026-04-14 |
-| 88. Quality Regression Lock            | 1/2            | In Progress |            |
+| Phase                                  | Plans Complete | Status   | Completed  |
+| -------------------------------------- | -------------- | -------- | ---------- |
+| 86. Knowledge Gating                   | 3/3            | Complete | 2026-04-14 |
+| 87. Boarding Pass + Method Description | 3/3            | Complete | 2026-04-14 |
+| 88. Quality Regression Lock            | 2/2            | Complete | 2026-04-14 |
 
 ---
 

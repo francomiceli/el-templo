@@ -32,9 +32,9 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 
 ### Quality Regression
 
-- [ ] **QREG-01**: All bot tests pass (current count 534+); any test-assertion modifications required during Phase 86-87 execution are documented in the corresponding phase SUMMARY files with rationale (see 86-02 SUMMARY for the AVAT-03 alignment).
-- [ ] **QREG-02**: New tests verify per-state content presence/absence
-- [ ] **QREG-03**: `el-templo-bot/test/ai/prompt-size.test.ts` asserts the rendered PB1.E1A prompt is at least 20% smaller than the pre-refactor baseline AND the knowledge block alone is at least 35% smaller than the full knowledge set (dual-threshold revised during Phase 86-03 — see commit 46caba53 and 86-03 SUMMARY).
+- [x] **QREG-01**: All bot tests pass (current count 534+); any test-assertion modifications required during Phase 86-87 execution are documented in the corresponding phase SUMMARY files with rationale (see 86-02 SUMMARY for the AVAT-03 alignment).
+- [x] **QREG-02**: New tests verify per-state content presence/absence
+- [x] **QREG-03**: `el-templo-bot/test/ai/prompt-size.test.ts` asserts the rendered PB1.E1A prompt is at least 20% smaller than the pre-refactor baseline AND the knowledge block alone is at least 35% smaller than the full knowledge set (dual-threshold revised during Phase 86-03 — see commit 46caba53 and 86-03 SUMMARY).
 
 ## v5.4+ Requirements (Deferred — Kero CRM)
 
@@ -67,9 +67,9 @@ Requirements for the Prompt Architecture Refactor milestone. Each maps to one ph
 | METHOD-02   | 87    | Complete |
 | METHOD-03   | 87    | Complete |
 | METHOD-04   | 87    | Complete |
-| QREG-01     | 88    | Pending  |
-| QREG-02     | 88    | Pending  |
-| QREG-03     | 88    | Pending  |
+| QREG-01     | 88    | Complete |
+| QREG-02     | 88    | Complete |
+| QREG-03     | 88    | Complete |
 
 **Coverage:**
 
