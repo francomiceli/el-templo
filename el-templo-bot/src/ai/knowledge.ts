@@ -239,15 +239,14 @@ Las clases de ROM se dictan los sabados en las sedes que tienen horario sabatino
 
 const TRIAL_FLOW = `*Clase de prueba gratuita:*
 
-- La primera clase tiene un valor de $20,000 pero es 100% bonificada con el Boarding Pass.
-- El Boarding Pass ademas habilita descuentos exclusivos en la primera membresia (precios Zero).
+- La primera clase tiene un valor de $20,000 pero es 100% bonificada con el Boarding Pass (ver *Reglas Zero*).
 - Se coordina con un minimo de 24 horas de anticipacion para preparar la recepcion.
 
 *Pasos:*
 1. El usuario selecciona su sucursal de preferencia.
 2. Elige dia y horario dentro de los disponibles.
 3. Proporciona nombre y apellido.
-4. Administracion envia el Boarding Pass con los detalles de la sesion.
+4. Administracion envia el Boarding Pass (ver *Reglas Zero*) con los detalles de la sesion.
 5. Se requiere reconfirmacion antes de la clase (sin respuesta, el cupo se libera).
 
 *Que llevar:*
@@ -338,8 +337,8 @@ const POLICIES = `*Turnos fijos:*
 
 const SALES_TECHNIQUES = `*Tecnicas de venta:*
 
-- *Urgencia:* "Cupos limitados por grupo", "Beneficio unico del Boarding Pass" (solo una vez).
-- *Anclaje de precios:* Mostrar primero el precio regular tachado y despues el precio Zero/Boarding Pass (ej: ~$80,000~ -> *$65,000*).
+- *Urgencia:* "Cupos limitados por grupo", "Beneficio unico del Boarding Pass (ver *Reglas Zero*)" (solo una vez).
+- *Anclaje de precios:* Mostrar primero el precio regular tachado y despues el precio Zero/Boarding Pass (ver *Reglas Zero*) (ej: ~$80,000~ -> *$65,000*).
 - *Upselling:* Cuando preguntan por Flex, mencionar Foundation por el beneficio de congelar precio. Al renovar, destacar ahorro a largo plazo.
 - *Soft close:* "Con cual de estos planes querés avanzar?", "Querés que te ayude a elegir dia y horario?"
 - *Valor antes que precio:* Siempre explicar que incluye el plan y sus beneficios antes de dar el numero.
@@ -354,7 +353,7 @@ const OBJECTIONS_SALES = `*Manejo de objeciones comunes:*
 
 1. *"Es caro"*
    - Ancla contra el costo diario: un plan Flex son 8 clases, o sea ~$10,000 por clase guiada por profesores.
-   - Menciona el descuento del Boarding Pass (primera vez).
+   - Menciona el descuento del Boarding Pass (ver *Reglas Zero*).
    - Destaca Foundation para congelar precio frente a aumentos.
 
 2. *"No tengo tiempo"*
@@ -369,7 +368,7 @@ const OBJECTIONS_SALES = `*Manejo de objeciones comunes:*
 
 4. *"Quiero pensarlo"*
    - Responder con calidez y sin apuro: "Claro, sin apuro. Si querés, te cuento cual seria el proximo paso cuando estés lista/o."
-   - Mencionar el Boarding Pass como opcion suave: "Tene en cuenta que el Boarding Pass es de uso unico, asi que cuando te decidas lo aprovechas."
+   - Mencionar el Boarding Pass (ver *Reglas Zero*) como opcion suave: "Tene en cuenta que el Boarding Pass es de uso unico, asi que cuando te decidas lo aprovechas."
    - Ofrecer una clase de prueba gratuita para que viva la experiencia sin compromiso.
    - Solo mencionar cupos limitados si check_schedule confirmo baja disponibilidad real.
 
