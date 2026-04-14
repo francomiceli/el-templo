@@ -43,7 +43,12 @@ export const AVATAR_PROGRAM_MAP: Record<AvatarLetter, string> = {
  * Priority ordering: first match wins (checked top to bottom).
  */
 export function resolveAvatar(input: AvatarInput): AvatarResult {
-  const { gender, ageRange, trainingBackground, goal, painPoint } = input;
+  const { gender, ageRange, goal, painPoint } = input;
+  // el_templo members are calistenia practitioners for avatar purposes
+  const trainingBackground =
+    input.trainingBackground === "el_templo"
+      ? "calistenia"
+      : input.trainingBackground;
 
   let avatarType: AvatarLetter;
 

@@ -24,6 +24,7 @@ import type {
 interface CompleteBody {
   ageRange: AgeRange;
   trainingBackground: TrainingBackground;
+  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
   goal: GoalChoice;
   painPoint: PainPoint;
   trainingFrequency: TrainingFrequency;
@@ -58,7 +59,19 @@ const completeSchema = {
       },
       trainingBackground: {
         type: "string",
-        enum: ["nunca", "gym", "cardio", "yoga_pilates", "calistenia", "deje"],
+        enum: [
+          "el_templo",
+          "nunca",
+          "gym",
+          "cardio",
+          "yoga_pilates",
+          "calistenia",
+          "deje",
+        ],
+      },
+      level: {
+        type: "string",
+        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
       goal: {
         type: "string",
@@ -154,6 +167,7 @@ export const onboardingRoutes: FastifyPluginAsync = async (fastify) => {
           gender,
           ageRange: request.body.ageRange,
           trainingBackground: request.body.trainingBackground,
+          level: request.body.level,
           goal: request.body.goal,
           painPoint: request.body.painPoint,
           trainingFrequency: request.body.trainingFrequency,

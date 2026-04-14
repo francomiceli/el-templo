@@ -74,6 +74,7 @@ export const MOTIVATION_LABELS: Record<MotivationStyle, string> = {
 
 export type AgeRange = "18_28" | "29_40" | "41_plus";
 export type TrainingBackground =
+  | "el_templo"
   | "nunca"
   | "gym"
   | "cardio"
@@ -111,11 +112,14 @@ export type AvatarLetter =
   | "K";
 export type Gender = "male" | "female" | "other" | "unspecified";
 
+export type TemploLevel = "alfa" | "delta" | "sigma" | "omega" | "spartan";
+
 export interface CompleteOnboardingInputV2 {
   userId: number;
   gender: Gender;
   ageRange: AgeRange;
   trainingBackground: TrainingBackground;
+  level?: TemploLevel;
   goal: GoalChoice;
   painPoint: PainPoint;
   trainingFrequency: TrainingFrequency;

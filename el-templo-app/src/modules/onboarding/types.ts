@@ -139,7 +139,14 @@ export const SUMMARY_ROWS = [
 // =========================================================================
 
 export type AgeRange = '18_28' | '29_40' | '41_plus'
-export type TrainingBackground = 'nunca' | 'gym' | 'cardio' | 'yoga_pilates' | 'calistenia' | 'deje'
+export type TrainingBackground =
+  | 'el_templo'
+  | 'nunca'
+  | 'gym'
+  | 'cardio'
+  | 'yoga_pilates'
+  | 'calistenia'
+  | 'deje'
 export type GoalChoice =
   | 'habito'
   | 'fuerza_general'
@@ -187,6 +194,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
     key: 'trainingBackground',
     text: '¿Cómo venís entrenando?',
     options: [
+      { value: 'el_templo', label: 'Ya entreno en El Templo' },
       { value: 'nunca', label: 'Nunca entrené en serio' },
       { value: 'gym', label: 'Gym / pesas' },
       { value: 'cardio', label: 'Correr / nadar / bici' },
@@ -238,6 +246,21 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
 ]
 
+// Level selector question (conditional step 2.5 — shown only when trainingBackground === 'el_templo')
+export type TemploLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
+
+export const LEVEL_SELECTOR_QUESTION: QuizQuestionV2 = {
+  key: 'trainingBackground', // reuses key slot for component compatibility
+  text: '¿En qué nivel entrenás?',
+  options: [
+    { value: 'alfa', label: 'α Alfa' },
+    { value: 'delta', label: 'Δ Delta' },
+    { value: 'sigma', label: 'Σ Sigma' },
+    { value: 'omega', label: 'Ω Omega' },
+    { value: 'spartan', label: 'Ω Spartan' },
+  ],
+}
+
 // Q3 gender filtering constants
 export const Q3_UNIVERSAL_OPTIONS: string[] = ['habito', 'fuerza_general', 'comunidad']
 export const Q3_WOMEN_OPTIONS: string[] = ['piernas_gluteos', 'cuerpo_firme']
@@ -247,6 +270,7 @@ export const Q3_41PLUS_OPTION: string = 'longevidad'
 export interface OnboardingAnswersV2 {
   ageRange: AgeRange | null
   trainingBackground: TrainingBackground | null
+  level: TemploLevel | null
   goal: GoalChoice | null
   painPoint: PainPoint | null
   trainingFrequency: TrainingFrequency | null

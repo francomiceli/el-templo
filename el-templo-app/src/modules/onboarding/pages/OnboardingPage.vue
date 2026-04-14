@@ -6,12 +6,26 @@
 
         <div class="onboarding-page__content">
           <!-- Progress dots (visible only during questions, NOT on recommendation) -->
-          <OnboardingProgressDots v-if="step >= 1 && step <= 5" :current-step="step - 1" />
+          <OnboardingProgressDots
+            v-if="(step >= 1 && step <= 5) || showLevelStep"
+            :current-step="progressDotIndex"
+            :total-steps="progressDotTotal"
+          />
 
           <!-- Screen transitions -->
           <div class="onboarding-page__screen-container">
             <Transition :name="transitionName" mode="out-in">
               <OnboardingWelcome v-if="step === 0" :key="0" @start="onStart" />
+              <OnboardingQuestion
+                v-else-if="showLevelStep"
+                key="level-step"
+                :question="LEVEL_SELECTOR_QUESTION"
+                :question-index="1"
+                :selected-value="answers.level"
+                :show-back="true"
+                @select="onLevelSelect"
+                @back="onLevelBack"
+              />
               <OnboardingQuestion
                 v-else-if="step >= 1 && step <= 5"
                 :key="step"
@@ -52,11 +66,13 @@ import {
   Q3_MEN_OPTIONS,
   Q3_41PLUS_OPTION,
   PROGRAM_RECOMMENDATIONS,
+  LEVEL_SELECTOR_QUESTION,
 } from '../types'
 import type {
   OnboardingAnswersV2,
   AgeRange,
   TrainingBackground,
+  TemploLevel,
   GoalChoice,
   PainPoint,
   TrainingFrequency,
@@ -76,9 +92,11 @@ const { submitting, submitOnboardingV2, recordAnalytics } = useOnboardingApi()
 // =========================================================================
 const step = ref(0)
 const direction = ref<'forward' | 'backward'>('forward')
+const showLevelStep = ref(false)
 const answers = ref<OnboardingAnswersV2>({
   ageRange: null,
   trainingBackground: null,
+  level: null,
   goal: null,
   painPoint: null,
   trainingFrequency: null,
@@ -111,6 +129,15 @@ const currentAnswer = computed(() => {
   if (step.value < 1 || step.value > 5) return null
   const key = QUIZ_QUESTIONS_V2[step.value - 1].key
   return answers.value[key]
+})
+
+// When el_templo is selected, the quiz has 6 steps instead of 5
+const hasLevelPath = computed(() => answers.value.trainingBackground === 'el_templo')
+const progressDotTotal = computed(() => (hasLevelPath.value ? 6 : 5))
+const progressDotIndex = computed(() => {
+  if (showLevelStep.value) return 2 // level step sits at index 2 (after Q1=0, Q2=1)
+  if (hasLevelPath.value && step.value >= 3) return step.value // offset by 1 for Q3+
+  return step.value - 1
 })
 
 // Q3 gender filtering (per D-06, D-09)
@@ -168,6 +195,8 @@ function onSelect(value: string) {
       break
     case 'trainingBackground':
       answers.value.trainingBackground = value as TrainingBackground
+      // Clear level if switching away from el_templo
+      if (value !== 'el_templo') answers.value.level = null
       break
     case 'goal':
       answers.value.goal = value as GoalChoice
@@ -192,8 +221,11 @@ function onSelect(value: string) {
   direction.value = 'forward'
   setTimeout(() => {
     if (step.value === 5) {
-      // Last question — submit and go to recommendation
       onSubmit()
+    } else if (questionKey === 'trainingBackground' && value === 'el_templo') {
+      // Show level selector as step 2.5
+      showLevelStep.value = true
+      stepStartTime.value = Date.now()
     } else {
       step.value = step.value + 1
       stepStartTime.value = Date.now()
@@ -201,9 +233,40 @@ function onSelect(value: string) {
   }, 400)
 }
 
+function onLevelSelect(value: string) {
+  answers.value.level = value as TemploLevel
+  const durationMs = Date.now() - stepStartTime.value
+
+  recordAnalytics({
+    eventType: 'question_answered',
+    answerValue: `level:${value}`,
+    durationMs,
+  })
+
+  direction.value = 'forward'
+  setTimeout(() => {
+    showLevelStep.value = false
+    step.value = 3
+    stepStartTime.value = Date.now()
+  }, 400)
+}
+
+function onLevelBack() {
+  direction.value = 'backward'
+  showLevelStep.value = false
+  // Back to Q2 (trainingBackground)
+  stepStartTime.value = Date.now()
+}
+
 function onBack() {
   if (step.value <= 1) return
   direction.value = 'backward'
+  // If coming back to Q2 and they had picked el_templo, show level step first
+  if (step.value === 3 && answers.value.trainingBackground === 'el_templo') {
+    showLevelStep.value = true
+    stepStartTime.value = Date.now()
+    return
+  }
   step.value = step.value - 1
   stepStartTime.value = Date.now()
 }

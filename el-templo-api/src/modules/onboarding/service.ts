@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { memberProfiles, onboardingAnalytics } from "../../db/schema";
+import { users } from "../../db/schema/users";
 import type { AuraService } from "../aura/service";
 import type * as schema from "../../db/schema";
 import type {
@@ -113,6 +114,14 @@ export class OnboardingService {
       avatarType,
       onboardingCompletedAt: now,
     });
+
+    // Update user level if they selected one (el_templo training background)
+    if (input.level) {
+      await this.db
+        .update(users)
+        .set({ level: input.level })
+        .where(eq(users.id, input.userId));
+    }
 
     // Award 50 AURA (graceful degradation)
     let auraAwarded = 0;

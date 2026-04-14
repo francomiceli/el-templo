@@ -42,13 +42,15 @@ export function useOnboardingApi() {
     submitting.value = true
     submitError.value = null
     try {
-      const response = await api.post<CompleteOnboardingResponseV2>('/onboarding/complete', {
+      const body: Record<string, unknown> = {
         ageRange: answers.ageRange,
         trainingBackground: answers.trainingBackground,
         goal: answers.goal,
         painPoint: answers.painPoint,
         trainingFrequency: answers.trainingFrequency,
-      })
+      }
+      if (answers.level) body.level = answers.level
+      const response = await api.post<CompleteOnboardingResponseV2>('/onboarding/complete', body)
       return response.data
     } catch (err: unknown) {
       const message = extractError(err, 'Error al guardar tu perfil. Intenta de nuevo.')
