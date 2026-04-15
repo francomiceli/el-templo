@@ -25,7 +25,7 @@ useHead({
   <main class="privacy">
     <div class="privacy__container">
       <h1 class="privacy__title">Política de Privacidad</h1>
-      <p class="privacy__updated">Última actualización: 30 de marzo de 2026</p>
+      <p class="privacy__updated">Última actualización: 15 de abril de 2026</p>
 
       <section class="privacy__section">
         <h2>Quiénes somos</h2>
@@ -94,6 +94,41 @@ useHead({
           profesional de la salud antes de iniciar cualquier programa de
           ejercicio. El Templo no se responsabiliza por lesiones derivadas del
           uso de la app.
+        </p>
+      </section>
+
+      <section class="privacy__section">
+        <h2>Conservación de datos</h2>
+        <p>
+          Conservamos tus datos personales mientras tu cuenta esté activa. Los
+          registros de entrenamientos, asistencia y progreso se mantienen
+          durante la vigencia de tu cuenta para que puedas consultar tu
+          historial completo.
+        </p>
+        <p>
+          Si solicitás la eliminación de tu cuenta, tus datos serán eliminados
+          de forma permanente en un plazo máximo de 30 días a partir de la
+          solicitud.
+        </p>
+      </section>
+
+      <section class="privacy__section">
+        <h2>Eliminación de datos</h2>
+        <p>
+          Podés solicitar la eliminación de tu cuenta y todos tus datos
+          personales en cualquier momento enviando un email a
+          <a href="mailto:comunidad@eltemplo.org">comunidad@eltemplo.org</a>
+          desde la dirección con la que te registraste, con el asunto "Eliminar
+          mi cuenta".
+        </p>
+        <p>
+          Al procesar tu solicitud, eliminamos de forma permanente: datos
+          personales (nombre, email, teléfono, DNI), historial de reservas y
+          asistencia, sesiones de entrenamiento, progreso y preferencias.
+        </p>
+        <p>
+          Para más detalles, visitá nuestra página de
+          <a href="/eliminar-cuenta">eliminación de cuenta</a>.
         </p>
       </section>
 
