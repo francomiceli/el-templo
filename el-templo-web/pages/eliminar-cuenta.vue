@@ -27,14 +27,18 @@ useHead({
       <h1 class="delete-account__title">Eliminar Cuenta</h1>
 
       <section class="delete-account__section">
-        <h2>Cómo solicitar la eliminación de tu cuenta</h2>
+        <h2>Cómo eliminar tu cuenta</h2>
         <p>
-          Si querés eliminar tu cuenta de la app El Templo y todos los datos
-          asociados, enviá un email a
-          <a href="mailto:comunidad@eltemplo.org">comunidad@eltemplo.org</a>
-          desde la dirección de correo con la que te registraste.
+          Podés eliminar tu cuenta directamente desde la app, en la sección
+          <strong>Mi Perfil</strong>. La eliminación se procesa de forma
+          inmediata.
         </p>
-        <p>Incluí en el asunto: <strong>"Eliminar mi cuenta"</strong>.</p>
+        <p>
+          También podés solicitarlo enviando un email a
+          <a href="mailto:comunidad@eltemplo.org">comunidad@eltemplo.org</a>
+          desde la dirección de correo con la que te registraste, con el asunto
+          <strong>"Eliminar mi cuenta"</strong>.
+        </p>
       </section>
 
       <section class="delete-account__section">

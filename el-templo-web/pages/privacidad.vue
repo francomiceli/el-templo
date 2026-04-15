@@ -115,8 +115,9 @@ useHead({
       <section class="privacy__section">
         <h2>Eliminación de datos</h2>
         <p>
-          Podés solicitar la eliminación de tu cuenta y todos tus datos
-          personales en cualquier momento enviando un email a
+          Podés eliminar tu cuenta y todos tus datos personales directamente
+          desde la app, en la sección Mi Perfil. También podés solicitarlo
+          enviando un email a
           <a href="mailto:comunidad@eltemplo.org">comunidad@eltemplo.org</a>
           desde la dirección con la que te registraste, con el asunto "Eliminar
           mi cuenta".
