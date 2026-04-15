@@ -106,3 +106,16 @@ jobs:
           name: production-apk-${{ steps.version.outputs.name }}
           path: el-templo-app/src-capacitor/android/app/build/outputs/apk/production/release/app-production-release.apk
           retention-days: 90
+
+      - name: Decode Play Store service account
+        run: printf '%s' "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > $RUNNER_TEMP/play-service-account.json
+        working-directory: .
+
+      - name: Upload AAB to Google Play
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
+        with:
+          serviceAccountJson: ${{ runner.temp }}/play-service-account.json
+          packageName: com.eltemplo.app
+          releaseFiles: el-templo-app/src-capacitor/android/app/build/outputs/bundle/productionRelease/app-production-release.aab
+          track: production
+          status: completed
