@@ -22,8 +22,8 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 
 <!-- Phase 90 — align completion triggers with promptSection's "2-3 questions ideal" intent -->
 
-- [ ] **STAGE-01**: `hasStageSpecificContent` for PB1.E1A returns `true` only when more than a single keyword match is present (combination of signals, not one-keyword trigger); does NOT replace the heuristic with a model-driven detector (that's v5.4)
-- [ ] **STAGE-02**: PB1.E1A `completionCriteria` aligns with its promptSection's "idealmente 2-3 preguntas" intent — advancement to E2A requires more than a single-word answer like "primera vez"; may require a minimum user-turn count or multi-signal gate
+- [x] **STAGE-01**: `hasStageSpecificContent` for PB1.E1A returns `true` only when more than a single keyword match is present (combination of signals, not one-keyword trigger); does NOT replace the heuristic with a model-driven detector (that's v5.4)
+- [x] **STAGE-02**: PB1.E1A `completionCriteria` aligns with its promptSection's "idealmente 2-3 preguntas" intent — advancement to E2A requires more than a single-word answer like "primera vez"; may require a minimum user-turn count or multi-signal gate
 
 ### PB1 Objection Handling
 
@@ -59,8 +59,8 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 | KFIX-02     | 89    | Complete |
 | KFIX-03     | 89    | Complete |
 | KFIX-04     | 89    | Complete |
-| STAGE-01    | 90    | Pending  |
-| STAGE-02    | 90    | Pending  |
+| STAGE-01    | 90    | Complete |
+| STAGE-02    | 90    | Complete |
 | OBJN-01     | 91    | Pending  |
 | OBJN-02     | 91    | Pending  |
 | RLOK-01     | 92    | Pending  |

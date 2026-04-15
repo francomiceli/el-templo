@@ -24,7 +24,7 @@
 ### Phases
 
 - [x] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit (completed 2026-04-14)
-- [ ] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword
+- [x] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword (completed 2026-04-14)
 - [ ] **Phase 91: PB1 Objection Handling** — Mica asks WHY when leads reject during discovery; explicit instruction added to PB1
 - [ ] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice
 
@@ -62,7 +62,7 @@
 2. PB1.E1A advancement to E2A requires more than one signal (multi-keyword combination, or a minimum user-turn count, or a multi-signal gate — exact mechanism decided in plan).
 3. The change is scoped to the existing heuristic — no model-driven detector, no playbook restructure, no new stages.
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 - [ ] 90-01-PLAN.md — Category-diversity content gate (STAGE-01) + AND turn-count composition (STAGE-02) + escape hatch + completionCriteria rewrite, single atomic commit
 
@@ -100,7 +100,7 @@
 | Phase                                      | Milestone | Plans Complete | Status      | Completed |
 | ------------------------------------------ | --------- | -------------- | ----------- | --------- |
 | 89. Knowledge Fixes                        | 1/1       | Complete       | 2026-04-14  | -         |
-| 90. Stage Heuristic Tightening             | v5.3.2    | 0/TBD          | Not started | -         |
+| 90. Stage Heuristic Tightening             | 1/1       | Complete       | 2026-04-15  | -         |
 | 91. PB1 Objection Handling                 | v5.3.2    | 0/TBD          | Not started | -         |
 | 92. Regression Lock + Live Test Validation | v5.3.2    | 0/TBD          | Not started | -         |
 
