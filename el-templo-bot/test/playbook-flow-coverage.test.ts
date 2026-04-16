@@ -30,6 +30,7 @@ import { getSystemPrompt } from "../src/ai/system-prompt.js";
 import { advanceStageIfComplete } from "../src/playbooks/advance.js";
 import { PLAYBOOKS } from "../src/playbooks/definitions.js";
 import type { PlaybookId, StageId } from "../src/playbooks/types.js";
+import { computeAdvanceSignals } from "../src/webhook/handler.js";
 import { AVATAR_KEYWORDS } from "./fixtures/avatar-keywords.js";
 
 /**
@@ -128,6 +129,67 @@ describe("PB1 — discovery flow", () => {
     // so Mica handles the same turn gracefully.
     const e1a = stageContent("PB1", "PB1.E1A");
     expect(e1a).toContain("si el lead te hace una pregunta directa");
+  });
+
+  it("OBJN-01 (Phase 91): rejection arc — turn1 substantive → turn2 rejection (WHY rule path) → turn3 reconfirm (BACK-OFF path) → turn4 re-engage (whyAsked reset)", () => {
+    // This test exercises the SIGNAL + STAGE machinery end-to-end at the
+    // pure-function level (computeAdvanceSignals + advanceStageIfComplete).
+    // It does NOT exercise the prompt-rendering layer (system-prompt.ts) or
+    // the handler's Redis writes — Phase 92 (RLOK-01) owns those.
+    //
+    // The simulation tracks (priorWhyAsked, expectedRule) per turn, mirroring
+    // what handler.ts computes. If this test ever drifts from handler.ts
+    // logic, it is a bug — handler.ts is the source of truth for the arc.
+
+    // Turn 1: substantive discovery answer. No rejection. whyAsked stays false.
+    const t1 = computeAdvanceSignals(
+      "nunca entrené, vengo de cero",
+      "Buenísimo. Y contame, ¿qué te llevó a buscar calistenia?",
+      null,
+      "PB1.E1A",
+      1, // turn count = 1; STAGE-02 gate blocks E1A→E2A advance even though content is rich
+    );
+    expect(t1.softRejection).toBeFalsy();
+    expect(t1.discoveryAnswered).toBe(false); // Phase 90 STAGE-02 gate
+    // priorWhyAsked = false; rule selector → undefined (no injection).
+
+    // Turn 2: soft rejection. softRejection true, advance blocked.
+    const t2 = computeAdvanceSignals(
+      "no me interesa",
+      "ok",
+      null,
+      "PB1.E1A",
+      1, // turn count must NOT increment from rejection (Phase 90 invariant)
+    );
+    expect(t2.softRejection).toBe(true);
+    const t2Advance = advanceStageIfComplete(
+      { playbookId: "PB1", stageId: "PB1.E1A" },
+      t2,
+    );
+    expect(t2Advance).toBeNull(); // softRejection guard returns null first
+    // priorWhyAsked = false → rule selector → "why".
+    // After this turn: newWhyAsked = true (handler persists).
+
+    // Turn 3: reconfirmed rejection. The handler's rule selector reads
+    // priorWhyAsked from Redis (Phase 92 will exercise that integration);
+    // here we just verify the regex contract for the inbound text.
+    const t3 = computeAdvanceSignals("no, en serio", "ok", null, "PB1.E1A", 1);
+    // "no, en serio" alone is NOT on the MUST-match list — verify.
+    // The handler-level rule selector flips to "backoff" because
+    // priorWhyAsked === true (from Turn 2), even though THIS turn's
+    // softRejection signal is false. That's a handler-level concern.
+    expect(t3.softRejection).toBeFalsy();
+
+    // Turn 4: substantive re-engagement. Resets the arc.
+    const t4 = computeAdvanceSignals(
+      "che, contame más",
+      "Dale, te cuento.",
+      null,
+      "PB1.E1A",
+      2, // turn count resumes from where it left off (Phase 90 invariant)
+    );
+    expect(t4.softRejection).toBeFalsy();
+    // priorWhyAsked from handler-side resets to false on this non-rejection turn.
   });
 });
 

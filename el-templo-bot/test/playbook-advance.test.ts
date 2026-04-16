@@ -808,3 +808,111 @@ describe("hasStageSpecificContent + discoveryAnswered — stage gate (P0-3)", ()
     ).toBe(true);
   });
 });
+
+// ─── OBJN-01 (v5.3.2 Phase 91) — softRejection signal + advance guard ────
+
+describe("computeAdvanceSignals — softRejection (OBJN-01, v5.3.2 Phase 91)", () => {
+  // Positive matches — every phrase MUST trigger softRejection.
+  // Includes the 4 live-test variants (no me interesa / no creo / no voy a
+  // hacerlo / me parece que no) per CONTEXT.md.
+  const REJECTIONS = [
+    "no me interesa",
+    "no es para mí",
+    "no es para mi",
+    "no gracias",
+    "no, gracias",
+    "mejor no",
+    "no voy a hacerlo",
+    "no voy a inscribirme",
+    "no voy a anotarme",
+    "no creo",
+    "creo que no",
+    "me parece que no", // live-test variant — MUST be present
+    "paso", // standalone, not "paso por" or "paso a paso"
+    // Composite-phrase positive (orchestrator deviation note 2): the
+    // multi-turn arc test implies this works at the substring level via
+    // `\bno me interesa\b`, but a dedicated assertion is cheap insurance.
+    "no, en serio no me interesa",
+  ];
+  for (const phrase of REJECTIONS) {
+    it(`detects rejection: "${phrase}"`, () => {
+      const s = computeAdvanceSignals(phrase, "ok", null, "PB1.E1A", 1);
+      expect(s.softRejection).toBe(true);
+    });
+  }
+
+  // Negative matches — hesitation, scheduling, retention vocabulary.
+  // These MUST NOT trigger softRejection (they have other handlers).
+  const NON_REJECTIONS = [
+    "no sé",
+    "no se",
+    "tal vez",
+    "capaz",
+    "lo pienso",
+    "lo voy a pensar",
+    "dejame pensarlo",
+    "no creo que pueda hoy",
+    "no puedo el martes",
+    "no puedo hoy",
+    "paso por la sede mañana",
+    "paso a paso lo voy logrando",
+  ];
+  for (const phrase of NON_REJECTIONS) {
+    it(`does NOT detect rejection: "${phrase}"`, () => {
+      const s = computeAdvanceSignals(phrase, "ok", null, "PB1.E1A", 1);
+      expect(s.softRejection).toBeFalsy();
+    });
+  }
+
+  // Stage-scope: softRejection signal field is always populated by the
+  // detector; the STAGE-BOUNDARY check (5-stage allowlist) lives in
+  // advanceStageIfComplete. Verify both halves of the contract.
+  it("advanceStageIfComplete: softRejection in PB1.E1A returns null (no advance)", () => {
+    const result = advanceStageIfComplete(
+      { playbookId: "PB1", stageId: "PB1.E1A" },
+      { softRejection: true, discoveryAnswered: true },
+    );
+    expect(result).toBeNull();
+  });
+
+  it("advanceStageIfComplete: softRejection in PB1.E2A returns null (no advance)", () => {
+    expect(
+      advanceStageIfComplete(
+        { playbookId: "PB1", stageId: "PB1.E2A" },
+        { softRejection: true, discoveryAnswered: true },
+      ),
+    ).toBeNull();
+  });
+
+  it("advanceStageIfComplete: softRejection in PB1.E3 returns null (no advance)", () => {
+    expect(
+      advanceStageIfComplete(
+        { playbookId: "PB1", stageId: "PB1.E3" },
+        { softRejection: true, discoveryAnswered: true },
+      ),
+    ).toBeNull();
+  });
+
+  it("advanceStageIfComplete: softRejection in PB1.E4 IGNORED (REGLA FUERTE owns rules — SC#3 non-regression)", () => {
+    // E4 must NOT be in the softRejection allowlist; if it were, REGLA
+    // FUERTE could be silently skipped via a fake rejection turn. Locks
+    // SC#3. E4 advances on userAccepted; verify it STILL does even when
+    // softRejection is also true — proves softRejection is INERT at E4.
+    const result = advanceStageIfComplete(
+      { playbookId: "PB1", stageId: "PB1.E4" },
+      { softRejection: true, userAccepted: true },
+    );
+    expect(result).toBe("PB1.E5");
+  });
+
+  it("advanceStageIfComplete: softRejection in PB2.E1A IGNORED (PB2 out of scope)", () => {
+    // PB2 has its own objection branches (PB2.E2). Phase 91 must NOT leak
+    // into PB2 — softRejection signal must be ignored by PB2 transitions.
+    expect(
+      advanceStageIfComplete(
+        { playbookId: "PB2", stageId: "PB2.E1A" },
+        { softRejection: true, discoveryAnswered: true },
+      ),
+    ).toBe("PB2.E2"); // discoveryAnswered carries it; softRejection inert in PB2.
+  });
+});

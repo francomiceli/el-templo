@@ -11,6 +11,7 @@
  * tests stay in sync with `definitions.ts` — never hardcoded inline.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 
 import { getSystemPrompt } from "../src/ai/system-prompt.js";
@@ -260,5 +261,65 @@ describe("getSystemPrompt — playbook injection (PBENG-05)", () => {
       const out = getSystemPrompt({});
       expect(out).toContain("NO uso bullets");
     });
+  });
+});
+
+// ─── OBJN-02 / SC#3 (v5.3.2 Phase 91) — soft-rejection rule constraints ───
+//
+// Locks the WHY + BACK-OFF rule wording so any future drift surfaces
+// immediately. Phase 92 (RLOK-01) will add the multi-turn integration
+// regression net; Phase 91 ships only the single-render constraint locks.
+
+describe("OBJN-02 / SC#3: soft-rejection rules respect REGLA FUERTE (v5.3.2 Phase 91)", () => {
+  it("WHY rule explicitly forbids mentioning planes/precios", () => {
+    const rendered = getSystemPrompt({
+      clientState: "lead",
+      activePlaybook: "PB1",
+      currentStage: "PB1.E1A",
+      softRejectionRule: "why",
+    });
+    expect(rendered).toContain("REGLA — el lead expresó rechazo");
+    // Wording-constraint locks (PLAN.md Task 2 critical list):
+    expect(rendered).toMatch(/NO menciones precios ni planes/);
+    expect(rendered).toMatch(/NO escales a humano/);
+    expect(rendered).toMatch(/NO te despidas en este turno/);
+    // Live-test rejection phrasings mirrored in the rule body:
+    expect(rendered).toContain("no le interesa, no cree, o no va a hacerlo");
+  });
+
+  it("BACK-OFF rule explicitly forbids escalation and follow-up questions", () => {
+    const rendered = getSystemPrompt({
+      clientState: "lead",
+      activePlaybook: "PB1",
+      currentStage: "PB1.E1A",
+      softRejectionRule: "backoff",
+    });
+    expect(rendered).toContain("REGLA — back-off después de la WHY");
+    expect(rendered).toMatch(/NO hagas más preguntas/);
+    expect(rendered).toMatch(/NO escales a humano/);
+    expect(rendered).toMatch(/NO ofrezcas descuentos ni alternativas/);
+  });
+
+  it("Baseline render (no softRejectionRule) does NOT contain the WHY rule literal", () => {
+    const rendered = getSystemPrompt({
+      clientState: "lead",
+      activePlaybook: "PB1",
+      currentStage: "PB1.E1A",
+    });
+    expect(rendered).not.toContain("REGLA — el lead expresó rechazo");
+    expect(rendered).not.toContain("REGLA — back-off después de la WHY");
+  });
+
+  it("Snapshot fixture invariant: pb1-e1a-lead-rendered.snap.txt does NOT contain the rule (baseline render unchanged)", () => {
+    // OBSERVABLE proof that KGATE-05 +625 char headroom is preserved —
+    // if the conditional injection ever leaks into the baseline path, this
+    // test fails immediately. Do NOT regenerate the fixture to make this
+    // pass — investigate the prompt-assembly path instead.
+    const fixture = readFileSync(
+      new URL("./fixtures/pb1-e1a-lead-rendered.snap.txt", import.meta.url),
+      "utf8",
+    );
+    expect(fixture).not.toContain("REGLA — el lead expresó rechazo");
+    expect(fixture).not.toContain("REGLA — back-off después de la WHY");
   });
 });
