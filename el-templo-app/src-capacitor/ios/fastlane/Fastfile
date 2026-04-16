@@ -34,6 +34,10 @@ platform :ios do
       sleep(30)
     end
 
+    # Wait for build to propagate from TestFlight to App Store Connect submission API
+    UI.message("Waiting 60s for build to become available for App Store submission...")
+    sleep(60)
+
     deliver(
       api_key: api_key,
       app_identifier: "com.eltemplo.app",
