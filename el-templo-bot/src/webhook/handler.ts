@@ -429,6 +429,54 @@ async function processWithAiInner(
   // potential setPlaybookState writes below never clobber it with undefined.
   const priorAvatar: AvatarProfile | null = priorPbState?.avatar ?? null;
 
+  // ── OBJN-01 (v5.3.2 Phase 91): soft-rejection arc state machine ────────
+  //
+  // Computed BEFORE the AI call so the rule selector can flow into
+  // getSystemPrompt() — Mica's reply to a rejection turn must carry the
+  // WHY/BACK-OFF framing rule (otherwise the model improvises "tomá tu
+  // tiempo, saludos" and closes the conversation).
+  //
+  // In-scope set MUST mirror the allowlist in advance.ts (E1A/E1B/E2A/E2B/E3).
+  // The signal is INERT outside that set — E4 honors REGLA FUERTE, E5–E7
+  // are post-booking and "rejection" means something else.
+  const inScopeForRejectionPre =
+    resolved.stageId === "PB1.E1A" ||
+    resolved.stageId === "PB1.E1B" ||
+    resolved.stageId === "PB1.E2A" ||
+    resolved.stageId === "PB1.E2B" ||
+    resolved.stageId === "PB1.E3";
+  const rejectionHotPre =
+    inScopeForRejectionPre && detectSoftRejection(inboundText);
+  const priorWhyAskedPre = priorPbState?.whyAsked ?? false;
+  const softRejectionRule: "why" | "backoff" | undefined = rejectionHotPre
+    ? priorWhyAskedPre
+      ? "backoff"
+      : "why"
+    : undefined;
+  // newWhyAsked: persist `true` while rejection arc is hot, reset to `false`
+  // on any non-rejection turn (re-engagement clears the arc — a future
+  // rejection re-opens with a fresh WHY question per CONTEXT.md semantics).
+  const newWhyAsked = rejectionHotPre;
+
+  // Telemetry — log.info (NOT log.warn). softRejection is expected behavior
+  // we want to track statistically (rejection rates per stage, WHY→re-engage
+  // conversion). Contrast: Phase 90's "discovery escape fired" uses warn
+  // because that hatch is an anomalous escape from a stuck stage.
+  // Logged BEFORE the pre-AI setPlaybookState write so the event is
+  // observable even if the Redis write fails.
+  if (rejectionHotPre) {
+    log.info(
+      {
+        event: "soft_rejection_detected",
+        stageId: resolved.stageId,
+        phone,
+        whyAsked: priorWhyAskedPre, // pre-mutation value per CONTEXT.md
+        inboundExcerpt: inboundText.slice(0, 120),
+      },
+      "soft_rejection_detected",
+    );
+  }
+
   if (resolved.playbookId !== null && resolved.stageId !== null) {
     await setPlaybookState(phone, {
       activePlaybook: resolved.playbookId,
@@ -437,6 +485,9 @@ async function processWithAiInner(
       // Preserve discoveryTurnCount across the pre-AI persistence write
       // so STAGE-02's counter survives a crash-between-writes.
       discoveryTurnCount: priorPbState?.discoveryTurnCount,
+      // OBJN-01 (Phase 91): persist the arc flag pre-AI so it survives a
+      // crash between AI call and post-AI write.
+      whyAsked: newWhyAsked,
       updatedAt: Date.now(),
     });
   }
@@ -456,6 +507,9 @@ async function processWithAiInner(
     // Phase 83-02: let Mica know the lead's avatar (if previously
     // detected) so she does NOT re-run PB1 discovery questions.
     currentAvatar: priorAvatar,
+    // OBJN-01 (v5.3.2 Phase 91): conditional WHY/BACK-OFF framing rule.
+    // No-op until Task 2 wires the actual injection inside getSystemPrompt.
+    softRejectionRule,
   });
 
   // Diagnostic: confirm playbook bytes actually land in the rendered prompt.
@@ -630,6 +684,10 @@ async function processWithAiInner(
       avatar: detectedAvatar,
       // Preserve discoveryTurnCount through avatar-only writes.
       discoveryTurnCount: priorPbState?.discoveryTurnCount,
+      // OBJN-01 (Phase 91): preserve the arc flag — use the pre-AI value
+      // since rejection state can't change between pre-AI and post-AI
+      // within a single inbound turn.
+      whyAsked: newWhyAsked,
       updatedAt: Date.now(),
     });
     log.info(
@@ -661,8 +719,16 @@ async function processWithAiInner(
     const inDiscoveryE1 =
       resolved.stageId === "PB1.E1A" || resolved.stageId === "PB1.E1B";
     const priorTurnCount = priorPbState?.discoveryTurnCount ?? 0;
+    // OBJN-01 (Phase 91): rejection turns are NOT discovery answers — gating
+    // the increment on `!rejectionHotPre` preserves Phase 90 STAGE-02
+    // semantics. Worked example from CONTEXT.md: lead replies "primera vez"
+    // (turn 1, count=1), then "no me interesa" (turn 2, count STAYS 1),
+    // then "no, en serio" (turn 3, count STAYS 1). Counting a rejection
+    // would let it satisfy STAGE-02's turn-count gate, defeating Phase 90.
     const newTurnCount =
-      inDiscoveryE1 && isSubstantiveTurn ? priorTurnCount + 1 : priorTurnCount;
+      inDiscoveryE1 && isSubstantiveTurn && !rejectionHotPre
+        ? priorTurnCount + 1
+        : priorTurnCount;
 
     const signals = computeAdvanceSignals(
       inboundText,
@@ -719,6 +785,9 @@ async function processWithAiInner(
         // Preserve the turn count (do NOT reset on advance) — Phase 92 may
         // want to assert on it in escape-fired paths.
         discoveryTurnCount: newTurnCount,
+        // OBJN-01 (Phase 91): same pre-AI value — rejection state can't
+        // change between pre-AI and post-AI within a single inbound turn.
+        whyAsked: newWhyAsked,
         updatedAt: Date.now(),
       });
       log.info(
@@ -731,14 +800,20 @@ async function processWithAiInner(
         },
         "Playbook stage advanced",
       );
-    } else if (newTurnCount !== priorTurnCount) {
-      // No stage advance, but the turn counter changed — persist it so the
-      // next turn sees the up-to-date count for the AND gate / escape hatch.
+    } else if (
+      newTurnCount !== priorTurnCount ||
+      newWhyAsked !== priorWhyAskedPre
+    ) {
+      // No stage advance, but the turn counter OR the rejection-arc flag
+      // changed — persist so the next turn sees the up-to-date state for
+      // the AND gate / escape hatch / rejection arc rule selector.
       await setPlaybookState(phone, {
         activePlaybook: resolved.playbookId,
         currentStage: resolved.stageId,
         avatar: detectedAvatar ?? priorAvatar ?? undefined,
         discoveryTurnCount: newTurnCount,
+        // OBJN-01 (Phase 91): persist arc flag through turn-count-only updates.
+        whyAsked: newWhyAsked,
         updatedAt: Date.now(),
       });
     }
@@ -909,6 +984,93 @@ export function hasMinimumContent(inbound: string): boolean {
 }
 
 /**
+ * v5.3.2 Phase 91 (OBJN-01): soft-rejection detector.
+ *
+ * Single source of truth for the rejection regex — called both pre-AI
+ * (handler computes `softRejectionRule` to pass to getSystemPrompt) and
+ * inside `computeAdvanceSignals` (signal flows into AdvanceSignals).
+ *
+ * Style matches the existing `(^|[^a-záéíóúñ])(...)([^a-záéíóúñ]|$)`
+ * non-word-boundary convention from `E1A_E1B_CATEGORIES` because JS `\b`
+ * is ASCII-only — `\bno me interesa\b` would fail on accented neighbors.
+ *
+ * MUST match (per CONTEXT.md, includes the live-test 2026-04-16 variants):
+ *   - "no me interesa"
+ *   - "no es para mí" / "no es para mi"
+ *   - "no gracias" / "no, gracias"
+ *   - "paso" (standalone — excludes "paso por", "paso a paso")
+ *   - "mejor no"
+ *   - "no voy a" (covers no voy a hacer/ir/inscribirme/anotarme)
+ *   - "no creo" (anchored — standalone utterance only)
+ *   - "creo que no" (anchored end-of-utterance)
+ *   - "me parece que no" (live-test variant)
+ *
+ * MUST NOT match (hesitation / scheduling — handled elsewhere):
+ *   - "no sé" / "no se", "tal vez", "capaz"
+ *   - "lo pienso" / "lo voy a pensar" / "dejame pensarlo" (PB2 retention)
+ *   - "no creo que pueda hoy", "no puedo el martes" (logistics)
+ */
+export function detectSoftRejection(inbound: string): boolean {
+  const lower = inbound.toLowerCase().trim();
+  if (lower.length === 0) return false;
+
+  // 1. "no me interesa" — substring match with non-word-boundary class.
+  //    Also covers "creo que no me interesa" etc.
+  if (/(^|[^a-záéíóúñ])(no me interesa)([^a-záéíóúñ]|$)/i.test(lower)) {
+    return true;
+  }
+
+  // 2. "no es para mí" / "no es para mi"
+  if (/(^|[^a-záéíóúñ])(no es para m[íi])([^a-záéíóúñ]|$)/i.test(lower)) {
+    return true;
+  }
+
+  // 3. "no gracias" / "no, gracias"
+  if (/(^|[^a-záéíóúñ])(no,?\s+gracias)([^a-záéíóúñ]|$)/i.test(lower)) {
+    return true;
+  }
+
+  // 4. "mejor no" — substring match
+  if (/(^|[^a-záéíóúñ])(mejor no)([^a-záéíóúñ]|$)/i.test(lower)) {
+    return true;
+  }
+
+  // 5. "no voy a [hacer|ir|inscribirme|anotarme|...]" — broad rejection of
+  //    intent. Excludes "no voy a poder hoy" (logistics) by requiring the
+  //    next word to NOT be a logistics verb (poder/llegar) — keep narrow.
+  if (/(^|[^a-záéíóúñ])(no voy a)\s+(?!poder|llegar)/i.test(lower)) {
+    return true;
+  }
+
+  // 6. "me parece que no" (live-test variant) — must be present.
+  if (/(^|[^a-záéíóúñ])(me parece que no)([^a-záéíóúñ]|$)/i.test(lower)) {
+    return true;
+  }
+
+  // 7. "no creo" — STANDALONE only ("no creo." / "no creo"). Anchored so
+  //    "no creo que pueda hoy" (logistics) and "no creo que me interese"
+  //    (the no-me-interesa branch handles its variants) don't double-trip.
+  if (/^\s*no creo\s*\.?\s*$/i.test(lower)) {
+    return true;
+  }
+
+  // 8. "creo que no" — STANDALONE end-of-utterance ("creo que no." or just
+  //    "creo que no"). Anchored to avoid "creo que no me interesa" matching
+  //    twice (the no-me-interesa branch already owns that).
+  if (/^\s*creo que no\s*\.?\s*$/i.test(lower)) {
+    return true;
+  }
+
+  // 9. "paso" — STANDALONE single word ("paso" / "paso." / "paso!"), excludes
+  //    "paso por la sede mañana" and "paso a paso lo voy logrando".
+  if (/^\s*paso\s*[\.\!¡]*\s*$/i.test(lower)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Compute coarse advancement signals from this turn's inbound + outbound text.
  *
  * v5.3 uses simple keyword/regex matching — phase 83 may upgrade to a
@@ -1068,6 +1230,12 @@ export function computeAdvanceSignals(
       inbound,
     );
 
+  // [OBJN-01, v5.3.2 Phase 91] Soft-rejection signal — single source of
+  // truth lives in `detectSoftRejection` so the handler's pre-AI rule
+  // selector and this signal use the same regex. Stage-scope (5-stage
+  // discovery allowlist) is enforced by `advanceStageIfComplete`, not here.
+  const softRejection = detectSoftRejection(inboundText);
+
   // Phase 83-03: direct logistical question before discovery is complete.
   // Regex matches Spanish phrasings for "¿cuánto sale?", "¿qué horarios?",
   // "¿dónde está?", "¿dónde queda?", "precio", "plan". Intentionally narrow.
@@ -1099,6 +1267,7 @@ export function computeAdvanceSignals(
     detectedAvatar,
     directQuestionAsked,
     userInsistedDirect,
+    softRejection,
   };
 }
 

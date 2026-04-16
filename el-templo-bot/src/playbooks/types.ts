@@ -93,6 +93,19 @@ export interface PlaybookSessionState {
    * Optional + backward-compatible: absent on pre-90 entries, treated as 0.
    */
   discoveryTurnCount?: number;
+  /**
+   * v5.3.2 Phase 91 (OBJN-01): soft-rejection arc tracking flag.
+   *
+   * True when Mica's PREVIOUS turn asked the soft-rejection WHY question.
+   * Used by the back-off rule selector — turn N=hot+!whyAsked → WHY rule +
+   * persist whyAsked=true; turn N+1=hot+whyAsked → BACK-OFF rule. Reset on
+   * any non-rejection turn (re-engagement clears the arc so a future
+   * rejection re-opens with a fresh WHY).
+   *
+   * Optional + backward-compatible: absent on pre-91 entries, treated as
+   * `false` (mirrors `discoveryTurnCount` precedent from Phase 90).
+   */
+  whyAsked?: boolean;
   updatedAt: number;
 }
 

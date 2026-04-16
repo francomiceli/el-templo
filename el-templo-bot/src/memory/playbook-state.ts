@@ -29,6 +29,10 @@
  * Same backward-compat story for the `discoveryTurnCount` field added in
  * v5.3.2 Phase 90 (STAGE-02 AND gate + infinite-loop escape hatch). Pre-90
  * entries deserialize with the field absent; the handler treats absent as 0.
+ *
+ * Same backward-compat story for the `whyAsked` field added in v5.3.2
+ * Phase 91 (OBJN-01 soft-rejection arc tracking). Pre-91 entries deserialize
+ * with the field absent; the handler treats absent as `false`.
  */
 
 import pino from "pino";

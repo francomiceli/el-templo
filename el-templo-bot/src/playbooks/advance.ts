@@ -71,6 +71,25 @@ export interface AdvanceSignals {
    * profiling that turn (DISC-07).
    */
   userInsistedDirect?: boolean;
+
+  /**
+   * v5.3.2 Phase 91 (OBJN-01): soft rejection during discovery.
+   *
+   * True when the user emitted an explicit soft rejection (no me interesa /
+   * no creo / no voy a / me parece que no — see `computeAdvanceSignals` in
+   * `webhook/handler.ts` for the full regex). Active ONLY for stageId ∈
+   * {PB1.E1A, E1B, E2A, E2B, E3}; never E4–E7 (REGLA FUERTE owns its own
+   * rules; PB1.E5–E7 are post-booking and "rejection" means something else).
+   *
+   * When true, `advanceStageIfComplete` MUST return `null` for in-scope PB1
+   * stages — the rejection turn is not a discovery answer and the engine
+   * must hold the stage so Mica's next reply can ask the WHY question or
+   * back off (the prompt-side framing rule lives in `system-prompt.ts`).
+   *
+   * Inert outside the in-scope set: PB2–PB5 ignore this signal entirely
+   * (PB2.E2 already owns its own four objection branches).
+   */
+  softRejection?: boolean;
 }
 
 /**
@@ -87,6 +106,22 @@ export function advanceStageIfComplete(
 
   // ── PB1: Lead Nuevo ─────────────────────────────────────────────────────
   if (playbookId === "PB1") {
+    // OBJN-01 (v5.3.2 Phase 91): soft rejection during discovery never
+    // advances. In-scope: E1A/E1B/E2A/E2B/E3 (the discovery block). E4–E7
+    // ignore softRejection — REGLA FUERTE owns its own rules at E4 and
+    // post-booking stages have different semantics. Explicit allowlist
+    // (NOT a negative listing of E4–E7) so adding a future stage is
+    // a deliberate inclusion, not an accidental one.
+    const inScopeForRejection =
+      stageId === "PB1.E1A" ||
+      stageId === "PB1.E1B" ||
+      stageId === "PB1.E2A" ||
+      stageId === "PB1.E2B" ||
+      stageId === "PB1.E3";
+    if (signals.softRejection === true && inScopeForRejection) {
+      return null;
+    }
+
     // Guard: the user insisted on direct answers OR asked a direct question
     // this turn — hold the discovery stage so Mica re-anchors on the next
     // inbound message. This reinforces the defer rule from PB1 promptSections

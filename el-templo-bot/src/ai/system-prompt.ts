@@ -32,6 +32,21 @@ interface SystemPromptOptions {
    * playbook is PB1, Mica is told to detect and emit a `<profile>` tag.
    */
   currentAvatar?: AvatarProfile | null;
+  /**
+   * v5.3.2 Phase 91 (OBJN-01): soft-rejection conditional framing rule.
+   * - "why":     inject SOFT_REJECTION_WHY_RULE (turn N — first rejection)
+   * - "backoff": inject SOFT_REJECTION_BACKOFF_RULE (turn N+1 — re-confirmed)
+   * - undefined: no injection (baseline behavior — preserves snapshot)
+   *
+   * Set by webhook/handler.ts based on (softRejection signal, priorWhyAsked).
+   * Conditional injection only — NEVER set this field in tests of the
+   * baseline render path or you will break the snapshot byte-equality.
+   *
+   * NOTE (Task 1 transitional state, strategy b): the option is accepted
+   * here so handler.ts can pass it without typecheck failures. The actual
+   * rule injection is wired in Task 2 — until then this field is a no-op.
+   */
+  softRejectionRule?: "why" | "backoff";
 }
 
 /**
