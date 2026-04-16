@@ -15,6 +15,7 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 import "./instrument";
 import { buildApp } from "./app";
 import { startAutoApproveJob } from "./jobs/auto-approve";
+import { startAutoResumePausesJob } from "./jobs/auto-resume-pauses";
 import { startMarkNoShowsJob } from "./jobs/mark-no-shows";
 import { startNotificationJobs } from "./jobs/notification-cron";
 
@@ -32,6 +33,7 @@ async function start() {
 
     // Start cron jobs after server is ready
     startAutoApproveJob(app.db);
+    startAutoResumePausesJob(app.db);
     startMarkNoShowsJob(app.db);
     startNotificationJobs(app.db);
   } catch (err: unknown) {

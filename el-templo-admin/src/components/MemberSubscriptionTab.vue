@@ -278,6 +278,47 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Pause Dialog -->
+    <q-dialog v-model="showPauseDialog">
+      <q-card style="width: 450px; max-width: 95vw">
+        <q-card-section>
+          <div class="text-h6">Pausar Suscripcion</div>
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-body2 q-mb-md">
+            El tiempo pausado se extendera en la fecha de vencimiento cuando se reanude.
+          </div>
+          <q-input
+            v-model="pauseEndDateInput"
+            label="Fecha de reanudacion (opcional)"
+            type="date"
+            dense
+            outlined
+            :min="pauseMinDate"
+            clearable
+          />
+          <div class="text-caption text-grey-7 q-mt-xs">
+            {{
+              pauseEndDateInput
+                ? `Se reanudara automaticamente el ${formatDate(pauseEndDateInput)}.`
+                : 'Si no eliges fecha, la suscripcion queda pausada hasta que la reanudes manualmente.'
+            }}
+          </div>
+        </q-card-section>
+        <q-card-actions align="right" class="q-pa-md">
+          <q-btn flat label="Cancelar" color="grey" @click="showPauseDialog = false" />
+          <q-btn
+            color="warning"
+            label="Pausar"
+            icon="pause"
+            :loading="actionLoading"
+            @click="executePause"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </div>
 </template>
 
@@ -566,28 +607,39 @@ async function executeRenewal() {
   }
 }
 
+const showPauseDialog = ref(false);
+const pauseEndDateInput = ref<string | null>(null);
+const pauseMinDate = computed(() => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+});
+
 function confirmPause() {
-  $q.dialog({
-    title: 'Pausar suscripcion',
-    message:
-      'Pausar la suscripcion? El tiempo pausado se extendera en la fecha de vencimiento cuando se reanude.',
-    cancel: { flat: true, label: 'No' },
-    ok: { color: 'warning', label: 'Pausar' },
-  }).onOk(async () => {
-    actionLoading.value = true;
-    try {
-      await subsApi.pauseSubscription(props.userId);
-      $q.notify({ type: 'positive', message: 'Suscripcion pausada' });
-      emit('subscription-changed');
-      refreshAll();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error pausing subscription', { error: message });
-      $q.notify({ type: 'negative', message: 'Error pausando suscripcion' });
-    } finally {
-      actionLoading.value = false;
-    }
-  });
+  pauseEndDateInput.value = null;
+  showPauseDialog.value = true;
+}
+
+async function executePause() {
+  actionLoading.value = true;
+  try {
+    await subsApi.pauseSubscription(props.userId, pauseEndDateInput.value || undefined);
+    $q.notify({
+      type: 'positive',
+      message: pauseEndDateInput.value
+        ? 'Suscripcion pausada (reanuda automatica programada)'
+        : 'Suscripcion pausada',
+    });
+    emit('subscription-changed');
+    refreshAll();
+    showPauseDialog.value = false;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error pausing subscription', { error: message });
+    $q.notify({ type: 'negative', message: 'Error pausando suscripcion' });
+  } finally {
+    actionLoading.value = false;
+  }
 }
 
 function confirmResume() {

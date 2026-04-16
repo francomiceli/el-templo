@@ -287,13 +287,17 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // POST /members/:userId/subscription/pause — Pause subscription
-  fastify.post<{ Params: { userId: number } }>(
+  fastify.post<{
+    Params: { userId: number };
+    Body: { pauseEndDate?: string };
+  }>(
     "/members/:userId/subscription/pause",
     { schema: pauseSubscriptionSchema },
     async (request, reply) => {
       try {
         const sub = await subscriptionService.pauseSubscription(
           request.params.userId,
+          request.body?.pauseEndDate,
         );
         return sub;
       } catch (err: unknown) {

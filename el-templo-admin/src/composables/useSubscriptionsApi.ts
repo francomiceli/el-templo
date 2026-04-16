@@ -193,13 +193,16 @@ export function useSubscriptionsApi() {
     }
   }
 
-  async function pauseSubscription(userId: number): Promise<SubscriptionDetail> {
+  async function pauseSubscription(
+    userId: number,
+    pauseEndDate?: string
+  ): Promise<SubscriptionDetail> {
     loading.value = true;
     error.value = null;
     try {
       const { data } = await api.post<SubscriptionDetail>(
         `/admin/subscriptions/members/${userId}/subscription/pause`,
-        {}
+        pauseEndDate ? { pauseEndDate } : {}
       );
       return data;
     } catch (err: unknown) {

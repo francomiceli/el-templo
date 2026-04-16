@@ -62,6 +62,7 @@ export const subscriptions = mysqlTable(
     priceOverrideAmount: int("price_override_amount"),
     priceOverrideReason: text("price_override_reason"),
     pausedAt: timestamp("paused_at"),
+    pauseEndDate: date("pause_end_date", { mode: "string" }),
     resumedAt: timestamp("resumed_at"),
     cancelledAt: timestamp("cancelled_at"),
     notes: text("notes"),

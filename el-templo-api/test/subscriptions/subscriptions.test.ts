@@ -571,6 +571,110 @@ describe("Subscriptions API", () => {
       expect(body.pausedAt).toBeTruthy();
     });
 
+    it("POST pause with pauseEndDate stores value and auto-resume brings it back active", async () => {
+      const plan = await createPlan({ durationDays: 30 });
+      const member = await createMember();
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+
+      const tomorrow = new Date(Date.now() + 86400000)
+        .toISOString()
+        .split("T")[0];
+
+      // Pause with scheduled auto-resume
+      const pauseRes = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/pause`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { pauseEndDate: tomorrow },
+      });
+      expect(pauseRes.statusCode).toBe(200);
+      const pauseBody = JSON.parse(pauseRes.body);
+      expect(pauseBody.status).toBe("paused");
+      expect(pauseBody.pauseEndDate).toBe(tomorrow);
+
+      // Fast-forward: move pauseEndDate to yesterday so it's due
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      await app.db
+        .update(subscriptions)
+        .set({ pauseEndDate: yesterday })
+        .where(eq(subscriptions.userId, member.id));
+
+      // Run auto-resume directly via the service
+      const { SubscriptionService } =
+        await import("../../src/modules/subscriptions/service");
+      const { AuraService } = await import("../../src/modules/aura");
+      const { PaymentService } =
+        await import("../../src/modules/payments/service");
+      const aura = new AuraService(app.db);
+      const payments = new PaymentService(app.db, app.log);
+      const svc = new SubscriptionService(app.db, app.log, aura, payments);
+      const resumed = await svc.autoResumeDuePauses();
+      expect(resumed).toBe(1);
+
+      const [sub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id));
+      expect(sub.status).toBe("active");
+      expect(sub.pauseEndDate).toBeNull();
+      expect(sub.pausedAt).toBeNull();
+    });
+
+    it("POST pause rejects pauseEndDate in the past (400)", async () => {
+      const plan = await createPlan();
+      const member = await createMember();
+      await assignPlan(member.id, { planId: plan.id });
+
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/pause`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { pauseEndDate: yesterday },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("manual resume clears pauseEndDate", async () => {
+      const plan = await createPlan({ durationDays: 30 });
+      const member = await createMember();
+      await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+
+      const tomorrow = new Date(Date.now() + 86400000)
+        .toISOString()
+        .split("T")[0];
+
+      await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/pause`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { pauseEndDate: tomorrow },
+      });
+
+      // Manual resume before pauseEndDate
+      const resumeRes = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/resume`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(resumeRes.statusCode).toBe(200);
+      const body = JSON.parse(resumeRes.body);
+      expect(body.status).toBe("active");
+      expect(body.pauseEndDate).toBeNull();
+    });
+
     it("POST resume resumes and extends endDate", async () => {
       const plan = await createPlan({ durationDays: 30 });
       const member = await createMember();

@@ -192,6 +192,7 @@ export interface SubscriptionDetail {
   scheduleIds: number[];
   replacementCredits: number;
   pausedAt: string | null;
+  pauseEndDate: string | null;
   resumedAt: string | null;
   cancelledAt: string | null;
   notes: string | null;

@@ -66,6 +66,7 @@ const subscriptionDetailSchema = {
     priceOverrideAmount: { type: ["integer", "null"] },
     priceOverrideReason: { type: ["string", "null"] },
     pausedAt: { type: ["string", "null"] },
+    pauseEndDate: { type: ["string", "null"] },
     resumedAt: { type: ["string", "null"] },
     cancelledAt: { type: ["string", "null"] },
     classesRemaining: { type: ["integer", "null"] },
@@ -386,6 +387,17 @@ export const pauseSubscriptionSchema = {
     properties: {
       userId: { type: "integer" },
     },
+  },
+  body: {
+    anyOf: [
+      {
+        type: "object",
+        properties: {
+          pauseEndDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+        },
+      },
+      { type: "null" },
+    ],
   },
   response: {
     200: subscriptionDetailSchema,

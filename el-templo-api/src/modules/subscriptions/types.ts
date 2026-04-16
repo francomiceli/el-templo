@@ -149,6 +149,7 @@ export interface SubscriptionDetail {
   priceOverrideAmount: number | null;
   priceOverrideReason: string | null;
   pausedAt: string | null;
+  pauseEndDate: string | null;
   resumedAt: string | null;
   cancelledAt: string | null;
   classesRemaining: number | null;

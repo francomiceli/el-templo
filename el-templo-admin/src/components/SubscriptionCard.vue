@@ -41,6 +41,18 @@
         </div>
       </div>
 
+      <!-- Paused auto-resume banner -->
+      <q-banner
+        v-if="subscription.status === 'paused' && subscription.pauseEndDate"
+        dense
+        class="bg-amber-1 q-mb-md"
+      >
+        <template #avatar>
+          <q-icon name="schedule" color="warning" />
+        </template>
+        Reanuda automatica: {{ formatDate(subscription.pauseEndDate) }}
+      </q-banner>
+
       <!-- Class usage section (presencial only) -->
       <div v-if="showClassUsage && classUsage" class="row q-gutter-x-lg q-mb-md">
         <div>

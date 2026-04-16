@@ -247,6 +247,7 @@ export class SubscriptionService {
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
         pausedAt: schema.subscriptions.pausedAt,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
@@ -316,6 +317,7 @@ export class SubscriptionService {
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
         pausedAt: schema.subscriptions.pausedAt,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
@@ -380,6 +382,7 @@ export class SubscriptionService {
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
         pausedAt: schema.subscriptions.pausedAt,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
@@ -433,6 +436,7 @@ export class SubscriptionService {
         priceOverrideAmount: schema.subscriptions.priceOverrideAmount,
         priceOverrideReason: schema.subscriptions.priceOverrideReason,
         pausedAt: schema.subscriptions.pausedAt,
+        pauseEndDate: schema.subscriptions.pauseEndDate,
         resumedAt: schema.subscriptions.resumedAt,
         cancelledAt: schema.subscriptions.cancelledAt,
         classesRemaining: schema.subscriptions.classesRemaining,
@@ -802,9 +806,13 @@ export class SubscriptionService {
   }
 
   /**
-   * Pause an active subscription.
+   * Pause an active subscription. Optionally schedule auto-resume on pauseEndDate.
+   * If pauseEndDate is omitted, pause is open-ended (manual resume only).
    */
-  async pauseSubscription(userId: number): Promise<SubscriptionDetail> {
+  async pauseSubscription(
+    userId: number,
+    pauseEndDate?: string,
+  ): Promise<SubscriptionDetail> {
     const sub = await this.getMemberSubscription(userId);
     if (!sub) {
       throw new NotFoundError("No se encontro suscripcion activa");
@@ -813,18 +821,31 @@ export class SubscriptionService {
       throw new BadRequestError("Solo se pueden pausar suscripciones activas");
     }
 
+    if (pauseEndDate !== undefined) {
+      const today = new Date().toISOString().split("T")[0];
+      if (pauseEndDate <= today) {
+        throw new BadRequestError(
+          "La fecha de reanudacion debe ser posterior a hoy",
+        );
+      }
+    }
+
     await this.db
       .update(schema.subscriptions)
       .set({
         status: "paused",
         pausedAt: new Date(),
+        pauseEndDate: pauseEndDate ?? null,
       })
       .where(eq(schema.subscriptions.id, sub.id));
 
     const updated = await this.getSubscriptionById(sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
-    this.log.info({ userId, subscriptionId: sub.id }, "Subscription paused");
+    this.log.info(
+      { userId, subscriptionId: sub.id, pauseEndDate: pauseEndDate ?? null },
+      "Subscription paused",
+    );
     return updated;
   }
 
@@ -862,6 +883,7 @@ export class SubscriptionService {
       status: "active",
       resumedAt: new Date(),
       pausedAt: null,
+      pauseEndDate: null,
     };
     if (newEndDate) {
       updateData.endDate = newEndDate;
@@ -880,6 +902,46 @@ export class SubscriptionService {
       "Subscription resumed",
     );
     return updated;
+  }
+
+  /**
+   * Auto-resume paused subscriptions whose pauseEndDate has arrived.
+   * Intended to be called by a daily cron job. Returns the number of
+   * subscriptions resumed.
+   */
+  async autoResumeDuePauses(): Promise<number> {
+    const today = new Date().toISOString().split("T")[0];
+
+    const due = await this.db
+      .select({ userId: schema.subscriptions.userId })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.status, "paused"),
+          sql`${schema.subscriptions.pauseEndDate} IS NOT NULL`,
+          sql`${schema.subscriptions.pauseEndDate} <= ${today}`,
+        ),
+      );
+
+    let resumed = 0;
+    for (const row of due) {
+      try {
+        await this.resumeSubscription(row.userId);
+        resumed += 1;
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Error desconocido";
+        this.log.error(
+          { userId: row.userId, error: message },
+          "Auto-resume failed for user",
+        );
+      }
+    }
+
+    if (resumed > 0) {
+      this.log.info({ resumed, total: due.length }, "Auto-resume completed");
+    }
+    return resumed;
   }
 
   /**
@@ -2493,6 +2555,7 @@ export class SubscriptionService {
     priceOverrideAmount: number | null;
     priceOverrideReason: string | null;
     pausedAt: Date | null;
+    pauseEndDate: string | null;
     resumedAt: Date | null;
     cancelledAt: Date | null;
     classesRemaining: number | null;
@@ -2523,6 +2586,7 @@ export class SubscriptionService {
       priceOverrideAmount: row.priceOverrideAmount,
       priceOverrideReason: row.priceOverrideReason,
       pausedAt: row.pausedAt?.toISOString() ?? null,
+      pauseEndDate: row.pauseEndDate,
       resumedAt: row.resumedAt?.toISOString() ?? null,
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
       classesRemaining: row.classesRemaining,
