@@ -39,7 +39,7 @@ env:
 jobs:
   build:
     name: Build & Upload to TestFlight
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -112,6 +112,12 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           cp $PROFILE_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(tr -d '[:space:]' < el-templo-app/version.txt)
+          echo "number=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Build and archive
         working-directory: el-templo-app/src-capacitor/ios/App
         run: |
@@ -121,7 +127,9 @@ jobs:
             -configuration Release \
             -archivePath $RUNNER_TEMP/app.xcarchive \
             archive \
-            CODE_SIGN_STYLE=Manual
+            CODE_SIGN_STYLE=Manual \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            MARKETING_VERSION=${{ steps.version.outputs.number }}
 
       - name: Create ExportOptions.plist
         run: |

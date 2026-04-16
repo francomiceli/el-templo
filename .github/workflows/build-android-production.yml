@@ -88,11 +88,13 @@ jobs:
           VERSION_NAME=$(tr -d '[:space:]' < version.txt)
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "name=v${VERSION_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "number=${VERSION_NAME}" >> $GITHUB_OUTPUT
 
       - name: Build signed AAB and APK
         working-directory: el-templo-app/src-capacitor/android
         env:
           VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ steps.version.outputs.number }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew bundleProductionRelease assembleProductionRelease

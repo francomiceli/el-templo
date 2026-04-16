@@ -23,21 +23,21 @@ defineProps<Props>()
 <style scoped lang="scss">
 .story-progress {
   display: flex;
-  gap: 2px;
+  gap: 3px;
   padding: 8px 12px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
 }
 
 .story-progress__segment {
   flex: 1;
-  height: 3px;
+  height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.75);
   transition: background-color 0.3s ease;
 }
 
 .story-progress__segment--active {
-  background: #d4b46a;
-  box-shadow: 0 0 4px rgba(212, 180, 106, 0.6);
+  background: #e8c84a;
+  box-shadow: 0 0 6px rgba(232, 200, 74, 0.7);
 }
 </style>

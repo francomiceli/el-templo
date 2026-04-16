@@ -19,7 +19,7 @@ env:
 jobs:
   build:
     name: Build & Upload to App Store Connect
-    runs-on: macos-latest
+    runs-on: macos-26
 
     steps:
       - name: Checkout code
@@ -122,7 +122,8 @@ jobs:
             -archivePath $RUNNER_TEMP/app.xcarchive \
             -destination "generic/platform=iOS" \
             archive \
-            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            MARKETING_VERSION=${{ steps.version.outputs.number }}
 
       - name: Decode App Store Connect API key
         env:

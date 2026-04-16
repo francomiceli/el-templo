@@ -226,6 +226,7 @@ $charcoal-mid: #3d3732;
   justify-content: center;
   position: relative;
   overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   transition: opacity 0.8s ease;
 
