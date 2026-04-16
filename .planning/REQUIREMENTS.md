@@ -29,8 +29,8 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 
 <!-- Phase 91 — close the behavioral gap when a lead rejects during discovery (pre-trial) -->
 
-- [ ] **OBJN-01**: When a lead signals rejection or disinterest during PB1 discovery (e.g., "no me interesa", "no creo", "no voy a hacerlo"), Mica asks WHY before closing the conversation — she does not default to "tomá tu tiempo, saludos"
-- [ ] **OBJN-02**: PB1 contains explicit instruction for the "lead rejects during discovery" case — implemented as a new stage (e.g., PB1.E_objection), a conditional branch on an existing stage, or a universal framing rule in `system-prompt.ts`; choice made during discuss/plan
+- [x] **OBJN-01**: When a lead signals rejection or disinterest during PB1 discovery (e.g., "no me interesa", "no creo", "no voy a hacerlo"), Mica asks WHY before closing the conversation — she does not default to "tomá tu tiempo, saludos"
+- [x] **OBJN-02**: PB1 contains explicit instruction for the "lead rejects during discovery" case — implemented as a new stage (e.g., PB1.E_objection), a conditional branch on an existing stage, or a universal framing rule in `system-prompt.ts`; choice made during discuss/plan
 
 ### Regression Lock + Live Test Validation
 
@@ -61,8 +61,8 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 | KFIX-04     | 89    | Complete |
 | STAGE-01    | 90    | Complete |
 | STAGE-02    | 90    | Complete |
-| OBJN-01     | 91    | Pending  |
-| OBJN-02     | 91    | Pending  |
+| OBJN-01     | 91    | Complete |
+| OBJN-02     | 91    | Complete |
 | RLOK-01     | 92    | Pending  |
 | RLOK-02     | 92    | Pending  |
 | RLOK-03     | 92    | Pending  |

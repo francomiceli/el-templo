@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.2
 milestone_name: Post-v5.3.1 Live Test Fixes
 status: phase_in_progress
-stopped_at: "Completed 90-01-PLAN.md — STAGE-01/02 shipped + escape hatch + 3 test alignments"
-last_updated: "2026-04-13T17:05:00Z"
-last_activity: 2026-04-13 -- Phase 90-01 complete. STAGE-01 (category-diversity gate, 4 buckets ≥2 match) + STAGE-02 (AND composition with turn_count ≥ 2) + escape hatch (N=3, Pino warn "discovery escape fired") + completionCriteria rewrite shipped across two atomic commits (88e7bc3d, 17237d0a). Snap byte-delta 0 chars; KGATE-05 headroom preserved at +625. 537/537 bot tests green after 3 in-place alignments in playbook-advance.test.ts. Ready for `/gsd:plan-phase 91`.
+stopped_at: "Completed 91-01-PLAN.md — OBJN-01/02 hybrid mechanism shipped (signal + conditional framing rules)"
+last_updated: "2026-04-16T15:51:44Z"
+last_activity: 2026-04-16 -- Phase 91-01 complete. Hybrid OBJN-01/02 mechanism shipped across three atomic commits (4773ca48 signal+state+telemetry, 8e333de9 WHY+BACK-OFF rules, 959d0001 minimal tests). softRejection regex covers all 4 live-test variants + composite phrasing; 5-stage allowlist guard in advance.ts; SOFT_REJECTION_WHY_RULE + SOFT_REJECTION_BACKOFF_RULE conditional injection in system-prompt.ts; Pino log.info "soft_rejection_detected" telemetry; PB1.E4 REGLA FUERTE non-regression locked. Snap byte-delta 0 chars; KGATE-05 headroom preserved at +625. 573/573 bot tests green (537 baseline + 36 new). Phase 90 STAGE-02 invariant preserved (rejection turns do NOT increment discoveryTurnCount). Ready for `/gsd:plan-phase 92` — Regression Lock + Live Test Validation.
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 2
-  percent: 50
+  completed_phases: 3
+  total_plans: 3
+  completed_plans: 3
+  percent: 75
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** v5.3.2 Post-v5.3.1 Live Test Fixes — Phase 90 complete, Phase 91 next
+**Current focus:** v5.3.2 Post-v5.3.1 Live Test Fixes — Phase 91 complete, Phase 92 next
 
 ## Current Position
 
 Milestone: v5.3.2 Post-v5.3.1 Live Test Fixes
-Phase: 90 — Stage Heuristic Tightening (complete)
-Plan: 90-01 (complete); next: Phase 91 Objection Handling
-Status: Phase 90 complete
-Progress: █████░░░░░ 50% (2/4 phases)
-Last activity: 2026-04-13 — Phase 90-01 complete. STAGE-01 + STAGE-02 + escape hatch shipped (88e7bc3d, 17237d0a). Snap delta 0; KGATE-05 headroom +625 preserved. 537/537 tests green after 3 in-place alignments. Ready for `/gsd:plan-phase 91`.
+Phase: 91 — PB1 Objection Handling (complete)
+Plan: 91-01 (complete); next: Phase 92 Regression Lock + Live Test Validation
+Status: Phase 91 complete
+Progress: ████████░░ 75% (3/4 phases)
+Last activity: 2026-04-16 — Phase 91-01 complete. Hybrid OBJN-01/02 mechanism (signal + conditional framing rules) shipped across three atomic commits (4773ca48, 8e333de9, 959d0001). softRejection regex covers all live-test variants; 5-stage allowlist guard; WHY + BACK-OFF Spanish framing rules conditionally injected; Pino "soft_rejection_detected" telemetry. Snap delta 0; KGATE-05 headroom +625 preserved. 573/573 bot tests green (+36 new). Ready for `/gsd:plan-phase 92`.
 
 ## Performance Metrics
 
@@ -64,6 +64,7 @@ Last activity: 2026-04-13 — Phase 90-01 complete. STAGE-01 + STAGE-02 + escape
 | Phase 88 P02                            | 14min | 4 tasks | 4 files  |
 | Phase 89-knowledge-fixes P01            | 45min | 3 tasks | 5 files  |
 | Phase 90-stage-heuristic-tightening P01 | 30min | 2 tasks | 5 files  |
+| Phase 91-pb1-objection-handling P01     | 20min | 3 tasks | 8 files  |
 
 ## Accumulated Context
 
@@ -83,6 +84,13 @@ Recent decisions affecting current work:
 - [Phase 90-stage-heuristic-tightening]: Category-diversity gate (4 buckets, ≥2 match) over length proxy — explainable, module-scope single allocation
 - [Phase 90-stage-heuristic-tightening]: AND composition for discoveryAnswered on E1A/E1B (turn_count ≥ 2) — OR would neutralize the gate
 - [Phase 90-stage-heuristic-tightening]: Escape hatch preserves discoveryTurnCount on advance (not reset) — Phase 92 may assert on it
+- [Phase 91-pb1-objection-handling]: Hybrid mechanism for OBJN-02 — signal in computeAdvanceSignals + conditional framing rule in system-prompt.ts (defense-in-depth, mirrors Phase 89 KFIX-01 + price-deferral); NOT a new stage, NOT a universal framing rule
+- [Phase 91-pb1-objection-handling]: Commit cadence strategy (b) — Task 1 introduces softRejectionRule as no-op interface field; Task 2 wires the actual injection (clean per-task rollback)
+- [Phase 91-pb1-objection-handling]: Composite-phrase positive test added ("no, en serio no me interesa") — cheap insurance for the substring-match contract
+- [Phase 91-pb1-objection-handling]: Explicit 5-stage allowlist (E1A/E1B/E2A/E2B/E3) encoded in BOTH advance.ts and handler.ts — defense-in-depth at the membership level too
+- [Phase 91-pb1-objection-handling]: softRejection turns do NOT increment discoveryTurnCount — gated on !rejectionHotPre, preserves Phase 90 STAGE-02 semantics
+- [Phase 91-pb1-objection-handling]: All 4 setPlaybookState writes carry whyAsked — lesson learned from Phase 90 discoveryTurnCount rollout
+- [Phase 91-pb1-objection-handling]: Pino log.info (NOT log.warn) for soft_rejection_detected — expected behavior to track statistically, not anomaly
 
 ### Pending Todos
 
@@ -94,7 +102,7 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-13
-Stopped at: Completed 90-01-PLAN.md — STAGE-01/02 shipped + escape hatch + 3 test alignments
+Last session: 2026-04-16
+Stopped at: Completed 91-01-PLAN.md — OBJN-01/02 hybrid mechanism shipped (signal + conditional framing rules)
 Resume file: `.planning/ROADMAP.md`
-Next step: `/gsd:plan-phase 91` to decompose Phase 91 (Objection Handling) into plans
+Next step: `/gsd:plan-phase 92` to decompose Phase 92 (Regression Lock + Live Test Validation) into plans

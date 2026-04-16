@@ -25,7 +25,7 @@
 
 - [x] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit (completed 2026-04-14)
 - [x] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword (completed 2026-04-14)
-- [ ] **Phase 91: PB1 Objection Handling** — Mica asks WHY when leads reject during discovery; explicit instruction added to PB1
+- [x] **Phase 91: PB1 Objection Handling** — Hybrid signal+framing mechanism: softRejection regex (4 live-test variants) + WHY/BACK-OFF conditional Spanish framing rules in system-prompt.ts; PB1.E4 REGLA FUERTE preserved (completed 2026-04-16)
 - [ ] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice
 
 ## Phase Details
@@ -76,7 +76,10 @@
 1. When a PB1 lead says "no me interesa" / "no creo" / "no voy a hacerlo" during discovery, Mica's next reply asks an open WHY question (curious, non-defensive) before any closing phrase.
 2. PB1 contains an explicit instruction for the "lead rejects during discovery" case — implemented as either a new stage (e.g., PB1.E_objection), a conditional branch on an existing stage, or a universal framing rule in `system-prompt.ts`. The chosen mechanism is documented in the plan SUMMARY.
 3. Mica's WHY-question reply does NOT regress the PB1.E4 REGLA FUERTE (no specific plan or price mentioned) and does NOT escalate to `request_human` for a soft objection.
-   **Plans**: TBD
+
+**Plans:** 1/1 plans complete
+
+- [x] 91-01-PLAN.md — Hybrid signal+framing mechanism: softRejection regex (4 live-test variants + composite) + 5-stage allowlist guard in advance.ts + WHY/BACK-OFF conditional Spanish framing rules in system-prompt.ts + Pino telemetry; 3 atomic commits, KGATE-05 headroom +625 preserved
 
 ### Phase 92: Regression Lock + Live Test Validation
 
@@ -101,7 +104,7 @@
 | ------------------------------------------ | --------- | -------------- | ----------- | --------- |
 | 89. Knowledge Fixes                        | 1/1       | Complete       | 2026-04-14  | -         |
 | 90. Stage Heuristic Tightening             | 1/1       | Complete       | 2026-04-15  | -         |
-| 91. PB1 Objection Handling                 | v5.3.2    | 0/TBD          | Not started | -         |
+| 91. PB1 Objection Handling                 | 1/1       | Complete       | 2026-04-16  | -         |
 | 92. Regression Lock + Live Test Validation | v5.3.2    | 0/TBD          | Not started | -         |
 
 ---
