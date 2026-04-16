@@ -1,7 +1,12 @@
 name: Build Android Production Release
 
 on:
-  workflow_dispatch: # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Release notes (Spanish)'
+        required: false
+        default: 'Mejoras y correcciones'
 
 env:
   NODE_VERSION: '22'
@@ -79,9 +84,8 @@ jobs:
 
       - name: Extract version name
         id: version
-        working-directory: el-templo-app/src-capacitor/android/app
         run: |
-          VERSION_NAME=$(grep 'versionName' build.gradle | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_NAME=$(tr -d '[:space:]' < version.txt)
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "name=v${VERSION_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
 
@@ -111,6 +115,12 @@ jobs:
         run: printf '%s' "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}" | base64 --decode > $RUNNER_TEMP/play-service-account.json
         working-directory: .
 
+      - name: Create release notes
+        run: |
+          mkdir -p $RUNNER_TEMP/whatsnew
+          echo "${{ inputs.release_notes }}" > $RUNNER_TEMP/whatsnew/whatsnew-es-419
+        working-directory: .
+
       - name: Upload AAB to Google Play
         uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
         with:
@@ -119,3 +129,4 @@ jobs:
           releaseFiles: el-templo-app/src-capacitor/android/app/build/outputs/bundle/productionRelease/app-production-release.aab
           track: production
           status: completed
+          whatsNewDirectory: ${{ runner.temp }}/whatsnew
