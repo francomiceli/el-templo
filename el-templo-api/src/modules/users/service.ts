@@ -53,17 +53,40 @@ export class UserService {
    * Throws 409 if email already exists.
    */
   async createStaff(input: CreateStaffInput): Promise<number> {
-    // Check email uniqueness
+    // Check if email already exists
     const [existing] = await this.db
-      .select({ id: schema.users.id })
+      .select({ id: schema.users.id, role: schema.users.role })
       .from(schema.users)
       .where(eq(schema.users.email, input.email))
       .limit(1);
 
     if (existing) {
-      const error = new Error("El email ya esta registrado");
-      (error as Error & { statusCode: number }).statusCode = 409;
-      throw error;
+      // If already a staff role, reject
+      if (existing.role !== "member") {
+        const error = new Error("El email ya esta registrado como staff");
+        (error as Error & { statusCode: number }).statusCode = 409;
+        throw error;
+      }
+
+      // Promote existing member to staff role
+      const passwordHash = await argon2.hash(input.password);
+      await this.db
+        .update(schema.users)
+        .set({
+          passwordHash,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          role: input.role,
+          branchId: input.branchId,
+        })
+        .where(eq(schema.users.id, existing.id));
+
+      this.log.info(
+        { staffId: existing.id, role: input.role, email: input.email },
+        "Member promoted to staff",
+      );
+
+      return existing.id;
     }
 
     const passwordHash = await argon2.hash(input.password);
