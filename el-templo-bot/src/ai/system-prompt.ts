@@ -41,13 +41,49 @@ interface SystemPromptOptions {
    * Set by webhook/handler.ts based on (softRejection signal, priorWhyAsked).
    * Conditional injection only — NEVER set this field in tests of the
    * baseline render path or you will break the snapshot byte-equality.
-   *
-   * NOTE (Task 1 transitional state, strategy b): the option is accepted
-   * here so handler.ts can pass it without typecheck failures. The actual
-   * rule injection is wired in Task 2 — until then this field is a no-op.
    */
   softRejectionRule?: "why" | "backoff";
 }
+
+/**
+ * v5.3.2 Phase 91 (OBJN-01): soft-rejection conditional framing rules.
+ *
+ * Style match: existing PB1 `*Regla de defer*` / `*REGLA — precios*` blocks
+ * in playbooks/definitions.ts — declarative rule + 2-3 paraphraseable
+ * example phrasings (Mica adapts wording per context, NOT a hardcoded reply).
+ *
+ * INJECTED CONDITIONALLY ONLY when `softRejectionRule` is set on
+ * `SystemPromptOptions`. NEVER appears in any baseline render — preserves
+ * the Phase 89/90 KGATE-05 +625 char headroom (snapshot delta MUST stay
+ * at 0). The handler computes the selector from (softRejection, whyAsked)
+ * and passes it in.
+ *
+ * Wording constraints (locked in PLAN — do NOT drift without re-planning):
+ *   - WHY rule: "no le interesa, no cree, o no va a hacerlo" (mirrors
+ *     live-test variants), "NO menciones precios ni planes" (REGLA FUERTE
+ *     non-regression), "NO escales a humano" (SC#3), "NO te despidas en
+ *     este turno" (SC#1), 3 paraphraseable example WHYs.
+ *   - BACK-OFF rule: "NO hagas más preguntas" (no second WHY), "NO
+ *     ofrezcas descuentos ni alternativas" (no PB2 retention slip), "NO
+ *     escales a humano" (SC#3), 3 paraphraseable back-off phrasings.
+ */
+const SOFT_REJECTION_WHY_RULE = `*REGLA — el lead expresó rechazo:* el lead acaba de decir que no le interesa, no cree, o no va a hacerlo. Antes de cerrar la conversación, hacé UNA pregunta abierta y curiosa para entender qué le hace dudar. Tono cálido y sin presión: NO justifiques El Templo, NO ofrezcas alternativas, NO menciones precios ni planes específicos, NO te despidas en este turno, NO escales a humano. Tu único trabajo este turno es abrir, no cerrar.
+
+Ejemplos parafraseables (NO copiar literal):
+- "Te entiendo. ¿Puedo preguntarte qué te hace dudar?"
+- "Dale, sin problema. ¿Qué es lo que no te termina de cerrar?"
+- "Buenísimo que me lo digas. ¿Qué te frena?"
+
+Una sola pregunta. Sin "tomá tu tiempo, saludos" en este turno — esa frase cierra la puerta antes de entender el porqué.`;
+
+const SOFT_REJECTION_BACKOFF_RULE = `*REGLA — back-off después de la WHY:* el lead reconfirmó el rechazo después de tu pregunta abierta. Cerrá con calidez y dejá la puerta abierta, pero NO hagas más preguntas, NO ofrezcas descuentos ni alternativas, NO menciones planes ni precios, NO escales a humano. La conversación termina acá con tono respetuoso.
+
+Ejemplos parafraseables (NO copiar literal):
+- "Dale, te entiendo. Si en algún momento te dan ganas de probar, acá estamos. Un abrazo."
+- "Sin problema. Cualquier cosa, escribime cuando quieras."
+- "Perfecto. Que andes bien, cualquier duda estoy acá."
+
+Sin pregunta. Sin venta. Sin urgencia. Solo cierre cálido + puerta abierta.`;
 
 /**
  * Per-avatar Tone Guides (phase 85, AVAT-01).
@@ -302,6 +338,21 @@ ${getBusinessKnowledge(options?.clientState)}`;
     sections.push(
       "\n\n*Detección de perfil*\n\nCuando tengas señales claras del avatar del lead (`cero_absoluto` = nunca entrenó; `gym_crossover` = viene de gym/crossfit/pesas; `intermedio` = ya hace calistenia; `retorna` = entrenó antes y vuelve después de un parate), al final de tu mensaje agregá exactamente la etiqueta `<profile>VALOR</profile>` (ejemplo: `<profile>gym_crossover</profile>`). El usuario NO va a ver esa etiqueta — la borra el sistema antes de enviar. Si todavía no estás segura, NO inventes: omití la etiqueta y seguí preguntando naturalmente.",
     );
+  }
+
+  // v5.3.2 Phase 91 (OBJN-01): conditional soft-rejection framing rule.
+  //
+  // Appended LAST so it sits AFTER the active playbook section and overrides
+  // any conflicting tonal instruction from the stage promptSection (the
+  // rejection arc takes priority over normal discovery defer rules).
+  //
+  // Conditional injection only — when `softRejectionRule` is undefined,
+  // baseline render is byte-identical to pre-91 (KGATE-05 invariant). The
+  // rule constants live at module top with full wording-constraint JSDoc.
+  if (options?.softRejectionRule === "why") {
+    sections.push(`\n\n${SOFT_REJECTION_WHY_RULE}`);
+  } else if (options?.softRejectionRule === "backoff") {
+    sections.push(`\n\n${SOFT_REJECTION_BACKOFF_RULE}`);
   }
 
   return sections.join("");
