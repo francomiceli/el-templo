@@ -1,0 +1,57 @@
+default_platform(:ios)
+
+platform :ios do
+  lane :submit do
+    api_key = app_store_connect_api_key(
+      key_id: ENV.fetch("APPLE_API_KEY_ID"),
+      issuer_id: ENV.fetch("APPLE_API_ISSUER_ID"),
+      key_filepath: ENV.fetch("APPLE_API_KEY_PATH")
+    )
+
+    build_number = ENV.fetch("BUILD_NUMBER")
+    app_version = ENV.fetch("APP_VERSION")
+    notes = ENV.fetch("RELEASE_NOTES", "Mejoras y correcciones")
+
+    UI.message("Waiting for build #{build_number} (v#{app_version}) to finish processing...")
+
+    # Poll every 30s, max 15 minutes
+    30.times do |i|
+      latest = latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: "com.eltemplo.app"
+      ).to_s
+
+      if latest == build_number
+        UI.success("Build #{build_number} is processed and ready!")
+        break
+      end
+
+      if i == 29
+        UI.user_error!("Build #{build_number} did not finish processing within 15 minutes")
+      end
+
+      UI.message("Still processing... (latest: #{latest}) attempt #{i + 1}/30")
+      sleep(30)
+    end
+
+    deliver(
+      api_key: api_key,
+      app_identifier: "com.eltemplo.app",
+      app_version: app_version,
+      build_number: build_number,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      skip_metadata: true,
+      release_notes: { "es-419" => notes },
+      submit_for_review: true,
+      automatic_release: true,
+      force: true,
+      precheck_include_in_app_purchases: false,
+      submission_information: {
+        add_id_info_uses_idfa: false
+      }
+    )
+
+    UI.success("v#{app_version} (build #{build_number}) submitted for review!")
+  end
+end
