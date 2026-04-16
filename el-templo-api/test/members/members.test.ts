@@ -152,6 +152,51 @@ describe("Members Management Routes", () => {
       expect(bodyByDni.members[0].firstName).toBe("Maria");
     });
 
+    it("search matches full name across firstName + lastName tokens", async () => {
+      await createMember({
+        email: "mf@test.com",
+        firstName: "Martin",
+        lastName: "Figueras",
+        dni: "40555666",
+      });
+      // Decoy member: same first name, different last name
+      await createMember({
+        email: "mg@test.com",
+        firstName: "Martin",
+        lastName: "Gomez",
+        dni: "40777888",
+      });
+
+      // First name alone finds both Martins
+      const resFirst = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?search=Martin",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const bodyFirst = JSON.parse(resFirst.body);
+      expect(bodyFirst.members.length).toBeGreaterThanOrEqual(2);
+
+      // Full name in order finds only Martin Figueras
+      const resFull = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?search=Martin%20Figueras",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const bodyFull = JSON.parse(resFull.body);
+      expect(bodyFull.members).toHaveLength(1);
+      expect(bodyFull.members[0].lastName).toBe("Figueras");
+
+      // Full name in reversed order also finds Martin Figueras
+      const resReversed = await app.inject({
+        method: "GET",
+        url: "/api/admin/members?search=Figueras%20Martin",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const bodyReversed = JSON.parse(resReversed.body);
+      expect(bodyReversed.members).toHaveLength(1);
+      expect(bodyReversed.members[0].lastName).toBe("Figueras");
+    });
+
     it("filters by branchId", async () => {
       await createMember();
 

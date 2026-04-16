@@ -12,6 +12,7 @@ import { GoalPlanService, SubscriptionRequiredError } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA, ALL_GOAL_PLAN_TYPES } from "./constants";
 import { assembleVideoUrl } from "../shared/video-url";
+import { buildMemberNameSearchCondition } from "../shared";
 import type { GoalPlanType } from "./types";
 import type { DaySession } from "../sessions/types";
 import {
@@ -411,9 +412,10 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         const conditions = [eq(schema.users.role, "member")];
 
         if (search) {
-          conditions.push(
-            sql`(${schema.users.firstName} LIKE ${`%${search}%`} OR ${schema.users.lastName} LIKE ${`%${search}%`} OR ${schema.users.email} LIKE ${`%${search}%`})`,
-          );
+          const condition = buildMemberNameSearchCondition(search, {
+            includeDni: false,
+          });
+          if (condition) conditions.push(condition);
         }
 
         // Get total count

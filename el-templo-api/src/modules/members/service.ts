@@ -11,6 +11,7 @@ import { eq, and, or, like, sql, desc, ne, isNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
+import { buildMemberNameSearchCondition } from "../shared";
 import type {
   MemberListParams,
   MemberListItem,
@@ -59,10 +60,8 @@ export class MemberService {
     conditions.push(eq(schema.users.role, "member"));
 
     if (search) {
-      const searchPattern = `%${search}%`;
-      conditions.push(
-        sql`(${schema.users.firstName} LIKE ${searchPattern} OR ${schema.users.lastName} LIKE ${searchPattern} OR ${schema.users.email} LIKE ${searchPattern} OR ${schema.users.dni} LIKE ${searchPattern})`,
-      );
+      const condition = buildMemberNameSearchCondition(search);
+      if (condition) conditions.push(condition);
     }
 
     if (multiBranch === true) {
@@ -471,10 +470,8 @@ export class MemberService {
     conditions.push(eq(schema.users.role, "member"));
 
     if (search) {
-      const searchPattern = `%${search}%`;
-      conditions.push(
-        sql`(${schema.users.firstName} LIKE ${searchPattern} OR ${schema.users.lastName} LIKE ${searchPattern} OR ${schema.users.email} LIKE ${searchPattern} OR ${schema.users.dni} LIKE ${searchPattern})`,
-      );
+      const condition = buildMemberNameSearchCondition(search);
+      if (condition) conditions.push(condition);
     }
 
     if (multiBranch === true) {

@@ -13,6 +13,7 @@ import { eq, and, sql, desc, isNull, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { NotFoundError, BadRequestError } from "../shared/errors";
+import { buildMemberNameSearchCondition } from "../shared";
 import type {
   PaymentDetail,
   RecordPaymentInput,
@@ -212,10 +213,10 @@ export class PaymentService {
     }
 
     if (search) {
-      const searchPattern = `%${search}%`;
-      conditions.push(
-        sql`(${schema.users.firstName} LIKE ${searchPattern} OR ${schema.users.lastName} LIKE ${searchPattern})`,
-      );
+      const condition = buildMemberNameSearchCondition(search, {
+        includeDni: false,
+      });
+      if (condition) conditions.push(condition);
     }
 
     const whereClause = and(...conditions);
