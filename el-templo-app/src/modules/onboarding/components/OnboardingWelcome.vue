@@ -6,7 +6,7 @@
         Contanos un poco sobre vos para armar tu camino en El Templo
       </p>
       <q-btn
-        label="Arrancar"
+        label="Empezar"
         unelevated
         no-caps
         class="welcome-cta full-width"

@@ -191,6 +191,12 @@ jobs:
           RELEASE_NOTES: ${{ inputs.release_notes }}
         run: fastlane submit
 
+      - name: Tag release
+        run: |
+          TAG="v${{ steps.version.outputs.number }}-ios"
+          git tag "$TAG" || true
+          git push origin "$TAG" || true
+
       - name: Cleanup keychain
         if: always()
         run: |

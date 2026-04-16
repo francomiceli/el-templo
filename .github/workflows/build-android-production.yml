@@ -132,3 +132,9 @@ jobs:
           track: production
           status: completed
           whatsNewDirectory: ${{ runner.temp }}/whatsnew
+
+      - name: Tag release
+        run: |
+          TAG="v${{ steps.version.outputs.number }}-android"
+          git tag "$TAG" || true
+          git push origin "$TAG" || true

@@ -3,49 +3,85 @@
     <h2 class="recommendation-heading">Gracias por tus respuestas!</h2>
 
     <div class="glass-card">
-      <!-- Program info -->
+      <!-- Zone A: Program info -->
       <div class="program-info">
-        <p class="program-label">Tu programa sugerido</p>
+        <p class="program-label">Tu programa ideal</p>
         <h3 class="program-name">{{ programName }}</h3>
         <p class="program-description">{{ programDescription }}</p>
       </div>
 
-      <!-- AURA reward -->
+      <!-- "Incluido en tu plan" badge for subscribers -->
+      <div v-if="hasPlan" class="included-badge">
+        <q-icon name="check_circle" size="16px" class="included-badge__icon" />
+        Incluido en tu plan
+      </div>
+
+      <!-- Zone B: AURA reward -->
       <div class="aura-reward">
         <div class="aura-glow">
           <span class="aura-number">+{{ auraAwarded || 50 }}</span>
         </div>
         <span class="aura-label">AURA</span>
+        <span class="aura-subtitle">Ganaste tu primera recompensa</span>
         <!-- Celebration particles -->
         <div v-if="showCelebration" class="celebration">
           <div v-for="n in 10" :key="n" :class="`particle particle--${n}`"></div>
         </div>
       </div>
 
-      <!-- CTA: WhatsApp only when the recommendation is a paid program (not Foundation) -->
-      <q-btn
-        v-if="!hasPlan && isUpgradeRecommendation"
-        unelevated
-        no-caps
-        class="recommendation-cta recommendation-cta--whatsapp full-width q-mb-sm"
-        @click="openWhatsApp"
-      >
-        <q-icon
-          name="img:/icons/whatsapp.svg"
-          size="18px"
-          class="q-mr-sm"
-          style="filter: brightness(0) invert(1)"
+      <!-- Zone C: CTAs -->
+
+      <!-- Scenario 3: No subscription + Foundation -->
+      <template v-if="!hasPlan && !isUpgradeRecommendation">
+        <p class="cta-context">Este programa esta incluido cuando entrenas con nosotros</p>
+        <q-btn
+          unelevated
+          no-caps
+          class="recommendation-cta recommendation-cta--whatsapp full-width"
+          @click="openWhatsApp"
+        >
+          <q-icon
+            name="img:/icons/whatsapp.svg"
+            size="18px"
+            class="q-mr-sm"
+            style="filter: brightness(0) invert(1)"
+          />
+          Proba una clase
+        </q-btn>
+        <button class="explore-link" @click="emit('enter')">Explorar la app</button>
+      </template>
+
+      <!-- Scenario 4: No subscription + paid program -->
+      <template v-else-if="!hasPlan && isUpgradeRecommendation">
+        <q-btn
+          unelevated
+          no-caps
+          class="recommendation-cta recommendation-cta--whatsapp full-width"
+          @click="openWhatsApp"
+        >
+          <q-icon
+            name="img:/icons/whatsapp.svg"
+            size="18px"
+            class="q-mr-sm"
+            style="filter: brightness(0) invert(1)"
+          />
+          Quiero empezar
+        </q-btn>
+        <p class="cta-subtitle">Escribinos y te armamos tu plan personalizado</p>
+        <button class="explore-link" @click="emit('enter')">Explorar la app</button>
+      </template>
+
+      <!-- Scenarios 1 & 2: Has subscription -->
+      <template v-else>
+        <q-btn
+          label="Entrar al Templo"
+          unelevated
+          no-caps
+          :loading="submitting"
+          class="recommendation-cta full-width"
+          @click="emit('enter')"
         />
-        Quiero este programa
-      </q-btn>
-      <q-btn
-        label="Entrar al Templo"
-        unelevated
-        no-caps
-        :loading="submitting"
-        class="recommendation-cta full-width"
-        @click="emit('enter')"
-      />
+      </template>
     </div>
   </div>
 </template>
@@ -72,7 +108,9 @@ const emit = defineEmits<{
 }>()
 
 function openWhatsApp(): void {
-  const message = `Hola, acabo de completar mi perfil en la app y me interesa el programa: ${props.programName}`
+  const message = isUpgradeRecommendation.value
+    ? `Hola! Acabo de hacer el quiz en la app y me recomendaron: ${props.programName}. Quiero empezar!`
+    : 'Hola! Hice el quiz en la app y quiero probar una clase.'
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
@@ -130,6 +168,17 @@ $charcoal-mid: #3d3732;
   margin-bottom: 20px;
 }
 
+.program-label {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: rgba($cream, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0 0 4px 0;
+  text-align: center;
+}
+
 .program-name {
   font-family: 'Montserrat', sans-serif;
   font-weight: 700;
@@ -147,6 +196,25 @@ $charcoal-mid: #3d3732;
   text-align: center;
   line-height: 1.5;
   margin: 0 0 20px 0;
+}
+
+// =========================================================================
+// Included badge (subscribers)
+// =========================================================================
+.included-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: #4caf50;
+  margin-bottom: 12px;
+
+  &__icon {
+    color: #4caf50;
+  }
 }
 
 // =========================================================================
@@ -185,6 +253,14 @@ $charcoal-mid: #3d3732;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   margin-top: 4px;
+}
+
+.aura-subtitle {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: rgba($cream, 0.5);
+  margin-top: 6px;
 }
 
 @keyframes aura-pulse {
@@ -240,20 +316,28 @@ $particle-colors: $bronze, $amber;
   }
 }
 
-.program-label {
-  font-family: 'Montserrat', sans-serif;
-  font-weight: 700;
-  font-size: 0.8125rem;
-  color: rgba($cream, 0.4);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin: 0 0 4px 0;
+// =========================================================================
+// CTA zone
+// =========================================================================
+.cta-context {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.875rem;
+  color: rgba($cream, 0.6);
+  line-height: 1.4;
+  margin: 0 0 16px 0;
   text-align: center;
 }
 
-// =========================================================================
-// CTA
-// =========================================================================
+.cta-subtitle {
+  font-family: 'Geologica', sans-serif;
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: rgba($cream, 0.5);
+  margin: 10px 0 0 0;
+  text-align: center;
+}
+
 .recommendation-cta {
   background: linear-gradient(135deg, $terracotta 0%, #ad6540 100%) !important;
   color: $cream !important;
@@ -282,6 +366,27 @@ $particle-colors: $bronze, $amber;
 
   &--whatsapp {
     background: linear-gradient(135deg, #25d366 0%, #128c7e 100%) !important;
+  }
+}
+
+.explore-link {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  color: $cream;
+  text-align: center;
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: $terracotta;
   }
 }
 </style>
