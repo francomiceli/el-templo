@@ -70,6 +70,66 @@
       No hay horarios configurados para esta sede.
     </div>
 
+    <!-- Mobile layout: day picker + vertical slot list -->
+    <div v-else-if="isMobile">
+      <!-- Day picker -->
+      <div class="day-picker row no-wrap q-mb-md q-gutter-xs">
+        <q-btn
+          v-for="day in weekDays"
+          :key="day.dayOfWeek"
+          dense
+          flat
+          no-caps
+          class="day-picker-btn col"
+          :class="{
+            'day-picker-btn--active': day.dayOfWeek === selectedDay,
+            'day-picker-btn--today': day.date === todayISO,
+          }"
+          @click="selectedDay = day.dayOfWeek"
+        >
+          <div class="column items-center">
+            <div class="text-caption">{{ day.shortLabel }}</div>
+            <div class="text-weight-bold text-body1">{{ day.dateLabel }}</div>
+          </div>
+        </q-btn>
+      </div>
+
+      <!-- Vertical slot list for selected day -->
+      <div v-if="selectedDayHoliday" class="text-center q-pa-lg text-grey-5 text-italic">
+        FERIADO
+      </div>
+      <div
+        v-else-if="selectedDaySlots.length === 0"
+        class="text-center q-pa-lg text-grey-5 text-italic"
+      >
+        Sin horarios en este día
+      </div>
+      <q-list v-else bordered separator class="rounded-borders">
+        <q-item
+          v-for="slot in selectedDaySlots"
+          :key="slot.id"
+          clickable
+          v-ripple
+          :class="rowClass(slot)"
+          @click="onMobileSlotClick(slot)"
+        >
+          <q-item-section side>
+            <div class="text-weight-bold text-h6">{{ slot.startTime }}</div>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
+            <q-item-label caption>
+              {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-icon name="chevron_right" color="grey-6" />
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </div>
+
+    <!-- Desktop/tablet layout: weekly grid -->
     <div v-else class="schedule-grid-container">
       <div class="schedule-grid" :style="gridTemplateStyle">
         <!-- Header: empty top-left corner -->
@@ -182,6 +242,21 @@ const selectedAttendanceSlot = ref<{
   startTime: string;
 } | null>(null);
 
+// ─── Mobile detection + day picker state ────────────────────────────────────
+
+const isMobile = computed(() => $q.screen.lt.sm);
+
+const todayISO = computed(() => formatDateISO(new Date()));
+
+/** Day-of-week index (1-6, Mon-Sat) selected in the mobile day picker. Defaults to today's dow if in range, else Monday. */
+const selectedDay = ref<DayOfWeek>(getTodayDowOrMonday());
+
+function getTodayDowOrMonday(): DayOfWeek {
+  const dow = new Date().getDay(); // 0 Sun .. 6 Sat
+  if (dow === 0) return 1; // Sunday → Monday
+  return dow as DayOfWeek; // 1-6 = Mon-Sat
+}
+
 // ─── Computed ───────────────────────────────────────────────────────────────
 
 /** Days of the week for the current weekStart */
@@ -288,6 +363,40 @@ function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   if (pct >= 100) return 'grid-cell--full';
   if (pct >= 70) return 'grid-cell--warning';
   return 'grid-cell--available';
+}
+
+// ─── Mobile helpers: selected-day slot list ────────────────────────────────
+
+/** Full info for the currently-selected mobile day */
+const selectedDayInfo = computed(() =>
+  weekDays.value.find((d) => d.dayOfWeek === selectedDay.value)
+);
+
+const selectedDayHoliday = computed(() => {
+  const info = selectedDayInfo.value;
+  return info ? isCellHoliday(info.date) : false;
+});
+
+const selectedDaySlots = computed(() => {
+  return gridSlots.value
+    .filter((s) => s.dayOfWeek === selectedDay.value)
+    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+});
+
+/** Row color class mirrors cell coloring in the desktop grid */
+function rowClass(slot: WeeklySlotView): string {
+  const info = selectedDayInfo.value;
+  if (info && isCellHoliday(info.date)) return 'slot-row--holiday';
+  const pct = slot.maxCapacity > 0 ? (slot.bookedCount / slot.maxCapacity) * 100 : 0;
+  if (pct >= 100) return 'slot-row--full';
+  if (pct >= 70) return 'slot-row--warning';
+  return 'slot-row--available';
+}
+
+function onMobileSlotClick(slot: WeeklySlotView) {
+  const info = selectedDayInfo.value;
+  if (!info) return;
+  onCellClick(slot.startTime, slot.dayOfWeek, info.date);
 }
 
 // ─── Data Loading ───────────────────────────────────────────────────────────
@@ -501,5 +610,45 @@ watch(selectedBranchId, (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Mobile: day picker */
+.day-picker-btn {
+  min-height: 56px;
+  border-radius: 8px;
+  background: #f5f5f5;
+  padding: 4px 0;
+}
+
+.day-picker-btn--today {
+  background: #e3f2fd;
+}
+
+.day-picker-btn--active {
+  background: var(--q-primary);
+  color: white;
+}
+
+.day-picker-btn--active.day-picker-btn--today {
+  background: var(--q-primary);
+  color: white;
+}
+
+/* Mobile: slot row coloring — matches desktop cell palette */
+.slot-row--available {
+  background: #e8f5e9;
+}
+
+.slot-row--warning {
+  background: #fff8e1;
+}
+
+.slot-row--full {
+  background: #ffebee;
+}
+
+.slot-row--holiday {
+  background: #eeeeee;
+  color: #9e9e9e;
 }
 </style>
