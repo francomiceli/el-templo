@@ -1337,6 +1337,279 @@ describe("Subscriptions API", () => {
   });
 
   // =========================================================================
+  // Change Plan — startMode: after_current (scheduled plan change)
+  // =========================================================================
+  describe("Change plan with startMode=after_current", () => {
+    beforeEach(async () => {
+      await cleanupSubscriptionData();
+    });
+
+    it("creates scheduled sub starting on current.endDate, no proration, full price charged", async () => {
+      const planA = await createPlan({
+        name: "Sched Plan A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan({
+        name: "Sched Plan B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember();
+
+      const assignResult = await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+      const oldSubId = assignResult.body.id as number;
+      const oldEndDate = assignResult.body.endDate as string;
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: todayStr(), // ignored in after_current mode
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.status).toBe("scheduled");
+      expect(body.planId).toBe(planB.id);
+      expect(body.previousSubscriptionId).toBe(oldSubId);
+      expect(body.startDate).toBe(oldEndDate);
+      // Full price, no proration credit
+      expect(body.pricePaid).toBe(12000);
+
+      // Old sub must still be active (not "changed")
+      const [oldSub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, oldSubId));
+      expect(oldSub.status).toBe("active");
+
+      // Payment recorded for full new-plan price against NEW sub
+      const pmts = await app.db
+        .select()
+        .from(payments)
+        .where(eq(payments.memberId, member.id));
+      const scheduledPmt = pmts.find(
+        (p) => p.subscriptionId === (body.id as number),
+      );
+      expect(scheduledPmt).toBeTruthy();
+      expect(scheduledPmt!.amount).toBe(12000);
+    });
+
+    it("blocks when a scheduled sub already exists (409)", async () => {
+      const planA = await createPlan({
+        name: "Dupe Sched A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan({
+        name: "Dupe Sched B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember();
+
+      await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+
+      const first = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+      expect(first.statusCode).toBe(201);
+
+      const second = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+      expect(second.statusCode).toBe(409);
+    });
+
+    it("rejects when current sub is paused (400)", async () => {
+      const planA = await createPlan({
+        name: "Paused Sched A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+      });
+      const planB = await createPlan({
+        name: "Paused Sched B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+      });
+      const member = await createMember();
+
+      const assignResult = await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: "2026-06-01",
+      });
+      const subId = assignResult.body.id as number;
+
+      // Manually pause the subscription
+      await app.db
+        .update(subscriptions)
+        .set({ status: "paused" })
+        .where(eq(subscriptions.id, subId));
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("auto-expire activates scheduled plan-change with program enrollment transition", async () => {
+      // Create a program and a plan linked to it
+      const progAResult = await app.db.insert(programs).values({
+        name: "Programa A",
+        description: "Test A",
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+      });
+      const progA = { id: Number(progAResult[0].insertId) };
+
+      const progBResult = await app.db.insert(programs).values({
+        name: "Programa B",
+        description: "Test B",
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+      });
+      const progB = { id: Number(progBResult[0].insertId) };
+
+      const planA = await createPlan({
+        name: "Prog Sched A",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 8000,
+        priceZero: 4000,
+        linkedProgramId: progA.id,
+      });
+      const planB = await createPlan({
+        name: "Prog Sched B",
+        classesPerWeek: undefined,
+        durationDays: 30,
+        priceRegular: 12000,
+        priceZero: 8000,
+        linkedProgramId: progB.id,
+      });
+      const member = await createMember();
+
+      // Assign planA starting in the recent past with future endDate (so it's active)
+      const assignResult = await assignPlan(member.id, {
+        planId: planA.id,
+        startDate: todayStr(),
+      });
+      const oldSubId = assignResult.body.id as number;
+
+      // Schedule plan change (current sub is active with future endDate)
+      const schedRes = await app.inject({
+        method: "POST",
+        url: `${BASE_URL}/members/${member.id}/subscription/change-plan`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          planId: planB.id,
+          branchId: 1,
+          startDate: todayStr(),
+          priceTypeApplied: "regular",
+          paymentMethod: "cash",
+          startMode: "after_current",
+        },
+      });
+      expect(schedRes.statusCode).toBe(201);
+      const scheduledSub = JSON.parse(schedRes.body);
+
+      // Now fast-forward: force old sub's endDate to yesterday so auto-expire triggers
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      await app.db
+        .update(subscriptions)
+        .set({ endDate: yesterday })
+        .where(eq(subscriptions.id, oldSubId));
+
+      // Trigger auto-expire by calling any endpoint that runs it
+      // (getMemberSubscription triggers autoExpireSubscriptions)
+      await app.inject({
+        method: "GET",
+        url: `${BASE_URL}/members/${member.id}/subscription`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      // Scheduled sub should now be active
+      const [activatedSub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, scheduledSub.id));
+      expect(activatedSub.status).toBe("active");
+
+      // Old program enrollment should be cancelled, new one created
+      const enrollmentsA = await app.db
+        .select()
+        .from(programEnrollments)
+        .where(eq(programEnrollments.programId, progA.id));
+      const memberEnrA = enrollmentsA.find((e) => e.userId === member.id);
+      expect(memberEnrA?.status).toBe("cancelled");
+
+      const enrollmentsB = await app.db
+        .select()
+        .from(programEnrollments)
+        .where(eq(programEnrollments.programId, progB.id));
+      const memberEnrB = enrollmentsB.find((e) => e.userId === member.id);
+      expect(memberEnrB?.status).toBe("active");
+    });
+  });
+
+  // =========================================================================
   // Subscription Renewal (Period Model)
   // =========================================================================
   describe("Subscription Renewal", () => {

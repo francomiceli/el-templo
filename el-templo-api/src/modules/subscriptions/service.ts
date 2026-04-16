@@ -1056,12 +1056,27 @@ export class SubscriptionService {
   }
 
   /**
-   * Change a member's current plan to a new one.
-   * Validates upgrade/downgrade, applies proration credit, closes the
-   * existing subscription (status='changed'), and creates a clean new record.
-   * Cancels any scheduled (early-renewed) subscription first.
+   * Change a member's current plan. Dispatches based on input.startMode:
+   *   - "now" (default): close current, apply proration, create new active sub
+   *   - "after_current": keep current running, queue scheduled sub that
+   *     activates on current.endDate (no proration, full price charged now)
    */
   async changePlan(
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    if (input.startMode === "after_current") {
+      return this.changePlanAfterCurrent(userId, input, adminId);
+    }
+    return this.changePlanNow(userId, input, adminId);
+  }
+
+  /**
+   * Immediate plan change: close current, apply proration, create new active sub.
+   * Cancels any scheduled (early-renewed) subscription first.
+   */
+  private async changePlanNow(
     userId: number,
     input: AssignPlanInput,
     adminId: number,
@@ -1359,6 +1374,290 @@ export class SubscriptionService {
         .where(eq(schema.subscriptions.id, existingSub.id));
       throw err;
     }
+  }
+
+  /**
+   * Schedule a plan change to start when the current plan ends.
+   * Current sub keeps running; new sub is created as "scheduled" starting on
+   * current.endDate, full price charged now, no proration. Fixed-plan bookings
+   * are generated at scheduling time for the future period.
+   */
+  private async changePlanAfterCurrent(
+    userId: number,
+    input: AssignPlanInput,
+    adminId: number,
+  ): Promise<SubscriptionDetail> {
+    // Block if a scheduled sub already exists
+    const [existingScheduled] = await this.db
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          eq(schema.subscriptions.status, "scheduled"),
+        ),
+      )
+      .limit(1);
+
+    if (existingScheduled) {
+      throw new ConflictError(
+        "Ya existe una suscripcion programada. Cancele la existente antes de programar otra.",
+      );
+    }
+
+    // Find current active subscription (must be active, not paused, with endDate)
+    const currentSub = await this.getMemberSubscription(userId);
+    if (!currentSub) {
+      throw new NotFoundError("No se encontro suscripcion activa");
+    }
+    if (currentSub.status !== "active") {
+      throw new BadRequestError(
+        "Solo se puede programar un cambio de plan desde una suscripcion activa",
+      );
+    }
+    if (!currentSub.endDate) {
+      throw new BadRequestError(
+        "No se puede programar un cambio desde un plan sin fecha de fin",
+      );
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    if (currentSub.endDate < today) {
+      throw new BadRequestError(
+        "El plan actual ya termino. Use cambio de plan inmediato.",
+      );
+    }
+
+    // Validate target plan
+    const targetPlan = await this.getPlanById(input.planId);
+    if (!targetPlan) {
+      throw new NotFoundError("Plan destino no encontrado");
+    }
+    if (!targetPlan.isActive) {
+      throw new BadRequestError("El plan seleccionado no esta activo");
+    }
+    if (targetPlan.isArchived) {
+      throw new BadRequestError("No se puede asignar un plan archivado");
+    }
+
+    // Validate fixed-plan schedules
+    if (targetPlan.bookingMode === "fixed") {
+      if (!input.scheduleIds || input.scheduleIds.length === 0) {
+        throw new BadRequestError(
+          "Para planes fijos se requiere scheduleIds con los horarios seleccionados",
+        );
+      }
+      if (
+        targetPlan.classesPerWeek !== null &&
+        input.scheduleIds.length !== targetPlan.classesPerWeek
+      ) {
+        throw new BadRequestError(
+          `Debes seleccionar exactamente ${targetPlan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
+        );
+      }
+      const scheduleRows = await this.db
+        .select({
+          id: schema.schedules.id,
+          branchId: schema.schedules.branchId,
+          isActive: schema.schedules.isActive,
+        })
+        .from(schema.schedules)
+        .where(inArray(schema.schedules.id, input.scheduleIds));
+
+      if (scheduleRows.length !== input.scheduleIds.length) {
+        const foundIds = new Set(scheduleRows.map((s) => s.id));
+        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
+        throw new BadRequestError(
+          `Horarios no encontrados: ${missing.join(", ")}`,
+        );
+      }
+      for (const row of scheduleRows) {
+        if (!row.isActive) {
+          throw new BadRequestError(`El horario ${row.id} esta inactivo.`);
+        }
+        if (row.branchId !== input.branchId) {
+          throw new BadRequestError(
+            `El horario ${row.id} no pertenece a la sucursal seleccionada`,
+          );
+        }
+      }
+    }
+
+    // Load member for boarding pass eligibility
+    const [member] = await this.db
+      .select({
+        id: schema.users.id,
+        boardingPassUsed: schema.users.boardingPassUsed,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId));
+    if (!member) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+
+    // Pricing: override → boarding → AURA → plan price by type
+    let pricePaid: number;
+    let priceTypeApplied = input.priceTypeApplied;
+    let auraDiscount: number | null = null;
+    let auraDiscountPercent: number | null = null;
+    let boardingPassUsed = false;
+    let priceOverrideAmount: number | null = null;
+    let priceOverrideReason: string | null = null;
+
+    if (
+      input.priceOverrideAmount !== undefined &&
+      input.priceOverrideAmount >= 0
+    ) {
+      if (!input.priceOverrideReason) {
+        throw new BadRequestError(
+          "Se requiere una razon para el precio personalizado",
+        );
+      }
+      pricePaid = input.priceOverrideAmount;
+      priceOverrideAmount = input.priceOverrideAmount;
+      priceOverrideReason = input.priceOverrideReason;
+    } else if (input.boardingPass) {
+      if (member.boardingPassUsed) {
+        throw new ConflictError("El boarding pass ya fue utilizado");
+      }
+      pricePaid = targetPlan.priceZero;
+      priceTypeApplied = "zero";
+      boardingPassUsed = true;
+
+      await this.db
+        .update(schema.users)
+        .set({ boardingPassUsed: true })
+        .where(eq(schema.users.id, userId));
+    } else {
+      const basePrice = this.getBasePrice(targetPlan, priceTypeApplied);
+      pricePaid = basePrice;
+
+      if (input.auraSpend && input.auraSpend > 0) {
+        const tier = AURA_DISCOUNT_TIERS.find(
+          (t) => t.spend === input.auraSpend,
+        );
+        if (!tier) {
+          throw new BadRequestError(
+            `Monto de AURA invalido. Opciones: ${AURA_DISCOUNT_TIERS.map((t) => t.spend).join(", ")}`,
+          );
+        }
+        await this.auraService.spend({
+          userId,
+          amount: tier.spend,
+          description: `Descuento de suscripcion: ${tier.percent}% off`,
+          referenceType: "subscription",
+        });
+        auraDiscount = tier.spend;
+        auraDiscountPercent = tier.percent;
+        const discountAmount = Math.floor(basePrice * (tier.percent / 100));
+        pricePaid = basePrice - discountAmount;
+      }
+    }
+
+    // New period: starts on current.endDate, runs plan.durationDays
+    const newStartDate = currentSub.endDate;
+    const newEnd = new Date(newStartDate);
+    newEnd.setDate(newEnd.getDate() + targetPlan.durationDays);
+    const newEndDate = newEnd.toISOString().split("T")[0];
+
+    const classesRemaining =
+      targetPlan.classesPerWeek !== null
+        ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
+        : null;
+
+    const result = await this.db.insert(schema.subscriptions).values({
+      userId,
+      planId: input.planId,
+      branchId: input.branchId,
+      status: "scheduled",
+      startDate: newStartDate,
+      endDate: newEndDate,
+      pricePaid,
+      priceTypeApplied,
+      auraDiscount,
+      auraDiscountPercent,
+      boardingPassUsed,
+      priceOverrideAmount,
+      priceOverrideReason,
+      classesRemaining,
+      classesBudget: classesRemaining,
+      previousSubscriptionId: currentSub.id,
+      notes: input.notes ?? null,
+    });
+
+    const newSubscriptionId = Number(result[0].insertId);
+
+    // Fixed plan: store schedules and generate bookings for the future period
+    let replacementCredits = 0;
+    if (
+      targetPlan.bookingMode === "fixed" &&
+      input.scheduleIds &&
+      input.scheduleIds.length > 0
+    ) {
+      await this.db.insert(schema.subscriptionSchedules).values(
+        input.scheduleIds.map((scheduleId) => ({
+          subscriptionId: newSubscriptionId,
+          scheduleId,
+        })),
+      );
+
+      if (this.bookingService) {
+        const bookingResult = await this.bookingService.generateFixedBookings(
+          newSubscriptionId,
+          userId,
+          input.scheduleIds,
+          newStartDate,
+          newEndDate,
+          input.branchId,
+        );
+        replacementCredits = bookingResult.holidaysSkipped;
+      }
+
+      if (replacementCredits > 0) {
+        await this.db
+          .update(schema.subscriptions)
+          .set({ replacementCredits })
+          .where(eq(schema.subscriptions.id, newSubscriptionId));
+      }
+    }
+
+    // Record payment now (charged at scheduling time)
+    if (this.paymentService && pricePaid > 0) {
+      await this.paymentService.recordPayment(
+        {
+          memberId: userId,
+          subscriptionId: newSubscriptionId,
+          amount: pricePaid,
+          paymentMethod: input.paymentMethod,
+          paymentDate: today,
+          notes: `Cambio de plan programado: ${currentSub.planName} → ${targetPlan.name} (inicia ${newStartDate})`,
+        },
+        adminId,
+      );
+    }
+
+    const newSub = await this.getSubscriptionById(newSubscriptionId);
+    if (!newSub) {
+      throw new Error(
+        "Failed to retrieve scheduled subscription after plan change",
+      );
+    }
+
+    this.log.info(
+      {
+        userId,
+        currentSubscriptionId: currentSub.id,
+        newSubscriptionId,
+        currentPlan: currentSub.planName,
+        newPlan: targetPlan.name,
+        startDate: newStartDate,
+        pricePaid,
+        adminId,
+      },
+      "Plan change scheduled (queued for activation)",
+    );
+
+    return newSub;
   }
 
   /**
@@ -1813,13 +2112,149 @@ export class SubscriptionService {
         .where(inArray(schema.subscriptions.id, expiredOnlyIds));
     }
 
-    // Activate scheduled successors
-    if (scheduledSuccessors.length > 0) {
-      const scheduledIds = scheduledSuccessors.map((s) => s.id);
+    // Activate scheduled successors (handles program enrollment + branch migration
+    // when the scheduled sub is for a different plan than the expiring one).
+    for (const successor of scheduledSuccessors) {
+      await this.activateScheduledSub(successor.id);
+    }
+  }
+
+  /**
+   * Activate a scheduled subscription. Flips status to "active", and if the
+   * incoming plan differs from the outgoing plan (scheduled plan change),
+   * handles program enrollment transitions and branch migration from virtual.
+   */
+  private async activateScheduledSub(scheduledId: number): Promise<void> {
+    const [scheduled] = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+        planId: schema.subscriptions.planId,
+        branchId: schema.subscriptions.branchId,
+        previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
+      })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, scheduledId));
+
+    if (!scheduled) return;
+
+    await this.db
+      .update(schema.subscriptions)
+      .set({ status: "active" })
+      .where(eq(schema.subscriptions.id, scheduledId));
+
+    // If there's no predecessor (shouldn't happen for scheduled), we're done.
+    if (!scheduled.previousSubscriptionId) return;
+
+    const [prevSub] = await this.db
+      .select({
+        planId: schema.subscriptions.planId,
+        branchId: schema.subscriptions.branchId,
+      })
+      .from(schema.subscriptions)
+      .where(eq(schema.subscriptions.id, scheduled.previousSubscriptionId));
+
+    if (!prevSub) return;
+
+    // Same plan: nothing else to do (pure renewal, no transitions needed)
+    if (prevSub.planId === scheduled.planId) return;
+
+    // Different plan: handle program enrollment + branch migration
+    const prevPlan = await this.getPlanById(prevSub.planId);
+    const newPlan = await this.getPlanById(scheduled.planId);
+    if (!prevPlan || !newPlan) return;
+
+    // Cancel old program enrollment if old plan had a linked program and it
+    // differs from the new plan's linked program
+    if (
+      prevPlan.linkedProgramId &&
+      prevPlan.linkedProgramId !== newPlan.linkedProgramId
+    ) {
       await this.db
-        .update(schema.subscriptions)
-        .set({ status: "active" })
-        .where(inArray(schema.subscriptions.id, scheduledIds));
+        .update(schema.programEnrollments)
+        .set({ status: "cancelled", cancelledAt: new Date() })
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, scheduled.userId),
+            eq(schema.programEnrollments.programId, prevPlan.linkedProgramId),
+            eq(schema.programEnrollments.status, "active"),
+          ),
+        );
+
+      this.log.info(
+        {
+          userId: scheduled.userId,
+          programId: prevPlan.linkedProgramId,
+        },
+        "Cancelled program enrollment on scheduled plan-change activation",
+      );
+    }
+
+    // Create new program enrollment if new plan has a linked program and the
+    // user doesn't already have an active enrollment for it
+    if (
+      newPlan.linkedProgramId &&
+      newPlan.linkedProgramId !== prevPlan.linkedProgramId
+    ) {
+      const existing = await this.db
+        .select({ id: schema.programEnrollments.id })
+        .from(schema.programEnrollments)
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, scheduled.userId),
+            eq(schema.programEnrollments.programId, newPlan.linkedProgramId),
+            eq(schema.programEnrollments.status, "active"),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length === 0) {
+        await this.db.insert(schema.programEnrollments).values({
+          userId: scheduled.userId,
+          programId: newPlan.linkedProgramId,
+          status: "active",
+          currentWeek: 1,
+          sessionsCompletedThisWeek: 0,
+          weekUnlockedAt: new Date(),
+        });
+
+        this.log.info(
+          {
+            userId: scheduled.userId,
+            programId: newPlan.linkedProgramId,
+          },
+          "Created program enrollment on scheduled plan-change activation",
+        );
+      }
+    }
+
+    // Migrate member branch if currently on virtual branch
+    const [member] = await this.db
+      .select({ branchId: schema.users.branchId })
+      .from(schema.users)
+      .where(eq(schema.users.id, scheduled.userId));
+
+    if (member && member.branchId !== scheduled.branchId) {
+      const [currentBranch] = await this.db
+        .select({ isVirtual: schema.branches.isVirtual })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, member.branchId));
+
+      if (currentBranch?.isVirtual) {
+        await this.db
+          .update(schema.users)
+          .set({ branchId: scheduled.branchId })
+          .where(eq(schema.users.id, scheduled.userId));
+
+        this.log.info(
+          {
+            userId: scheduled.userId,
+            fromBranchId: member.branchId,
+            toBranchId: scheduled.branchId,
+          },
+          "Migrated member from virtual branch on scheduled plan-change activation",
+        );
+      }
     }
   }
 

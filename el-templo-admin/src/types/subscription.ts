@@ -213,6 +213,7 @@ export interface AssignPlanInput {
   priceOverrideReason?: string;
   boardingPass?: boolean;
   notes?: string;
+  startMode?: 'now' | 'after_current';
 }
 
 export interface RenewSubscriptionInput {

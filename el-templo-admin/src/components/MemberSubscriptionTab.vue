@@ -161,6 +161,7 @@
       :memberBranchId="memberBranchId"
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
+      :currentSubEndDate="presencialSub?.endDate ?? null"
       mode="change"
       @assigned="onAssigned"
     />
@@ -232,6 +233,12 @@
               <q-item-section>Vencimiento actual</q-item-section>
               <q-item-section side>{{
                 renewTarget.endDate ? formatDate(renewTarget.endDate) : '—'
+              }}</q-item-section>
+            </q-item>
+            <q-item v-if="renewalActivationDate">
+              <q-item-section>Se activa el</q-item-section>
+              <q-item-section side class="text-weight-medium">{{
+                renewalActivationDate
               }}</q-item-section>
             </q-item>
             <q-item>
@@ -370,6 +377,14 @@ const renewalEndDate = computed(() => {
   const end = new Date(renewStart);
   end.setDate(end.getDate() + (durationDays > 0 ? durationDays : 30));
   return formatDate(end.toISOString().split('T')[0]);
+});
+
+// When the current sub hasn't expired yet, the renewal is queued — show its activation date.
+const renewalActivationDate = computed(() => {
+  if (!renewTarget.value?.endDate) return null;
+  const today = new Date().toISOString().split('T')[0];
+  if (renewTarget.value.endDate < today) return null;
+  return formatDate(renewTarget.value.endDate);
 });
 
 // =========================================================================

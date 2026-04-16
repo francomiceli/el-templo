@@ -294,10 +294,38 @@
               <q-spinner-dots size="40px" color="primary" />
             </div>
 
-            <!-- Downgrade blocked message -->
+            <!-- Start mode toggle: only available in change mode when current sub has a future endDate -->
+            <div
+              v-if="props.mode === 'change' && canOfferAfterCurrent && !loadingPreview"
+              class="q-mb-md"
+            >
+              <div class="text-caption text-grey-7 q-mb-xs">Cuando iniciar el nuevo plan</div>
+              <q-btn-toggle
+                v-model="startMode"
+                toggle-color="primary"
+                spread
+                no-caps
+                :options="[
+                  { label: 'Cambiar ahora', value: 'now' },
+                  {
+                    label: `Empezar el ${formatDate(afterCurrentStartDate)}`,
+                    value: 'after_current',
+                  },
+                ]"
+              />
+              <div v-if="startMode === 'after_current'" class="text-caption text-grey-6 q-mt-xs">
+                El plan actual continua hasta {{ formatDate(afterCurrentStartDate) }}. El nuevo plan
+                queda programado y se cobra ahora.
+              </div>
+            </div>
+
+            <!-- Downgrade blocked message (only applies to "cambiar ahora" — after_current has no proration so downgrade is allowed) -->
             <q-card
               v-if="
-                props.mode === 'change' && changePlanPreviewData && !changePlanPreviewData.allowed
+                props.mode === 'change' &&
+                startMode === 'now' &&
+                changePlanPreviewData &&
+                !changePlanPreviewData.allowed
               "
               flat
               bordered
@@ -320,9 +348,11 @@
               </q-card-section>
             </q-card>
 
-            <!-- Change plan: unified summary -->
+            <!-- Change plan (now): summary with proration -->
             <q-card
-              v-if="props.mode === 'change' && changePlanPreviewData?.allowed"
+              v-if="
+                props.mode === 'change' && startMode === 'now' && changePlanPreviewData?.allowed
+              "
               flat
               bordered
               class="q-mb-md"
@@ -379,6 +409,66 @@
                     <q-item-section class="text-weight-bold text-h6">Total a cobrar</q-item-section>
                     <q-item-section side class="text-weight-bold text-h5 text-primary">
                       ${{ changePlanPreviewData.netAmount!.toLocaleString() }}
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-card-section>
+            </q-card>
+
+            <!-- Change plan (after_current): queued summary, no proration, full price -->
+            <q-card
+              v-if="props.mode === 'change' && startMode === 'after_current' && selectedPlan"
+              flat
+              bordered
+              class="q-mb-md"
+            >
+              <q-card-section>
+                <div class="text-subtitle1 text-weight-bold q-mb-md">Cambio Programado</div>
+                <q-list dense>
+                  <q-item>
+                    <q-item-section>Plan actual</q-item-section>
+                    <q-item-section side>
+                      {{ changePlanPreviewData?.currentPlan.name ?? '—' }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Activo hasta</q-item-section>
+                    <q-item-section side>
+                      {{ formatDate(afterCurrentStartDate) }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator spaced />
+                  <q-item>
+                    <q-item-section>Nuevo plan</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ selectedPlan.name }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Inicia</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ formatDate(afterCurrentStartDate) }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item>
+                    <q-item-section>Vencimiento</q-item-section>
+                    <q-item-section side>
+                      {{ formatDate(afterCurrentEndDate) }}
+                    </q-item-section>
+                  </q-item>
+                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                    <q-item-section>Horarios fijos</q-item-section>
+                    <q-item-section side class="text-weight-medium">
+                      {{ formatSelectedSchedules() }}
+                    </q-item-section>
+                  </q-item>
+                  <q-separator spaced />
+                  <q-item class="bg-blue-1 rounded-borders q-pa-sm">
+                    <q-item-section class="text-weight-bold text-h6"
+                      >Total a cobrar ahora</q-item-section
+                    >
+                    <q-item-section side class="text-weight-bold text-h5 text-primary">
+                      ${{ pricingDisplay.finalPrice.toLocaleString() }}
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -467,7 +557,11 @@
                 label="Confirmar"
                 icon="check"
                 :loading="assigning"
-                :disable="props.mode === 'change' && changePlanPreviewData?.allowed === false"
+                :disable="
+                  props.mode === 'change' &&
+                  startMode === 'now' &&
+                  changePlanPreviewData?.allowed === false
+                "
                 @click="onConfirm"
               />
             </q-stepper-navigation>
@@ -524,8 +618,10 @@ const props = withDefaults(
     mode?: 'assign' | 'change';
     /** Filter plans by category group: 'presencial' shows only presencial, 'online' shows only online_* categories */
     categoryFilter?: 'presencial' | 'online';
+    /** End date of the member's current subscription. Required for change mode to offer the "start after current ends" option. */
+    currentSubEndDate?: string | null;
   }>(),
-  { mode: 'assign', categoryFilter: undefined }
+  { mode: 'assign', categoryFilter: undefined, currentSubEndDate: null }
 );
 
 const emit = defineEmits<{
@@ -562,6 +658,10 @@ const assignForm = ref({
   priceOverrideReason: '',
   notes: '',
 });
+
+// Change-mode only: "now" (proration, current ends immediately) vs
+// "after_current" (queued, starts on current.endDate, full price).
+const startMode = ref<'now' | 'after_current'>('now');
 
 const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
@@ -667,6 +767,24 @@ const calculatedEndDate = computed(() => {
   const end = new Date(start);
   end.setDate(end.getDate() + selectedPlan.value.durationDays);
   return end.toISOString().split('T')[0];
+});
+
+// Change mode: the "after current" start date (= current sub's endDate).
+const afterCurrentStartDate = computed(() => props.currentSubEndDate ?? '');
+
+const afterCurrentEndDate = computed(() => {
+  if (!selectedPlan.value || !afterCurrentStartDate.value) return '';
+  const start = new Date(afterCurrentStartDate.value);
+  const end = new Date(start);
+  end.setDate(end.getDate() + selectedPlan.value.durationDays);
+  return end.toISOString().split('T')[0];
+});
+
+const canOfferAfterCurrent = computed(() => {
+  if (props.mode !== 'change') return false;
+  if (!props.currentSubEndDate) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return props.currentSubEndDate >= today;
 });
 
 // ─── Schedule Slot Grid Computed ──────────────────────────────────────────
@@ -900,12 +1018,18 @@ function onConfirm() {
   if (!selectedPlan.value) return;
 
   if (props.mode === 'change') {
+    const message =
+      startMode.value === 'after_current'
+        ? `El plan actual continua hasta ${formatDate(afterCurrentStartDate.value)}. El nuevo plan queda programado y el pago se registra ahora. Podes cancelarlo antes de esa fecha cambiando el plan nuevamente.`
+        : 'Esta accion no se puede deshacer. La suscripcion actual sera cancelada y se creara una nueva. Si queres volver al plan anterior, tendras que cambiarlo de nuevo.';
     $q.dialog({
-      title: 'Cambiar plan',
-      message:
-        'Esta accion no se puede deshacer. La suscripcion actual sera cancelada y se creara una nueva. Si queres volver al plan anterior, tendras que cambiarlo de nuevo.',
+      title: startMode.value === 'after_current' ? 'Programar cambio de plan' : 'Cambiar plan',
+      message,
       cancel: { flat: true, label: 'Volver' },
-      ok: { color: 'primary', label: 'Confirmar cambio' },
+      ok: {
+        color: 'primary',
+        label: startMode.value === 'after_current' ? 'Confirmar programacion' : 'Confirmar cambio',
+      },
     }).onOk(() => executeConfirm());
   } else {
     executeConfirm();
@@ -917,10 +1041,11 @@ async function executeConfirm() {
 
   assigning.value = true;
   try {
+    const isAfterCurrent = props.mode === 'change' && startMode.value === 'after_current';
     const payload: AssignPlanInput = {
       planId: selectedPlan.value.id,
       branchId: props.memberBranchId,
-      startDate: assignForm.value.startDate,
+      startDate: isAfterCurrent ? afterCurrentStartDate.value : assignForm.value.startDate,
       priceTypeApplied: assignForm.value.boardingPass ? 'zero' : assignForm.value.priceTypeApplied,
       paymentMethod: assignForm.value.paymentMethod,
       scheduleIds:
@@ -939,6 +1064,7 @@ async function executeConfirm() {
         ? assignForm.value.priceOverrideReason || undefined
         : undefined,
       notes: assignForm.value.notes.trim() || undefined,
+      startMode: props.mode === 'change' ? startMode.value : undefined,
     };
 
     if (props.mode === 'change') {
@@ -949,8 +1075,11 @@ async function executeConfirm() {
 
     $q.notify({
       type: 'positive',
-      message:
-        props.mode === 'change' ? 'Plan cambiado correctamente' : 'Plan asignado correctamente',
+      message: isAfterCurrent
+        ? 'Cambio de plan programado correctamente'
+        : props.mode === 'change'
+          ? 'Plan cambiado correctamente'
+          : 'Plan asignado correctamente',
     });
     emit('assigned');
     emit('update:modelValue', false);
@@ -988,6 +1117,7 @@ watch(
         priceOverrideReason: '',
         notes: '',
       };
+      startMode.value = 'now';
       loadPlans();
     }
   }

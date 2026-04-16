@@ -342,6 +342,10 @@ export const changePlanSchema = {
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },
+      startMode: {
+        type: "string",
+        enum: ["now", "after_current"],
+      },
     },
   },
   response: {
