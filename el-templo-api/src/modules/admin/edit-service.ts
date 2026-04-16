@@ -18,7 +18,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, gt, asc, desc } from "drizzle-orm";
+import { eq, and, gt, asc, desc, inArray, sql } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { PrescribeService } from "./prescribe-service";
 import { getDefaultFormatParams } from "./format-params";
@@ -469,25 +469,46 @@ export class AdminEditService {
       })
       .where(eq(schema.sessionBlocks.id, blockId));
 
-    for (const current of currentPrescriptions) {
+    const updates = currentPrescriptions.flatMap((current) => {
       const newP = newPrescriptions.find(
         (p) => p.exerciseId === current.exerciseId,
       );
-      if (newP) {
-        await this.db
-          .update(schema.sessionPrescriptions)
-          .set({
-            reps: newP.reps,
-            seconds: newP.seconds,
-            rest: newP.rest,
-            notes: newP.notes,
-            // Reset format-specific fields so stale data doesn't carry over
-            repsMax: null,
-            secondsMax: null,
-            increment: null,
-          })
-          .where(eq(schema.sessionPrescriptions.id, current.id));
-      }
+      return newP ? [{ id: current.id, newP }] : [];
+    });
+
+    if (updates.length > 0) {
+      const buildCase = (
+        pick: (
+          newP: (typeof updates)[number]["newP"],
+        ) => number | string | null,
+      ) =>
+        sql.join(
+          [
+            sql`(CASE ${schema.sessionPrescriptions.id}`,
+            ...updates.map((u) => sql`WHEN ${u.id} THEN ${pick(u.newP)}`),
+            sql`END)`,
+          ],
+          sql` `,
+        );
+
+      await this.db
+        .update(schema.sessionPrescriptions)
+        .set({
+          reps: buildCase((p) => p.reps),
+          seconds: buildCase((p) => p.seconds),
+          rest: buildCase((p) => p.rest),
+          notes: buildCase((p) => p.notes),
+          // Reset format-specific fields so stale data doesn't carry over
+          repsMax: null,
+          secondsMax: null,
+          increment: null,
+        })
+        .where(
+          inArray(
+            schema.sessionPrescriptions.id,
+            updates.map((u) => u.id),
+          ),
+        );
     }
 
     await revertToPendingIfApproved(this.db, sessionId);
