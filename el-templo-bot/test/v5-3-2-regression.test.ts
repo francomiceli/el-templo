@@ -48,8 +48,13 @@ const SNAP_PATH = resolve(here, "fixtures/pb1-e1a-lead-rendered.snap.txt");
  * 18,484 (post-RLOK-04) because the non-numeric prose uses more accented
  * Spanish than the `$80,000 -> $65,000` / `$80,000 por 8 clases` strings
  * it replaced. JS-string length went 18,270 → 18,275 over the same edit.
+ *
+ * Strengthened to 18,370 during 92-02 live-test (P1 side commit): the
+ * "Limites" price-deferral bullet in system-prompt.ts was extended to
+ * explicitly forbid mis-using the $20,000 trial as a plan reference and
+ * to forbid deducing/estimating plan prices. +95 JS-chars.
  */
-const POST_RLOK_04_BYTES = 18275;
+const POST_RLOK_04_BYTES = 18370;
 
 const renderE1ALead = (): string =>
   getSystemPrompt({
