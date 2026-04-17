@@ -14,11 +14,15 @@ platform :ios do
 
     UI.message("Waiting for build #{build_number} (v#{app_version}) to finish processing...")
 
-    # Poll every 30s, max 15 minutes
+    # Poll every 30s, max 15 minutes. Filter by `version:` so we match the build
+    # uploaded for THIS app version — otherwise a same-numbered build from an
+    # earlier version (e.g. re-used run_number across workflow re-runs) will
+    # satisfy the check but fail at deliver's select_build step.
     30.times do |i|
       latest = latest_testflight_build_number(
         api_key: api_key,
-        app_identifier: "com.eltemplo.app"
+        app_identifier: "com.eltemplo.app",
+        version: app_version
       ).to_s
 
       if latest == build_number
@@ -27,10 +31,10 @@ platform :ios do
       end
 
       if i == 29
-        UI.user_error!("Build #{build_number} did not finish processing within 15 minutes")
+        UI.user_error!("Build #{build_number} (v#{app_version}) did not finish processing within 15 minutes (latest for this version: #{latest})")
       end
 
-      UI.message("Still processing... (latest: #{latest}) attempt #{i + 1}/30")
+      UI.message("Still processing... (latest for v#{app_version}: #{latest}) attempt #{i + 1}/30")
       sleep(30)
     end
 
