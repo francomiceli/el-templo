@@ -875,6 +875,96 @@ describe("Scheduling API", () => {
   });
 
   // =========================================================================
+  // No-show Decrement (mark-no-shows cron)
+  // =========================================================================
+  describe("Mark No-Shows", () => {
+    beforeEach(async () => {
+      await cleanupAll();
+    });
+
+    it("runMarkNoShows marks past reservado bookings as no_show and decrements classesRemaining", async () => {
+      const { runMarkNoShows } = await import("../../src/jobs/mark-no-shows");
+
+      const { member, subscription } = await setupMemberWithSubscription();
+      // Set a trackable budget
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 5, classesBudget: 10 })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      // Seed a booking in the past with status='reservado' (bypass API —
+      // booking window doesn't allow past dates).
+      const activity = await createActivity("NoShowActivity");
+      const slot = await createScheduleSlot(activity.id, 1, "09:00", "10:00");
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      await app.db.insert(bookings).values({
+        memberId: member.id as number,
+        scheduleId: slot.id as number,
+        bookingDate: yesterdayStr,
+        status: "reservado",
+      });
+
+      // Run the no-show job directly
+      const result = await runMarkNoShows(app.db);
+      expect(result.updated).toBe(1);
+      expect(result.decremented).toBe(1);
+
+      // Booking now no_show
+      const [updatedBooking] = await app.db
+        .select()
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id as number));
+      expect(updatedBooking.status).toBe("no_show");
+
+      // classesRemaining decremented
+      const [updatedSub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id as number));
+      expect(updatedSub.classesRemaining).toBe(4);
+    });
+
+    it("runMarkNoShows does not go below zero when classesRemaining is already 0", async () => {
+      const { runMarkNoShows } = await import("../../src/jobs/mark-no-shows");
+
+      const { member, subscription } = await setupMemberWithSubscription(
+        { email: "noshow-zero@test.com", dni: "70050050" },
+        { name: "No-show Zero Plan" },
+      );
+      await app.db
+        .update(subscriptions)
+        .set({ classesRemaining: 0 })
+        .where(eq(subscriptions.id, subscription.id as number));
+
+      const activity = await createActivity("NoShowZeroActivity");
+      const slot = await createScheduleSlot(activity.id, 1, "09:00", "10:00");
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split("T")[0];
+
+      await app.db.insert(bookings).values({
+        memberId: member.id as number,
+        scheduleId: slot.id as number,
+        bookingDate: yesterdayStr,
+        status: "reservado",
+      });
+
+      const result = await runMarkNoShows(app.db);
+      expect(result.updated).toBe(1);
+      expect(result.decremented).toBe(0);
+
+      const [updatedSub] = await app.db
+        .select()
+        .from(subscriptions)
+        .where(eq(subscriptions.id, subscription.id as number));
+      expect(updatedSub.classesRemaining).toBe(0);
+    });
+  });
+
+  // =========================================================================
   // Bonus Classes (fixed plans only: 2 per 30-day window from subStart)
   // =========================================================================
   describe("Bonus Classes", () => {

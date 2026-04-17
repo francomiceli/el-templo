@@ -87,7 +87,21 @@
       <q-separator />
 
       <!-- Add Member Section -->
-      <q-card-section v-if="canAddCheckIn">
+      <q-card-section v-if="canAddAnything">
+        <!-- Mode toggle: check-in vs reserve -->
+        <q-btn-toggle
+          v-if="canReserve"
+          v-model="mode"
+          toggle-color="primary"
+          spread
+          no-caps
+          class="q-mb-sm"
+          :options="[
+            { label: 'Marcar asistencia', value: 'checkin', disable: !canCheckIn },
+            { label: 'Reservar turno', value: 'reserve' },
+          ]"
+        />
+
         <div class="text-subtitle2 q-mb-sm">+ Agregar alumno</div>
         <q-select
           v-model="selectedMember"
@@ -123,9 +137,9 @@
           </template>
         </q-select>
 
-        <!-- Reason field (shown when member selected) -->
+        <!-- Reason field (shown when member selected, only for check-in mode) -->
         <q-input
-          v-if="selectedMember"
+          v-if="selectedMember && mode === 'checkin'"
           v-model="checkInReason"
           label="Razon (opcional)"
           dense
@@ -136,11 +150,11 @@
         <q-btn
           v-if="selectedMember"
           color="primary"
-          label="Registrar asistencia"
-          icon="how_to_reg"
+          :label="mode === 'checkin' ? 'Registrar asistencia' : 'Reservar turno'"
+          :icon="mode === 'checkin' ? 'how_to_reg' : 'event_available'"
           class="q-mt-sm full-width"
-          :loading="checkingIn"
-          @click="onCoachCheckIn"
+          :loading="checkingIn || reserving"
+          @click="onSubmit"
         />
       </q-card-section>
     </q-card>
@@ -152,12 +166,14 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
+import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import type { SlotAttendanceItem } from 'src/types/attendance';
 
 const log = createLogger('SlotAttendancePanel');
 const $q = useQuasar();
 const attendanceApi = useAttendanceApi();
+const schedulingApi = useSchedulingApi();
 const membersApi = useMembersApi();
 
 // =========================================================================
@@ -215,11 +231,33 @@ const formattedDate = computed(() => {
   }
 });
 
-const canAddCheckIn = computed(() => {
+const canCheckIn = computed(() => {
   // Only allow manual check-in for today or past dates
   const today = new Date().toISOString().split('T')[0];
   return props.date <= today;
 });
+
+const canReserve = computed(() => {
+  // Reservations only make sense for today or future dates
+  const today = new Date().toISOString().split('T')[0];
+  return props.date >= today;
+});
+
+const canAddAnything = computed(() => canCheckIn.value || canReserve.value);
+
+const mode = ref<'checkin' | 'reserve'>('checkin');
+const reserving = ref(false);
+
+// When dialog opens for a future-only slot, default mode to "reserve".
+watch(
+  () => [props.modelValue, canCheckIn.value, canReserve.value],
+  ([open]) => {
+    if (open) {
+      mode.value = canCheckIn.value ? 'checkin' : 'reserve';
+    }
+  },
+  { immediate: true }
+);
 
 // =========================================================================
 // Data Loading
@@ -306,6 +344,90 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
     .finally(() => {
       searchingMembers.value = false;
     });
+}
+
+// =========================================================================
+// Submit (dispatch to check-in or reserve)
+// =========================================================================
+
+async function onSubmit() {
+  if (!selectedMember.value) return;
+  if (mode.value === 'checkin') {
+    await onCoachCheckIn();
+  } else {
+    await onReserve();
+  }
+}
+
+async function onReserve() {
+  if (!selectedMember.value) return;
+  const memberName = selectedMember.value.displayLabel;
+  const memberId = selectedMember.value.id;
+
+  reserving.value = true;
+  try {
+    const result = await schedulingApi.adminAddBooking({
+      scheduleId: props.scheduleId,
+      memberId,
+      date: props.date,
+    });
+
+    $q.notify({ type: 'positive', message: 'Reserva agregada' });
+    if (result.warnings?.length) {
+      for (const warning of result.warnings) {
+        $q.notify({ type: 'warning', message: warning, timeout: 5000 });
+      }
+    }
+
+    selectedMember.value = null;
+    memberSearchResults.value = [];
+    await loadAttendance();
+    emit('attendance-changed');
+
+    // If the booking is for today, offer to mark them present right away.
+    const today = new Date().toISOString().split('T')[0];
+    if (props.date === today) {
+      $q.dialog({
+        title: 'Marcar asistencia?',
+        message: `${memberName} quedo reservado. Queres marcar su asistencia ahora?`,
+        cancel: { flat: true, label: 'No' },
+        ok: { color: 'primary', label: 'Si, marcar asistencia' },
+      }).onOk(async () => {
+        try {
+          const ciResult = await attendanceApi.coachCheckIn(
+            props.scheduleId,
+            props.date,
+            memberId,
+            undefined
+          );
+          if (ciResult.warnings.length > 0) {
+            $q.notify({
+              type: 'warning',
+              message: `Asistencia registrada con advertencias: ${ciResult.warnings.join(', ')}`,
+              timeout: 5000,
+            });
+          } else {
+            $q.notify({ type: 'positive', message: 'Asistencia registrada' });
+          }
+          await loadAttendance();
+          emit('attendance-changed');
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : 'Error desconocido';
+          log.error('Error coach check-in after reserve', { error: message });
+          $q.notify({ type: 'negative', message: 'Error registrando asistencia' });
+        }
+      });
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error admin add booking', { error: message });
+    $q.notify({
+      type: 'negative',
+      message: schedulingApi.error.value ?? 'Error agregando reserva',
+    });
+  } finally {
+    reserving.value = false;
+  }
 }
 
 // =========================================================================
