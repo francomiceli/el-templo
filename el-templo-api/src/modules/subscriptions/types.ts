@@ -182,6 +182,13 @@ export interface ClassUsageInfo {
   bookingMode: BookingMode;
   scheduleIds: number[];
   scheduleSlots: ScheduleSlotInfo[];
+  bonusUsage: {
+    applicable: boolean;
+    used?: number;
+    limit?: number;
+    periodStart?: string;
+    periodEnd?: string;
+  };
 }
 
 export interface AssignPlanInput {

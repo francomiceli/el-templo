@@ -76,6 +76,13 @@ export function useSchedulingApi() {
     return response.data
   }
 
+  async function getBonusUsage(): Promise<BonusUsage> {
+    const response = await api.get<BonusUsage>('/members/scheduling/bonus-usage', {
+      signal: getSignal(),
+    })
+    return response.data
+  }
+
   function cleanup() {
     if (abortController) {
       abortController.abort()
@@ -83,5 +90,21 @@ export function useSchedulingApi() {
     }
   }
 
-  return { getWeeklyGrid, reserve, cancelBooking, getMyBookings, getBranches, cleanup }
+  return {
+    getWeeklyGrid,
+    reserve,
+    cancelBooking,
+    getMyBookings,
+    getBranches,
+    getBonusUsage,
+    cleanup,
+  }
+}
+
+export interface BonusUsage {
+  applicable: boolean
+  used?: number
+  limit?: number
+  periodStart?: string
+  periodEnd?: string
 }

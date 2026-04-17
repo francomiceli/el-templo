@@ -270,6 +270,13 @@ export interface ClassUsageInfo {
   scheduleIds: number[];
   scheduleSlots: ScheduleSlotInfo[];
   bookingMode: BookingMode;
+  bonusUsage: {
+    applicable: boolean;
+    used?: number;
+    limit?: number;
+    periodStart?: string;
+    periodEnd?: string;
+  };
 }
 
 // ─── Promo Plan Types ────────────────────────────────────────────────────────

@@ -2475,6 +2475,7 @@ export class SubscriptionService {
       bookingMode: plan.bookingMode,
       scheduleIds,
       scheduleSlots,
+      bonusUsage: { applicable: false }, // filled in by route handler
     };
   }
 

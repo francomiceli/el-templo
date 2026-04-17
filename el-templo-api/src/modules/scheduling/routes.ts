@@ -408,6 +408,16 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // GET /bonus-usage — fixed-plan members' bonus-class counter
+  fastify.get("/bonus-usage", async (request, reply) => {
+    try {
+      const usage = await bookingService.getBonusUsage(request.user.userId);
+      return usage;
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "get bonus usage");
+    }
+  });
+
   // DELETE /bookings/:bookingId — cancel own booking
   fastify.delete<{ Params: { bookingId: number } }>(
     "/bookings/:bookingId",

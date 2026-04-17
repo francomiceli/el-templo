@@ -118,19 +118,70 @@ export class BookingService {
       );
     }
 
-    // 7. Check weekly booking count
-    const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
-    if (classesPerWeek !== null) {
-      const { monday, saturday } = getWeekRange(new Date(date + "T12:00:00Z"));
-      const weeklyCount = await this.countWeeklyBookings(
-        memberId,
-        monday,
-        saturday,
+    // 6. Classify booking (fixed plans only): fixed re-book vs bonus.
+    //    A bonus is a member-initiated reservation on a schedule that is NOT
+    //    part of their fixed subscription_schedules. Fixed plans get 2 bonuses
+    //    per 30-day window from subscription.startDate.
+    const plan = await this.subscriptionService.getPlanById(
+      subscription.planId,
+    );
+    const isFixedPlan = plan?.bookingMode === "fixed";
+    let isBonus = false;
+
+    if (isFixedPlan) {
+      const fixedScheduleIds = await this.getFixedScheduleIdsForSubscription(
+        subscription.id,
       );
-      if (weeklyCount >= classesPerWeek) {
-        throw new BadRequestError(
-          `Alcanzaste tu limite semanal (${weeklyCount}/${classesPerWeek})`,
+      isBonus = !fixedScheduleIds.has(scheduleId);
+
+      if (isBonus) {
+        // Multi-branch check: bonuses on a different branch require plan.multiBranch
+        if (
+          scheduleRow.branchId !== subscription.branchId &&
+          !plan?.multiBranch
+        ) {
+          throw new BadRequestError(
+            "No podes reservar clases bonus en otra sucursal con tu plan actual",
+          );
+        }
+
+        // Bonus cap: 2 per 30-day window from subscription.startDate
+        const { limit, periodStart, periodEnd } = this.computeBonusUsageWindow(
+          subscription.startDate,
         );
+        const usedCount = await this.countBonusBookings(
+          memberId,
+          subscription.id,
+          periodStart,
+          periodEnd,
+        );
+        if (usedCount >= limit) {
+          throw new ConflictError(
+            `Alcanzaste el limite de ${limit} clases bonus en este periodo. Se renueva el ${periodEnd}.`,
+          );
+        }
+      }
+    }
+
+    // 7. Check weekly booking count — applies to flexible plans and to fixed-slot
+    //    re-bookings. Bonus bookings on fixed plans bypass this limit (they are
+    //    explicitly extra, over the fixed schedule).
+    if (!isBonus) {
+      const classesPerWeek = await this.getMemberClassesPerWeek(memberId);
+      if (classesPerWeek !== null) {
+        const { monday, saturday } = getWeekRange(
+          new Date(date + "T12:00:00Z"),
+        );
+        const weeklyCount = await this.countWeeklyBookings(
+          memberId,
+          monday,
+          saturday,
+        );
+        if (weeklyCount >= classesPerWeek) {
+          throw new BadRequestError(
+            `Alcanzaste tu limite semanal (${weeklyCount}/${classesPerWeek})`,
+          );
+        }
       }
     }
 
@@ -914,6 +965,123 @@ export class BookingService {
       .where(eq(schema.subscriptionPlans.id, subscription.planId));
 
     return plan?.classesPerWeek ?? null;
+  }
+
+  /**
+   * Return the set of scheduleIds that are the fixed slots of a subscription.
+   */
+  private async getFixedScheduleIdsForSubscription(
+    subscriptionId: number,
+  ): Promise<Set<number>> {
+    const rows = await this.db
+      .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+      .from(schema.subscriptionSchedules)
+      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+    return new Set(rows.map((r) => r.scheduleId));
+  }
+
+  /**
+   * Compute the current 30-day bonus period anchored on subscription.startDate.
+   * periodStart/periodEnd are YYYY-MM-DD, inclusive of periodStart and exclusive
+   * of periodEnd (i.e. periodEnd is the start of the NEXT period).
+   */
+  private computeBonusUsageWindow(subscriptionStartDate: string): {
+    used: number;
+    limit: number;
+    periodStart: string;
+    periodEnd: string;
+  } {
+    const BONUS_LIMIT = 2;
+    const BONUS_PERIOD_DAYS = 30;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const start = new Date(subscriptionStartDate + "T00:00:00Z");
+    const msSinceStart = today.getTime() - start.getTime();
+    const daysSinceStart = Math.floor(msSinceStart / (1000 * 60 * 60 * 24));
+    const periodIndex = Math.max(
+      0,
+      Math.floor(daysSinceStart / BONUS_PERIOD_DAYS),
+    );
+
+    const periodStartDate = new Date(start);
+    periodStartDate.setUTCDate(
+      periodStartDate.getUTCDate() + periodIndex * BONUS_PERIOD_DAYS,
+    );
+    const periodEndDate = new Date(periodStartDate);
+    periodEndDate.setUTCDate(periodEndDate.getUTCDate() + BONUS_PERIOD_DAYS);
+
+    return {
+      used: 0, // filled in by caller
+      limit: BONUS_LIMIT,
+      periodStart: periodStartDate.toISOString().split("T")[0],
+      periodEnd: periodEndDate.toISOString().split("T")[0],
+    };
+  }
+
+  /**
+   * Count active bonus bookings (scheduleId not in fixed schedules) for a
+   * member's subscription within [periodStart, periodEnd).
+   */
+  private async countBonusBookings(
+    memberId: number,
+    subscriptionId: number,
+    periodStart: string,
+    periodEnd: string,
+  ): Promise<number> {
+    const [result] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, memberId),
+          sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado', 'lista_espera')`,
+          sql`${schema.bookings.bookingDate} >= ${periodStart}`,
+          sql`${schema.bookings.bookingDate} < ${periodEnd}`,
+          sql`${schema.bookings.scheduleId} NOT IN (
+            SELECT schedule_id FROM subscription_schedules
+            WHERE subscription_id = ${subscriptionId}
+          )`,
+        ),
+      );
+    return Number(result?.count ?? 0);
+  }
+
+  /**
+   * Public: return the member's current bonus-class usage for their active
+   * subscription. Returns { applicable: false } when the mechanic doesn't
+   * apply (no active subscription, or plan is not fixed).
+   */
+  async getBonusUsage(memberId: number): Promise<{
+    applicable: boolean;
+    used?: number;
+    limit?: number;
+    periodStart?: string;
+    periodEnd?: string;
+  }> {
+    const subscription =
+      await this.subscriptionService.getMemberSubscription(memberId);
+    if (!subscription) return { applicable: false };
+
+    const plan = await this.subscriptionService.getPlanById(
+      subscription.planId,
+    );
+    if (plan?.bookingMode !== "fixed") return { applicable: false };
+
+    const window = this.computeBonusUsageWindow(subscription.startDate);
+    const used = await this.countBonusBookings(
+      memberId,
+      subscription.id,
+      window.periodStart,
+      window.periodEnd,
+    );
+    return {
+      applicable: true,
+      used,
+      limit: window.limit,
+      periodStart: window.periodStart,
+      periodEnd: window.periodEnd,
+    };
   }
 
   /**

@@ -369,7 +369,10 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         const usage = await subscriptionService.getClassUsageThisWeek(
           request.params.userId,
         );
-        return usage;
+        const bonusUsage = await bookingService.getBonusUsage(
+          request.params.userId,
+        );
+        return { ...usage, bonusUsage };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "class usage");
       }

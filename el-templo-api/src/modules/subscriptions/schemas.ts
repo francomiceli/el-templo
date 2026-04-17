@@ -510,6 +510,16 @@ export const classUsageSchema = {
             },
           },
         },
+        bonusUsage: {
+          type: "object",
+          properties: {
+            applicable: { type: "boolean" },
+            used: { type: "integer" },
+            limit: { type: "integer" },
+            periodStart: { type: "string" },
+            periodEnd: { type: "string" },
+          },
+        },
       },
     },
     404: errorSchema,

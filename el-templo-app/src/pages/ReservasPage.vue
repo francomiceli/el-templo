@@ -49,6 +49,19 @@
         {{ userStore.branchDisplayName }}
       </p>
 
+      <!-- Bonus usage banner (fixed plans only) -->
+      <div v-if="bonusUsage.applicable" class="bonus-banner q-mb-md">
+        <q-icon name="card_giftcard" size="18px" />
+        <span class="bonus-banner__text">
+          Clases bonus:
+          <strong>{{ (bonusUsage.limit ?? 2) - (bonusUsage.used ?? 0) }}</strong>
+          de {{ bonusUsage.limit ?? 2 }}
+          <span v-if="bonusUsage.periodEnd" class="bonus-banner__period">
+            · renueva el {{ formatBonusPeriodEnd(bonusUsage.periodEnd) }}
+          </span>
+        </span>
+      </div>
+
       <!-- Next class hero card -->
       <div class="next-class-card q-mb-md">
         <div class="next-class-card__icon">
@@ -334,7 +347,14 @@ import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/sc
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
 const userStore = useUserStore()
-const { getWeeklyGrid, reserve, cancelBooking, getBranches, cleanup } = useSchedulingApi()
+const { getWeeklyGrid, reserve, cancelBooking, getBranches, getBonusUsage, cleanup } =
+  useSchedulingApi()
+const bonusUsage = ref<{
+  applicable: boolean
+  used?: number
+  limit?: number
+  periodEnd?: string
+}>({ applicable: false })
 
 // ─── State ───────────────────────────────────────────────────────────
 const loading = ref(true)
@@ -438,6 +458,11 @@ function formatTime(time: string): string {
   const parts = time.split(':')
   const hour = parseInt(parts[0], 10)
   return `${hour}:${parts[1]}`
+}
+
+function formatBonusPeriodEnd(isoDate: string): string {
+  const d = new Date(isoDate + 'T12:00:00')
+  return `${d.getDate()}/${d.getMonth() + 1}`
 }
 
 function isToday(day: DayOfWeek): boolean {
@@ -825,6 +850,16 @@ function goToCurrentWeek() {
 
 // ─── Data loading ───────────────────────────────────────────────────
 
+async function loadBonusUsage() {
+  try {
+    bonusUsage.value = await getBonusUsage()
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'CanceledError') return
+    // Non-critical — just hide the banner.
+    bonusUsage.value = { applicable: false }
+  }
+}
+
 async function loadGrid() {
   try {
     const branchId = isMultiBranch.value ? (selectedBranchId.value ?? undefined) : undefined
@@ -833,6 +868,7 @@ async function loadGrid() {
     holidays.value = data.holidays
     myBookings.value = data.myBookings
     myAttendance.value = data.myAttendance
+    await loadBonusUsage()
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'CanceledError') return
     const message = extractError(err, 'Error al cargar horarios')
@@ -870,6 +906,27 @@ onBeforeUnmount(() => cleanup())
 .reservas {
   max-width: 600px;
   margin: 0 auto;
+}
+
+.bonus-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba($positive, 0.08);
+  color: $positive;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+.bonus-banner__text {
+  flex: 1;
+}
+
+.bonus-banner__period {
+  color: $grey-7;
+  font-weight: 400;
 }
 
 .reservas__loading {

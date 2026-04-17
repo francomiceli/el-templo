@@ -84,6 +84,15 @@
             {{ subscription.replacementCredits }}
           </div>
         </div>
+        <div v-if="classUsage.bonusUsage?.applicable">
+          <div class="text-caption text-grey-7">Clases bonus</div>
+          <div class="text-weight-medium">
+            {{ classUsage.bonusUsage.used ?? 0 }} / {{ classUsage.bonusUsage.limit ?? 2 }}
+            <span v-if="classUsage.bonusUsage.periodEnd" class="text-caption text-grey-6">
+              · renueva {{ formatDate(classUsage.bonusUsage.periodEnd) }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- Pricing row -->
