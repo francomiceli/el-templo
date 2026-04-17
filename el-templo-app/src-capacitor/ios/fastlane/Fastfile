@@ -34,27 +34,44 @@ platform :ios do
       sleep(30)
     end
 
-    # Wait for build to propagate from TestFlight to App Store Connect submission API
-    UI.message("Waiting 60s for build to become available for App Store submission...")
-    sleep(60)
+    # Wait for build to propagate from TestFlight to App Store Connect submission API.
+    # TestFlight returns "processed" via one endpoint, but deliver/submit uses a separate
+    # endpoint that lags. 60s is sometimes insufficient — retry deliver on
+    # "Build number: X does not exist" errors.
+    UI.message("Waiting 180s for build to become available for App Store submission...")
+    sleep(180)
 
-    deliver(
-      api_key: api_key,
-      app_identifier: "com.eltemplo.app",
-      app_version: app_version,
-      build_number: build_number,
-      skip_binary_upload: true,
-      skip_screenshots: true,
-      skip_metadata: true,
-      release_notes: { "es-419" => notes },
-      submit_for_review: true,
-      automatic_release: true,
-      force: true,
-      precheck_include_in_app_purchases: false,
-      submission_information: {
-        add_id_info_uses_idfa: false
-      }
-    )
+    deliver_attempts = 0
+    max_deliver_attempts = 6
+
+    begin
+      deliver_attempts += 1
+      deliver(
+        api_key: api_key,
+        app_identifier: "com.eltemplo.app",
+        app_version: app_version,
+        build_number: build_number,
+        skip_binary_upload: true,
+        skip_screenshots: true,
+        skip_metadata: true,
+        release_notes: { "es-419" => notes },
+        submit_for_review: true,
+        automatic_release: true,
+        force: true,
+        precheck_include_in_app_purchases: false,
+        submission_information: {
+          add_id_info_uses_idfa: false
+        }
+      )
+    rescue => e
+      if deliver_attempts < max_deliver_attempts && e.message.include?("does not exist")
+        UI.message("Build not yet visible to submission API (attempt #{deliver_attempts}/#{max_deliver_attempts}). Waiting 90s and retrying...")
+        sleep(90)
+        retry
+      else
+        raise
+      end
+    end
 
     UI.success("v#{app_version} (build #{build_number}) submitted for review!")
   end
