@@ -21,6 +21,8 @@ import type {
   ClassUsageInfo,
   PromoListItem,
   CreatePromoInput,
+  ChangeFixedSchedulesInput,
+  SubscriptionScheduleChangeEntry,
 } from 'src/types/subscription';
 
 export function useSubscriptionsApi() {
@@ -362,6 +364,35 @@ export function useSubscriptionsApi() {
     await api.patch(`/admin/subscriptions/promo-plans/${promoId}/deactivate`);
   }
 
+  async function changeFixedSchedules(
+    subscriptionId: number,
+    input: ChangeFixedSchedulesInput
+  ): Promise<SubscriptionDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<SubscriptionDetail>(
+        `/admin/subscriptions/subscriptions/${subscriptionId}/schedules`,
+        input
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cambiando turnos fijos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function listScheduleChanges(
+    subscriptionId: number
+  ): Promise<SubscriptionScheduleChangeEntry[]> {
+    const { data } = await api.get<{ changes: SubscriptionScheduleChangeEntry[] }>(
+      `/admin/subscriptions/subscriptions/${subscriptionId}/schedule-changes`
+    );
+    return data.changes;
+  }
+
   // ─── Cleanup ──────────────────────────────────────────────────────────
 
   function cleanup() {
@@ -393,6 +424,8 @@ export function useSubscriptionsApi() {
     createPromo,
     updatePromo,
     deactivatePromo,
+    changeFixedSchedules,
+    listScheduleChanges,
     cleanup,
   };
 }

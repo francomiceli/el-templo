@@ -138,6 +138,14 @@
       <template v-if="subscription.status === 'active'">
         <q-btn flat icon="autorenew" label="Renovar" color="positive" @click="emit('renew')" />
         <q-btn
+          v-if="canChangeTurnos"
+          flat
+          icon="calendar_today"
+          label="Cambiar turnos"
+          color="primary"
+          @click="emit('change-turnos')"
+        />
+        <q-btn
           v-if="isPresencial"
           flat
           icon="swap_horiz"
@@ -209,12 +217,20 @@ const props = defineProps<{
 const emit = defineEmits<{
   renew: [];
   change: [];
+  'change-turnos': [];
   pause: [];
   resume: [];
   cancel: [];
 }>();
 
 const isPresencial = computed(() => props.subscription.planCategory === 'presencial');
+
+const canChangeTurnos = computed(
+  () =>
+    isPresencial.value &&
+    props.classUsage?.bookingMode === 'fixed' &&
+    (props.classUsage?.scheduleIds?.length ?? 0) > 0
+);
 
 const daysRemaining = computed(() => {
   if (!props.subscription.endDate) return 0;

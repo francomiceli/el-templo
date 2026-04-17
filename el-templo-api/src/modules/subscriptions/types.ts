@@ -164,6 +164,22 @@ export interface SubscriptionDetail {
 
 export interface SubscriptionHistoryItem extends SubscriptionDetail {}
 
+export interface ChangeFixedSchedulesInput {
+  scheduleIds: number[];
+  reason?: string;
+}
+
+export interface SubscriptionScheduleChangeEntry {
+  id: number;
+  subscriptionId: number;
+  actorId: number;
+  actorName: string | null;
+  oldScheduleIds: number[];
+  newScheduleIds: number[];
+  reason: string | null;
+  createdAt: string;
+}
+
 // ─── Class Usage Types ─────────────────────────────────────────────────────
 
 export interface ScheduleSlotInfo {

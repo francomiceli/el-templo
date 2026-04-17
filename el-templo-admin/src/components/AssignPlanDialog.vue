@@ -210,68 +210,15 @@
           icon="calendar_today"
           :done="step > 3"
         >
-          <div class="q-mb-md">
-            <div class="row items-center justify-between q-mb-sm">
-              <div>
-                <div class="text-subtitle2">Selecciona los horarios fijos para este plan</div>
-                <div class="text-caption text-grey-7">Sede: {{ memberBranchName }}</div>
-              </div>
-              <q-badge
-                :color="selectedScheduleIds.length === requiredSlotCount ? 'positive' : 'grey'"
-                class="text-body2 q-pa-sm"
-              >
-                Clases seleccionadas: {{ selectedScheduleIds.length }}/{{ requiredSlotCount }}
-              </q-badge>
-            </div>
-
-            <!-- Loading schedules -->
-            <div v-if="loadingSchedules" class="flex flex-center q-pa-lg">
-              <q-spinner-dots size="40px" color="primary" />
-            </div>
-
-            <!-- Schedule grid -->
-            <div v-else-if="branchSchedules.length > 0" class="slot-picker-grid">
-              <div class="slot-grid" :style="slotGridStyle">
-                <!-- Header: empty corner -->
-                <div class="slot-header slot-corner" />
-                <!-- Header: day columns -->
-                <div
-                  v-for="day in slotDays"
-                  :key="day.dayOfWeek"
-                  class="slot-header slot-day-header text-center"
-                >
-                  {{ day.label }}
-                </div>
-
-                <!-- Rows: time slots -->
-                <template v-for="time in slotTimeSlots" :key="time">
-                  <div class="slot-time-label text-caption text-grey-7">{{ time }}</div>
-                  <div
-                    v-for="day in slotDays"
-                    :key="`${time}-${day.dayOfWeek}`"
-                    class="slot-cell"
-                    :class="slotCellClass(time, day.dayOfWeek)"
-                    @click="toggleSlot(time, day.dayOfWeek)"
-                  >
-                    <template v-if="getSlotForCell(time, day.dayOfWeek)">
-                      <div class="slot-cell-activity text-caption ellipsis">
-                        {{ getSlotForCell(time, day.dayOfWeek)!.activityName }}
-                      </div>
-                      <div class="slot-cell-capacity text-caption">
-                        {{ getSlotForCell(time, day.dayOfWeek)!.bookedCount }}/{{
-                          getSlotForCell(time, day.dayOfWeek)!.maxCapacity
-                        }}
-                      </div>
-                    </template>
-                  </div>
-                </template>
-              </div>
-            </div>
-
-            <div v-else class="text-center text-grey-5 text-italic q-pa-lg">
-              No hay horarios configurados para esta sede
-            </div>
-          </div>
+          <FixedSchedulePicker
+            ref="schedulePickerRef"
+            v-model="selectedScheduleIds"
+            :branch-id="memberBranchId"
+            :required-count="requiredSlotCount"
+            title="Selecciona los horarios fijos para este plan"
+            :branch-name="memberBranchName"
+            class="q-mb-md"
+          />
 
           <q-stepper-navigation>
             <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
@@ -584,7 +531,6 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
-import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import {
   PLAN_TIER_LABELS,
   AURA_DISCOUNT_TIERS,
@@ -597,12 +543,12 @@ import {
   type ChangePlanPreview,
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
-import { DAY_SHORT_LABELS, type WeeklySlotView, type DayOfWeek } from 'src/types/scheduling';
+import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
+import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
-const schedulingApi = useSchedulingApi();
 
 // =========================================================================
 // Props & Emits
@@ -643,9 +589,8 @@ const loadingPreview = ref(false);
 const assigning = ref(false);
 
 // Schedule slot picker state
-const branchSchedules = ref<WeeklySlotView[]>([]);
-const loadingSchedules = ref(false);
 const selectedScheduleIds = ref<number[]>([]);
+const schedulePickerRef = ref<InstanceType<typeof FixedSchedulePicker> | null>(null);
 
 const assignForm = ref({
   priceTypeApplied: 'regular' as PriceType,
@@ -787,73 +732,14 @@ const canOfferAfterCurrent = computed(() => {
   return props.currentSubEndDate >= today;
 });
 
-// ─── Schedule Slot Grid Computed ──────────────────────────────────────────
-
-const slotDays = computed(() => {
-  const days: Array<{ dayOfWeek: DayOfWeek; label: string }> = [];
-  for (let i = 1; i <= 6; i++) {
-    const dow = i as DayOfWeek;
-    days.push({ dayOfWeek: dow, label: DAY_SHORT_LABELS[dow] });
-  }
-  return days;
-});
-
-const slotTimeSlots = computed(() => {
-  const times = new Set<string>();
-  for (const slot of branchSchedules.value) {
-    times.add(slot.startTime);
-  }
-  return Array.from(times).sort();
-});
-
-const slotGridStyle = computed(() => ({
-  'grid-template-columns': '55px repeat(6, 1fr)',
-  'grid-template-rows': `auto repeat(${slotTimeSlots.value.length}, 1fr)`,
-}));
-
-const slotMap = computed(() => {
-  const map = new Map<string, WeeklySlotView>();
-  for (const s of branchSchedules.value) {
-    map.set(`${s.startTime}-${s.dayOfWeek}`, s);
-  }
-  return map;
-});
-
-function getSlotForCell(time: string, dayOfWeek: DayOfWeek): WeeklySlotView | undefined {
-  return slotMap.value.get(`${time}-${dayOfWeek}`);
-}
-
-function slotCellClass(time: string, dayOfWeek: DayOfWeek): string {
-  const slot = getSlotForCell(time, dayOfWeek);
-  if (!slot) return 'slot-cell--empty';
-  if (slot.isFull) return 'slot-cell--full';
-  if (selectedScheduleIds.value.includes(slot.id)) return 'slot-cell--selected';
-  return 'slot-cell--available';
-}
-
-function toggleSlot(time: string, dayOfWeek: DayOfWeek): void {
-  const slot = getSlotForCell(time, dayOfWeek);
-  if (!slot || slot.isFull) return;
-
-  const idx = selectedScheduleIds.value.indexOf(slot.id);
-  if (idx >= 0) {
-    selectedScheduleIds.value.splice(idx, 1);
-  } else {
-    // Only allow selection if under the required count
-    if (selectedScheduleIds.value.length < requiredSlotCount.value) {
-      selectedScheduleIds.value.push(slot.id);
-    }
-  }
-}
-
 function formatSelectedSchedules(): string {
+  const slots = schedulePickerRef.value?.slots ?? [];
   const names: string[] = [];
   for (const id of selectedScheduleIds.value) {
-    const slot = branchSchedules.value.find((s) => s.id === id);
+    const slot = slots.find((s) => s.id === id);
     if (slot) {
-      names.push(
-        `${slot.activityName} ${DAY_SHORT_LABELS[slot.dayOfWeek as DayOfWeek]} ${slot.startTime.slice(0, 5)}`
-      );
+      const dayLabel = DAY_SHORT_LABELS[slot.dayOfWeek as DayOfWeek];
+      names.push(`${slot.activityName} ${dayLabel} ${slot.startTime.slice(0, 5)}`);
     }
   }
   return names.join(', ');
@@ -921,33 +807,6 @@ async function loadPricingPreview() {
   }
 }
 
-async function loadBranchSchedules() {
-  loadingSchedules.value = true;
-  try {
-    // Use the weekly grid endpoint with the current Monday to get active schedules
-    const monday = getMonday(new Date());
-    const result = await schedulingApi.getWeeklyGrid(props.memberBranchId, monday);
-    branchSchedules.value = result.slots;
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading branch schedules', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando horarios' });
-  } finally {
-    loadingSchedules.value = false;
-  }
-}
-
-function getMonday(d: Date): string {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const dd = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dd}`;
-}
-
 // =========================================================================
 // Actions
 // =========================================================================
@@ -981,7 +840,6 @@ async function selectPlan(plan: PlanListItem) {
     // Online plans always skip schedule step regardless of bookingMode
     if (plan.bookingMode === 'fixed' && plan.planCategory === 'presencial') {
       step.value = 3;
-      loadBranchSchedules();
     } else {
       // Flexible and online plans skip directly to confirm step
       step.value = confirmStep.value;
@@ -989,11 +847,6 @@ async function selectPlan(plan: PlanListItem) {
   } else {
     step.value = 2;
     loadPricingPreview();
-
-    // Pre-load branch schedules for fixed presencial plans (online never uses schedules)
-    if (plan.bookingMode === 'fixed' && plan.planCategory === 'presencial') {
-      loadBranchSchedules();
-    }
   }
 }
 
@@ -1104,7 +957,6 @@ watch(
       selectedPlan.value = null;
       pricingPreview.value = null;
       changePlanPreviewData.value = null;
-      branchSchedules.value = [];
       selectedScheduleIds.value = [];
       assignForm.value = {
         priceTypeApplied: 'regular',
@@ -1123,103 +975,3 @@ watch(
   }
 );
 </script>
-
-<style scoped>
-.slot-picker-grid {
-  overflow-x: auto;
-}
-
-.slot-grid {
-  display: grid;
-  gap: 2px;
-  min-width: 420px;
-}
-
-.slot-header {
-  padding: 6px 4px;
-  background: var(--q-primary);
-  color: white;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.slot-corner {
-  border-radius: 4px 0 0 0;
-}
-
-.slot-day-header {
-  border-radius: 0;
-}
-
-.slot-day-header:last-child {
-  border-radius: 0 4px 0 0;
-}
-
-.slot-time-label {
-  padding: 6px 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f5f5f5;
-  font-weight: 500;
-}
-
-.slot-cell {
-  padding: 4px;
-  min-height: 48px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #e0e0e0;
-  cursor: pointer;
-  transition: all 0.15s;
-  border-radius: 4px;
-}
-
-.slot-cell:hover:not(.slot-cell--empty):not(.slot-cell--full) {
-  filter: brightness(0.92);
-}
-
-.slot-cell--empty {
-  background: #fafafa;
-  cursor: default;
-  border-color: transparent;
-}
-
-.slot-cell--available {
-  background: #e8f5e9;
-  border-color: #c8e6c9;
-}
-
-.slot-cell--selected {
-  background: #bbdefb;
-  border-color: var(--q-primary);
-  border-width: 3px;
-}
-
-.slot-cell--full {
-  background: #f5f5f5;
-  color: #bdbdbd;
-  cursor: not-allowed;
-  border-color: #eeeeee;
-}
-
-.slot-cell-activity {
-  font-size: 0.65rem;
-  max-width: 100%;
-  text-align: center;
-}
-
-.slot-cell-capacity {
-  font-size: 0.7rem;
-  margin-top: 1px;
-  font-weight: 600;
-}
-
-.ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-</style>

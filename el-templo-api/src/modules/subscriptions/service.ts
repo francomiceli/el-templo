@@ -806,6 +806,194 @@ export class SubscriptionService {
   }
 
   /**
+   * Replace a fixed-plan subscription's schedule slots.
+   *
+   * Cancels future bookings on the old slots, swaps the subscription_schedules
+   * rows, regenerates bookings on the new slots from tomorrow to endDate, and
+   * records an audit row. Today's booking on the old slot is preserved.
+   */
+  async changeFixedSchedules(
+    subscriptionId: number,
+    actorId: number,
+    input: { scheduleIds: number[]; reason?: string },
+  ): Promise<SubscriptionDetail> {
+    const sub = await this.getSubscriptionById(subscriptionId);
+    if (!sub) {
+      throw new NotFoundError("Suscripcion no encontrada");
+    }
+    if (sub.status !== "active") {
+      throw new BadRequestError(
+        "Solo se pueden cambiar turnos de suscripciones activas",
+      );
+    }
+
+    const [plan] = await this.db
+      .select({
+        bookingMode: schema.subscriptionPlans.bookingMode,
+        planCategory: schema.subscriptionPlans.planCategory,
+        classesPerWeek: schema.subscriptionPlans.classesPerWeek,
+      })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, sub.planId));
+
+    if (!plan || plan.bookingMode !== "fixed") {
+      throw new BadRequestError(
+        "Solo los planes fijos tienen turnos que cambiar",
+      );
+    }
+    if (plan.planCategory !== "presencial") {
+      throw new BadRequestError(
+        "Solo los planes presenciales usan turnos fijos",
+      );
+    }
+    if (
+      plan.classesPerWeek !== null &&
+      input.scheduleIds.length !== plan.classesPerWeek
+    ) {
+      throw new BadRequestError(
+        `Debes seleccionar exactamente ${plan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
+      );
+    }
+
+    // Validate the new schedule IDs: exist, active, same branch
+    const scheduleRows = await this.db
+      .select({
+        id: schema.schedules.id,
+        branchId: schema.schedules.branchId,
+        isActive: schema.schedules.isActive,
+      })
+      .from(schema.schedules)
+      .where(inArray(schema.schedules.id, input.scheduleIds));
+
+    if (scheduleRows.length !== input.scheduleIds.length) {
+      const foundIds = new Set(scheduleRows.map((s) => s.id));
+      const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
+      throw new BadRequestError(
+        `Horarios no encontrados: ${missing.join(", ")}`,
+      );
+    }
+    for (const row of scheduleRows) {
+      if (!row.isActive) {
+        throw new BadRequestError(
+          `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
+        );
+      }
+      if (row.branchId !== sub.branchId) {
+        throw new BadRequestError(
+          `El horario ${row.id} no pertenece a la sucursal de la suscripcion`,
+        );
+      }
+    }
+
+    const oldScheduleIds = sub.scheduleIds;
+    const newSet = new Set(input.scheduleIds);
+    const sameSet =
+      oldScheduleIds.length === input.scheduleIds.length &&
+      oldScheduleIds.every((id) => newSet.has(id));
+    if (sameSet) {
+      throw new BadRequestError(
+        "Los turnos seleccionados son iguales a los actuales",
+      );
+    }
+
+    // 1. Cancel future bookings on old slots (reads current subscription_schedules)
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(subscriptionId);
+    }
+
+    // 2. Swap subscription_schedules rows
+    await this.db
+      .delete(schema.subscriptionSchedules)
+      .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
+    await this.db.insert(schema.subscriptionSchedules).values(
+      input.scheduleIds.map((scheduleId) => ({
+        subscriptionId,
+        scheduleId,
+      })),
+    );
+
+    // 3. Record audit trail
+    await this.db.insert(schema.subscriptionScheduleChanges).values({
+      subscriptionId,
+      actorId,
+      oldScheduleIds,
+      newScheduleIds: input.scheduleIds,
+      reason: input.reason ?? null,
+    });
+
+    // 4. Regenerate future bookings on new slots starting tomorrow
+    if (this.bookingService && sub.endDate) {
+      const now = new Date();
+      now.setUTCDate(now.getUTCDate() + 1);
+      const tomorrow = now.toISOString().split("T")[0];
+      if (tomorrow <= sub.endDate) {
+        await this.bookingService.generateFixedBookings(
+          subscriptionId,
+          sub.userId,
+          input.scheduleIds,
+          tomorrow,
+          sub.endDate,
+          sub.branchId,
+        );
+      }
+    }
+
+    this.log.info(
+      {
+        subscriptionId,
+        actorId,
+        oldScheduleIds,
+        newScheduleIds: input.scheduleIds,
+      },
+      "Fixed subscription schedules changed",
+    );
+
+    const updated = await this.getSubscriptionById(subscriptionId);
+    return updated!;
+  }
+
+  /**
+   * List schedule-change audit entries for a subscription (newest first).
+   */
+  async listScheduleChanges(
+    subscriptionId: number,
+  ): Promise<import("./types").SubscriptionScheduleChangeEntry[]> {
+    const rows = await this.db
+      .select({
+        id: schema.subscriptionScheduleChanges.id,
+        subscriptionId: schema.subscriptionScheduleChanges.subscriptionId,
+        actorId: schema.subscriptionScheduleChanges.actorId,
+        actorFirstName: schema.users.firstName,
+        actorLastName: schema.users.lastName,
+        oldScheduleIds: schema.subscriptionScheduleChanges.oldScheduleIds,
+        newScheduleIds: schema.subscriptionScheduleChanges.newScheduleIds,
+        reason: schema.subscriptionScheduleChanges.reason,
+        createdAt: schema.subscriptionScheduleChanges.createdAt,
+      })
+      .from(schema.subscriptionScheduleChanges)
+      .leftJoin(
+        schema.users,
+        eq(schema.users.id, schema.subscriptionScheduleChanges.actorId),
+      )
+      .where(
+        eq(schema.subscriptionScheduleChanges.subscriptionId, subscriptionId),
+      )
+      .orderBy(desc(schema.subscriptionScheduleChanges.createdAt));
+
+    return rows.map((r) => ({
+      id: r.id,
+      subscriptionId: r.subscriptionId,
+      actorId: r.actorId,
+      actorName:
+        [r.actorFirstName, r.actorLastName].filter(Boolean).join(" ") || null,
+      oldScheduleIds: r.oldScheduleIds ?? [],
+      newScheduleIds: r.newScheduleIds ?? [],
+      reason: r.reason,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  /**
    * Pause an active subscription. Optionally schedule auto-resume on pauseEndDate.
    * If pauseEndDate is omitted, pause is open-ended (manual resume only).
    */

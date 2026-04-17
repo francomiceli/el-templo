@@ -16,10 +16,44 @@
         label="Suscripción Presencial"
         @renew="openRenewal(presencialSub!)"
         @change="showChangeDialog = true"
+        @change-turnos="openChangeTurnos"
         @pause="confirmPause"
         @resume="confirmResume"
         @cancel="confirmCancel"
       />
+
+      <!-- Fixed turnos change history -->
+      <q-card
+        v-if="presencialSub && classUsage?.bookingMode === 'fixed' && scheduleChanges.length > 0"
+        flat
+        bordered
+        class="q-mb-md"
+      >
+        <q-expansion-item
+          icon="history"
+          :label="`Historial de cambios de turnos (${scheduleChanges.length})`"
+          header-class="text-subtitle2"
+          @show="loadScheduleChanges"
+        >
+          <q-list separator dense>
+            <q-item v-for="c in scheduleChanges" :key="c.id">
+              <q-item-section avatar>
+                <q-icon name="swap_calls" color="primary" />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>
+                  {{ formatTurnosChange(c) }}
+                </q-item-label>
+                <q-item-label caption>
+                  {{ formatDate(c.createdAt) }}
+                  <template v-if="c.actorName"> · por {{ c.actorName }}</template>
+                  <template v-if="c.reason"> · {{ c.reason }}</template>
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-expansion-item>
+      </q-card>
 
       <!-- No presencial subscription -->
       <q-card v-else flat bordered class="q-mb-md">
@@ -164,6 +198,18 @@
       :currentSubEndDate="presencialSub?.endDate ?? null"
       mode="change"
       @assigned="onAssigned"
+    />
+
+    <!-- Change Fixed Schedules Dialog -->
+    <ChangeFixedSchedulesDialog
+      v-if="presencialSub && classUsage?.weeklyLimit"
+      v-model="showChangeTurnosDialog"
+      :subscription-id="presencialSub.id"
+      :branch-id="memberBranchId"
+      :branch-name="memberBranchName"
+      :required-count="classUsage.weeklyLimit"
+      :current-schedule-ids="classUsage.scheduleIds"
+      @saved="onTurnosChanged"
     />
 
     <!-- Assign Program Dialog (online only) -->
@@ -345,7 +391,9 @@ import {
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
+import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
 import SubscriptionCard from 'src/components/SubscriptionCard.vue';
+import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
@@ -380,6 +428,9 @@ const actionLoading = ref(false);
 const showAssignDialog = ref(false);
 const showAssignProgramDialog = ref(false);
 const showChangeDialog = ref(false);
+const showChangeTurnosDialog = ref(false);
+const scheduleChanges = ref<SubscriptionScheduleChangeEntry[]>([]);
+const loadingScheduleChanges = ref(false);
 const showSwapProgramDialog = ref(false);
 const swapTargetProgramId = ref<number | null>(null);
 const swapLoading = ref(false);
@@ -575,6 +626,7 @@ async function doSwapProgram() {
 
 async function refreshAll() {
   await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage(), loadEnrollment()]);
+  await loadScheduleChanges();
 }
 
 // =========================================================================
@@ -728,6 +780,46 @@ function confirmCancelPrograma() {
 function onAssigned() {
   refreshAll();
   emit('subscription-changed');
+}
+
+function openChangeTurnos() {
+  showChangeTurnosDialog.value = true;
+}
+
+async function onTurnosChanged() {
+  await Promise.all([loadSubscriptions(), loadClassUsage(), loadScheduleChanges()]);
+  emit('subscription-changed');
+}
+
+async function loadScheduleChanges() {
+  if (!presencialSub.value) {
+    scheduleChanges.value = [];
+    return;
+  }
+  loadingScheduleChanges.value = true;
+  try {
+    scheduleChanges.value = await subsApi.listScheduleChanges(presencialSub.value.id);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading schedule changes', { error: message });
+  } finally {
+    loadingScheduleChanges.value = false;
+  }
+}
+
+function formatTurnosChange(entry: SubscriptionScheduleChangeEntry): string {
+  const slotsById = new Map<number, string>();
+  for (const slot of classUsage.value?.scheduleSlots ?? []) {
+    slotsById.set(slot.id, `${dayShort(slot.dayOfWeek)} ${slot.startTime.slice(0, 5)}`);
+  }
+  const fmt = (ids: number[]): string => ids.map((id) => slotsById.get(id) ?? `#${id}`).join(', ');
+  return `${fmt(entry.oldScheduleIds)} → ${fmt(entry.newScheduleIds)}`;
+}
+
+function dayShort(dow: number): string {
+  const labels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  const idx = dow === 7 ? 0 : dow;
+  return labels[idx] ?? '';
 }
 
 // =========================================================================

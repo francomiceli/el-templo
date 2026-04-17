@@ -42,6 +42,8 @@ import {
   cancelSubscriptionSchema,
   classUsageSchema,
   pricingPreviewSchema,
+  changeFixedSchedulesSchema,
+  listScheduleChangesSchema,
   listPromosSchema,
   createPromoSchema,
   updatePromoSchema,
@@ -282,6 +284,43 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
             .send({ error: "Solicitud invalida", message: err.message });
         }
         handleServiceError(err, reply, request.log, "change plan");
+      }
+    },
+  );
+
+  // PATCH /subscriptions/:subscriptionId/schedules — Change fixed turnos
+  fastify.patch<{
+    Params: { subscriptionId: number };
+    Body: { scheduleIds: number[]; reason?: string };
+  }>(
+    "/subscriptions/:subscriptionId/schedules",
+    { schema: changeFixedSchedulesSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.changeFixedSchedules(
+          request.params.subscriptionId,
+          request.user.userId,
+          request.body,
+        );
+        return sub;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "change fixed schedules");
+      }
+    },
+  );
+
+  // GET /subscriptions/:subscriptionId/schedule-changes — List audit entries
+  fastify.get<{ Params: { subscriptionId: number } }>(
+    "/subscriptions/:subscriptionId/schedule-changes",
+    { schema: listScheduleChangesSchema },
+    async (request, reply) => {
+      try {
+        const changes = await subscriptionService.listScheduleChanges(
+          request.params.subscriptionId,
+        );
+        return { changes };
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list schedule changes");
       }
     },
   );

@@ -668,3 +668,59 @@ export const pricingPreviewSchema = {
     404: errorSchema,
   },
 };
+
+const scheduleChangeEntrySchema = {
+  type: "object",
+  properties: {
+    id: { type: "integer" },
+    subscriptionId: { type: "integer" },
+    actorId: { type: "integer" },
+    actorName: { type: ["string", "null"] },
+    oldScheduleIds: { type: "array", items: { type: "integer" } },
+    newScheduleIds: { type: "array", items: { type: "integer" } },
+    reason: { type: ["string", "null"] },
+    createdAt: { type: "string" },
+  },
+} as const;
+
+export const changeFixedSchedulesSchema = {
+  params: {
+    type: "object",
+    required: ["subscriptionId"],
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["scheduleIds"],
+    properties: {
+      scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
+      reason: { type: "string" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
+export const listScheduleChangesSchema = {
+  params: {
+    type: "object",
+    required: ["subscriptionId"],
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        changes: { type: "array", items: scheduleChangeEntrySchema },
+      },
+    },
+    404: errorSchema,
+  },
+};
