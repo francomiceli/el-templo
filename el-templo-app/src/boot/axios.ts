@@ -36,6 +36,14 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
+    // Ensure mutating requests always carry a body so axios attaches
+    // Content-Type: application/json. Capacitor Android WebView drops the
+    // default Content-Type when data is undefined, causing the API to return
+    // 415 Unsupported Media Type.
+    const method = config.method?.toUpperCase()
+    if (method && ['POST', 'PUT', 'PATCH'].includes(method) && config.data === undefined) {
+      config.data = {}
+    }
     return config
   },
   (error) => {
