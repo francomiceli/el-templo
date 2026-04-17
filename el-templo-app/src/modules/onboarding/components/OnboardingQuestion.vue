@@ -1,16 +1,7 @@
 <template>
   <div class="question-screen">
     <div class="glass-card">
-      <!-- Back arrow -->
-      <button
-        v-if="showBack"
-        class="back-arrow"
-        aria-label="Volver a la pregunta anterior"
-        @click="emit('back')"
-      >
-        <q-icon name="arrow_back" size="24px" />
-      </button>
-
+      <p v-if="question.frame" class="question-frame">{{ question.frame }}</p>
       <h3 class="question-text">{{ question.text }}</h3>
 
       <div :class="['options-stack', { 'options-stack--scrollable': scrollable }]">
@@ -42,14 +33,12 @@ const props = defineProps<{
   question: QuizQuestion | QuizQuestionV2
   questionIndex: number
   selectedValue: string | null
-  showBack: boolean
 }>()
 
 const scrollable = computed(() => props.question.options.length > 5)
 
 const emit = defineEmits<{
   select: [value: string]
-  back: []
 }>()
 
 function onSelectOption(value: string) {
@@ -78,35 +67,18 @@ $charcoal-mid: #3d3732;
   padding: 28px 24px 20px;
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  position: relative;
 }
 
-.back-arrow {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
+.question-frame {
+  font-family: 'Geologica', sans-serif;
+  font-style: italic;
+  font-weight: 300;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
   color: rgba($cream, 0.5);
-  cursor: pointer;
-  padding: 0;
-  border-radius: 50%;
-  transition:
-    color 0.2s ease,
-    transform 0.1s ease;
-
-  &:hover {
-    color: $cream;
-  }
-
-  &:active {
-    transform: scale(0.9);
-  }
+  margin: 0 0 12px 0;
+  text-align: center;
+  line-height: 1.45;
 }
 
 .question-text {

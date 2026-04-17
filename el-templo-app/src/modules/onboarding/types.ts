@@ -138,7 +138,7 @@ export const SUMMARY_ROWS = [
 // V2 Avatar Profiling Quiz (Phase 90)
 // =========================================================================
 
-export type AgeRange = '18_28' | '29_40' | '41_plus'
+export type AgeRange = '18_24' | '25_34' | '35_50' | '50_plus'
 export type TrainingBackground =
   | 'el_templo'
   | 'nunca'
@@ -178,53 +178,60 @@ export interface QuizQuestionV2 {
   text: string
   options: QuizOption[]
   genderFiltered?: boolean
+  /** Italic lore line rendered above the question. Sets the frame before asking. */
+  frame?: string
 }
 
 export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   {
     key: 'ageRange',
     text: '¿Qué edad tenés?',
+    frame: 'Cada etapa tiene su fuerza. Entrenamos todas.',
     options: [
-      { value: '18_28', label: '18 a 28 años' },
-      { value: '29_40', label: '29 a 40 años' },
-      { value: '41_plus', label: '41 o más' },
+      { value: '18_24', label: '18 a 24 años' },
+      { value: '25_34', label: '25 a 34 años' },
+      { value: '35_50', label: '35 a 50 años' },
+      { value: '50_plus', label: 'Más de 50' },
     ],
   },
   {
     key: 'trainingBackground',
-    text: '¿Cómo venís entrenando?',
+    text: '¿Cuál es tu historia con el entrenamiento?',
+    frame: 'Nada es al azar. Todo es metodología.',
     options: [
       { value: 'el_templo', label: 'Ya entreno en El Templo' },
       { value: 'nunca', label: 'Nunca entrené en serio' },
-      { value: 'gym', label: 'Gym / pesas' },
-      { value: 'cardio', label: 'Correr / nadar / bici' },
-      { value: 'yoga_pilates', label: 'Yoga / pilates / similar' },
-      { value: 'calistenia', label: 'Calistenia / peso corporal' },
+      { value: 'gym', label: 'Gimnasio con pesas' },
+      { value: 'cardio', label: 'Running, natación o ciclismo' },
+      { value: 'yoga_pilates', label: 'Yoga o pilates' },
+      { value: 'calistenia', label: 'Calistenia' },
       { value: 'deje', label: 'Entrenaba pero dejé' },
     ],
   },
   {
     key: 'goal',
-    text: '¿Qué querés lograr?',
+    text: '¿Qué te mueve a entrenar?',
+    frame: 'Cada meta tiene un camino. Vos elegís el destino.',
     genderFiltered: true,
     options: [
       // Universal
       { value: 'habito', label: 'Crear el hábito de entrenar' },
       { value: 'fuerza_general', label: 'Fuerza y cuerpo completo' },
-      { value: 'comunidad', label: 'Entrenar con gente, pertenecer' },
+      { value: 'comunidad', label: 'Entrenar en comunidad' },
       // Women-only
-      { value: 'piernas_gluteos', label: 'Piernas y glúteos que se noten' },
+      { value: 'piernas_gluteos', label: 'Tener piernas y glúteos fuertes' },
       { value: 'cuerpo_firme', label: 'Cuerpo firme y funcional' },
       // Men-only
       { value: 'cero_atleta', label: 'De cero a atleta' },
-      { value: 'skill', label: 'Dominar un skill (front lever, muscle up, planche)' },
-      // 41+
+      { value: 'skill', label: 'Lograr un movimiento icónico de calistenia' },
+      // 35+
       { value: 'longevidad', label: 'Moverme sin dolor, longevidad' },
     ],
   },
   {
     key: 'painPoint',
-    text: '¿Qué te frenó hasta ahora?',
+    text: '¿Qué no te funcionó hasta ahora?',
+    frame: 'No es solo voluntad. A veces falta estructura.',
     options: [
       { value: 'tiempo', label: 'No tengo tiempo' },
       { value: 'constancia', label: 'Siempre empiezo y no sigo' },
@@ -237,6 +244,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   {
     key: 'trainingFrequency',
     text: '¿Cuántos días por semana podés entrenar?',
+    frame: 'Donde hay ritmo, hay progreso.',
     options: [
       { value: '2', label: '2 veces' },
       { value: '3', label: '3 veces' },
@@ -246,9 +254,60 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
   },
 ]
 
+// =========================================================================
+// Reactive lore lines shown AFTER each answer (reflect screens).
+// `**word**` inside a line renders as a terracotta emphasis span.
+// `trainingBackground: 'el_templo'` is intentionally absent — it advances
+// directly to the level picker, which IS the reflect for that answer.
+// =========================================================================
+export const REFLECT_COPY: Partial<Record<QuizKeyV2, Record<string, string>>> = {
+  ageRange: {
+    '18_24': 'Acá empieza el cuerpo que vas a usar toda la vida.',
+    '25_34': 'Trabajo, vida, disciplina propia. En el medio, tu entrenamiento.',
+    '35_50': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
+    '50_plus': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
+  },
+  trainingBackground: {
+    nunca: 'Cada día es una decisión. Hoy ya la tomaste.',
+    gym: 'Vas a descubrir lo que tu cuerpo puede hacer sin máquinas.',
+    cardio: 'Moverte es el primer paso. Ahora viene la fuerza.',
+    yoga_pilates: 'Ya entrenaste conciencia. Ahora entrenamos fuerza consciente.',
+    calistenia: 'Entrenás sin máquinas. Ahora entrenás con método.',
+    deje: 'El que volvió sabe cuánto vale seguir.',
+  },
+  goal: {
+    habito:
+      'Somos lo que hacemos repetidamente. La excelencia, entonces, no es un acto, sino un hábito.',
+    fuerza_general: 'Fuerza real es control absoluto.',
+    comunidad: 'Nadie se hace fuerte solo. Ese es el secreto.',
+    piernas_gluteos: 'Tallar el cuerpo con intención. Eso es entrenar piernas y glúteos.',
+    cuerpo_firme: 'Firmeza no es tono. Es fuerza visible.',
+    cero_atleta: 'Cada etapa te entrena para la siguiente. Eso es ser atleta.',
+    skill: 'Para lograr el movimiento, tenés que construir el cuerpo. Ese es el camino.',
+    longevidad: 'Moverte sin dolor es un entrenamiento, no una suerte.',
+  },
+  painPoint: {
+    tiempo: 'No necesitás más tiempo. Necesitás un método que respete el que tenés.',
+    constancia: 'La constancia no se fuerza. Se construye con estructura.',
+    no_se_por_donde: 'Empezás donde estás. El método te lleva el resto.',
+    ambiente: 'Entrar a entrenar debería sentirse bien. Pronto lo vas a sentir.',
+    resultados: 'Si no vas en una dirección, no hay cómo llegar.',
+    nada: 'Perfecto. Empezamos.',
+  },
+  // trainingFrequency intentionally has no reflect copy — Q5 advances
+  // directly to the closing revelation so the ceremony lands without
+  // an extra 7s pause right before the program reveal.
+}
+
+export function lookupReflect(key: QuizKeyV2, value: string): string | null {
+  return REFLECT_COPY[key]?.[value] ?? null
+}
+
 // Level selector question (conditional step 2.5 — shown only when trainingBackground === 'el_templo')
 export type TemploLevel = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan'
 
+// Spartan intentionally excluded: earned/assigned, not self-claimed during onboarding.
+// TemploLevel type retains 'spartan' for DB/API/admin parity.
 export const LEVEL_SELECTOR_QUESTION: QuizQuestionV2 = {
   key: 'trainingBackground', // reuses key slot for component compatibility
   text: '¿En qué nivel entrenás?',
@@ -257,7 +316,6 @@ export const LEVEL_SELECTOR_QUESTION: QuizQuestionV2 = {
     { value: 'delta', label: 'Δ Delta' },
     { value: 'sigma', label: 'Σ Sigma' },
     { value: 'omega', label: 'Ω Omega' },
-    { value: 'spartan', label: 'Ω Spartan' },
   ],
 }
 

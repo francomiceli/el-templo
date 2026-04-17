@@ -52,10 +52,10 @@ export function resolveAvatar(input: AvatarInput): AvatarResult {
 
   let avatarType: AvatarLetter;
 
-  // 1. K: Mujer joven -- female 18-28 who is NOT already into calistenia/yoga
+  // 1. K: Mujer joven -- female 18-24 who is NOT already into calistenia/yoga
   if (
     gender === "female" &&
-    ageRange === "18_28" &&
+    ageRange === "18_24" &&
     trainingBackground !== "calistenia" &&
     trainingBackground !== "yoga_pilates"
   ) {
@@ -83,16 +83,16 @@ export function resolveAvatar(input: AvatarInput): AvatarResult {
   // 5. H: Hombre maduro longevidad
   else if (
     gender === "male" &&
-    ageRange === "41_plus" &&
+    ageRange === "50_plus" &&
     goal === "longevidad"
   ) {
     avatarType = "H";
   }
-  // 6. F: Pesas veterano -- male gym-goer who is 41+ or seeks longevidad
+  // 6. F: Pesas veterano -- male gym-goer who is 50+ or seeks longevidad
   else if (
     gender === "male" &&
     trainingBackground === "gym" &&
-    (ageRange === "41_plus" || goal === "longevidad")
+    (ageRange === "50_plus" || goal === "longevidad")
   ) {
     avatarType = "F";
   }

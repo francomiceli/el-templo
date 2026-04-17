@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Onboarding narrative mockup</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=Geologica:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --charcoal: #2e2a26;
+        --charcoal-deep: #1b1815;
+        --terracotta: #96593a;
+        --terracotta-glow: #b36a44;
+        --cream: #f2ede5;
+        --cream-70: rgba(242, 237, 229, 0.7);
+        --cream-50: rgba(242, 237, 229, 0.5);
+        --cream-30: rgba(242, 237, 229, 0.3);
+        --amber: #d4a843;
+        --bronze: #d4b896;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #111;
+        color: var(--cream);
+        font-family: 'Geologica', system-ui, sans-serif;
+        min-height: 100vh;
+      }
+
+      .stage {
+        display: flex;
+        flex-direction: column;
+        gap: 48px;
+        align-items: center;
+        padding: 48px 24px 96px;
+      }
+
+      .stage__title {
+        font-family: 'Geologica', sans-serif;
+        font-size: 12px;
+        letter-spacing: 0.25em;
+        text-transform: uppercase;
+        color: var(--cream-50);
+        margin: 0 0 12px;
+      }
+
+      /* Phone frame 390x844 (iPhone 14 Pro portrait) */
+      .phone {
+        width: 390px;
+        height: 844px;
+        background: var(--charcoal);
+        border-radius: 46px;
+        position: relative;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 10px #2a2622,
+          0 0 0 11px #1a1714,
+          0 60px 80px -40px rgba(0, 0, 0, 0.8);
+      }
+
+      .phone__screen {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 72px 28px 40px;
+        background:
+          radial-gradient(circle at 20% 0%, rgba(150, 89, 58, 0.1), transparent 50%),
+          radial-gradient(circle at 80% 100%, rgba(150, 89, 58, 0.08), transparent 60%),
+          linear-gradient(180deg, var(--charcoal) 0%, var(--charcoal-deep) 100%);
+      }
+
+      /* Progress indicator — greek letters fill as questions answer */
+      .progress {
+        display: flex;
+        justify-content: center;
+        gap: 24px;
+        margin-bottom: 48px;
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        font-size: 18px;
+      }
+      .progress__glyph {
+        color: var(--cream-30);
+        transition: color 600ms ease;
+      }
+      .progress__glyph--active {
+        color: var(--terracotta);
+      }
+      .progress__glyph--current {
+        color: var(--cream);
+      }
+
+      /* Frame italic line above question */
+      .frame {
+        font-family: 'Geologica', sans-serif;
+        font-style: italic;
+        font-weight: 300;
+        font-size: 14px;
+        color: var(--cream-50);
+        text-align: center;
+        margin: 0 0 24px;
+        letter-spacing: 0.02em;
+      }
+
+      .question {
+        font-family: 'Geologica', sans-serif;
+        font-weight: 500;
+        font-size: 26px;
+        line-height: 1.25;
+        color: var(--cream);
+        text-align: center;
+        margin: 0 0 40px;
+      }
+
+      .options {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .option {
+        font-family: 'Geologica', sans-serif;
+        font-weight: 400;
+        font-size: 17px;
+        color: var(--cream);
+        background: rgba(242, 237, 229, 0.04);
+        border: 1px solid rgba(242, 237, 229, 0.12);
+        border-radius: 14px;
+        padding: 18px 20px;
+        text-align: left;
+        cursor: pointer;
+        transition: all 200ms ease;
+      }
+      .option:hover {
+        background: rgba(150, 89, 58, 0.12);
+        border-color: rgba(150, 89, 58, 0.45);
+      }
+      .option--selected {
+        background: rgba(150, 89, 58, 0.18);
+        border-color: var(--terracotta);
+        color: var(--cream);
+      }
+
+      /* Reflect screen — answer echo + reactive lore */
+      .reflect {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        gap: 24px;
+        padding: 0 12px;
+      }
+      .reflect__echo {
+        font-family: 'Geologica', sans-serif;
+        font-size: 13px;
+        color: var(--cream-50);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .reflect__line {
+        font-family: 'Geologica', sans-serif;
+        font-weight: 300;
+        font-style: italic;
+        font-size: 22px;
+        line-height: 1.45;
+        color: var(--cream);
+        margin: 0;
+      }
+      .reflect__line::before,
+      .reflect__line::after {
+        content: '';
+        display: block;
+        width: 40px;
+        height: 1px;
+        background: var(--terracotta);
+        margin: 28px auto;
+        opacity: 0.6;
+      }
+      .reflect__hint {
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--cream-30);
+        margin-top: auto;
+      }
+
+      /* Revelation — 3 beats */
+      .rev {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        gap: 40px;
+      }
+      .rev__label {
+        font-family: 'Geologica', sans-serif;
+        font-size: 12px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--cream-50);
+        margin: 0;
+      }
+      .rev__reads {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        width: 100%;
+      }
+      .rev__read {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 12px 16px;
+        background: rgba(242, 237, 229, 0.04);
+        border-left: 2px solid var(--terracotta);
+        border-radius: 0 10px 10px 0;
+      }
+      .rev__read-icon {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        color: var(--terracotta);
+        font-size: 18px;
+        width: 24px;
+        text-align: center;
+      }
+      .rev__read-label {
+        font-size: 11px;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--cream-50);
+      }
+      .rev__read-value {
+        font-size: 15px;
+        color: var(--cream);
+        margin-top: 2px;
+      }
+      .rev__program {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        font-size: 30px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--cream);
+        line-height: 1.15;
+        /* engraved effect: inset subsurface terracotta glow */
+        text-shadow:
+          0 1px 0 rgba(0, 0, 0, 0.55),
+          0 0 24px rgba(179, 106, 68, 0.4),
+          0 0 48px rgba(150, 89, 58, 0.25);
+      }
+      .rev__desc {
+        font-family: 'Geologica', sans-serif;
+        font-weight: 300;
+        font-size: 14px;
+        color: var(--cream-70);
+        line-height: 1.55;
+        max-width: 280px;
+      }
+      .rev__aura {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+      .rev__orb {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle at 35% 30%,
+          #f0cc6e 0%,
+          var(--amber) 45%,
+          #8a6920 100%
+        );
+        box-shadow:
+          0 0 40px rgba(212, 168, 67, 0.55),
+          0 0 80px rgba(212, 168, 67, 0.25),
+          inset 0 -6px 12px rgba(0, 0, 0, 0.35);
+        animation: pulse 2400ms ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          filter: brightness(1);
+        }
+        50% {
+          transform: scale(1.06);
+          filter: brightness(1.15);
+        }
+      }
+      .rev__aura-amount {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        font-size: 20px;
+        color: var(--amber);
+        letter-spacing: 0.08em;
+      }
+      .rev__aura-sub {
+        font-size: 12px;
+        color: var(--cream-50);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .cta {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--cream);
+        background: var(--terracotta);
+        border: none;
+        border-radius: 14px;
+        padding: 18px 36px;
+        margin-top: auto;
+        cursor: pointer;
+        box-shadow: 0 10px 24px -8px rgba(150, 89, 58, 0.6);
+        transition: transform 120ms ease;
+      }
+      .cta:hover {
+        transform: translateY(-1px);
+      }
+
+      .caption {
+        font-size: 12px;
+        color: var(--cream-50);
+        letter-spacing: 0.08em;
+        text-align: center;
+        margin: 8px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div>
+        <p class="stage__title">1 · Q1 — Age range (question frame)</p>
+        <div class="phone">
+          <div class="phone__screen">
+            <div class="progress">
+              <span class="progress__glyph progress__glyph--current">α</span>
+              <span class="progress__glyph">Δ</span>
+              <span class="progress__glyph">Σ</span>
+              <span class="progress__glyph">Ω</span>
+              <span class="progress__glyph">α</span>
+            </div>
+            <p class="frame"><em>El camino no tiene edad.</em></p>
+            <h1 class="question">¿Qué edad tenés?</h1>
+            <div class="options">
+              <button class="option">18 a 28 años</button>
+              <button class="option option--selected">29 a 40 años</button>
+              <button class="option">41 o más</button>
+            </div>
+          </div>
+        </div>
+        <p class="caption">user taps "29 a 40 años" · 600ms fade-to-black → reflect</p>
+      </div>
+
+      <div>
+        <p class="stage__title">2 · r1 — Reflect (reactive lore)</p>
+        <div class="phone">
+          <div class="phone__screen">
+            <div class="progress">
+              <span class="progress__glyph progress__glyph--active">α</span>
+              <span class="progress__glyph progress__glyph--current">Δ</span>
+              <span class="progress__glyph">Σ</span>
+              <span class="progress__glyph">Ω</span>
+              <span class="progress__glyph">α</span>
+            </div>
+            <div class="reflect">
+              <p class="reflect__echo">29 — 40 años</p>
+              <p class="reflect__line">
+                La mayoría de nuestra comunidad entrena en esta etapa. Trabajo, vida, disciplina
+                propia.
+              </p>
+              <p class="reflect__hint">tocá para continuar · 2.5s</p>
+            </div>
+          </div>
+        </div>
+        <p class="caption">2.5s auto-advance · tap anywhere to skip · 300ms slide → next question</p>
+      </div>
+
+      <div>
+        <p class="stage__title">3 · Revelation — 3-beat ceremony (final state)</p>
+        <div class="phone">
+          <div class="phone__screen">
+            <div class="rev">
+              <p class="rev__label">Esto es lo que leímos de vos</p>
+              <div class="rev__reads">
+                <div class="rev__read">
+                  <span class="rev__read-icon">◆</span>
+                  <div>
+                    <div class="rev__read-label">Objetivo</div>
+                    <div class="rev__read-value">Fuerza y cuerpo completo</div>
+                  </div>
+                </div>
+                <div class="rev__read">
+                  <span class="rev__read-icon">◇</span>
+                  <div>
+                    <div class="rev__read-label">Qué te frenó</div>
+                    <div class="rev__read-value">Siempre empiezo y no sigo</div>
+                  </div>
+                </div>
+                <div class="rev__read">
+                  <span class="rev__read-icon">◈</span>
+                  <div>
+                    <div class="rev__read-label">Frecuencia</div>
+                    <div class="rev__read-value">3 veces por semana</div>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p class="rev__label" style="margin-bottom: 18px">Tu camino empieza acá</p>
+                <h2 class="rev__program">Foundation<br />Cuerpo Completo</h2>
+                <p class="rev__desc" style="margin-top: 16px">
+                  El programa base de El Templo. Fuerza general, técnica y progresión visible.
+                </p>
+              </div>
+              <div class="rev__aura">
+                <div class="rev__orb"></div>
+                <div class="rev__aura-amount">+50 AURA</div>
+                <div class="rev__aura-sub">Tu primera recompensa</div>
+              </div>
+              <button class="cta">Entrar al Templo</button>
+            </div>
+          </div>
+        </div>
+        <p class="caption">beats 1→2→3 cross-fade (1.5s each) · CTA persists</p>
+      </div>
+    </div>
+  </body>
+</html>

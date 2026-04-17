@@ -11,7 +11,7 @@ describe("Onboarding Routes", () => {
   let app: FastifyInstance;
 
   const validQuizAnswersV2 = {
-    ageRange: "29_40",
+    ageRange: "25_34",
     trainingBackground: "nunca",
     goal: "habito",
     painPoint: "tiempo",
@@ -51,7 +51,7 @@ describe("Onboarding Routes", () => {
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
-      expect(body.profile).toHaveProperty("ageRange", "29_40");
+      expect(body.profile).toHaveProperty("ageRange", "25_34");
       expect(body.profile).toHaveProperty("trainingBackground", "nunca");
       expect(body.profile).toHaveProperty("goal", "habito");
       expect(body.profile).toHaveProperty("painPoint", "tiempo");
@@ -78,7 +78,7 @@ describe("Onboarding Routes", () => {
         url: "/api/onboarding/complete",
         headers: { authorization: `Bearer ${token}` },
         payload: {
-          ageRange: "18_28",
+          ageRange: "18_24",
           trainingBackground: "nunca",
           goal: "habito",
           painPoint: "constancia",
@@ -91,14 +91,14 @@ describe("Onboarding Routes", () => {
       expect(body.profile.avatarType).toBe("K");
     });
 
-    it("returns 409 on duplicate onboarding submission", async () => {
+    it("overwrites existing profile on repeat submission and skips AURA award", async () => {
       const { token } = await registerUser(app, {
         email: "onboard-dup@test.com",
         password: "password123",
         branchId: 1,
       });
 
-      // First completion
+      // First completion — full flow, awards 50 AURA
       const first = await app.inject({
         method: "POST",
         url: "/api/onboarding/complete",
@@ -106,17 +106,24 @@ describe("Onboarding Routes", () => {
         payload: validQuizAnswersV2,
       });
       expect(first.statusCode).toBe(201);
+      expect(JSON.parse(first.body).auraAwarded).toBe(50);
 
-      // Second attempt
+      // Second attempt with different answers — overwrites profile, no AURA
       const second = await app.inject({
         method: "POST",
         url: "/api/onboarding/complete",
         headers: { authorization: `Bearer ${token}` },
-        payload: validQuizAnswersV2,
+        payload: {
+          ...validQuizAnswersV2,
+          ageRange: "35_50",
+          painPoint: "resultados",
+        },
       });
-      expect(second.statusCode).toBe(409);
+      expect(second.statusCode).toBe(201);
       const body = JSON.parse(second.body);
-      expect(body.message).toBe("El onboarding ya fue completado");
+      expect(body.auraAwarded).toBe(0);
+      expect(body.profile.ageRange).toBe("35_50");
+      expect(body.profile.painPoint).toBe("resultados");
     });
 
     it("returns 400 for invalid enum value", async () => {
@@ -160,7 +167,7 @@ describe("Onboarding Routes", () => {
         method: "POST",
         url: "/api/onboarding/complete",
         headers: { authorization: `Bearer ${token}` },
-        payload: { ageRange: "29_40" }, // missing 4 fields
+        payload: { ageRange: "25_34" }, // missing 4 fields
       });
 
       expect(res.statusCode).toBe(400);
@@ -323,7 +330,7 @@ describe("Onboarding Routes", () => {
         payload: {
           eventType: "question_answered",
           questionIndex: 0,
-          answerValue: "18_28",
+          answerValue: "18_24",
           durationMs: 3200,
         },
       });

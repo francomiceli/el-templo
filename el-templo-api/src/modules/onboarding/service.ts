@@ -82,16 +82,16 @@ export class OnboardingService {
   async completeOnboardingV2(
     input: CompleteOnboardingInputV2,
   ): Promise<{ profile: OnboardingProfileV2; auraAwarded: number }> {
-    // Check if user already completed onboarding (prevent duplicates)
+    // Idempotent: if the user already has a profile, overwrite it with the
+    // latest answers so they can re-do the quiz. AURA is only awarded on the
+    // first completion — re-submissions return auraAwarded: 0.
     const existing = await this.db
       .select({ id: memberProfiles.id })
       .from(memberProfiles)
       .where(eq(memberProfiles.userId, input.userId))
       .limit(1);
 
-    if (existing.length > 0) {
-      throw new DuplicateOnboardingError(input.userId);
-    }
+    const isRepeat = existing.length > 0;
 
     // Resolve avatar from quiz answers + gender
     const { avatarType, suggestedProgram } = resolveAvatar({
@@ -103,9 +103,8 @@ export class OnboardingService {
       trainingFrequency: input.trainingFrequency,
     });
 
-    // Insert profile with new columns (old columns stay NULL for V2 users)
     const now = new Date();
-    await this.db.insert(memberProfiles).values({
+    const profileValues = {
       userId: input.userId,
       ageRange: input.ageRange,
       trainingBackground: input.trainingBackground,
@@ -113,7 +112,16 @@ export class OnboardingService {
       trainingFrequency: input.trainingFrequency,
       avatarType,
       onboardingCompletedAt: now,
-    });
+    };
+
+    if (isRepeat) {
+      await this.db
+        .update(memberProfiles)
+        .set(profileValues)
+        .where(eq(memberProfiles.userId, input.userId));
+    } else {
+      await this.db.insert(memberProfiles).values(profileValues);
+    }
 
     // Update user level if they selected one (el_templo training background)
     if (input.level) {
@@ -123,20 +131,22 @@ export class OnboardingService {
         .where(eq(users.id, input.userId));
     }
 
-    // Award 50 AURA (graceful degradation)
+    // Award 50 AURA only on first completion (graceful degradation)
     let auraAwarded = 0;
-    try {
-      auraAwarded = await this.auraService.award({
-        userId: input.userId,
-        sourceType: "onboarding_completion",
-        amount: 50,
-        description: "Onboarding quiz completed",
-      });
-    } catch (err: unknown) {
-      this.log?.error(
-        { err, userId: input.userId },
-        "Failed to award AURA for onboarding",
-      );
+    if (!isRepeat) {
+      try {
+        auraAwarded = await this.auraService.award({
+          userId: input.userId,
+          sourceType: "onboarding_completion",
+          amount: 50,
+          description: "Onboarding quiz completed",
+        });
+      } catch (err: unknown) {
+        this.log?.error(
+          { err, userId: input.userId },
+          "Failed to award AURA for onboarding",
+        );
+      }
     }
 
     // Record avatar_assigned analytics event (per D-23)

@@ -72,7 +72,7 @@ export const MOTIVATION_LABELS: Record<MotivationStyle, string> = {
 
 // === V2 Avatar Profiling Types ===
 
-export type AgeRange = "18_28" | "29_40" | "41_plus";
+export type AgeRange = "18_24" | "25_34" | "35_50" | "50_plus";
 export type TrainingBackground =
   | "el_templo"
   | "nunca"

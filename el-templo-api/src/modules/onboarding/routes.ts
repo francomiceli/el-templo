@@ -55,7 +55,7 @@ const completeSchema = {
     properties: {
       ageRange: {
         type: "string",
-        enum: ["18_28", "29_40", "41_plus"],
+        enum: ["18_24", "25_34", "35_50", "50_plus"],
       },
       trainingBackground: {
         type: "string",

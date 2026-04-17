@@ -4,27 +4,47 @@
       <q-page :class="['onboarding-page', { 'onboarding--exiting': isExiting }]">
         <OnboardingBackground :logo-size="logoSize" />
 
+        <!-- Soft dark wash + blur across the entire flow so copy reads
+             cleanly over the bar-train photo + embers. -->
+        <div class="onboarding-page__backdrop" aria-hidden="true" />
+
         <div class="onboarding-page__content">
-          <!-- Progress dots (visible only during questions, NOT on recommendation) -->
-          <OnboardingProgressDots
-            v-if="(step >= 1 && step <= 5) || showLevelStep"
-            :current-step="progressDotIndex"
-            :total-steps="progressDotTotal"
-          />
+          <!-- Header row: back arrow (left) + progress dots (centered).
+               Visible only during questions + level step; hidden on
+               opener, reflect, and recommendation. -->
+          <div v-if="showHeader" class="onboarding-page__header">
+            <button
+              v-if="canGoBack"
+              class="onboarding-page__back"
+              aria-label="Volver a la pregunta anterior"
+              @click="onBackButtonClick"
+            >
+              <q-icon name="arrow_back" size="22px" />
+            </button>
+            <OnboardingProgressDots
+              :current-step="progressDotIndex"
+              :total-steps="progressDotTotal"
+            />
+          </div>
 
           <!-- Screen transitions -->
           <div class="onboarding-page__screen-container">
             <Transition :name="transitionName" mode="out-in">
-              <OnboardingWelcome v-if="step === 0" :key="0" @start="onStart" />
+              <OnboardingOpen v-if="step === 0" :key="0" @start="onStart" />
+              <OnboardingReflect
+                v-else-if="showReflect && reflectContext"
+                :key="`reflect-${step}-${reflectContext.value}`"
+                :line="reflectContext.line"
+                :answer-echo="reflectContext.echo"
+                @continue="onReflectContinue"
+              />
               <OnboardingQuestion
                 v-else-if="showLevelStep"
                 key="level-step"
                 :question="LEVEL_SELECTOR_QUESTION"
                 :question-index="1"
                 :selected-value="answers.level"
-                :show-back="true"
                 @select="onLevelSelect"
-                @back="onLevelBack"
               />
               <OnboardingQuestion
                 v-else-if="step >= 1 && step <= 5"
@@ -32,9 +52,7 @@
                 :question="filteredQuestions[step - 1]"
                 :question-index="step - 1"
                 :selected-value="currentAnswer"
-                :show-back="step > 1"
                 @select="onSelect"
-                @back="onBack"
               />
               <OnboardingRecommendation
                 v-else-if="step === 6"
@@ -43,7 +61,6 @@
                 :program-description="recommendationResult?.programDescription ?? ''"
                 :aura-awarded="auraAwarded"
                 :submitting="submitting"
-                :has-plan="userStore.hasActiveSubscription"
                 @enter="onEnter"
               />
             </Transition>
@@ -67,6 +84,7 @@ import {
   Q3_41PLUS_OPTION,
   PROGRAM_RECOMMENDATIONS,
   LEVEL_SELECTOR_QUESTION,
+  lookupReflect,
 } from '../types'
 import type {
   OnboardingAnswersV2,
@@ -76,11 +94,13 @@ import type {
   GoalChoice,
   PainPoint,
   TrainingFrequency,
+  QuizKeyV2,
 } from '../types'
 import OnboardingBackground from '../components/OnboardingBackground.vue'
 import OnboardingProgressDots from '../components/OnboardingProgressDots.vue'
-import OnboardingWelcome from '../components/OnboardingWelcome.vue'
+import OnboardingOpen from '../components/OnboardingOpen.vue'
 import OnboardingQuestion from '../components/OnboardingQuestion.vue'
+import OnboardingReflect from '../components/OnboardingReflect.vue'
 import OnboardingRecommendation from '../components/OnboardingRecommendation.vue'
 
 const router = useRouter()
@@ -93,6 +113,13 @@ const { submitting, submitOnboardingV2, recordAnalytics } = useOnboardingApi()
 const step = ref(0)
 const direction = ref<'forward' | 'backward'>('forward')
 const showLevelStep = ref(false)
+const showReflect = ref(false)
+const reflectContext = ref<{
+  key: QuizKeyV2
+  value: string
+  line: string
+  echo: string
+} | null>(null)
 const answers = ref<OnboardingAnswersV2>({
   ageRange: null,
   trainingBackground: null,
@@ -140,6 +167,28 @@ const progressDotIndex = computed(() => {
   return step.value - 1
 })
 
+// Header row visibility: shown during questions + level step, hidden on
+// opener, reflect, and recommendation screens.
+const showHeader = computed(() => {
+  if (showReflect.value) return false
+  return showLevelStep.value || (step.value >= 1 && step.value <= 5)
+})
+
+// Back button visibility within the header row.
+const canGoBack = computed(() => {
+  if (showReflect.value) return false
+  if (showLevelStep.value) return true
+  return step.value >= 2 && step.value <= 5
+})
+
+function onBackButtonClick() {
+  if (showLevelStep.value) {
+    onLevelBack()
+  } else {
+    onBack()
+  }
+}
+
 // Q3 gender filtering (per D-06, D-09)
 const filteredQuestions = computed(() => {
   const userGender = userStore.profile?.gender ?? 'unspecified'
@@ -160,8 +209,8 @@ const filteredQuestions = computed(() => {
       allowedValues.push(...Q3_WOMEN_OPTIONS, ...Q3_MEN_OPTIONS)
     }
 
-    // 41+ sees longevidad regardless of gender
-    if (userAgeRange === '41_plus') {
+    // 35+ sees longevidad regardless of gender
+    if (userAgeRange === '35_50' || userAgeRange === '50_plus') {
       allowedValues.push(Q3_41PLUS_OPTION)
     }
 
@@ -185,7 +234,8 @@ function onStart() {
 
 function onSelect(value: string) {
   const questionIndex = step.value - 1
-  const questionKey = QUIZ_QUESTIONS_V2[questionIndex].key
+  const question = QUIZ_QUESTIONS_V2[questionIndex]
+  const questionKey = question.key
   const durationMs = Date.now() - stepStartTime.value
 
   // Update the answer
@@ -217,20 +267,54 @@ function onSelect(value: string) {
     durationMs,
   })
 
-  // Auto-advance after 400ms delay
   direction.value = 'forward'
+
+  // el_templo skips reflect and routes to level picker (it IS the reflect).
+  const goesToLevelPicker = questionKey === 'trainingBackground' && value === 'el_templo'
+  const reflectLine = goesToLevelPicker ? null : lookupReflect(questionKey, value)
+
+  // Brief "selected" hold so the user sees the checkmark, then transition.
   setTimeout(() => {
-    if (step.value === 5) {
-      onSubmit()
-    } else if (questionKey === 'trainingBackground' && value === 'el_templo') {
-      // Show level selector as step 2.5
+    if (goesToLevelPicker) {
       showLevelStep.value = true
       stepStartTime.value = Date.now()
-    } else {
-      step.value = step.value + 1
-      stepStartTime.value = Date.now()
+      return
     }
+
+    if (reflectLine) {
+      const echoLabel = question.options.find((opt) => opt.value === value)?.label ?? ''
+      reflectContext.value = {
+        key: questionKey,
+        value,
+        line: reflectLine,
+        echo: echoLabel,
+      }
+      showReflect.value = true
+      recordAnalytics({
+        eventType: 'question_answered',
+        answerValue: `reflect_shown:${questionKey}:${value}`,
+      })
+      return
+    }
+
+    // No reflect copy registered — advance immediately (defensive fallback).
+    advancePastCurrentStep()
   }, 400)
+}
+
+function onReflectContinue() {
+  showReflect.value = false
+  reflectContext.value = null
+  advancePastCurrentStep()
+}
+
+function advancePastCurrentStep() {
+  if (step.value === 5) {
+    onSubmit()
+  } else {
+    step.value = step.value + 1
+    stepStartTime.value = Date.now()
+  }
 }
 
 function onLevelSelect(value: string) {
@@ -334,6 +418,24 @@ $charcoal: #2e2a26;
   opacity: 0;
 }
 
+// Page-level dark wash + blur that sits above OnboardingBackground
+// and below .onboarding-page__content. Softer than the opener-only
+// version so the photo still reads through.
+.onboarding-page__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 45%,
+    rgba($charcoal, 0.38) 0%,
+    rgba(0, 0, 0, 0.52) 60%,
+    rgba(0, 0, 0, 0.68) 100%
+  );
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
 .onboarding-page__content {
   position: relative;
   z-index: 2;
@@ -342,6 +444,52 @@ $charcoal: #2e2a26;
   align-items: center;
   width: 100%;
   padding-top: 16px;
+}
+
+// Header row — back arrow on the left, progress dots centered.
+// Back arrow is absolutely positioned so the dots stay visually centered
+// on the page regardless of whether back is present.
+.onboarding-page__header {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  min-height: 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.onboarding-page__back {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: rgba(242, 237, 229, 0.55);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 50%;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.1s ease;
+
+  &:hover {
+    color: #f2ede5;
+    background: rgba(242, 237, 229, 0.06);
+  }
+
+  &:active {
+    transform: translateY(-50%) scale(0.9);
+  }
 }
 
 .onboarding-page__screen-container {
