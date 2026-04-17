@@ -87,7 +87,7 @@ async function startScanner() {
       {
         fps: 10,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const size = Math.min(viewfinderWidth, viewfinderHeight) * 0.7
+          const size = Math.max(50, Math.min(viewfinderWidth, viewfinderHeight) * 0.7)
           return { width: size, height: size }
         },
       },
