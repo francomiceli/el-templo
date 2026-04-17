@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v5.3.2
 milestone_name: Post-v5.3.1 Live Test Fixes
 status: phase_in_progress
-stopped_at: "Completed 91-01-PLAN.md — OBJN-01/02 hybrid mechanism shipped (signal + conditional framing rules)"
-last_updated: "2026-04-16T15:51:44Z"
-last_activity: 2026-04-16 -- Phase 91-01 complete. Hybrid OBJN-01/02 mechanism shipped across three atomic commits (4773ca48 signal+state+telemetry, 8e333de9 WHY+BACK-OFF rules, 959d0001 minimal tests). softRejection regex covers all 4 live-test variants + composite phrasing; 5-stage allowlist guard in advance.ts; SOFT_REJECTION_WHY_RULE + SOFT_REJECTION_BACKOFF_RULE conditional injection in system-prompt.ts; Pino log.info "soft_rejection_detected" telemetry; PB1.E4 REGLA FUERTE non-regression locked. Snap byte-delta 0 chars; KGATE-05 headroom preserved at +625. 573/573 bot tests green (537 baseline + 36 new). Phase 90 STAGE-02 invariant preserved (rejection turns do NOT increment discoveryTurnCount). Ready for `/gsd:plan-phase 92` — Regression Lock + Live Test Validation.
+stopped_at: "Completed 92-01-PLAN.md — RLOK-04 SALES_TECHNIQUES leak closed + v5-3-2-regression.test.ts behavioural lock shipped (single atomic commit 8be1114b); Plan 92-02 (RLOK-03 live-test) next"
+last_updated: "2026-04-17T00:16:00Z"
+last_activity: 2026-04-16 -- Phase 92-01 complete. Single atomic commit 8be1114b shipped (a) RLOK-04 source rewrite — both $80,000 hits in knowledge.ts rewritten to non-numeric prose ("desde el plan más accesible") across SALES_TECHNIQUES line 347 + OBJECTIONS_SALES item 7 line 392; (b) regenerated pb1-e1a-lead-rendered.snap.txt (18,291 → 18,484 bytes, JS length 18,275); (c) strictly-new behavioural integration test file el-templo-bot/test/v5-3-2-regression.test.ts (344 lines, 11 describes, 29 passing + 4 it.skip RLOK-03 placeholders). Test count 573 → 606 (602 passing). tsc clean. KGATE-05 dual-threshold raw byte caps both preserved. Zero regressions in QT11-18, v5.3.1 prompt-size, Phase 88 snap tripwire, or Phase 89/90/91 phase-local suites. Three auto-fix deviations applied (Rule 3 — blocking) during Task 2 pre-commit, all documented in 92-01-SUMMARY.md. Plan 92-02 (RLOK-03 live-test) unblocked — 4 it.skip placeholders in v5-3-2-regression.test.ts pending inline SUMMARY transcript fill-in.
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
-  percent: 75
+  total_plans: 4
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-14)
 
 **Core value:** Prospective and current members get instant, accurate answers about El Templo via WhatsApp — and leads are profiled through natural discovery so Mica makes ONE targeted recommendation per conversation, with prices, method, and objections handled per the team's playbook (not improvised).
-**Current focus:** v5.3.2 Post-v5.3.1 Live Test Fixes — Phase 91 complete, Phase 92 next
+**Current focus:** v5.3.2 Post-v5.3.1 Live Test Fixes — Phase 92-01 complete, Phase 92-02 (RLOK-03 live-test) next
 
 ## Current Position
 
 Milestone: v5.3.2 Post-v5.3.1 Live Test Fixes
-Phase: 91 — PB1 Objection Handling (complete)
-Plan: 91-01 (complete); next: Phase 92 Regression Lock + Live Test Validation
-Status: Phase 91 complete
-Progress: ████████░░ 75% (3/4 phases)
-Last activity: 2026-04-16 — Phase 91-01 complete. Hybrid OBJN-01/02 mechanism (signal + conditional framing rules) shipped across three atomic commits (4773ca48, 8e333de9, 959d0001). softRejection regex covers all live-test variants; 5-stage allowlist guard; WHY + BACK-OFF Spanish framing rules conditionally injected; Pino "soft_rejection_detected" telemetry. Snap delta 0; KGATE-05 headroom +625 preserved. 573/573 bot tests green (+36 new). Ready for `/gsd:plan-phase 92`.
+Phase: 92 — Regression Lock + Live Test Validation (in progress — plan 01 complete, plan 02 pending)
+Plan: 92-01 (complete, commit 8be1114b); next: 92-02 (RLOK-03 guided live-test)
+Status: Phase 92 plan-01 complete; 1/2 plans
+Progress: █████████░ 80% (RLOK-01/02/04 locked; RLOK-03 live-test pending in 92-02)
+Last activity: 2026-04-16 — Phase 92-01 complete. Single atomic commit 8be1114b shipped RLOK-04 source rewrite (both `$80,000` hits in knowledge.ts → non-numeric prose anchor "desde el plan más accesible"), regenerated PB1.E1A lead snapshot (18,291 → 18,484 bytes, JS length 18,275), and strictly-new behavioural integration test file el-templo-bot/test/v5-3-2-regression.test.ts (11 describes covering KFIX-01..04, STAGE-01..02, OBJN-01, RLOK-04, KGATE-05, RLOK-02 snap-equality, RLOK-03 it.skip placeholders). 602/602 passing + 4 skipped (606 total). tsc clean. Zero regressions in QT11-18, v5.3.1 prompt-size, Phase 88 tripwire, or phase-local 89/90/91 suites. Plan 92-02 unblocked.
 
 ## Performance Metrics
 
@@ -40,31 +40,32 @@ Last activity: 2026-04-16 — Phase 91-01 complete. Hybrid OBJN-01/02 mechanism 
 
 **By Phase (v5.3):**
 
-| Phase                                   | Plans | Total   | Avg/Plan |
-| --------------------------------------- | ----- | ------- | -------- |
-| Phase 82 P01                            | 6min  | 2 tasks | 5 files  |
-| Phase 82 P02                            | 12min | 2 tasks | 6 files  |
-| Phase 82 P03                            | 3min  | 2 tasks | 2 files  |
-| Phase 83 P01                            | 15min | 1 tasks | 1 files  |
-| Phase 83 P02                            | 38min | 3 tasks | 6 files  |
-| Phase 83 P03                            | 25min | 3 tasks | 3 files  |
-| Phase 83 P04                            | 20min | 1 tasks | 1 files  |
-| Phase 84 P01                            | 12min | 2 tasks | 3 files  |
-| Phase 84 P02                            | 8min  | 2 tasks | 1 files  |
-| Phase 84 P03                            | 15min | 3 tasks | 3 files  |
-| Phase 85 P01                            | 18min | 3 tasks | 4 files  |
-| Phase 85 P02                            | 12min | 2 tasks | 4 files  |
-| Phase 86 P01                            | 8min  | 1 tasks | 2 files  |
-| Phase 86 P02                            | 5min  | 2 tasks | 3 files  |
-| Phase 86 P03                            | 6min  | 2 tasks | 2 files  |
-| Phase 87 P01                            | 2 min | 1 tasks | 1 files  |
-| Phase 87 P02                            | 6min  | 3 tasks | 2 files  |
-| Phase 87 P03                            | 7min  | 1 tasks | 1 files  |
-| Phase 88 P01                            | 2 min | 1 tasks | 1 files  |
-| Phase 88 P02                            | 14min | 4 tasks | 4 files  |
-| Phase 89-knowledge-fixes P01            | 45min | 3 tasks | 5 files  |
-| Phase 90-stage-heuristic-tightening P01 | 30min | 2 tasks | 5 files  |
-| Phase 91-pb1-objection-handling P01     | 20min | 3 tasks | 8 files  |
+| Phase                                             | Plans | Total   | Avg/Plan |
+| ------------------------------------------------- | ----- | ------- | -------- |
+| Phase 82 P01                                      | 6min  | 2 tasks | 5 files  |
+| Phase 82 P02                                      | 12min | 2 tasks | 6 files  |
+| Phase 82 P03                                      | 3min  | 2 tasks | 2 files  |
+| Phase 83 P01                                      | 15min | 1 tasks | 1 files  |
+| Phase 83 P02                                      | 38min | 3 tasks | 6 files  |
+| Phase 83 P03                                      | 25min | 3 tasks | 3 files  |
+| Phase 83 P04                                      | 20min | 1 tasks | 1 files  |
+| Phase 84 P01                                      | 12min | 2 tasks | 3 files  |
+| Phase 84 P02                                      | 8min  | 2 tasks | 1 files  |
+| Phase 84 P03                                      | 15min | 3 tasks | 3 files  |
+| Phase 85 P01                                      | 18min | 3 tasks | 4 files  |
+| Phase 85 P02                                      | 12min | 2 tasks | 4 files  |
+| Phase 86 P01                                      | 8min  | 1 tasks | 2 files  |
+| Phase 86 P02                                      | 5min  | 2 tasks | 3 files  |
+| Phase 86 P03                                      | 6min  | 2 tasks | 2 files  |
+| Phase 87 P01                                      | 2 min | 1 tasks | 1 files  |
+| Phase 87 P02                                      | 6min  | 3 tasks | 2 files  |
+| Phase 87 P03                                      | 7min  | 1 tasks | 1 files  |
+| Phase 88 P01                                      | 2 min | 1 tasks | 1 files  |
+| Phase 88 P02                                      | 14min | 4 tasks | 4 files  |
+| Phase 89-knowledge-fixes P01                      | 45min | 3 tasks | 5 files  |
+| Phase 90-stage-heuristic-tightening P01           | 30min | 2 tasks | 5 files  |
+| Phase 91-pb1-objection-handling P01               | 20min | 3 tasks | 8 files  |
+| Phase 92-regression-lock-live-test-validation P01 | 12min | 3 tasks | 3 files  |
 
 ## Accumulated Context
 
@@ -91,10 +92,15 @@ Recent decisions affecting current work:
 - [Phase 91-pb1-objection-handling]: softRejection turns do NOT increment discoveryTurnCount — gated on !rejectionHotPre, preserves Phase 90 STAGE-02 semantics
 - [Phase 91-pb1-objection-handling]: All 4 setPlaybookState writes carry whyAsked — lesson learned from Phase 90 discoveryTurnCount rollout
 - [Phase 91-pb1-objection-handling]: Pino log.info (NOT log.warn) for soft_rejection_detected — expected behavior to track statistically, not anomaly
+- [Phase 92-regression-lock P01]: Behavioural integration layer is its own milestone-lock file (v5-3-2-regression.test.ts, one describe per requirement ID, alphabetical-by-ID) — NOT consolidation of prior-phase tests; source-state contracts stay in phase-local suites
+- [Phase 92-regression-lock P01]: Hardcoded POST_RLOK_04_BYTES literal (not readFileSync().length) — Phase 88 snapshot-tripwire discipline; regen requires explicit code update alongside fixture commit
+- [Phase 92-regression-lock P01]: POST_RLOK_04_BYTES = 18,275 (JS-string length), not 18,484 (wc -c bytes) — readFileSync(...,'utf8').length counts UTF-16 code units; Spanish accents + em-dashes are multi-byte UTF-8
+- [Phase 92-regression-lock P01]: RLOK-04 observable-shape assertion allowlists `$10,000` alongside `$20,000` — per-class amortisation in OBJECTIONS_SALES item 1 ('Es caro') is an intentional anchor, out of scope for RLOK-04 plan-price regex matrix
+- [Phase 92-regression-lock P01]: Atomic commit pattern (source change + snapshot regen + assertion lock) — mirrors Phase 89 KFIX-01 precedent, no separate snapshot commit
 
 ### Pending Todos
 
-None yet.
+- Plan 92-02 — execute RLOK-03 guided live-test: 4-path script (price-during-discovery, method question, discovery rejection, Boarding Pass explanation); user copy-pastes into WhatsApp; Claude annotates pass/fail; transcript folded inline into 92-02-SUMMARY.md; ≤2 retries per path; 3rd same-path failure → Phase 92.1 gap-closure.
 
 ### Blockers/Concerns
 
@@ -103,6 +109,6 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-16
-Stopped at: Completed 91-01-PLAN.md — OBJN-01/02 hybrid mechanism shipped (signal + conditional framing rules)
+Stopped at: Completed 92-01-PLAN.md — RLOK-04 SALES_TECHNIQUES leak closed + v5-3-2-regression.test.ts behavioural lock shipped (single atomic commit 8be1114b)
 Resume file: `.planning/ROADMAP.md`
-Next step: `/gsd:plan-phase 92` to decompose Phase 92 (Regression Lock + Live Test Validation) into plans
+Next step: Execute 92-02-PLAN.md — RLOK-03 guided live-test (user-scripted WhatsApp conversation covering 4 failure paths, inline transcript in 92-02-SUMMARY.md)

@@ -93,9 +93,9 @@
 3. A guided live-test conversation (5-10 turns covering price-during-discovery, method question, discovery rejection, Boarding Pass explanation) confirms all four success criteria sets in practice — documented as inline transcript in the phase SUMMARY (per-path verdicts + ≤2 retries + 3rd-fail → Phase 92.1 gap-closure).
 4. **RLOK-04**: SALES_TECHNIQUES rhetorical example no longer contains the literal `$80,000` (or any `$\d+` pattern that the model could parse as a plan price). Replacement uses non-numeric prose like "desde el plan más accesible".
 
-**Plans:** 0/2 plans complete
+**Plans:** 1/2 plans executed
 
-- [ ] 92-01-PLAN.md — Source change (RLOK-04 SALES_TECHNIQUES rewrite) + behavioural assertions in new v5-3-2-regression.test.ts (RLOK-01) + suite-green + snapshot regen (RLOK-02). Single atomic commit per Phase 89 precedent.
+- [x] 92-01-PLAN.md — Source change (RLOK-04 SALES_TECHNIQUES rewrite) + behavioural assertions in new v5-3-2-regression.test.ts (RLOK-01) + suite-green + snapshot regen (RLOK-02). Single atomic commit per Phase 89 precedent. ✅ Completed 2026-04-16 (commit 8be1114b; 602/602 bot tests passing + 4 RLOK-03 it.skip; snap 18,291 → 18,484 bytes; 3 auto-fix deviations documented in 92-01-SUMMARY.md)
 - [ ] 92-02-PLAN.md — Guided live-test execution (RLOK-03). 4-path script (price-during-discovery, method question, rejection arc, Boarding Pass) → user copy-pastes into WhatsApp → Claude annotates pass/fail → transcript folded inline into 92-02-SUMMARY.md. ≤2 retries per path; 3rd same-path failure → Phase 92.1 gap-closure.
 
 **Notes:**
@@ -110,7 +110,7 @@
 | 89. Knowledge Fixes                        | 1/1       | Complete       | 2026-04-14 | -         |
 | 90. Stage Heuristic Tightening             | 1/1       | Complete       | 2026-04-15 | -         |
 | 91. PB1 Objection Handling                 | 1/1       | Complete       | 2026-04-16 | -         |
-| 92. Regression Lock + Live Test Validation | v5.3.2    | 0/2            | Planned    | -         |
+| 92. Regression Lock + Live Test Validation | 1/2       | In Progress    | -          | -         |
 
 ---
 
