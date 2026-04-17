@@ -797,7 +797,8 @@ function onSwapMobility() {
 function onMobilityPrescriptionBlur(field: 'seconds' | 'reps', event: Event) {
   const firstLb = props.blockGroup.levelBlocks[0];
   if (!firstLb?.block) return;
-  const input = event.target as HTMLInputElement;
+  const input = event.target instanceof HTMLInputElement ? event.target : null;
+  if (!input) return;
   const mobility = firstLb.block.mobilityExercise;
   if (!mobility) return;
 
