@@ -354,7 +354,7 @@
                     <q-item-section>Vencimiento</q-item-section>
                     <q-item-section side>{{ formatDate(calculatedEndDate) }}</q-item-section>
                   </q-item>
-                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                  <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
                     <q-item-section>Horarios fijos</q-item-section>
                     <q-item-section side class="text-weight-medium">
                       {{ formatSelectedSchedules() }}
@@ -412,7 +412,7 @@
                       {{ formatDate(afterCurrentEndDate) }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                  <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
                     <q-item-section>Horarios fijos</q-item-section>
                     <q-item-section side class="text-weight-medium">
                       {{ formatSelectedSchedules() }}
@@ -462,7 +462,7 @@
                       -${{ pricingDisplay.discountAmount.toLocaleString() }}
                     </q-item-section>
                   </q-item>
-                  <q-item v-if="isFixedMode && selectedScheduleIds.length > 0">
+                  <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
                     <q-item-section>Horarios fijos</q-item-section>
                     <q-item-section side class="text-weight-medium">
                       {{ formatSelectedSchedules() }}
