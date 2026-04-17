@@ -38,7 +38,7 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 
 - [x] **RLOK-01**: New targeted assertions exist for each of KFIX-01, KFIX-02, KFIX-03, KFIX-04, STAGE-01, STAGE-02, OBJN-01 — added to the existing bot test suite, all passing
 - [x] **RLOK-02**: Full bot test suite passes with zero regressions in QT11-18 fixes and v5.3.1 state-gating/prompt-size behavior. The PB1.E1A lead snapshot fixture is intentionally regenerated after KFIX-01 with an explicit commit per the v5.3.1 update discipline — this regeneration is expected, not a regression.
-- [ ] **RLOK-03**: A guided live-test conversation (5-10 turns, covering the four failure paths — price-during-discovery, method question, discovery rejection, Boarding Pass explanation) confirms the four success criteria from the milestone brief are met in practice, not just in assertions
+- [x] **RLOK-03**: A guided live-test conversation (5-10 turns, covering the four failure paths — price-during-discovery, method question, discovery rejection, Boarding Pass explanation) confirms the four success criteria from the milestone brief are met in practice, not just in assertions
 - [x] **RLOK-04**: $80k SALES_TECHNIQUES rhetorical example rewritten to non-numeric language; KFIX-02's "zero membership plan price numbers in PB1.E1A render" success criterion now empirically held under live conditions
 
 ## Out of Scope
@@ -66,7 +66,7 @@ All requirements derived from the first post-v5.3.1 live test conversation (Mar 
 | OBJN-02     | 91    | Complete |
 | RLOK-01     | 92    | Complete |
 | RLOK-02     | 92    | Complete |
-| RLOK-03     | 92    | Pending  |
+| RLOK-03     | 92    | Complete |
 | RLOK-04     | 92    | Complete |
 
 **Coverage:**

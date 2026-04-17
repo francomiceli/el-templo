@@ -26,7 +26,7 @@
 - [x] **Phase 89: Knowledge Fixes** — Remove prices from PB1 lead prompt, restore method elevator reach, expose Boarding Pass dual-benefit (completed 2026-04-14)
 - [x] **Phase 90: Stage Heuristic Tightening** — `hasStageSpecificContent` and `completionCriteria` for PB1.E1A require multi-signal evidence, not single-keyword (completed 2026-04-14)
 - [x] **Phase 91: PB1 Objection Handling** — Hybrid signal+framing mechanism: softRejection regex (4 live-test variants) + WHY/BACK-OFF conditional Spanish framing rules in system-prompt.ts; PB1.E4 REGLA FUERTE preserved (completed 2026-04-16)
-- [ ] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice
+- [x] **Phase 92: Regression Lock + Live Test Validation** — New assertions for every fix, full suite green, guided live conversation confirms behavior in practice (completed 2026-04-17)
 
 ## Phase Details
 
@@ -93,10 +93,10 @@
 3. A guided live-test conversation (5-10 turns covering price-during-discovery, method question, discovery rejection, Boarding Pass explanation) confirms all four success criteria sets in practice — documented as inline transcript in the phase SUMMARY (per-path verdicts + ≤2 retries + 3rd-fail → Phase 92.1 gap-closure).
 4. **RLOK-04**: SALES_TECHNIQUES rhetorical example no longer contains the literal `$80,000` (or any `$\d+` pattern that the model could parse as a plan price). Replacement uses non-numeric prose like "desde el plan más accesible".
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 - [x] 92-01-PLAN.md — Source change (RLOK-04 SALES_TECHNIQUES rewrite) + behavioural assertions in new v5-3-2-regression.test.ts (RLOK-01) + suite-green + snapshot regen (RLOK-02). Single atomic commit per Phase 89 precedent. ✅ Completed 2026-04-16 (commit 8be1114b; 602/602 bot tests passing + 4 RLOK-03 it.skip; snap 18,291 → 18,484 bytes; 3 auto-fix deviations documented in 92-01-SUMMARY.md)
-- [ ] 92-02-PLAN.md — Guided live-test execution (RLOK-03). 4-path script (price-during-discovery, method question, rejection arc, Boarding Pass) → user copy-pastes into WhatsApp → Claude annotates pass/fail → transcript folded inline into 92-02-SUMMARY.md. ≤2 retries per path; 3rd same-path failure → Phase 92.1 gap-closure.
+- [x] 92-02-PLAN.md — Guided live-test execution (RLOK-03). 4-path script (price-during-discovery, method question, rejection arc, Boarding Pass) → user copy-pastes into WhatsApp → Claude annotates pass/fail → transcript folded inline into 92-02-SUMMARY.md. ≤2 retries per path; 3rd same-path failure → Phase 92.1 gap-closure. ✅ Completed 2026-04-16 (all 4 paths PASS; side commit 0a5b637e strengthened price-deferral rule mid-test; snap regen 18,275 → 18,370 JS-chars; 4 × it.skip → it() with verdict references; 606/606 passing + 0 skipped; v5.3.2 milestone live-confirmed)
 
 **Notes:**
 
@@ -110,7 +110,7 @@
 | 89. Knowledge Fixes                        | 1/1       | Complete       | 2026-04-14 | -         |
 | 90. Stage Heuristic Tightening             | 1/1       | Complete       | 2026-04-15 | -         |
 | 91. PB1 Objection Handling                 | 1/1       | Complete       | 2026-04-16 | -         |
-| 92. Regression Lock + Live Test Validation | 1/2       | In Progress    | -          | -         |
+| 92. Regression Lock + Live Test Validation | 2/2       | Complete       | 2026-04-17 | -         |
 
 ---
 
