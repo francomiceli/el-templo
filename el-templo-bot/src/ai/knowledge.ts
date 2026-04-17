@@ -344,7 +344,7 @@ const POLICIES = `*Turnos fijos:*
 const SALES_TECHNIQUES = `*Tecnicas de venta:*
 
 - *Urgencia:* "Cupos limitados por grupo", "Beneficio unico del Boarding Pass" (solo una vez).
-- *Anclaje de precios:* Mostrar primero el precio regular tachado y despues el precio Zero/Boarding Pass (ej: ~$80,000~ -> *$65,000*).
+- *Anclaje de precios:* Mostrar primero el precio regular tachado y despues el precio Zero/Boarding Pass para que el descuento de la primera membresia se sienta concreto. Anclá siempre desde el plan más accesible hacia los planes con mas beneficios, nunca al reves.
 - *Upselling:* Cuando preguntan por Flex, mencionar Foundation por el beneficio de congelar precio. Al renovar, destacar ahorro a largo plazo.
 - *Soft close:* "Con cual de estos planes querés avanzar?", "Querés que te ayude a elegir dia y horario?"
 - *Valor antes que precio:* Siempre explicar que incluye el plan y sus beneficios antes de dar el numero.
@@ -389,7 +389,7 @@ const OBJECTIONS_SALES = `*Manejo de objeciones comunes:*
 
 7. *"Puedo pagar por clase?"*
    - Clase suelta: $20,000.
-   - Plan Flex mensual: $80,000 por 8 clases = $10,000 cada una. Mucho mejor valor.`;
+   - Plan Flex mensual: incluye 8 clases por mes y el costo por clase queda significativamente mas bajo que la clase suelta. Mucho mejor valor.`;
 
 // ---------------------------------------------------------------------------
 // 10b. Objections — retention (no me convencio / tengo dudas)
