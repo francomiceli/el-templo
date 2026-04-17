@@ -25,3 +25,8 @@ el-templo-tools/
 
 # iOS signing credentials
 tools/ios-signing/
+
+# Firebase mobile config — injected at build time from GitHub secrets
+# (mirrors the Android google-services.json pattern)
+el-templo-app/src-capacitor/ios/App/App/GoogleService-Info.plist
+el-templo-app/src-capacitor/android/app/google-services.json

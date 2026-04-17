@@ -61,6 +61,13 @@ jobs:
         working-directory: el-templo-app/src-capacitor
         run: pnpm install --frozen-lockfile
 
+      - name: Decode GoogleService-Info.plist
+        # Mirrors the Android google-services.json pattern. The plist lives in a
+        # GitHub secret (base64) so it isn't committed; xcodebuild bundles it
+        # via the project.pbxproj reference added in src-capacitor/ios/App/.
+        working-directory: el-templo-app/src-capacitor/ios/App/App
+        run: printf '%s' "${{ secrets.IOS_GOOGLE_SERVICES_PLIST_BASE64 }}" | base64 --decode > GoogleService-Info.plist
+
       - name: Sync web assets and native plugins
         working-directory: el-templo-app/src-capacitor
         run: |

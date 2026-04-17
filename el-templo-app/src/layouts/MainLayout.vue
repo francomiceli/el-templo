@@ -136,6 +136,9 @@
         </router-link>
       </div>
     </q-footer>
+
+    <!-- First-login soft pre-prompt for push notifications (native only). -->
+    <PushPermissionDialog />
   </q-layout>
 </template>
 
@@ -146,6 +149,7 @@ import { useQuasar } from 'quasar'
 import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
+import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
 
 const $q = useQuasar()
 const router = useRouter()

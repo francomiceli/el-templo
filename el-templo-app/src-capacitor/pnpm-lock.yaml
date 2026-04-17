@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@capacitor-firebase/app':
+        specifier: ^8.0.0
+        version: 8.2.0(@capacitor/core@8.2.0)
+      '@capacitor-firebase/messaging':
+        specifier: ^8.0.0
+        version: 8.2.0(@capacitor/core@8.2.0)
       '@capacitor/android':
         specifier: ^8.2.0
         version: 8.2.0(@capacitor/core@8.2.0)
@@ -43,6 +49,24 @@ packages:
   '@babel/helper-validator-identifier@7.28.5':
     resolution: {integrity: sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q==}
     engines: {node: '>=6.9.0'}
+
+  '@capacitor-firebase/app@8.2.0':
+    resolution: {integrity: sha512-DnMNGV9zmmRppe+34h395Y/ihFvizQWIulppyxzGsaQwmcgLnny9T8abGAQFpoZaodEv5ETvae5j6luJYhF5kw==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+      firebase: ^12.6.0
+    peerDependenciesMeta:
+      firebase:
+        optional: true
+
+  '@capacitor-firebase/messaging@8.2.0':
+    resolution: {integrity: sha512-zjgvBuJSFfaLVL1sU2zwg68J1nCl+wLvjCNUo5tQJyO8XilUXA0z99BKJx6S6/iSB3+zznxNeoX1Kx54bVpCtg==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+      firebase: ^12.6.0
+    peerDependenciesMeta:
+      firebase:
+        optional: true
 
   '@capacitor/android@8.2.0':
     resolution: {integrity: sha512-XLm5OsWLPfXQxDxzFS7SOdMEgGvW+2c7TGLXkTR2cSKdkWK5Abns4imlT5qghKYhjM9r74IrDkBWg/9ALUGNKQ==}
@@ -1703,6 +1727,14 @@ snapshots:
       picocolors: 1.1.1
 
   '@babel/helper-validator-identifier@7.28.5': {}
+
+  '@capacitor-firebase/app@8.2.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
+
+  '@capacitor-firebase/messaging@8.2.0(@capacitor/core@8.2.0)':
+    dependencies:
+      '@capacitor/core': 8.2.0
 
   '@capacitor/android@8.2.0(@capacitor/core@8.2.0)':
     dependencies:
