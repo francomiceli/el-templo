@@ -608,7 +608,10 @@ export class SubscriptionService {
       }
     }
 
-    // ── Fixed-plan schedule slot validation ──
+    // ── Schedule slot validation ──
+    // Fixed plans require an exact set. Flexible presencial plans may opt in
+    // to partial fixed anchors (0..classesPerWeek). Online plans never use
+    // schedules.
     if (plan.bookingMode === "fixed") {
       if (!input.scheduleIds || input.scheduleIds.length === 0) {
         throw new BadRequestError(
@@ -623,6 +626,26 @@ export class SubscriptionService {
           `Debes seleccionar exactamente ${plan.classesPerWeek} horarios (classesPerWeek). Seleccionaste ${input.scheduleIds.length}.`,
         );
       }
+    } else if (
+      input.scheduleIds &&
+      input.scheduleIds.length > 0 &&
+      plan.planCategory !== "presencial"
+    ) {
+      throw new BadRequestError(
+        "Los planes online no pueden tener turnos fijos",
+      );
+    } else if (
+      input.scheduleIds &&
+      input.scheduleIds.length > 0 &&
+      plan.classesPerWeek !== null &&
+      input.scheduleIds.length > plan.classesPerWeek
+    ) {
+      throw new BadRequestError(
+        `Podes elegir hasta ${plan.classesPerWeek} turnos fijos. Seleccionaste ${input.scheduleIds.length}.`,
+      );
+    }
+
+    if (input.scheduleIds && input.scheduleIds.length > 0) {
       // Validate each scheduleId exists, is active, and belongs to branchId
       const scheduleRows = await this.db
         .select({
@@ -683,14 +706,12 @@ export class SubscriptionService {
 
     const subscriptionId = Number(result[0].insertId);
 
-    // ── Fixed-plan: store schedule slot references and generate bookings ──
+    // ── Persist schedule slot references and generate bookings ──
+    // Fixed plans always have scheduleIds; flexible presencial plans may have
+    // 0..N partial fixed anchors. Replacement credits (holiday makeups) apply
+    // only to fixed plans where the member pre-paid for the whole schedule.
     let replacementCredits = 0;
-    if (
-      plan.bookingMode === "fixed" &&
-      input.scheduleIds &&
-      input.scheduleIds.length > 0
-    ) {
-      // Insert subscription_schedules junction rows
+    if (input.scheduleIds && input.scheduleIds.length > 0) {
       await this.db.insert(schema.subscriptionSchedules).values(
         input.scheduleIds.map((scheduleId) => ({
           subscriptionId,
@@ -698,7 +719,6 @@ export class SubscriptionService {
         })),
       );
 
-      // Generate bulk bookings for the subscription period
       if (this.bookingService) {
         const bookingResult = await this.bookingService.generateFixedBookings(
           subscriptionId,
@@ -708,10 +728,11 @@ export class SubscriptionService {
           endDateStr,
           input.branchId,
         );
-        replacementCredits = bookingResult.holidaysSkipped;
+        if (plan.bookingMode === "fixed") {
+          replacementCredits = bookingResult.holidaysSkipped;
+        }
       }
 
-      // Store replacement credits on the subscription
       if (replacementCredits > 0) {
         await this.db
           .update(schema.subscriptions)
@@ -836,52 +857,65 @@ export class SubscriptionService {
       .from(schema.subscriptionPlans)
       .where(eq(schema.subscriptionPlans.id, sub.planId));
 
-    if (!plan || plan.bookingMode !== "fixed") {
-      throw new BadRequestError(
-        "Solo los planes fijos tienen turnos que cambiar",
-      );
+    if (!plan) {
+      throw new BadRequestError("Plan no encontrado");
     }
     if (plan.planCategory !== "presencial") {
       throw new BadRequestError(
         "Solo los planes presenciales usan turnos fijos",
       );
     }
-    if (
-      plan.classesPerWeek !== null &&
-      input.scheduleIds.length !== plan.classesPerWeek
-    ) {
-      throw new BadRequestError(
-        `Debes seleccionar exactamente ${plan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
-      );
+    // Fixed plans require an exact count; flexible plans allow 0..classesPerWeek
+    // as partial fixed anchors.
+    if (plan.bookingMode === "fixed") {
+      if (
+        plan.classesPerWeek !== null &&
+        input.scheduleIds.length !== plan.classesPerWeek
+      ) {
+        throw new BadRequestError(
+          `Debes seleccionar exactamente ${plan.classesPerWeek} horarios. Seleccionaste ${input.scheduleIds.length}.`,
+        );
+      }
+    } else {
+      if (
+        plan.classesPerWeek !== null &&
+        input.scheduleIds.length > plan.classesPerWeek
+      ) {
+        throw new BadRequestError(
+          `Podes elegir hasta ${plan.classesPerWeek} turnos fijos. Seleccionaste ${input.scheduleIds.length}.`,
+        );
+      }
     }
 
     // Validate the new schedule IDs: exist, active, same branch
-    const scheduleRows = await this.db
-      .select({
-        id: schema.schedules.id,
-        branchId: schema.schedules.branchId,
-        isActive: schema.schedules.isActive,
-      })
-      .from(schema.schedules)
-      .where(inArray(schema.schedules.id, input.scheduleIds));
+    if (input.scheduleIds.length > 0) {
+      const scheduleRows = await this.db
+        .select({
+          id: schema.schedules.id,
+          branchId: schema.schedules.branchId,
+          isActive: schema.schedules.isActive,
+        })
+        .from(schema.schedules)
+        .where(inArray(schema.schedules.id, input.scheduleIds));
 
-    if (scheduleRows.length !== input.scheduleIds.length) {
-      const foundIds = new Set(scheduleRows.map((s) => s.id));
-      const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
-      throw new BadRequestError(
-        `Horarios no encontrados: ${missing.join(", ")}`,
-      );
-    }
-    for (const row of scheduleRows) {
-      if (!row.isActive) {
+      if (scheduleRows.length !== input.scheduleIds.length) {
+        const foundIds = new Set(scheduleRows.map((s) => s.id));
+        const missing = input.scheduleIds.filter((id) => !foundIds.has(id));
         throw new BadRequestError(
-          `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
+          `Horarios no encontrados: ${missing.join(", ")}`,
         );
       }
-      if (row.branchId !== sub.branchId) {
-        throw new BadRequestError(
-          `El horario ${row.id} no pertenece a la sucursal de la suscripcion`,
-        );
+      for (const row of scheduleRows) {
+        if (!row.isActive) {
+          throw new BadRequestError(
+            `El horario ${row.id} esta inactivo. Solo se pueden seleccionar horarios activos.`,
+          );
+        }
+        if (row.branchId !== sub.branchId) {
+          throw new BadRequestError(
+            `El horario ${row.id} no pertenece a la sucursal de la suscripcion`,
+          );
+        }
       }
     }
 
@@ -901,16 +935,18 @@ export class SubscriptionService {
       await this.bookingService.cancelFutureBookings(subscriptionId);
     }
 
-    // 2. Swap subscription_schedules rows
+    // 2. Swap subscription_schedules rows (insert is skipped when the new set is empty)
     await this.db
       .delete(schema.subscriptionSchedules)
       .where(eq(schema.subscriptionSchedules.subscriptionId, subscriptionId));
-    await this.db.insert(schema.subscriptionSchedules).values(
-      input.scheduleIds.map((scheduleId) => ({
-        subscriptionId,
-        scheduleId,
-      })),
-    );
+    if (input.scheduleIds.length > 0) {
+      await this.db.insert(schema.subscriptionSchedules).values(
+        input.scheduleIds.map((scheduleId) => ({
+          subscriptionId,
+          scheduleId,
+        })),
+      );
+    }
 
     // 3. Record audit trail
     await this.db.insert(schema.subscriptionScheduleChanges).values({
@@ -921,8 +957,8 @@ export class SubscriptionService {
       reason: input.reason ?? null,
     });
 
-    // 4. Regenerate future bookings on new slots starting tomorrow
-    if (this.bookingService && sub.endDate) {
+    // 4. Regenerate future bookings on new slots starting tomorrow (skip if empty)
+    if (this.bookingService && sub.endDate && input.scheduleIds.length > 0) {
       const now = new Date();
       now.setUTCDate(now.getUTCDate() + 1);
       const tomorrow = now.toISOString().split("T")[0];
@@ -2032,43 +2068,44 @@ export class SubscriptionService {
 
     const newSubscriptionId = Number(result[0].insertId);
 
-    // For fixed plans, copy schedule assignments and generate bookings
+    // Copy schedule assignments (fixed plans always, flexible presencial
+    // plans if the member had partial fixed anchors). Replacement credits
+    // only accrue for fixed plans.
     let replacementCredits = 0;
-    if (plan.bookingMode === "fixed") {
-      // Copy subscription_schedules from old sub to new sub
-      const scheduleRows = await this.db
-        .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
-        .from(schema.subscriptionSchedules)
-        .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
+    const scheduleRows = await this.db
+      .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+      .from(schema.subscriptionSchedules)
+      .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
 
-      const scheduleIds = scheduleRows.map((r) => r.scheduleId);
-      if (scheduleIds.length > 0) {
-        await this.db.insert(schema.subscriptionSchedules).values(
-          scheduleIds.map((scheduleId) => ({
-            subscriptionId: newSubscriptionId,
-            scheduleId,
-          })),
+    const scheduleIds = scheduleRows.map((r) => r.scheduleId);
+    if (scheduleIds.length > 0) {
+      await this.db.insert(schema.subscriptionSchedules).values(
+        scheduleIds.map((scheduleId) => ({
+          subscriptionId: newSubscriptionId,
+          scheduleId,
+        })),
+      );
+
+      if (this.bookingService) {
+        const bookingResult = await this.bookingService.generateFixedBookings(
+          newSubscriptionId,
+          userId,
+          scheduleIds,
+          newStartDate,
+          newEndDate,
+          currentSub.branchId,
         );
-
-        if (this.bookingService) {
-          const bookingResult = await this.bookingService.generateFixedBookings(
-            newSubscriptionId,
-            userId,
-            scheduleIds,
-            newStartDate,
-            newEndDate,
-            currentSub.branchId,
-          );
+        if (plan.bookingMode === "fixed") {
           replacementCredits = bookingResult.holidaysSkipped;
         }
       }
+    }
 
-      if (replacementCredits > 0) {
-        await this.db
-          .update(schema.subscriptions)
-          .set({ replacementCredits })
-          .where(eq(schema.subscriptions.id, newSubscriptionId));
-      }
+    if (replacementCredits > 0) {
+      await this.db
+        .update(schema.subscriptions)
+        .set({ replacementCredits })
+        .where(eq(schema.subscriptions.id, newSubscriptionId));
     }
 
     // Handle program enrollment on renewal

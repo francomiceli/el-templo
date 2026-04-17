@@ -22,7 +22,8 @@
           v-model="selectedIds"
           :branch-id="branchId"
           :required-count="requiredCount"
-          title="Nuevos turnos fijos"
+          :allow-partial="allowPartial"
+          :title="pickerTitle"
           :branch-name="branchName"
           class="q-mb-md"
         />
@@ -63,14 +64,19 @@ import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { extractError } from 'src/utils/extract-error';
 import { createLogger } from 'src/utils/logger';
 
-const props = defineProps<{
-  modelValue: boolean;
-  subscriptionId: number;
-  branchId: number;
-  branchName: string;
-  requiredCount: number;
-  currentScheduleIds: number[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: boolean;
+    subscriptionId: number;
+    branchId: number;
+    branchName: string;
+    requiredCount: number;
+    currentScheduleIds: number[];
+    /** When true (flexible plans), 0..requiredCount anchors allowed. */
+    allowPartial?: boolean;
+  }>(),
+  { allowPartial: false }
+);
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
@@ -86,12 +92,20 @@ const selectedIds = ref<number[]>([]);
 const reason = ref('');
 const saving = ref(false);
 
+const pickerTitle = computed(() =>
+  props.allowPartial ? 'Turnos fijos (opcional)' : 'Nuevos turnos fijos'
+);
+
 const canSubmit = computed(() => {
-  if (selectedIds.value.length !== props.requiredCount) return false;
+  const count = selectedIds.value.length;
+  if (props.allowPartial) {
+    if (count > props.requiredCount) return false;
+  } else if (count !== props.requiredCount) {
+    return false;
+  }
   const current = new Set(props.currentScheduleIds);
   const same =
-    selectedIds.value.length === props.currentScheduleIds.length &&
-    selectedIds.value.every((id) => current.has(id));
+    count === props.currentScheduleIds.length && selectedIds.value.every((id) => current.has(id));
   return !same;
 });
 

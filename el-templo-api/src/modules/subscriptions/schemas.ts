@@ -695,7 +695,7 @@ export const changeFixedSchedulesSchema = {
     type: "object",
     required: ["scheduleIds"],
     properties: {
-      scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
+      scheduleIds: { type: "array", items: { type: "integer" }, minItems: 0 },
       reason: { type: "string" },
     },
   },

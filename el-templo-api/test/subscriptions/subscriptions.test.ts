@@ -2352,26 +2352,83 @@ describe("Subscriptions API", () => {
       expect(body.message).toContain("activa");
     });
 
-    it("rejects when plan is not fixed", async () => {
+    it("accepts partial anchors on a flexible presencial plan", async () => {
       const plan = await createPlan({
-        name: "Flex Can't Change Turnos",
+        name: "Flex Partial Anchors",
+        bookingMode: "flexible",
+        classesPerWeek: 4,
+        durationDays: 60,
+      });
+      const member = await createMember();
+      const { body: assignBody } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+      const subId = assignBody.id as number;
+      const partial = await createScheduleSlots(1, 2, 60); // < classesPerWeek
+
+      const { statusCode, body } = await patchSchedules(subId, {
+        scheduleIds: partial,
+      });
+      expect(statusCode).toBe(200);
+      expect([...(body.scheduleIds as number[])].sort()).toEqual(
+        [...partial].sort(),
+      );
+
+      // Replacement credits should stay at 0 for flexible plans even if
+      // holidays were skipped during regeneration.
+      expect(body.replacementCredits).toBe(0);
+    });
+
+    it("rejects flexible plan anchors when count exceeds classesPerWeek", async () => {
+      const plan = await createPlan({
+        name: "Flex Overcount",
+        bookingMode: "flexible",
+        classesPerWeek: 2,
+        durationDays: 30,
+      });
+      const member = await createMember();
+      const { body: assignBody } = await assignPlan(member.id, {
+        planId: plan.id,
+        startDate: todayStr(),
+      });
+      const subId = assignBody.id as number;
+      const tooMany = await createScheduleSlots(1, 3, 65);
+
+      const { statusCode, body } = await patchSchedules(subId, {
+        scheduleIds: tooMany,
+      });
+      expect(statusCode).toBe(400);
+      expect(body.message).toContain("hasta");
+    });
+
+    it("clears all anchors on a flexible plan when called with an empty set", async () => {
+      const plan = await createPlan({
+        name: "Flex Clear Anchors",
         bookingMode: "flexible",
         classesPerWeek: 3,
         durationDays: 30,
       });
       const member = await createMember();
-      const { body } = await assignPlan(member.id, {
+      const initial = await createScheduleSlots(1, 2, 75);
+      const { body: assignBody } = await assignPlan(member.id, {
         planId: plan.id,
         startDate: todayStr(),
+        scheduleIds: initial,
       });
-      const subId = body.id as number;
-      const newSlots = await createScheduleSlots(1, 2, 60);
+      const subId = assignBody.id as number;
 
-      const { statusCode, body: errBody } = await patchSchedules(subId, {
-        scheduleIds: newSlots,
+      const { statusCode, body } = await patchSchedules(subId, {
+        scheduleIds: [],
       });
-      expect(statusCode).toBe(400);
-      expect(errBody.message).toContain("fijos");
+      expect(statusCode).toBe(200);
+      expect(body.scheduleIds).toEqual([]);
+
+      const rows = await app.db
+        .select()
+        .from(subscriptionSchedules)
+        .where(eq(subscriptionSchedules.subscriptionId, subId));
+      expect(rows).toHaveLength(0);
     });
 
     it("rejects when new slots are the same set as current", async () => {

@@ -5,10 +5,7 @@
         <div class="text-subtitle2">{{ title }}</div>
         <div v-if="branchName" class="text-caption text-grey-7">Sede: {{ branchName }}</div>
       </div>
-      <q-badge
-        :color="modelValue.length === requiredCount ? 'positive' : 'grey'"
-        class="text-body2 q-pa-sm"
-      >
+      <q-badge :color="badgeColor" class="text-body2 q-pa-sm">
         Clases seleccionadas: {{ modelValue.length }}/{{ requiredCount }}
       </q-badge>
     </div>
@@ -78,13 +75,22 @@ function getMonday(d: Date): string {
   return `${y}-${m}-${dd}`;
 }
 
-const props = defineProps<{
-  modelValue: number[];
-  branchId: number;
-  requiredCount: number;
-  title?: string;
-  branchName?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: number[];
+    branchId: number;
+    /** Maximum number of slots that can be selected. */
+    requiredCount: number;
+    /**
+     * When true, the picker allows 0..requiredCount selections (partial mode).
+     * When false (default), exactly requiredCount is expected (fixed mode).
+     */
+    allowPartial?: boolean;
+    title?: string;
+    branchName?: string;
+  }>(),
+  { allowPartial: false }
+);
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: number[]): void;
@@ -97,6 +103,12 @@ const slots = ref<WeeklySlotView[]>([]);
 const loading = ref(false);
 
 const title = computed(() => props.title ?? 'Selecciona los horarios fijos');
+
+const badgeColor = computed(() => {
+  if (props.modelValue.length === props.requiredCount) return 'positive';
+  if (props.allowPartial && props.modelValue.length < props.requiredCount) return 'primary';
+  return 'grey';
+});
 
 const days = computed(() => {
   const arr: Array<{ dayOfWeek: DayOfWeek; label: string }> = [];

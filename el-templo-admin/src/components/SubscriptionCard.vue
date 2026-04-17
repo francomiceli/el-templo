@@ -225,12 +225,17 @@ const emit = defineEmits<{
 
 const isPresencial = computed(() => props.subscription.planCategory === 'presencial');
 
-const canChangeTurnos = computed(
-  () =>
-    isPresencial.value &&
-    props.classUsage?.bookingMode === 'fixed' &&
-    (props.classUsage?.scheduleIds?.length ?? 0) > 0
-);
+const canChangeTurnos = computed(() => {
+  if (!isPresencial.value) return false;
+  if (!props.classUsage) return false;
+  const mode = props.classUsage.bookingMode;
+  const hasAnchors = (props.classUsage.scheduleIds?.length ?? 0) > 0;
+  // Fixed plans always show the button (they always have anchors).
+  // Flexible plans show it when classesPerWeek is set, so the user can add/remove partial anchors.
+  if (mode === 'fixed') return hasAnchors;
+  if (mode === 'flexible') return props.classUsage.weeklyLimit !== null;
+  return false;
+});
 
 const daysRemaining = computed(() => {
   if (!props.subscription.endDate) return 0;

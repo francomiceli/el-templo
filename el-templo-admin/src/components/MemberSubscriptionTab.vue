@@ -23,12 +23,7 @@
       />
 
       <!-- Fixed turnos change history -->
-      <q-card
-        v-if="presencialSub && classUsage?.bookingMode === 'fixed' && scheduleChanges.length > 0"
-        flat
-        bordered
-        class="q-mb-md"
-      >
+      <q-card v-if="presencialSub && scheduleChanges.length > 0" flat bordered class="q-mb-md">
         <q-expansion-item
           icon="history"
           :label="`Historial de cambios de turnos (${scheduleChanges.length})`"
@@ -209,6 +204,7 @@
       :branch-name="memberBranchName"
       :required-count="classUsage.weeklyLimit"
       :current-schedule-ids="classUsage.scheduleIds"
+      :allow-partial="classUsage.bookingMode === 'flexible'"
       @saved="onTurnosChanged"
     />
 

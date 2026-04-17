@@ -194,7 +194,7 @@
                 color="primary"
                 label="Continuar"
                 :disable="assignForm.useOverride && !assignForm.priceOverrideReason?.trim()"
-                @click="step = isFixedMode ? 3 : confirmStep"
+                @click="step = showScheduleStep ? 3 : confirmStep"
               />
             </q-stepper-navigation>
           </template>
@@ -204,9 +204,9 @@
         <!-- Step 3 (conditional): Schedule Slot Picker -->
         <!-- ============================================================ -->
         <q-step
-          v-if="isFixedMode"
+          v-if="showScheduleStep"
           :name="3"
-          title="Horarios Fijos"
+          :title="isFixedMode ? 'Horarios Fijos' : 'Turnos Fijos (opcional)'"
           icon="calendar_today"
           :done="step > 3"
         >
@@ -215,7 +215,12 @@
             v-model="selectedScheduleIds"
             :branch-id="memberBranchId"
             :required-count="requiredSlotCount"
-            title="Selecciona los horarios fijos para este plan"
+            :allow-partial="!isFixedMode"
+            :title="
+              isFixedMode
+                ? 'Selecciona los horarios fijos para este plan'
+                : 'Fijá hasta N clases semanales (podés dejarlo vacío)'
+            "
             :branch-name="memberBranchName"
             class="q-mb-md"
           />
@@ -224,8 +229,12 @@
             <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
             <q-btn
               color="primary"
-              label="Continuar"
-              :disable="selectedScheduleIds.length !== requiredSlotCount"
+              :label="
+                !isFixedMode && selectedScheduleIds.length === 0
+                  ? 'Continuar sin turnos fijos'
+                  : 'Continuar'
+              "
+              :disable="!scheduleStepValid"
               @click="step = confirmStep"
             />
           </q-stepper-navigation>
@@ -496,7 +505,7 @@
               <q-btn
                 flat
                 label="Volver"
-                @click="step = props.mode === 'change' ? 1 : isFixedMode ? 3 : 2"
+                @click="step = props.mode === 'change' ? 1 : showScheduleStep ? 3 : 2"
                 class="q-mr-sm"
               />
               <q-btn
@@ -633,9 +642,27 @@ const isFixedMode = computed(
   () => selectedPlan.value?.bookingMode === 'fixed' && !isOnlinePlan.value
 );
 
-const confirmStep = computed(() => (isFixedMode.value ? 4 : 3));
+const showScheduleStep = computed(() => {
+  if (isOnlinePlan.value) return false;
+  if (!selectedPlan.value?.classesPerWeek) return false;
+  if (selectedPlan.value.bookingMode === 'fixed') return true;
+  // Flexible presencial: only expose the optional anchor step on NEW
+  // subscriptions. Plan-change flow keeps the existing minimal UX; members
+  // can add/remove anchors afterwards via "Cambiar turnos".
+  return selectedPlan.value.bookingMode === 'flexible' && props.mode !== 'change';
+});
+
+const confirmStep = computed(() => (showScheduleStep.value ? 4 : 3));
 
 const requiredSlotCount = computed(() => selectedPlan.value?.classesPerWeek ?? 0);
+
+const scheduleStepValid = computed(() => {
+  if (isFixedMode.value) {
+    return selectedScheduleIds.value.length === requiredSlotCount.value;
+  }
+  // Flexible: any count 0..requiredSlotCount is valid (partial anchors).
+  return selectedScheduleIds.value.length <= requiredSlotCount.value;
+});
 
 const filteredPlans = computed(() => {
   if (!props.categoryFilter) return plans.value;
@@ -836,12 +863,11 @@ async function selectPlan(plan: PlanListItem) {
       loadingPreview.value = false;
     }
 
-    // For fixed presencial plans, go to schedule picker (step 3) first
-    // Online plans always skip schedule step regardless of bookingMode
-    if (plan.bookingMode === 'fixed' && plan.planCategory === 'presencial') {
+    // Presencial plans (fixed or flexible with classesPerWeek) go to the
+    // schedule-slot step. Online plans skip directly to confirm.
+    if (showScheduleStep.value) {
       step.value = 3;
     } else {
-      // Flexible and online plans skip directly to confirm step
       step.value = confirmStep.value;
     }
   } else {
@@ -902,7 +928,7 @@ async function executeConfirm() {
       priceTypeApplied: assignForm.value.boardingPass ? 'zero' : assignForm.value.priceTypeApplied,
       paymentMethod: assignForm.value.paymentMethod,
       scheduleIds:
-        isFixedMode.value && selectedScheduleIds.value.length > 0
+        showScheduleStep.value && selectedScheduleIds.value.length > 0
           ? selectedScheduleIds.value
           : undefined,
       boardingPass: assignForm.value.boardingPass || undefined,
