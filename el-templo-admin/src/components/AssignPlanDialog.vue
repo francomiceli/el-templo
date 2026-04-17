@@ -206,21 +206,21 @@
         <q-step
           v-if="showScheduleStep"
           :name="3"
-          :title="isFixedMode ? 'Horarios Fijos' : 'Turnos Fijos (opcional)'"
+          title="Horarios Fijos"
           icon="calendar_today"
           :done="step > 3"
         >
+          <div v-if="!isFixedMode" class="text-caption text-grey-7 q-mb-sm">
+            Opcional — podés fijar hasta {{ requiredSlotCount }} clases semanales o dejarlo vacío.
+          </div>
+
           <FixedSchedulePicker
             ref="schedulePickerRef"
             v-model="selectedScheduleIds"
             :branch-id="memberBranchId"
             :required-count="requiredSlotCount"
             :allow-partial="!isFixedMode"
-            :title="
-              isFixedMode
-                ? 'Selecciona los horarios fijos para este plan'
-                : 'Fijá hasta N clases semanales (podés dejarlo vacío)'
-            "
+            title="Selecciona los horarios fijos para este plan"
             :branch-name="memberBranchName"
             class="q-mb-md"
           />
