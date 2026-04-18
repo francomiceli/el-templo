@@ -139,60 +139,6 @@ export const SUMMARY_ROWS = [
 // =========================================================================
 
 export type AgeRange = '18_24' | '25_34' | '35_50' | '50_plus'
-
-export const AGE_RANGE_SKIP_DEFAULT: AgeRange = '25_34'
-
-export function ageToRange(age: number): AgeRange {
-  if (age < 25) return '18_24'
-  if (age < 35) return '25_34'
-  if (age < 51) return '35_50'
-  return '50_plus'
-}
-
-/**
- * Derives an AgeRange from a `YYYY-MM-DD` birth date string.
- * Returns null if the input is missing or unparseable.
- */
-export function deriveAgeRangeFromDob(dob: string | null | undefined): AgeRange | null {
-  if (!dob) return null
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
-  if (!match) return null
-  const year = Number(match[1])
-  const month = Number(match[2])
-  const day = Number(match[3])
-  const now = new Date()
-  let age = now.getFullYear() - year
-  const beforeBirthdayThisYear =
-    now.getMonth() + 1 < month || (now.getMonth() + 1 === month && now.getDate() < day)
-  if (beforeBirthdayThisYear) age -= 1
-  if (age < 18) return '18_24'
-  return ageToRange(age)
-}
-
-/**
- * Parses a `DD/MM/YYYY` user-entered string into an AgeRange.
- * Returns null if invalid (bad format, impossible date, or age < 13 / > 110).
- */
-export function parseDmyToAgeRange(input: string): AgeRange | null {
-  const trimmed = input.trim()
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed)
-  if (!match) return null
-  const day = Number(match[1])
-  const month = Number(match[2])
-  const year = Number(match[3])
-  const d = new Date(year, month - 1, day)
-  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
-    return null
-  }
-  const now = new Date()
-  let age = now.getFullYear() - year
-  const beforeBirthdayThisYear =
-    now.getMonth() < month - 1 || (now.getMonth() === month - 1 && now.getDate() < day)
-  if (beforeBirthdayThisYear) age -= 1
-  if (age < 13 || age > 110) return null
-  if (age < 18) return '18_24'
-  return ageToRange(age)
-}
 export type TrainingBackground =
   | 'el_templo'
   | 'nunca'
@@ -315,8 +261,12 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
 // directly to the level picker, which IS the reflect for that answer.
 // =========================================================================
 export const REFLECT_COPY: Partial<Record<QuizKeyV2, Record<string, string>>> = {
-  // ageRange intentionally has no reflect copy — Q1 advances directly to Q2
-  // so the DOB input feels frictionless (no auto-advance 5s pause).
+  ageRange: {
+    '18_24': 'Acá empieza el cuerpo que vas a usar toda la vida.',
+    '25_34': 'Trabajo, vida, disciplina propia. En el medio, tu entrenamiento.',
+    '35_50': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
+    '50_plus': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
+  },
   trainingBackground: {
     nunca: 'Cada día es una decisión. Hoy ya la tomaste.',
     gym: 'Vas a descubrir lo que tu cuerpo puede hacer sin máquinas.',

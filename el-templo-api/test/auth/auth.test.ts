@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { createTestApp, registerUser } from "../helpers";
-import * as schema from "../../src/db/schema";
 
 describe("Auth Routes", () => {
   let app: FastifyInstance;
@@ -326,51 +324,6 @@ describe("Auth Routes", () => {
       expect(body).toHaveProperty("email", "admin@test.com");
       expect(body).toHaveProperty("role", "owner");
       expect(body).toHaveProperty("branchId");
-    });
-
-    it("exposes dateOfBirth (null when not set)", async () => {
-      const { token } = await registerUser(app, {
-        email: "me-dob-null@test.com",
-        password: "password123",
-        branchId: 1,
-        dni: "AUTH-ME-DOB-NULL",
-      });
-
-      const res = await app.inject({
-        method: "GET",
-        url: "/api/auth/me",
-        headers: { authorization: `Bearer ${token}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body).toHaveProperty("dateOfBirth");
-      expect(body.dateOfBirth).toBeNull();
-    });
-
-    it("returns stored dateOfBirth in YYYY-MM-DD format", async () => {
-      const { user, token } = await registerUser(app, {
-        email: "me-dob-set@test.com",
-        password: "password123",
-        branchId: 1,
-        dni: "AUTH-ME-DOB-SET",
-      });
-
-      // Seed a DOB directly — registration endpoint doesn't accept it.
-      await app.db
-        .update(schema.users)
-        .set({ dateOfBirth: "1990-06-15" })
-        .where(eq(schema.users.id, user.id as number));
-
-      const res = await app.inject({
-        method: "GET",
-        url: "/api/auth/me",
-        headers: { authorization: `Bearer ${token}` },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.dateOfBirth).toBe("1990-06-15");
     });
   });
 });
