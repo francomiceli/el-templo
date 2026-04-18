@@ -26,7 +26,6 @@ import { subscriptions } from "./schema/subscriptions.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
 import { subscriptionSchedules } from "./schema/subscription-schedules.js";
 import { schedules } from "./schema/schedules.js";
-import { activities } from "./schema/activities.js";
 import { bookings } from "./schema/bookings.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -334,14 +333,8 @@ async function main(): Promise<void> {
       branchKeyToId.set(b.code.toLowerCase(), b.id);
     }
 
-    const [defaultActivity] = await db
-      .select({ id: activities.id, name: activities.name })
-      .from(activities)
-      .where(eq(activities.isActive, true))
-      .limit(1);
-    if (!defaultActivity) throw new Error("No active activity found in DB");
-
     // Schedule lookup: (branchId, weekday, startTime) → scheduleId
+    // (activity_id is already set on each schedule row; we don't need to join.)
     const allSchedules = await db
       .select({
         id: schedules.id,
