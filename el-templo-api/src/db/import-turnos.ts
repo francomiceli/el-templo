@@ -119,13 +119,33 @@ function normalizeHora(h: string): string {
   return trimmed;
 }
 
+/**
+ * Repair mojibake: the CSV reads as Latin-1, but some fields (notably
+ * email addresses with ñ/í/á) are UTF-8 bytes mis-interpreted as Latin-1.
+ * Re-encoding as Latin-1 bytes and decoding as UTF-8 recovers the original.
+ * Returns the repaired string iff it looks cleaner (fewer mojibake markers);
+ * otherwise returns the input unchanged.
+ */
+function repairMojibake(s: string): string {
+  if (!s) return s;
+  if (!/[ÃÂ]/.test(s)) return s; // no mojibake markers
+  try {
+    const repaired = Buffer.from(s, "latin1").toString("utf8");
+    // If repair didn't actually help (still has markers), keep original
+    if (/[ÃÂ]/.test(repaired)) return s;
+    return repaired;
+  } catch {
+    return s;
+  }
+}
+
 // ─── Pure parsing ───────────────────────────────────────────────────────────
 
 export function parseTurnoCsvRow(
   row: Record<string, string>,
   branchKey: string,
 ): TurnoRow | null {
-  const email = (row["Email"] ?? "").trim().toLowerCase();
+  const email = repairMojibake((row["Email"] ?? "").trim()).toLowerCase();
   if (!email) return null;
   const fecha = (row["Fecha"] ?? "").trim();
   const hora = normalizeHora(row["Hora"] ?? "");
@@ -134,7 +154,7 @@ export function parseTurnoCsvRow(
   if (!date || !hora) return null;
   return {
     email,
-    memberName: (row["Socio"] ?? "").trim(),
+    memberName: repairMojibake((row["Socio"] ?? "").trim()),
     branchKey,
     date,
     weekday: isoWeekday(date),
