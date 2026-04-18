@@ -89,7 +89,15 @@ export class MemberService {
     }
 
     if (isActive !== undefined) {
-      conditions.push(eq(schema.users.isActive, isActive));
+      // Derive active status from subscriptions (not the stale users.is_active column).
+      // Active iff ∃ sub with status ∈ ('active','paused') AND endDate IS NULL OR endDate >= today.
+      const activeExists = sql`EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )`;
+      conditions.push(isActive ? activeExists : sql`NOT ${activeExists}`);
     }
 
     // Plan filter: planId=0 means "no active subscription" (Sin plan),
@@ -174,6 +182,17 @@ export class MemberService {
       WHERE mp.user_id = users.id LIMIT 1
     )`;
 
+    // Subquery: derive active status from subscriptions (source of truth).
+    // Returns 1/0 from MySQL EXISTS; coerced to boolean in the mapper below.
+    const isActiveSubquery = sql<number>`(
+      SELECT EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )
+    )`;
+
     // Get paginated members with branch join and plan name
     const rows = await this.db
       .select({
@@ -188,7 +207,7 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: schema.users.isActive,
+        isActive: isActiveSubquery,
         createdAt: schema.users.createdAt,
         planName: planNameSubquery,
         segment: segmentSubquery,
@@ -213,7 +232,7 @@ export class MemberService {
       level: r.level,
       branchId: r.branchId,
       branchName: r.branchName,
-      isActive: r.isActive,
+      isActive: Boolean(r.isActive),
       planName: r.planName ?? null,
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,

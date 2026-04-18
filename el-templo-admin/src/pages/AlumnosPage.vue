@@ -421,7 +421,7 @@ const columns: QTableProps['columns'] = [
   },
   {
     name: 'fecha',
-    label: 'Fecha',
+    label: 'Ingreso',
     field: 'createdAt',
     align: 'left',
     sortable: false,
