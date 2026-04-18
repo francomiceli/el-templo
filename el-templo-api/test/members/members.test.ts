@@ -220,7 +220,7 @@ describe("Members Management Routes", () => {
       // they become derivably inactive.
       await app.inject({
         method: "POST",
-        url: `/api/admin/members/${member.id}/subscription/cancel`,
+        url: `/api/admin/subscriptions/members/${member.id}/subscription/cancel`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {},
       });
@@ -935,7 +935,7 @@ describe("Members Management Routes", () => {
       });
       await app.inject({
         method: "POST",
-        url: `/api/admin/members/${inactive.id}/subscription/cancel`,
+        url: `/api/admin/subscriptions/members/${inactive.id}/subscription/cancel`,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {},
       });
