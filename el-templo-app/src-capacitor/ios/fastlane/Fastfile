@@ -38,6 +38,52 @@ platform :ios do
       sleep(30)
     end
 
+    # Guard: if an App Store version already exists for this app_version, make sure
+    # it's in an editable state. Once a version is approved / pending release / released,
+    # the /data/relationships/build PATCH will fail with
+    # "A relationship value is not acceptable for the current resource state" and the
+    # version is stuck with whatever build is currently attached. Fail fast with a
+    # clear message instead of running for 3+ minutes and hitting that cryptic error.
+    editable_states = %w[
+      PREPARE_FOR_SUBMISSION
+      DEVELOPER_REJECTED
+      REJECTED
+      METADATA_REJECTED
+      INVALID_BINARY
+      WAITING_FOR_REVIEW
+    ]
+
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.create_from_hash(
+      key_id: ENV.fetch("APPLE_API_KEY_ID"),
+      issuer_id: ENV.fetch("APPLE_API_ISSUER_ID"),
+      filepath: File.expand_path(ENV.fetch("APPLE_API_KEY_PATH"))
+    )
+
+    asc_app = Spaceship::ConnectAPI::App.find("com.eltemplo.app")
+    existing_version = asc_app.get_app_store_versions(
+      filter: { versionString: app_version, platform: "IOS" }
+    ).first
+
+    if existing_version
+      state = existing_version.app_store_state
+      UI.message("Existing App Store version #{app_version} found in state: #{state}")
+      attached_build = existing_version.build
+      if attached_build
+        UI.message("  currently attached build: #{attached_build.version}")
+      end
+
+      unless editable_states.include?(state)
+        UI.user_error!(
+          "App Store version #{app_version} is in state '#{state}', which does not allow " \
+          "swapping the build. Editable states: #{editable_states.join(', ')}. " \
+          "Fix: in App Store Connect, either 'Remove this version from review' / reject it, " \
+          "or bump version.txt to a new version and re-run CI."
+        )
+      end
+    else
+      UI.message("No existing App Store version for #{app_version} — deliver will create it.")
+    end
+
     # Wait for build to propagate from TestFlight to App Store Connect submission API.
     # TestFlight returns "processed" via one endpoint, but deliver/submit uses a separate
     # endpoint that lags. 60s is sometimes insufficient — retry deliver on
@@ -60,7 +106,11 @@ platform :ios do
         skip_metadata: true,
         release_notes: { "es-419" => notes },
         submit_for_review: true,
-        automatic_release: true,
+        # Manual release (not automatic). Gives a human checkpoint in App Store Connect
+        # to verify the correct build is attached before the binary actually ships.
+        # Prior incident: v1.3.0 auto-released with the wrong build attached, putting
+        # v1.2.0 code behind a "1.3.0" label on the live App Store.
+        automatic_release: false,
         force: true,
         precheck_include_in_app_purchases: false,
         submission_information: {
