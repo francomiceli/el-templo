@@ -6,11 +6,6 @@ name: Build iOS Production
 # Same secrets as build-ios-staging.yml (both use App Store distribution signing).
 on:
   workflow_dispatch:
-    inputs:
-      release_notes:
-        description: 'Release notes (Spanish)'
-        required: false
-        default: 'Mejoras y correcciones'
 
 env:
   NODE_VERSION: '22'
@@ -187,17 +182,12 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Submit to App Store review
-        working-directory: el-templo-app/src-capacitor/ios
-        env:
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          APPLE_API_KEY_PATH: ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
-          APP_VERSION: ${{ steps.version.outputs.number }}
-          BUILD_NUMBER: ${{ github.run_number }}
-          RELEASE_NOTES: ${{ inputs.release_notes }}
-        run: fastlane submit
-
+      # NOTE: App Store review submission is intentionally manual. After this
+      # workflow succeeds, the IPA is uploaded to TestFlight via xcodebuild
+      # exportArchive. To release: open App Store Connect → create a new version,
+      # attach the uploaded build, fill release notes, submit for review, and
+      # choose manual release. Prior fastlane-driven submission was removed after
+      # repeated opaque failures (ASC state drift, auto-release with wrong build).
       - name: Tag release
         run: |
           TAG="v${{ steps.version.outputs.number }}-ios"
