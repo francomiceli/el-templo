@@ -102,7 +102,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-auto col-md-1">
+      <div class="col-6 col-sm-auto col-md-2">
         <div class="row no-wrap q-gutter-x-sm justify-end items-center">
           <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
             <q-tooltip>Exportar a Excel</q-tooltip>
