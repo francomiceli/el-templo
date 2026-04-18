@@ -1,7 +1,6 @@
 <template>
   <div class="question-screen">
     <div class="glass-card">
-      <p class="question-frame">Cada etapa tiene su fuerza. Entrenamos todas.</p>
       <h3 class="question-text">¿Cuál es tu fecha de nacimiento?</h3>
 
       <form class="dob-form" @submit.prevent="onSubmit">
