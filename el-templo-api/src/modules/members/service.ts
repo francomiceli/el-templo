@@ -517,7 +517,14 @@ export class MemberService {
     }
 
     if (isActive !== undefined) {
-      conditions.push(eq(schema.users.isActive, isActive));
+      // Derive active status from subscriptions (same as listMembers).
+      const activeExists = sql`EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )`;
+      conditions.push(isActive ? activeExists : sql`NOT ${activeExists}`);
     }
 
     if (planId !== undefined) {
@@ -574,6 +581,16 @@ export class MemberService {
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
+    // Subquery: derive active status from subscriptions (same as listMembers).
+    const isActiveSubquery = sql<number>`(
+      SELECT EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )
+    )`;
+
     const rows = await this.db
       .select({
         firstName: schema.users.firstName,
@@ -583,7 +600,7 @@ export class MemberService {
         phone: schema.users.phone,
         branchName: schema.branches.name,
         level: schema.users.level,
-        isActive: schema.users.isActive,
+        isActive: isActiveSubquery,
         planName: planNameSubquery,
         endDate: endDateSubquery,
         dateOfBirth: schema.users.dateOfBirth,

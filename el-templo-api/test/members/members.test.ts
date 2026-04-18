@@ -216,12 +216,13 @@ describe("Members Management Routes", () => {
     it("filters by isActive=false returns only inactive members", async () => {
       const member = await createMember();
 
-      // Deactivate the member
+      // isActive is derived from subscriptions: cancel the member's sub so
+      // they become derivably inactive.
       await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${member.id}/status`,
+        method: "POST",
+        url: `/api/admin/members/${member.id}/subscription/cancel`,
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: false },
+        payload: {},
       });
 
       const res = await app.inject({
@@ -924,7 +925,8 @@ describe("Members Management Routes", () => {
         email: "activo@test.com",
         dni: "50111111",
       });
-      // Create member then deactivate
+      // Create member then deactivate by cancelling their subscription
+      // (isActive is derived from subs, not the stale users.is_active column).
       const inactive = await createMember({
         firstName: "Inactivo",
         lastName: "Member",
@@ -932,10 +934,10 @@ describe("Members Management Routes", () => {
         dni: "50222222",
       });
       await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${inactive.id}/status`,
+        method: "POST",
+        url: `/api/admin/members/${inactive.id}/subscription/cancel`,
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: false },
+        payload: {},
       });
 
       const res = await app.inject({
