@@ -46,8 +46,14 @@
                 :selected-value="answers.level"
                 @select="onLevelSelect"
               />
+              <OnboardingAge
+                v-else-if="step === 1"
+                key="age-step"
+                @select="onAgeSelect"
+                @skip="onAgeSkip"
+              />
               <OnboardingQuestion
-                v-else-if="step >= 1 && step <= 5"
+                v-else-if="step >= 2 && step <= 5"
                 :key="step"
                 :question="filteredQuestions[step - 1]"
                 :question-index="step - 1"
@@ -84,6 +90,8 @@ import {
   Q3_41PLUS_OPTION,
   PROGRAM_RECOMMENDATIONS,
   LEVEL_SELECTOR_QUESTION,
+  AGE_RANGE_SKIP_DEFAULT,
+  deriveAgeRangeFromDob,
   lookupReflect,
 } from '../types'
 import type {
@@ -100,6 +108,7 @@ import OnboardingBackground from '../components/OnboardingBackground.vue'
 import OnboardingProgressDots from '../components/OnboardingProgressDots.vue'
 import OnboardingOpen from '../components/OnboardingOpen.vue'
 import OnboardingQuestion from '../components/OnboardingQuestion.vue'
+import OnboardingAge from '../components/OnboardingAge.vue'
 import OnboardingReflect from '../components/OnboardingReflect.vue'
 import OnboardingRecommendation from '../components/OnboardingRecommendation.vue'
 
@@ -128,6 +137,13 @@ const answers = ref<OnboardingAnswersV2>({
   painPoint: null,
   trainingFrequency: null,
 })
+// If the user has a known birth date on file (imported members), derive the
+// age bucket up-front and skip Q1 entirely.
+const prefilledAgeRange = computed(() =>
+  deriveAgeRangeFromDob(userStore.profile?.dateOfBirth ?? null),
+)
+const hasKnownDob = computed(() => prefilledAgeRange.value !== null)
+
 const auraAwarded = ref(0)
 const isExiting = ref(false)
 const recommendationResult = ref<{
@@ -158,13 +174,18 @@ const currentAnswer = computed(() => {
   return answers.value[key]
 })
 
-// When el_templo is selected, the quiz has 6 steps instead of 5
+// When el_templo is selected, the quiz has 6 steps instead of 5.
+// When Q1 (age) is skipped because we know the DOB, the quiz drops by 1.
 const hasLevelPath = computed(() => answers.value.trainingBackground === 'el_templo')
-const progressDotTotal = computed(() => (hasLevelPath.value ? 6 : 5))
+const progressDotTotal = computed(() => {
+  const base = hasLevelPath.value ? 6 : 5
+  return hasKnownDob.value ? base - 1 : base
+})
 const progressDotIndex = computed(() => {
-  if (showLevelStep.value) return 2 // level step sits at index 2 (after Q1=0, Q2=1)
-  if (hasLevelPath.value && step.value >= 3) return step.value // offset by 1 for Q3+
-  return step.value - 1
+  const ageOffset = hasKnownDob.value ? 1 : 0
+  if (showLevelStep.value) return 2 - ageOffset
+  if (hasLevelPath.value && step.value >= 3) return step.value - ageOffset
+  return step.value - 1 - ageOffset
 })
 
 // Header row visibility: shown during questions + level step, hidden on
@@ -178,7 +199,8 @@ const showHeader = computed(() => {
 const canGoBack = computed(() => {
   if (showReflect.value) return false
   if (showLevelStep.value) return true
-  return step.value >= 2 && step.value <= 5
+  const minBackStep = hasKnownDob.value ? 3 : 2
+  return step.value >= minBackStep && step.value <= 5
 })
 
 function onBackButtonClick() {
@@ -228,8 +250,41 @@ function onStart() {
   quizStartTime.value = Date.now()
   stepStartTime.value = Date.now()
   direction.value = 'forward'
-  step.value = 1
   recordAnalytics({ eventType: 'quiz_started' })
+  if (prefilledAgeRange.value) {
+    answers.value.ageRange = prefilledAgeRange.value
+    step.value = 2
+    return
+  }
+  step.value = 1
+}
+
+function onAgeSelect(value: AgeRange) {
+  answers.value.ageRange = value
+  const durationMs = Date.now() - stepStartTime.value
+  recordAnalytics({
+    eventType: 'question_answered',
+    questionIndex: 0,
+    answerValue: value,
+    durationMs,
+  })
+  direction.value = 'forward'
+  step.value = 2
+  stepStartTime.value = Date.now()
+}
+
+function onAgeSkip() {
+  answers.value.ageRange = AGE_RANGE_SKIP_DEFAULT
+  const durationMs = Date.now() - stepStartTime.value
+  recordAnalytics({
+    eventType: 'question_answered',
+    questionIndex: 0,
+    answerValue: 'skipped',
+    durationMs,
+  })
+  direction.value = 'forward'
+  step.value = 2
+  stepStartTime.value = Date.now()
 }
 
 function onSelect(value: string) {
@@ -344,6 +399,7 @@ function onLevelBack() {
 
 function onBack() {
   if (step.value <= 1) return
+  if (hasKnownDob.value && step.value <= 2) return
   direction.value = 'backward'
   // If coming back to Q2 and they had picked el_templo, show level step first
   if (step.value === 3 && answers.value.trainingBackground === 'el_templo') {

@@ -35,6 +35,7 @@ export interface UserProfile {
   segment: MemberSegment | null
   onboardingCompleted: boolean
   gender: 'male' | 'female' | 'other' | 'unspecified' | null
+  dateOfBirth: string | null
 }
 
 export interface MemberSubscription {

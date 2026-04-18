@@ -139,6 +139,45 @@ export const SUMMARY_ROWS = [
 // =========================================================================
 
 export type AgeRange = '18_24' | '25_34' | '35_50' | '50_plus'
+
+export const AGE_RANGE_SKIP_DEFAULT: AgeRange = '25_34'
+
+export function ageToRange(age: number): AgeRange {
+  if (age < 25) return '18_24'
+  if (age < 35) return '25_34'
+  if (age < 51) return '35_50'
+  return '50_plus'
+}
+
+export function deriveAgeRangeFromDob(dob: string | null | undefined): AgeRange | null {
+  if (!dob) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dob)
+  if (!m) return null
+  const y = +m[1],
+    mo = +m[2],
+    d = +m[3]
+  const now = new Date()
+  let age = now.getFullYear() - y
+  if (now.getMonth() + 1 < mo || (now.getMonth() + 1 === mo && now.getDate() < d)) age--
+  if (age < 18) return '18_24'
+  return ageToRange(age)
+}
+
+export function parseDmyToAgeRange(input: string): AgeRange | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(input.trim())
+  if (!m) return null
+  const d = +m[1],
+    mo = +m[2],
+    y = +m[3]
+  const date = new Date(y, mo - 1, d)
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null
+  const now = new Date()
+  let age = now.getFullYear() - y
+  if (now.getMonth() < mo - 1 || (now.getMonth() === mo - 1 && now.getDate() < d)) age--
+  if (age < 13 || age > 110) return null
+  if (age < 18) return '18_24'
+  return ageToRange(age)
+}
 export type TrainingBackground =
   | 'el_templo'
   | 'nunca'
@@ -261,12 +300,7 @@ export const QUIZ_QUESTIONS_V2: QuizQuestionV2[] = [
 // directly to the level picker, which IS the reflect for that answer.
 // =========================================================================
 export const REFLECT_COPY: Partial<Record<QuizKeyV2, Record<string, string>>> = {
-  ageRange: {
-    '18_24': 'Acá empieza el cuerpo que vas a usar toda la vida.',
-    '25_34': 'Trabajo, vida, disciplina propia. En el medio, tu entrenamiento.',
-    '35_50': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
-    '50_plus': 'Lo que entrenás hoy es el cuerpo que te va a acompañar mañana.',
-  },
+  // ageRange: no reflect — DOB input advances directly, no 5s pause.
   trainingBackground: {
     nunca: 'Cada día es una decisión. Hoy ya la tomaste.',
     gym: 'Vas a descubrir lo que tu cuerpo puede hacer sin máquinas.',
