@@ -78,7 +78,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-4 col-sm-2 col-md-2">
+      <div class="col-4 col-sm-2 col-md-1">
         <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
