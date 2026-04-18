@@ -121,11 +121,7 @@ const holidayForm = ref({ date: '', name: '' });
 
 const countryOptions = [
   { label: 'Argentina', value: 'AR' },
-  { label: 'Chile', value: 'CL' },
-  { label: 'Uruguay', value: 'UY' },
-  { label: 'Paraguay', value: 'PY' },
-  { label: 'Colombia', value: 'CO' },
-  { label: 'Mexico', value: 'MX' },
+  { label: 'España', value: 'ES' },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
