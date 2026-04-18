@@ -40,7 +40,7 @@
       <div class="col-auto row q-gutter-xs">
         <q-btn
           outline
-          icon="category"
+          icon="sports_gymnastics"
           label="Actividades"
           color="secondary"
           @click="showActivitiesDialog = true"

@@ -1,12 +1,71 @@
 <template>
   <q-dialog :model-value="show" persistent @update:model-value="$emit('update:show', $event)">
-    <q-card style="min-width: 500px; max-width: 600px">
+    <q-card style="width: 500px; max-width: 95vw">
       <q-card-section>
-        <div class="text-h6">
-          {{ slotDetail?.schedule.activityName }} - {{ slotDetailDayLabel }} {{ slotDetailDate }} -
-          {{ slotDetail?.schedule.startTime }}
+        <div class="slot-header">
+          <template v-if="!editingActivity">
+            <div class="slot-header__title">
+              <span class="text-h6">{{ slotDetail?.schedule.activityName }}</span>
+              <q-btn
+                v-if="slotDetail && !isSlotPast"
+                flat
+                dense
+                round
+                icon="edit"
+                size="sm"
+                color="primary"
+                @click="startEditActivity"
+              >
+                <q-tooltip>Cambiar actividad</q-tooltip>
+              </q-btn>
+            </div>
+            <div class="text-subtitle2 text-grey-7">
+              {{ slotDetailDayLabel }} {{ slotDetailDate }} · {{ slotDetail?.schedule.startTime }}
+            </div>
+          </template>
+          <template v-else>
+            <div class="row items-center no-wrap q-gutter-xs">
+              <q-select
+                v-model="selectedActivityId"
+                :options="activityOptions"
+                option-value="id"
+                option-label="name"
+                emit-value
+                map-options
+                dense
+                outlined
+                class="col"
+              />
+              <q-btn
+                flat
+                dense
+                round
+                icon="check"
+                color="positive"
+                size="sm"
+                :loading="savingActivity"
+                :disable="
+                  !selectedActivityId || selectedActivityId === slotDetail?.schedule.activityId
+                "
+                @click="saveActivityChange"
+              >
+                <q-tooltip>Guardar</q-tooltip>
+              </q-btn>
+              <q-btn
+                flat
+                dense
+                round
+                icon="close"
+                color="grey-7"
+                size="sm"
+                @click="editingActivity = false"
+              >
+                <q-tooltip>Cancelar</q-tooltip>
+              </q-btn>
+            </div>
+          </template>
         </div>
-        <div class="text-subtitle2 text-grey-7">
+        <div class="text-caption text-grey-7 q-mt-xs">
           {{ slotDetailBookingCount }}/{{ slotDetail?.maxCapacity ?? 0 }} reservas
         </div>
       </q-card-section>
@@ -105,7 +164,12 @@ import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import type { SlotDetailView, BookingStatus, DayOfWeek } from 'src/types/scheduling';
+import type {
+  SlotDetailView,
+  BookingStatus,
+  DayOfWeek,
+  ActivityRecord,
+} from 'src/types/scheduling';
 import { DAY_LABELS, BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from 'src/types/scheduling';
 
 const log = createLogger('SlotDetailDialog');
@@ -136,6 +200,54 @@ const slotAddMember = ref<{ id: number; displayLabel: string } | null>(null);
 const memberSearchResults = ref<Array<{ id: number; displayLabel: string }>>([]);
 const searchingMembers = ref(false);
 const memberSearchQuery = ref('');
+
+// Activity edit
+const editingActivity = ref(false);
+const selectedActivityId = ref<number | null>(null);
+const availableActivities = ref<ActivityRecord[]>([]);
+const savingActivity = ref(false);
+
+const activityOptions = computed(() =>
+  availableActivities.value.filter((a) => a.isActive).map((a) => ({ id: a.id, name: a.name }))
+);
+
+async function startEditActivity() {
+  if (availableActivities.value.length === 0) {
+    try {
+      availableActivities.value = await schedulingApi.listActivities();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      log.error('Error loading activities', { error: message });
+      $q.notify({ type: 'negative', message: 'Error cargando actividades' });
+      return;
+    }
+  }
+  selectedActivityId.value = slotDetail.value?.schedule.activityId ?? null;
+  editingActivity.value = true;
+}
+
+async function saveActivityChange() {
+  if (!slotDetail.value || !selectedActivityId.value) return;
+  const scheduleId = slotDetail.value.schedule.id;
+  const activityId = selectedActivityId.value;
+  savingActivity.value = true;
+  try {
+    await schedulingApi.updateScheduleActivity(scheduleId, activityId);
+    $q.notify({
+      type: 'positive',
+      message: 'Actividad actualizada — las reservas existentes se mantienen',
+    });
+    editingActivity.value = false;
+    await loadSlotDetail(scheduleId, slotDetail.value.date);
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error updating schedule activity', { error: message });
+    $q.notify({ type: 'negative', message: 'Error actualizando actividad' });
+  } finally {
+    savingActivity.value = false;
+  }
+}
 
 // ─── Computed ───────────────────────────────────────────────────────────────
 
@@ -287,8 +399,18 @@ watch(
     if (val && props.scheduleId) {
       slotAddMember.value = null;
       memberSearchResults.value = [];
+      editingActivity.value = false;
       loadSlotDetail(props.scheduleId, props.date);
     }
   }
 );
 </script>
+
+<style scoped>
+.slot-header__title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+</style>

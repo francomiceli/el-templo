@@ -245,6 +245,28 @@ export const toggleScheduleSchema = {
   },
 };
 
+export const updateScheduleActivitySchema = {
+  params: {
+    type: "object",
+    required: ["scheduleId"],
+    properties: {
+      scheduleId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["activityId"],
+    properties: {
+      activityId: { type: "integer" },
+    },
+  },
+  response: {
+    200: scheduleSlotSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const seedSchedulesSchema = {
   body: {
     type: "object",

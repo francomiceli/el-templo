@@ -32,6 +32,7 @@ import {
   weeklyGridSchema,
   slotDetailSchema,
   toggleScheduleSchema,
+  updateScheduleActivitySchema,
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
@@ -214,6 +215,26 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         return slot;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "toggle schedule");
+      }
+    },
+  );
+
+  // PATCH /schedules/:scheduleId/activity — swap activity on a slot (bookings retained)
+  fastify.patch<{
+    Params: { scheduleId: number };
+    Body: { activityId: number };
+  }>(
+    "/schedules/:scheduleId/activity",
+    { schema: updateScheduleActivitySchema },
+    async (request, reply) => {
+      try {
+        const slot = await schedulingService.updateScheduleActivity(
+          request.params.scheduleId,
+          request.body.activityId,
+        );
+        return slot;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "update schedule activity");
       }
     },
   );

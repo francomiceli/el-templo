@@ -393,6 +393,48 @@ export class SchedulingService {
   }
 
   /**
+   * Change the activity assigned to a schedule slot (e.g. Calistenia → Combos).
+   *
+   * Existing bookings for this slot are intentionally left intact — the
+   * admin intent is to rebrand the recurring slot, not kick members out.
+   * Members see the new activity name on their next view via the join
+   * to activities in read queries.
+   */
+  async updateScheduleActivity(
+    scheduleId: number,
+    activityId: number,
+  ): Promise<ScheduleSlot> {
+    const existing = await this.getScheduleSlot(scheduleId);
+    if (!existing) throw new NotFoundError("Horario no encontrado");
+
+    const [activity] = await this.db
+      .select({
+        id: schema.activities.id,
+        isActive: schema.activities.isActive,
+      })
+      .from(schema.activities)
+      .where(eq(schema.activities.id, activityId));
+    if (!activity) throw new NotFoundError("Actividad no encontrada");
+    if (!activity.isActive) {
+      throw new BadRequestError("La actividad esta desactivada");
+    }
+
+    await this.db
+      .update(schema.schedules)
+      .set({ activityId })
+      .where(eq(schema.schedules.id, scheduleId));
+
+    this.log.info(
+      { scheduleId, activityId },
+      "Schedule activity updated (bookings retained)",
+    );
+
+    const updated = await this.getScheduleSlot(scheduleId);
+    if (!updated) throw new Error("Failed to retrieve updated schedule");
+    return updated;
+  }
+
+  /**
    * Delete a schedule slot. Fails if it has confirmed bookings.
    */
   async deleteSchedule(scheduleId: number): Promise<void> {

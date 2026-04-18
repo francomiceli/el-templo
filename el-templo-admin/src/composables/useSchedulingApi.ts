@@ -150,6 +150,26 @@ export function useSchedulingApi() {
     }
   }
 
+  async function updateScheduleActivity(
+    scheduleId: number,
+    activityId: number
+  ): Promise<ScheduleSlot> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<ScheduleSlot>(
+        `/admin/scheduling/schedules/${scheduleId}/activity`,
+        { activityId }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cambiando actividad del horario');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function seedSchedules(branchId: number): Promise<{ created: number }> {
     loading.value = true;
     error.value = null;
@@ -271,6 +291,7 @@ export function useSchedulingApi() {
     getWeeklyGrid,
     getSlotDetail,
     toggleSchedule,
+    updateScheduleActivity,
     seedSchedules,
     adminAddBooking,
     adminRemoveBooking,
