@@ -240,22 +240,31 @@ async function main(): Promise<void> {
     if (executeMode) {
       console.log(`\n=== EXECUTING ===\n`);
       // Batch inserts — MySQL placeholder limit (~65k) / 3 cols = ~20k rows per stmt.
-      const BATCH = 2000;
+      const BATCH = 1000;
+      // Use the underlying mysql2 connection directly — INSERT IGNORE with
+      // many rows + placeholders is trivial there, and avoids Drizzle's
+      // recursive sql-template construction that overflows the stack on
+      // large batches.
+      const rawConn = connection as unknown as {
+        query: (
+          sql: string,
+          values: unknown[],
+        ) => Promise<[{ affectedRows: number }, unknown]>;
+      };
       for (let i = 0; i < toInsert.length; i += BATCH) {
         const slice = toInsert.slice(i, i + BATCH);
-        // Use raw INSERT IGNORE for idempotency (Drizzle doesn't expose it directly)
-        const values = slice
-          .map(
-            (v) =>
-              sql`(${v.memberId}, ${v.scheduleId}, ${v.bookingDate}, 'reservado')`,
-          )
-          .reduce((acc, cur, idx) => (idx === 0 ? cur : sql`${acc}, ${cur}`));
-        const result = await db.execute(
-          sql`INSERT IGNORE INTO bookings (member_id, schedule_id, booking_date, booking_status) VALUES ${values}`,
+        const placeholders = slice
+          .map(() => "(?, ?, ?, 'reservado')")
+          .join(", ");
+        const params: Array<number | string> = [];
+        for (const v of slice) {
+          params.push(v.memberId, v.scheduleId, v.bookingDate);
+        }
+        const [result] = await rawConn.query(
+          `INSERT IGNORE INTO bookings (member_id, schedule_id, booking_date, booking_status) VALUES ${placeholders}`,
+          params,
         );
-        const inserted =
-          (result as unknown as [{ affectedRows: number }])[0]?.affectedRows ??
-          0;
+        const inserted = result?.affectedRows ?? 0;
         createdBookings += inserted;
         console.log(
           `  Batch ${i / BATCH + 1}: ${slice.length} attempted, ${inserted} inserted`,
