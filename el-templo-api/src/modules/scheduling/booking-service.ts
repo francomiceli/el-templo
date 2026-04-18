@@ -785,7 +785,9 @@ export class BookingService {
 
     const today = new Date().toISOString().split("T")[0];
 
-    // Cancel future bookings
+    // Cancel bookings from today onward — classes haven't started yet,
+    // so if a sub is pausing/cancelling/changing today, today's reservation
+    // is part of "future" from the member's perspective.
     await this.db
       .update(schema.bookings)
       .set({
@@ -797,7 +799,7 @@ export class BookingService {
         and(
           eq(schema.bookings.memberId, sub.userId),
           inArray(schema.bookings.scheduleId, scheduleIds),
-          sql`${schema.bookings.bookingDate} > ${today}`,
+          sql`${schema.bookings.bookingDate} >= ${today}`,
           sql`${schema.bookings.status} IN ('reservado', 'lista_espera')`,
         ),
       );

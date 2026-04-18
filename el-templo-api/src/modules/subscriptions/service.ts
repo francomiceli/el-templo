@@ -42,6 +42,7 @@ import type {
 import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
 import type { PaymentService } from "../payments/service";
 import type { GoalPlanType } from "../goal-plans/types";
+import { populateBookings } from "./booking-population";
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -957,17 +958,18 @@ export class SubscriptionService {
       reason: input.reason ?? null,
     });
 
-    // 4. Regenerate future bookings on new slots starting tomorrow (skip if empty)
+    // 4. Regenerate future bookings on new slots starting today. Class
+    //    hasn't happened yet — today is part of the "future" window when
+    //    a member is changing slots. (Cancel step above already dropped
+    //    today's old-slot booking.)
     if (this.bookingService && sub.endDate && input.scheduleIds.length > 0) {
-      const now = new Date();
-      now.setUTCDate(now.getUTCDate() + 1);
-      const tomorrow = now.toISOString().split("T")[0];
-      if (tomorrow <= sub.endDate) {
+      const today = new Date().toISOString().split("T")[0];
+      if (today <= sub.endDate) {
         await this.bookingService.generateFixedBookings(
           subscriptionId,
           sub.userId,
           input.scheduleIds,
-          tomorrow,
+          today,
           sub.endDate,
           sub.branchId,
         );
@@ -1063,6 +1065,12 @@ export class SubscriptionService {
       })
       .where(eq(schema.subscriptions.id, sub.id));
 
+    // Cancel all future reservations for this sub's fixed slots. Schedules
+    // (subscription_schedules) stay intact so resume can auto-regenerate.
+    if (this.bookingService) {
+      await this.bookingService.cancelFutureBookings(sub.id);
+    }
+
     const updated = await this.getSubscriptionById(sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");
 
@@ -1117,6 +1125,11 @@ export class SubscriptionService {
       .update(schema.subscriptions)
       .set(updateData)
       .where(eq(schema.subscriptions.id, sub.id));
+
+    // Regenerate bookings for the resume window (today → endDate).
+    // Pause cleared out future bookings; subscription_schedules stayed,
+    // so we can auto-populate without asking the admin to re-set slots.
+    await populateBookings(this.db, this.log, sub.id);
 
     const updated = await this.getSubscriptionById(sub.id);
     if (!updated) throw new Error("Failed to retrieve updated subscription");

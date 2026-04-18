@@ -332,6 +332,13 @@
           <div class="text-body2 q-mb-md">
             El tiempo pausado se extendera en la fecha de vencimiento cuando se reanude.
           </div>
+          <q-banner dense rounded class="bg-warning text-white q-mb-md">
+            <template #avatar>
+              <q-icon name="warning" />
+            </template>
+            Todas las reservas futuras de este alumno seran canceladas. Al reanudar la suscripcion
+            se regeneraran automaticamente desde sus horarios fijos.
+          </q-banner>
           <q-input
             v-model="pauseEndDateInput"
             label="Fecha de reanudacion (opcional)"
@@ -716,7 +723,8 @@ function confirmResume() {
 function confirmCancel() {
   $q.dialog({
     title: 'Cancelar suscripcion presencial',
-    message: 'Cancelar la suscripcion? Esta accion no se puede deshacer.',
+    message:
+      'Cancelar la suscripcion? Todas las reservas futuras seran canceladas y el alumno debera crear nuevas reservas si vuelve. Esta accion no se puede deshacer.',
     prompt: {
       model: '',
       type: 'textarea',
