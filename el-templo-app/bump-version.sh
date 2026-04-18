@@ -14,7 +14,7 @@ echo "Bumping version to $VERSION"
 
 # Android build.gradle
 GRADLE="$SCRIPT_DIR/src-capacitor/android/app/build.gradle"
-sed -i "s/versionName = \".*\"/versionName = \"$VERSION\"/" "$GRADLE"
+sed -i -E "s/(versionName = System\\.getenv\\(\"VERSION_NAME\"\\) \\?: )\"[^\"]+\"/\\1\"$VERSION\"/" "$GRADLE"
 echo "  Updated $GRADLE"
 
 # iOS project.pbxproj
