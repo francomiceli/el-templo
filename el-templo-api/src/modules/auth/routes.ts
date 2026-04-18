@@ -257,12 +257,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       const user = userResults[0];
 
       if (user.deletedAt) {
-        return reply
-          .code(401)
-          .send({
-            error: "No autorizado",
-            message: "Esta cuenta fue eliminada",
-          });
+        return reply.code(401).send({
+          error: "No autorizado",
+          message: "Esta cuenta fue eliminada",
+        });
       }
 
       // Verify password
@@ -342,6 +340,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           level: users.level,
           branchId: users.branchId,
           gender: users.gender,
+          dateOfBirth: users.dateOfBirth,
           isActive: users.isActive,
         })
         .from(users)
@@ -418,6 +417,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchIsVirtual,
         isActive: user.isActive,
         gender: user.gender,
+        dateOfBirth: user.dateOfBirth,
         segment,
         onboardingCompleted,
       };
@@ -511,12 +511,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (user.deletedAt) {
-        return reply
-          .code(400)
-          .send({
-            error: "Solicitud invalida",
-            message: "Cuenta ya eliminada",
-          });
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Cuenta ya eliminada",
+        });
       }
 
       // Verify password
