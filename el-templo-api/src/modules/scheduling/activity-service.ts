@@ -37,13 +37,14 @@ export class ActivityService {
   }
 
   /**
-   * List all active activities.
+   * List all activities (active + inactive). The admin UI surfaces the
+   * full state so inactive rows can be reactivated instead of appearing
+   * to have been deleted.
    */
   async listActivities(): Promise<ActivityRecord[]> {
     const rows = await this.db
       .select()
       .from(schema.activities)
-      .where(eq(schema.activities.isActive, true))
       .orderBy(schema.activities.name);
 
     return rows.map((r) => this.mapActivityRow(r));

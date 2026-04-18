@@ -15,20 +15,45 @@
 
           <q-item v-for="act in activities" :key="act.id">
             <q-item-section>
-              <q-item-label>{{ act.name }}</q-item-label>
+              <q-item-label :class="{ 'text-grey-5 text-strike': !act.isActive }">
+                {{ act.name }}
+                <q-badge
+                  v-if="!act.isActive"
+                  outline
+                  color="grey-7"
+                  label="Inactiva"
+                  class="q-ml-sm"
+                />
+              </q-item-label>
               <q-item-label caption>{{ act.description || 'Sin descripcion' }}</q-item-label>
             </q-item-section>
             <q-item-section side>
               <div class="row items-center q-gutter-xs">
-                <q-toggle
-                  :model-value="act.isActive"
-                  @update:model-value="
-                    (val: boolean) => onToggleActivity(act.id, act.name, act.description, val)
-                  "
+                <q-btn flat dense round icon="edit" size="sm" @click="startEditActivity(act)" />
+                <q-btn
+                  v-if="act.isActive"
+                  flat
+                  dense
+                  round
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  @click="confirmDeactivate(act)"
+                >
+                  <q-tooltip>Desactivar actividad</q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-else
+                  flat
+                  dense
+                  round
+                  icon="restore"
                   color="positive"
                   size="sm"
-                />
-                <q-btn flat dense round icon="edit" size="sm" @click="startEditActivity(act)" />
+                  @click="onToggleActivity(act.id, act.name, act.description, true)"
+                >
+                  <q-tooltip>Reactivar actividad</q-tooltip>
+                </q-btn>
               </div>
             </q-item-section>
           </q-item>
@@ -166,6 +191,17 @@ async function onToggleActivity(
     log.error('Error toggling activity', { error: message });
     $q.notify({ type: 'negative', message: 'Error actualizando actividad' });
   }
+}
+
+function confirmDeactivate(act: ActivityRecord) {
+  $q.dialog({
+    title: 'Desactivar actividad',
+    message: `Desactivar "${act.name}"? Los horarios existentes que la referencian seguiran funcionando, pero no podras asignarla a nuevos slots hasta reactivarla.`,
+    cancel: { flat: true, label: 'Volver' },
+    ok: { color: 'negative', label: 'Desactivar' },
+  }).onOk(() => {
+    void onToggleActivity(act.id, act.name, act.description, false);
+  });
 }
 
 // ─── Watchers ───────────────────────────────────────────────────────────────
