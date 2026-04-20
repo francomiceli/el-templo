@@ -99,14 +99,19 @@ export function useSchedulingApi() {
   async function getWeeklyGrid(
     branchId: number,
     weekStart: string
-  ): Promise<{ slots: WeeklySlotView[]; holidays: HolidayRecord[] }> {
+  ): Promise<{
+    slots: WeeklySlotView[];
+    holidays: HolidayRecord[];
+    branchTimezone: string;
+  }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ slots: WeeklySlotView[]; holidays: HolidayRecord[] }>(
-        '/admin/scheduling/schedules/weekly',
-        { params: { branchId, weekStart } }
-      );
+      const { data } = await api.get<{
+        slots: WeeklySlotView[];
+        holidays: HolidayRecord[];
+        branchTimezone: string;
+      }>('/admin/scheduling/schedules/weekly', { params: { branchId, weekStart } });
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando grilla semanal');

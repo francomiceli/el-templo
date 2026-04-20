@@ -202,6 +202,7 @@ import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
 import ActivitiesDialog from 'src/components/scheduling/ActivitiesDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
+import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
 
 const log = createLogger('HorariosPage');
 const $q = useQuasar();
@@ -213,7 +214,10 @@ const schedulingApi = useSchedulingApi();
 const selectedBranchId = ref<number | null>(null);
 const branchOptions = ref<Array<{ label: string; value: number }>>([]);
 const loadingBranches = ref(false);
-const weekStartDate = ref(getMonday(new Date()));
+// Default to AR until the weekly grid response returns the viewing branch's tz.
+// Admin changes branch → grid reloads → branchTimezone refreshes.
+const branchTimezone = ref<string>('America/Argentina/Buenos_Aires');
+const weekStartDate = ref(getMondayInTz(branchTimezone.value));
 const gridSlots = ref<WeeklySlotView[]>([]);
 const gridHolidays = ref<HolidayRecord[]>([]);
 const loadingGrid = ref(false);
@@ -227,15 +231,16 @@ const showHolidaysDialog = ref(false);
 
 const isMobile = computed(() => $q.screen.lt.sm);
 
-const todayISO = computed(() => formatDateISO(new Date()));
+/** Today's date as seen in the viewing branch's timezone. */
+const todayISO = computed(() => todayInTz(branchTimezone.value));
 
 /** Day-of-week index (1-6, Mon-Sat) selected in the mobile day picker. Defaults to today's dow if in range, else Monday. */
-const selectedDay = ref<DayOfWeek>(getTodayDowOrMonday());
+const selectedDay = ref<DayOfWeek>(getTodayDowOrMonday(branchTimezone.value));
 
-function getTodayDowOrMonday(): DayOfWeek {
-  const dow = new Date().getDay(); // 0 Sun .. 6 Sat
-  if (dow === 0) return 1; // Sunday → Monday
-  return dow as DayOfWeek; // 1-6 = Mon-Sat
+function getTodayDowOrMonday(tz: string): DayOfWeek {
+  const iso = dowInTz(tz); // 1=Mon ... 7=Sun
+  // Sunday defaults to Monday (Mon–Sat week).
+  return (iso === 7 ? 1 : iso) as DayOfWeek;
 }
 
 // ─── Computed ───────────────────────────────────────────────────────────────
@@ -244,16 +249,18 @@ function getTodayDowOrMonday(): DayOfWeek {
 const weekDays = computed(() => {
   const days: Array<{ dayOfWeek: DayOfWeek; shortLabel: string; dateLabel: string; date: string }> =
     [];
-  const start = new Date(weekStartDate.value + 'T12:00:00');
+  // Anchor at UTC noon so setUTCDate increments cleanly across DST without
+  // leaking the browser's local timezone into the grid's dates.
+  const start = new Date(weekStartDate.value + 'T12:00:00Z');
   for (let i = 0; i < 6; i++) {
     const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    d.setUTCDate(start.getUTCDate() + i);
     const dow = (i + 1) as DayOfWeek;
     days.push({
       dayOfWeek: dow,
       shortLabel: DAY_SHORT_LABELS[dow],
-      dateLabel: `${d.getDate()}`,
-      date: formatDateISO(d),
+      dateLabel: `${d.getUTCDate()}`,
+      date: d.toISOString().slice(0, 10),
     });
   }
   return days;
@@ -270,11 +277,12 @@ const timeSlots = computed(() => {
 
 /** Week range label e.g. "10 Mar - 15 Mar 2026" */
 const weekRangeLabel = computed(() => {
-  const start = new Date(weekStartDate.value + 'T12:00:00');
+  const start = new Date(weekStartDate.value + 'T12:00:00Z');
   const end = new Date(start);
-  end.setDate(start.getDate() + 5);
-  const fmt = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
-  return `${fmt(start)} - ${fmt(end)} ${end.getFullYear()}`;
+  end.setUTCDate(start.getUTCDate() + 5);
+  const fmt = (d: Date) =>
+    d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return `${fmt(start)} - ${fmt(end)} ${end.getUTCFullYear()}`;
 });
 
 /** CSS grid template: 1 time column + 6 day columns */
@@ -285,21 +293,8 @@ const gridTemplateStyle = computed(() => ({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function getMonday(d: Date): string {
-  const date = new Date(d);
-  const day = date.getDay();
-  // getDay() returns 0 for Sunday, 1 for Monday
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return formatDateISO(date);
-}
-
-function formatDateISO(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+// getMondayInTz + tz.ts helpers replaced the local-TZ getMonday/formatDateISO
+// pair — weekStart is now a branch-TZ-aware "YYYY-MM-DD" built at UTC noon.
 
 /** Build a lookup key from startTime + dayOfWeek */
 function slotKey(startTime: string, dayOfWeek: number): string {
@@ -403,6 +398,17 @@ async function loadWeeklyGrid() {
   loadingGrid.value = true;
   try {
     const result = await schedulingApi.getWeeklyGrid(selectedBranchId.value, weekStartDate.value);
+
+    // Adopt the viewing branch's timezone. On branch switch, realign week
+    // and selected day to the viewed branch's current week so admins don't
+    // land on yesterday-in-AR when looking at BCN on a Sunday evening.
+    const prevTz = branchTimezone.value;
+    branchTimezone.value = result.branchTimezone;
+    if (result.branchTimezone !== prevTz) {
+      weekStartDate.value = getMondayInTz(result.branchTimezone);
+      selectedDay.value = getTodayDowOrMonday(result.branchTimezone);
+    }
+
     gridSlots.value = result.slots;
     gridHolidays.value = result.holidays;
   } catch (err: unknown) {
@@ -417,19 +423,19 @@ async function loadWeeklyGrid() {
 // ─── Week Navigation ────────────────────────────────────────────────────────
 
 function prevWeek() {
-  const d = new Date(weekStartDate.value + 'T12:00:00');
-  d.setDate(d.getDate() - 7);
-  weekStartDate.value = formatDateISO(d);
+  const d = new Date(weekStartDate.value + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 7);
+  weekStartDate.value = d.toISOString().slice(0, 10);
 }
 
 function nextWeek() {
-  const d = new Date(weekStartDate.value + 'T12:00:00');
-  d.setDate(d.getDate() + 7);
-  weekStartDate.value = formatDateISO(d);
+  const d = new Date(weekStartDate.value + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 7);
+  weekStartDate.value = d.toISOString().slice(0, 10);
 }
 
 function goToCurrentWeek() {
-  weekStartDate.value = getMonday(new Date());
+  weekStartDate.value = getMondayInTz(branchTimezone.value);
 }
 
 function onBranchChange() {
