@@ -471,7 +471,7 @@
               label="Guardar"
               color="primary"
               :loading="submitting"
-              :disable="submitting"
+              :disable="submitting || dniStatus === 'taken'"
             />
           </q-card-actions>
         </q-form>
@@ -482,9 +482,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import type { QForm } from 'quasar';
+import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { extractError } from 'src/utils/extract-error';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -509,6 +510,7 @@ const emit = defineEmits<{
 // =========================================================================
 
 const membersApi = useMembersApi();
+const $q = useQuasar();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const submitting = ref(false);
 const step = ref(1);
@@ -759,8 +761,9 @@ async function onSubmit() {
     emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
+    const message = extractError(err, 'Error guardando miembro');
     log.error('Error saving member', { error: message });
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     submitting.value = false;
   }
