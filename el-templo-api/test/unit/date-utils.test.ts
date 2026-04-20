@@ -10,10 +10,15 @@ import {
   addDays,
   getWeekRange,
   buildClassDateTime,
+  todayInTz,
+  dowInTz,
   toDateString,
   resolveMonthRange,
   computePriorPeriod,
 } from "../../src/modules/shared/date-utils";
+
+const AR_TZ = "America/Argentina/Buenos_Aires";
+const MADRID_TZ = "Europe/Madrid";
 
 describe("date-utils", () => {
   // ─── addDays ──────────────────────────────────────────────────────────────
@@ -101,27 +106,115 @@ describe("date-utils", () => {
 
   describe("buildClassDateTime", () => {
     it("creates correct Date for morning class in Argentina (UTC-3)", () => {
-      const result = buildClassDateTime("2026-03-10", "09:30");
+      const result = buildClassDateTime("2026-03-10", "09:30", AR_TZ);
       // 09:30 Argentina = 12:30 UTC
       expect(result.toISOString()).toBe("2026-03-10T12:30:00.000Z");
     });
 
     it("creates correct Date for evening class in Argentina (UTC-3)", () => {
-      const result = buildClassDateTime("2026-03-10", "18:00");
+      const result = buildClassDateTime("2026-03-10", "18:00", AR_TZ);
       // 18:00 Argentina = 21:00 UTC
       expect(result.toISOString()).toBe("2026-03-10T21:00:00.000Z");
     });
 
     it("creates correct Date for early morning class", () => {
-      const result = buildClassDateTime("2026-03-10", "07:00");
+      const result = buildClassDateTime("2026-03-10", "07:00", AR_TZ);
       // 07:00 Argentina = 10:00 UTC
       expect(result.toISOString()).toBe("2026-03-10T10:00:00.000Z");
     });
 
     it("creates correct Date for late night class", () => {
-      const result = buildClassDateTime("2026-03-10", "22:00");
+      const result = buildClassDateTime("2026-03-10", "22:00", AR_TZ);
       // 22:00 Argentina = 01:00 UTC next day
       expect(result.toISOString()).toBe("2026-03-11T01:00:00.000Z");
+    });
+
+    it("creates correct Date for Madrid class in winter (UTC+1, no DST)", () => {
+      // 2026-01-15 is standard time in Madrid (UTC+1)
+      const result = buildClassDateTime("2026-01-15", "18:00", MADRID_TZ);
+      // 18:00 Madrid = 17:00 UTC
+      expect(result.toISOString()).toBe("2026-01-15T17:00:00.000Z");
+    });
+
+    it("creates correct Date for Madrid class in summer DST (UTC+2)", () => {
+      // 2026-07-15 is DST in Madrid (UTC+2)
+      const result = buildClassDateTime("2026-07-15", "18:00", MADRID_TZ);
+      // 18:00 Madrid DST = 16:00 UTC
+      expect(result.toISOString()).toBe("2026-07-15T16:00:00.000Z");
+    });
+
+    it("handles Madrid spring-forward day (last Sunday of March)", () => {
+      // 2026-03-29 is the DST transition day in Madrid (01:00 UTC -> 03:00 local)
+      // A class at 10:00 local on that day = 08:00 UTC (DST already in effect)
+      const result = buildClassDateTime("2026-03-29", "10:00", MADRID_TZ);
+      expect(result.toISOString()).toBe("2026-03-29T08:00:00.000Z");
+    });
+
+    it("handles Madrid fall-back day (last Sunday of October)", () => {
+      // 2026-10-25 DST ends. Class at 10:00 local = 09:00 UTC (standard time)
+      const result = buildClassDateTime("2026-10-25", "10:00", MADRID_TZ);
+      expect(result.toISOString()).toBe("2026-10-25T09:00:00.000Z");
+    });
+
+    it("AR tz produces identical output before and after fix baseline", () => {
+      // Regression lock: AR branches must not shift. UTC-3 year-round.
+      expect(
+        buildClassDateTime("2026-07-15", "18:00", AR_TZ).toISOString(),
+      ).toBe("2026-07-15T21:00:00.000Z");
+      expect(
+        buildClassDateTime("2026-01-15", "18:00", AR_TZ).toISOString(),
+      ).toBe("2026-01-15T21:00:00.000Z");
+    });
+  });
+
+  // ─── todayInTz ────────────────────────────────────────────────────────────
+
+  describe("todayInTz", () => {
+    it("returns the date as seen in AR when server is UTC late night", () => {
+      // 03:30 UTC on Mar 10 is still Mar 9 in Argentina (UTC-3 → 00:30 AR Mar 10)
+      // Actually 03:30 UTC = 00:30 AR same date Mar 10
+      const now = new Date("2026-03-10T03:30:00Z");
+      expect(todayInTz(AR_TZ, now)).toBe("2026-03-10");
+    });
+
+    it("returns prior date in AR when UTC just past midnight", () => {
+      // 02:30 UTC on Mar 10 = 23:30 AR on Mar 9
+      const now = new Date("2026-03-10T02:30:00Z");
+      expect(todayInTz(AR_TZ, now)).toBe("2026-03-09");
+    });
+
+    it("returns Madrid date ahead of UTC in winter", () => {
+      // 23:30 UTC Mar 9 = 00:30 Madrid Mar 10 (UTC+1)
+      const now = new Date("2026-03-09T23:30:00Z");
+      expect(todayInTz(MADRID_TZ, now)).toBe("2026-03-10");
+    });
+
+    it("returns Madrid date ahead of UTC in DST", () => {
+      // 22:30 UTC Jul 15 = 00:30 Madrid Jul 16 (UTC+2 DST)
+      const now = new Date("2026-07-15T22:30:00Z");
+      expect(todayInTz(MADRID_TZ, now)).toBe("2026-07-16");
+    });
+  });
+
+  // ─── dowInTz ──────────────────────────────────────────────────────────────
+
+  describe("dowInTz", () => {
+    it("returns ISO day-of-week in AR", () => {
+      // 2026-03-10 is a Tuesday
+      const now = new Date("2026-03-10T12:00:00Z");
+      expect(dowInTz(AR_TZ, now)).toBe(2);
+    });
+
+    it("returns ISO day-of-week in Madrid when crossing UTC midnight", () => {
+      // 23:30 UTC Mon Mar 9 = 00:30 Madrid Tue Mar 10 (UTC+1)
+      const now = new Date("2026-03-09T23:30:00Z");
+      expect(dowInTz(MADRID_TZ, now)).toBe(2);
+    });
+
+    it("maps Sunday to ISO 7", () => {
+      // 2026-03-15 is a Sunday
+      const now = new Date("2026-03-15T12:00:00Z");
+      expect(dowInTz(AR_TZ, now)).toBe(7);
     });
   });
 

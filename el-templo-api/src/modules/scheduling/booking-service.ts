@@ -16,8 +16,9 @@ import {
   addDays,
   getWeekRange,
   buildClassDateTime,
+  todayInTz,
+  toDateString,
 } from "../shared/date-utils";
-import { toDateString } from "../shared/date-utils";
 import type {
   BookingRecord,
   BookingStatus,
@@ -56,17 +57,18 @@ export class BookingService {
     }
 
     // 2. Validate date is within booking window: today to today+2 days
-    const today = toDateString(new Date());
-    const maxDate = toDateString(
-      new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-    );
+    //    "today" is evaluated in the branch's timezone so BCN and AR
+    //    members each see their own day boundary.
+    const tz = scheduleRow.branchTimezone;
+    const today = todayInTz(tz);
+    const maxDate = addDays(today, 2);
     if (date < today || date > maxDate) {
       throw new BadRequestError(
         "Solo podes reservar desde hoy hasta 2 dias en adelante",
       );
     }
 
-    if (!this.isWithinBookingWindow(scheduleRow.startTime, date)) {
+    if (!this.isWithinBookingWindow(scheduleRow.startTime, date, tz)) {
       throw new BadRequestError("Este horario ya paso");
     }
 
@@ -322,7 +324,11 @@ export class BookingService {
     const scheduleRow = await this.getScheduleSlotRaw(bookingRow.scheduleId);
     if (
       scheduleRow &&
-      !this.isWithinCancelWindow(scheduleRow.startTime, bookingRow.bookingDate)
+      !this.isWithinCancelWindow(
+        scheduleRow.startTime,
+        bookingRow.bookingDate,
+        scheduleRow.branchTimezone,
+      )
     ) {
       throw new BadRequestError(
         "No se puede cancelar menos de 20 minutos antes",
@@ -814,14 +820,16 @@ export class BookingService {
 
   /**
    * Check if now is within booking window (up to 5 min before class).
+   * `tz` is the branch's IANA timezone — required for DST-correct cutoffs
+   * across branches in different regions.
    */
   private isWithinBookingWindow(
     scheduleStartTime: string,
     bookingDate: string,
+    tz: string,
   ): boolean {
     const now = new Date();
-    const classTime = buildClassDateTime(bookingDate, scheduleStartTime);
-    // Allow booking up to 5 minutes before class
+    const classTime = buildClassDateTime(bookingDate, scheduleStartTime, tz);
     const cutoff = new Date(classTime.getTime() - 5 * 60 * 1000);
     return now <= cutoff;
   }
@@ -832,10 +840,10 @@ export class BookingService {
   private isWithinCancelWindow(
     scheduleStartTime: string,
     bookingDate: string,
+    tz: string,
   ): boolean {
     const now = new Date();
-    const classTime = buildClassDateTime(bookingDate, scheduleStartTime);
-    // Allow cancellation up to 20 minutes before class
+    const classTime = buildClassDateTime(bookingDate, scheduleStartTime, tz);
     const cutoff = new Date(classTime.getTime() - 20 * 60 * 1000);
     return now <= cutoff;
   }
@@ -1099,11 +1107,14 @@ export class BookingService {
   }
 
   /**
-   * Get a raw schedule row (for internal use, without joins).
+   * Get a raw schedule row joined with its branch timezone.
+   * Timezone is loaded here so callers can validate booking/cancel windows
+   * in the branch's local time without a second query.
    */
   private async getScheduleSlotRaw(scheduleId: number): Promise<{
     id: number;
     branchId: number;
+    branchTimezone: string;
     activityId: number;
     dayOfWeek: number;
     startTime: string;
@@ -1111,20 +1122,25 @@ export class BookingService {
     isActive: boolean;
   } | null> {
     const [row] = await this.db
-      .select()
+      .select({
+        id: schema.schedules.id,
+        branchId: schema.schedules.branchId,
+        branchTimezone: schema.branches.timezone,
+        activityId: schema.schedules.activityId,
+        dayOfWeek: schema.schedules.dayOfWeek,
+        startTime: schema.schedules.startTime,
+        endTime: schema.schedules.endTime,
+        isActive: schema.schedules.isActive,
+      })
       .from(schema.schedules)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
       .where(eq(schema.schedules.id, scheduleId));
 
     if (!row) return null;
-    return {
-      id: row.id,
-      branchId: row.branchId,
-      activityId: row.activityId,
-      dayOfWeek: row.dayOfWeek,
-      startTime: row.startTime,
-      endTime: row.endTime,
-      isActive: row.isActive,
-    };
+    return row;
   }
 
   /**

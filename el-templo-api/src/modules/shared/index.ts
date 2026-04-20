@@ -11,6 +11,8 @@ export {
   addDays,
   getWeekRange,
   buildClassDateTime,
+  todayInTz,
+  dowInTz,
   toDateString,
   resolveMonthRange,
   computePriorPeriod,

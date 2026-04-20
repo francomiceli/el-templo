@@ -1,12 +1,12 @@
 /**
  * Shared date utility functions with explicit timezone handling.
  *
- * All functions are pure (no side effects, no server context).
- * Argentina uses fixed UTC-3 year-round (no DST since 2009).
- * Internal arithmetic uses noon-UTC pattern to avoid DST/day-boundary issues.
+ * Two families:
+ *   - Noon-UTC helpers for date arithmetic that don't depend on a branch.
+ *   - Branch-timezone helpers (buildClassDateTime, todayInTz, dowInTz,
+ *     nowInTz) that take an IANA timezone string and use the stdlib
+ *     Intl.DateTimeFormat API — DST-aware, no external dep.
  */
-
-const ARGENTINA_OFFSET = "-03:00";
 
 /**
  * Add days to an ISO date string ("YYYY-MM-DD") and return new ISO date string.
@@ -53,15 +53,95 @@ export function getWeekRange(date: Date): {
 }
 
 /**
- * Build a Date representing a class time in Argentina timezone (UTC-3).
+ * Convert a wall-clock date+time in a given IANA timezone to a UTC Date.
  *
- * Given a booking date ("YYYY-MM-DD") and a schedule time ("HH:MM"),
- * both in Argentina local time, returns the UTC Date for that moment.
- *
- * Safe because Argentina does not observe DST (fixed UTC-3 since 2009).
+ * DST-aware: for timezones that observe DST (e.g. Europe/Madrid), the
+ * returned moment reflects the correct UTC offset at that wall-clock
+ * instant. For fixed-offset timezones (AR), behaves like a simple offset
+ * application.
  */
-export function buildClassDateTime(bookingDate: string, timeStr: string): Date {
-  return new Date(`${bookingDate}T${timeStr}:00${ARGENTINA_OFFSET}`);
+function zonedWallClockToUtc(
+  dateStr: string,
+  timeStr: string,
+  tz: string,
+): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [hh, mm] = timeStr.split(":").map(Number);
+
+  // Provisional UTC instant assuming input is already UTC.
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+
+  // Render that instant in the target timezone, then treat the rendered
+  // wall clock as UTC to extract the tz-vs-UTC offset for that moment.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(guess));
+
+  const getPart = (type: string) =>
+    Number(parts.find((p) => p.type === type)!.value);
+
+  const zonedAsUtc = Date.UTC(
+    getPart("year"),
+    getPart("month") - 1,
+    getPart("day"),
+    getPart("hour") % 24, // some runtimes emit "24" for midnight
+    getPart("minute"),
+    getPart("second"),
+  );
+
+  const offset = zonedAsUtc - guess;
+  return new Date(guess - offset);
+}
+
+/**
+ * Build the UTC Date representing a class's start moment.
+ *
+ * Interprets `bookingDate + timeStr` as a wall-clock time in the branch's
+ * timezone and returns the corresponding UTC instant.
+ */
+export function buildClassDateTime(
+  bookingDate: string,
+  timeStr: string,
+  tz: string,
+): Date {
+  return zonedWallClockToUtc(bookingDate, timeStr, tz);
+}
+
+/**
+ * Get the current date string ("YYYY-MM-DD") as seen in the given timezone.
+ */
+export function todayInTz(tz: string, now: Date = new Date()): string {
+  // en-CA locale formats dates as YYYY-MM-DD.
+  return now.toLocaleDateString("en-CA", { timeZone: tz });
+}
+
+/**
+ * Get the current ISO day-of-week (1=Mon ... 7=Sun) in the given timezone.
+ */
+export function dowInTz(tz: string, now: Date = new Date()): number {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+  })
+    .formatToParts(now)
+    .find((p) => p.type === "weekday")!.value;
+  const map: Record<string, number> = {
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+    Sun: 7,
+  };
+  return map[weekday]!;
 }
 
 /**
