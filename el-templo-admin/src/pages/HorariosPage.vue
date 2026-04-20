@@ -183,6 +183,7 @@
       v-model:show="showSlotDialog"
       :schedule-id="selectedSlotScheduleId"
       :date="selectedSlotDate"
+      :branch-timezone="branchTimezone"
       @bookings-changed="loadWeeklyGrid"
     />
     <ActivitiesDialog v-model:show="showActivitiesDialog" />

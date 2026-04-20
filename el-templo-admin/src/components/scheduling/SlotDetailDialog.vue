@@ -266,6 +266,7 @@ import type {
 } from 'src/types/scheduling';
 import { DAY_LABELS, BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from 'src/types/scheduling';
 import type { SlotAttendanceItem } from 'src/types/attendance';
+import { todayInTz } from 'src/utils/tz';
 
 const log = createLogger('SlotDetailDialog');
 const $q = useQuasar();
@@ -275,11 +276,20 @@ const membersApi = useMembersApi();
 
 // ─── Props & Emits ──────────────────────────────────────────────────────────
 
-const props = defineProps<{
-  show: boolean;
-  scheduleId: number | null;
-  date: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    show: boolean;
+    scheduleId: number | null;
+    date: string;
+    /**
+     * IANA timezone of the branch owning this slot. Controls whether the
+     * dialog treats the slot as "today / past" for check-in vs. reservation
+     * mode. Defaults to AR so existing callsites keep working.
+     */
+    branchTimezone?: string;
+  }>(),
+  { branchTimezone: 'America/Argentina/Buenos_Aires' }
+);
 
 const emit = defineEmits<{
   'update:show': [value: boolean];
@@ -311,7 +321,7 @@ const savingActivity = ref(false);
 
 // ─── Computed ───────────────────────────────────────────────────────────────
 
-const todayIso = () => new Date().toISOString().split('T')[0];
+const todayIso = () => todayInTz(props.branchTimezone);
 
 const isPastOrToday = computed(() => props.date <= todayIso());
 const isToday = computed(() => props.date === todayIso());
