@@ -152,8 +152,19 @@
                 <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
               </template>
               <template v-else-if="isSlotBooked(slot)">
-                <q-icon name="check_circle" size="20px" color="primary" />
-                <span class="slot-card__badge slot-card__badge--primary">Reservado</span>
+                <q-icon name="check_circle" size="20px" color="positive" />
+                <span class="slot-card__badge slot-card__badge--positive">Reservado</span>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  @click.stop="cancelSlotBooking(slot)"
+                >
+                  <q-tooltip>Cancelar</q-tooltip>
+                </q-btn>
               </template>
               <template v-else-if="slot.isFull">
                 <span class="slot-card__occupancy slot-card__occupancy--full">
@@ -207,8 +218,19 @@
                 <span class="slot-card__badge slot-card__badge--positive">Asististe</span>
               </template>
               <template v-else-if="isSlotBooked(slot)">
-                <q-icon name="check_circle" size="20px" color="primary" />
-                <span class="slot-card__badge slot-card__badge--primary">Reservado</span>
+                <q-icon name="check_circle" size="20px" color="positive" />
+                <span class="slot-card__badge slot-card__badge--positive">Reservado</span>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="close"
+                  color="negative"
+                  size="sm"
+                  @click.stop="cancelSlotBooking(slot)"
+                >
+                  <q-tooltip>Cancelar</q-tooltip>
+                </q-btn>
               </template>
               <template v-else-if="slot.isFull">
                 <span class="slot-card__occupancy slot-card__occupancy--full">
@@ -605,6 +627,23 @@ function dayHasBooking(day: DayOfWeek): boolean {
 
 function isSlotBooked(slot: WeeklySlotView): boolean {
   return bookedScheduleIds.value.has(slot.id)
+}
+
+function findBookingForSlot(slot: WeeklySlotView): BookingRecord | null {
+  const date = dateForDay(slot.dayOfWeek as DayOfWeek)
+  return (
+    myBookings.value.find(
+      (b) =>
+        b.scheduleId === slot.id &&
+        b.bookingDate === date &&
+        ['reservado', 'qr_escaneado', 'lista_espera'].includes(b.status),
+    ) ?? null
+  )
+}
+
+function cancelSlotBooking(slot: WeeklySlotView) {
+  const booking = findBookingForSlot(slot)
+  if (booking) promptCancelBooking(booking)
 }
 
 function isSlotAttended(slot: WeeklySlotView): boolean {
