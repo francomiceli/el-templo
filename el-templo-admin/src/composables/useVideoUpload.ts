@@ -10,9 +10,6 @@ const log = createLogger('useVideoUpload');
 /** Uploads are only enabled in production (not in dev or staging) */
 export const uploadsEnabled = !import.meta.env.VITE_APP_ENVIRONMENT && import.meta.env.PROD;
 
-/** Max size for the final (transcoded) file that gets uploaded to R2 */
-const MAX_OUTPUT_SIZE = 40 * 1024 * 1024;
-
 /** Max size for the user-selected input file (before transcoding) */
 const MAX_INPUT_SIZE = 200 * 1024 * 1024;
 
@@ -108,15 +105,6 @@ export function useVideoUpload() {
         uploadFile = await transcodeToMp4(file, (pct) => {
           progress.value.set(exerciseId, pct);
         });
-      }
-
-      // Output size check (post-transcode)
-      if (uploadFile.size > MAX_OUTPUT_SIZE) {
-        Notify.create({
-          type: 'negative',
-          message: `Video procesado demasiado grande (${Math.round(uploadFile.size / (1024 * 1024))}MB, max 40MB)`,
-        });
-        return;
       }
 
       phase.value.set(exerciseId, 'uploading');

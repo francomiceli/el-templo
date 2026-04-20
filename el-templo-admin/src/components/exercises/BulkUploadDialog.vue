@@ -27,7 +27,7 @@
         >
           <q-icon name="cloud_upload" size="48px" color="grey-5" />
           <div class="text-body1 q-mt-sm">Arrastra archivos aqui o haz clic para seleccionar</div>
-          <div class="text-caption text-grey-6">MP4 o MOV (max 200MB entrada, 40MB salida)</div>
+          <div class="text-caption text-grey-6">MP4 o MOV (max 200MB)</div>
         </div>
 
         <input
@@ -293,7 +293,6 @@ interface FileEntry {
 // =========================================================================
 
 const MAX_INPUT_SIZE = 200 * 1024 * 1024; // 200 MB (before transcode)
-const MAX_OUTPUT_SIZE = 40 * 1024 * 1024; // 40 MB (after transcode)
 
 // =========================================================================
 // State
@@ -560,16 +559,6 @@ async function startBatchUpload() {
         uploadFile = await transcodeToMp4(entry.file, (pct) => {
           entry.uploadProgress = pct;
         });
-      }
-
-      // Output size check
-      if (uploadFile.size > MAX_OUTPUT_SIZE) {
-        log.warn('Transcoded file exceeds max output size', {
-          filename: entry.file.name,
-          size: uploadFile.size,
-        });
-        entry.uploadStatus = 'failed';
-        continue;
       }
 
       entry.uploadStatus = 'uploading';
