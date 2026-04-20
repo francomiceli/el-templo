@@ -15,8 +15,8 @@
       <!-- Phase 1: File Selection -->
       <q-card-section v-if="phase === 'select'">
         <div class="text-body2 q-mb-md text-grey-7">
-          Selecciona archivos MP4 con el formato <strong>{id}-{nombre}.mp4</strong> para asignar
-          automaticamente a ejercicios.
+          Selecciona archivos MP4 o MOV con el formato <strong>{id}-{nombre}</strong> para asignar
+          automaticamente a ejercicios. Los archivos MOV se convertiran a MP4 antes de subirse.
         </div>
 
         <div
@@ -27,14 +27,14 @@
         >
           <q-icon name="cloud_upload" size="48px" color="grey-5" />
           <div class="text-body1 q-mt-sm">Arrastra archivos aqui o haz clic para seleccionar</div>
-          <div class="text-caption text-grey-6">Solo archivos MP4 (max 40MB cada uno)</div>
+          <div class="text-caption text-grey-6">MP4 o MOV (max 200MB entrada, 40MB salida)</div>
         </div>
 
         <input
           ref="fileInputRef"
           type="file"
           multiple
-          accept=".mp4,video/mp4"
+          accept=".mp4,.mov,video/mp4,video/quicktime"
           style="display: none"
           @change="onFilesSelected"
         />
@@ -174,6 +174,13 @@
               class="q-mr-sm"
             />
             <q-icon
+              v-else-if="entry.uploadStatus === 'transcoding'"
+              name="autorenew"
+              color="amber-8"
+              size="xs"
+              class="q-mr-sm"
+            />
+            <q-icon
               v-else-if="entry.uploadStatus === 'uploading'"
               name="cloud_upload"
               color="primary"
@@ -186,14 +193,23 @@
               {{ entry.file.name }}
             </span>
 
+            <span
+              v-if="entry.uploadStatus === 'transcoding' || entry.uploadStatus === 'uploading'"
+              class="text-caption text-grey-7 q-mr-sm"
+            >
+              {{ entry.uploadStatus === 'transcoding' ? 'Convirtiendo' : 'Subiendo' }}
+            </span>
             <q-linear-progress
-              v-if="entry.uploadStatus === 'uploading'"
+              v-if="entry.uploadStatus === 'transcoding' || entry.uploadStatus === 'uploading'"
               :value="entry.uploadProgress / 100"
-              color="primary"
+              :color="entry.uploadStatus === 'transcoding' ? 'amber' : 'primary'"
               style="width: 120px"
               class="q-mx-sm"
             />
-            <span v-if="entry.uploadStatus === 'uploading'" class="text-caption q-ml-xs">
+            <span
+              v-if="entry.uploadStatus === 'transcoding' || entry.uploadStatus === 'uploading'"
+              class="text-caption q-ml-xs"
+            >
               {{ entry.uploadProgress }}%
             </span>
             <span v-if="entry.uploadStatus === 'failed'" class="text-caption text-negative q-ml-sm">
@@ -234,6 +250,7 @@ import { ref, computed } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { createLogger } from 'src/utils/logger';
+import { transcodeToMp4, isAlreadyMp4 } from 'src/utils/videoTranscoder';
 import type { Exercise } from 'src/types/exercise';
 
 const log = createLogger('BulkUploadDialog');
@@ -257,7 +274,7 @@ const emit = defineEmits<{
 // =========================================================================
 
 type FileStatus = 'matched' | 'unmatched' | 'matched-manual' | 'error';
-type UploadStatus = 'pending' | 'uploading' | 'done' | 'failed';
+type UploadStatus = 'pending' | 'transcoding' | 'uploading' | 'done' | 'failed';
 
 interface FileEntry {
   id: string;
@@ -275,7 +292,8 @@ interface FileEntry {
 // Constants
 // =========================================================================
 
-const MAX_FILE_SIZE = 40 * 1024 * 1024; // 40 MB
+const MAX_INPUT_SIZE = 200 * 1024 * 1024; // 200 MB (before transcode)
+const MAX_OUTPUT_SIZE = 40 * 1024 * 1024; // 40 MB (after transcode)
 
 // =========================================================================
 // State
@@ -294,7 +312,7 @@ function parseFilename(filename: string): {
   exerciseId: number | null;
   slug: string;
 } {
-  const match = filename.match(/^(\d+)-(.+)\.mp4$/i);
+  const match = filename.match(/^(\d+)-(.+)\.(mp4|mov)$/i);
   if (!match) return { exerciseId: null, slug: filename };
   return { exerciseId: parseInt(match[1], 10), slug: match[2] };
 }
@@ -313,14 +331,14 @@ function processFiles(files: FileList | File[]) {
     if (existingIds.has(fileKey)) continue;
 
     // Client-side validation
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_INPUT_SIZE) {
       newEntries.push({
         id: fileKey,
         file,
         status: 'error',
         exerciseId: null,
         exerciseName: null,
-        errorMessage: `Archivo demasiado grande (${formatFileSize(file.size)}, max 40MB)`,
+        errorMessage: `Archivo demasiado grande (${formatFileSize(file.size)}, max 200MB)`,
         selectedExercise: null,
         uploadStatus: 'pending',
         uploadProgress: 0,
@@ -328,14 +346,20 @@ function processFiles(files: FileList | File[]) {
       continue;
     }
 
-    if (!file.type.includes('mp4') && !file.name.toLowerCase().endsWith('.mp4')) {
+    const lowerName = file.name.toLowerCase();
+    const isAccepted =
+      file.type === 'video/mp4' ||
+      file.type === 'video/quicktime' ||
+      lowerName.endsWith('.mp4') ||
+      lowerName.endsWith('.mov');
+    if (!isAccepted) {
       newEntries.push({
         id: fileKey,
         file,
         status: 'error',
         exerciseId: null,
         exerciseName: null,
-        errorMessage: 'Solo se aceptan archivos MP4',
+        errorMessage: 'Solo se aceptan archivos MP4 o MOV',
         selectedExercise: null,
         uploadStatus: 'pending',
         uploadProgress: 0,
@@ -527,17 +551,37 @@ async function startBatchUpload() {
   for (const entry of entries) {
     if (entry.exerciseId === null) continue;
 
-    entry.uploadStatus = 'uploading';
-    entry.uploadProgress = 0;
-
     try {
+      // Step 0: Transcode to MP4 if needed
+      let uploadFile = entry.file;
+      if (!isAlreadyMp4(entry.file)) {
+        entry.uploadStatus = 'transcoding';
+        entry.uploadProgress = 0;
+        uploadFile = await transcodeToMp4(entry.file, (pct) => {
+          entry.uploadProgress = pct;
+        });
+      }
+
+      // Output size check
+      if (uploadFile.size > MAX_OUTPUT_SIZE) {
+        log.warn('Transcoded file exceeds max output size', {
+          filename: entry.file.name,
+          size: uploadFile.size,
+        });
+        entry.uploadStatus = 'failed';
+        continue;
+      }
+
+      entry.uploadStatus = 'uploading';
+      entry.uploadProgress = 0;
+
       // Step 1: Get presigned URL
       const { data } = await api.post<{ uploadUrl: string; key: string }>(
         `/admin/exercises/${entry.exerciseId}/upload-url`
       );
 
       // Step 2: Upload to R2
-      await axios.put(data.uploadUrl, entry.file, {
+      await axios.put(data.uploadUrl, uploadFile, {
         headers: { 'Content-Type': 'video/mp4' },
         onUploadProgress: (e) => {
           if (e.total) {
@@ -557,6 +601,7 @@ async function startBatchUpload() {
       log.error('Bulk upload failed for file', {
         filename: entry.file.name,
         exerciseId: entry.exerciseId,
+        phase: entry.uploadStatus,
         error: err instanceof Error ? err.message : String(err),
       });
       entry.uploadStatus = 'failed';

@@ -3,17 +3,35 @@ import axios from 'axios';
 import { Notify } from 'quasar';
 import { api } from 'src/boot/axios';
 import { createLogger } from 'src/utils/logger';
+import { transcodeToMp4, isAlreadyMp4 } from 'src/utils/videoTranscoder';
 
 const log = createLogger('useVideoUpload');
 
 /** Uploads are only enabled in production (not in dev or staging) */
 export const uploadsEnabled = !import.meta.env.VITE_APP_ENVIRONMENT && import.meta.env.PROD;
 
-/** Max file size: 40 MB */
-const MAX_FILE_SIZE = 40 * 1024 * 1024;
+/** Max size for the final (transcoded) file that gets uploaded to R2 */
+const MAX_OUTPUT_SIZE = 40 * 1024 * 1024;
+
+/** Max size for the user-selected input file (before transcoding) */
+const MAX_INPUT_SIZE = 200 * 1024 * 1024;
 
 /** Max video duration in seconds */
 const MAX_DURATION_SECONDS = 20;
+
+const ACCEPTED_EXTENSIONS = ['.mp4', '.mov'];
+
+export type UploadPhase = 'transcoding' | 'uploading';
+
+function hasAcceptedExtension(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+function isAcceptedType(file: File): boolean {
+  if (file.type === 'video/mp4' || file.type === 'video/quicktime') return true;
+  return hasAcceptedExtension(file);
+}
 
 /**
  * Get the duration of a video file using HTML5 video element.
@@ -39,32 +57,33 @@ function getVideoDuration(file: File): Promise<number> {
 }
 
 export function useVideoUpload() {
-  const uploading = ref<Map<number, number>>(new Map());
+  const progress = ref<Map<number, number>>(new Map());
+  const phase = ref<Map<number, UploadPhase>>(new Map());
 
   async function uploadVideo(
     exerciseId: number,
     file: File,
     onComplete?: () => void
   ): Promise<void> {
-    // Client-side validation: file size
-    if (file.size > MAX_FILE_SIZE) {
+    // Input file size (pre-transcode)
+    if (file.size > MAX_INPUT_SIZE) {
       Notify.create({
         type: 'negative',
-        message: 'Archivo demasiado grande (max 40MB)',
+        message: 'Archivo demasiado grande (max 200MB antes de procesar)',
       });
       return;
     }
 
-    // Client-side validation: file type
-    if (!file.type.includes('mp4') && !file.name.endsWith('.mp4')) {
+    // File type
+    if (!isAcceptedType(file)) {
       Notify.create({
         type: 'negative',
-        message: 'Solo se aceptan archivos MP4',
+        message: 'Solo se aceptan archivos MP4 o MOV',
       });
       return;
     }
 
-    // Client-side validation: video duration
+    // Duration check (reject long videos before wasting time transcoding)
     try {
       const duration = await getVideoDuration(file);
       if (duration > MAX_DURATION_SECONDS) {
@@ -80,19 +99,40 @@ export function useVideoUpload() {
       });
     }
 
-    uploading.value.set(exerciseId, 0);
     try {
+      // Step 0: Transcode to MP4 if needed (skipped when already mp4)
+      let uploadFile = file;
+      if (!isAlreadyMp4(file)) {
+        phase.value.set(exerciseId, 'transcoding');
+        progress.value.set(exerciseId, 0);
+        uploadFile = await transcodeToMp4(file, (pct) => {
+          progress.value.set(exerciseId, pct);
+        });
+      }
+
+      // Output size check (post-transcode)
+      if (uploadFile.size > MAX_OUTPUT_SIZE) {
+        Notify.create({
+          type: 'negative',
+          message: `Video procesado demasiado grande (${Math.round(uploadFile.size / (1024 * 1024))}MB, max 40MB)`,
+        });
+        return;
+      }
+
+      phase.value.set(exerciseId, 'uploading');
+      progress.value.set(exerciseId, 0);
+
       // Step 1: Get presigned URL from API
       const { data } = await api.post<{ uploadUrl: string; key: string }>(
         `/admin/exercises/${exerciseId}/upload-url`
       );
 
       // Step 2: Upload directly to R2
-      await axios.put(data.uploadUrl, file, {
+      await axios.put(data.uploadUrl, uploadFile, {
         headers: { 'Content-Type': 'video/mp4' },
         onUploadProgress: (e) => {
           if (e.total) {
-            uploading.value.set(exerciseId, Math.round((e.loaded / e.total) * 100));
+            progress.value.set(exerciseId, Math.round((e.loaded / e.total) * 100));
           }
         },
       });
@@ -110,24 +150,33 @@ export function useVideoUpload() {
     } catch (err: unknown) {
       log.error('Upload failed', {
         exerciseId,
+        phase: phase.value.get(exerciseId),
         error: err instanceof Error ? err.message : String(err),
       });
       Notify.create({
         type: 'negative',
-        message: 'Error al subir el video',
+        message:
+          phase.value.get(exerciseId) === 'transcoding'
+            ? 'Error al procesar el video'
+            : 'Error al subir el video',
       });
     } finally {
-      uploading.value.delete(exerciseId);
+      progress.value.delete(exerciseId);
+      phase.value.delete(exerciseId);
     }
   }
 
   function isUploading(exerciseId: number): boolean {
-    return uploading.value.has(exerciseId);
+    return phase.value.has(exerciseId);
   }
 
   function getProgress(exerciseId: number): number {
-    return uploading.value.get(exerciseId) ?? 0;
+    return progress.value.get(exerciseId) ?? 0;
   }
 
-  return { uploadVideo, isUploading, getProgress, uploading };
+  function getPhase(exerciseId: number): UploadPhase | undefined {
+    return phase.value.get(exerciseId);
+  }
+
+  return { uploadVideo, isUploading, getProgress, getPhase, progress, phase };
 }

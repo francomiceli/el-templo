@@ -253,18 +253,23 @@
       <template #body-cell-actions="props">
         <q-td :props="props">
           <!-- Uploading state -->
-          <div
-            v-if="videoUpload.isUploading(props.row.id)"
-            class="row items-center no-wrap"
-            style="min-width: 160px"
-          >
-            <q-linear-progress
-              :value="videoUpload.getProgress(props.row.id) / 100"
-              color="primary"
-              class="q-mr-sm"
-              style="flex: 1"
-            />
-            <span class="text-caption">{{ videoUpload.getProgress(props.row.id) }}%</span>
+          <div v-if="videoUpload.isUploading(props.row.id)" class="column" style="min-width: 200px">
+            <div class="text-caption text-grey-7">
+              {{
+                videoUpload.getPhase(props.row.id) === 'transcoding'
+                  ? 'Convirtiendo...'
+                  : 'Subiendo...'
+              }}
+            </div>
+            <div class="row items-center no-wrap">
+              <q-linear-progress
+                :value="videoUpload.getProgress(props.row.id) / 100"
+                :color="videoUpload.getPhase(props.row.id) === 'transcoding' ? 'amber' : 'primary'"
+                class="q-mr-sm"
+                style="flex: 1"
+              />
+              <span class="text-caption">{{ videoUpload.getProgress(props.row.id) }}%</span>
+            </div>
           </div>
 
           <!-- No video: Upload button -->
@@ -326,7 +331,7 @@
     <input
       ref="fileInputRef"
       type="file"
-      accept=".mp4,video/mp4"
+      accept=".mp4,.mov,video/mp4,video/quicktime"
       style="display: none"
       @change="onFileSelected"
     />
