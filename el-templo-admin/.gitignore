@@ -28,6 +28,9 @@ yarn-error.log*
 /src-capacitor/android
 /src-capacitor/ios
 
+# ffmpeg.wasm core files (copied from node_modules by scripts/copy-ffmpeg.mjs)
+/public/ffmpeg
+
 # Lock files (we use pnpm)
 package-lock.json
 yarn.lock

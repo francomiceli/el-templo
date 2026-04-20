@@ -11,7 +11,7 @@
     "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
     "dev": "quasar dev",
     "build": "quasar build",
-    "postinstall": "quasar prepare"
+    "postinstall": "quasar prepare && node scripts/copy-ffmpeg.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
