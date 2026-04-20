@@ -365,6 +365,7 @@ import type {
   DayOfWeek,
 } from 'src/types/scheduling'
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
+import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
 
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
@@ -384,8 +385,12 @@ const slots = ref<WeeklySlotView[]>([])
 const holidays = ref<HolidayRecord[]>([])
 const myBookings = ref<BookingRecord[]>([])
 const myAttendance = ref<AttendanceWeekRecord[]>([])
-const weekStart = ref<Date>(getMonday(new Date()))
-const selectedDay = ref<DayOfWeek>(getTodayDow())
+// Default to AR until the API returns the viewing branch's timezone.
+// The first loadGrid() overwrites this before any TZ-sensitive computation
+// renders for the user's actual branch.
+const branchTimezone = ref<string>('America/Argentina/Buenos_Aires')
+const weekStart = ref<Date>(getMondayInTz(branchTimezone.value))
+const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
@@ -444,20 +449,28 @@ const MONTH_ABBREV = [
   'Dic',
 ]
 
-function getMonday(d: Date): Date {
-  const date = new Date(d)
-  const day = date.getDay()
-  // Sunday: show next week (tomorrow is Monday)
-  const diff = day === 0 ? 1 : 1 - day
-  date.setDate(date.getDate() + diff)
-  date.setHours(0, 0, 0, 0)
-  return date
+/**
+ * Build a UTC-noon Date whose UTC date equals the Monday of the week
+ * containing "today" in the given timezone. Using UTC-noon as the anchor
+ * means date arithmetic via setUTCDate() and toISOString().slice(0,10)
+ * stays stable across DST transitions and never drifts across day
+ * boundaries due to the browser's local timezone.
+ */
+function getMondayInTz(tz: string): Date {
+  const today = todayInTz(tz)
+  const [y, m, d] = today.split('-').map(Number)
+  const isoDow = dowInTz(tz) // 1=Mon ... 7=Sun
+  // Sunday: show next week's Monday (tomorrow).
+  const diff = isoDow === 7 ? 1 : 1 - isoDow
+  const anchor = new Date(Date.UTC(y!, m! - 1, d!, 12, 0, 0))
+  anchor.setUTCDate(anchor.getUTCDate() + diff)
+  return anchor
 }
 
-function getTodayDow(): DayOfWeek {
-  const d = new Date().getDay()
-  // Sunday = 0 → default to Monday
-  return (d === 0 ? 1 : d) as DayOfWeek
+function getTodayDow(tz: string): DayOfWeek {
+  const iso = dowInTz(tz)
+  // Sunday (7) defaults to Monday since the schedule grid is Mon–Sat.
+  return (iso === 7 ? 1 : iso) as DayOfWeek
 }
 
 function formatWeekStart(d: Date): string {
@@ -466,14 +479,14 @@ function formatWeekStart(d: Date): string {
 
 function dateForDay(day: DayOfWeek): string {
   const d = new Date(weekStart.value)
-  d.setDate(d.getDate() + (day - 1))
+  d.setUTCDate(d.getUTCDate() + (day - 1))
   return d.toISOString().slice(0, 10)
 }
 
 function dayDateNumber(day: DayOfWeek): string {
   const d = new Date(weekStart.value)
-  d.setDate(d.getDate() + (day - 1))
-  return String(d.getDate())
+  d.setUTCDate(d.getUTCDate() + (day - 1))
+  return String(d.getUTCDate())
 }
 
 function formatTime(time: string): string {
@@ -488,22 +501,11 @@ function formatBonusPeriodEnd(isoDate: string): string {
 }
 
 function isToday(day: DayOfWeek): boolean {
-  const today = new Date()
-  const dayDate = new Date(weekStart.value)
-  dayDate.setDate(dayDate.getDate() + (day - 1))
-  return (
-    dayDate.getFullYear() === today.getFullYear() &&
-    dayDate.getMonth() === today.getMonth() &&
-    dayDate.getDate() === today.getDate()
-  )
+  return dateForDay(day) === todayInTz(branchTimezone.value)
 }
 
 function isDayPast(day: DayOfWeek): boolean {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const dayDate = new Date(weekStart.value)
-  dayDate.setDate(dayDate.getDate() + (day - 1))
-  return dayDate < today
+  return dateForDay(day) < todayInTz(branchTimezone.value)
 }
 
 // ─── Computed ───────────────────────────────────────────────────────
@@ -535,14 +537,16 @@ const weekLabel = computed(() => {
     'Noviembre',
     'Diciembre',
   ]
+  // weekStart is anchored at UTC noon so calendar math uses UTC methods —
+  // see getMondayInTz() for why.
   const start = weekStart.value
   const end = new Date(start)
-  end.setDate(end.getDate() + (visibleDays.value.includes(6 as DayOfWeek) ? 5 : 4))
+  end.setUTCDate(end.getUTCDate() + (visibleDays.value.includes(6 as DayOfWeek) ? 5 : 4))
 
-  const firstDay = start.getDate()
-  const firstMonth = monthNames[start.getMonth()]
-  const lastDay = end.getDate()
-  const lastMonth = monthNames[end.getMonth()]
+  const firstDay = start.getUTCDate()
+  const firstMonth = monthNames[start.getUTCMonth()]
+  const lastDay = end.getUTCDate()
+  const lastMonth = monthNames[end.getUTCMonth()]
 
   if (firstMonth === lastMonth) {
     return `${firstDay} al ${lastDay} de ${firstMonth}`
@@ -594,15 +598,16 @@ const selectedDayHoliday = computed(() => {
   return h?.name ?? null
 })
 
-/** Next upcoming active booking */
+/** Next upcoming active booking (evaluated in the branch's timezone) */
 const nextBooking = computed<BookingRecord | null>(() => {
   const now = new Date()
+  const tz = branchTimezone.value
   return (
     myBookings.value
       .filter((b) => {
         if (b.status !== 'reservado' && b.status !== 'qr_escaneado' && b.status !== 'lista_espera')
           return false
-        return new Date(`${b.bookingDate}T${b.startTime}`) > now
+        return zonedWallClockToUtc(b.bookingDate, b.startTime, tz) > now
       })
       .sort((a, b) => {
         const da = `${a.bookingDate}T${a.startTime}`
@@ -659,7 +664,7 @@ function isSlotHoliday(slot: WeeklySlotView): boolean {
 
 function isSlotPast(slot: WeeklySlotView): boolean {
   const date = dateForDay(slot.dayOfWeek as DayOfWeek)
-  return new Date(`${date}T${slot.startTime}`) < new Date()
+  return isWallClockPast(date, slot.startTime, branchTimezone.value)
 }
 
 function slotCardClass(slot: WeeklySlotView): Record<string, boolean> {
@@ -715,7 +720,7 @@ const weekEvents = computed<WeekEvent[]>(() => {
     })
     if (hasAtt) continue
 
-    const isPast = new Date(`${b.bookingDate}T${b.startTime}`) <= now
+    const isPast = zonedWallClockToUtc(b.bookingDate, b.startTime, branchTimezone.value) <= now
     if (isPast && b.status !== 'confirmado' && b.status !== 'no_show') continue
 
     const dayLabel = DAY_LABELS_FULL[b.dayOfWeek as DayOfWeek] ?? ''
@@ -875,15 +880,15 @@ async function confirmCancel() {
 
 function changeWeek(delta: number) {
   const d = new Date(weekStart.value)
-  d.setDate(d.getDate() + delta * 7)
+  d.setUTCDate(d.getUTCDate() + delta * 7)
   weekStart.value = d
-  selectedDay.value = delta > 0 ? (1 as DayOfWeek) : getTodayDow()
+  selectedDay.value = delta > 0 ? (1 as DayOfWeek) : getTodayDow(branchTimezone.value)
   loadGrid()
 }
 
 function goToCurrentWeek() {
-  weekStart.value = getMonday(new Date())
-  selectedDay.value = getTodayDow()
+  weekStart.value = getMondayInTz(branchTimezone.value)
+  selectedDay.value = getTodayDow(branchTimezone.value)
   loadGrid()
 }
 
@@ -903,6 +908,18 @@ async function loadGrid() {
   try {
     const branchId = isMultiBranch.value ? (selectedBranchId.value ?? undefined) : undefined
     const data = await getWeeklyGrid(formatWeekStart(weekStart.value), branchId)
+
+    // Adopt the viewing branch's timezone. If this is the first load or
+    // the user just switched branches, realign weekStart / selectedDay to
+    // the branch's "current" week so Sunday-in-BCN doesn't accidentally
+    // display Monday-in-AR slots.
+    const prevTz = branchTimezone.value
+    branchTimezone.value = data.branchTimezone
+    if (data.branchTimezone !== prevTz) {
+      weekStart.value = getMondayInTz(data.branchTimezone)
+      selectedDay.value = getTodayDow(data.branchTimezone)
+    }
+
     slots.value = data.slots
     holidays.value = data.holidays
     myBookings.value = data.myBookings

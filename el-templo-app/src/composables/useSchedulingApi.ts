@@ -16,6 +16,7 @@ interface WeeklyGridResponse {
   holidays: HolidayRecord[]
   myBookings: BookingRecord[]
   myAttendance: AttendanceWeekRecord[]
+  branchTimezone: string
 }
 
 interface MyBookingsResponse {

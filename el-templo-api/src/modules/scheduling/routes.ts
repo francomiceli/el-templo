@@ -407,6 +407,7 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         holidays: result.holidays,
         myBookings,
         myAttendance,
+        branchTimezone: result.branchTimezone,
       };
     } catch (err: unknown) {
       handleServiceError(err, reply, request.log, "member weekly grid");

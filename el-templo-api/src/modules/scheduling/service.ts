@@ -117,12 +117,18 @@ export class SchedulingService {
   async getWeeklyGrid(
     branchId: number,
     weekStartDate: string,
-  ): Promise<{ slots: WeeklySlotView[]; holidays: HolidayRecord[] }> {
-    // Get branch for capacity and country
+  ): Promise<{
+    slots: WeeklySlotView[];
+    holidays: HolidayRecord[];
+    branchTimezone: string;
+  }> {
+    // Get branch for capacity, country, and timezone (passed back to clients
+    // so they can render class times in the branch's local time).
     const [branch] = await this.db
       .select({
         maxCapacity: schema.branches.maxCapacity,
         country: schema.branches.country,
+        timezone: schema.branches.timezone,
       })
       .from(schema.branches)
       .where(eq(schema.branches.id, branchId));
@@ -224,7 +230,11 @@ export class SchedulingService {
       });
     }
 
-    return { slots, holidays: holidaysInWeek };
+    return {
+      slots,
+      holidays: holidaysInWeek,
+      branchTimezone: branch.timezone,
+    };
   }
 
   /**

@@ -190,6 +190,7 @@ export const weeklyGridSchema = {
       properties: {
         slots: { type: "array", items: weeklySlotViewSchema },
         holidays: { type: "array", items: holidayRecordSchema },
+        branchTimezone: { type: "string" },
       },
     },
   },
@@ -404,6 +405,7 @@ export const memberWeeklyGridSchema = {
         holidays: { type: "array", items: holidayRecordSchema },
         myBookings: { type: "array", items: bookingRecordSchema },
         myAttendance: { type: "array", items: attendanceWeekRecordSchema },
+        branchTimezone: { type: "string" },
       },
     },
   },
