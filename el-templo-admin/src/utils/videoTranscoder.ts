@@ -92,17 +92,18 @@ export async function transcodeToMp4(
     return new File([blob], newName, { type: 'video/mp4' });
   } finally {
     ffmpeg.off('progress', progressHandler);
+    // Terminate the instance to release the WASM heap. Reusing a single
+    // instance across many files fragments memory and eventually triggers
+    // "memory access out of bounds" mid-batch. A fresh instance per file
+    // costs ~1s reload but guarantees a clean heap.
     try {
-      await ffmpeg.deleteFile(inputName);
+      ffmpeg.terminate();
     } catch (err) {
-      log.warn('Failed to cleanup input file', {
+      log.warn('Failed to terminate ffmpeg instance', {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    try {
-      await ffmpeg.deleteFile(outputName);
-    } catch {
-      // output may not exist if exec failed
-    }
+    ffmpegInstance = null;
+    loadPromise = null;
   }
 }
