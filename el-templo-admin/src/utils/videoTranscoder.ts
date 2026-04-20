@@ -6,6 +6,8 @@ const log = createLogger('videoTranscoder');
 
 /** Self-hosted ffmpeg core — copied from node_modules at install time (see scripts/copy-ffmpeg.mjs) */
 const FFMPEG_CORE_BASE = '/ffmpeg';
+/** Bump when the ffmpeg core files change — forces browsers past the 1-year immutable cache. */
+const FFMPEG_CORE_CACHE_BUST = 'esm-1';
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
@@ -17,8 +19,8 @@ async function getFFmpeg(): Promise<FFmpeg> {
   loadPromise = (async () => {
     const ffmpeg = new FFmpeg();
     await ffmpeg.load({
-      coreURL: `${FFMPEG_CORE_BASE}/ffmpeg-core.js`,
-      wasmURL: `${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`,
+      coreURL: `${FFMPEG_CORE_BASE}/ffmpeg-core.js?v=${FFMPEG_CORE_CACHE_BUST}`,
+      wasmURL: `${FFMPEG_CORE_BASE}/ffmpeg-core.wasm?v=${FFMPEG_CORE_CACHE_BUST}`,
     });
     ffmpegInstance = ffmpeg;
     return ffmpeg;
