@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, existsSync } from 'node:fs';
+import { copyFileSync, mkdirSync, existsSync, statSync, utimesSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -16,6 +16,21 @@ if (!existsSync(src)) {
 mkdirSync(dest, { recursive: true });
 
 for (const file of ['ffmpeg-core.js', 'ffmpeg-core.wasm']) {
-  copyFileSync(resolve(src, file), resolve(dest, file));
+  const srcPath = resolve(src, file);
+  const destPath = resolve(dest, file);
+  const srcStat = statSync(srcPath);
+
+  if (existsSync(destPath)) {
+    const destStat = statSync(destPath);
+    if (destStat.size === srcStat.size) {
+      // Same version already in place — preserve mtime so rsync skips the file on deploy
+      utimesSync(destPath, srcStat.atime, srcStat.mtime);
+      console.log(`[copy-ffmpeg] skipped ${file} (up to date)`);
+      continue;
+    }
+  }
+
+  copyFileSync(srcPath, destPath);
+  utimesSync(destPath, srcStat.atime, srcStat.mtime);
   console.log(`[copy-ffmpeg] copied ${file}`);
 }
