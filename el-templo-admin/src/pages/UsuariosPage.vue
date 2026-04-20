@@ -185,9 +185,10 @@ const roleOptions = [
   { label: 'Admin', value: 'admin' },
   { label: 'Owner', value: 'owner' },
   { label: 'Gestion', value: 'gestion' },
+  { label: 'Recepcion', value: 'recepcion' },
 ];
 
-const BRANCH_ROLES = new Set(['coach', 'gestion']);
+const BRANCH_ROLES = new Set(['coach', 'gestion', 'recepcion']);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 const ROLE_COLORS: Record<string, string> = {
@@ -195,6 +196,7 @@ const ROLE_COLORS: Record<string, string> = {
   admin: 'blue',
   coach: 'teal',
   gestion: 'orange',
+  recepcion: 'pink',
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -202,6 +204,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   coach: 'Coach',
   gestion: 'Gestion',
+  recepcion: 'Recepcion',
 };
 
 // =========================================================================
@@ -376,7 +379,7 @@ async function handleSave() {
         lastName: form.value.lastName,
         email: form.value.email,
         password: form.value.password,
-        role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion',
+        role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion',
         branchId,
       });
       dialogOpen.value = false;

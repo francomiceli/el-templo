@@ -50,7 +50,7 @@ export const createStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion"],
+        enum: ["coach", "admin", "owner", "gestion", "recepcion"],
       },
       branchId: { type: "integer" },
     },
@@ -88,7 +88,7 @@ export const updateStaffSchema = {
       password: { type: "string", minLength: 6 },
       role: {
         type: "string",
-        enum: ["coach", "admin", "owner", "gestion"],
+        enum: ["coach", "admin", "owner", "gestion", "recepcion"],
       },
       branchId: { type: "integer" },
     },

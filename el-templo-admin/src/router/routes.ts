@@ -41,14 +41,14 @@ const routes: RouteRecordRaw[] = [
         path: 'alumnos',
         component: () => import('pages/AlumnosPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion', 'recepcion'] as AdminRole[],
         },
       },
       {
         path: 'alumnos/:userId',
         component: () => import('pages/AlumnoDetailPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion', 'recepcion'] as AdminRole[],
         },
       },
       {
@@ -70,7 +70,7 @@ const routes: RouteRecordRaw[] = [
         path: 'horarios',
         component: () => import('pages/HorariosPage.vue'),
         meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'gestion'] as AdminRole[],
+          allowedRoles: ['coach', 'admin', 'owner', 'gestion', 'recepcion'] as AdminRole[],
         },
       },
       {

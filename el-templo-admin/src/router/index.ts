@@ -45,6 +45,7 @@ export default defineRouter(function () {
         admin: '/alumnos',
         coach: '/sessions',
         gestion: '/alumnos',
+        recepcion: '/alumnos',
       };
       return defaultPages[role] || '/sessions';
     }

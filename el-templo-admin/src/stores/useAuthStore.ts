@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { api } from 'src/boot/axios';
 import type { AdminUser, AdminRole } from 'src/types/admin';
 
-const ADMIN_ROLES: AdminRole[] = ['gestion', 'coach', 'admin', 'owner'];
+const ADMIN_ROLES: AdminRole[] = ['gestion', 'coach', 'admin', 'owner', 'recepcion'];
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('adminToken'));

@@ -17,6 +17,7 @@ export const roleEnum = mysqlEnum("role", [
   "admin",
   "owner",
   "gestion",
+  "recepcion",
 ]);
 export const levelEnum = mysqlEnum("level", [
   "alfa",
