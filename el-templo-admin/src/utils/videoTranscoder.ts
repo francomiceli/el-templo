@@ -1,10 +1,11 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import coreURL from '@ffmpeg/core/dist/umd/ffmpeg-core.js?url';
-import wasmURL from '@ffmpeg/core/dist/umd/ffmpeg-core.wasm?url';
 import { createLogger } from 'src/utils/logger';
 
 const log = createLogger('videoTranscoder');
+
+const FFMPEG_CORE_VERSION = '0.12.10';
+const FFMPEG_CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/umd`;
 
 let ffmpegInstance: FFmpeg | null = null;
 let loadPromise: Promise<FFmpeg> | null = null;
@@ -16,8 +17,8 @@ async function getFFmpeg(): Promise<FFmpeg> {
   loadPromise = (async () => {
     const ffmpeg = new FFmpeg();
     await ffmpeg.load({
-      coreURL: await toBlobURL(coreURL, 'text/javascript'),
-      wasmURL: await toBlobURL(wasmURL, 'application/wasm'),
+      coreURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
     });
     ffmpegInstance = ffmpeg;
     return ffmpeg;
