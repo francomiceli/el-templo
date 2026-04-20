@@ -4,7 +4,9 @@ import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const src = resolve(root, 'node_modules/@ffmpeg/core/dist/umd');
+// Copy the ESM build because @ffmpeg/ffmpeg's worker runs as a module worker
+// and loads core via dynamic `import()`, which only works with ESM.
+const src = resolve(root, 'node_modules/@ffmpeg/core/dist/esm');
 const dest = resolve(root, 'public/ffmpeg');
 
 if (!existsSync(src)) {
