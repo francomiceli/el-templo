@@ -105,7 +105,7 @@
                 v-model="props.row.selectedExercise"
                 :options="filteredExerciseOptions"
                 option-value="id"
-                option-label="exercise"
+                :option-label="formatExerciseOption"
                 label="Asignar ejercicio"
                 dense
                 outlined
@@ -460,6 +460,10 @@ function onManualAssign(entry: FileEntry, exerciseId: number) {
     entry.exerciseId = found.id;
     entry.exerciseName = found.exercise;
   }
+}
+
+function formatExerciseOption(ex: Exercise): string {
+  return `${ex.id} ${ex.exercise}`;
 }
 
 // =========================================================================
