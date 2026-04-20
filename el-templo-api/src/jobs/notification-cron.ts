@@ -2,13 +2,16 @@
  * Notification Cron Jobs
  *
  * Schedules all notification-related cron jobs:
- * 1. Queue processor — every 15 min (per D-10)
- * 2. Batch segment recalculation with transition detection — daily at 03:00 (per D-09)
- * 3. Morning energy reminder — daily at 08:00 (per D-05)
- * 4. Weekly summary — Saturday at 15:00 (per D-07)
- * 5. Program renewal warning — daily at 03:00 (per D-08/D-16)
+ * 1. Queue processor — every 15 min (per D-10) [tz-agnostic]
+ * 2. Batch segment recalculation with transition detection — daily at 03:00 AR (per D-09)
+ * 3. Morning energy reminder — daily at 08:00 in each branch's timezone (per D-05)
+ * 4. Weekly summary — Saturday at 15:00 in each branch's timezone (per D-07)
+ * 5. Program renewal warning — daily at 03:00 AR (per D-08/D-16)
  *
- * All times use America/Argentina/Buenos_Aires timezone.
+ * Jobs 3 and 4 are user-facing: they fire at the member's branch local time,
+ * so a BCN member gets their morning ping at 08:00 Madrid, not 08:00 AR.
+ * Internal batch jobs (1, 2, 5) stay anchored to AR to avoid redundant runs
+ * — they don't surface a time-of-day to users.
  */
 
 import cron from "node-cron";
@@ -62,7 +65,118 @@ function getTransitionTemplateKey(
   return null;
 }
 
-export function startNotificationJobs(db: MySql2Database<typeof schema>) {
+/**
+ * Return distinct timezones across active, non-virtual branches.
+ * Used to schedule one user-facing cron per local clock.
+ */
+async function getDistinctBranchTimezones(
+  db: MySql2Database<typeof schema>,
+): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ tz: s.branches.timezone })
+    .from(s.branches)
+    .where(and(eq(s.branches.isActive, true), eq(s.branches.isVirtual, false)));
+  const tzs = rows.map((r) => r.tz);
+  return tzs.length > 0 ? tzs : ["America/Argentina/Buenos_Aires"];
+}
+
+/**
+ * Queue the morning energy reminder for onboarded members in the given
+ * branch timezone who haven't answered today's check-in. "Today" is the
+ * date in `tz` so BCN and AR each evaluate their own day boundary.
+ */
+async function runMorningEnergyForTz(
+  db: MySql2Database<typeof schema>,
+  tz: string,
+): Promise<{ eligible: number; queued: number }> {
+  const notificationService = new NotificationService(db, log);
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+
+  const eligibleMembers = await db
+    .select({ userId: s.memberProfiles.userId })
+    .from(s.memberProfiles)
+    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
+    .where(
+      and(
+        isNotNull(s.memberProfiles.onboardingCompletedAt),
+        eq(s.branches.timezone, tz),
+        sql`${s.memberProfiles.userId} NOT IN (
+          SELECT ${s.checkInResponses.userId}
+          FROM ${s.checkInResponses}
+          WHERE ${s.checkInResponses.questionType} = 'energy'
+            AND ${s.checkInResponses.date} = ${today}
+        )`,
+      ),
+    );
+
+  let queued = 0;
+  for (const member of eligibleMembers) {
+    try {
+      await notificationService.queueNotification({
+        userId: member.userId,
+        templateKey: "morning_energy",
+      });
+      queued++;
+    } catch (queueErr: unknown) {
+      const qMsg =
+        queueErr instanceof Error ? queueErr.message : "Unknown error";
+      log.warn(
+        { err: qMsg, userId: member.userId, tz },
+        "Failed to queue morning energy reminder",
+      );
+    }
+  }
+
+  return { eligible: eligibleMembers.length, queued };
+}
+
+/**
+ * Queue weekly summary notifications for onboarded members in the given
+ * branch timezone.
+ */
+async function runWeeklySummaryForTz(
+  db: MySql2Database<typeof schema>,
+  tz: string,
+): Promise<{ total: number; queued: number }> {
+  const notificationService = new NotificationService(db, log);
+
+  const members = await db
+    .select({ userId: s.memberProfiles.userId })
+    .from(s.memberProfiles)
+    .innerJoin(s.users, eq(s.users.id, s.memberProfiles.userId))
+    .innerJoin(s.branches, eq(s.branches.id, s.users.branchId))
+    .where(
+      and(
+        isNotNull(s.memberProfiles.onboardingCompletedAt),
+        eq(s.branches.timezone, tz),
+      ),
+    );
+
+  let queued = 0;
+  for (const member of members) {
+    try {
+      await notificationService.queueNotification({
+        userId: member.userId,
+        templateKey: "weekly_summary",
+      });
+      queued++;
+    } catch (queueErr: unknown) {
+      const qMsg =
+        queueErr instanceof Error ? queueErr.message : "Unknown error";
+      log.warn(
+        { err: qMsg, userId: member.userId, tz },
+        "Failed to queue weekly summary notification",
+      );
+    }
+  }
+
+  return { total: members.length, queued };
+}
+
+export async function startNotificationJobs(
+  db: MySql2Database<typeof schema>,
+): Promise<void> {
   // ── 1. Queue Processor — every 15 minutes (per D-10) ─────────────────
   cron.schedule("*/15 * * * *", async () => {
     const notificationService = new NotificationService(db, log);
@@ -276,102 +390,51 @@ export function startNotificationJobs(db: MySql2Database<typeof schema>) {
     { timezone: "America/Argentina/Buenos_Aires" },
   );
 
-  // ── 3. Morning Energy Reminder — daily at 08:00 Argentina (per D-05) ──
-  cron.schedule(
-    "0 8 * * *",
-    async () => {
-      const notificationService = new NotificationService(db, log);
+  // ── 3. Morning Energy Reminder — 08:00 in each branch's local time ────
+  // ── 4. Weekly Summary — Saturday 15:00 in each branch's local time ────
+  //
+  // These are user-facing, so one cron fires per distinct branch timezone
+  // and targets only the members whose branch uses that tz.
+  const tzs = await getDistinctBranchTimezones(db);
 
-      try {
-        // Get onboarded members who haven't answered today's energy check-in
-        // Performance: single query with NOT IN subquery
-        const eligibleMembers = await db
-          .select({ userId: s.memberProfiles.userId })
-          .from(s.memberProfiles)
-          .where(
-            and(
-              isNotNull(s.memberProfiles.onboardingCompletedAt),
-              sql`${s.memberProfiles.userId} NOT IN (
-                SELECT ${s.checkInResponses.userId}
-                FROM ${s.checkInResponses}
-                WHERE ${s.checkInResponses.questionType} = 'energy'
-                  AND ${s.checkInResponses.date} = DATE_FORMAT(NOW(), '%Y-%m-%d')
-              )`,
-            ),
+  for (const tz of tzs) {
+    cron.schedule(
+      "0 8 * * *",
+      async () => {
+        try {
+          const { eligible, queued } = await runMorningEnergyForTz(db, tz);
+          log.info(
+            { tz, eligible, queued },
+            "Morning energy reminders processed",
           );
-
-        let queued = 0;
-        for (const member of eligibleMembers) {
-          try {
-            await notificationService.queueNotification({
-              userId: member.userId,
-              templateKey: "morning_energy",
-            });
-            queued++;
-          } catch (queueErr: unknown) {
-            const qMsg =
-              queueErr instanceof Error ? queueErr.message : "Unknown error";
-            log.warn(
-              { err: qMsg, userId: member.userId },
-              "Failed to queue morning energy reminder",
-            );
-          }
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          log.error(
+            { err: message, tz },
+            "Morning energy reminder cron failed",
+          );
         }
+      },
+      { timezone: tz },
+    );
 
-        log.info(
-          { eligible: eligibleMembers.length, queued },
-          "Morning energy reminders processed",
-        );
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        log.error({ err: message }, "Morning energy reminder cron failed");
-      }
-    },
-    { timezone: "America/Argentina/Buenos_Aires" },
-  );
-
-  // ── 4. Weekly Summary — Saturday at 15:00 Argentina (per D-07) ────────
-  cron.schedule(
-    "0 15 * * 6",
-    async () => {
-      const notificationService = new NotificationService(db, log);
-
-      try {
-        // Get all onboarded members
-        const members = await db
-          .select({ userId: s.memberProfiles.userId })
-          .from(s.memberProfiles)
-          .where(isNotNull(s.memberProfiles.onboardingCompletedAt));
-
-        let queued = 0;
-        for (const member of members) {
-          try {
-            await notificationService.queueNotification({
-              userId: member.userId,
-              templateKey: "weekly_summary",
-            });
-            queued++;
-          } catch (queueErr: unknown) {
-            const qMsg =
-              queueErr instanceof Error ? queueErr.message : "Unknown error";
-            log.warn(
-              { err: qMsg, userId: member.userId },
-              "Failed to queue weekly summary notification",
-            );
-          }
+    cron.schedule(
+      "0 15 * * 6",
+      async () => {
+        try {
+          const { total, queued } = await runWeeklySummaryForTz(db, tz);
+          log.info(
+            { tz, totalMembers: total, queued },
+            "Weekly summary notifications processed",
+          );
+        } catch (err: unknown) {
+          const message = err instanceof Error ? err.message : "Unknown error";
+          log.error({ err: message, tz }, "Weekly summary cron failed");
         }
-
-        log.info(
-          { totalMembers: members.length, queued },
-          "Weekly summary notifications processed",
-        );
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        log.error({ err: message }, "Weekly summary cron failed");
-      }
-    },
-    { timezone: "America/Argentina/Buenos_Aires" },
-  );
+      },
+      { timezone: tz },
+    );
+  }
 
   // ── 5. Auto-seed templates on startup ────────────────────────────────
   const seedService = new NotificationService(db, log);

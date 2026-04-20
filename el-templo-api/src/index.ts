@@ -31,11 +31,12 @@ async function start() {
       `Server listening on http://0.0.0.0:${process.env.PORT || 3000}`,
     );
 
-    // Start cron jobs after server is ready
+    // Start cron jobs after server is ready. Mark-no-shows and notifications
+    // discover branch timezones at boot, so they're async.
     startAutoApproveJob(app.db);
     startAutoResumePausesJob(app.db);
-    startMarkNoShowsJob(app.db);
-    startNotificationJobs(app.db);
+    await startMarkNoShowsJob(app.db);
+    await startNotificationJobs(app.db);
   } catch (err: unknown) {
     app.log.error(err);
     process.exit(1);
