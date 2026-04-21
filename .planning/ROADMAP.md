@@ -2108,14 +2108,25 @@ Plans:
 
 ### Phase 98: Multi-currency and country-scoped plans
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** El Templo supports independent Argentina (ARS) and Spain (EUR) subscription plans with country- and currency-aware behavior across schema, server validation, admin UI, member app, and reports — owners can manage both countries, non-owner staff see only their country data, no cross-country or cross-currency assignment is possible.
+**Requirements**: REQ-98-01, REQ-98-02, REQ-98-03, REQ-98-04, REQ-98-05, REQ-98-06, REQ-98-07, REQ-98-08, REQ-98-09, REQ-98-10, REQ-98-11
 **Depends on:** Phase 97
-**Plans:** 0 plans
+**Plans:** 12 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 98 to break down)
+- [ ] 98-01-PLAN.md — Drizzle schema edits + manual migration 0091 SQL (ALTERs + AR/ARS backfill + 12 ES plan seeds)
+- [ ] 98-02-PLAN.md — [BLOCKING] Apply migration 0091; create shared attachCountryScope preHandler + formatPrice utility (admin + member app)
+- [ ] 98-03-PLAN.md — Register attachCountryScope on members, subscriptions (admin + member), payments, promo-plans, gladius plugins
+- [ ] 98-04-PLAN.md — Cross-country guards in assignPlan/changePlan + cross-currency guard + currency inheritance in recordPayment
+- [ ] 98-05-PLAN.md — Country-aware list endpoints (admin plans, member catalog, members list, promos, gladius) with additive response shape
+- [ ] 98-06-PLAN.md — Reports + analytics service country filter + Moneda column in Excel exports
+- [ ] 98-07-PLAN.md — PlanesPage owner country selector + PlanFormDialog country field + useSubscriptionsApi getPlans refactor
+- [ ] 98-08-PLAN.md — MemberFormDialog, AssignPlanDialog, MemberSubscriptionTab, SubscriptionCard — branch-scoped plan pickers + formatPrice + D-17 error UX
+- [ ] 98-09-PLAN.md — CajaPage, ReportesPage, AnaliticasPage, FinanzasTab — owner country selector + formatPrice + currency-aware totals
+- [ ] 98-10-PLAN.md — Member app PlanesPage formatPrice migration with `?? ARS` fallback + audit of other price surfaces
+- [ ] 98-11-PLAN.md — Integration tests: RBAC matrix, cross-country 400 guards, AR regression, REQ-98-11 additive shape
+- [ ] 98-12-PLAN.md — [Manual UAT] Deployed iOS + Android forward-compat verification against staging + admin UI acceptance checks
 
 ---
 
