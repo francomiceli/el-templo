@@ -2,7 +2,7 @@
 -- 1. Adds `country` to subscription_plans, promo_plans, gladius_products
 -- 2. Adds `currency` to subscription_plans, subscriptions, payments
 -- 3. Defensively backfills AR/ARS on any pre-existing row (NOT NULL DEFAULT
---    already backfills on ALTER; these UPDATEs are belt-and-suspenders and
+--    already backfills on ALTER: these UPDATEs are belt-and-suspenders and
 --    make re-runs safe even after manual column tweaks).
 -- 4. Creates a unique index on subscription_plans(name, country) so the ES
 --    seed INSERT IGNORE below is genuinely dedup-keyed (without a unique key,
@@ -62,7 +62,7 @@ CREATE UNIQUE INDEX ux_subscription_plans_name_country
 -- Performance rows have non-null credit-card surcharge prices in ARS, but no
 -- proportional EUR value was specified -- documented in SUMMARY.
 -- price_zero equals price_regular for ES plans (no zero-payment discount
--- specified for ES; SPEC gives a single EUR price per plan).
+-- specified for ES: SPEC gives a single EUR price per plan).
 -- ---------------------------------------------------------------------------
 
 -- Presenciales
