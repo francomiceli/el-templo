@@ -5,6 +5,22 @@
       <div class="text-h5 col">Caja</div>
     </div>
 
+    <!-- Owner-only country selector (D-06 / D-10) -->
+    <div v-if="isOwner" class="row q-gutter-md q-mb-md">
+      <div class="col-auto" style="min-width: 180px">
+        <q-select
+          v-model="selectedCountry"
+          :options="countryOptions"
+          label="Pais"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onCountryChange"
+        />
+      </div>
+    </div>
+
     <!-- ========================================== -->
     <!-- Summary Cards -->
     <!-- ========================================== -->
@@ -20,7 +36,7 @@
               <q-skeleton type="text" width="100px" />
             </div>
             <div v-else class="text-h5 text-weight-bold q-mt-xs">
-              ${{ summary.revenueByMethod.cash.toLocaleString() }}
+              {{ formatPrice(summary.revenueByMethod.cash, displayCurrency) }}
             </div>
           </q-card-section>
         </q-card>
@@ -36,7 +52,7 @@
               <q-skeleton type="text" width="100px" />
             </div>
             <div v-else class="text-h5 text-weight-bold q-mt-xs">
-              ${{ summary.revenueByMethod.transfer.toLocaleString() }}
+              {{ formatPrice(summary.revenueByMethod.transfer, displayCurrency) }}
             </div>
           </q-card-section>
         </q-card>
@@ -52,7 +68,7 @@
               <q-skeleton type="text" width="100px" />
             </div>
             <div v-else class="text-h5 text-weight-bold q-mt-xs">
-              ${{ summary.revenueByMethod.card.toLocaleString() }}
+              {{ formatPrice(summary.revenueByMethod.card, displayCurrency) }}
             </div>
           </q-card-section>
         </q-card>
@@ -68,7 +84,7 @@
               <q-skeleton type="text" width="100px" />
             </div>
             <div v-else class="text-h5 text-weight-bold text-positive q-mt-xs">
-              ${{ summary.monthlyRevenue.toLocaleString() }}
+              {{ formatPrice(summary.monthlyRevenue, displayCurrency) }}
             </div>
           </q-card-section>
         </q-card>
@@ -171,7 +187,7 @@
               'text-strike': isVoided(slotProps.row),
             }"
           >
-            ${{ slotProps.row.amount.toLocaleString() }}
+            {{ formatPrice(slotProps.row.amount, slotProps.row.currency ?? displayCurrency) }}
           </span>
         </q-td>
       </template>
@@ -264,7 +280,7 @@
             <q-item>
               <q-item-section>Monto</q-item-section>
               <q-item-section side class="text-weight-bold text-h6">
-                ${{ detailPayment.amount.toLocaleString() }}
+                {{ formatPrice(detailPayment.amount, detailPayment.currency ?? displayCurrency) }}
               </q-item-section>
             </q-item>
             <q-item>
@@ -348,8 +364,10 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
+import { formatPrice } from 'src/utils/format-price';
 import { usePaymentsApi } from 'src/composables/usePaymentsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
@@ -365,6 +383,32 @@ const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
 const paymentsApi = usePaymentsApi();
+const authStore = useAuthStore();
+
+// =========================================================================
+// Country selector (owner-only per D-06 / D-10)
+// =========================================================================
+
+const isOwner = computed(() => authStore.user?.role === 'owner');
+
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+// Default Argentina per D-06 (no Todos mode, no session persistence)
+const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+// Summary totals are derived from the selected country for owners; non-owners
+// see their own country's currency. Server auto-scopes, so the label matches.
+const displayCurrency = computed<'ARS' | 'EUR'>(() =>
+  selectedCountry.value === 'ES' ? 'EUR' : 'ARS'
+);
+
+async function onCountryChange() {
+  tablePagination.value.page = 1;
+  await Promise.all([loadSummary(), loadPayments()]);
+}
 
 // =========================================================================
 // State
@@ -481,7 +525,8 @@ async function loadSummary() {
     const data = await paymentsApi.getFinancialSummary(
       filters.branchId ?? undefined,
       dateRange.value.dateFrom,
-      dateRange.value.dateTo
+      dateRange.value.dateTo,
+      isOwner.value ? selectedCountry.value : undefined
     );
     summary.monthlyRevenue = data.monthlyRevenue;
     summary.revenueByMethod = data.revenueByMethod;
@@ -500,6 +545,7 @@ async function loadPayments() {
     const result = await paymentsApi.listPayments({
       search: filters.search || undefined,
       branchId: filters.branchId ?? undefined,
+      country: isOwner.value ? selectedCountry.value : undefined,
       paymentMethod: filters.paymentMethod ?? undefined,
       dateFrom: dateRange.value.dateFrom,
       dateTo: dateRange.value.dateTo,
@@ -536,7 +582,7 @@ function showPaymentDetails(payment: PaymentListItem) {
 function confirmVoid(payment: PaymentListItem) {
   $q.dialog({
     title: 'Anular pago',
-    message: `Anular el pago de $${payment.amount.toLocaleString()} de ${payment.memberName}? Esta accion no se puede deshacer.`,
+    message: `Anular el pago de ${formatPrice(payment.amount, payment.currency ?? displayCurrency.value)} de ${payment.memberName}? Esta accion no se puede deshacer.`,
     prompt: {
       model: '',
       type: 'textarea',

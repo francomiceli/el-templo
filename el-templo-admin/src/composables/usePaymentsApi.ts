@@ -55,7 +55,8 @@ export function usePaymentsApi() {
   async function getFinancialSummary(
     branchId?: number,
     dateFrom?: string,
-    dateTo?: string
+    dateTo?: string,
+    country?: 'AR' | 'ES'
   ): Promise<FinancialSummary> {
     loading.value = true;
     error.value = null;
@@ -64,6 +65,7 @@ export function usePaymentsApi() {
       if (branchId !== undefined) params.branchId = branchId;
       if (dateFrom !== undefined) params.dateFrom = dateFrom;
       if (dateTo !== undefined) params.dateTo = dateTo;
+      if (country !== undefined) params.country = country;
       const { data } = await api.get<FinancialSummary>('/admin/payments/payments/summary', {
         params,
       });

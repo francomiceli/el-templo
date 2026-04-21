@@ -11,9 +11,22 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Global Filters: Branch + Date Range -->
+    <!-- Global Filters: Country (owner) + Branch + Date Range -->
     <!-- ================================================================== -->
     <div class="row items-center q-gutter-sm q-mb-md">
+      <div v-if="isOwner" class="col-auto" style="min-width: 180px">
+        <q-select
+          v-model="selectedCountry"
+          :options="countryOptions"
+          label="Pais"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
+
       <div class="col-12 col-sm-3">
         <q-select
           v-model="selectedBranchId"
@@ -142,7 +155,11 @@
         <AsistenciaTab :data="attendanceData" :loading="loadingAttendance" />
       </q-tab-panel>
       <q-tab-panel name="finanzas">
-        <FinanzasTab :data="financialData" :loading="loadingFinancial" />
+        <FinanzasTab
+          :data="financialData"
+          :loading="loadingFinancial"
+          :currency="displayCurrency"
+        />
       </q-tab-panel>
 
       <!-- Programas Tab -->
@@ -205,7 +222,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAnalyticsApi } from 'src/composables/useAnalyticsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
+import { formatPrice } from 'src/utils/format-price';
 import MiembrosTab from 'src/components/analytics/MiembrosTab.vue';
 import AsistenciaTab from 'src/components/analytics/AsistenciaTab.vue';
 import FinanzasTab from 'src/components/analytics/FinanzasTab.vue';
@@ -226,6 +245,24 @@ const log = createLogger('AnaliticasPage');
 const analyticsApi = useAnalyticsApi();
 const membersApi = useMembersApi();
 const programsApi = useProgramsApi();
+const authStore = useAuthStore();
+
+// -- Country selector (owner-only per D-06 / D-10) -----------------------
+
+const isOwner = computed(() => authStore.user?.role === 'owner');
+
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+// Default Argentina; no session persistence (D-06 Claude's Discretion)
+const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+// Currency derived from selected country — drives KPI card + FinanzasTab charts.
+const displayCurrency = computed<'ARS' | 'EUR'>(() =>
+  selectedCountry.value === 'ES' ? 'EUR' : 'ARS'
+);
 
 // -- Branch filter -------------------------------------------------------
 
@@ -343,6 +380,7 @@ function applyCustomRange() {
 
 const currentFilters = computed<AnalyticsFilters>(() => ({
   branchId: selectedBranchId.value,
+  country: isOwner.value ? selectedCountry.value : undefined,
   dateFrom: dateFrom.value,
   dateTo: dateTo.value,
 }));
@@ -375,14 +413,8 @@ interface KpiCard {
   trend: TrendInfo;
 }
 
-const arsFormatter = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  maximumFractionDigits: 0,
-});
-
 function formatCurrency(value: number): string {
-  return arsFormatter.format(value);
+  return formatPrice(value, displayCurrency.value);
 }
 
 const kpiCards = computed<KpiCard[]>(() => {

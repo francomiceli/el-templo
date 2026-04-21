@@ -18,6 +18,7 @@ import type {
 function buildParams(filters: AnalyticsFilters): Record<string, unknown> {
   const params: Record<string, unknown> = {};
   if (filters.branchId !== undefined) params.branchId = filters.branchId;
+  if (filters.country !== undefined) params.country = filters.country;
   if (filters.dateFrom !== undefined) params.dateFrom = filters.dateFrom;
   if (filters.dateTo !== undefined) params.dateTo = filters.dateTo;
   return params;

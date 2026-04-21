@@ -109,6 +109,7 @@ import {
 } from 'chart.js';
 import { Bar } from 'vue-chartjs';
 import { COLORS, chartColors } from 'src/utils/chart-colors';
+import { formatPrice } from 'src/utils/format-price';
 import type { FinancialAnalytics } from 'src/types/analytics';
 
 // -- Register Chart.js components ----------------------------------------
@@ -117,40 +118,38 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 // -- Props ---------------------------------------------------------------
 
-const props = defineProps<{
-  data: FinancialAnalytics | null;
-  loading: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    data: FinancialAnalytics | null;
+    loading: boolean;
+    currency?: 'ARS' | 'EUR';
+  }>(),
+  { currency: 'ARS' }
+);
 
 // -- Currency formatter --------------------------------------------------
 
-const arsFormatter = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  maximumFractionDigits: 0,
-});
-
 function formatCurrency(value: number): string {
-  return arsFormatter.format(value);
+  return formatPrice(value, props.currency);
 }
 
 // -- Chart data ----------------------------------------------------------
 
-const revenueChartOptions = {
+const revenueChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        label: (ctx: TooltipItem<'bar'>) => formatCurrency(ctx.parsed.y ?? 0),
+        label: (ctx: TooltipItem<'bar'>) => formatPrice(ctx.parsed.y ?? 0, props.currency),
       },
     },
   },
   scales: {
     y: { beginAtZero: true },
   },
-};
+}));
 
 const revenueTrendData = computed(() => {
   if (!props.data) return { labels: [], datasets: [] };
@@ -167,7 +166,7 @@ const revenueTrendData = computed(() => {
   };
 });
 
-const branchChartOptions = {
+const branchChartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   indexAxis: 'y' as const,
@@ -175,14 +174,14 @@ const branchChartOptions = {
     legend: { display: false },
     tooltip: {
       callbacks: {
-        label: (ctx: TooltipItem<'bar'>) => formatCurrency(ctx.parsed.x ?? 0),
+        label: (ctx: TooltipItem<'bar'>) => formatPrice(ctx.parsed.x ?? 0, props.currency),
       },
     },
   },
   scales: {
     x: { beginAtZero: true },
   },
-};
+}));
 
 const revenueByBranchData = computed(() => {
   if (!props.data) return { labels: [], datasets: [] };

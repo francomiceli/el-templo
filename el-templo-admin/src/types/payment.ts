@@ -38,6 +38,7 @@ export interface PaymentListItem {
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
   amount: number;
+  currency?: string;
   paymentMethod: PaymentMethod;
   paymentDate: string;
   reference: string | null;
@@ -58,6 +59,7 @@ export interface VoidPaymentInput {
 
 export interface PaymentListParams {
   branchId?: number;
+  country?: 'AR' | 'ES';
   paymentMethod?: PaymentMethod;
   dateFrom?: string;
   dateTo?: string;

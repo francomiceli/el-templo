@@ -22,6 +22,7 @@ export interface ChargeReportRow {
   memberId: number;
   planName: string;
   amount: number;
+  currency?: string;
   paymentMethod: 'cash' | 'transfer' | 'card';
   recorderName: string;
   voidedAt: string | null;
@@ -34,6 +35,7 @@ export interface ExpiringReportRow {
   endDate: string;
   daysRemaining: number;
   phone: string | null;
+  currency?: string;
 }
 
 export interface InactiveReportRow {
@@ -58,6 +60,7 @@ export interface PaginatedResult<T> {
 
 export interface AccessReportParams {
   branchId?: number;
+  country?: 'AR' | 'ES';
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -68,6 +71,7 @@ export interface AccessReportParams {
 
 export interface ChargeReportParams {
   branchId?: number;
+  country?: 'AR' | 'ES';
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -78,11 +82,13 @@ export interface ChargeReportParams {
 
 export interface ExpiringReportParams {
   branchId?: number;
+  country?: 'AR' | 'ES';
   daysWindow?: number;
   includeExpired?: boolean;
 }
 
 export interface InactiveReportParams {
   branchId?: number;
+  country?: 'AR' | 'ES';
   daysThreshold?: number;
 }

@@ -11,9 +11,21 @@
     </div>
 
     <!-- ================================================================== -->
-    <!-- Global Branch Filter -->
+    <!-- Global Filters: Country (owner only) + Branch -->
     <!-- ================================================================== -->
     <div class="row items-center q-gutter-sm q-mb-md">
+      <div v-if="isOwner" class="col-auto" style="min-width: 180px">
+        <q-select
+          v-model="selectedCountry"
+          :options="countryOptions"
+          label="Pais"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onCountryChange"
+        />
+      </div>
       <div class="col-12 col-sm-3">
         <q-select
           v-model="selectedBranchId"
@@ -463,7 +475,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useQuasar, type QTableColumn, type QTableProps } from 'quasar';
 import { useReportsApi } from 'src/composables/useReportsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { createLogger } from 'src/utils/logger';
+import { formatPrice } from 'src/utils/format-price';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
@@ -483,17 +497,41 @@ const log = createLogger('ReportesPage');
 const $q = useQuasar();
 const reportsApi = useReportsApi();
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
 
-// -- Formatters --------------------------------------------------------------
+// -- Country selector (owner-only per D-06 / D-10) ---------------------------
 
-const arsFormatter = new Intl.NumberFormat('es-AR', {
-  style: 'currency',
-  currency: 'ARS',
-  maximumFractionDigits: 0,
-});
+const isOwner = computed(() => authStore.user?.role === 'owner');
 
-function formatCurrency(value: number): string {
-  return arsFormatter.format(value);
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+// Default Argentina per D-06; no persistence (D-06 "Claude's Discretion")
+const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+// Derived currency for formatters that don't have a row-level `currency` field.
+const displayCurrency = computed<'ARS' | 'EUR'>(() =>
+  selectedCountry.value === 'ES' ? 'EUR' : 'ARS'
+);
+
+// Scope helper for API calls: owner passes their selection, non-owner omits
+// (server derives from branch via preHandler per Plan 03).
+const countryScope = computed<'AR' | 'ES' | undefined>(() =>
+  isOwner.value ? selectedCountry.value : undefined
+);
+
+async function onCountryChange() {
+  await fetchTabData();
+}
+
+// -- Row-level price formatter ----------------------------------------------
+
+function formatRowCurrency(value: number, row: { currency?: string } | undefined): string {
+  // Row carries `currency` when server populates it (Plan 06 charges/expiring);
+  // otherwise fall back to the page-level derived currency.
+  return formatPrice(value, row?.currency ?? displayCurrency.value);
 }
 
 function formatDate(dateStr: string): string {
@@ -716,6 +754,7 @@ async function fetchAccessData() {
   try {
     const result = await reportsApi.getAccessLog({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       dateFrom: accessDateFrom.value,
       dateTo: accessDateTo.value,
       search: accessSearch.value || undefined,
@@ -744,6 +783,7 @@ async function onExportAccess() {
   try {
     const blob = await reportsApi.exportAccessLog({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       dateFrom: accessDateFrom.value,
       dateTo: accessDateTo.value,
       search: accessSearch.value || undefined,
@@ -820,7 +860,7 @@ const chargesColumns: QTableColumn[] = [
     label: 'Monto',
     field: 'amount',
     align: 'right',
-    format: (val: number) => formatCurrency(val),
+    format: (val: number, row: ChargeReportRow) => formatRowCurrency(val, row),
   },
   {
     name: 'paymentMethod',
@@ -838,6 +878,7 @@ async function fetchChargesData() {
   try {
     const result = await reportsApi.getChargeHistory({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       dateFrom: chargesDateFrom.value,
       dateTo: chargesDateTo.value,
       search: chargesSearch.value || undefined,
@@ -866,6 +907,7 @@ async function onExportCharges() {
   try {
     const blob = await reportsApi.exportChargeHistory({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       dateFrom: chargesDateFrom.value,
       dateTo: chargesDateTo.value,
       search: chargesSearch.value || undefined,
@@ -919,6 +961,7 @@ async function fetchExpiringData() {
   try {
     expiringRows.value = await reportsApi.getExpiringMemberships({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       daysWindow: expiringDaysWindow.value,
       includeExpired: expiringIncludeExpired.value,
     });
@@ -935,6 +978,7 @@ async function onExportExpiring() {
   try {
     const blob = await reportsApi.exportExpiringMemberships({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       daysWindow: expiringDaysWindow.value,
       includeExpired: expiringIncludeExpired.value,
     });
@@ -985,6 +1029,7 @@ async function fetchInactiveData() {
   try {
     inactiveRows.value = await reportsApi.getInactiveMembers({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       daysThreshold: inactiveDaysThreshold.value,
     });
   } catch (err: unknown) {
@@ -1000,6 +1045,7 @@ async function onExportInactive() {
   try {
     const blob = await reportsApi.exportInactiveMembers({
       branchId: selectedBranchId.value,
+      country: countryScope.value,
       daysThreshold: inactiveDaysThreshold.value,
     });
     const today = new Date().toISOString().split('T')[0];
