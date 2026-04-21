@@ -1,17 +1,14 @@
--- @data-only
-INSERT INTO branches (name, code, max_capacity) VALUES ('El Templo Chapadmalal', 'CHAPADMALAL', 8);
-
-INSERT INTO schedules (branch_id, activity_id, day_of_week, start_time, end_time)
-SELECT b.id, a.id, d.day_of_week, t.start_time, t.end_time
-FROM branches b
-CROSS JOIN activities a
-CROSS JOIN (
-  SELECT 1 AS day_of_week UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5
-) d
-CROSS JOIN (
-  SELECT '08:00' AS start_time, '09:00' AS end_time
-  UNION SELECT '09:00', '10:00'
-  UNION SELECT '17:00', '18:00'
-  UNION SELECT '18:00', '19:00'
-) t
-WHERE b.code = 'CHAPADMALAL' AND a.name = 'Sesion Grupal';
+-- @superseded-by 0087_widen_branch_code_and_fix_chapadmalal.sql
+--
+-- Original intent: insert "El Templo Chapadmalal" branch with 20 schedule rows.
+-- Outcome: failed on production (strict SQL mode) and silently truncated on
+-- staging to code "CHAPADMALA" because the code column was varchar(10) and the
+-- intended code "CHAPADMALAL" is 11 chars.
+--
+-- 0087 widens the column to varchar(20), renames the truncated staging row,
+-- and idempotently inserts the branch + schedules on envs that don't have them.
+--
+-- Kept as a no-op so production's migration runner records this file as applied
+-- and advances to 0087. Do not delete — removing would cause inconsistent
+-- migration history with staging, which already has this filename recorded in
+-- its _migrations table.

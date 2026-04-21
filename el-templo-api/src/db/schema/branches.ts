@@ -12,7 +12,7 @@ import { users } from "./users";
 export const branches = mysqlTable("branches", {
   id: int("id").primaryKey().autoincrement(),
   name: varchar("name", { length: 255 }).notNull(),
-  code: varchar("code", { length: 10 }).notNull().unique(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
   timezone: varchar("timezone", { length: 50 })
     .default("America/Argentina/Buenos_Aires")
     .notNull(),
