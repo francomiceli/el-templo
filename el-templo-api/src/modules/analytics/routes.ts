@@ -44,6 +44,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: AnalyticsFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
       };
@@ -61,6 +62,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: AnalyticsFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
       };
@@ -81,6 +83,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: AnalyticsFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
@@ -102,6 +105,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: AnalyticsFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };

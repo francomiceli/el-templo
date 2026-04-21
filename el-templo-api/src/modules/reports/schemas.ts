@@ -96,6 +96,7 @@ export const chargeReportSchema = {
               memberId: { type: "integer" },
               planName: { type: "string" },
               amount: { type: "number" },
+              currency: { type: "string" },
               paymentMethod: {
                 type: "string",
                 enum: ["cash", "transfer", "card"],
@@ -141,6 +142,7 @@ export const expiringReportSchema = {
           endDate: { type: "string" },
           daysRemaining: { type: "integer" },
           phone: { type: ["string", "null"] },
+          currency: { type: "string" },
         },
       },
     },

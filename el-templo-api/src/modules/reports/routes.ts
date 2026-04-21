@@ -68,6 +68,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: AccessReportFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
         search: request.query.search,
@@ -96,6 +97,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: ChargeReportFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
         search: request.query.search,
@@ -120,6 +122,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: ExpiringReportFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         daysWindow: request.query.daysWindow,
         includeExpired: request.query.includeExpired,
       };
@@ -139,6 +142,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: InactiveReportFilters = {
         branchId: request.query.branchId,
+        country: request.scope.country,
         daysThreshold: request.query.daysThreshold,
       };
       return await reportsService.getInactiveMembers(filters);
@@ -167,6 +171,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: AccessReportFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           search: request.query.search,
@@ -222,6 +227,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: ChargeReportFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           search: request.query.search,
@@ -239,6 +245,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Miembro", key: "memberName", width: 30 },
           { header: "Plan", key: "planName", width: 25 },
           { header: "Monto", key: "amount", width: 12 },
+          { header: "Moneda", key: "currency", width: 10 },
           { header: "Metodo", key: "paymentMethod", width: 15 },
           { header: "Registro", key: "recorderName", width: 25 },
           { header: "Estado", key: "estado", width: 12 },
@@ -252,6 +259,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             memberName: row.memberName,
             planName: row.planName,
             amount: row.amount,
+            currency: row.currency,
             paymentMethod: row.paymentMethod,
             recorderName: row.recorderName,
             estado: row.voidedAt ? "ANULADO" : "Normal",
@@ -279,6 +287,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: ExpiringReportFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
         };
@@ -294,6 +303,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
           { header: "Plan", key: "planName", width: 25 },
           { header: "Vence", key: "endDate", width: 15 },
           { header: "Dias restantes", key: "daysRemaining", width: 18 },
+          { header: "Moneda", key: "currency", width: 10 },
           { header: "Telefono", key: "phone", width: 18 },
         ];
 
@@ -305,6 +315,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
             planName: row.planName,
             endDate: row.endDate,
             daysRemaining: row.daysRemaining,
+            currency: row.currency,
             phone: row.phone ?? "",
           });
         }
@@ -329,6 +340,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: InactiveReportFilters = {
           branchId: request.query.branchId,
+          country: request.scope.country,
           daysThreshold: request.query.daysThreshold,
         };
         const rows = await reportsService.exportInactiveMembers(filters);

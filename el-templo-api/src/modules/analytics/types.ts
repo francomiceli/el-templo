@@ -82,6 +82,7 @@ export interface FinancialAnalytics {
 
 export interface AnalyticsFilters {
   branchId?: number;
+  country?: "AR" | "ES";
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string; // YYYY-MM-DD
 }

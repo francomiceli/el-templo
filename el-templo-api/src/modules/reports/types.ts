@@ -9,6 +9,7 @@
 
 export interface AccessReportFilters {
   branchId?: number;
+  country?: "AR" | "ES";
   dateFrom?: string; // YYYY-MM-DD
   dateTo?: string;
   search?: string; // member name or DNI
@@ -19,6 +20,7 @@ export interface AccessReportFilters {
 
 export interface ChargeReportFilters {
   branchId?: number;
+  country?: "AR" | "ES";
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -29,12 +31,14 @@ export interface ChargeReportFilters {
 
 export interface ExpiringReportFilters {
   branchId?: number;
+  country?: "AR" | "ES";
   daysWindow?: number; // default 7
   includeExpired?: boolean; // default true
 }
 
 export interface InactiveReportFilters {
   branchId?: number;
+  country?: "AR" | "ES";
   daysThreshold?: number; // default 14
 }
 
@@ -57,6 +61,7 @@ export interface ChargeReportRow {
   memberId: number;
   planName: string;
   amount: number;
+  currency: string; // "ARS" | "EUR" — REQ-98-10 / D-13
   paymentMethod: "cash" | "transfer" | "card";
   recorderName: string;
   voidedAt: string | null;
@@ -69,6 +74,7 @@ export interface ExpiringReportRow {
   endDate: string;
   daysRemaining: number; // positive = days left, negative = days overdue
   phone: string | null;
+  currency: string; // "ARS" | "EUR" — REQ-98-10 / D-13 (from subscriptions.currency)
 }
 
 export interface InactiveReportRow {

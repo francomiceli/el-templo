@@ -38,11 +38,13 @@ export class AnalyticsService {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const { priorFrom, priorTo } = this.computePriorPeriod(dateFrom, dateTo);
     const branchId = filters.branchId;
+    const country = filters.country;
 
     const [activeMembers, monthlyRevenue, dailyAttendanceAvg] =
       await Promise.all([
         this.getActiveMembersKpi(
           branchId,
+          country,
           dateFrom,
           dateTo,
           priorFrom,
@@ -50,6 +52,7 @@ export class AnalyticsService {
         ),
         this.getMonthlyRevenueKpi(
           branchId,
+          country,
           dateFrom,
           dateTo,
           priorFrom,
@@ -57,6 +60,7 @@ export class AnalyticsService {
         ),
         this.getDailyAttendanceKpi(
           branchId,
+          country,
           dateFrom,
           dateTo,
           priorFrom,
@@ -74,6 +78,7 @@ export class AnalyticsService {
   ): Promise<MemberAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const branchId = filters.branchId;
+    const country = filters.country;
 
     const [
       newMembers,
@@ -82,11 +87,11 @@ export class AnalyticsService {
       planDistribution,
       attentionList,
     ] = await Promise.all([
-      this.countNewMembers(branchId, dateFrom, dateTo),
-      this.countChurnedMembers(branchId, dateFrom, dateTo),
-      this.computeRetentionRate(branchId, dateFrom, dateTo),
-      this.getPlanDistribution(branchId),
-      this.getAttentionList(branchId),
+      this.countNewMembers(branchId, country, dateFrom, dateTo),
+      this.countChurnedMembers(branchId, country, dateFrom, dateTo),
+      this.computeRetentionRate(branchId, country, dateFrom, dateTo),
+      this.getPlanDistribution(branchId, country),
+      this.getAttentionList(branchId, country),
     ]);
 
     return {
@@ -105,13 +110,14 @@ export class AnalyticsService {
   ): Promise<AttendanceAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const branchId = filters.branchId;
+    const country = filters.country;
 
     const [dailyCheckins, peakHoursHeatmap, slotOccupancy, noShowRate] =
       await Promise.all([
-        this.getDailyCheckins(branchId, dateFrom, dateTo),
-        this.getPeakHoursHeatmap(branchId, dateFrom, dateTo),
-        this.getSlotOccupancy(branchId, dateFrom, dateTo),
-        this.getNoShowRate(branchId, dateFrom, dateTo),
+        this.getDailyCheckins(branchId, country, dateFrom, dateTo),
+        this.getPeakHoursHeatmap(branchId, country, dateFrom, dateTo),
+        this.getSlotOccupancy(branchId, country, dateFrom, dateTo),
+        this.getNoShowRate(branchId, country, dateFrom, dateTo),
       ]);
 
     return { dailyCheckins, peakHoursHeatmap, slotOccupancy, noShowRate };
@@ -124,6 +130,7 @@ export class AnalyticsService {
   ): Promise<FinancialAnalytics> {
     const { dateFrom, dateTo } = this.resolveDefaults(filters);
     const branchId = filters.branchId;
+    const country = filters.country;
 
     const [
       revenueTrend,
@@ -132,11 +139,11 @@ export class AnalyticsService {
       expectedRevenue,
       collectedRevenue,
     ] = await Promise.all([
-      this.getRevenueTrend(branchId, dateFrom, dateTo),
-      this.getRevenueByMethod(branchId, dateFrom, dateTo),
-      this.getRevenueByBranch(branchId, dateFrom, dateTo),
-      this.getExpectedRevenue(branchId, dateFrom, dateTo),
-      this.sumRevenue(branchId, dateFrom, dateTo),
+      this.getRevenueTrend(branchId, country, dateFrom, dateTo),
+      this.getRevenueByMethod(branchId, country, dateFrom, dateTo),
+      this.getRevenueByBranch(branchId, country, dateFrom, dateTo),
+      this.getExpectedRevenue(branchId, country, dateFrom, dateTo),
+      this.sumRevenue(branchId, country, dateFrom, dateTo),
     ]);
 
     const totalOutstanding = Math.max(0, expectedRevenue - collectedRevenue);
@@ -160,17 +167,24 @@ export class AnalyticsService {
 
   private async getActiveMembersKpi(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
     priorFrom: string,
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
-    const currentCount = await this.countActiveMembers(branchId);
+    const currentCount = await this.countActiveMembers(branchId, country);
     // For trend: estimate prior period active members by subtracting
     // new members added during current period and adding back churned ones
-    const newInPeriod = await this.countNewMembers(branchId, dateFrom, dateTo);
+    const newInPeriod = await this.countNewMembers(
+      branchId,
+      country,
+      dateFrom,
+      dateTo,
+    );
     const churnedInPeriod = await this.countChurnedMembers(
       branchId,
+      country,
       dateFrom,
       dateTo,
     );
@@ -184,6 +198,7 @@ export class AnalyticsService {
 
   private async countActiveMembers(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
   ): Promise<number> {
     const conditions = [
       eq(schema.users.role, "member"),
@@ -192,24 +207,31 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
-    const [result] = await this.db
+    const query = this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions));
+
+    const [result] = await query;
 
     return Number(result?.count ?? 0);
   }
 
   private async getMonthlyRevenueKpi(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
     priorFrom: string,
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
-    const current = await this.sumRevenue(branchId, dateFrom, dateTo);
-    const prior = await this.sumRevenue(branchId, priorFrom, priorTo);
+    const current = await this.sumRevenue(branchId, country, dateFrom, dateTo);
+    const prior = await this.sumRevenue(branchId, country, priorFrom, priorTo);
 
     return {
       value: current,
@@ -219,13 +241,24 @@ export class AnalyticsService {
 
   private async getDailyAttendanceKpi(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
     priorFrom: string,
     priorTo: string,
   ): Promise<{ value: number; trend: Trend }> {
-    const currentAvg = await this.computeDailyAvg(branchId, dateFrom, dateTo);
-    const priorAvg = await this.computeDailyAvg(branchId, priorFrom, priorTo);
+    const currentAvg = await this.computeDailyAvg(
+      branchId,
+      country,
+      dateFrom,
+      dateTo,
+    );
+    const priorAvg = await this.computeDailyAvg(
+      branchId,
+      country,
+      priorFrom,
+      priorTo,
+    );
 
     return {
       value: Math.round(currentAvg * 10) / 10,
@@ -239,6 +272,7 @@ export class AnalyticsService {
 
   private async countNewMembers(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -251,10 +285,14 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions));
 
     return Number(result?.count ?? 0);
@@ -262,6 +300,7 @@ export class AnalyticsService {
 
   private async countChurnedMembers(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -274,10 +313,17 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.subscriptions.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
     const [result] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.subscriptions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .where(and(...conditions));
 
     return Number(result?.count ?? 0);
@@ -285,6 +331,7 @@ export class AnalyticsService {
 
   private async computeRetentionRate(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -297,12 +344,19 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       endingConditions.push(eq(schema.subscriptions.branchId, branchId));
     }
+    if (country !== undefined) {
+      endingConditions.push(eq(schema.branches.country, country));
+    }
 
     const [endingResult] = await this.db
       .select({
         count: sql<number>`COUNT(DISTINCT ${schema.subscriptions.userId})`,
       })
       .from(schema.subscriptions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .where(and(...endingConditions));
 
     const totalEnding = Number(endingResult?.count ?? 0);
@@ -323,12 +377,19 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       renewedConditions.push(eq(schema.subscriptions.branchId, branchId));
     }
+    if (country !== undefined) {
+      renewedConditions.push(eq(schema.branches.country, country));
+    }
 
     const [renewedResult] = await this.db
       .select({
         count: sql<number>`COUNT(DISTINCT ${schema.subscriptions.userId})`,
       })
       .from(schema.subscriptions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .where(and(...renewedConditions));
 
     const totalRenewed = Number(renewedResult?.count ?? 0);
@@ -338,6 +399,7 @@ export class AnalyticsService {
 
   private async getPlanDistribution(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
   ): Promise<Array<{ planName: string; count: number }>> {
     const conditions: ReturnType<typeof eq>[] = [
       sql`${schema.subscriptions.status} IN ('active', 'paused')`,
@@ -345,6 +407,9 @@ export class AnalyticsService {
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.subscriptions.branchId, branchId));
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     const rows = await this.db
@@ -357,6 +422,10 @@ export class AnalyticsService {
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
       )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .where(and(...conditions))
       .groupBy(schema.subscriptionPlans.name);
 
@@ -368,6 +437,7 @@ export class AnalyticsService {
 
   private async getAttentionList(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
   ): Promise<AttentionMember[]> {
     // Expiring: active subscriptions ending in next 7 days
     const expiringConditions: ReturnType<typeof eq>[] = [
@@ -378,6 +448,9 @@ export class AnalyticsService {
 
     if (branchId !== undefined) {
       expiringConditions.push(eq(schema.subscriptions.branchId, branchId));
+    }
+    if (country !== undefined) {
+      expiringConditions.push(eq(schema.branches.country, country));
     }
 
     const expiringRows = await this.db
@@ -391,6 +464,10 @@ export class AnalyticsService {
       })
       .from(schema.subscriptions)
       .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .innerJoin(
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
@@ -432,6 +509,7 @@ export class AnalyticsService {
 
   private async getDailyCheckins(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<Array<{ date: string; count: number }>> {
@@ -443,16 +521,31 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
-    const rows = await this.db
+    const base = this.db
       .select({
         date: sql<string>`DATE(${schema.attendance.checkedInAt})`,
         count: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance)
-      .where(and(...conditions))
-      .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
-      .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
+      .from(schema.attendance);
+
+    const rows =
+      country !== undefined
+        ? await base
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.attendance.branchId),
+            )
+            .where(and(...conditions))
+            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
+            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`)
+        : await base
+            .where(and(...conditions))
+            .groupBy(sql`DATE(${schema.attendance.checkedInAt})`)
+            .orderBy(sql`DATE(${schema.attendance.checkedInAt})`);
 
     return rows.map((r) => ({
       date: String(r.date),
@@ -462,6 +555,7 @@ export class AnalyticsService {
 
   private async getPeakHoursHeatmap(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<HeatmapCell[]> {
@@ -472,6 +566,9 @@ export class AnalyticsService {
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, branchId));
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     // Count checkins per (dayOfWeek, hour), then divide by number of weeks
@@ -494,18 +591,32 @@ export class AnalyticsService {
       if (branch) maxCapacity = branch.maxCapacity;
     }
 
-    const rows = await this.db
+    const base = this.db
       .select({
         dayOfWeek: sql<number>`DAYOFWEEK(${schema.attendance.checkedInAt})`,
         hour: sql<number>`HOUR(${schema.attendance.checkedInAt})`,
         total: sql<number>`COUNT(*)`,
       })
-      .from(schema.attendance)
-      .where(and(...conditions))
-      .groupBy(
-        sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
-        sql`HOUR(${schema.attendance.checkedInAt})`,
-      );
+      .from(schema.attendance);
+
+    const rows =
+      country !== undefined
+        ? await base
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.attendance.branchId),
+            )
+            .where(and(...conditions))
+            .groupBy(
+              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
+              sql`HOUR(${schema.attendance.checkedInAt})`,
+            )
+        : await base
+            .where(and(...conditions))
+            .groupBy(
+              sql`DAYOFWEEK(${schema.attendance.checkedInAt})`,
+              sql`HOUR(${schema.attendance.checkedInAt})`,
+            );
 
     return rows.map((r) => {
       // MySQL DAYOFWEEK: 1=Sunday, 2=Monday...7=Saturday
@@ -528,6 +639,7 @@ export class AnalyticsService {
 
   private async getSlotOccupancy(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<SlotOccupancy[]> {
@@ -540,6 +652,9 @@ export class AnalyticsService {
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.schedules.branchId, branchId));
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     // Number of weeks in period for averaging
@@ -579,6 +694,10 @@ export class AnalyticsService {
         schema.activities,
         eq(schema.activities.id, schema.schedules.activityId),
       )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.schedules.branchId),
+      )
       .where(and(...conditions))
       .groupBy(
         schema.schedules.id,
@@ -606,6 +725,7 @@ export class AnalyticsService {
 
   private async getNoShowRate(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -618,8 +738,11 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.schedules.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
-    const [result] = await this.db
+    const base = this.db
       .select({
         total: sql<number>`COUNT(*)`,
         noShows: sql<number>`SUM(CASE WHEN ${schema.bookings.status} = 'no_show' THEN 1 ELSE 0 END)`,
@@ -628,8 +751,17 @@ export class AnalyticsService {
       .innerJoin(
         schema.schedules,
         eq(schema.schedules.id, schema.bookings.scheduleId),
-      )
-      .where(and(...conditions));
+      );
+
+    const [result] =
+      country !== undefined
+        ? await base
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.schedules.branchId),
+            )
+            .where(and(...conditions))
+        : await base.where(and(...conditions));
 
     const total = Number(result?.total ?? 0);
     const noShows = Number(result?.noShows ?? 0);
@@ -644,6 +776,7 @@ export class AnalyticsService {
 
   private async getRevenueTrend(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<Array<{ month: string; revenue: number }>> {
@@ -656,6 +789,9 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
     const rows = await this.db
       .select({
@@ -664,6 +800,7 @@ export class AnalyticsService {
       })
       .from(schema.payments)
       .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions))
       .groupBy(sql`DATE_FORMAT(${schema.payments.paymentDate}, '%Y-%m')`)
       .orderBy(sql`DATE_FORMAT(${schema.payments.paymentDate}, '%Y-%m')`);
@@ -676,6 +813,7 @@ export class AnalyticsService {
 
   private async getRevenueByMethod(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<{ cash: number; transfer: number; card: number }> {
@@ -688,6 +826,9 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
     const rows = await this.db
       .select({
@@ -696,6 +837,7 @@ export class AnalyticsService {
       })
       .from(schema.payments)
       .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions))
       .groupBy(schema.payments.paymentMethod);
 
@@ -709,6 +851,7 @@ export class AnalyticsService {
 
   private async getRevenueByBranch(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<Array<{ branchId: number; branchName: string; revenue: number }>> {
@@ -720,6 +863,9 @@ export class AnalyticsService {
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
+    }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     const rows = await this.db
@@ -747,6 +893,7 @@ export class AnalyticsService {
    */
   private async getExpectedRevenue(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -760,13 +907,25 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.subscriptions.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
-    const [result] = await this.db
+    const base = this.db
       .select({
         total: sql<number>`COALESCE(SUM(${schema.subscriptions.pricePaid}), 0)`,
       })
-      .from(schema.subscriptions)
-      .where(and(...conditions));
+      .from(schema.subscriptions);
+
+    const [result] =
+      country !== undefined
+        ? await base
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.subscriptions.branchId),
+            )
+            .where(and(...conditions))
+        : await base.where(and(...conditions));
 
     return Number(result?.total ?? 0);
   }
@@ -777,6 +936,7 @@ export class AnalyticsService {
 
   private async sumRevenue(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -789,6 +949,9 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
     const [result] = await this.db
       .select({
@@ -796,6 +959,7 @@ export class AnalyticsService {
       })
       .from(schema.payments)
       .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions));
 
     return Number(result?.total ?? 0);
@@ -803,6 +967,7 @@ export class AnalyticsService {
 
   private async computeDailyAvg(
     branchId: number | undefined,
+    country: "AR" | "ES" | undefined,
     dateFrom: string,
     dateTo: string,
   ): Promise<number> {
@@ -814,11 +979,23 @@ export class AnalyticsService {
     if (branchId !== undefined) {
       conditions.push(eq(schema.attendance.branchId, branchId));
     }
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
+    }
 
-    const [result] = await this.db
+    const base = this.db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.attendance)
-      .where(and(...conditions));
+      .from(schema.attendance);
+
+    const [result] =
+      country !== undefined
+        ? await base
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.attendance.branchId),
+            )
+            .where(and(...conditions))
+        : await base.where(and(...conditions));
 
     const total = Number(result?.count ?? 0);
 

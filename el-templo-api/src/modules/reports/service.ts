@@ -48,6 +48,8 @@ export class ReportsService {
     const conditions = this.buildAccessConditions(filters);
 
     // Count total
+    // NOTE: join on branches already present; buildAccessConditions may emit
+    // `branches.country = ?` so the join must remain on both count + select.
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.attendance)
@@ -145,17 +147,20 @@ export class ReportsService {
 
     const conditions = this.buildChargeConditions(filters);
 
-    // Count total
+    // Count total — join branches so country filter in buildChargeConditions
+    // resolves without reference errors.
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.payments)
       .innerJoin(memberAlias, eq(memberAlias.id, schema.payments.memberId))
+      .innerJoin(schema.branches, eq(schema.branches.id, memberAlias.branchId))
       .where(and(...conditions));
 
     const total = Number(countResult?.count ?? 0);
 
     // Fetch rows — use raw SQL for recorder self-join since drizzle doesn't support
-    // multiple aliases on the same table easily
+    // multiple aliases on the same table easily. Alias `branches b` so the raw
+    // `b.country = ?` predicate from buildChargeConditionsRaw resolves.
     const rows = await this.db.execute(sql`
       SELECT
         p.id,
@@ -164,11 +169,13 @@ export class ReportsService {
         p.member_id AS memberId,
         sp.name AS planName,
         p.amount,
+        p.currency,
         p.payment_method AS paymentMethod,
         CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, '')) AS recorderName,
         p.voided_at AS voidedAt
       FROM payments p
       INNER JOIN users m ON m.id = p.member_id
+      INNER JOIN branches b ON b.id = m.branch_id
       INNER JOIN subscriptions s ON s.id = p.subscription_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       INNER JOIN users r ON r.id = p.recorded_by
@@ -187,6 +194,7 @@ export class ReportsService {
         memberId: Number(r.memberId),
         planName: String(r.planName),
         amount: Number(r.amount),
+        currency: r.currency ? String(r.currency) : "ARS",
         paymentMethod: String(r.paymentMethod) as "cash" | "transfer" | "card",
         recorderName: String(r.recorderName).trim(),
         voidedAt: r.voidedAt ? String(r.voidedAt) : null,
@@ -226,6 +234,10 @@ export class ReportsService {
       conditions.push(eq(schema.subscriptions.branchId, filters.branchId));
     }
 
+    if (filters.country !== undefined) {
+      conditions.push(eq(schema.branches.country, filters.country));
+    }
+
     const rows = await this.db
       .select({
         userId: schema.subscriptions.userId,
@@ -234,10 +246,15 @@ export class ReportsService {
         planName: schema.subscriptionPlans.name,
         endDate: schema.subscriptions.endDate,
         phone: schema.users.phone,
+        currency: schema.subscriptions.currency,
         daysRemaining: sql<number>`DATEDIFF(${schema.subscriptions.endDate}, CURDATE())`,
       })
       .from(schema.subscriptions)
       .innerJoin(schema.users, eq(schema.users.id, schema.subscriptions.userId))
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
       .innerJoin(
         schema.subscriptionPlans,
         eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
@@ -252,6 +269,7 @@ export class ReportsService {
       endDate: r.endDate ?? "",
       daysRemaining: Number(r.daysRemaining),
       phone: r.phone,
+      currency: r.currency ?? "ARS",
     }));
   }
 
@@ -267,6 +285,11 @@ export class ReportsService {
         ? sql`AND s.branch_id = ${filters.branchId}`
         : sql``;
 
+    const countryCondition =
+      filters.country !== undefined
+        ? sql`AND b.country = ${filters.country}`
+        : sql``;
+
     const rows = await this.db.execute(sql`
       SELECT
         s.user_id AS userId,
@@ -277,10 +300,12 @@ export class ReportsService {
         s.start_date AS startDate
       FROM subscriptions s
       INNER JOIN users u ON u.id = s.user_id
+      INNER JOIN branches b ON b.id = s.branch_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
       LEFT JOIN attendance a ON a.member_id = s.user_id
       WHERE s.subscription_status IN ('active', 'paused')
         ${branchCondition}
+        ${countryCondition}
       GROUP BY s.user_id, u.first_name, u.last_name, sp.name, u.phone, s.start_date
       HAVING lastCheckIn IS NULL
         OR DATEDIFF(CURDATE(), lastCheckIn) >= ${daysThreshold}
@@ -373,6 +398,10 @@ export class ReportsService {
       conditions.push(eq(schema.attendance.branchId, filters.branchId));
     }
 
+    if (filters.country !== undefined) {
+      conditions.push(eq(schema.branches.country, filters.country));
+    }
+
     if (filters.dateFrom) {
       conditions.push(
         sql`DATE(${schema.attendance.checkedInAt}) >= ${filters.dateFrom}`,
@@ -408,6 +437,10 @@ export class ReportsService {
       conditions.push(eq(schema.users.branchId, filters.branchId));
     }
 
+    if (filters.country !== undefined) {
+      conditions.push(eq(schema.branches.country, filters.country));
+    }
+
     if (filters.dateFrom) {
       conditions.push(
         sql`${schema.payments.paymentDate} >= ${filters.dateFrom}`,
@@ -439,6 +472,10 @@ export class ReportsService {
 
     if (filters.branchId !== undefined) {
       parts.push(sql`m.branch_id = ${filters.branchId}`);
+    }
+
+    if (filters.country !== undefined) {
+      parts.push(sql`b.country = ${filters.country}`);
     }
 
     if (filters.dateFrom) {
