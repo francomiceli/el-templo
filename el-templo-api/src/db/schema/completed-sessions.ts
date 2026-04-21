@@ -6,6 +6,7 @@ import {
   json,
   text,
   index,
+  mysqlEnum,
 } from "drizzle-orm/mysql-core";
 import { users } from "./users";
 import { branches } from "./branches";
@@ -18,6 +19,16 @@ export const completedSessions = mysqlTable(
       .notNull()
       .references(() => users.id),
     dayId: varchar("day_id", { length: 50 }).notNull(), // W1-lunes-sigma or J-empuje-W1-lunes-sigma
+    // Level the session was played at (parsed from day_id suffix). May differ
+    // from the user's current users.level when a member trains at a level
+    // they selected in the header dropdown.
+    levelAtCompletion: mysqlEnum("level_at_completion", [
+      "alfa",
+      "delta",
+      "sigma",
+      "omega",
+      "spartan",
+    ]).notNull(),
     date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD
     branchId: int("branch_id")
       .notNull()

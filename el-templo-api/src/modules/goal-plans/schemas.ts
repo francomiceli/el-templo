@@ -111,6 +111,10 @@ export const getGoalPlanSessionSchema = {
         type: "string",
         enum: ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado"],
       },
+      level: {
+        type: "string",
+        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+      },
     },
   },
   response: {
@@ -144,6 +148,7 @@ export const getGoalPlanSessionSchema = {
 export interface GetGoalPlanSessionInput {
   week: number;
   day: string;
+  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
 export const completeGoalPlanSchema = {

@@ -647,6 +647,7 @@ export class GoalPlanService {
     userId: number,
     week: number,
     day: string,
+    levelOverride?: ExerciseLevel,
   ): Promise<DaySession | null> {
     // Get user's active goal plan and level
     const goalPlan = await this.getActiveGoalPlan(userId);
@@ -659,7 +660,9 @@ export class GoalPlanService {
       .where(eq(schema.users.id, userId));
     if (!user) return null;
 
-    const memberLevel = user.level as ExerciseLevel;
+    // Honor optional override — member can train at any level via the header
+    // dropdown, without changing users.level (coach-only).
+    const memberLevel = (levelOverride ?? user.level) as ExerciseLevel;
     const goalPlanType = goalPlan.goalPlanType;
 
     // Try current week first

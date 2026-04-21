@@ -14,6 +14,25 @@ export const TRAINING_DAYS = [
 
 export type TrainingDay = (typeof TRAINING_DAYS)[number];
 
+/** Valid member training levels. */
+export const TRAINING_LEVELS = [
+  "alfa",
+  "delta",
+  "sigma",
+  "omega",
+  "spartan",
+] as const;
+
+export type TrainingLevel = (typeof TRAINING_LEVELS)[number];
+
+/** Type guard: is the string a valid TrainingLevel? */
+export function isTrainingLevel(value: unknown): value is TrainingLevel {
+  return (
+    typeof value === "string" &&
+    (TRAINING_LEVELS as readonly string[]).includes(value)
+  );
+}
+
 /** Map JS Date.getDay() (0=Sun) to Spanish day name */
 export const DAY_OF_WEEK_MAP: Record<number, TrainingDay> = {
   1: "lunes",

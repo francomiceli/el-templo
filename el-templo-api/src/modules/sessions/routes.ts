@@ -3,7 +3,12 @@ import { eq, sql, and, gte, lte } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
-import { DAY_OF_WEEK_MAP, DAY_NAME_TO_NUMBER } from "../shared/training-constants";
+import {
+  DAY_OF_WEEK_MAP,
+  DAY_NAME_TO_NUMBER,
+  parseDayId,
+  isTrainingLevel,
+} from "../shared/training-constants";
 import { assembleVideoUrl } from "../shared/video-url";
 import {
   getDailySessionSchema,
@@ -171,7 +176,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const { date } = request.query;
+      const { date, level: levelOverride } = request.query;
       const { userId } = request.user;
 
       // 1. Get member's level from database
@@ -184,8 +189,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
-      // 2. Extract memberLevel and compute levelGroup
-      const memberLevel = user.level as ExerciseLevel;
+      // 2. Extract memberLevel — honor optional ?level= override (member can
+      // train at any level; users.level itself is only changed by a coach).
+      const memberLevel = (levelOverride ?? user.level) as ExerciseLevel;
 
       // 3. Derive week number from the requested date
       const week = dateToWeekNumber(date);
@@ -240,7 +246,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const { weekStart } = request.query;
+      const { weekStart, level: levelOverride } = request.query;
       const { userId } = request.user;
 
       // 1. Get member's level from database
@@ -253,8 +259,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: "Usuario no encontrado" });
       }
 
-      // 2. Extract memberLevel
-      const memberLevel = user.level as ExerciseLevel;
+      // 2. Extract memberLevel — honor optional ?level= override.
+      const memberLevel = (levelOverride ?? user.level) as ExerciseLevel;
 
       // 3. Check if member has an active program with a goalPlanType
       const [enrollment] = await fastify.db
@@ -468,6 +474,15 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         exercisesCompleted,
       } = request.body;
 
+      // Parse and validate the level the session was played at (last dayId
+      // segment). Independent of users.level so members can train at any level.
+      const levelAtCompletion = parseDayId(dayId).level;
+      if (!isTrainingLevel(levelAtCompletion)) {
+        return reply
+          .status(400)
+          .send({ error: "dayId invalido: nivel no reconocido" });
+      }
+
       // Get user's branchId
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
@@ -503,6 +518,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             notes,
             blocksCompleted,
             exercisesCompleted: exercisesCompleted ?? null,
+            levelAtCompletion,
           })
           .where(eq(schema.completedSessions.id, existing.id));
         completedSessionId = existing.id;
@@ -521,6 +537,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             notes,
             blocksCompleted,
             exercisesCompleted: exercisesCompleted ?? null,
+            levelAtCompletion,
           });
         completedSessionId = result.insertId;
       }

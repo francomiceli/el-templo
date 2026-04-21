@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { and, eq } from "drizzle-orm";
+import * as schema from "../../src/db/schema";
 import { createTestApp, getAuthToken, registerUser } from "../helpers";
 
 describe("Session Routes", () => {
@@ -185,6 +187,116 @@ describe("Session Routes", () => {
       });
 
       expect(res.statusCode).toBe(400);
+    });
+
+    it("stamps level_at_completion from dayId suffix matching user level", async () => {
+      // Register a fresh user so we can assert on a clean row set
+      await registerUser(app, {
+        email: "stamp-own-level@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      const token = await getAuthToken(
+        app,
+        "stamp-own-level@test.com",
+        "password123",
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/sessions/complete",
+        headers: { authorization: `Bearer ${token}` },
+        payload: {
+          dayId: "W3-lunes-alfa",
+          date: "2026-03-02",
+          startedAt: new Date().toISOString(),
+          blocksCompleted: ["INITIUM", "NUCLEUS"],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+
+      const [userRow] = await app.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, "stamp-own-level@test.com"));
+      const [completion] = await app.db
+        .select({
+          levelAtCompletion: schema.completedSessions.levelAtCompletion,
+        })
+        .from(schema.completedSessions)
+        .where(
+          and(
+            eq(schema.completedSessions.userId, userRow!.id),
+            eq(schema.completedSessions.dayId, "W3-lunes-alfa"),
+          ),
+        );
+      expect(completion?.levelAtCompletion).toBe("alfa");
+    });
+
+    it("stamps level_at_completion from dayId even when it differs from users.level (train at any level)", async () => {
+      // User registers at default level "alfa" but completes a sigma session
+      await registerUser(app, {
+        email: "stamp-other-level@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      const token = await getAuthToken(
+        app,
+        "stamp-other-level@test.com",
+        "password123",
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/sessions/complete",
+        headers: { authorization: `Bearer ${token}` },
+        payload: {
+          dayId: "W3-martes-sigma",
+          date: "2026-03-03",
+          startedAt: new Date().toISOString(),
+          blocksCompleted: ["INITIUM", "NUCLEUS"],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+
+      const [userRow] = await app.db
+        .select({ id: schema.users.id, level: schema.users.level })
+        .from(schema.users)
+        .where(eq(schema.users.email, "stamp-other-level@test.com"));
+      expect(userRow!.level).toBe("alfa");
+
+      const [completion] = await app.db
+        .select({
+          levelAtCompletion: schema.completedSessions.levelAtCompletion,
+        })
+        .from(schema.completedSessions)
+        .where(
+          and(
+            eq(schema.completedSessions.userId, userRow!.id),
+            eq(schema.completedSessions.dayId, "W3-martes-sigma"),
+          ),
+        );
+      expect(completion?.levelAtCompletion).toBe("sigma");
+    });
+
+    it("returns 400 when dayId has an unrecognized level suffix", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/sessions/complete",
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: {
+          dayId: "W3-lunes-mythicon",
+          date: "2026-03-02",
+          startedAt: new Date().toISOString(),
+          blocksCompleted: ["INITIUM"],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.error).toContain("nivel no reconocido");
     });
   });
 });

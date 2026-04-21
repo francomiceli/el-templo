@@ -6,12 +6,17 @@ export const getDailySessionSchema = {
     required: ["date"],
     properties: {
       date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      level: {
+        type: "string",
+        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+      },
     },
   },
 };
 
 export interface GetDailySessionInput {
   date: string;
+  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
 export const generateSessionSchema = {
@@ -55,12 +60,17 @@ export const getWeeklySessionsSchema = {
     required: ["weekStart"],
     properties: {
       weekStart: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      level: {
+        type: "string",
+        enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+      },
     },
   },
 };
 
 export interface GetWeeklySessionsInput {
   weekStart: string; // Monday date in YYYY-MM-DD format
+  level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
 }
 
 // =============================================================================

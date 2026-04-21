@@ -32,6 +32,8 @@ import {
 } from "./schemas";
 
 import { TRAINING_ROLES, MEMBER_ROLES } from "../shared/permissions";
+import { parseDayId, isTrainingLevel } from "../shared/training-constants";
+import type { ExerciseLevel } from "../sessions/types";
 
 /**
  * Convert a goal plan DaySession to API response format.
@@ -177,13 +179,14 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         throw err;
       }
 
-      const { week, day } = request.query;
+      const { week, day, level: levelOverride } = request.query;
 
       try {
         const session = await goalPlanService.getGoalPlanSession(
           request.user.userId,
           week,
           day,
+          levelOverride as ExerciseLevel | undefined,
         );
 
         if (!session) {
@@ -248,6 +251,14 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
         notes,
       } = request.body;
 
+      // Parse and validate the level the session was played at.
+      const levelAtCompletion = parseDayId(dayId).level;
+      if (!isTrainingLevel(levelAtCompletion)) {
+        return reply
+          .status(400)
+          .send({ error: "dayId invalido: nivel no reconocido" });
+      }
+
       // Get user info
       const [user] = await fastify.db
         .select({ branchId: schema.users.branchId })
@@ -292,6 +303,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
+              levelAtCompletion,
             })
             .where(eq(schema.completedSessions.id, existing.id));
         } else {
@@ -309,6 +321,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
+              levelAtCompletion,
             });
           completionId = Number(result[0].insertId);
         }
