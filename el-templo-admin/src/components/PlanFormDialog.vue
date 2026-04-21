@@ -40,6 +40,33 @@
               map-options
               :rules="[(val) => !!val || 'Categoria es requerida']"
             />
+
+            <!-- Country selector (editable on create, readonly on edit per D-16/T-98-14) -->
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.country"
+                  :options="COUNTRY_OPTIONS"
+                  label="Pais *"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  :readonly="isEditMode"
+                  :rules="[(val) => !!val || 'Pais es requerido']"
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-input
+                  :model-value="form.country === 'ES' ? 'EUR' : 'ARS'"
+                  label="Moneda"
+                  dense
+                  outlined
+                  readonly
+                  hint="Derivada del pais"
+                />
+              </div>
+            </div>
           </div>
 
           <!-- Precios -->
@@ -85,7 +112,7 @@
             v-if="form.planCategory !== 'presencial' && weeklyPrice"
             class="text-caption text-grey-7 q-mt-xs"
           >
-            Precio semanal: ${{ weeklyPrice.toLocaleString() }}/sem
+            Precio semanal: {{ formatPrice(weeklyPrice, derivedCurrency) }}/sem
           </div>
 
           <!-- Duracion y Clases -->
@@ -208,6 +235,7 @@ import type { QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
+import { formatPrice, type Currency } from 'src/utils/format-price';
 import {
   PLAN_TIER_LABELS,
   BOOKING_MODE_LABELS,
@@ -222,6 +250,15 @@ import type { Program } from 'src/types/program';
 const log = createLogger('PlanFormDialog');
 
 // =========================================================================
+// Country / Currency options (D-06, D-08)
+// =========================================================================
+
+const COUNTRY_OPTIONS = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+// =========================================================================
 // Props & Emits
 // =========================================================================
 
@@ -229,6 +266,7 @@ const props = defineProps<{
   modelValue: boolean;
   plan?: PlanListItem | null;
   presetCategory?: PlanCategory;
+  presetCountry?: 'AR' | 'ES';
 }>();
 
 const emit = defineEmits<{
@@ -266,7 +304,11 @@ const form = ref({
   isTrial: false,
   isGroup: false,
   groupMaxMembers: null as number | null,
+  country: 'AR' as 'AR' | 'ES',
 });
+
+// Currency is derived from country (ARS for AR, EUR for ES) — D-08
+const derivedCurrency = computed<Currency>(() => (form.value.country === 'ES' ? 'EUR' : 'ARS'));
 
 // =========================================================================
 // Computed
@@ -376,6 +418,8 @@ watch(
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
         groupMaxMembers: props.plan.groupMaxMembers,
+        // Fall back to AR if the plan pre-dates the country column (legacy row).
+        country: props.plan.country ?? 'AR',
       };
     } else {
       form.value = {
@@ -394,6 +438,8 @@ watch(
         isTrial: false,
         isGroup: false,
         groupMaxMembers: null,
+        // Inherit owner's currently-selected country from PlanesPage; else AR.
+        country: props.presetCountry ?? 'AR',
       };
     }
   }
@@ -438,9 +484,11 @@ async function onSubmit() {
     };
 
     if (isEditMode.value && props.plan) {
+      // Edit: country is immutable (T-98-14) — do NOT send it.
       await subscriptionsApi.updatePlan(props.plan.id, payload);
     } else {
-      await subscriptionsApi.createPlan(payload);
+      // Create: attach the owner-selected country; server derives currency.
+      await subscriptionsApi.createPlan({ ...payload, country: form.value.country });
     }
 
     emit('saved');

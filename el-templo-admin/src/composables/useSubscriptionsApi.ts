@@ -31,12 +31,17 @@ export function useSubscriptionsApi() {
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────
 
-  async function getPlans(isActive?: boolean): Promise<PlanListItem[]> {
+  async function getPlans(
+    isActive?: boolean,
+    opts?: { branchId?: number; country?: 'AR' | 'ES' }
+  ): Promise<PlanListItem[]> {
     loading.value = true;
     error.value = null;
     try {
       const params: Record<string, unknown> = {};
       if (isActive !== undefined) params.isActive = isActive;
+      if (opts?.branchId !== undefined) params.branchId = opts.branchId;
+      if (opts?.country !== undefined) params.country = opts.country;
       const { data } = await api.get<{ plans: PlanListItem[] }>('/admin/subscriptions/plans', {
         params,
       });

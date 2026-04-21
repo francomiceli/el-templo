@@ -25,6 +25,22 @@
       <!-- Planes Tab — Unified Table -->
       <!-- ============================================================== -->
       <q-tab-panel name="planes">
+        <!-- Owner-only country selector (D-06) -->
+        <div v-if="isOwner" class="row q-gutter-md q-mb-md">
+          <div class="col-auto" style="min-width: 180px">
+            <q-select
+              v-model="selectedCountry"
+              :options="countryOptions"
+              label="Pais"
+              dense
+              outlined
+              emit-value
+              map-options
+              @update:model-value="onCountryChange"
+            />
+          </div>
+        </div>
+
         <!-- Header with single create button -->
         <div class="row items-center q-mb-md">
           <div class="col" />
@@ -68,7 +84,9 @@
 
           <!-- Price column -->
           <template #body-cell-precio="props">
-            <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
+            <q-td :props="props">
+              {{ formatPrice(props.row.priceRegular, props.row.currency) }}
+            </q-td>
           </template>
 
           <!-- Duration column -->
@@ -162,7 +180,9 @@
 
           <!-- Price column -->
           <template #body-cell-precio="props">
-            <q-td :props="props"> ${{ props.row.priceRegular.toLocaleString() }} </q-td>
+            <q-td :props="props">
+              {{ formatPrice(props.row.priceRegular, props.row.currency) }}
+            </q-td>
           </template>
 
           <!-- Duration column -->
@@ -227,6 +247,7 @@
           v-model="showFormDialog"
           :plan="editingPlan"
           :preset-category="presetCategory"
+          :preset-country="selectedCountry"
           @saved="onPlanSaved"
         />
       </q-tab-panel>
@@ -326,6 +347,8 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
+import { formatPrice } from 'src/utils/format-price';
 import {
   PLAN_TIER_LABELS,
   PLAN_CATEGORY_LABELS,
@@ -343,6 +366,25 @@ const log = createLogger('PlanesPage');
 const $q = useQuasar();
 const subscriptionsApi = useSubscriptionsApi();
 const programsApi = useProgramsApi();
+const authStore = useAuthStore();
+
+// =========================================================================
+// Country selector (owner-only per D-06)
+// =========================================================================
+
+const isOwner = computed(() => authStore.user?.role === 'owner');
+
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+// Default Argentina per D-06 (no Todos mode)
+const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+async function onCountryChange() {
+  await loadPlans();
+}
 
 // =========================================================================
 // Tab state
@@ -393,6 +435,14 @@ const planColumns: QTableProps['columns'] = [
     field: 'name',
     align: 'left',
     sortable: true,
+  },
+  {
+    name: 'country',
+    label: 'Pais',
+    field: 'country',
+    align: 'left',
+    sortable: true,
+    style: 'width: 100px',
   },
   {
     name: 'categoria',
@@ -534,7 +584,9 @@ function programName(programId: number | null): string {
 async function loadPlans() {
   loadingPlans.value = true;
   try {
-    plans.value = await subscriptionsApi.getPlans();
+    // Owner: pass selectedCountry; non-owner: server auto-scopes via preHandler.
+    const opts = isOwner.value ? { country: selectedCountry.value } : undefined;
+    plans.value = await subscriptionsApi.getPlans(undefined, opts);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading plans', { error: message });

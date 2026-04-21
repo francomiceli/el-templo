@@ -117,6 +117,8 @@ export interface PlanListItem {
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
+  country: 'AR' | 'ES';
+  currency: 'ARS' | 'EUR';
   createdAt: string;
   updatedAt: string;
 }
@@ -143,6 +145,7 @@ export interface CreatePlanInput {
   planCategory: PlanCategory;
   linkedProgramId?: number;
   groupMaxMembers?: number;
+  country?: 'AR' | 'ES';
 }
 
 export interface UpdatePlanInput {
