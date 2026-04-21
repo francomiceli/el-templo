@@ -128,6 +128,7 @@ _Updated after each plan completion_
 - Phase 88 (was 89): Gender-Based Notification Personalization — gender inference, registration field, gendered notification copy
 - Phase 88 (old): Reservation Rules — Per-Plan Booking Configuration — removed from v4.4
 - Phase 98 added: Multi-currency and country-scoped plans — AR/ES plan segregation with EUR pricing, owner country toggle, branch-scoped filtering
+- Phase 100 added: Games format, exercise route overhaul, and session editor route UX — coach-driven session authoring changes (new format, INITIUM block titles, new games route, Spanish route renaming)
 
 ### Decisions
 

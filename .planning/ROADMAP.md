@@ -2133,13 +2133,26 @@ Plans:
 ### Phase 99: Member-Selectable Training Level
 
 **Goal:** Let members train at any level (alfa → spartan) from a header dropdown. Data plumbing (level_at_completion column + ?level= query param) is already delivered (commit c8d0726b). This phase covers the member-facing UX, mid-session switch semantics, and downstream effects on progression / ROM-day mapping / admin visibility. Coach remains the sole path for changing `users.level` itself.
-**Requirements**: TBD (run /gsd-spec-phase 99 to clarify)
+**Requirements:** R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11 (see 99-SPEC.md)
 **Depends on:** Phase 97
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 99-01-PLAN.md — Column rename migration 0091 (level_at_completion → session_level) + Drizzle/routes rename + admin GET /admin/members/:userId/session-levels endpoint + R9/R10/R11 integration tests
+- [ ] 99-02-PLAN.md — Member app foundation: level-display module + dual-path useLevelSelectionStorage + useUserStore selection API (selectedLevel/activeLevel/setLevel/clearLevel/hydrateSelection/registerMidSessionGuard) + boot hydration + logout cleanup
+- [ ] 99-03-PLAN.md — Member app UI: HeaderLevelDropdown component (replaces both badge instances in MainLayout) + ?level= injection in useWeekData & useGoalPlanApi + DayPlayer mid-session guard + admin AlumnoDetailPage chip row + human-verify checkpoint
+
+### Phase 100: Games format, exercise route overhaul, and session editor route UX
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 99
 **Plans:** 0 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 99 to break down after SPEC)
+- [ ] TBD (run /gsd-plan-phase 100 to break down)
 
 ---
 
