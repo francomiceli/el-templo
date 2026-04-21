@@ -183,7 +183,7 @@ const notificationCategories = [
     description: 'Confirmacion de inscripcion, avance semanal',
   },
   {
-    key: 'novedades',
+    key: 'anuncios',
     label: 'Novedades',
     description: 'Nuevas funciones y actualizaciones',
   },
@@ -194,7 +194,7 @@ const preferencesLoading = ref(true)
 const preferences = reactive<Record<string, boolean>>({
   entrenamiento: true,
   programas: true,
-  novedades: true,
+  anuncios: true,
 })
 
 async function loadPreferences() {
