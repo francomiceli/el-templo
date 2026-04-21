@@ -261,6 +261,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 98 context gathered
-Resume file: --resume-file
+Last session: 2026-04-21
+Stopped at: Phase 99 context gathered
+Resume file: .planning/phases/99-member-selectable-training-level/99-CONTEXT.md
