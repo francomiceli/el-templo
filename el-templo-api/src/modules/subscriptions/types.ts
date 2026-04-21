@@ -71,6 +71,8 @@ export interface PlanListItem {
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
+  country: "AR" | "ES";
+  currency: "ARS" | "EUR";
   createdAt: string;
   updatedAt: string;
 }
@@ -158,6 +160,7 @@ export interface SubscriptionDetail {
   replacementCredits: number;
   scheduleIds: number[];
   notes: string | null;
+  currency: "ARS" | "EUR";
   createdAt: string;
   updatedAt: string;
 }

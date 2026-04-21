@@ -20,6 +20,7 @@ export interface PaymentListItem {
   subscriptionStartDate: string | null;
   subscriptionEndDate: string | null;
   amount: number;
+  currency: "ARS" | "EUR";
   paymentMethod: PaymentMethod;
   paymentDate: string;
   reference: string | null;
@@ -42,6 +43,7 @@ export interface RecordPaymentInput {
   paymentDate: string;
   reference?: string;
   notes?: string | null;
+  currency?: "ARS" | "EUR";
 }
 
 export interface VoidPaymentInput {

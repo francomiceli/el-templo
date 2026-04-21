@@ -256,6 +256,7 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
+        currency: schema.subscriptions.currency,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
       })
@@ -326,6 +327,7 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
+        currency: schema.subscriptions.currency,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
       })
@@ -391,6 +393,7 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
+        currency: schema.subscriptions.currency,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
       })
@@ -445,6 +448,7 @@ export class SubscriptionService {
         previousSubscriptionId: schema.subscriptions.previousSubscriptionId,
         replacementCredits: schema.subscriptions.replacementCredits,
         notes: schema.subscriptions.notes,
+        currency: schema.subscriptions.currency,
         createdAt: schema.subscriptions.createdAt,
         updatedAt: schema.subscriptions.updatedAt,
       })
@@ -476,14 +480,17 @@ export class SubscriptionService {
     input: AssignPlanInput,
     adminId: number,
   ): Promise<SubscriptionDetail> {
-    // Validate member exists
+    // Validate member exists. Inner-join branches to also pull the member's
+    // branch country for the cross-country plan guard below.
     const [member] = await this.db
       .select({
         id: schema.users.id,
         branchId: schema.users.branchId,
+        branchCountry: schema.branches.country,
         boardingPassUsed: schema.users.boardingPassUsed,
       })
       .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(eq(schema.users.id, userId));
 
     if (!member) {
@@ -500,6 +507,11 @@ export class SubscriptionService {
     }
     if (plan.isArchived) {
       throw new BadRequestError("No se puede asignar un plan archivado");
+    }
+    if (plan.country !== member.branchCountry) {
+      throw new BadRequestError(
+        "El plan no corresponde al pais de la sucursal",
+      );
     }
 
     // Check no existing active/paused subscription in the same category group (D-35)
@@ -685,7 +697,9 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Insert subscription
+    // Insert subscription. `currency` is inherited from the plan so EUR plans
+    // produce EUR subscriptions (defense in depth — the country guard above
+    // already prevents cross-country assignments).
     const result = await this.db.insert(schema.subscriptions).values({
       userId,
       planId: input.planId,
@@ -703,6 +717,7 @@ export class SubscriptionService {
       classesRemaining,
       classesBudget: classesRemaining,
       notes: input.notes ?? null,
+      currency: plan.currency,
     });
 
     const subscriptionId = Number(result[0].insertId);
@@ -797,7 +812,9 @@ export class SubscriptionService {
       );
     }
 
-    // Auto-record payment for the subscription
+    // Auto-record payment for the subscription. Pass the plan's currency
+    // explicitly so the payment-service cross-currency guard is exercised
+    // even via internal callers.
     if (this.paymentService && pricePaid > 0) {
       await this.paymentService.recordPayment(
         {
@@ -807,6 +824,7 @@ export class SubscriptionService {
           paymentMethod: input.paymentMethod,
           paymentDate: input.startDate,
           notes: input.notes ?? null,
+          currency: plan.currency,
         },
         adminId,
       );
@@ -1400,6 +1418,19 @@ export class SubscriptionService {
       throw new NotFoundError("No se encontro suscripcion activa o pausada");
     }
 
+    // Look up the member's branch country for the cross-country plan guard.
+    const [memberForCountry] = await this.db
+      .select({
+        branchCountry: schema.branches.country,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(eq(schema.users.id, userId));
+
+    if (!memberForCountry) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+
     // Get current and target plans for upgrade/downgrade validation
     const currentPlan = await this.getPlanById(existingSub.planId);
     if (!currentPlan) {
@@ -1409,6 +1440,14 @@ export class SubscriptionService {
     const targetPlan = await this.getPlanById(input.planId);
     if (!targetPlan) {
       throw new NotFoundError("Plan destino no encontrado");
+    }
+
+    // Reject cross-country plan changes before any state mutation.
+    const newPlan = targetPlan;
+    if (newPlan.country !== memberForCountry.branchCountry) {
+      throw new BadRequestError(
+        "El plan no corresponde al pais de la sucursal",
+      );
     }
 
     // Block downgrade (target cheaper than current)
@@ -1516,6 +1555,10 @@ export class SubscriptionService {
         classesBudget: classesRemaining,
         previousSubscriptionId: existingSub.id,
         notes: input.notes ?? null,
+        // Propagate the new plan's currency onto the subscription. Cross-
+        // country transitions are rejected above, but this is an explicit
+        // grep-visible marker that currency follows the plan.
+        currency: newPlan.currency,
       });
 
       const newSubscriptionId = Number(result[0].insertId);
@@ -1593,7 +1636,8 @@ export class SubscriptionService {
         );
       }
 
-      // Record payment for the net amount
+      // Record payment for the net amount. Pass the new plan's currency so
+      // the payment-service cross-currency guard is exercised.
       if (this.paymentService && netAmount > 0) {
         await this.paymentService.recordPayment(
           {
@@ -1603,6 +1647,7 @@ export class SubscriptionService {
             paymentMethod: input.paymentMethod,
             paymentDate: input.startDate,
             notes: `Cambio de plan: ${existingSub.planName} → ${targetPlan.name}`,
+            currency: newPlan.currency,
           },
           adminId,
         );
@@ -1737,6 +1782,23 @@ export class SubscriptionService {
     }
     if (targetPlan.isArchived) {
       throw new BadRequestError("No se puede asignar un plan archivado");
+    }
+
+    // Reject cross-country scheduled plan changes. Look up the member's
+    // branch country before any scheduled-sub mutation happens.
+    const [memberBranchForCountry] = await this.db
+      .select({ branchCountry: schema.branches.country })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(eq(schema.users.id, userId));
+
+    if (!memberBranchForCountry) {
+      throw new NotFoundError("Miembro no encontrado");
+    }
+    if (targetPlan.country !== memberBranchForCountry.branchCountry) {
+      throw new BadRequestError(
+        "El plan no corresponde al pais de la sucursal",
+      );
     }
 
     // Validate fixed-plan schedules
@@ -1882,6 +1944,7 @@ export class SubscriptionService {
       classesBudget: classesRemaining,
       previousSubscriptionId: currentSub.id,
       notes: input.notes ?? null,
+      currency: targetPlan.currency,
     });
 
     const newSubscriptionId = Number(result[0].insertId);
@@ -1930,6 +1993,7 @@ export class SubscriptionService {
           paymentMethod: input.paymentMethod,
           paymentDate: today,
           notes: `Cambio de plan programado: ${currentSub.planName} → ${targetPlan.name} (inicia ${newStartDate})`,
+          currency: targetPlan.currency,
         },
         adminId,
       );
@@ -2061,7 +2125,8 @@ export class SubscriptionService {
     // Expired renewal → new sub is "active" immediately.
     const newStatus = oldSubExpired ? "active" : "scheduled";
 
-    // Create new subscription record for the new period
+    // Create new subscription record for the new period. Currency is
+    // inherited from the existing plan — renewals never change plan/country.
     const result = await this.db.insert(schema.subscriptions).values({
       userId,
       planId: currentSub.planId,
@@ -2077,6 +2142,7 @@ export class SubscriptionService {
       classesRemaining: periodBudget,
       classesBudget: periodBudget,
       previousSubscriptionId: currentSub.id,
+      currency: plan.currency,
     });
 
     const newSubscriptionId = Number(result[0].insertId);
@@ -2161,6 +2227,7 @@ export class SubscriptionService {
           amount: renewalPrice,
           paymentMethod: input.paymentMethod,
           paymentDate: today,
+          currency: plan.currency,
         },
         adminId,
       );
@@ -2648,6 +2715,8 @@ export class SubscriptionService {
       groupMaxMembers: row.groupMaxMembers,
       isActive: row.isActive,
       isArchived: row.isArchived,
+      country: row.country as "AR" | "ES",
+      currency: row.currency as "ARS" | "EUR",
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -2802,6 +2871,7 @@ export class SubscriptionService {
     previousSubscriptionId: number | null;
     replacementCredits: number | null;
     notes: string | null;
+    currency: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): SubscriptionDetail {
@@ -2834,6 +2904,7 @@ export class SubscriptionService {
       replacementCredits: row.replacementCredits ?? 0,
       scheduleIds: [], // populated by enrichWithScheduleIds
       notes: row.notes,
+      currency: (row.currency ?? "ARS") as "ARS" | "EUR",
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

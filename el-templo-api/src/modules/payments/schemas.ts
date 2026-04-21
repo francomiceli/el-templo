@@ -23,6 +23,7 @@ const paymentDetailSchema = {
     subscriptionId: { type: "integer" },
     planName: { type: ["string", "null"] },
     amount: { type: "integer" },
+    currency: { type: "string" },
     paymentMethod: { type: "string" },
     paymentDate: { type: "string" },
     reference: { type: ["string", "null"] },
@@ -90,6 +91,7 @@ export const recordPaymentSchema = {
       subscriptionId: { type: "integer" },
       reference: { type: "string" },
       notes: { type: "string" },
+      currency: { type: "string", enum: ["ARS", "EUR"] },
     },
   },
   response: {

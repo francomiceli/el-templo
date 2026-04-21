@@ -48,9 +48,13 @@ export class PaymentService {
       throw new NotFoundError("Miembro no encontrado");
     }
 
-    // Validate subscription exists
+    // Validate subscription exists — also pull its currency so we can enforce
+    // the cross-currency guard and inherit it when the caller omits currency.
     const [sub] = await this.db
-      .select({ id: schema.subscriptions.id })
+      .select({
+        id: schema.subscriptions.id,
+        currency: schema.subscriptions.currency,
+      })
       .from(schema.subscriptions)
       .where(eq(schema.subscriptions.id, input.subscriptionId));
 
@@ -58,10 +62,21 @@ export class PaymentService {
       throw new NotFoundError("Suscripcion no encontrada");
     }
 
+    // Cross-currency guard: reject payments whose explicit currency does not
+    // match the parent subscription's currency. When the caller omits the
+    // field, inherit from the subscription.
+    if (input.currency !== undefined && input.currency !== sub.currency) {
+      throw new BadRequestError(
+        "No puedes registrar un pago en una moneda distinta a la suscripcion",
+      );
+    }
+    const paymentCurrency = (input.currency ?? sub.currency) as "ARS" | "EUR";
+
     const result = await this.db.insert(schema.payments).values({
       memberId: input.memberId,
       subscriptionId: input.subscriptionId,
       amount: input.amount,
+      currency: paymentCurrency,
       paymentMethod: input.paymentMethod,
       paymentDate: input.paymentDate,
       reference: input.reference ?? null,
@@ -146,6 +161,7 @@ export class PaymentService {
         subscriptionStartDate: schema.subscriptions.startDate,
         subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
+        currency: schema.payments.currency,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
         reference: schema.payments.reference,
@@ -242,6 +258,7 @@ export class PaymentService {
         subscriptionStartDate: schema.subscriptions.startDate,
         subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
+        currency: schema.payments.currency,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
         reference: schema.payments.reference,
@@ -394,6 +411,7 @@ export class PaymentService {
         subscriptionStartDate: schema.subscriptions.startDate,
         subscriptionEndDate: schema.subscriptions.endDate,
         amount: schema.payments.amount,
+        currency: schema.payments.currency,
         paymentMethod: schema.payments.paymentMethod,
         paymentDate: schema.payments.paymentDate,
         reference: schema.payments.reference,
@@ -439,6 +457,7 @@ export class PaymentService {
     subscriptionStartDate: string | null;
     subscriptionEndDate: string | null;
     amount: number;
+    currency: string | null;
     paymentMethod: string;
     paymentDate: string;
     reference: string | null;
@@ -462,6 +481,7 @@ export class PaymentService {
       subscriptionStartDate: row.subscriptionStartDate ?? null,
       subscriptionEndDate: row.subscriptionEndDate ?? null,
       amount: row.amount,
+      currency: (row.currency ?? "ARS") as "ARS" | "EUR",
       paymentMethod: row.paymentMethod as PaymentMethod,
       paymentDate: row.paymentDate,
       reference: row.reference,
