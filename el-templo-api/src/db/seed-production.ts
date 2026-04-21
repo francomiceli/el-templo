@@ -100,31 +100,31 @@ async function seedProduction() {
     const existingActivity = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(eq(activities.name, "Sesion Grupal"))
+      .where(eq(activities.name, "Calistenia"))
       .limit(1);
 
     if (existingActivity.length === 0) {
       await db
         .insert(activities)
-        .values({ name: "Sesion Grupal", isActive: true });
-      console.log("Created activity: Sesion Grupal");
+        .values({ name: "Calistenia", isActive: true });
+      console.log("Created activity: Calistenia");
     } else {
       await db
         .update(activities)
         .set({ isActive: true })
-        .where(eq(activities.name, "Sesion Grupal"));
-      console.log("Activity already exists: Sesion Grupal (ensured active)");
+        .where(eq(activities.name, "Calistenia"));
+      console.log("Activity already exists: Calistenia (ensured active)");
     }
 
     // Fetch activity ID for schedule creation
     const [activity] = await db
       .select({ id: activities.id })
       .from(activities)
-      .where(eq(activities.name, "Sesion Grupal"))
+      .where(eq(activities.name, "Calistenia"))
       .limit(1);
 
     if (!activity) {
-      throw new Error("Failed to find Sesion Grupal activity after insert");
+      throw new Error("Failed to find Calistenia activity after insert");
     }
     const activityId = activity.id;
 
@@ -346,7 +346,7 @@ async function seedProduction() {
     console.log(
       `  Branches: ${branchesData.length} (${branchesData.filter((b) => !b.isVirtual).length} physical + 1 virtual)`,
     );
-    console.log(`  Activity: 1 (Sesion Grupal)`);
+    console.log(`  Activity: 1 (Calistenia)`);
     console.log(`  Subscription plans: ${plansData.length}`);
     console.log(
       `  Schedule slots: ${schedulesCreated + schedulesSkipped} (across ${physicalBranches.length} branches)`,

@@ -1,7 +1,7 @@
 /**
  * Activity Service
  *
- * CRUD operations for scheduling activities (e.g., "Sesion Grupal", "ROM").
+ * CRUD operations for scheduling activities (e.g., "Calistenia", "ROM").
  * Extracted from SchedulingService for single-responsibility.
  */
 

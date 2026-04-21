@@ -187,7 +187,7 @@ describe("Scheduling API", () => {
   }
 
   async function createActivity(
-    name = "Sesion Grupal",
+    name = "Calistenia",
     description = "Clase grupal",
   ): Promise<{ id: number; [key: string]: unknown }> {
     const res = await app.inject({
@@ -298,13 +298,13 @@ describe("Scheduling API", () => {
         method: "POST",
         url: `${ADMIN_URL}/activities`,
         headers: { authorization: `Bearer ${adminToken}` },
-        payload: { name: "Sesion Grupal", description: "Clase grupal" },
+        payload: { name: "Calistenia", description: "Clase grupal" },
       });
 
       expect(res.statusCode).toBe(201);
       const body = JSON.parse(res.body);
       expect(body.id).toBeTruthy();
-      expect(body.name).toBe("Sesion Grupal");
+      expect(body.name).toBe("Calistenia");
       expect(body.description).toBe("Clase grupal");
       expect(body.isActive).toBe(true);
     });

@@ -500,16 +500,16 @@ export class SchedulingService {
       );
     }
 
-    // Get or create "Sesion Grupal" activity
+    // Get or create "Calistenia" activity
     let [regularActivity] = await this.db
       .select({ id: schema.activities.id })
       .from(schema.activities)
-      .where(eq(schema.activities.name, "Sesion Grupal"))
+      .where(eq(schema.activities.name, "Calistenia"))
       .limit(1);
 
     if (!regularActivity) {
       const result = await this.db.insert(schema.activities).values({
-        name: "Sesion Grupal",
+        name: "Calistenia",
         description: "Clase grupal de entrenamiento funcional",
       });
       regularActivity = { id: Number(result[0].insertId) };
