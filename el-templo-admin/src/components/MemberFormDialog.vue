@@ -485,7 +485,7 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import { extractError } from 'src/utils/extract-error';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -762,7 +762,11 @@ async function onSubmit() {
     emit('update:modelValue', false);
   } catch (err: unknown) {
     const message = extractError(err, 'Error guardando miembro');
-    log.error('Error saving member', { error: message });
+    if (isExpectedClientError(err)) {
+      log.warn('Member save rejected by server', { error: message });
+    } else {
+      log.error('Error saving member', { error: message });
+    }
     $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     submitting.value = false;
