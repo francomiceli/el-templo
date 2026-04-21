@@ -196,14 +196,23 @@ export function useMembersApi() {
     durationDays: number;
     classesPerWeek: number | null;
     isArchived: boolean;
+    country: 'AR' | 'ES';
+    currency: 'ARS' | 'EUR';
   }
 
-  async function getPlans(includeArchived = false): Promise<PlanOption[]> {
+  async function getPlans(
+    includeArchived = false,
+    opts?: { branchId?: number; country?: 'AR' | 'ES' }
+  ): Promise<PlanOption[]> {
     loading.value = true;
     error.value = null;
     try {
+      const params: Record<string, unknown> = { isActive: true };
+      if (includeArchived) params.includeArchived = true;
+      if (opts?.branchId !== undefined) params.branchId = opts.branchId;
+      if (opts?.country !== undefined) params.country = opts.country;
       const { data } = await api.get<{ plans: PlanOption[] }>('/admin/subscriptions/plans', {
-        params: { isActive: true, ...(includeArchived ? { includeArchived: true } : {}) },
+        params,
       });
       return data.plans;
     } catch (err: unknown) {

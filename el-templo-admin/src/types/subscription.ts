@@ -199,6 +199,7 @@ export interface SubscriptionDetail {
   resumedAt: string | null;
   cancelledAt: string | null;
   notes: string | null;
+  currency: 'ARS' | 'EUR';
   createdAt: string;
   updatedAt: string;
 }

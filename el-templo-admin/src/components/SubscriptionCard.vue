@@ -99,7 +99,9 @@
       <div class="row q-gutter-x-lg q-mb-sm">
         <div>
           <div class="text-caption text-grey-7">Pagado</div>
-          <div class="text-weight-medium">${{ subscription.pricePaid.toLocaleString() }}</div>
+          <div class="text-weight-medium">
+            {{ formatPrice(subscription.pricePaid, subscription.currency ?? 'ARS') }}
+          </div>
         </div>
         <div>
           <q-badge
@@ -192,6 +194,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { formatDate } from 'src/utils/format-date';
+import { formatPrice } from 'src/utils/format-price';
 import {
   PLAN_TIER_LABELS,
   STATUS_LABELS,

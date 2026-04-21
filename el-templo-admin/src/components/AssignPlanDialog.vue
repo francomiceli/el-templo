@@ -40,7 +40,9 @@
                     </q-item-label>
                   </q-item-section>
                   <q-item-section side>
-                    <div class="text-weight-medium">${{ plan.priceRegular.toLocaleString() }}</div>
+                    <div class="text-weight-medium">
+                      {{ formatPrice(plan.priceRegular, plan.currency ?? 'ARS') }}
+                    </div>
                   </q-item-section>
                 </q-item>
               </q-list>
@@ -170,18 +172,18 @@
                 <div class="row q-gutter-x-lg">
                   <div>
                     <div class="text-caption text-grey-7">Precio base</div>
-                    <div>${{ pricingDisplay.basePrice.toLocaleString() }}</div>
+                    <div>{{ formatPrice(pricingDisplay.basePrice, displayCurrency) }}</div>
                   </div>
                   <div v-if="pricingDisplay.discountAmount > 0">
                     <div class="text-caption text-grey-7">Descuento</div>
                     <div class="text-positive">
-                      -${{ pricingDisplay.discountAmount.toLocaleString() }}
+                      -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
                     </div>
                   </div>
                   <div>
                     <div class="text-caption text-grey-7">Precio final</div>
                     <div class="text-h6 text-weight-bold">
-                      ${{ pricingDisplay.finalPrice.toLocaleString() }}
+                      {{ formatPrice(pricingDisplay.finalPrice, displayCurrency) }}
                     </div>
                   </div>
                 </div>
@@ -319,15 +321,21 @@
                   <q-item>
                     <q-item-section>Plan actual</q-item-section>
                     <q-item-section side>
-                      {{ changePlanPreviewData.currentPlan.name }} — ${{
-                        changePlanPreviewData.currentPlan.pricePaid.toLocaleString()
+                      {{ changePlanPreviewData.currentPlan.name }} —
+                      {{
+                        formatPrice(changePlanPreviewData.currentPlan.pricePaid, displayCurrency)
                       }}
                     </q-item-section>
                   </q-item>
                   <q-item>
                     <q-item-section>Credito prorrateado</q-item-section>
                     <q-item-section side class="text-positive">
-                      -${{ changePlanPreviewData.proration!.remainingValue.toLocaleString() }}
+                      -{{
+                        formatPrice(
+                          changePlanPreviewData.proration!.remainingValue,
+                          displayCurrency
+                        )
+                      }}
                       <span class="text-caption text-grey-6 q-ml-xs">
                         ({{ changePlanPreviewData.proration!.remainingDetail }})
                       </span>
@@ -343,7 +351,9 @@
                   <q-item>
                     <q-item-section>Precio del plan</q-item-section>
                     <q-item-section side>
-                      ${{ changePlanPreviewData.targetPlan.priceRegular.toLocaleString() }}
+                      {{
+                        formatPrice(changePlanPreviewData.targetPlan.priceRegular, displayCurrency)
+                      }}
                     </q-item-section>
                   </q-item>
                   <q-item>
@@ -364,7 +374,7 @@
                   <q-item class="bg-blue-1 rounded-borders q-pa-sm">
                     <q-item-section class="text-weight-bold text-h6">Total a cobrar</q-item-section>
                     <q-item-section side class="text-weight-bold text-h5 text-primary">
-                      ${{ changePlanPreviewData.netAmount!.toLocaleString() }}
+                      {{ formatPrice(changePlanPreviewData.netAmount!, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -424,7 +434,7 @@
                       >Total a cobrar ahora</q-item-section
                     >
                     <q-item-section side class="text-weight-bold text-h5 text-primary">
-                      ${{ pricingDisplay.finalPrice.toLocaleString() }}
+                      {{ formatPrice(pricingDisplay.finalPrice, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                 </q-list>
@@ -453,13 +463,13 @@
                   <q-item>
                     <q-item-section>Precio final</q-item-section>
                     <q-item-section side class="text-weight-bold text-h6">
-                      ${{ pricingDisplay.finalPrice.toLocaleString() }}
+                      {{ formatPrice(pricingDisplay.finalPrice, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="pricingDisplay.discountAmount > 0">
                     <q-item-section>Descuento</q-item-section>
                     <q-item-section side class="text-positive">
-                      -${{ pricingDisplay.discountAmount.toLocaleString() }}
+                      -{{ formatPrice(pricingDisplay.discountAmount, displayCurrency) }}
                     </q-item-section>
                   </q-item>
                   <q-item v-if="showScheduleStep && selectedScheduleIds.length > 0">
@@ -539,6 +549,8 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
+import { formatPrice, type Currency } from 'src/utils/format-price';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import {
   PLAN_TIER_LABELS,
@@ -759,6 +771,14 @@ const canOfferAfterCurrent = computed(() => {
   return props.currentSubEndDate >= today;
 });
 
+// Currency used for every price in this dialog. Derived from the selected
+// plan's currency (server-enforced to match the member's branch country per
+// phase 98 D-03/D-05). Falls back to 'ARS' defensively before a plan is
+// picked (no price displays before step 2).
+const displayCurrency = computed<Currency>(
+  () => (selectedPlan.value?.currency ?? 'ARS') as Currency
+);
+
 function formatSelectedSchedules(): string {
   const slots = schedulePickerRef.value?.slots ?? [];
   const names: string[] = [];
@@ -809,11 +829,15 @@ function getBasePrice(): number {
 async function loadPlans() {
   loadingPlans.value = true;
   try {
-    plans.value = await subsApi.getPlans(true);
+    plans.value = await subsApi.getPlans(true, { branchId: props.memberBranchId });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading plans for assignment', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando planes' });
+    const message = extractError(err, 'Error cargando planes');
+    if (isExpectedClientError(err)) {
+      log.warn('Plans fetch rejected by server', { error: message });
+    } else {
+      log.error('Error loading plans for assignment', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     loadingPlans.value = false;
   }
@@ -963,9 +987,19 @@ async function executeConfirm() {
     emit('assigned');
     emit('update:modelValue', false);
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error assigning plan', { error: message });
-    $q.notify({ type: 'negative', message: 'Error asignando plan' });
+    // Cross-country validation (400) and similar client-correctable errors
+    // surface as warnings (D-17) — they stay out of Sentry — and show the
+    // server's Spanish message. The dialog stays open so the admin can fix.
+    const message = extractError(
+      err,
+      props.mode === 'change' ? 'Error cambiando plan' : 'Error asignando plan'
+    );
+    if (isExpectedClientError(err)) {
+      log.warn('Plan assignment rejected by server', { error: message });
+    } else {
+      log.error('Error assigning plan', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     assigning.value = false;
   }

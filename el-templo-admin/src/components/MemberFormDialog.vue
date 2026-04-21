@@ -12,8 +12,31 @@
       <!-- ============================================================ -->
       <template v-if="!isEditMode">
         <q-stepper v-model="step" animated flat>
-          <!-- Step 1: Select Plan -->
-          <q-step :name="1" title="Seleccionar Plan" icon="list" :done="step > 1">
+          <!-- Step 1: Select Branch (must come first so plan list is country-scoped) -->
+          <q-step :name="1" title="Seleccionar Sede" icon="location_on" :done="step > 1">
+            <q-select
+              v-model="form.branchId"
+              :options="branchOptions"
+              label="Sede *"
+              dense
+              outlined
+              emit-value
+              map-options
+              :rules="[(v: number | null) => v !== null || 'Sede es requerida']"
+            />
+
+            <q-stepper-navigation class="q-mt-md">
+              <q-btn
+                color="primary"
+                label="Continuar"
+                :disable="form.branchId === null"
+                @click="step = 2"
+              />
+            </q-stepper-navigation>
+          </q-step>
+
+          <!-- Step 2: Select Plan (country-scoped by branch) -->
+          <q-step :name="2" title="Seleccionar Plan" icon="list" :done="step > 2">
             <div v-if="loadingPlans" class="flex flex-center q-pa-lg">
               <q-spinner-dots size="40px" color="primary" />
             </div>
@@ -34,33 +57,13 @@
                 v-if="planOptions.length === 0"
                 class="text-center text-grey-5 text-italic q-pa-lg"
               >
-                No hay planes activos disponibles
+                No hay planes activos disponibles para esta sede
               </div>
+
+              <q-stepper-navigation class="q-mt-md">
+                <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
+              </q-stepper-navigation>
             </template>
-          </q-step>
-
-          <!-- Step 2: Select Branch -->
-          <q-step :name="2" title="Seleccionar Sede" icon="location_on" :done="step > 2">
-            <q-select
-              v-model="form.branchId"
-              :options="branchOptions"
-              :label="selectedPlanMultiBranch ? 'Sede principal *' : 'Sede *'"
-              dense
-              outlined
-              emit-value
-              map-options
-              :rules="[(v: number | null) => v !== null || 'Sede es requerida']"
-            />
-
-            <q-stepper-navigation class="q-mt-md">
-              <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
-              <q-btn
-                color="primary"
-                label="Continuar"
-                :disable="form.branchId === null"
-                @click="step = 3"
-              />
-            </q-stepper-navigation>
           </q-step>
 
           <!-- Step 3: Personal Data -->
@@ -486,6 +489,7 @@ import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import { formatPrice } from 'src/utils/format-price';
 import type { MemberProfile, BranchOption } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -531,18 +535,15 @@ interface PlanOptionData {
   priceRegular: number;
   durationDays: number;
   classesPerWeek: number | null;
+  country: 'AR' | 'ES';
+  currency: 'ARS' | 'EUR';
 }
 
 const activePlans = ref<PlanOptionData[]>([]);
 
-const selectedPlanMultiBranch = computed(() => {
-  const plan = activePlans.value.find((p) => p.id === form.value.planId);
-  return plan?.multiBranch ?? false;
-});
-
 const planOptions = computed(() =>
   activePlans.value.map((p) => ({
-    label: `${p.name} — $${p.priceRegular.toLocaleString()}`,
+    label: `${p.name} — ${formatPrice(p.priceRegular, p.currency ?? 'ARS')}`,
     value: p.id,
   }))
 );
@@ -615,21 +616,45 @@ function emailRule(val: string) {
 
 function onPlanSelected(planId: number | null) {
   if (planId !== null) {
-    step.value = 2;
+    step.value = 3;
   }
 }
 
-async function loadPlans() {
+async function loadPlans(branchId: number | null) {
+  if (branchId === null) {
+    activePlans.value = [];
+    return;
+  }
   loadingPlans.value = true;
   try {
-    activePlans.value = await membersApi.getPlans();
+    activePlans.value = await membersApi.getPlans(false, { branchId });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading plans', { error: message });
+    const message = extractError(err, 'Error cargando planes');
+    if (isExpectedClientError(err)) {
+      log.warn('Plans fetch rejected by server', { error: message });
+    } else {
+      log.error('Error loading plans', { error: message });
+    }
+    activePlans.value = [];
   } finally {
     loadingPlans.value = false;
   }
 }
+
+// Re-fetch plans whenever the branch changes (create mode — plan list must be
+// country-scoped to the selected branch per phase 98 D-05). The watcher also
+// clears the previously-selected planId so a cross-country plan can't be
+// submitted if the admin goes back and changes the branch.
+watch(
+  () => form.value.branchId,
+  (newBranchId, oldBranchId) => {
+    if (isEditMode.value) return;
+    if (newBranchId !== oldBranchId) {
+      form.value.planId = null;
+    }
+    loadPlans(newBranchId);
+  }
+);
 
 // =========================================================================
 // DNI Check
@@ -707,7 +732,8 @@ watch(
         emergencyContactPhone: '',
         emergencyContactRelationship: '',
       };
-      loadPlans();
+      // Plans will be loaded by the branchId watcher once the admin picks a sede.
+      activePlans.value = [];
     }
   }
 );

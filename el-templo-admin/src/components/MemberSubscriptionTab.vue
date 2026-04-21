@@ -163,7 +163,9 @@
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
-                <div class="text-weight-medium">${{ item.pricePaid.toLocaleString() }}</div>
+                <div class="text-weight-medium">
+                  {{ formatPrice(item.pricePaid, item.currency ?? 'ARS') }}
+                </div>
               </q-item-section>
             </q-item>
           </q-list>
@@ -291,9 +293,9 @@
             </q-item>
             <q-item>
               <q-item-section>Precio</q-item-section>
-              <q-item-section side class="text-weight-bold text-h6"
-                >${{ renewTarget.pricePaid.toLocaleString() }}</q-item-section
-              >
+              <q-item-section side class="text-weight-bold text-h6">{{
+                formatPrice(renewTarget.pricePaid, renewTarget.currency ?? 'ARS')
+              }}</q-item-section>
             </q-item>
           </q-list>
 
@@ -376,6 +378,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
+import { formatPrice } from 'src/utils/format-price';
+import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
 import { useProgramsApi } from 'src/composables/useProgramsApi';
 import type { Program, ProgramEnrollment } from 'src/types/program';
@@ -654,9 +658,13 @@ async function executeRenewal() {
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error renewing subscription', { error: message });
-    $q.notify({ type: 'negative', message: 'Error renovando suscripcion' });
+    const message = extractError(err, 'Error renovando suscripcion');
+    if (isExpectedClientError(err)) {
+      log.warn('Renewal rejected by server', { error: message });
+    } else {
+      log.error('Error renewing subscription', { error: message });
+    }
+    $q.notify({ type: 'negative', message, timeout: 5000 });
   } finally {
     renewalLoading.value = false;
   }
