@@ -1,5 +1,5 @@
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, asc } from "drizzle-orm";
+import { eq, and, asc } from "drizzle-orm";
 import { Resend } from "resend";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -15,6 +15,17 @@ interface ProductData {
   photo?: string | null;
   status?: string;
   sortOrder?: number;
+  country?: "AR" | "ES";
+}
+
+/**
+ * Filter options for admin product listing. Scopes to a specific country
+ * (plumbed from request.scope.country in route handlers). Omit for the
+ * public catalog — country scope is admin-only per Plan 03's per-handler
+ * registration of attachCountryScope.
+ */
+export interface ListProductsFilters {
+  country?: "AR" | "ES";
 }
 
 interface InquiryData {
@@ -64,10 +75,21 @@ export class GladiusService {
     return product ?? null;
   }
 
-  async listAllProducts() {
+  /**
+   * Admin-only: list every product (including unpublished), optionally
+   * filtered by country scope. Plumbed from request.scope.country in the
+   * admin route handler.
+   */
+  async listAllProducts(filters: ListProductsFilters = {}) {
+    const conditions = [];
+    if (filters.country !== undefined) {
+      conditions.push(eq(gladiusProducts.country, filters.country));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
     return this.db
       .select()
       .from(gladiusProducts)
+      .where(whereClause)
       .orderBy(asc(gladiusProducts.sortOrder));
   }
 
@@ -81,6 +103,9 @@ export class GladiusService {
       photo: data.photo ?? null,
       status: data.status ?? "published",
       sortOrder: data.sortOrder ?? 0,
+      // Inherit country from the admin's scope when supplied, otherwise fall
+      // through to the DB default (AR).
+      ...(data.country !== undefined ? { country: data.country } : {}),
     });
 
     const [created] = await this.db

@@ -48,6 +48,25 @@ import { populateBookings } from "./booking-population";
 type BookingServiceType =
   import("../scheduling/booking-service").BookingService;
 
+/**
+ * Filter options for listPlans. Accepts optional country scope and a
+ * branchId that is resolved to a country server-side (branchId wins over
+ * an explicit country if both are provided).
+ */
+export interface ListPlansFilters {
+  isActive?: boolean;
+  includeArchived?: boolean;
+  country?: "AR" | "ES";
+  branchId?: number;
+}
+
+/**
+ * Filter options for listPromoPlans.
+ */
+export interface ListPromoPlansFilters {
+  country?: "AR" | "ES";
+}
+
 export class SubscriptionService {
   private bookingService?: BookingServiceType;
 
@@ -68,19 +87,50 @@ export class SubscriptionService {
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 
   /**
-   * List subscription plans, optionally filtered by isActive.
+   * List subscription plans, optionally filtered by isActive, archival, and
+   * country scope. When `branchId` is provided the service resolves the
+   * branch's country server-side and uses that as the country filter
+   * (branchId takes precedence over an explicitly supplied country).
    * By default excludes archived plans unless includeArchived is true.
+   *
+   * This method accepts an options object; legacy positional callers (e.g. the
+   * member plan catalog in member-routes.ts) still pass booleans — the
+   * overload below preserves that call shape.
    */
   async listPlans(
-    isActive?: boolean,
+    isActiveOrFilters?: boolean | ListPlansFilters,
     includeArchived?: boolean,
   ): Promise<PlanListItem[]> {
-    const conditions = [];
-    if (isActive !== undefined) {
-      conditions.push(eq(schema.subscriptionPlans.isActive, isActive));
+    // Normalize to options object
+    const filters: ListPlansFilters =
+      typeof isActiveOrFilters === "object" && isActiveOrFilters !== null
+        ? isActiveOrFilters
+        : {
+            isActive: isActiveOrFilters,
+            includeArchived,
+          };
+
+    // Resolve effective country: branchId (if provided) wins over explicit country.
+    let effectiveCountry: "AR" | "ES" | undefined = filters.country;
+    if (filters.branchId !== undefined) {
+      const [branch] = await this.db
+        .select({ country: schema.branches.country })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, filters.branchId));
+      if (branch?.country === "AR" || branch?.country === "ES") {
+        effectiveCountry = branch.country;
+      }
     }
-    if (!includeArchived) {
+
+    const conditions = [];
+    if (filters.isActive !== undefined) {
+      conditions.push(eq(schema.subscriptionPlans.isActive, filters.isActive));
+    }
+    if (!filters.includeArchived) {
       conditions.push(eq(schema.subscriptionPlans.isArchived, false));
+    }
+    if (effectiveCountry !== undefined) {
+      conditions.push(eq(schema.subscriptionPlans.country, effectiveCountry));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -2913,12 +2963,22 @@ export class SubscriptionService {
   // ─── Promo Plans ──────────────────────────────────────────────────────────
 
   /**
-   * List all promo plans ordered by most recent first.
+   * List all promo plans ordered by most recent first, optionally filtered
+   * by country scope (enforced by the route layer via request.scope.country).
    */
-  async listPromoPlans(): Promise<PromoListItem[]> {
+  async listPromoPlans(
+    filters: ListPromoPlansFilters = {},
+  ): Promise<PromoListItem[]> {
+    const conditions = [];
+    if (filters.country !== undefined) {
+      conditions.push(eq(schema.promoPlans.country, filters.country));
+    }
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
     const rows = await this.db
       .select()
       .from(schema.promoPlans)
+      .where(whereClause)
       .orderBy(desc(schema.promoPlans.createdAt));
     return rows.map((r) => ({
       ...r,
@@ -2931,7 +2991,8 @@ export class SubscriptionService {
 
   /**
    * Create a new promo plan. Validates the referenced subscription plan
-   * exists and the promo code is unique.
+   * exists and the promo code is unique. The promo inherits its country from
+   * the referenced subscription plan so it can never drift cross-country.
    */
   async createPromo(input: CreatePromoInput): Promise<PromoListItem> {
     // Validate subscription plan exists
@@ -2958,6 +3019,7 @@ export class SubscriptionService {
       expiryDate: new Date(input.expiryDate),
       promoType: input.promoType,
       subscriptionPlanId: input.subscriptionPlanId,
+      country: plan.country,
     });
 
     const promoId = Number(result[0].insertId);

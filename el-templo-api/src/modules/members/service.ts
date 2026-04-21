@@ -49,6 +49,7 @@ export class MemberService {
       planId,
       segment,
       avatarType,
+      country,
       page,
       limit,
     } = params;
@@ -77,6 +78,12 @@ export class MemberService {
       );
     } else if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
+    }
+
+    // Country scope (Phase 98): filter by the member's branch country. The
+    // query already innerJoins `branches` below, so the condition is safe.
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     if (level !== undefined) {
@@ -154,10 +161,12 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Get total count
+    // Get total count. Joins branches so the country scope condition (when
+    // present) resolves against the same column the paginated SELECT does.
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(whereClause);
 
     const total = countResult?.count ?? 0;
@@ -482,6 +491,7 @@ export class MemberService {
       isActive,
       planId,
       avatarType,
+      country,
     } = params;
 
     const conditions: ReturnType<typeof eq>[] = [];
@@ -505,6 +515,13 @@ export class MemberService {
       );
     } else if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));
+    }
+
+    // Country scope (Phase 98): filter export by the member's branch country
+    // so /export never leaks cross-country rows even when the client omits
+    // ?country=. The branches innerJoin below resolves this column.
+    if (country !== undefined) {
+      conditions.push(eq(schema.branches.country, country));
     }
 
     if (level !== undefined) {

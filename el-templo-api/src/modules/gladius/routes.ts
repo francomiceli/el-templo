@@ -154,6 +154,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
   // ===========================================================================
 
   // GET /admin/products — list all products (including unpublished)
+  // Country-scoped (Phase 98): products are filtered by request.scope.country.
   fastify.get(
     "/admin/products",
     { preHandler: [fastify.authenticate] },
@@ -164,11 +165,12 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
       await attachCountryScope(request, fastify.db);
-      return service.listAllProducts();
+      return service.listAllProducts({ country: request.scope.country });
     },
   );
 
   // POST /admin/products — create product
+  // New products inherit the admin's active country scope.
   fastify.post<{ Body: ProductBody }>(
     "/admin/products",
     { preHandler: [fastify.authenticate], schema: createProductSchema },
@@ -179,7 +181,10 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
       await attachCountryScope(request, fastify.db);
-      const product = await service.createProduct(request.body);
+      const product = await service.createProduct({
+        ...request.body,
+        country: request.scope.country,
+      });
       return reply.code(201).send(product);
     },
   );

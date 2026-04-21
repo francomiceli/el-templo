@@ -138,6 +138,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       avatarType?: string;
     };
   }>("/export", { schema: exportMembersSchema }, async (request, reply) => {
+    // Country scope (Phase 98): always pass request.scope.country into the
+    // service so /export mirrors the list endpoint. Non-owners cannot
+    // override this (preHandler ignores their ?country=); owners get the
+    // country they selected via the admin dropdown.
     const rows = await memberService.exportMembers({
       search: request.query.search,
       branchId: request.query.branchId,
@@ -146,6 +150,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       isActive: request.query.isActive,
       planId: request.query.planId,
       avatarType: request.query.avatarType,
+      country: request.scope.country,
     });
 
     const workbook = new Workbook();
@@ -226,6 +231,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       limit = 20,
     } = request.query;
 
+    // Country scope (Phase 98): request.scope.country is set by
+    // attachCountryScope. Non-owners cannot override it; owners' `?country=`
+    // has already been reflected into scope.country by the preHandler.
     const params: MemberListParams = {
       search,
       branchId,
@@ -235,6 +243,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       planId,
       segment,
       avatarType,
+      country: request.scope.country,
       page,
       limit,
     };

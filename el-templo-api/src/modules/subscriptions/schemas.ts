@@ -113,6 +113,8 @@ export const listPlansSchema = {
     properties: {
       isActive: { type: "boolean" },
       includeArchived: { type: "boolean" },
+      branchId: { type: "integer" },
+      country: { type: "string", enum: ["AR", "ES"] },
     },
   },
   response: {

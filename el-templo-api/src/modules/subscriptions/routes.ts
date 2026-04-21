@@ -90,13 +90,28 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // =========================================================================
 
   // GET /plans — List subscription plans
+  //
+  // Country scoping (Phase 98):
+  //   - Non-owners: request.scope.country comes from their branch; any query
+  //     `country` / `branchId` is effectively ignored because the preHandler
+  //     never lets a non-owner's `?country=` through.
+  //   - Owners: preHandler already reflected `?country=` into
+  //     request.scope.country; `?branchId=` is resolved server-side in the
+  //     service layer and, when present, wins over the scope country.
   fastify.get<{
-    Querystring: { isActive?: boolean; includeArchived?: boolean };
+    Querystring: {
+      isActive?: boolean;
+      includeArchived?: boolean;
+      branchId?: number;
+      country?: "AR" | "ES";
+    };
   }>("/plans", { schema: listPlansSchema }, async (request) => {
-    const plans = await subscriptionService.listPlans(
-      request.query.isActive,
-      request.query.includeArchived,
-    );
+    const plans = await subscriptionService.listPlans({
+      isActive: request.query.isActive,
+      includeArchived: request.query.includeArchived,
+      country: request.scope.country,
+      branchId: request.query.branchId,
+    });
     return { plans };
   });
 
@@ -446,9 +461,11 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // Promo Plans CRUD
   // =========================================================================
 
-  // GET /promo-plans — List all promo plans
-  fastify.get("/promo-plans", { schema: listPromosSchema }, async () => {
-    return subscriptionService.listPromoPlans();
+  // GET /promo-plans — List all promo plans (scoped to request.scope.country)
+  fastify.get("/promo-plans", { schema: listPromosSchema }, async (request) => {
+    return subscriptionService.listPromoPlans({
+      country: request.scope.country,
+    });
   });
 
   // POST /promo-plans — Create a promo plan

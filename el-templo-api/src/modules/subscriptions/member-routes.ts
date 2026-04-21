@@ -89,15 +89,27 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // GET /plans — List available plans for member catalog
-  // Includes active non-trial plans + the member's current plan if it's legacy (archived/inactive)
+  // Includes active non-trial plans + the member's current plan if it's legacy (archived/inactive).
+  //
+  // Country scoping (Phase 98 D-04): the catalog is filtered to the
+  // authenticated member's branch country — derived server-side via
+  // request.scope.country (populated by attachCountryScope). No query
+  // parameter is accepted from members.
   fastify.get("/plans", async (request) => {
-    const allPlans = await subscriptionService.listPlans(true, false);
+    const allPlans = await subscriptionService.listPlans({
+      isActive: true,
+      includeArchived: false,
+      country: request.scope.country,
+    });
 
     // Exclude trial plans
     const plans = allPlans.filter((p) => !p.isTrial);
     const planIds = new Set(plans.map((p) => p.id));
 
-    // If member has an active subscription on a plan not in the list, include it
+    // If member has an active subscription on a plan not in the list, include it.
+    // Legacy cross-country plans (e.g. a grandfathered member) are intentionally
+    // surfaced so the member can keep seeing their own plan — this is narrower
+    // than exposing the full other-country catalog.
     const sub = await subscriptionService.getMemberSubscription(
       request.user.userId,
     );

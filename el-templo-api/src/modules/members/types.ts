@@ -16,6 +16,11 @@ export interface MemberListParams {
   planId?: number;
   segment?: string;
   avatarType?: string;
+  /**
+   * Country scope. Plumbed from request.scope.country in route handlers.
+   * When present, filters results to members whose branch has this country.
+   */
+  country?: "AR" | "ES";
   page: number;
   limit: number;
 }

@@ -124,6 +124,7 @@ export const listMembersSchema = {
         ],
       },
       avatarType: { type: "string" },
+      country: { type: "string", enum: ["AR", "ES"] },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -302,6 +303,7 @@ export const exportMembersSchema = {
       isActive: { type: "boolean" },
       planId: { type: "integer" },
       avatarType: { type: "string" },
+      country: { type: "string", enum: ["AR", "ES"] },
     },
   },
   // No response schema -- binary file response
