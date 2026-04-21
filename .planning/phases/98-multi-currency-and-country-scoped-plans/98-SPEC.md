@@ -49,10 +49,10 @@ El Templo supports independent Argentina (ARS) and Spain (EUR) subscription plan
    - Target: API returns HTTP 400 when (a) assigning a plan whose `country` does not match the member's branch country; (b) recording a payment whose `currency` does not match the parent subscription's currency; (c) a non-owner attempts to read or write a row whose country does not match their branch country.
    - Acceptance: Integration tests cover each of (a)(b)(c) and confirm 400 response with a user-readable error message.
 
-7. **Owner country toggle on PlanesPage**: Owners can filter the plans list by country.
-   - Current: `PlanesPage.vue` shows all plans; no country UI.
-   - Target: Owners see an AR/ES/Todos segmented selector at the top of the plans page. Non-owners see no selector (list is already filtered server-side by their branch country).
-   - Acceptance: Logged in as owner, toggling to AR shows only AR plans; toggling to ES shows only ES plans; toggling to Todos shows both. Logged in as AR admin, no selector is visible, list shows only AR plans.
+7. **Owner country selector on PlanesPage and reports**: Owners can filter plans and financial reports by country.
+   - Current: `PlanesPage.vue` shows all plans; no country UI. Reports have no country awareness.
+   - Target: Owners see a `QSelect` dropdown with options **Argentina** and **España** (default **Argentina**) at the top of PlanesPage and each financial report page (CajaPage, ReportesPage, AnaliticasPage, FinanzasTab). Non-owners see no selector (list is already filtered server-side by their branch country). No "Todos" / mixed-country mode — owner always picks one country at a time (refined during discuss-phase).
+   - Acceptance: Logged in as owner, default view is Argentina; switching to España shows only ES plans/reports; switching back to Argentina shows only AR data. Logged in as AR admin, no selector is visible, list shows only AR data.
 
 8. **Country-aware plan selection in member flows**: Plan pickers in admin flows only offer plans matching the target member's branch country.
    - Current: `MemberFormDialog` plan dropdown shows all plans regardless of branch.
@@ -117,8 +117,9 @@ El Templo supports independent Argentina (ARS) and Spain (EUR) subscription plan
 - [ ] Schema migration adds `country` to `subscription_plans`, `promo_plans`, `gladius_products` and `currency` to `subscription_plans`, `subscriptions`, `payments` — all NOT NULL with sensible defaults
 - [ ] Post-migration, 0 rows in any of the above tables have NULL in the new columns
 - [ ] 12 ES plans exist with exact prices from Requirement 4
-- [ ] Owner logged into PlanesPage sees an AR/ES/Todos toggle that filters the list correctly
-- [ ] AR admin logged into PlanesPage sees no toggle and only AR plans; same test for ES admin returns only ES plans
+- [ ] Owner logged into PlanesPage sees an Argentina/España QSelect dropdown (default Argentina) that filters the list correctly; no "Todos" / mixed mode
+- [ ] AR admin logged into PlanesPage sees no selector and only AR plans; same test for ES admin returns only ES plans
+- [ ] Same Argentina/España selector appears on CajaPage, ReportesPage, AnaliticasPage, and FinanzasTab for owners only
 - [ ] Creating a member in a BCN branch only shows ES plans in the plan dropdown
 - [ ] API returns HTTP 400 when assigning an AR plan to an ES-branch member (integration test)
 - [ ] API returns HTTP 400 when recording an EUR payment against an ARS subscription (integration test)
