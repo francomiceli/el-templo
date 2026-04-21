@@ -55,6 +55,7 @@ export const subscriptions = mysqlTable(
     startDate: date("start_date", { mode: "string" }).notNull(),
     endDate: date("end_date", { mode: "string" }),
     pricePaid: int("price_paid").notNull(),
+    currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
     priceTypeApplied: priceTypeAppliedEnum.notNull(),
     auraDiscount: int("aura_discount"),
     auraDiscountPercent: int("aura_discount_percent"),

@@ -23,6 +23,7 @@ export const promoPlans = mysqlTable("promo_plans", {
   startDate: datetime("start_date").notNull(),
   expiryDate: datetime("expiry_date").notNull(),
   promoType: promoTypeEnum.notNull().default("auto"),
+  country: varchar("country", { length: 2 }).default("AR").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   redemptionCount: int("redemption_count").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

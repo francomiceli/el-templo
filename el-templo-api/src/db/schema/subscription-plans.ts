@@ -45,6 +45,8 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   groupMaxMembers: int("group_max_members"),
   isActive: boolean("is_active").default(true).notNull(),
   isArchived: boolean("is_archived").default(false).notNull(),
+  country: varchar("country", { length: 2 }).default("AR").notNull(),
+  currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });

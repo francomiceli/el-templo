@@ -30,6 +30,7 @@ export const payments = mysqlTable(
       .references(() => subscriptions.id)
       .notNull(),
     amount: int("amount").notNull(),
+    currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
     paymentMethod: paymentMethodEnum.notNull(),
     paymentDate: date("payment_date", { mode: "string" }).notNull(),
     reference: varchar("reference", { length: 255 }),

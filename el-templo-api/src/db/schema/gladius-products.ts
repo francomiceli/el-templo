@@ -13,6 +13,7 @@ export const gladiusProducts = mysqlTable("gladius_products", {
   description: text("description").notNull(),
   photo: varchar("photo", { length: 500 }),
   status: varchar("status", { length: 20 }).default("published").notNull(),
+  country: varchar("country", { length: 2 }).default("AR").notNull(),
   sortOrder: int("sort_order").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
