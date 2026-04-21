@@ -21,25 +21,25 @@ Triggers: the head coach requested the ability to run warmup games with free-for
    - Target: A `games` format exists with `name='games'` (exact casing TBD in discuss-phase), usable in any block role. In the session editor, selecting `games` exposes three inputs — reps, time, rounds — all optional. The block persists whichever of the three the coach fills in (including none) via `format_params` JSON.
    - Acceptance: Creating a session block with format=`games` and only a `rounds` value stored round-trips correctly (DB → editor reload → PDF). Creating a block with all three fields empty also persists and reloads without error.
 
-2. **INITIUM block custom title**: INITIUM-role blocks accept a per-block free-text title that replaces the default "Warm Up" label across the PDF and admin editor.
-   - Current: INITIUM blocks have no `custom_title` column; the PDF builder hardcodes the "Warm Up" heading (`session-pdf-builder.ts:336`). The editor shows "Warm Up" fixed.
-   - Target: A new optional `custom_title` column exists on `session_blocks` (migration). When set and role=INITIUM, the PDF heading renders `Initium - {custom_title}`; when null/empty, existing "Warm Up"/Initium default is preserved. Editor exposes a text input on INITIUM blocks.
-   - Acceptance: Setting `custom_title='Flow Tag'` on an INITIUM block produces a PDF heading reading `Initium - Flow Tag`. Leaving it null produces the current default output byte-for-byte unchanged.
+2. **INITIUM block custom title**: INITIUM-role blocks accept a per-block free-text title that customizes the PDF subtitle.
+   - Current: INITIUM blocks have no `custom_title` column. The PDF page for an INITIUM block shows a huge literal 'PYROS' title (`session-pdf-builder.ts:344`) followed by a subtitle `INITIUM · {formatName}` (`:353-356`). The subtitle is what coaches informally call the "warm up" label.
+   - Target: A new optional `custom_title` column exists on `session_blocks` (migration). When set and role=INITIUM, the PDF subtitle renders as just `{custom_title}` alone, replacing the default `INITIUM · {formatName}` subtitle. The huge 'PYROS' heading is unchanged. When `custom_title` is null/empty, the subtitle remains `INITIUM · {formatName}` byte-identical to pre-phase output. Editor exposes an always-visible free-text input at the top of each INITIUM block card.
+   - Acceptance: Setting `custom_title='Flow Tag'` on an INITIUM block produces a PDF subtitle of just `Flow Tag` with the big 'PYROS' heading unchanged. Leaving `custom_title` null produces the pre-phase output byte-for-byte.
 
 3. **New `games` exercise route**: `games` is added to the route options available both in the admin exercises catalog and in the session editor's route picker.
    - Current: `createRouteOptions` (ExercisesPage.vue:648) enumerates 30 routes with no `games` entry. The session editor block-creation route picker reads the same (or parallel) list.
    - Target: `games` appears in both admin surfaces. Exercises can be created/edited with `route='games'` without any block-role restriction. Existing backend validation (JSON-schema/Zod) accepts `games` as a valid route value.
    - Acceptance: Creating an exercise with route=`games` via the admin exercises page succeeds and the exercise appears filtered under the `games` route. Creating a session block with route=`games` in any role (INITIUM, NUCLEUS, etc.) succeeds.
 
-4. **Friendly Spanish route labels (dual-display in admin)**: A mapping from every current route code to a friendly Spanish display label exists and is applied across all user-facing surfaces, without altering the canonical code stored in the DB or referenced in code.
-   - Current: Route codes are shown as raw short codes in admin (filter dropdown, table column, create dialog), session editor, session PDF, and the member app. No mapping layer exists.
-   - Target: A single mapping dictionary (e.g. `routeLabels: Record<RouteCode, string>`) is defined once and consumed by: (a) admin exercises page, (b) admin session editor, (c) session PDF builder, (d) member app. In the **admin** surfaces the display renders as `{SpanishLabel} ({CODE})` (both visible). In the **PDF and member app** only the Spanish label is shown. The mapping includes an entry for `games`.
-   - Acceptance: For any existing route code, the admin exercises page filter dropdown shows both the Spanish label and the short code in parens. The PDF and member-app renderings show only the Spanish label. DB queries and API payloads still use short codes — no canonical identifier changed.
+4. **Friendly Spanish route labels (scoped to member-facing surfaces + admin editor hint)**: A mapping from every current route code to a friendly Spanish display label exists and is applied to member-facing surfaces and as a hover hint in the admin session editor, without altering the canonical code stored in the DB or referenced in code.
+   - Current: Route codes are shown as raw short codes everywhere — admin exercises list/filter, admin session editor, session PDF, and member app. No mapping layer exists.
+   - Target: A mapping dictionary (short code → Spanish label) is consumed by: (a) **session PDF builder** — renders Spanish label only; (b) **member app** — renders Spanish label only; (c) **admin session editor route picker** — renders short code as primary label with the Spanish label surfaced as a tooltip on hover. The admin exercises page (filter, table, create/edit dialog) and the admin sessions list render short codes only, unchanged from today. The mapping includes an entry for `games`. It is duplicated per consuming app (admin + member) with code-review discipline to catch drift; no shared package.
+   - Acceptance: PDF and member-app renderings show only the Spanish label. Admin exercises page and admin sessions list show only the short code (no visible mapping). Admin session editor route picker shows short codes with the Spanish label surfaced as a tooltip on hover. DB queries and API request/response payloads continue to use short codes — no canonical identifier changed.
 
-5. **Session editor route picker includes all routes + games**: The route dropdown in the admin session editor shows the same set of routes as the admin exercises page, including the new `games` route and the Spanish labels.
-   - Current: The session editor route picker's option source may differ from `createRouteOptions`; the new `games` route and the new label mapping need to be wired.
-   - Target: The session editor route picker reads from the canonical route list (including `games`) and renders via the same label mapping as the rest of admin. Selecting any route, including `games`, creates a valid session block.
-   - Acceptance: Opening the session editor, the route picker shows all existing routes plus `games`, each rendered as `{SpanishLabel} ({CODE})`. Saving a block with any selected route persists correctly.
+5. **Session editor route picker includes all routes + games (with Spanish tooltip)**: The route dropdown in the admin session editor shows the same set of routes as the admin exercises page, including the new `games` route, with a Spanish tooltip on hover.
+   - Current: The session editor route picker renders short codes only without any label hint. No `games` option.
+   - Target: The session editor route picker reads from the canonical route list (including `games`). Each option renders the short code as the visible label; hovering exposes a tooltip with the Spanish label from the mapping. Selecting any route, including `games`, creates a valid session block.
+   - Acceptance: Opening the session editor, the route picker shows all existing routes plus `games`, each rendered with the short code as label and the Spanish label on hover. Saving a block with any selected route persists correctly.
 
 ## Boundaries
 
@@ -48,12 +48,13 @@ Triggers: the head coach requested the ability to run warmup games with free-for
 - New `games` row in `formats` table + migration
 - New `custom_title` optional column on `session_blocks` + migration
 - New `games` entry in the route options list
-- Route label mapping (short code → Spanish) as a shared constants/module
-- Admin exercises page consumes the mapping (filter, table, create/edit dialog) with dual display
-- Admin session editor consumes the mapping with dual display; route picker includes `games`
-- Session PDF builder consumes the mapping (Spanish label only) and renders `Initium - {custom_title}` when set
+- Route label mapping (short code → Spanish) duplicated per consuming app (admin + member), maintained via code-review discipline
+- Admin session editor route picker renders short codes + Spanish label as hover tooltip; picker includes `games`
+- Session PDF builder consumes the mapping (Spanish label only). INITIUM block: huge 'PYROS' heading unchanged; subtitle becomes just `{custom_title}` when set, else `INITIUM · {formatName}` unchanged
 - Member app consumes the mapping (Spanish label only) wherever exercise routes are shown
-- Games format params persistence (reps/time/rounds optional, JSON via existing `format_params`)
+- Admin exercises list and admin sessions list remain short-code only (no mapping consumed there) — unchanged from today
+- Games format params persistence (reps/time/rounds optional, JSON via existing `format_params`) — wired into existing `FormatParamsEditor` via new `defaultsMap` entry
+- Custom_title input: always-visible free-text field at the top of the INITIUM block card
 - Games route available in all session block roles (no role restriction)
 
 **Out of scope:**
@@ -70,7 +71,7 @@ Triggers: the head coach requested the ability to run warmup games with free-for
 ## Constraints
 
 - Short code values in `exercises.route`, `session_blocks.route`, SPOM seed, goal-plans constants, ROM generator, and exercise-swap service are immutable in this phase — any change there is out of scope
-- Label mapping must be defined in one location and imported; duplicating the dictionary across apps is rejected
+- Route label mapping is duplicated per consuming app (admin + member). Each copy must contain the same keys and same Spanish labels; drift between copies is prevented by PR review, not infra
 - `format_params` JSON structure for games must be backward-compatible with the existing per-format param convention (do not introduce a new column)
 - `custom_title` column must be nullable — existing INITIUM blocks (all of them) must render identically when the field is null
 - If the PDF has an existing test snapshot, the null-`custom_title` case must match the prior snapshot byte-for-byte
@@ -80,13 +81,15 @@ Triggers: the head coach requested the ability to run warmup games with free-for
 - [ ] `games` format exists in the `formats` table after migration; selectable in session editor
 - [ ] Session block with format=`games` persists any subset of {reps, time, rounds} (including none) and round-trips through DB → editor → PDF
 - [ ] `custom_title` column exists on `session_blocks`, nullable, defaulting to NULL
-- [ ] INITIUM block with `custom_title='X'` renders PDF heading `Initium - X`; with null renders identical to pre-phase output
+- [ ] INITIUM block with `custom_title='X'` renders PDF subtitle `X` (alone) with 'PYROS' heading unchanged; with null renders `INITIUM · {formatName}` subtitle byte-identical to pre-phase output
+- [ ] INITIUM block card in the session editor exposes an always-visible free-text input for `custom_title`
 - [ ] `games` appears in admin exercises route filter and create dialog
 - [ ] Exercise can be created with `route='games'` and listed under the games filter
 - [ ] Session block can be created with `route='games'` in any role
-- [ ] Route label mapping is defined in exactly one source-of-truth module
-- [ ] Admin exercises page and session editor render routes as `{SpanishLabel} ({CODE})`
-- [ ] Session PDF and member app render routes as `{SpanishLabel}` only (no short code)
+- [ ] Route label mapping duplicated in `el-templo-admin/src/constants/route-labels.ts` and `el-templo-app/src/constants/route-labels.ts` with identical keys and values
+- [ ] Admin exercises list and admin sessions list render routes as short codes only (no Spanish label visible)
+- [ ] Admin session editor route picker renders short codes with Spanish label surfaced as a tooltip on hover
+- [ ] Session PDF and member app render routes as `{SpanishLabel}` only (no short code visible)
 - [ ] DB queries, API request bodies, and API responses continue to use short codes (no identifier change on the wire)
 - [ ] Integration tests for the exercises and scheduling modules pass (existing + new tests for games format, route=games, custom_title)
 
