@@ -2119,6 +2119,19 @@ Plans:
 
 ---
 
+### Phase 99: Member-Selectable Training Level
+
+**Goal:** Let members train at any level (alfa → spartan) from a header dropdown. Data plumbing (level_at_completion column + ?level= query param) is already delivered (commit c8d0726b). This phase covers the member-facing UX, mid-session switch semantics, and downstream effects on progression / ROM-day mapping / admin visibility. Coach remains the sole path for changing `users.level` itself.
+**Requirements**: TBD (run /gsd-spec-phase 99 to clarify)
+**Depends on:** Phase 97
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 99 to break down after SPEC)
+
+---
+
 _v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_
 
 </details>
