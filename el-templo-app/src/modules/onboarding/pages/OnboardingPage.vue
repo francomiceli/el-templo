@@ -428,11 +428,7 @@ async function onSubmit() {
   const totalDurationMs = quizStartTime.value ? Date.now() - quizStartTime.value : 0
   recordAnalytics({ eventType: 'quiz_completed', durationMs: totalDurationMs })
 
-  // Record avatar_assigned event (per D-23)
-  recordAnalytics({
-    eventType: 'avatar_assigned',
-    answerValue: result.profile.avatarType,
-  })
+  // avatar_assigned is recorded server-side inside completeOnboardingV2
 
   // Advance to recommendation screen
   direction.value = 'forward'
