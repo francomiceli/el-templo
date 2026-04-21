@@ -127,6 +127,7 @@ _Updated after each plan completion_
 - Phase 86 added: QR Promo — Free Month Campaign
 - Phase 88 (was 89): Gender-Based Notification Personalization — gender inference, registration field, gendered notification copy
 - Phase 88 (old): Reservation Rules — Per-Plan Booking Configuration — removed from v4.4
+- Phase 98 added: Multi-currency and country-scoped plans — AR/ES plan segregation with EUR pricing, owner country toggle, branch-scoped filtering
 
 ### Decisions
 

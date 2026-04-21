@@ -2106,6 +2106,17 @@ Plans:
 | 96. Full Body Goal Plan Type & Exercise Equipment Tagging | —              | Planned  | —          |
 | 97. ROM Mode — Saturday Mobility Sessions                 | 3/3            | Complete | 2026-04-09 |
 
+### Phase 98: Multi-currency and country-scoped plans
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 97
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 98 to break down)
+
 ---
 
 _v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_
