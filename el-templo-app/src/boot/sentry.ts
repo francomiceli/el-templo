@@ -9,6 +9,7 @@ const IGNORED_ERRORS = [
   'NetworkError when attempting to fetch resource',
   'ResizeObserver loop',
   'Script error.',
+  'The play() request was interrupted',
 ]
 
 const DENY_URLS = [

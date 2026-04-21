@@ -141,7 +141,7 @@
       :columns="columns"
       row-key="id"
       :loading="exercisesApi.loading.value"
-      :pagination="tablePagination"
+      v-model:pagination="tablePagination"
       :rows-per-page-options="[25, 50, 100]"
       @request="onTableRequest"
     >

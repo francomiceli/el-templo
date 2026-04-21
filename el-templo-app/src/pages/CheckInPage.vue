@@ -59,7 +59,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useAttendanceApi } from 'src/composables/useAttendanceApi'
 import { createLogger } from 'src/utils/logger'
@@ -149,6 +149,10 @@ onMounted(() => {
       startScanner()
     }
   }, 100)
+})
+
+onBeforeRouteLeave(async () => {
+  await stopScanner()
 })
 
 onBeforeUnmount(() => {

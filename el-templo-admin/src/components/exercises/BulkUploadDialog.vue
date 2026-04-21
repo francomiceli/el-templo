@@ -93,25 +93,26 @@
             </q-td>
           </template>
 
-          <!-- Exercise column (manual assignment for unmatched) -->
+          <!-- Exercise column (manual assignment for unmatched, editable for manual matches) -->
           <template #body-cell-exercise="props">
             <q-td :props="props">
               <span v-if="props.row.status === 'matched'">{{ props.row.exerciseName }}</span>
-              <span v-else-if="props.row.status === 'matched-manual'" class="text-positive">
-                {{ props.row.exerciseName }}
-              </span>
               <q-select
-                v-else-if="props.row.status === 'unmatched'"
+                v-else-if="
+                  props.row.status === 'unmatched' || props.row.status === 'matched-manual'
+                "
                 v-model="props.row.selectedExercise"
                 :options="filteredExerciseOptions"
                 option-value="id"
                 :option-label="formatExerciseOption"
-                label="Asignar ejercicio"
+                :label="props.row.status === 'matched-manual' ? undefined : 'Asignar ejercicio'"
                 dense
                 outlined
                 use-input
                 emit-value
                 map-options
+                clearable
+                :class="props.row.status === 'matched-manual' ? 'text-positive' : ''"
                 style="min-width: 250px"
                 @filter="onExerciseFilter"
                 @update:model-value="onManualAssign(props.row, $event)"
@@ -453,7 +454,14 @@ function onExerciseFilter(val: string, update: (fn: () => void) => void) {
   });
 }
 
-function onManualAssign(entry: FileEntry, exerciseId: number) {
+function onManualAssign(entry: FileEntry, exerciseId: number | null) {
+  if (exerciseId === null) {
+    entry.status = 'unmatched';
+    entry.exerciseId = null;
+    entry.exerciseName = null;
+    entry.selectedExercise = null;
+    return;
+  }
   const found = props.exercises.find((e) => e.id === exerciseId);
   if (found) {
     entry.status = 'matched-manual';
