@@ -51,6 +51,7 @@ import {
 } from "./schemas";
 
 import { SUBSCRIPTION_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -81,6 +82,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // =========================================================================

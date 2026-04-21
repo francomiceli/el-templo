@@ -45,6 +45,7 @@ import {
 import { Workbook } from "exceljs";
 
 import { MEMBER_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 /**
  * Check if an error is a MySQL duplicate key error and extract details.
@@ -89,6 +90,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // =========================================================================

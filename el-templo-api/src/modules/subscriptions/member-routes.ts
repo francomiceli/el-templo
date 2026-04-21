@@ -13,6 +13,7 @@ import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
 import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
+import { attachCountryScope } from "../shared/country-scope";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
@@ -28,6 +29,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
+    await attachCountryScope(request, fastify.db);
   });
 
   // GET /me/subscription — Get the authenticated member's current subscription

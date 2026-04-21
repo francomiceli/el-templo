@@ -30,6 +30,7 @@ import {
 } from "./schemas";
 
 import { CAJA_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
@@ -45,6 +46,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // =========================================================================

@@ -26,6 +26,7 @@ interface SlugParams {
 }
 
 import { OWNER_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 const inquireSchema = {
   body: {
@@ -162,6 +163,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
       }
+      await attachCountryScope(request, fastify.db);
       return service.listAllProducts();
     },
   );
@@ -176,6 +178,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
       }
+      await attachCountryScope(request, fastify.db);
       const product = await service.createProduct(request.body);
       return reply.code(201).send(product);
     },
@@ -191,6 +194,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
       }
+      await attachCountryScope(request, fastify.db);
       const product = await service.updateProduct(
         request.params.id,
         request.body,
@@ -212,6 +216,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .status(403)
           .send({ error: "Acceso de administrador requerido" });
       }
+      await attachCountryScope(request, fastify.db);
       await service.deleteProduct(request.params.id);
       return { success: true };
     },

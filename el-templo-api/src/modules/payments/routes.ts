@@ -24,6 +24,7 @@ import {
 } from "./schemas";
 
 import { PAYMENT_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
   const paymentService = new PaymentService(fastify.db, fastify.log);
@@ -39,6 +40,7 @@ export const paymentRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // =========================================================================

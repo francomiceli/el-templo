@@ -18,6 +18,7 @@ import {
 } from "./schemas";
 
 import { ADMIN_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
 
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const analyticsService = new AnalyticsService(fastify.db, fastify.log);
@@ -33,6 +34,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // GET / — KPI stats
