@@ -2145,14 +2145,18 @@ Plans:
 
 ### Phase 100: Games format, exercise route overhaul, and session editor route UX
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Coaches can author sessions that include games-style warmup blocks with custom titles and games-route exercises, while the existing exercise route codes become easier to read across all surfaces via friendly Spanish display labels.
+**Requirements**: SPEC-1 (games format), SPEC-2 (INITIUM custom_title), SPEC-3 (games route), SPEC-4 (Spanish route labels on PDF + member app + admin editor tooltip), SPEC-5 (session editor route picker with games + Spanish tooltip)
 **Depends on:** Phase 99
-**Plans:** 0 plans
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 100 to break down)
+- [ ] 100-01-PLAN.md — Backend schema + migrations (0092 session_blocks.custom_title varchar(100) nullable, 0093 data-only insert games format row)
+- [ ] 100-02-PLAN.md — Member app Spanish route-labels dictionary (31 entries) + routeNames.ts re-export
+- [ ] 100-03-PLAN.md — Admin API wiring: EditService.updateCustomTitle + PATCH endpoint + JSON schema + integration tests (games format, route=games, custom_title round-trip)
+- [ ] 100-04-PLAN.md — Admin session editor: route-labels.ts (admin copy) + games in createRouteOptions + games in FormatParamsEditor defaultsMap + INITIUM custom_title input wired via PATCH + route tooltips in EditableBlockCard/EditableExerciseRow
+- [ ] 100-05-PLAN.md — Admin PDF: PdfBlockPage.customTitle + session-data-transformer propagation + conditional INITIUM subtitle + Spanish route labels on grid pages (byte-identical null-customTitle fallback)
 
 ---
 
