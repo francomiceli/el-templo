@@ -19,6 +19,12 @@ export interface MemberProgramCatalogItem {
   description: string | null
   durationWeeks: number
   hasContent: boolean
+  // Phase 98 — additive/optional per D-18; present only when server enriches.
+  // Server mapping currently omits both fields, so the `v-if="price != null"`
+  // guard in PlanesPage hides the badge until they're wired up. Kept optional
+  // so legacy deployed clients still type-check (D-19).
+  price?: number
+  currency?: 'ARS' | 'EUR'
 }
 
 export interface MemberEnrollmentProgress {

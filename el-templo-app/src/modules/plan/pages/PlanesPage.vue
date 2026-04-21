@@ -54,9 +54,9 @@
         <div class="plan-card__badges">
           <q-badge v-if="!exp.hasContent" color="grey" label="Proximamente" />
           <q-badge outline color="grey-7">{{ exp.durationWeeks }} semanas</q-badge>
-          <q-badge v-if="exp.price != null" outline color="primary"
-            >${{ exp.price.toLocaleString() }}</q-badge
-          >
+          <q-badge v-if="exp.price != null" outline color="primary">{{
+            formatPrice(exp.price, exp.currency ?? 'ARS')
+          }}</q-badge>
         </div>
         <div v-if="enrolledProgramId === exp.id" class="plan-card__status">
           <q-icon name="check_circle" size="16px" color="positive" />
@@ -128,6 +128,7 @@ import TemploLoader from 'src/components/TemploLoader.vue'
 import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
+import { formatPrice } from 'src/utils/format-price'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberProgramCatalogItem } from 'src/modules/programs/types'
 
@@ -143,6 +144,9 @@ interface MemberPlan {
   planCategory: string
   linkedProgramId: number | null
   priceRegular: number
+  // Phase 98 D-18/D-19: additive + optional for forward-compat with responses
+  // predating the currency field. Fallback to 'ARS' at the call site.
+  currency?: 'ARS' | 'EUR'
 }
 
 const PLAN_TIER_LABELS: Record<string, string> = {
@@ -195,28 +199,38 @@ function tierLabel(tier: string): string {
 /**
  * Compute weekly price from monthly price.
  * priceRegular is always the monthly price regardless of plan durationDays.
- * Returns formatted string with locale separators.
+ * Returns a currency-formatted string via formatPrice (Phase 98 D-09).
+ * Currency fallback to 'ARS' per D-19 for forward-compat with older responses.
  */
-function computeWeeklyPrice(monthlyPrice: number): string {
-  return Math.round(monthlyPrice / 4.33).toLocaleString()
+function computeWeeklyPrice(monthlyPrice: number, currency?: 'ARS' | 'EUR'): string {
+  const weeklyAmount = Math.round(monthlyPrice / 4.33)
+  return formatPrice(weeklyAmount, currency ?? 'ARS')
 }
 
 /**
  * Build WhatsApp pre-filled message with plan name and weekly price.
+ * Currency is optional (fallback 'ARS' per D-19).
  */
-function buildWhatsAppMessage(planName: string, monthlyPrice: number): string {
-  const wp = computeWeeklyPrice(monthlyPrice)
-  return `Hola! Me interesa el plan ${planName} ($${wp}/semana). Quiero mas info.`
+function buildWhatsAppMessage(
+  planName: string,
+  monthlyPrice: number | undefined,
+  currency?: 'ARS' | 'EUR',
+): string {
+  if (monthlyPrice == null) {
+    return `Hola! Me interesa el plan ${planName}. Quiero mas info.`
+  }
+  const wp = computeWeeklyPrice(monthlyPrice, currency)
+  return `Hola! Me interesa el plan ${planName} (${wp}/semana). Quiero mas info.`
 }
 
 function openWhatsApp(plan: MemberPlan): void {
-  const message = buildWhatsAppMessage(plan.name, plan.priceRegular)
+  const message = buildWhatsAppMessage(plan.name, plan.priceRegular, plan.currency)
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
 
 function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
-  const message = buildWhatsAppMessage(exp.name, exp.price)
+  const message = buildWhatsAppMessage(exp.name, exp.price, exp.currency)
   const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
   window.open(url, '_blank')
 }
