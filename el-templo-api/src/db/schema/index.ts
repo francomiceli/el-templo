@@ -34,6 +34,7 @@ export * from "./subscriptions";
 export * from "./subscription-schedules";
 export * from "./subscription-schedule-changes";
 export * from "./payments";
+export * from "./debts";
 export * from "./attendance";
 export * from "./activities";
 export * from "./schedules";
