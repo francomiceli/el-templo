@@ -39,6 +39,8 @@ const planSchema = {
     groupMaxMembers: { type: ["integer", "null"] },
     isActive: { type: "boolean" },
     isArchived: { type: "boolean" },
+    country: { type: "string" },
+    currency: { type: "string" },
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
   },

@@ -264,6 +264,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
+      // Country-scope guard — non-owner staff cannot read other-country members
+      if (request.scope.country && member.branchId) {
+        const [memberBranch] = await fastify.db
+          .select({ country: schema.branches.country })
+          .from(schema.branches)
+          .where(eq(schema.branches.id, member.branchId))
+          .limit(1);
+        if (memberBranch && memberBranch.country !== request.scope.country) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+      }
+
       // Fetch segment + onboarding + avatar data from member_profiles
       const [profile] = await fastify.db
         .select({

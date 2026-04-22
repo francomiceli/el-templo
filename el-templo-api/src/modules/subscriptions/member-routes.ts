@@ -85,6 +85,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       planCategory: plan?.planCategory ?? "presencial",
       goalPlanType,
       multiBranch: plan?.multiBranch ?? false,
+      currency: sub.currency,
     };
   });
 
@@ -137,6 +138,8 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         linkedProgramId: p.linkedProgramId ?? null,
         goalPlanType: p.goalPlanType,
         goalPlanZones: meta?.zones ?? null,
+        currency: p.currency,
+        country: p.country,
       };
     });
 
