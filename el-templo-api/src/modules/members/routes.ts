@@ -340,33 +340,38 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           request.body,
         );
 
-        // Auto-create subscription at base regular price
-        try {
-          const auraService = new AuraService(fastify.db);
-          const subscriptionService = new SubscriptionService(
-            fastify.db,
-            fastify.log,
-            auraService,
-          );
+        // Auto-create subscription at base regular price when a plan was
+        // selected. Plan is optional at creation: admin can assign it later
+        // via "Gestionar Plan" which supports custom pricing (zero, credit
+        // card, override + reason).
+        if (request.body.planId !== undefined) {
+          try {
+            const auraService = new AuraService(fastify.db);
+            const subscriptionService = new SubscriptionService(
+              fastify.db,
+              fastify.log,
+              auraService,
+            );
 
-          const today = new Date().toISOString().split("T")[0];
-          await subscriptionService.assignPlan(
-            member.id,
-            {
-              planId: request.body.planId,
-              branchId: request.body.branchId,
-              startDate: today,
-              priceTypeApplied: "regular",
-              paymentMethod: "cash",
-            },
-            request.user.userId,
-          );
-        } catch (subErr: unknown) {
-          request.log.error(
-            { err: subErr },
-            "Error creating subscription for new member",
-          );
-          // Don't fail member creation if subscription fails
+            const today = new Date().toISOString().split("T")[0];
+            await subscriptionService.assignPlan(
+              member.id,
+              {
+                planId: request.body.planId,
+                branchId: request.body.branchId,
+                startDate: today,
+                priceTypeApplied: "regular",
+                paymentMethod: "cash",
+              },
+              request.user.userId,
+            );
+          } catch (subErr: unknown) {
+            request.log.error(
+              { err: subErr },
+              "Error creating subscription for new member",
+            );
+            // Don't fail member creation if subscription fails
+          }
         }
 
         // Send password-set email (best effort)

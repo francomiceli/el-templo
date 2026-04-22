@@ -83,7 +83,7 @@ export interface CreateMemberInput {
   phone: string;
   dni: string;
   branchId: number;
-  planId: number;
+  planId?: number;
   level?: string;
   documentType?: string;
   address?: string;

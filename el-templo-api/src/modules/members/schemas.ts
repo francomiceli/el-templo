@@ -185,15 +185,7 @@ export const getMemberSchema = {
 export const createMemberSchema = {
   body: {
     type: "object",
-    required: [
-      "email",
-      "firstName",
-      "lastName",
-      "phone",
-      "dni",
-      "branchId",
-      "planId",
-    ],
+    required: ["email", "firstName", "lastName", "phone", "dni", "branchId"],
     properties: {
       email: { type: "string", format: "email" },
       firstName: { type: "string", minLength: 1 },

@@ -35,39 +35,8 @@
             </q-stepper-navigation>
           </q-step>
 
-          <!-- Step 2: Select Plan (country-scoped by branch) -->
-          <q-step :name="2" title="Seleccionar Plan" icon="list" :done="step > 2">
-            <div v-if="loadingPlans" class="flex flex-center q-pa-lg">
-              <q-spinner-dots size="40px" color="primary" />
-            </div>
-
-            <template v-else>
-              <q-select
-                v-model="form.planId"
-                :options="planOptions"
-                label="Plan *"
-                dense
-                outlined
-                emit-value
-                map-options
-                :rules="[(v: number | null) => v !== null || 'Plan es requerido']"
-                @update:model-value="onPlanSelected"
-              />
-              <div
-                v-if="planOptions.length === 0"
-                class="text-center text-grey-5 text-italic q-pa-lg"
-              >
-                No hay planes activos disponibles para esta sede
-              </div>
-
-              <q-stepper-navigation class="q-mt-md">
-                <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
-              </q-stepper-navigation>
-            </template>
-          </q-step>
-
-          <!-- Step 3: Personal Data -->
-          <q-step :name="3" title="Datos Personales" icon="person" :done="step > 3">
+          <!-- Step 2: Personal Data -->
+          <q-step :name="2" title="Datos Personales" icon="person" :done="step > 2">
             <q-form ref="formRef" @submit.prevent="onSubmit">
               <div class="q-gutter-sm">
                 <div class="row q-col-gutter-sm">
@@ -247,7 +216,7 @@
                 </q-expansion-item>
 
                 <q-stepper-navigation class="q-mt-md">
-                  <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
+                  <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
                   <q-btn
                     type="submit"
                     label="Crear"
@@ -535,7 +504,6 @@ import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
-import { formatPrice } from 'src/utils/format-price';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 import { DEBT_CURRENCY_OPTIONS } from 'src/types/member';
 
@@ -565,35 +533,12 @@ const $q = useQuasar();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const submitting = ref(false);
 const step = ref(1);
-const loadingPlans = ref(false);
 
 const isEditMode = computed(() => !!props.member);
 
 // DNI uniqueness state
 const dniStatus = ref<'idle' | 'checking' | 'available' | 'taken'>('idle');
 const dniExistingName = ref('');
-
-// Plans for create mode
-interface PlanOptionData {
-  id: number;
-  name: string;
-  planTier: string;
-  multiBranch: boolean;
-  priceRegular: number;
-  durationDays: number;
-  classesPerWeek: number | null;
-  country: 'AR' | 'ES';
-  currency: 'ARS' | 'EUR';
-}
-
-const activePlans = ref<PlanOptionData[]>([]);
-
-const planOptions = computed(() =>
-  activePlans.value.map((p) => ({
-    label: `${p.name} — ${formatPrice(p.priceRegular, p.currency ?? 'ARS')}`,
-    value: p.id,
-  }))
-);
 
 // Form data
 const form = ref({
@@ -603,7 +548,6 @@ const form = ref({
   phone: '',
   dni: '',
   branchId: null as number | null,
-  planId: null as number | null,
   level: 'alfa',
   documentType: null as string | null,
   address: '',
@@ -669,52 +613,6 @@ function emailRule(val: string) {
 }
 
 // =========================================================================
-// Plan selection
-// =========================================================================
-
-function onPlanSelected(planId: number | null) {
-  if (planId !== null) {
-    step.value = 3;
-  }
-}
-
-async function loadPlans(branchId: number | null) {
-  if (branchId === null) {
-    activePlans.value = [];
-    return;
-  }
-  loadingPlans.value = true;
-  try {
-    activePlans.value = await membersApi.getPlans(false, { branchId });
-  } catch (err: unknown) {
-    const message = extractError(err, 'Error cargando planes');
-    if (isExpectedClientError(err)) {
-      log.warn('Plans fetch rejected by server', { error: message });
-    } else {
-      log.error('Error loading plans', { error: message });
-    }
-    activePlans.value = [];
-  } finally {
-    loadingPlans.value = false;
-  }
-}
-
-// Re-fetch plans whenever the branch changes (create mode — plan list must be
-// country-scoped to the selected branch per phase 98 D-05). The watcher also
-// clears the previously-selected planId so a cross-country plan can't be
-// submitted if the admin goes back and changes the branch.
-watch(
-  () => form.value.branchId,
-  (newBranchId, oldBranchId) => {
-    if (isEditMode.value) return;
-    if (newBranchId !== oldBranchId) {
-      form.value.planId = null;
-    }
-    loadPlans(newBranchId);
-  }
-);
-
-// =========================================================================
 // DNI Check
 // =========================================================================
 
@@ -760,7 +658,6 @@ watch(
         phone: props.member.phone ?? '',
         dni: props.member.dni ?? '',
         branchId: props.member.branchId,
-        planId: null,
         level: props.member.level,
         documentType: props.member.documentType,
         address: props.member.address ?? '',
@@ -776,7 +673,7 @@ watch(
       };
       hadDebtOnLoad.value = props.member.debt !== null;
     } else {
-      // Create mode: reset everything and load plans
+      // Create mode: reset everything
       step.value = 1;
       form.value = {
         firstName: '',
@@ -785,7 +682,6 @@ watch(
         phone: '',
         dni: '',
         branchId: null,
-        planId: null,
         level: 'alfa',
         documentType: null,
         address: '',
@@ -800,8 +696,6 @@ watch(
         debtNote: '',
       };
       hadDebtOnLoad.value = false;
-      // Plans will be loaded by the branchId watcher once the admin picks a sede.
-      activePlans.value = [];
     }
   }
 );
@@ -874,7 +768,6 @@ async function onSubmit() {
         phone: form.value.phone,
         dni: form.value.dni,
         branchId: form.value.branchId!,
-        planId: form.value.planId!,
         level: form.value.level,
         documentType: form.value.documentType,
         address: form.value.address || null,
