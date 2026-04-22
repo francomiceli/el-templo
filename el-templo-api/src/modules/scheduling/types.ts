@@ -53,6 +53,9 @@ export interface BookingRecord {
   waitlistPosition: number | null;
   bookedAt: string;
   cancelledAt: string | null;
+  // Phase 102: trial bookings don't consume capacity; admin UI splits
+  // "Reservados" from "Sesiones de Prueba" using this flag.
+  isTrial: boolean;
 }
 
 export interface HolidayRecord {

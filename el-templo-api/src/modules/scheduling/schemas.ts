@@ -77,6 +77,10 @@ const bookingRecordSchema = {
     waitlistPosition: { type: ["integer", "null"] },
     bookedAt: { type: "string" },
     cancelledAt: { type: ["string", "null"] },
+    // Phase 102: isTrial is part of the public BookingRecord shape so the
+    // admin UI can split the slot roster into Reservados vs Sesiones de
+    // Prueba without a second fetch.
+    isTrial: { type: "boolean" },
   },
 } as const;
 

@@ -388,6 +388,7 @@ export class BookingService {
         waitlistPosition: schema.bookings.waitlistPosition,
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
+        isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -929,6 +930,8 @@ export class BookingService {
           eq(schema.bookings.scheduleId, scheduleId),
           eq(schema.bookings.bookingDate, date),
           sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+          // Phase 102: trial bookings do NOT consume schedule capacity.
+          eq(schema.bookings.isTrial, false),
         ),
       );
 
@@ -1164,6 +1167,7 @@ export class BookingService {
         waitlistPosition: schema.bookings.waitlistPosition,
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
+        isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -1198,6 +1202,7 @@ export class BookingService {
     waitlistPosition: number | null;
     bookedAt: Date;
     cancelledAt: Date | null;
+    isTrial: boolean;
   }): BookingRecord {
     return {
       id: row.id,
@@ -1214,6 +1219,7 @@ export class BookingService {
       waitlistPosition: row.waitlistPosition,
       bookedAt: row.bookedAt.toISOString(),
       cancelledAt: row.cancelledAt?.toISOString() ?? null,
+      isTrial: row.isTrial,
     };
   }
 }

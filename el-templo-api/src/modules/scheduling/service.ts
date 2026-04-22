@@ -191,6 +191,9 @@ export class SchedulingService {
           and(
             inArray(schema.bookings.scheduleId, scheduleIds),
             sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
+            // Phase 102: trials don't consume capacity, so the weekly chip
+            // `bookedCount/maxCapacity` must not inflate when trials exist.
+            eq(schema.bookings.isTrial, false),
           ),
         )
         .groupBy(schema.bookings.scheduleId, schema.bookings.bookingDate);
@@ -255,7 +258,9 @@ export class SchedulingService {
 
     const maxCapacity = branch?.maxCapacity ?? 22;
 
-    // Get all bookings (not cancelled) for this slot + date
+    // Get all bookings (not cancelled) for this slot + date.
+    // Phase 102: trials are returned alongside regular bookings — the admin
+    // UI splits them visually using `isTrial`. This is NOT a capacity query.
     const bookingRows = await this.db
       .select({
         id: schema.bookings.id,
@@ -268,6 +273,7 @@ export class SchedulingService {
         waitlistPosition: schema.bookings.waitlistPosition,
         bookedAt: schema.bookings.bookedAt,
         cancelledAt: schema.bookings.cancelledAt,
+        isTrial: schema.bookings.isTrial,
       })
       .from(schema.bookings)
       .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
@@ -294,6 +300,7 @@ export class SchedulingService {
       waitlistPosition: r.waitlistPosition,
       bookedAt: r.bookedAt.toISOString(),
       cancelledAt: r.cancelledAt?.toISOString() ?? null,
+      isTrial: r.isTrial,
     }));
 
     // Query attendance records for this branch + date
