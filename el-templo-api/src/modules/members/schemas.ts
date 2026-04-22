@@ -284,27 +284,6 @@ export const updateMemberSchema = {
   },
 };
 
-export const toggleStatusSchema = {
-  params: {
-    type: "object",
-    required: ["userId"],
-    properties: {
-      userId: { type: "integer" },
-    },
-  },
-  body: {
-    type: "object",
-    required: ["isActive"],
-    properties: {
-      isActive: { type: "boolean" },
-    },
-  },
-  response: {
-    200: memberProfileSchema,
-    404: errorSchema,
-  },
-};
-
 export const checkDniSchema = {
   querystring: {
     type: "object",

@@ -51,7 +51,7 @@
       </q-card>
 
       <!-- No presencial subscription -->
-      <q-card v-else flat bordered class="q-mb-md">
+      <q-card v-else-if="!presencialSub" flat bordered class="q-mb-md">
         <q-card-section class="text-center q-pa-lg">
           <div class="text-grey-5 text-italic q-mb-md">Sin suscripción presencial</div>
           <q-btn

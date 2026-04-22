@@ -488,55 +488,6 @@ describe("Members Management Routes", () => {
   });
 
   // =========================================================================
-  // PATCH /api/admin/members/:userId/status -- Toggle Active
-  // =========================================================================
-  describe("PATCH /api/admin/members/:userId/status", () => {
-    beforeEach(async () => {
-      await cleanupTestMembers();
-      testPlanId = await createTestPlan();
-    });
-
-    it("toggles isActive to false", async () => {
-      const member = await createMember();
-
-      const res = await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${member.id}/status`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: false },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.isActive).toBe(false);
-    });
-
-    it("toggles isActive back to true", async () => {
-      const member = await createMember();
-
-      // Deactivate
-      await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${member.id}/status`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: false },
-      });
-
-      // Reactivate
-      const res = await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${member.id}/status`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: true },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.isActive).toBe(true);
-    });
-  });
-
-  // =========================================================================
   // GET /api/admin/members/check-dni -- DNI Uniqueness Check
   // =========================================================================
   describe("GET /api/admin/members/check-dni", () => {
@@ -731,11 +682,6 @@ describe("Members Management Routes", () => {
           method: "PUT" as const,
           url: "/api/admin/members/1",
           payload: { firstName: "Hacked" },
-        },
-        {
-          method: "PATCH" as const,
-          url: "/api/admin/members/1/status",
-          payload: { isActive: false },
         },
         {
           method: "GET" as const,
@@ -964,61 +910,6 @@ describe("Members Management Routes", () => {
       // Column 1 = Nombre, Column 8 = Estado
       expect(dataRow.getCell(1).value).toBe("Activo Member");
       expect(dataRow.getCell(8).value).toBe("Activo");
-    });
-  });
-
-  // =========================================================================
-  // Deactivated login block
-  // =========================================================================
-  describe("Deactivated user login block", () => {
-    beforeEach(async () => {
-      await cleanupTestMembers();
-      testPlanId = await createTestPlan();
-    });
-
-    it("deactivated user cannot login (returns 401)", async () => {
-      // Create a member via admin API
-      const member = await createMember({
-        email: "deactivated@test.com",
-        dni: "50111222",
-      });
-
-      // We need to know the temp password to login, but since it's auto-generated
-      // and not exposed, we'll register via auth endpoint instead for this test
-      await registerUser(app, {
-        email: "deactivated-login@test.com",
-        password: "pass123456",
-        branchId: 1,
-      });
-
-      // Find the user ID for the auth-registered user
-      const [registeredUser] = await app.db
-        .select({ id: users.id })
-        .from(users)
-        .where(eq(users.email, "deactivated-login@test.com"));
-
-      // Deactivate
-      await app.inject({
-        method: "PATCH",
-        url: `/api/admin/members/${registeredUser.id}/status`,
-        headers: { authorization: `Bearer ${adminToken}` },
-        payload: { isActive: false },
-      });
-
-      // Attempt login
-      const loginRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/login",
-        payload: {
-          email: "deactivated-login@test.com",
-          password: "pass123456",
-        },
-      });
-
-      // Inactive users can now login (features gated in frontend)
-      expect(loginRes.statusCode).toBe(200);
-      const body = JSON.parse(loginRes.body);
-      expect(body.user.isActive).toBe(false);
     });
   });
 

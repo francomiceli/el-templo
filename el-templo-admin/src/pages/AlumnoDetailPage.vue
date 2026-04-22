@@ -84,22 +84,6 @@
                 color="primary"
                 @click="showEditDialog = true"
               />
-              <q-btn
-                v-if="memberProfile.isActive"
-                flat
-                icon="block"
-                label="Desactivar"
-                color="negative"
-                @click="confirmToggleStatus"
-              />
-              <q-btn
-                v-else
-                flat
-                icon="check_circle"
-                label="Reactivar"
-                color="positive"
-                @click="confirmToggleStatus"
-              />
             </div>
           </div>
         </q-card-section>
@@ -598,41 +582,6 @@ async function loadAll() {
 // =========================================================================
 // Actions
 // =========================================================================
-
-function confirmToggleStatus() {
-  if (!memberProfile.value) return;
-
-  const name = memberName.value;
-  const isCurrentlyActive = memberProfile.value.isActive;
-
-  $q.dialog({
-    title: isCurrentlyActive ? 'Desactivar alumno' : 'Reactivar alumno',
-    message: isCurrentlyActive
-      ? `Desactivar a ${name}? No podra ingresar a la app.`
-      : `Reactivar a ${name}?`,
-    cancel: { flat: true, label: 'Cancelar' },
-    ok: {
-      color: isCurrentlyActive ? 'negative' : 'positive',
-      label: isCurrentlyActive ? 'Desactivar' : 'Reactivar',
-    },
-  }).onOk(async () => {
-    if (!memberProfile.value) return;
-    try {
-      memberProfile.value = await membersApi.toggleMemberStatus(
-        userId.value,
-        !memberProfile.value.isActive
-      );
-      $q.notify({
-        type: 'positive',
-        message: memberProfile.value.isActive ? 'Alumno reactivado' : 'Alumno desactivado',
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error toggling member status', { error: message });
-      $q.notify({ type: 'negative', message: 'Error actualizando estado' });
-    }
-  });
-}
 
 function onPhotoUploaded(url: string) {
   if (memberProfile.value) {

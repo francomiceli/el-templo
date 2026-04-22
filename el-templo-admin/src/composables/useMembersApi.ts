@@ -92,22 +92,6 @@ export function useMembersApi() {
     }
   }
 
-  async function toggleMemberStatus(userId: number, isActive: boolean): Promise<MemberProfile> {
-    loading.value = true;
-    error.value = null;
-    try {
-      const { data } = await api.patch<MemberProfile>(`/admin/members/${userId}/status`, {
-        isActive,
-      });
-      return data;
-    } catch (err: unknown) {
-      error.value = extractError(err, 'Error actualizando estado');
-      throw err;
-    } finally {
-      loading.value = false;
-    }
-  }
-
   // ─── Session Levels (Phase 99) ────────────────────────────────────────
 
   /**
@@ -351,7 +335,6 @@ export function useMembersApi() {
     getMember,
     createMember,
     updateMember,
-    toggleMemberStatus,
     checkDni,
     getPlans,
     bulkMigratePlan,

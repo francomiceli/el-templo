@@ -295,6 +295,17 @@ export class MemberService {
    * Get full member profile by ID. Returns null if not found.
    */
   async getMemberById(id: number): Promise<MemberProfile | null> {
+    // Active = has an active/paused subscription that hasn't ended.
+    // Same definition used by the member list query (single source of truth).
+    const isActiveSubquery = sql<number>`(
+      SELECT EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )
+    )`;
+
     const [row] = await this.db
       .select({
         id: schema.users.id,
@@ -315,7 +326,7 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: schema.users.isActive,
+        isActive: isActiveSubquery,
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
       })
@@ -344,7 +355,7 @@ export class MemberService {
       level: row.level,
       branchId: row.branchId,
       branchName: row.branchName,
-      isActive: row.isActive,
+      isActive: Boolean(row.isActive),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -448,24 +459,6 @@ export class MemberService {
         .set(updateData)
         .where(eq(schema.users.id, id));
     }
-
-    return this.getMemberById(id);
-  }
-
-  /**
-   * Toggle member active status.
-   */
-  async toggleActive(
-    id: number,
-    isActive: boolean,
-  ): Promise<MemberProfile | null> {
-    const existing = await this.getMemberById(id);
-    if (!existing) return null;
-
-    await this.db
-      .update(schema.users)
-      .set({ isActive })
-      .where(eq(schema.users.id, id));
 
     return this.getMemberById(id);
   }

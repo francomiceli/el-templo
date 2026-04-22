@@ -35,7 +35,6 @@ import {
   getMemberSchema,
   createMemberSchema,
   updateMemberSchema,
-  toggleStatusSchema,
   checkDniSchema,
   exportMembersSchema,
   uploadPhotoUrlSchema,
@@ -492,24 +491,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   });
-
-  // PATCH /admin/members/:userId/status — Toggle active status
-  fastify.patch<{ Params: { userId: number }; Body: { isActive: boolean } }>(
-    "/:userId/status",
-    { schema: toggleStatusSchema },
-    async (request, reply) => {
-      const member = await memberService.toggleActive(
-        request.params.userId,
-        request.body.isActive,
-      );
-      if (!member) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Miembro no encontrado" });
-      }
-      return member;
-    },
-  );
 
   // =========================================================================
   // Photo Upload
