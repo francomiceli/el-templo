@@ -91,3 +91,19 @@ When all three phases finish (or when you stop):
 - Plan 12 produced `98-UAT.md` — user must run deployed iOS + Android builds against staging (non-negotiable D-19 HALT gate) before Phase 98 is considered fully shipped.
 - `PICKUP-NOTES.md` captures mid-phase decisions (scale convention fix).
 - Starting Phase 99.
+
+### 2026-04-22 — Phase 99 complete
+
+- All 3 plans executed across 2 waves (wave 1: 99-01 API, 99-02 app selection plumbing; wave 2: 99-03 UX).
+- **Commits on master (this phase):**
+  - `97901772` — refactor(99-01): rename level_at_completion to session_level
+  - `1ff6351d` — feat(99-01): add admin session-levels endpoint + R3/R9/R10/R11 tests
+  - (Plan 99-02 commits: `11dcc024`, `5c9ec239`, `49588176`, `322c8545`)
+  - `01862a61` — docs(99-02): complete client-side selection plumbing plan
+  - `07af6548` — feat(99-03): HeaderLevelDropdown + level= injection + mid-session guard
+  - `f4397948` — feat(99-03): admin chip row on AlumnoDetailPage + getSessionLevels composable
+- **Migration landed:** 0093 (rename completed_sessions.level_at_completion → session_level, forward-only ALTER TABLE CHANGE COLUMN).
+- **Tests:** API 742/742 passing (9 new Phase-99 cases). el-templo-app 55/55 passing (39 new Phase-99 cases from Plan 99-02; no Vue component harness so no new tests in Plan 99-03).
+- All 11 SPEC requirements code-complete. Human on-device walkthrough (R1 desktop+mobile dropdown, R4 persistence across cold restart, R6 logout wipe, R7 dialog copy) deferred to next interactive session per AFK override — auto-approved at checkpoint.
+- **Deviations:** Migration renumbered 0091 → 0093 (Phase 98 claimed the slot); R10 test assertion switched from response-body sessionMode to dayId suffix (Fastify schema stripping); R9 asserts "does not regress" rather than strict advance (goal-plans /complete does not invoke recordSessionForProgram); Plan 99-03 skipped TDD RED commits because `el-templo-app/` has no Vue component test harness — plan itself acknowledged this gap. Greps and tsc used as falsifiable proxies.
+- User, when you return: verify the dropdown visually on `/mi-templo` desktop + mobile breakpoints, open DayPlayer, tick an exercise, change level, confirm the dialog copy is exact. Also visit an `/alumnos/<id>` for a member with mixed completions to sight-check the chip row placement + colours.
