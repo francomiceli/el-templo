@@ -299,4 +299,103 @@ describe("Session Routes", () => {
       expect(body.error).toContain("nivel no reconocido");
     });
   });
+
+  // ---------------------------------------------------------------
+  // Phase 99 R3 — ?level=omega override on /sessions/daily
+  // Phase 99 R10 — Saturday ROM collapse with ?level=omega
+  // ---------------------------------------------------------------
+  describe("Phase 99 level override + ROM Saturday (R3 + R10)", () => {
+    it("R3 daily override — /api/sessions/daily?date=<martes>&level=omega returns the omega content (not alfa)", async () => {
+      // 2026-02-24 is a Tuesday (getDay=2) in Week 1 (WEEK_ONE_MONDAY=2026-02-23).
+      // User is alfa by default. With ?level=omega, server should look up
+      // dayId=W1-martes-omega (NOT W1-martes-alfa).
+      //
+      // Proof strategy: seed ONLY the omega session (approved). If the server
+      // honors the override, it returns 200; if it ignored the override and
+      // fell through to users.level=alfa, it would look up W1-martes-alfa
+      // (not seeded) and return 404.
+      const [inserted] = await app.db
+        .insert(schema.sessions)
+        .values({
+          dayId: "W1-martes-omega",
+          week: 1,
+          day: "martes",
+          levelGroup: "omega",
+          blockCount: 0,
+          status: "approved",
+          sessionMode: "regular",
+        })
+        .$returningId();
+      expect(inserted.id).toBeGreaterThan(0);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/sessions/daily?date=2026-02-24&level=omega",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // Server constructs dayId from effectiveLevel — proves the ?level=omega
+      // override flowed through (R3).
+      expect(body.dayId).toBe("W1-martes-omega");
+      expect(body.levelGroup).toBe("omega");
+
+      // Cleanup so parallel tests above that expect 404 keep working
+      await app.db
+        .delete(schema.sessions)
+        .where(eq(schema.sessions.dayId, "W1-martes-omega"));
+    });
+
+    it("R10 Saturday ROM collapse with ?level=omega — server yields delta content (omega collapsed to delta)", async () => {
+      // 2026-02-28 is a Saturday (getDay=6) in Week 1. Seed the day_modes
+      // row marking Saturday as 'rom' so the collapse branch fires.
+      await app.db
+        .insert(schema.dayModes)
+        .values({ dayOfWeek: 6, sessionMode: "rom" });
+
+      // Seed ONLY the delta variant (not omega). If the server correctly
+      // collapses non-alfa levels to delta on ROM Saturdays, it looks up
+      // W1-sabado-delta and returns 200. If it ignored ROM collapse it
+      // would look up W1-sabado-omega (not seeded) and return 404.
+      const [inserted] = await app.db
+        .insert(schema.sessions)
+        .values({
+          dayId: "W1-sabado-delta",
+          week: 1,
+          day: "sabado",
+          levelGroup: "alfa_delta",
+          blockCount: 0,
+          status: "approved",
+          sessionMode: "rom",
+        })
+        .$returningId();
+      expect(inserted.id).toBeGreaterThan(0);
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/sessions/daily?date=2026-02-28&level=omega",
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // ROM collapse produced W1-sabado-delta even though client asked for omega.
+      // The dayId ends in '-delta' (collapsed) — not '-omega' (override) — which
+      // is the falsifiable R10 proof. If ROM collapse failed, the server would
+      // have looked up W1-sabado-omega and returned 404.
+      expect(body.dayId).toBe("W1-sabado-delta");
+      expect(body.dayId).not.toContain("omega");
+      // Note: sessionMode is stripped by Fastify's response schema (not in
+      // sessionResponseSchema properties) — so we don't assert it here.
+
+      // Cleanup
+      await app.db
+        .delete(schema.sessions)
+        .where(eq(schema.sessions.dayId, "W1-sabado-delta"));
+      await app.db
+        .delete(schema.dayModes)
+        .where(eq(schema.dayModes.dayOfWeek, 6));
+    });
+  });
 });

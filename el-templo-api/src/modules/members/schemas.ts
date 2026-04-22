@@ -425,3 +425,48 @@ export const deleteNoteSchema = {
     404: errorSchema,
   },
 };
+
+// =============================================================================
+// Session Level Counts (Phase 99 R11)
+// =============================================================================
+
+export const getMemberSessionLevelsSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer", minimum: 1 },
+    },
+  },
+  querystring: {
+    type: "object",
+    properties: {
+      days: { type: "integer", minimum: 1, maximum: 365, default: 30 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        counts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              level: {
+                type: "string",
+                enum: ["alfa", "delta", "sigma", "omega", "spartan"],
+              },
+              count: { type: "integer", minimum: 0 },
+            },
+            required: ["level", "count"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["counts"],
+    },
+    401: errorSchema,
+    403: errorSchema,
+  },
+};

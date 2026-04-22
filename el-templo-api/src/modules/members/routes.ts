@@ -41,6 +41,7 @@ import {
   createNoteSchema,
   updateNoteSchema,
   deleteNoteSchema,
+  getMemberSessionLevelsSchema,
 } from "./schemas";
 import { Workbook } from "exceljs";
 
@@ -517,6 +518,26 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       );
 
       return { uploadUrl, publicUrl };
+    },
+  );
+
+  // =========================================================================
+  // Session Level Counts (Phase 99 R11)
+  // =========================================================================
+
+  // GET /admin/members/:userId/session-levels?days=30 — per-level completion counts
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { days?: number };
+  }>(
+    "/:userId/session-levels",
+    { schema: getMemberSessionLevelsSchema },
+    async (request) => {
+      const { userId } = request.params;
+      // Defense-in-depth clamp (schema already validates [1, 365] with default 30)
+      const days = Math.max(1, Math.min(365, request.query.days ?? 30));
+      const counts = await memberService.getSessionLevelCounts(userId, days);
+      return { counts };
     },
   );
 

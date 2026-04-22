@@ -7,11 +7,12 @@
 
 import { randomBytes } from "node:crypto";
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, like, sql, desc, ne, isNull } from "drizzle-orm";
+import { eq, and, or, like, sql, desc, ne, isNull, gte } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import { buildMemberNameSearchCondition } from "../shared";
+import type { TrainingLevel } from "../shared/training-constants";
 import type {
   MemberListParams,
   MemberListItem,
@@ -757,5 +758,39 @@ export class MemberService {
   canEditNote(noteAuthorId: number, userId: number, userRole: string): boolean {
     if (userRole === "admin" || userRole === "owner") return true;
     return noteAuthorId === userId;
+  }
+
+  // ─── Session Level Counts (Phase 99 R11) ───────────────────────────────
+
+  /**
+   * Return per-level session completion counts for a member over the last
+   * `days` days. Only levels with count > 0 are returned. Order is not
+   * guaranteed and is not asserted by the client.
+   */
+  async getSessionLevelCounts(
+    userId: number,
+    days: number,
+  ): Promise<Array<{ level: TrainingLevel; count: number }>> {
+    const since = new Date(Date.now() - days * 86400000)
+      .toISOString()
+      .slice(0, 10);
+
+    const rows = await this.db
+      .select({
+        level: schema.completedSessions.sessionLevel,
+        count: sql<number>`COUNT(*)`.as("count"),
+      })
+      .from(schema.completedSessions)
+      .where(
+        and(
+          eq(schema.completedSessions.userId, userId),
+          gte(schema.completedSessions.date, since),
+        ),
+      )
+      .groupBy(schema.completedSessions.sessionLevel);
+
+    return rows
+      .map((r) => ({ level: r.level as TrainingLevel, count: Number(r.count) }))
+      .filter((r) => r.count > 0);
   }
 }
