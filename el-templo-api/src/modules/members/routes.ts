@@ -385,7 +385,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           // Don't fail member creation if email fails
         }
 
-        return reply.code(201).send(member);
+        // Re-fetch so isActive (derived from subscriptions) reflects the
+        // subscription created above.
+        const freshMember =
+          (await memberService.getMemberById(member.id)) ?? member;
+        return reply.code(201).send(freshMember);
       } catch (err: unknown) {
         const { isDuplicate, detail } = isDuplicateKeyError(err);
 
