@@ -10,7 +10,6 @@ import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
 import { createLogger } from 'src/utils/logger';
 import type {
-  MemberListItem,
   MemberProfile,
   MemberListParams,
   MembersListResponse,

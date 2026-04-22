@@ -3,9 +3,9 @@
     <!-- Header -->
     <div class="text-h5 q-mb-md">Alumnos</div>
 
-    <!-- Filter bar — Row 1: search + main filters + actions -->
-    <div class="row q-col-gutter-sm q-mb-sm items-end">
-      <div class="col-12 col-sm-4 col-md-3">
+    <!-- Filter bar — Row 1: search + actions -->
+    <div class="row q-col-gutter-sm q-mb-sm items-end justify-between">
+      <div class="col-12 col-sm-8 col-md-9">
         <q-input
           v-model="filters.search"
           label="Buscar por nombre, email o DNI"
@@ -20,7 +20,27 @@
           </template>
         </q-input>
       </div>
-      <div class="col-6 col-sm-2 col-md-2">
+      <div class="col-12 col-sm-4 col-md-3">
+        <div class="row no-wrap q-gutter-x-sm justify-end items-center">
+          <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
+            <q-tooltip>Exportar a Excel</q-tooltip>
+          </q-btn>
+          <q-btn
+            label="Nuevo"
+            icon="person_add"
+            color="primary"
+            dense
+            no-caps
+            class="q-px-md"
+            @click="showCreateDialog = true"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter bar — Row 2: filters + Solo deudores -->
+    <div class="row q-col-gutter-sm q-mb-md items-end">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.planId"
           :options="planFilterOptions"
@@ -42,7 +62,7 @@
           </template>
         </q-select>
       </div>
-      <div class="col-6 col-sm-2 col-md-1">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.branchId"
           :options="branchFilterOptions"
@@ -54,7 +74,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-4 col-sm-1 col-md-1">
+      <div class="col-6 col-sm-2 col-md-1">
         <q-select
           v-model="filters.level"
           :options="levelFilterOptions"
@@ -66,7 +86,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-4 col-sm-1 col-md-1">
+      <div class="col-6 col-sm-2 col-md-1">
         <q-select
           v-model="filters.isActive"
           :options="statusFilterOptions"
@@ -78,7 +98,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-4 col-sm-2 col-md-1">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
@@ -90,7 +110,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2 col-md-1">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.avatarType"
           :options="avatarFilterOptions"
@@ -102,28 +122,31 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-auto col-md-2">
-        <div class="row no-wrap q-gutter-x-sm justify-end items-center">
-          <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
-            <q-tooltip>Exportar a Excel</q-tooltip>
-          </q-btn>
-          <q-btn
-            label="Nuevo"
-            icon="person_add"
-            color="primary"
-            dense
-            no-caps
-            class="q-px-md"
-            @click="showCreateDialog = true"
-          />
-        </div>
+      <div class="col-12 col-sm-auto col-md-2 items-center">
+        <q-toggle
+          v-model="filters.debtorOnly"
+          label="Solo deudores"
+          color="negative"
+          @update:model-value="onFilterChange"
+        />
       </div>
     </div>
+
+    <!-- Total debt banner (only when Solo deudores is on and there are debts) -->
+    <q-banner
+      v-if="filters.debtorOnly && totalDebtByCurrency.length > 0"
+      class="bg-red-1 text-red-10 q-mb-sm"
+      dense
+      rounded
+    >
+      <strong>Deuda total:</strong>
+      {{ formattedTotalDebt }}
+    </q-banner>
 
     <!-- QTable -->
     <q-table
       :rows="members"
-      :columns="columns"
+      :columns="visibleColumns"
       row-key="id"
       :loading="loading"
       v-model:pagination="tablePagination"
@@ -237,7 +260,13 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import type { MemberListItem, MemberSegment, BranchOption } from 'src/types/member';
+import type {
+  MemberListItem,
+  MemberSegment,
+  BranchOption,
+  TotalDebtRow,
+  ActiveDebt,
+} from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 
@@ -271,7 +300,16 @@ const filters = reactive({
   isActive: true as boolean | null,
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
+  debtorOnly: false as boolean,
 });
+
+// Phase 101: aggregated total debt grouped by currency, scoped to the same
+// filters applied to the member list. Populated on every fetchMembers call.
+const totalDebtByCurrency = ref<TotalDebtRow[]>([]);
+
+const formattedTotalDebt = computed(() =>
+  totalDebtByCurrency.value.map((t) => `${t.currency} $${t.amount.toLocaleString()}`).join(' · ')
+);
 
 const tablePagination = ref({
   page: 1,
@@ -437,6 +475,24 @@ const columns: QTableProps['columns'] = [
   },
 ];
 
+// Phase 101: append a Deuda column when the Solo deudores toggle is on.
+const visibleColumns = computed<QTableProps['columns']>(() => {
+  const base = [...(columns as NonNullable<QTableProps['columns']>)];
+  if (filters.debtorOnly) {
+    base.push({
+      name: 'deuda',
+      label: 'Deuda',
+      field: (row: MemberListItem) => row.debt,
+      align: 'right' as const,
+      sortable: false,
+      style: 'width: 140px',
+      format: (val: ActiveDebt | null) =>
+        val ? `${val.currency} $${val.amount.toLocaleString()}` : '',
+    });
+  }
+  return base;
+});
+
 // =========================================================================
 // Greek level display
 // =========================================================================
@@ -572,11 +628,13 @@ async function loadMembers() {
       isActive: filters.isActive ?? undefined,
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
+      debtorOnly: filters.debtorOnly || undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
     members.value = result.members;
     tablePagination.value.rowsNumber = result.total;
+    totalDebtByCurrency.value = result.totalDebtByCurrency ?? [];
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading members', { error: message });
