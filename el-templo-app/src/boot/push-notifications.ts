@@ -134,17 +134,9 @@ export default boot(async ({ router }) => {
           : 'prompt'
     store.setPermissionStatus(status)
 
-    if (status === 'granted') {
-      try {
-        const tokenResult = await FirebaseMessaging.getToken()
-        store.setFcmToken(tokenResult.token)
-        await sendTokenToBackend(tokenResult.token)
-      } catch (err: unknown) {
-        log.error(
-          'Failed to fetch FCM token (ios)',
-          err instanceof Error ? { message: err.message } : { message: String(err) },
-        )
-      }
-    }
+    // Token delivery is handled exclusively via the `tokenReceived` listener
+    // above. Calling getToken() here races APNs registration and throws on
+    // fresh boots; the listener fires reliably once the APNs→FCM exchange
+    // completes, so the eager fetch is redundant.
   }
 })
