@@ -33,10 +33,7 @@
           <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
           <p class="header-greeting__date">{{ formattedDate }}</p>
         </div>
-        <div v-if="greetingLevel" class="header-greeting__badge">
-          <span class="header-greeting__symbol">{{ greetingLevel.greekLetter }}</span>
-          <span class="header-greeting__level">{{ greetingLevel.levelName }}</span>
-        </div>
+        <HeaderLevelDropdown v-if="userStore.activeLevel" />
       </div>
     </q-header>
 
@@ -90,10 +87,7 @@
             <h1 class="header-greeting__name">Hola, {{ memberName }}!</h1>
             <p class="header-greeting__date">{{ formattedDate }}</p>
           </div>
-          <div v-if="greetingLevel" class="header-greeting__badge">
-            <span class="header-greeting__symbol">{{ greetingLevel.greekLetter }}</span>
-            <span class="header-greeting__level">{{ greetingLevel.levelName }}</span>
-          </div>
+          <HeaderLevelDropdown v-if="userStore.activeLevel" />
         </div>
       </div>
       <router-view />
@@ -150,6 +144,7 @@ import { useAuthStore } from 'stores/useAuthStore'
 import { useUserStore } from 'stores/useUserStore'
 import { useProgressionStore } from 'src/modules/progression/stores/progressionStore'
 import PushPermissionDialog from 'src/components/PushPermissionDialog.vue'
+import HeaderLevelDropdown from 'src/modules/training/components/HeaderLevelDropdown.vue'
 
 const $q = useQuasar()
 const router = useRouter()
@@ -174,14 +169,6 @@ const formattedDate = computed(() => {
     month: 'long',
   })
   return 'Hoy es ' + date.charAt(0).toUpperCase() + date.slice(1)
-})
-
-const greetingLevel = computed(() => {
-  if (!progressionStore.level) return null
-  return {
-    greekLetter: progressionStore.level.greekLetter,
-    levelName: progressionStore.level.displayName,
-  }
 })
 
 const showCheckInFab = computed(() => {

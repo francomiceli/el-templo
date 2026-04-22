@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue'
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
 import { extractError } from 'src/utils/extract-error'
+import { useUserStore } from 'src/stores/useUserStore'
 import type { Session } from '../types/session'
 
 const log = createLogger('WeekData')
@@ -40,6 +41,7 @@ interface WeeklyResponse {
  * await fetchWeekSessions(['2026-01-20', '2026-01-21', ...]);
  */
 export function useWeekData(): UseWeekDataReturn {
+  const userStore = useUserStore()
   const sessions = ref(new Map<string, Session | null>())
   const completedDates = ref<string[]>([])
   const loading = ref(false)
@@ -59,8 +61,12 @@ export function useWeekData(): UseWeekDataReturn {
       // Use the first date (Monday) as week start
       const weekStart = dates[0]
 
+      const params: Record<string, string> = {}
+      if (weekStart) params.weekStart = weekStart
+      if (userStore.selectedLevel) params.level = userStore.selectedLevel
+
       const response = await api.get<WeeklyResponse>('/sessions/weekly', {
-        params: { weekStart },
+        params,
       })
 
       // Build sessions map from response

@@ -1,5 +1,6 @@
 import { api } from 'src/boot/axios'
 import { createLogger } from 'src/utils/logger'
+import { useUserStore } from 'src/stores/useUserStore'
 import type {
   GoalPlanType,
   GoalPlanMetadata,
@@ -35,6 +36,7 @@ interface SessionCompleteResponse {
  * Returns cleanup() per composable convention (no onUnmounted inside).
  */
 export function useGoalPlanApi() {
+  const userStore = useUserStore()
   let abortController: AbortController | null = null
 
   function createAbortSignal(): AbortSignal {
@@ -48,12 +50,9 @@ export function useGoalPlanApi() {
    */
   async function getMetadata(): Promise<GoalPlanMetadata[]> {
     try {
-      const response = await api.get<{ goalPlans: GoalPlanMetadata[] }>(
-        '/goal-plans/metadata',
-        {
-          signal: createAbortSignal(),
-        },
-      )
+      const response = await api.get<{ goalPlans: GoalPlanMetadata[] }>('/goal-plans/metadata', {
+        signal: createAbortSignal(),
+      })
       return response.data.goalPlans
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'CanceledError') {
@@ -135,18 +134,14 @@ export function useGoalPlanApi() {
    * Fetch a goal plan session for a specific week/day.
    * GET /api/goal-plans/session
    */
-  async function getSession(
-    week: number,
-    day: string,
-  ): Promise<GoalPlanSessionResponse | null> {
+  async function getSession(week: number, day: string): Promise<GoalPlanSessionResponse | null> {
     try {
-      const response = await api.get<GoalPlanSessionResponse | null>(
-        '/goal-plans/session',
-        {
-          params: { week, day },
-          signal: createAbortSignal(),
-        },
-      )
+      const params: Record<string, unknown> = { week, day }
+      if (userStore.selectedLevel) params.level = userStore.selectedLevel
+      const response = await api.get<GoalPlanSessionResponse | null>('/goal-plans/session', {
+        params,
+        signal: createAbortSignal(),
+      })
       return response.data
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'CanceledError') {

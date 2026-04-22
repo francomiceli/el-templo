@@ -241,6 +241,18 @@ const hasUnsavedProgress = computed(() => {
   )
 })
 
+// Phase 99: "any exercise started" — used by the mid-session level-change guard.
+// Broader than hasUnsavedProgress (no isTimerRunning gate) because progress-loss
+// applies even if the user paused before opening the dropdown.
+const anyExerciseStarted = computed(() => {
+  const p = player.value
+  if (!p) return false
+  if (p.completedBlocks.value.length > 0) return true
+  if (Object.values(p.completedExercises.value).some((arr) => arr.length > 0)) return true
+  if (p.isTimerRunning.value || p.elapsedSeconds.value > 0) return true
+  return false
+})
+
 const BLOCK_NAMES: Record<string, string> = {
   INITIUM: 'Initium',
   NUCLEUS: 'Nucleus',
@@ -509,10 +521,48 @@ watch(
 onMounted(() => {
   loadWeekDataIfEmpty()
   wakeLock.initialize()
+
+  // Phase 99 R7 — register the mid-session confirmation guard. Returns true
+  // to proceed with the level change, false to cancel. If no exercise has
+  // been started yet, resolve true immediately (no dialog shown).
+  userStore.registerMidSessionGuard(async () => {
+    if (!anyExerciseStarted.value) return true
+    return await new Promise<boolean>((resolve) => {
+      $q.dialog({
+        title: 'Cambiar nivel',
+        message: 'Si cambias de nivel vas a perder el progreso de esta sesion. ¿Seguro?',
+        cancel: { label: 'Cancelar', flat: true },
+        ok: { label: 'Cambiar nivel', color: 'negative' },
+        persistent: true,
+      })
+        .onOk(() => resolve(true))
+        .onCancel(() => resolve(false))
+        .onDismiss(() => resolve(false))
+    })
+  })
 })
+
+// Phase 99 R7 — watcher that discards local progress + refetches on activeLevel
+// change. The guard above has already gated the mutation; by the time this
+// fires the user has confirmed (or it was a self-pick clearing the override).
+// Hydration-as-change guard: on boot, activeLevel flips null -> concrete once
+// profile + stored selection are loaded; that is NOT a user-initiated change.
+watch(
+  () => userStore.activeLevel,
+  async (newLevel, oldLevel) => {
+    if (newLevel === oldLevel) return
+    if (oldLevel === null) return // boot hydration — no prior progress to discard
+    if (player.value && anyExerciseStarted.value) {
+      await player.value.clearProgress()
+    }
+    await fetchWeekSessions(getWeekDates())
+  },
+)
+
 onUnmounted(() => {
   if (player.value) player.value.cleanup()
   wakeLock.cleanup()
+  userStore.registerMidSessionGuard(null)
 })
 </script>
 
