@@ -21,6 +21,7 @@ import { SchedulingService } from "./service";
 import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
+import { TrialService } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
@@ -36,6 +37,7 @@ import {
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
+  createTrialSchema,
   addHolidaySchema,
   removeHolidaySchema,
   listHolidaysSchema,
@@ -75,6 +77,8 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
   subscriptionService.setBookingService(bookingService);
+  // Phase 102: TrialService — atomic lead+booking creation.
+  const trialService = new TrialService(fastify.db, fastify.log);
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
@@ -286,6 +290,29 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ─── Trials (Phase 102) ─────────────────────────────────────────────────
+
+  // POST /trials — create a lead user + trial booking atomically.
+  // Full path: /api/admin/scheduling/trials (inherits plugin prefix + guard).
+  // Rejects a second trial for the same phone with HTTP 409.
+  fastify.post<{
+    Body: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      branchId: number;
+      scheduleId: number;
+      bookingDate: string;
+    };
+  }>("/trials", { schema: createTrialSchema }, async (request, reply) => {
+    try {
+      const result = await trialService.createTrial(request.body);
+      return reply.code(201).send(result);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "create trial");
+    }
+  });
 
   // ─── Holidays ───────────────────────────────────────────────────────────
 

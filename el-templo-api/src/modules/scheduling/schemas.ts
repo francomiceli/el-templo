@@ -316,6 +316,49 @@ export const adminAddBookingSchema = {
   },
 };
 
+/**
+ * Phase 102: createTrialSchema
+ *
+ * POST /api/admin/scheduling/trials
+ * Creates a lead user + trial booking atomically. Validates minimal fields;
+ * the 409 one-per-phone guard and the atomic insert happen in TrialService.
+ */
+export const createTrialSchema = {
+  body: {
+    type: "object",
+    required: [
+      "firstName",
+      "lastName",
+      "phone",
+      "branchId",
+      "scheduleId",
+      "bookingDate",
+    ],
+    properties: {
+      firstName: { type: "string", minLength: 1, maxLength: 100 },
+      lastName: { type: "string", minLength: 1, maxLength: 100 },
+      phone: { type: "string", minLength: 5, maxLength: 30 },
+      branchId: { type: "integer", minimum: 1 },
+      scheduleId: { type: "integer", minimum: 1 },
+      bookingDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    201: {
+      type: "object",
+      required: ["userId", "bookingId"],
+      properties: {
+        userId: { type: "integer" },
+        bookingId: { type: "integer" },
+      },
+    },
+    400: errorSchema,
+    404: errorSchema,
+    409: errorSchema,
+  },
+} as const;
+
 export const adminRemoveBookingSchema = {
   params: {
     type: "object",
