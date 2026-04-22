@@ -21,6 +21,12 @@ export interface MemberListParams {
    * When present, filters results to members whose branch has this country.
    */
   country?: "AR" | "ES";
+  /**
+   * Phase 101: when true, restricts the list to users with at least one
+   * active (non-cancelled) debt row. Also scopes `totalDebtByCurrency` to
+   * the resulting filter set.
+   */
+  debtorOnly?: boolean;
   page: number;
   limit: number;
 }
@@ -42,6 +48,8 @@ export interface MemberListItem {
   segment: string | null;
   avatarType: string | null;
   createdAt: string;
+  /** Phase 101: populated when the user has an active (non-cancelled) debt. */
+  debt: ActiveDebt | null;
 }
 
 export interface MemberProfile {
@@ -139,4 +147,30 @@ export interface MemberExportRow {
   vencimientoSuscripcion: string;
   fechaNacimiento: string;
   direccion: string;
+}
+
+// ─── Phase 101: Debt Tracking ──────────────────────────────────────────
+
+/** Currencies supported for debts in v1 (D-13). */
+export const DEBT_CURRENCIES = ["ARS", "EUR", "USD"] as const;
+export type DebtCurrency = (typeof DEBT_CURRENCIES)[number];
+
+/** Shape of an active debt row as exposed to API consumers. */
+export interface ActiveDebt {
+  amount: number;
+  currency: string;
+  note: string | null;
+}
+
+/** Input accepted by DebtService.upsertActiveDebt. */
+export interface DebtUpsertInput {
+  amount: number;
+  currency: DebtCurrency;
+  note?: string | null;
+}
+
+/** Row returned by DebtService.getTotalDebtByCurrency. */
+export interface TotalDebtRow {
+  currency: string;
+  amount: number;
 }

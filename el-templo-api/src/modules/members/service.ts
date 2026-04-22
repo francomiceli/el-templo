@@ -247,6 +247,7 @@ export class MemberService {
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,
       createdAt: r.createdAt.toISOString(),
+      debt: null,
     }));
 
     return { members, total };
