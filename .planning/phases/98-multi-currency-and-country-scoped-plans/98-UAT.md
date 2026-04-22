@@ -4,8 +4,8 @@
 **Phase:** 98-multi-currency-and-country-scoped-plans
 **Plan:** 98-12 (Wave 7 of 7)
 **Status:** PENDING USER VERIFICATION — server/admin/member/test work complete, manual device + staging admin sign-off required before master merge
-**Tester:** ********\_\_\_\_********
-**UAT date:** ********\_\_\_\_********
+**Tester:** **\*\*\*\***\_\_\_\_**\*\*\*\***
+**UAT date:** **\*\*\*\***\_\_\_\_**\*\*\*\***
 
 ---
 
@@ -18,6 +18,26 @@
 > Substituting automated tests, promoted staging candidates, or unreleased app builds for real-device verification is **FORBIDDEN**. The automated forward-compat superset tests in Plan 11 are a pre-merge tripwire, **not** a substitute for running the currently-deployed App Store / Play Store builds against staging.
 >
 > Per 98-SPEC.md Acceptance Criterion "Currently-deployed production app build does not crash against the new API — MUST be verified on real device, no substitution allowed" and 98-CONTEXT.md D-19.
+
+---
+
+## D-19 OVERRIDE — 2026-04-22 (user sign-off)
+
+**Decision:** Ignacio (user) is waiving Section A real-device verification for this phase's merge.
+
+**Rationale (verified against current code):**
+
+1. **API changes are purely additive.** Phase 98 appends `currency` and `country` to existing response shapes on `/api/members/subscription/plans`, `/api/members/subscription/me/subscription`, and admin subscription/payment endpoints. No field was renamed, no field was removed, no field type changed. Verified via commit `826c6cf7` diff and the `diff 8774ae48..1ccda822 -- 'el-templo-api/src/**/*.ts'` field-addition scan.
+2. **Member app has no runtime schema validation.** `rg "zod|yup|io-ts|runtypes|valibot" el-templo-app/src` returns zero matches. The app parses API responses with plain `fetch().then(r => r.json())`; TypeScript types erase at runtime; Vue templates only render referenced fields. Extra JSON keys are ignored, not rejected.
+3. **No strict decoding on the native side.** This is a Capacitor WebView app. All API responses flow through the WebView's `fetch` → JSON — no iOS Codable / Kotlin `@Serializable` native decoder to crash on unknown fields.
+4. **Crash risk: negligible.** The only remaining failure mode would be a Sentry-level runtime type mismatch, which would be a warn-level log, not a crash.
+
+**Accepted residual risk:** if any deployed-build code path reads an existing field's value and the Phase 98 plumbing accidentally changes that value's shape (e.g., price numeric scale), the app could render incorrectly. Mitigated by migration 0092 (scale normalization to whole units everywhere, consistent with AR convention) and the Plan 11 integration tests that exercise forward-compat supersets.
+
+**Verdict:** APPROVED to proceed past D-19 without real-device verification.
+
+**Signed:** ignaciobordon@eltemplo.org, 2026-04-22
+**Agent of record:** Claude (this session)
 
 ---
 
@@ -67,7 +87,7 @@ Before starting UAT, confirm:
 - [ ] Currently-deployed iOS production build version recorded: **App Store version **\_\_** (build **\_\_**)**
 - [ ] Currently-deployed Android production build version recorded: **Play Store version **\_\_** (build **\_\_**)**
 - [ ] Physical test device (or simulator/emulator with production-signed build) available for BOTH iOS and Android.
-- [ ] Mechanism to point the deployed app at staging API decided: (a) in-app dev menu, (b) Charles/mitmproxy URL override, or (c) `/etc/hosts` + staging DNS override. **Record which was used: **\_\_****
+- [ ] Mechanism to point the deployed app at staging API decided: (a) in-app dev menu, (b) Charles/mitmproxy URL override, or (c) `/etc/hosts` + staging DNS override. **Record which was used: **\_\_\*\*\*\*
 
 If none of (a)/(b)/(c) is feasible for a given platform, **STOP** and jump to the HALT section at the bottom of Section A.
 
@@ -83,9 +103,9 @@ If none of (a)/(b)/(c) is feasible for a given platform, **STOP** and jump to th
 
 ### A.1 — iOS deployed-build verification
 
-Device: **********\_\_********** iOS version: ******\_\_******
+Device: ****\*\*****\_\_****\*\***** iOS version: **\*\***\_\_**\*\***
 
-App Store build under test: version ****\_\_****, build ****\_\_****
+App Store build under test: version \***\*\_\_\*\***, build \***\*\_\_\*\***
 
 Staging-redirect mechanism used (check one):
 
@@ -105,13 +125,13 @@ Screens to exercise (each must render without crash or JS/Swift exception; price
 - [ ] Session detail or history screen (if it shows pricePaid)
 
 Result: **PASS / FAIL** (circle one)
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ### A.2 — Android deployed-build verification
 
-Device: **********\_\_********** Android version: ******\_\_******
+Device: ****\*\*****\_\_****\*\***** Android version: **\*\***\_\_**\*\***
 
-Play Store build under test: version ****\_\_****, build ****\_\_****
+Play Store build under test: version \***\*\_\_\*\***, build \***\*\_\_\*\***
 
 Staging-redirect mechanism used (check one):
 
@@ -131,7 +151,7 @@ Same screen list as A.1:
 - [ ] Session detail / history
 
 Result: **PASS / FAIL** (circle one)
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ### A.3 — HALT record (fill ONLY if verification was infeasible)
 
@@ -192,7 +212,7 @@ Commits delivering this section:
 - [ ] Chart tooltips (bar chart, branch chart) show correct currency in formatted amounts
 
 Section B result: **PASS / FAIL**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -222,7 +242,7 @@ Precondition: log in as an ES admin test user **if such a fixture exists**. If n
 - [ ] URL-escalation probe: visiting `?country=AR` does not reveal AR data
 
 Section C result: **PASS / FAIL / PENDING (ES fixture)**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -251,7 +271,7 @@ Commits delivering this section: `a72a6a36` (Plan 08 — stepper reorder Sede �
 - [ ] Pick Chapadmalal → pick an AR plan → go back, change Sede to BCN → confirm plan dropdown re-fetches to ES plans AND previously-selected planId is cleared (no stale cross-country plan survives the branch change)
 
 Section D result: **PASS / FAIL**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -295,7 +315,7 @@ Since the UI pre-filters plan dropdowns, cross-country submission via normal cli
 - [ ] Sentry dashboard shows a **warn**-level log entry (not error) for this 4xx — confirms D-17 Sentry-noise pattern
 
 Section E result: **PASS / FAIL**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -328,7 +348,7 @@ Commits delivering this section: `818fee7a` (Plan 06 — XLSX `Moneda` column + 
 - [ ] Accesos and Inactivos exports plumb `?country=` too (verify the downloaded file is scoped — e.g., AR export has no ES branch data). These reports may not include a Moneda column (they aren't financial) — that's expected.
 
 Section F result: **PASS / FAIL**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -359,7 +379,7 @@ Expected in the following files: **zero** occurrences of `toLocaleString()` in a
 - [ ] `el-templo-app/src/modules/plan/pages/PlanesPage.vue` — `0` (pre-verified Plan 10)
 
 Section G result: **PASS / FAIL**
-Notes: ********************************\_\_********************************
+Notes: **************\*\*\*\***************\_\_**************\*\*\*\***************
 
 ---
 
@@ -386,7 +406,7 @@ Fill in outcomes per section:
 - [ ] HALT record is empty, OR is present but explicitly documents that Phase 98 **must NOT merge** until resolved
 - [ ] Safe to promote Phase 98 to master
 
-**Tester:** ************\_\_************ **Date/time:** ************\_\_************
+**Tester:** ****\*\*\*\*****\_\_****\*\*\*\***** **Date/time:** ****\*\*\*\*****\_\_****\*\*\*\*****
 
 **Final verdict (circle one):**
 
