@@ -55,6 +55,19 @@
                 :label="memberProfile.isActive ? 'Activo' : 'Inactivo'"
                 class="text-body2"
               />
+              <!-- Phase 102 R7: always-visible trial counter (renders even for sub-less leads) -->
+              <q-chip
+                :color="memberProfile.hasUsedTrial ? 'grey-7' : 'primary'"
+                :text-color="memberProfile.hasUsedTrial ? 'white' : 'primary'"
+                :outline="!memberProfile.hasUsedTrial"
+                dense
+                :label="
+                  memberProfile.hasUsedTrial
+                    ? 'Clases de prueba: 1/1 usada'
+                    : 'Clases de prueba: 0/1'
+                "
+                class="text-body2"
+              />
               <q-badge
                 v-if="memberProfile.segment"
                 :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
