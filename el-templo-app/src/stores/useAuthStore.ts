@@ -52,6 +52,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userStore = useUserStore()
       userStore.setProfile(userData)
+      // Phase 99: rehydrate any previously-persisted level selection for this
+      // user BEFORE the caller navigates — ensures the first session fetch
+      // carries the right ?level= param.
+      await userStore.hydrateSelection()
     } catch (err: unknown) {
       error.value = extractError(err, 'Error de inicio de sesión')
       throw err
@@ -88,6 +92,9 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userStore = useUserStore()
       userStore.setProfile(userData)
+      // Phase 99: rehydrate any previously-persisted level selection for this
+      // user BEFORE returning to the caller (and before any navigation).
+      await userStore.hydrateSelection()
 
       return { promoApplied }
     } catch (err: unknown) {
@@ -100,9 +107,14 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function logout() {
     await removeToken()
+    const userStore = useUserStore()
+    // Phase 99: wipe the user-scoped level-selection storage BEFORE nulling
+    // user/profile refs — clearSelection resolves userId defensively from
+    // whichever ref is still populated, but removing the key while the
+    // context is still intact is the safest order (Pitfall 3 in research).
+    await userStore.clearSelection()
     token.value = null
     user.value = null
-    const userStore = useUserStore()
     userStore.clearProfile()
   }
 
