@@ -41,7 +41,11 @@ api.interceptors.request.use(
     // default Content-Type when data is undefined, causing the API to return
     // 415 Unsupported Media Type.
     const method = config.method?.toUpperCase()
-    if (method && ['POST', 'PUT', 'PATCH'].includes(method) && config.data === undefined) {
+    if (
+      method &&
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) &&
+      config.data === undefined
+    ) {
       config.data = {}
     }
     return config
