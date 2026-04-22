@@ -1,11 +1,28 @@
 <template>
   <q-page class="q-pa-md">
     <!-- Header -->
-    <div class="text-h5 q-mb-md">Alumnos</div>
+    <div class="row q-mb-md items-center">
+      <div class="text-h5">Alumnos</div>
+      <q-space />
+      <div class="row no-wrap q-gutter-x-sm justify-end items-center">
+        <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
+          <q-tooltip>Exportar a Excel</q-tooltip>
+        </q-btn>
+        <q-btn
+          label="Nuevo"
+          icon="person_add"
+          color="primary"
+          dense
+          no-caps
+          class="q-px-md"
+          @click="showCreateDialog = true"
+        />
+      </div>
+    </div>
 
-    <!-- Filter bar — Row 1: search + actions -->
-    <div class="row q-col-gutter-sm q-mb-sm items-end justify-between">
-      <div class="col-12 col-sm-8 col-md-9">
+    <!-- Filter bar — Row 1: search + Solo deudores -->
+    <div class="row q-col-gutter-sm q-mb-sm items-end">
+      <div class="col-12 col-sm-6 col-md-6">
         <q-input
           v-model="filters.search"
           label="Buscar por nombre, email o DNI"
@@ -20,25 +37,17 @@
           </template>
         </q-input>
       </div>
-      <div class="col-12 col-sm-4 col-md-3">
-        <div class="row no-wrap q-gutter-x-sm justify-end items-center">
-          <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
-            <q-tooltip>Exportar a Excel</q-tooltip>
-          </q-btn>
-          <q-btn
-            label="Nuevo"
-            icon="person_add"
-            color="primary"
-            dense
-            no-caps
-            class="q-px-md"
-            @click="showCreateDialog = true"
-          />
-        </div>
+      <div class="col-12 col-sm-3 col-md-3 items-center">
+        <q-toggle
+          v-model="filters.debtorOnly"
+          label="Solo deudores"
+          color="negative"
+          @update:model-value="onFilterChange"
+        />
       </div>
     </div>
 
-    <!-- Filter bar — Row 2: filters + Solo deudores -->
+    <!-- Filter bar — Row 2: filters -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
       <div class="col-6 col-sm-3 col-md-2">
         <q-select
@@ -74,7 +83,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2 col-md-1">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.level"
           :options="levelFilterOptions"
@@ -86,7 +95,7 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-2 col-md-1">
+      <div class="col-6 col-sm-3 col-md-2">
         <q-select
           v-model="filters.isActive"
           :options="statusFilterOptions"
@@ -119,14 +128,6 @@
           outlined
           emit-value
           map-options
-          @update:model-value="onFilterChange"
-        />
-      </div>
-      <div class="col-12 col-sm-auto col-md-2 items-center">
-        <q-toggle
-          v-model="filters.debtorOnly"
-          label="Solo deudores"
-          color="negative"
           @update:model-value="onFilterChange"
         />
       </div>
