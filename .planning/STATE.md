@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 100-05-PLAN.md
-last_updated: "2026-04-22T01:22:37.461Z"
+stopped_at: Completed 101-01-PLAN.md
+last_updated: "2026-04-22T01:27:35.763Z"
 progress:
   total_phases: 91
   completed_phases: 78
   total_plans: 336
-  completed_plans: 327
-  percent: 97
+  completed_plans: 328
+  percent: 98
 ---
 
 # Project State
@@ -121,6 +121,7 @@ _Updated after each plan completion_
 | Phase 99 P02 | 20 | 2 tasks | 8 files |
 | Phase 100 P04 | ~12m | 2 tasks | 7 files |
 | Phase 100 P05 | 18m | 1 tasks | 3 files |
+| Phase 101 P01 | 1min | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -257,6 +258,9 @@ Recent decisions affecting current work:
 - [Phase 90]: avatarType filter uses NOT EXISTS subquery for 'none' to catch both missing profiles and null avatar_type
 - 100-04: Admin route-labels dictionary duplicated byte-for-byte from member-app copy; D-01 preserved (admin exercises + sessions lists unchanged)
 - Phase 100-05: PDF pipeline consumes Spanish route labels via pre-resolved PdfLevelBlock.routeLabel field; customTitle flows through PdfBlockPage with byte-identical null fallback
+- Phase 101-01: debts table migration renumbered from 0094 to 0096 because Phase 100 claimed 0094/0095
+- Phase 101-01: one-active-debt-per-user invariant enforced at service layer (MySQL lacks partial unique indexes); idx_debts_user_active composite index backs the service lookup
+- Phase 101-01: FK fk_debts_user_id has no ON DELETE/UPDATE — users are soft-deleted via users.deleted_at so no cascade needed
 
 ### Pending Todos
 
@@ -268,8 +272,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T01:22:29.743Z
-Stopped at: Completed 100-05-PLAN.md
+Last session: 2026-04-22T01:27:29.044Z
+Stopped at: Completed 101-01-PLAN.md
 Resume file: None
 
 **Planned Phase:** 101 (debt-tracking-flag-members-with-outstanding-debt) — 3 plans — 2026-04-21T22:54:21.525Z
