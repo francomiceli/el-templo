@@ -171,9 +171,9 @@ watch(
   { immediate: true },
 )
 
-// User level for splash screen
+// Selected level for splash screen (falls back to profile.level when no override is set)
 const userLevel = computed(() => {
-  return userStore.profile?.level ?? session.value?.levelGroup ?? ''
+  return userStore.activeLevel ?? session.value?.levelGroup ?? ''
 })
 
 // Day offset for quote variety across days
