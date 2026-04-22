@@ -476,8 +476,8 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Parse and validate the level the session was played at (last dayId
       // segment). Independent of users.level so members can train at any level.
-      const levelAtCompletion = parseDayId(dayId).level;
-      if (!isTrainingLevel(levelAtCompletion)) {
+      const sessionLevel = parseDayId(dayId).level;
+      if (!isTrainingLevel(sessionLevel)) {
         return reply
           .status(400)
           .send({ error: "dayId invalido: nivel no reconocido" });
@@ -518,7 +518,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             notes,
             blocksCompleted,
             exercisesCompleted: exercisesCompleted ?? null,
-            levelAtCompletion,
+            sessionLevel,
           })
           .where(eq(schema.completedSessions.id, existing.id));
         completedSessionId = existing.id;
@@ -537,7 +537,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             notes,
             blocksCompleted,
             exercisesCompleted: exercisesCompleted ?? null,
-            levelAtCompletion,
+            sessionLevel,
           });
         completedSessionId = result.insertId;
       }

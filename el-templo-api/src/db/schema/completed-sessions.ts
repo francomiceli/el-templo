@@ -22,7 +22,7 @@ export const completedSessions = mysqlTable(
     // Level the session was played at (parsed from day_id suffix). May differ
     // from the user's current users.level when a member trains at a level
     // they selected in the header dropdown.
-    levelAtCompletion: mysqlEnum("level_at_completion", [
+    sessionLevel: mysqlEnum("session_level", [
       "alfa",
       "delta",
       "sigma",

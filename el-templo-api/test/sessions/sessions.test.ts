@@ -189,7 +189,7 @@ describe("Session Routes", () => {
       expect(res.statusCode).toBe(400);
     });
 
-    it("stamps level_at_completion from dayId suffix matching user level", async () => {
+    it("stamps session_level from dayId suffix matching user level", async () => {
       // Register a fresh user so we can assert on a clean row set
       await registerUser(app, {
         email: "stamp-own-level@test.com",
@@ -222,7 +222,7 @@ describe("Session Routes", () => {
         .where(eq(schema.users.email, "stamp-own-level@test.com"));
       const [completion] = await app.db
         .select({
-          levelAtCompletion: schema.completedSessions.levelAtCompletion,
+          sessionLevel: schema.completedSessions.sessionLevel,
         })
         .from(schema.completedSessions)
         .where(
@@ -231,10 +231,10 @@ describe("Session Routes", () => {
             eq(schema.completedSessions.dayId, "W3-lunes-alfa"),
           ),
         );
-      expect(completion?.levelAtCompletion).toBe("alfa");
+      expect(completion?.sessionLevel).toBe("alfa");
     });
 
-    it("stamps level_at_completion from dayId even when it differs from users.level (train at any level)", async () => {
+    it("stamps session_level from dayId even when it differs from users.level (train at any level)", async () => {
       // User registers at default level "alfa" but completes a sigma session
       await registerUser(app, {
         email: "stamp-other-level@test.com",
@@ -269,7 +269,7 @@ describe("Session Routes", () => {
 
       const [completion] = await app.db
         .select({
-          levelAtCompletion: schema.completedSessions.levelAtCompletion,
+          sessionLevel: schema.completedSessions.sessionLevel,
         })
         .from(schema.completedSessions)
         .where(
@@ -278,7 +278,7 @@ describe("Session Routes", () => {
             eq(schema.completedSessions.dayId, "W3-martes-sigma"),
           ),
         );
-      expect(completion?.levelAtCompletion).toBe("sigma");
+      expect(completion?.sessionLevel).toBe("sigma");
     });
 
     it("returns 400 when dayId has an unrecognized level suffix", async () => {

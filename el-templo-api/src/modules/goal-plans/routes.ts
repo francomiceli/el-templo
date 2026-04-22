@@ -252,8 +252,8 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
       } = request.body;
 
       // Parse and validate the level the session was played at.
-      const levelAtCompletion = parseDayId(dayId).level;
-      if (!isTrainingLevel(levelAtCompletion)) {
+      const sessionLevel = parseDayId(dayId).level;
+      if (!isTrainingLevel(sessionLevel)) {
         return reply
           .status(400)
           .send({ error: "dayId invalido: nivel no reconocido" });
@@ -303,7 +303,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
-              levelAtCompletion,
+              sessionLevel,
             })
             .where(eq(schema.completedSessions.id, existing.id));
         } else {
@@ -321,7 +321,7 @@ export const goalPlanRoutes: FastifyPluginAsync = async (fastify) => {
               blocksCompleted,
               exercisesCompleted: exercisesCompleted ?? null,
               goalPlanType: activeGoalPlan.goalPlanType,
-              levelAtCompletion,
+              sessionLevel,
             });
           completionId = Number(result[0].insertId);
         }
