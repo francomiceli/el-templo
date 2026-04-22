@@ -134,6 +134,8 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   await app.db.delete(schema.auraTransactions);
   await app.db.delete(schema.memberNotes);
   await app.db.delete(schema.holidays);
+  // Phase 101: debts FK(user_id → users.id) blocks user delete if rows remain.
+  await app.db.delete(schema.debts);
 
   // Layer 3: core entity tables
   await app.db.delete(schema.promoPlans);
@@ -204,7 +206,7 @@ export async function createStaffUser(
       passwordHash,
       firstName: data.firstName,
       lastName: data.lastName,
-      role: data.role as "coach" | "admin" | "owner" | "gestion",
+      role: data.role as "coach" | "admin" | "owner" | "gestion" | "recepcion",
       branchId: data.branchId,
     })
     .$returningId();

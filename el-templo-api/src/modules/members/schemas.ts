@@ -6,6 +6,16 @@
 // Shared response fragments
 // =============================================================================
 
+// Phase 101: shape of an active debt as exposed on member list/profile responses.
+const activeDebtSchema = {
+  type: ["object", "null"],
+  properties: {
+    amount: { type: "integer" },
+    currency: { type: "string" },
+    note: { type: ["string", "null"] },
+  },
+} as const;
+
 const memberListItemSchema = {
   type: "object",
   properties: {
@@ -25,6 +35,7 @@ const memberListItemSchema = {
     segment: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
     createdAt: { type: "string" },
+    debt: activeDebtSchema,
   },
 } as const;
 
@@ -71,6 +82,8 @@ const memberProfileSchema = {
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
     onboardingProfile: onboardingProfileSchema,
+    // Phase 101: active debt (null when user has no active debt).
+    debt: activeDebtSchema,
   },
 } as const;
 
@@ -125,6 +138,7 @@ export const listMembersSchema = {
       },
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },
+      debtorOnly: { type: "boolean" },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -137,6 +151,18 @@ export const listMembersSchema = {
         total: { type: "integer" },
         page: { type: "integer" },
         limit: { type: "integer" },
+        // Phase 101: sum of active debt amounts across the filtered set,
+        // grouped by currency. Empty array when no debts match.
+        totalDebtByCurrency: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              currency: { type: "string" },
+              amount: { type: "integer" },
+            },
+          },
+        },
       },
     },
   },
@@ -235,10 +261,24 @@ export const updateMemberSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
+      // Phase 101: optional debt payload.
+      //   omitted  → no debt change
+      //   null     → soft-cancel active debt
+      //   object   → upsert active debt (RBAC: ADMIN_ROLES only)
+      debt: {
+        type: ["object", "null"],
+        properties: {
+          amount: { type: "integer", exclusiveMinimum: 0 },
+          currency: { type: "string", enum: ["ARS", "EUR", "USD"] },
+          note: { type: ["string", "null"], maxLength: 500 },
+        },
+        required: ["amount", "currency"],
+      },
     },
   },
   response: {
     200: memberProfileSchema,
+    403: errorSchema,
     404: errorSchema,
     409: errorSchema,
   },

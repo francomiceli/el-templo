@@ -24,12 +24,15 @@ import type {
   CreateNoteInput,
   UpdateNoteInput,
   DniCheckResult,
+  TotalDebtRow,
 } from "./types";
+import type { DebtService } from "./debts-service";
 
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
+    private debtService: DebtService,
   ) {}
 
   // ─── Member CRUD ───────────────────────────────────────────────────────
@@ -38,9 +41,11 @@ export class MemberService {
    * List members with search, filters, and pagination.
    * Search matches against firstName, lastName, email, and dni.
    */
-  async listMembers(
-    params: MemberListParams,
-  ): Promise<{ members: MemberListItem[]; total: number }> {
+  async listMembers(params: MemberListParams): Promise<{
+    members: MemberListItem[];
+    total: number;
+    totalDebtByCurrency: TotalDebtRow[];
+  }> {
     const {
       search,
       branchId,
@@ -51,6 +56,7 @@ export class MemberService {
       segment,
       avatarType,
       country,
+      debtorOnly,
       page,
       limit,
     } = params;
@@ -160,6 +166,17 @@ export class MemberService {
       }
     }
 
+    // Phase 101: restrict to users with at least one active (non-cancelled)
+    // debt row. Composite index idx_debts_user_active covers the lookup.
+    if (debtorOnly === true) {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM debts d
+          WHERE d.user_id = users.id AND d.is_cancelled = 0
+        )`,
+      );
+    }
+
     const whereClause = and(...conditions);
 
     // Get total count. Joins branches so the country scope condition (when
@@ -230,6 +247,11 @@ export class MemberService {
       .limit(limit)
       .offset(offset);
 
+    // Phase 101: populate `debt` per row via a single batch lookup (no N+1).
+    const pageUserIds = rows.map((r) => r.id);
+    const debtsByUser =
+      await this.debtService.getActiveDebtsForUsers(pageUserIds);
+
     const members: MemberListItem[] = rows.map((r) => ({
       id: r.id,
       email: r.email,
@@ -247,10 +269,26 @@ export class MemberService {
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,
       createdAt: r.createdAt.toISOString(),
-      debt: null,
+      debt: debtsByUser.get(r.id) ?? null,
     }));
 
-    return { members, total };
+    // Phase 101 (D-07): totalDebtByCurrency aggregates active debts over the
+    // SAME filter set as the paginated list (not just the current page). We
+    // re-run the filter query selecting only user ids (no joins beyond the
+    // branches join that may already be referenced by whereClause) and then
+    // ask the debt service to SUM...GROUP BY currency over them. This is the
+    // "one extra query" acknowledged in D-08; cost is bounded by total
+    // filtered users and is covered by idx_debts_user_active.
+    const filteredIdRows = await this.db
+      .select({ id: schema.users.id })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(whereClause);
+    const filteredIds = filteredIdRows.map((r) => r.id);
+    const totalDebtByCurrency =
+      await this.debtService.getTotalDebtByCurrency(filteredIds);
+
+    return { members, total, totalDebtByCurrency };
   }
 
   /**

@@ -20,6 +20,7 @@ import {
   MOTIVATION_LABELS,
 } from "../onboarding/types";
 import { MemberService } from "./service";
+import { DebtService } from "./debts-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { EmailService } from "../email";
@@ -27,6 +28,7 @@ import type {
   CreateMemberInput,
   UpdateMemberInput,
   MemberListParams,
+  DebtUpsertInput,
 } from "./types";
 import {
   listMembersSchema,
@@ -45,7 +47,7 @@ import {
 } from "./schemas";
 import { Workbook } from "exceljs";
 
-import { MEMBER_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES, MEMBER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
 /**
@@ -78,7 +80,8 @@ function isDuplicateKeyError(err: unknown): {
 }
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
-  const memberService = new MemberService(fastify.db, fastify.log);
+  const debtService = new DebtService(fastify.db, fastify.log);
+  const memberService = new MemberService(fastify.db, fastify.log, debtService);
 
   /**
    * Guard: require admin role on all routes in this plugin.
@@ -215,6 +218,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       planId?: number;
       segment?: string;
       avatarType?: string;
+      debtorOnly?: boolean;
       page?: number;
       limit?: number;
     };
@@ -228,6 +232,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       planId,
       segment,
       avatarType,
+      debtorOnly,
       page = 1,
       limit = 20,
     } = request.query;
@@ -245,6 +250,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       segment,
       avatarType,
       country: request.scope.country,
+      debtorOnly,
       page,
       limit,
     };
@@ -411,45 +417,81 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // PUT /admin/members/:userId — Update member
-  fastify.put<{ Params: { userId: number }; Body: UpdateMemberInput }>(
-    "/:userId",
-    { schema: updateMemberSchema },
-    async (request, reply) => {
-      try {
-        const member = await memberService.updateMember(
-          request.params.userId,
-          request.body,
-        );
-        if (!member) {
-          return reply
-            .code(404)
-            .send({ error: "No encontrado", message: "Miembro no encontrado" });
-        }
-        return member;
-      } catch (err: unknown) {
-        const { isDuplicate, detail } = isDuplicateKeyError(err);
+  // PUT /admin/members/:userId — Update member (+ optional debt upsert/cancel)
+  fastify.put<{
+    Params: { userId: number };
+    Body: UpdateMemberInput & { debt?: DebtUpsertInput | null };
+  }>("/:userId", { schema: updateMemberSchema }, async (request, reply) => {
+    // Phase 101 RBAC (T-101-10): the route plugin's onRequest admits the full
+    // MEMBER_ROLES set (coach/admin/owner/gestion/recepcion), but debt writes
+    // are stricter — only ADMIN_ROLES (admin, owner) may mutate debts.
+    // We check `'debt' in request.body` so that omitting the field entirely
+    // (current UX for non-debt edits) is unaffected; supplying `debt: null`
+    // (cancel) or `debt: {...}` (upsert) BOTH require ADMIN_ROLES.
+    const body = request.body;
+    const wantsDebtMutation = Object.prototype.hasOwnProperty.call(
+      body,
+      "debt",
+    );
+    if (
+      wantsDebtMutation &&
+      !(ADMIN_ROLES as readonly string[]).includes(request.user.role)
+    ) {
+      return reply.code(403).send({
+        error: "Acceso denegado",
+        message: "Solo admin/owner puede gestionar deudas",
+      });
+    }
 
-        if (isDuplicate) {
-          if (detail.includes("dni")) {
-            return reply.code(409).send({
-              error: "Conflicto",
-              message: "El DNI ya esta registrado",
-            });
-          }
-          return reply
-            .code(409)
-            .send({ error: "Conflicto", message: "Registro duplicado" });
-        }
+    // Separate debt payload from the regular member update fields.
+    const { debt, ...memberFields } = body;
 
-        request.log.error({ err }, "Error updating member");
-        return reply.code(500).send({
-          error: "Error del servidor",
-          message: "Error al actualizar miembro",
-        });
+    try {
+      const member = await memberService.updateMember(
+        request.params.userId,
+        memberFields,
+      );
+      if (!member) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
-    },
-  );
+
+      // Apply the debt mutation (already ADMIN_ROLES-gated above).
+      if (wantsDebtMutation) {
+        if (debt === null) {
+          await debtService.cancelActiveDebt(request.params.userId);
+        } else if (debt !== undefined) {
+          await debtService.upsertActiveDebt(request.params.userId, debt);
+        }
+      }
+
+      const currentDebt = await debtService.getActiveDebtForUser(
+        request.params.userId,
+      );
+      return { ...member, debt: currentDebt };
+    } catch (err: unknown) {
+      const { isDuplicate, detail } = isDuplicateKeyError(err);
+
+      if (isDuplicate) {
+        if (detail.includes("dni")) {
+          return reply.code(409).send({
+            error: "Conflicto",
+            message: "El DNI ya esta registrado",
+          });
+        }
+        return reply
+          .code(409)
+          .send({ error: "Conflicto", message: "Registro duplicado" });
+      }
+
+      request.log.error({ err }, "Error updating member");
+      return reply.code(500).send({
+        error: "Error del servidor",
+        message: "Error al actualizar miembro",
+      });
+    }
+  });
 
   // PATCH /admin/members/:userId/status — Toggle active status
   fastify.patch<{ Params: { userId: number }; Body: { isActive: boolean } }>(
