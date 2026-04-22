@@ -676,6 +676,7 @@ const createRouteOptions = [
   'SPAGAT',
   'REVERSE HYPER',
   'SIDE PCK',
+  'games', // Phase 100 — all-lowercase to match formats.name lowercase convention
 ].map((v) => ({ label: v, value: v }));
 
 const createEffortOptions = [

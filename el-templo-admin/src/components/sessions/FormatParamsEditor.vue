@@ -616,6 +616,49 @@
         @keyup.enter="onBlur"
       />
     </div>
+
+    <!-- Games (reps + time + rounds — all optional, Phase 100) -->
+    <div v-else-if="localParams?.type === 'games'" class="row items-center q-gutter-sm">
+      <q-input
+        v-model.number="localParams.reps"
+        type="number"
+        dense
+        outlined
+        :dark="dark"
+        :min="1"
+        label="Reps"
+        clearable
+        style="min-width: 100px"
+        @blur="onBlur"
+        @keyup.enter="onBlur"
+      />
+      <q-input
+        v-model.number="localParams.time"
+        type="number"
+        dense
+        outlined
+        :dark="dark"
+        :min="1"
+        label="Tiempo (seg)"
+        clearable
+        style="min-width: 120px"
+        @blur="onBlur"
+        @keyup.enter="onBlur"
+      />
+      <q-input
+        v-model.number="localParams.rounds"
+        type="number"
+        dense
+        outlined
+        :dark="dark"
+        :min="1"
+        label="Rondas"
+        clearable
+        style="min-width: 100px"
+        @blur="onBlur"
+        @keyup.enter="onBlur"
+      />
+    </div>
   </div>
 </template>
 
@@ -799,6 +842,9 @@ const defaultsMap: Record<string, FormatParamsLocal> = {
   task_priority: { type: 'task_priority' },
   task_priority_vs_time_priority: { type: 'task_priority' },
   circuito_cooperativo: { type: 'circuito_cooperativo' },
+
+  // Phase 100 — games format: all three params independently optional
+  games: { type: 'games', reps: null, time: null, rounds: null },
 };
 
 function resolveDefaults(): FormatParamsLocal {

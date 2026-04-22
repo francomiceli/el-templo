@@ -49,6 +49,7 @@ export interface SessionBlock {
   formatId: number;
   formatName: string;
   formatParams: Record<string, unknown> | null;
+  customTitle: string | null; // Phase 100 — INITIUM custom subtitle (null = default "INITIUM · {formatName}")
   intensity: number;
   repsBudget: number;
   sortOrder: number;
