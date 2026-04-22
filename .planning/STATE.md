@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: "Completed 101-03-PLAN.md (chain: 98+99+100+101 done)"
-last_updated: "2026-04-22T01:54:47.209Z"
+stopped_at: Completed 102-03-PLAN.md (members API hasUsedTrial + leads filter)
+last_updated: "2026-04-22T22:25:29.077Z"
 progress:
-  total_phases: 91
+  total_phases: 92
   completed_phases: 79
-  total_plans: 336
-  completed_plans: 330
-  percent: 98
+  total_plans: 341
+  completed_plans: 332
+  percent: 97
 ---
 
 # Project State
@@ -20,11 +20,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** The admin app is fully operational for physical branches -- real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff.
-**Current focus:** Phase --phase — 98
+**Current focus:** Phase --phase — 102
 
 ## Current Position
 
-Phase: --phase (98) — EXECUTING
+Phase: --phase (102) — EXECUTING
 Plan: 1 of --name
 
 ## Performance Metrics
@@ -123,6 +123,7 @@ _Updated after each plan completion_
 | Phase 100 P05 | 18m | 1 tasks | 3 files |
 | Phase 101 P01 | 1min | 3 tasks | 3 files |
 | Phase 101 P03 | 299 | 4 tasks | 4 files |
+| Phase 102 P03 | 35m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,7 @@ _Updated after each plan completion_
 - Phase 98 added: Multi-currency and country-scoped plans — AR/ES plan segregation with EUR pricing, owner country toggle, branch-scoped filtering
 - Phase 100 added: Games format, exercise route overhaul, and session editor route UX — coach-driven session authoring changes (new format, INITIUM block titles, new games route, Spanish route renaming)
 - Phase 101 added: Debt tracking — flag members with outstanding debt via new `debts` table (one active per user, soft-cancel for history), admin AlumnosPage filter + total debt banner grouped by currency, MemberFormDialog deudor toggle + amount + note; intentionally not integrated with payments table in this phase
+- Phase 102 added: Trial Classes (Sesiones de Prueba) — admins register potential members for a single free trial via SlotDetailDialog; `bookings.is_trial` excludes trials from capacity; one-trial-per-phone guard; "Clases de prueba" counter on alumno detail; Leads filter inferred from booking history (no `users.status` column — Option B); conversion to member reuses existing edit + Gestionar Plan flows
 
 ### Decisions
 
@@ -262,6 +264,7 @@ Recent decisions affecting current work:
 - Phase 101-01: debts table migration renumbered from 0094 to 0096 because Phase 100 claimed 0094/0095
 - Phase 101-01: one-active-debt-per-user invariant enforced at service layer (MySQL lacks partial unique indexes); idx_debts_user_active composite index backs the service lookup
 - Phase 101-01: FK fk_debts_user_id has no ON DELETE/UPDATE — users are soft-deleted via users.deleted_at so no cascade needed
+- Plan 102-03: EXISTS subquery for hasUsedTrial (no new index); reused isActiveSubquery pattern for leads filter.
 
 ### Pending Todos
 
@@ -273,8 +276,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T01:54:47.178Z
-Stopped at: Completed 101-03-PLAN.md (chain: 98+99+100+101 done)
+Last session: 2026-04-22T22:25:22.130Z
+Stopped at: Completed 102-03-PLAN.md (members API hasUsedTrial + leads filter)
 Resume file: None
 
-**Planned Phase:** 101 (debt-tracking-flag-members-with-outstanding-debt) — 3 plans — 2026-04-21T22:54:21.525Z
+**Planned Phase:** 102 (trial-classes-sesiones-de-prueba) — 5 plans — 2026-04-22T21:56:03.933Z
