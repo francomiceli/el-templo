@@ -5,7 +5,6 @@
  * DNI uniqueness checks, and internal notes.
  */
 
-import { randomBytes } from "node:crypto";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import { eq, and, or, like, sql, desc, ne, isNull, gte } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
@@ -369,7 +368,7 @@ export class MemberService {
   async createMember(
     input: CreateMemberInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
-    const tempPassword = randomBytes(9).toString("base64url");
+    const tempPassword = "eltemplo2026";
     const passwordHash = await argon2.hash(tempPassword);
 
     type Level = "alfa" | "delta" | "sigma" | "omega" | "spartan";
