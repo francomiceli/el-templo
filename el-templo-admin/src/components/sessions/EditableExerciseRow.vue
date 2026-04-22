@@ -62,6 +62,7 @@
           class="q-ml-xs"
         >
           {{ exercise.route }}
+          <q-tooltip>{{ getRouteLabel(exercise.route) }}</q-tooltip>
         </q-badge>
       </q-item-label>
 
@@ -431,6 +432,7 @@ import {
   isFormatDictatedByName,
   isLadderFormat,
 } from 'src/constants/formats';
+import { getRouteLabel } from 'src/constants/route-labels';
 
 const props = defineProps<{
   exercise: SessionExercise;

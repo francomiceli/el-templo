@@ -67,6 +67,21 @@
       </div>
     </q-card-section>
 
+    <!-- Phase 100: INITIUM custom title — always visible at top of INITIUM block card -->
+    <q-card-section v-if="isInitium" class="q-py-sm q-px-md bg-grey-1">
+      <q-input
+        v-model="customTitle"
+        dense
+        outlined
+        label="Título del juego (opcional)"
+        hint="Reemplaza el subtítulo PDF por este texto (dejar vacío para mantener 'INITIUM · {formato}')"
+        maxlength="100"
+        clearable
+        @blur="onCustomTitleBlur"
+        @keyup.enter="onCustomTitleBlur"
+      />
+    </q-card-section>
+
     <!-- Level tabs (hidden for INITIUM — single level only) -->
     <q-tabs
       v-if="!isInitium"
@@ -90,6 +105,7 @@
         <div>
           <q-icon name="directions" size="xs" />
           {{ selectedBlock.route }}
+          <q-tooltip>{{ getRouteLabel(selectedBlock.route) }}</q-tooltip>
         </div>
         <div>
           <q-icon name="fitness_center" size="xs" />
@@ -303,6 +319,7 @@ import {
   contractionColor,
 } from 'src/utils/contraction-helpers';
 import { NO_PARAMS_FORMAT_NAMES, normalizeFormatName } from 'src/constants/formats';
+import { getRouteLabel } from 'src/constants/route-labels';
 
 const props = defineProps<{
   blockGroup: BlockGroup;
@@ -399,6 +416,41 @@ const blockColor = computed(() => {
 });
 
 const isInitium = computed(() => props.blockGroup.role?.toLowerCase().includes('initium') || false);
+
+// Phase 100: INITIUM custom title — always-visible input at top of INITIUM block card
+const customTitle = ref<string>(props.blockGroup.levelBlocks[0]?.block?.customTitle ?? '');
+
+watch(
+  () => props.blockGroup.levelBlocks[0]?.block?.customTitle,
+  (v) => {
+    customTitle.value = v ?? '';
+  }
+);
+
+async function onCustomTitleBlur() {
+  if (!isInitium.value) return;
+  const firstLb = props.blockGroup.levelBlocks[0];
+  const block = firstLb?.block;
+  if (!block) return;
+  const sessionId = firstLb?.sessionId;
+  if (!sessionId) return;
+
+  const trimmed = customTitle.value.trim();
+  const newValue: string | null = trimmed.length > 0 ? trimmed : null;
+  const currentValue: string | null = block.customTitle ?? null;
+
+  if (newValue === currentValue) return; // no-op; don't hit the API
+
+  try {
+    await editApi.updateCustomTitle(sessionId, block.id, newValue);
+    emit('refresh');
+  } catch (err: unknown) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'No se pudo guardar el titulo',
+    });
+  }
+}
 
 const isAthlosEpikos = computed(() => {
   const role = props.blockGroup.role?.toUpperCase();

@@ -216,6 +216,20 @@ export function useEditApi() {
     }, 'Error al actualizar parametros de formato');
   }
 
+  async function updateCustomTitle(
+    sessionId: number,
+    blockId: number,
+    customTitle: string | null
+  ): Promise<{ customTitle: string | null }> {
+    return apiCall(async () => {
+      const { data } = await api.patch<{ customTitle: string | null }>(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/custom-title`,
+        { customTitle }
+      );
+      return data;
+    }, 'Error al actualizar titulo personalizado');
+  }
+
   async function saveBlock(blockId: number, name: string): Promise<SavedBlock> {
     return apiCall(async () => {
       const { data } = await api.post<SavedBlock>('/admin/saved-blocks', {
@@ -281,6 +295,7 @@ export function useEditApi() {
     fetchCompatibleFormatsBatch,
     fetchPreview,
     updateFormatParams,
+    updateCustomTitle,
     saveBlock,
     fetchMobilityPool,
     swapMobilityExercise,
