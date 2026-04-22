@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 102-03-PLAN.md (members API hasUsedTrial + leads filter)
-last_updated: "2026-04-22T22:25:29.077Z"
+stopped_at: Completed 102-04-PLAN.md (admin UI — SlotDetailDialog trial creation + roster split)
+last_updated: "2026-04-22T00:00:00.000Z"
 progress:
   total_phases: 92
-  completed_phases: 79
+  completed_phases: 80
   total_plans: 341
-  completed_plans: 332
-  percent: 97
+  completed_plans: 336
+  percent: 99
 ---
 
 # Project State
@@ -124,6 +124,7 @@ _Updated after each plan completion_
 | Phase 101 P01 | 1min | 3 tasks | 3 files |
 | Phase 101 P03 | 299 | 4 tasks | 4 files |
 | Phase 102 P03 | 35m | 2 tasks | 4 files |
+| Phase 102 P05 | ~15m | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -265,6 +266,7 @@ Recent decisions affecting current work:
 - Phase 101-01: one-active-debt-per-user invariant enforced at service layer (MySQL lacks partial unique indexes); idx_debts_user_active composite index backs the service lookup
 - Phase 101-01: FK fk_debts_user_id has no ON DELETE/UPDATE — users are soft-deleted via users.deleted_at so no cascade needed
 - Plan 102-03: EXISTS subquery for hasUsedTrial (no new index); reused isActiveSubquery pattern for leads filter.
+- Plan 102-05: Trial counter placed in header q-card-section (NOT SubscriptionCard) so it renders for sub-less leads; `Tipo` filter label chosen to avoid clashing with existing `Estado` (Activo/Inactivo) label; filters.status default = null so axios serializer omits the key, matching level/segment/avatarType convention.
 
 ### Pending Todos
 
@@ -276,8 +278,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T22:25:22.130Z
-Stopped at: Completed 102-03-PLAN.md (members API hasUsedTrial + leads filter)
+Last session: 2026-04-22T22:45:00.000Z
+Stopped at: Completed 102-05-PLAN.md (admin UI — trial counter + Leads filter)
 Resume file: None
 
 **Planned Phase:** 102 (trial-classes-sesiones-de-prueba) — 5 plans — 2026-04-22T21:56:03.933Z
