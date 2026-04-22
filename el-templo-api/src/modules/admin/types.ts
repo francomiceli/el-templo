@@ -12,7 +12,8 @@ export type EditAction =
   | "block_role_change"
   | "mobility_swap"
   | "reset_to_algorithm"
-  | "status_change";
+  | "status_change"
+  | "custom_title_update";
 
 /** Preview block for member-facing session view */
 export interface PreviewBlock {

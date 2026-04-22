@@ -94,6 +94,13 @@ export interface UpdateFormatParamsParams {
   userId: number;
 }
 
+export interface UpdateCustomTitleParams {
+  sessionId: number;
+  blockId: number;
+  customTitle: string | null;
+  userId: number;
+}
+
 export interface ResetToAlgorithmParams {
   sessionId: number;
   userId: number;

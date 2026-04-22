@@ -36,6 +36,7 @@ import type {
   RemoveExerciseParams,
   ReorderExerciseParams,
   UpdateFormatParamsParams,
+  UpdateCustomTitleParams,
   ResetToAlgorithmParams,
   CompatibleFormatsParams,
   CompatibleFormat,
@@ -55,6 +56,7 @@ export type {
   AddExerciseParams,
   RemoveExerciseParams,
   UpdateFormatParamsParams,
+  UpdateCustomTitleParams,
   ResetToAlgorithmParams,
   CompatibleFormatsParams,
   CompatibleFormat,
@@ -538,6 +540,35 @@ export class AdminEditService {
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "format_params_update");
     return { formatParams };
+  }
+
+  async updateCustomTitle(params: UpdateCustomTitleParams) {
+    const { sessionId, blockId, customTitle, userId } = params;
+
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
+
+    if (!block) throw new Error("Bloque no encontrado en esta sesion");
+
+    // Normalize empty string → null (null = "unset" per SPEC Requirement 2)
+    const normalized =
+      customTitle && customTitle.length > 0 ? customTitle : null;
+
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({ customTitle: normalized })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "custom_title_update");
+    return { customTitle: normalized };
   }
 
   async getCompatibleFormats(

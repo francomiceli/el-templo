@@ -26,6 +26,7 @@ import {
   getCompatibleFormatsSchema,
   getPreviewSchema,
   updateFormatParamsSchema,
+  updateCustomTitleSchema,
   saveBlockSchema,
   deleteSavedBlockSchema,
   getMobilityPoolSchema,
@@ -483,6 +484,33 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "update format params",
+        );
+      }
+    },
+  );
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/custom-title - Update INITIUM block custom title
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number };
+    Body: { customTitle: string | null };
+  }>(
+    "/sessions/:sessionId/blocks/:blockId/custom-title",
+    { schema: updateCustomTitleSchema },
+    async (request, reply) => {
+      try {
+        const result = await editService.updateCustomTitle({
+          sessionId: request.params.sessionId,
+          blockId: request.params.blockId,
+          customTitle: request.body.customTitle,
+          userId: request.user.userId,
+        });
+        return result;
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update custom title",
         );
       }
     },

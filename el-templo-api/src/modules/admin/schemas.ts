@@ -303,6 +303,32 @@ export const updateFormatParamsSchema = {
 };
 
 // ---------------------------------------------------------------------------
+// Custom Title Schema (Phase 100 — games format / INITIUM custom titles)
+// ---------------------------------------------------------------------------
+
+export const updateCustomTitleSchema = {
+  params: {
+    type: "object" as const,
+    required: ["sessionId", "blockId"] as const,
+    properties: {
+      sessionId: { type: "integer" },
+      blockId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object" as const,
+    required: ["customTitle"] as const,
+    properties: {
+      customTitle: {
+        type: ["string", "null"],
+        maxLength: 100,
+      },
+    },
+    additionalProperties: false,
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Mobility Schemas (Phase 17-02)
 // ---------------------------------------------------------------------------
 
