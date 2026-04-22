@@ -22,7 +22,9 @@ export interface PdfExercise {
 
 export interface PdfLevelBlock {
   level: string; // alfa, delta, sigma, omega
-  route: string; // e.g., "Hip Thrust"
+  route: string; // Canonical short code (e.g., "PL", "HT") — preserved for any internal use
+  /** Phase 100 — Spanish display label resolved via getRouteLabel (e.g., "Plancha", "Empuje de cadera"). */
+  routeLabel: string;
   intensity: number; // e.g., 60
   exercises: PdfExercise[];
 }
@@ -31,6 +33,8 @@ export interface PdfBlockPage {
   role: string; // INITIUM, NUCLEUS, DEUTEROS I, DEUTEROS II, EPIKOS, ATHLOS, or ROM zone names
   blockName?: string; // e.g., "PYROS" for INITIUM
   formatName: string; // e.g., "TIME CAP 10'", "AMRAP 12'"
+  /** Phase 100 — INITIUM block custom subtitle. When set, replaces "INITIUM · {formatName}" subtitle. */
+  customTitle?: string | null;
   mobility?: string; // e.g., "ASSISTED SPAGAT DELTA 20\""
   formatParams?: string; // e.g., "30\" X 15\""
   // For INITIUM: simple exercise list (same across all levels)

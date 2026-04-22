@@ -22,6 +22,7 @@ import {
 } from './pdf-assets';
 import { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { formatWeekLabel, formatWeekForFilename } from '../weekDates';
+import { getRouteLabel } from 'src/constants/route-labels';
 
 // ============================================================
 // BRAND DESIGN TOKENS (from visual guidelines)
@@ -49,37 +50,10 @@ const CONTRACTION_ABBR: Record<string, string> = {
   ISO: 'ISO.',
 };
 
-// Route code → full display name (matches app's routeNames.ts)
-const ROUTE_NAMES: Record<string, string> = {
-  FL: 'Front Lever',
-  FLR: 'Front Lever Row',
-  BL: 'Back Lever',
-  MU: 'Muscle Up',
-  OAP: 'One Arm Pull Up',
-  OAR: 'One Arm Row',
-  TTB: 'Toe to Bar',
-  'MN/RP': 'Manna / Reverse Planche',
-  PL: 'Planche',
-  PLPU: 'Planche Push Up',
-  HSPU: 'Handstand Push Up',
-  HS: 'Handstand',
-  PHS: 'Press Handstand',
-  OAPU: 'One Arm Push Up',
-  'HD/ID': 'Hefesto / Impossible Dip',
-  PS: 'Pistol Squat',
-  DS: 'Dragon Squat',
-  NC: 'Nordic Curl',
-  SS: 'Sissy Squat',
-  QC: 'Quad Curl',
-  HR: 'Ham Raises',
-  HT: 'Hip Thrust',
-  L: 'Lunge',
-  SU: 'Step Up',
-};
-
-function getRouteName(code: string): string {
-  return ROUTE_NAMES[code] || code;
-}
+// Phase 100 — legacy English ROUTE_NAMES and getRouteName() removed.
+// PDF now consumes Spanish labels via `getRouteLabel` from 'src/constants/route-labels'
+// (SPEC Requirement 4). Level blocks carry `routeLabel` (pre-resolved in the transformer)
+// for all per-level headers; short code is still available on `lb.route` when needed.
 
 /**
  * Build compact pyramid pattern string for PDF display.
@@ -349,9 +323,14 @@ function buildInitiumPage(block: PdfBlockPage): Content[] {
       characterSpacing: 20,
       font: 'Cinzel',
     },
-    // INITIUM · FORMAT — bolder
+    // INITIUM · FORMAT (or custom title if set) — bolder
+    // Phase 100 D-05: when customTitle is set, subtitle is the title alone (no "INITIUM · " prefix);
+    // when null/empty, subtitle remains byte-identical to pre-phase output.
     {
-      text: `${block.role}  ·  ${block.formatName}`,
+      text:
+        block.customTitle && block.customTitle.length > 0
+          ? block.customTitle
+          : `${block.role}  ·  ${block.formatName}`,
       fontSize: 130,
       bold: true,
       color: GOLD,
@@ -454,7 +433,8 @@ function buildLevelBox(lb: PdfLevelBlock, targetBoxHeight?: number): ContentStac
   });
 
   const symbolSize = 86;
-  const routeName = getRouteName(lb.route);
+  // Phase 100 — use Spanish label from route-labels dictionary (falls back to code via getRouteLabel).
+  const routeName = lb.routeLabel || getRouteLabel(lb.route);
 
   return {
     stack: [
@@ -658,6 +638,11 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
     };
   });
 
+  // Phase 100 — prefer Spanish label; fall back to short code if the label is very long
+  // (preserves the legacy behavior where long English names collapsed back to the code).
+  const spanishLabel = lb.routeLabel || getRouteLabel(lb.route);
+  const routeDisplay = spanishLabel.length > 18 ? lb.route : spanishLabel;
+
   return {
     stack: [
       // Level header: "α | Route Intensity%"
@@ -665,7 +650,7 @@ function buildDeuterosLevelCol(lb: PdfLevelBlock, exFontSize: number): ContentSt
         text: [
           { text: `${symbol}`, fontSize: symbolSize, color: GOLD, bold: true, font: 'Roboto' },
           {
-            text: `  |  ${getRouteName(lb.route).length > 10 ? lb.route : getRouteName(lb.route)} ${lb.intensity}%`,
+            text: `  |  ${routeDisplay} ${lb.intensity}%`,
             fontSize: routeFontSize,
             bold: true,
             color: GOLD,

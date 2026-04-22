@@ -1,6 +1,7 @@
 import type { SessionDetail, SessionBlock, SessionExercise } from 'src/types/session';
 import type { PdfDaySession, PdfBlockPage, PdfLevelBlock, PdfExercise } from './pdf-types';
 import { isFormatDictatedByName } from 'src/constants/formats';
+import { getRouteLabel } from 'src/constants/route-labels';
 
 const DAY_LABELS: Record<string, string> = {
   lunes: 'LUNES',
@@ -236,6 +237,7 @@ function blockToLevelBlock(block: SessionBlock, level: string): PdfLevelBlock {
   return {
     level,
     route: block.route,
+    routeLabel: getRouteLabel(block.route), // Phase 100 — Spanish display label
     intensity: block.intensity,
     exercises: block.exercises.map((ex) => exerciseToPdf(ex, dictated, formatType, ladderParams)),
   };
@@ -339,6 +341,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
           role: 'INITIUM',
           blockName: initium.pattern || 'PYROS',
           formatName: formatNameWithParams(initium.formatName, initium.formatParams),
+          customTitle: initium.customTitle ?? null, // Phase 100
           simpleExercises: initium.exercises.map((e) =>
             formatInitiumExercise(e, initium.formatName)
           ),
@@ -382,6 +385,7 @@ export function sessionsToPdfDay(sessions: SessionDetail[]): PdfDaySession {
         role: 'INITIUM',
         blockName: initium.pattern || 'PYROS',
         formatName: formatNameWithParams(initium.formatName, initium.formatParams),
+        customTitle: initium.customTitle ?? null, // Phase 100
         simpleExercises: initium.exercises.map((e) => formatInitiumExercise(e, initium.formatName)),
       });
       break;
