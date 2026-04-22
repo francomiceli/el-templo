@@ -59,6 +59,7 @@ export interface MemberListItem {
   segment: MemberSegment | null;
   avatarType: string | null;
   createdAt: string;
+  debt: ActiveDebt | null;
 }
 
 export const AVATAR_LABELS: Record<string, string> = {
@@ -132,6 +133,7 @@ export interface UpdateMemberInput {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   emergencyContactRelationship?: string | null;
+  debt?: DebtUpsertInput | null;
 }
 
 export interface MemberListParams {
@@ -144,8 +146,43 @@ export interface MemberListParams {
   overdue?: boolean;
   segment?: MemberSegment;
   avatarType?: string;
+  debtorOnly?: boolean;
   page?: number;
   limit?: number;
+}
+
+// ─── Debt Tracking (Phase 101) ──────────────────────────────────────────
+
+export const DEBT_CURRENCIES = ['ARS', 'EUR', 'USD'] as const;
+export type DebtCurrency = (typeof DEBT_CURRENCIES)[number];
+
+export const DEBT_CURRENCY_OPTIONS: Array<{ label: string; value: DebtCurrency }> = [
+  { label: 'ARS', value: 'ARS' },
+  { label: 'USD', value: 'USD' },
+  { label: 'EUR', value: 'EUR' },
+];
+
+export interface ActiveDebt {
+  amount: number;
+  currency: string;
+  note: string | null;
+}
+
+export interface TotalDebtRow {
+  currency: string;
+  amount: number;
+}
+
+export interface DebtUpsertInput {
+  amount: number;
+  currency: DebtCurrency;
+  note?: string | null;
+}
+
+export interface MembersListResponse {
+  members: MemberListItem[];
+  total: number;
+  totalDebtByCurrency: TotalDebtRow[];
 }
 
 export interface DniCheckResult {

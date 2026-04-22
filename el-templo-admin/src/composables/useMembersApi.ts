@@ -13,6 +13,7 @@ import type {
   MemberListItem,
   MemberProfile,
   MemberListParams,
+  MembersListResponse,
   CreateMemberInput,
   UpdateMemberInput,
   DniCheckResult,
@@ -36,16 +37,11 @@ export function useMembersApi() {
 
   // ─── Members CRUD ─────────────────────────────────────────────────────
 
-  async function getMembers(
-    params?: MemberListParams
-  ): Promise<{ members: MemberListItem[]; total: number }> {
+  async function getMembers(params?: MemberListParams): Promise<MembersListResponse> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.get<{ members: MemberListItem[]; total: number }>(
-        '/admin/members',
-        { params }
-      );
+      const { data } = await api.get<MembersListResponse>('/admin/members', { params });
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando miembros');
