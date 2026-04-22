@@ -227,6 +227,30 @@ export function useSchedulingApi() {
     }
   }
 
+  async function createTrial(data: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    branchId: number;
+    scheduleId: number;
+    bookingDate: string; // YYYY-MM-DD
+  }): Promise<{ userId: number; bookingId: number }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data: result } = await api.post<{ userId: number; bookingId: number }>(
+        '/admin/scheduling/trials',
+        data
+      );
+      return result;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error creando sesión de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Holidays ─────────────────────────────────────────────────────────
 
   async function addHoliday(data: {
@@ -300,6 +324,7 @@ export function useSchedulingApi() {
     seedSchedules,
     adminAddBooking,
     adminRemoveBooking,
+    createTrial,
     addHoliday,
     removeHoliday,
     listHolidays,

@@ -53,6 +53,7 @@ export interface BookingRecord {
   waitlistPosition: number | null;
   bookedAt: string;
   cancelledAt: string | null;
+  isTrial: boolean;
 }
 
 export interface HolidayRecord {
