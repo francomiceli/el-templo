@@ -39,6 +39,10 @@ describe("Segmentation", () => {
     await app.db.delete(schema.checkInResponses);
     await app.db.delete(schema.onboardingAnalytics);
     await app.db.delete(schema.memberProfiles);
+    // Subscriptions + plans: tests insert fixed-name plans (Plan-2x/3x/5x) per case;
+    // the (name, country) unique index rejects the second test without this cleanup.
+    await app.db.delete(schema.subscriptions);
+    await app.db.delete(schema.subscriptionPlans);
     await app.db.execute(
       sql`DELETE FROM ${schema.systemSettings} WHERE setting_key LIKE 'segment.%'`,
     );

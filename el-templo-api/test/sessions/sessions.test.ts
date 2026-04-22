@@ -350,6 +350,10 @@ describe("Session Routes", () => {
     it("R10 Saturday ROM collapse with ?level=omega — server yields delta content (omega collapsed to delta)", async () => {
       // 2026-02-28 is a Saturday (getDay=6) in Week 1. Seed the day_modes
       // row marking Saturday as 'rom' so the collapse branch fires.
+      // Idempotent: remove any leftover from a prior failed run before inserting.
+      await app.db
+        .delete(schema.dayModes)
+        .where(eq(schema.dayModes.dayOfWeek, 6));
       await app.db
         .insert(schema.dayModes)
         .values({ dayOfWeek: 6, sessionMode: "rom" });
