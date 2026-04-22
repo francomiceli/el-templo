@@ -506,14 +506,24 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
 
       let completedSessionId: number;
 
+      const completedAt = new Date();
+      const startedAtDate = new Date(startedAt);
+      // Duration in seconds, server-computed. Clamped at 0 to absorb client/
+      // server clock skew (previously observed as -1s rows).
+      const durationSec = Math.max(
+        0,
+        Math.floor((completedAt.getTime() - startedAtDate.getTime()) / 1000),
+      );
+
       if (existing) {
         // Update existing record
         await fastify.db
           .update(schema.completedSessions)
           .set({
             date,
-            startedAt: new Date(startedAt),
-            completedAt: new Date(),
+            startedAt: startedAtDate,
+            completedAt,
+            duration: durationSec,
             rpe,
             notes,
             blocksCompleted,
@@ -531,8 +541,9 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             dayId,
             date,
             branchId: user.branchId,
-            startedAt: new Date(startedAt),
-            completedAt: new Date(),
+            startedAt: startedAtDate,
+            completedAt,
+            duration: durationSec,
             rpe,
             notes,
             blocksCompleted,

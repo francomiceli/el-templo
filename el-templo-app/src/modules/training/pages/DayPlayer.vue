@@ -376,7 +376,9 @@ async function onSummaryFinish(data: { rpe: number | null; notes: string | null 
   const result = await completeSession({
     dayId: session.value.dayId,
     date: dateParam.value,
-    startedAt: sessionStartedAt.value ?? new Date().toISOString(),
+    startedAt:
+      sessionStartedAt.value ??
+      new Date(Date.now() - player.value.elapsedSeconds.value * 1000).toISOString(),
     rpe: data.rpe,
     notes: data.notes,
     blocksCompleted: player.value.completedBlocks.value,
@@ -508,6 +510,12 @@ watch(
           (player.value.elapsedSeconds.value > 0 || player.value.completedBlocks.value.length > 0)
         ) {
           splashDismissed.value = true
+          // Reconstruct startedAt from persisted elapsedSeconds so a resumed
+          // session doesn't record a zero-duration completion. Without this
+          // the onSummaryFinish fallback stamps startedAt = now at completion.
+          sessionStartedAt.value = new Date(
+            Date.now() - player.value.elapsedSeconds.value * 1000,
+          ).toISOString()
           player.value.startTimer()
           wakeLock.requestWakeLock()
         }
