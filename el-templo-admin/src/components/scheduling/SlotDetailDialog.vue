@@ -87,7 +87,12 @@
                 Sin reservas para este horario
               </q-item-section>
             </q-item>
-            <q-item v-for="booking in activeBookings" :key="booking.id">
+
+            <!-- Reservados (regular bookings) -->
+            <template v-if="activeTrialBookings.length > 0 && activeRegularBookings.length > 0">
+              <q-item-label header> Reservados ({{ activeRegularBookings.length }}) </q-item-label>
+            </template>
+            <q-item v-for="booking in activeRegularBookings" :key="booking.id">
               <q-item-section>
                 <q-item-label>{{ booking.memberName }}</q-item-label>
               </q-item-section>
@@ -111,6 +116,38 @@
                 </div>
               </q-item-section>
             </q-item>
+
+            <!-- Sesiones de Prueba (trial bookings) -->
+            <template v-if="activeTrialBookings.length > 0">
+              <q-item-label header>
+                Sesiones de Prueba ({{ activeTrialBookings.length }})
+              </q-item-label>
+              <q-item v-for="booking in activeTrialBookings" :key="booking.id">
+                <q-item-section>
+                  <q-item-label>{{ booking.memberName }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <div class="row items-center q-gutter-xs">
+                    <q-badge
+                      :color="getBookingStatusColor(booking.status)"
+                      :label="getBookingStatusLabel(booking.status)"
+                    />
+                    <q-badge color="warning" label="PRUEBA" />
+                    <q-btn
+                      flat
+                      dense
+                      round
+                      icon="delete"
+                      color="negative"
+                      size="sm"
+                      @click="onRemoveBooking(booking.id)"
+                    >
+                      <q-tooltip>Eliminar reserva</q-tooltip>
+                    </q-btn>
+                  </div>
+                </q-item-section>
+              </q-item>
+            </template>
           </template>
 
           <!-- Today/past: attendance view -->
@@ -133,7 +170,15 @@
                 />
               </q-item-section>
               <q-item-section>
-                <q-item-label>{{ member.memberName }}</q-item-label>
+                <q-item-label>
+                  {{ member.memberName }}
+                  <q-badge
+                    v-if="isTrialMember(member)"
+                    color="warning"
+                    label="PRUEBA"
+                    class="q-ml-xs"
+                  />
+                </q-item-label>
                 <q-item-label caption>
                   <template v-if="member.attendanceId && member.checkedInAt">
                     {{ formatTime(member.checkedInAt) }}
@@ -186,6 +231,20 @@
 
       <!-- Add member section -->
       <q-card-section>
+        <!-- Trial registration button (today or future; hidden on past dates) -->
+        <div v-if="canRegisterTrial" class="q-mb-sm">
+          <q-btn
+            color="warning"
+            icon="star_outline"
+            label="Nueva Sesión de Prueba"
+            no-caps
+            unelevated
+            class="full-width"
+            :disable="!slotDetail"
+            @click="showNewTrialDialog = true"
+          />
+        </div>
+
         <!-- Mode toggle: today supports both; past = checkin only; future = reserve only -->
         <q-btn-toggle
           v-if="isToday"
@@ -249,6 +308,17 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <NewTrialDialog
+    v-if="slotDetail"
+    v-model:show="showNewTrialDialog"
+    :branch-id="slotDetail.schedule.branchId"
+    :schedule-id="slotDetail.schedule.id"
+    :booking-date="date"
+    :branch-name="slotDetail.schedule.branchName"
+    :schedule-start-time="slotDetail.schedule.startTime"
+    @created="onTrialCreated"
+  />
 </template>
 
 <script setup lang="ts">
@@ -258,6 +328,7 @@ import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import NewTrialDialog from 'src/components/scheduling/NewTrialDialog.vue';
 import type {
   SlotDetailView,
   BookingStatus,
@@ -313,6 +384,9 @@ const checkInReason = ref('');
 const submitting = ref(false);
 const addMode = ref<'checkin' | 'reserve'>('checkin');
 
+// Trial dialog
+const showNewTrialDialog = ref(false);
+
 // Activity edit
 const editingActivity = ref(false);
 const selectedActivityId = ref<number | null>(null);
@@ -326,6 +400,10 @@ const todayIso = () => todayInTz(props.branchTimezone);
 const isPastOrToday = computed(() => props.date <= todayIso());
 const isToday = computed(() => props.date === todayIso());
 
+// Trial registration is for today or future slots only — past dates cannot
+// register a new trial (the class already happened).
+const canRegisterTrial = computed(() => !isPastOrToday.value || isToday.value);
+
 const activeBookings = computed(() => {
   if (!slotDetail.value) return [];
   return slotDetail.value.bookings.filter(
@@ -336,6 +414,18 @@ const activeBookings = computed(() => {
       b.status === 'lista_espera'
   );
 });
+
+const activeRegularBookings = computed(() => activeBookings.value.filter((b) => !b.isTrial));
+const activeTrialBookings = computed(() => activeBookings.value.filter((b) => b.isTrial));
+
+const trialBookingIds = computed(() => {
+  if (!slotDetail.value) return new Set<number>();
+  return new Set(slotDetail.value.bookings.filter((b) => b.isTrial).map((b) => b.id));
+});
+
+function isTrialMember(member: SlotAttendanceItem): boolean {
+  return member.bookingId !== null && trialBookingIds.value.has(member.bookingId);
+}
 
 const headerActivityName = computed(() => slotDetail.value?.schedule.activityName ?? '');
 
@@ -356,7 +446,7 @@ const headerStartTime = computed(() => slotDetail.value?.schedule.startTime ?? '
 const summaryText = computed(() => {
   if (!isPastOrToday.value) {
     const max = slotDetail.value?.maxCapacity ?? 0;
-    return `${activeBookings.value.length}/${max} reservas`;
+    return `${activeRegularBookings.value.length}/${max} reservas`;
   }
   const total = attendanceList.value.length;
   const attended = attendanceList.value.filter((m) => m.attendanceId).length;
@@ -640,6 +730,13 @@ async function saveActivityChange() {
   } finally {
     savingActivity.value = false;
   }
+}
+
+// ─── Trial creation ────────────────────────────────────────────────────────
+
+async function onTrialCreated() {
+  await refreshAll();
+  emit('bookings-changed');
 }
 
 // ─── Watchers ───────────────────────────────────────────────────────────────
