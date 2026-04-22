@@ -60,6 +60,7 @@ export interface MemberListItem {
   avatarType: string | null;
   createdAt: string;
   debt: ActiveDebt | null;
+  hasUsedTrial: boolean;
 }
 
 export const AVATAR_LABELS: Record<string, string> = {
@@ -147,6 +148,7 @@ export interface MemberListParams {
   avatarType?: string;
   debtorOnly?: boolean;
   country?: 'AR' | 'ES';
+  status?: 'todos' | 'alumnos' | 'leads';
   page?: number;
   limit?: number;
 }
