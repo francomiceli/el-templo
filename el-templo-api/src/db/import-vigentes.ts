@@ -278,7 +278,7 @@ async function main(): Promise<void> {
 
     const existingUsers: Array<{
       id: number;
-      email: string;
+      email: string | null;
       createdAt: Date | null;
     }> = await db
       .select({
@@ -293,6 +293,7 @@ async function main(): Promise<void> {
       { id: number; createdAt: Date | null }
     >();
     for (const u of existingUsers) {
+      if (!u.email) continue;
       userByEmail.set(u.email.trim().toLowerCase(), {
         id: u.id,
         createdAt: u.createdAt,

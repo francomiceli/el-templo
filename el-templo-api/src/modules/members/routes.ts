@@ -374,20 +374,23 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        // Send password-set email (best effort)
-        try {
-          const emailService = new EmailService(fastify.log);
-          await emailService.sendPasswordSetEmail(
-            member.email,
-            member.firstName ?? "",
-            tempPassword,
-          );
-        } catch (emailErr: unknown) {
-          request.log.error(
-            { err: emailErr },
-            "Error sending password-set email",
-          );
-          // Don't fail member creation if email fails
+        // Send password-set email (best effort).
+        // Phase 102: trial users have email=null; skip sending in that case.
+        if (member.email) {
+          try {
+            const emailService = new EmailService(fastify.log);
+            await emailService.sendPasswordSetEmail(
+              member.email,
+              member.firstName ?? "",
+              tempPassword,
+            );
+          } catch (emailErr: unknown) {
+            request.log.error(
+              { err: emailErr },
+              "Error sending password-set email",
+            );
+            // Don't fail member creation if email fails
+          }
         }
 
         // Re-fetch so isActive (derived from subscriptions) reflects the

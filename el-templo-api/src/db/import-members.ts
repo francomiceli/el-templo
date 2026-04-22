@@ -586,7 +586,7 @@ async function main(): Promise<void> {
     // ── Step 5: Check existing users (for orphan detection and create/update) ──
     const existingUsers: Array<{
       id: number;
-      email: string;
+      email: string | null;
       dni: string | null;
       role: string;
     }> = await db
@@ -607,12 +607,14 @@ async function main(): Promise<void> {
       if (u.dni)
         existingByDni.set(u.dni.trim().toLowerCase(), {
           id: u.id,
-          email: u.email,
+          email: u.email ?? "",
         });
-      existingByEmail.set(u.email.trim().toLowerCase(), {
-        id: u.id,
-        dni: u.dni,
-      });
+      if (u.email) {
+        existingByEmail.set(u.email.trim().toLowerCase(), {
+          id: u.id,
+          dni: u.dni,
+        });
+      }
     }
 
     // Determine create vs update for each resolved member
@@ -700,7 +702,7 @@ async function main(): Promise<void> {
           : false,
         mergedFrom: a.member.mergedFrom,
       })),
-      orphans: orphanUsers.map((u) => u.email),
+      orphans: orphanUsers.map((u) => u.email ?? ""),
     };
 
     // ── Execute mode: write to DB ───────────────────────────────

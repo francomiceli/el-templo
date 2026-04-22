@@ -33,7 +33,7 @@ export interface MemberListParams {
 
 export interface MemberListItem {
   id: number;
-  email: string;
+  email: string | null;
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
@@ -54,7 +54,7 @@ export interface MemberListItem {
 
 export interface MemberProfile {
   id: number;
-  email: string;
+  email: string | null;
   firstName: string | null;
   lastName: string | null;
   phone: string | null;
@@ -137,7 +137,7 @@ export interface DniCheckResult {
 
 export interface MemberExportRow {
   nombre: string;
-  email: string;
+  email: string | null;
   dni: string;
   telefono: string;
   sucursal: string;

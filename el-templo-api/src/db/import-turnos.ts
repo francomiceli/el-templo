@@ -379,7 +379,10 @@ async function main(): Promise<void> {
           .where(inArray(users.email, allEmails))
       : [];
     const userByEmail = new Map<string, number>();
-    for (const u of dbUsers) userByEmail.set(u.email.toLowerCase(), u.id);
+    for (const u of dbUsers) {
+      if (!u.email) continue;
+      userByEmail.set(u.email.toLowerCase(), u.id);
+    }
 
     const userIds = dbUsers.map((u) => u.id);
     const today = new Date().toISOString().split("T")[0];

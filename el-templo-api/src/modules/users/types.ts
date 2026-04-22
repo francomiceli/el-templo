@@ -1,6 +1,6 @@
 export interface StaffUser {
   id: number;
-  email: string;
+  email: string | null;
   firstName: string | null;
   lastName: string | null;
   role: string;

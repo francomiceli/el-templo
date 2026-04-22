@@ -232,6 +232,7 @@ async function main(): Promise<void> {
       { id: number; email: string; createdAt: Date }
     >();
     for (const u of dbUsers) {
+      if (!u.email) continue;
       userByEmail.set(u.email.toLowerCase(), {
         id: u.id,
         email: u.email,

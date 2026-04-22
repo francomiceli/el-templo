@@ -4,8 +4,8 @@ import jwt from "@fastify/jwt";
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
-    payload: { userId: number; email: string; role: string };
-    user: { userId: number; email: string; role: string };
+    payload: { userId: number; email: string | null; role: string };
+    user: { userId: number; email: string | null; role: string };
   }
 }
 
@@ -40,12 +40,10 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       try {
         await request.jwtVerify();
       } catch (err: unknown) {
-        reply
-          .code(401)
-          .send({
-            error: "No autorizado",
-            message: "Token invalido o ausente",
-          });
+        reply.code(401).send({
+          error: "No autorizado",
+          message: "Token invalido o ausente",
+        });
       }
     },
   );

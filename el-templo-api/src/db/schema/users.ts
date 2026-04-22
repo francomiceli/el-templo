@@ -44,7 +44,7 @@ export const users = mysqlTable(
   "users",
   {
     id: int("id").primaryKey().autoincrement(),
-    email: varchar("email", { length: 255 }).notNull().unique(),
+    email: varchar("email", { length: 255 }).unique(),
     passwordHash: varchar("password_hash", { length: 255 }).notNull(),
     firstName: varchar("first_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }),

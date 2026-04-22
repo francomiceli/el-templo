@@ -5,6 +5,7 @@ import {
   date,
   timestamp,
   mysqlEnum,
+  boolean,
   index,
   uniqueIndex,
 } from "drizzle-orm/mysql-core";
@@ -36,6 +37,7 @@ export const bookings = mysqlTable(
     waitlistPosition: int("waitlist_position"),
     bookedAt: timestamp("booked_at").defaultNow().notNull(),
     cancelledAt: timestamp("cancelled_at"),
+    isTrial: boolean("is_trial").notNull().default(false),
   },
   (table) => [
     index("idx_bookings_schedule_date_status").on(

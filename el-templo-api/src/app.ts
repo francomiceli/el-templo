@@ -184,7 +184,7 @@ export async function buildApp() {
     if (request.user) {
       Sentry.setUser({
         id: String(request.user.userId),
-        email: request.user.email,
+        email: request.user.email ?? undefined,
       });
     }
   });
