@@ -115,6 +115,7 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   // Layer 1: junction tables and leaf tables (no dependents)
   await app.db.delete(schema.blogPostTags);
   await app.db.delete(schema.bookings);
+  await app.db.delete(schema.subscriptionScheduleChanges);
   await app.db.delete(schema.subscriptionSchedules);
   await app.db.delete(schema.completedSessions);
   await app.db.delete(schema.sessionTraces);
