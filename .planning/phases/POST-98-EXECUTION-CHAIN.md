@@ -119,3 +119,36 @@ When all three phases finish (or when you stop):
 - **Auto-accepted checkpoint:** human-verify (PDF visual regression). Source-level byte-identical check passes on the null INITIUM fallback; visual pixel-diff against a pre-phase PDF requires a running browser + archived PDF (not available in chain). If discrepancy appears in manual review, the single load-bearing change is the ternary on lines ~329–335 of session-pdf-builder.ts.
 - **Requirements:** SPEC-2 (INITIUM custom title in PDF) and SPEC-4 (Spanish route labels on PDF) both code-complete. SPEC-1/3/5 completed in waves 1–3.
 - **User, when you return:** generate a PDF for a session (any existing session with no custom title) and open its INITIUM page to confirm PYROS heading is unchanged and subtitle reads `INITIUM  ·  {formatName}`. Set a custom title on an INITIUM block and re-generate; subtitle should read the title alone. Open a NUCLEUS/DEUTEROS page — route headers should read Spanish labels (e.g. "Plancha", "Empuje de cadera"). For chained Phase 101 readiness, check `.planning/phases/101-debt-tracking-flag-members-with-outstanding-debt/` for plans.
+
+### 2026-04-22 — Phase 101 complete
+
+- All 3 plans executed across 3 waves (wave 1: 101-01 schema + migration; wave 2: 101-02 DebtService + API; wave 3: 101-03 admin UI — this handoff).
+- **Plan 101-03 commits (this handoff):**
+  - `0ecc3c4f` — feat(101-03): extend member types + API composable for debt tracking
+  - `78f1ca48` — feat(101-03): add Deuda section to MemberFormDialog edit mode
+  - `ee4d4916` — feat(101-03): AlumnosPage row-split filters + Solo deudores toggle + banner + Deuda column
+- **Admin UI scope delivered:** ActiveDebt/DebtUpsertInput/TotalDebtRow/MembersListResponse/DEBT_CURRENCY_OPTIONS types; getMembers return widened to MembersListResponse; MemberFormDialog Deuda section (edit mode only, D-12 placeholder verbatim, client-side amount > 0 guard, three-case debt payload via hadDebtOnLoad ref); AlumnosPage row-split filter bar (Row 1 search + Export/Nuevo; Row 2 Plan/Sucursal/Nivel/Estado/Segmento/Avatar + Solo deudores toggle); q-banner "Deuda total: ARS $X · USD $Y" with `·` separator (bg-red-1 / text-red-10); visibleColumns computed that appends a Deuda column when toggle on.
+- **Verification (autonomous):** `pnpm lint` — 0 errors (6 pre-existing warnings in unrelated files); `vue-tsc --noEmit` — no new type errors in the 4 Phase-101 files (the 7 remaining errors in PDF builder + Program wizard + Session/Horarios pages are pre-existing per Phase 100 SUMMARY out-of-scope list); all 26 acceptance-criteria greps pass.
+- **Deviations:** None. One minor post-task cleanup: removed now-unused MemberListItem import from useMembersApi.ts after the getMembers return type switched to MembersListResponse.
+- **Auto-accepted checkpoint (Task 4):** UAT (human-verify). Source-level and type-level checks all pass; manual end-to-end verification (browser UI walkthrough, DB checks on upsert/soft-cancel, RBAC recepcion 403 toast) deferred to user's next interactive session. Plan 02's integration tests already cover the upsert/soft-cancel/RBAC semantics at the service layer.
+- **User, when you return (Phase 101):** open the admin app on `/alumnos`, confirm the filter bar splits into two rows; flip `Solo deudores` ON and confirm the Deuda column + banner disappear/reappear correctly; open a member's edit dialog, scroll to the bottom, toggle Deudor ON, enter 20000 ARS with a note, Guardar. Verify in MySQL: `SELECT id, amount, currency, is_cancelled FROM debts WHERE user_id = <id>;` returns one active row. Destilda the toggle, Guardar; confirm the row now has `is_cancelled=1, cancelled_at=NOW()` and the member disappears from the `Solo deudores` view. Optional: log in as a recepcion account and verify the toggle submit produces a Spanish error toast ("Solo admin/owner puede gestionar deudas" or similar from extractError).
+
+---
+
+## Chain complete — 98 + 99 + 100 + 101 all done, awaiting user review
+
+All four chained phases executed unattended, no blocking human-action gates hit. Pushed code: NONE (per standing rules — no `git push`, no SSH, no deploys until user explicitly signals). Summary of state:
+
+- **Phase 98 (multi-currency + ES plan seeds):** 13 commits, migrations 0091 + 0092 applied locally. UAT doc `98-UAT.md` awaits user's iOS + Android build verification against staging (non-negotiable D-19 HALT gate).
+- **Phase 99 (session-level selection + dropdown):** 7 commits, migration 0093 applied locally. API 742/742 green, app 55/55 green. Human on-device walkthrough (dropdown, persistence, logout wipe, dialog copy) deferred to user.
+- **Phase 100 (PDF customTitle + Spanish route labels):** 5 commits. Lint/build/typecheck pass (with pre-existing session-pdf-builder type errors flagged as out of scope). Visual pixel-diff against an archived pre-phase PDF deferred to user.
+- **Phase 101 (debt tracking):** 6 commits (01: migration 0096; 02: service + routes + 14 integration tests; 03: admin UI). API 769/769 green. Admin UI delivered; manual UAT deferred.
+
+**Nothing has been pushed. Nothing has been deployed. No SSH to EC2.** All work is on local `master`. User decides when/where to push.
+
+**Suggested first actions when user returns:**
+
+1. Review the 4 phase SUMMARY files for decisions that need user sign-off.
+2. Run the UAT checklists in Phase 98's `98-UAT.md` and Phase 101's Task 4 to confirm real-world behavior.
+3. Decide on push strategy (per standing preference, stage before master; per v4.4 local-only workflow, may keep on local master).
+4. Once green, deploy via the normal CI pipeline (user triggers).
