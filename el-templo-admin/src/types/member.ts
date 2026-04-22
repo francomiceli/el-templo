@@ -108,7 +108,6 @@ export interface CreateMemberInput {
   phone: string;
   dni: string;
   branchId: number;
-  planId: number;
   level?: string;
   documentType?: string | null;
   address?: string | null;
@@ -147,6 +146,7 @@ export interface MemberListParams {
   segment?: MemberSegment;
   avatarType?: string;
   debtorOnly?: boolean;
+  country?: 'AR' | 'ES';
   page?: number;
   limit?: number;
 }

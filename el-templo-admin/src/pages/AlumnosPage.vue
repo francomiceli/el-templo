@@ -1,8 +1,21 @@
 <template>
   <q-page class="q-pa-md">
     <!-- Header -->
-    <div class="row q-mb-md items-center">
+    <div class="row q-mb-md items-center q-gutter-x-md">
       <div class="text-h5">Alumnos</div>
+      <!-- Owner-only country selector (D-06) -->
+      <div v-if="isOwner" style="min-width: 160px">
+        <q-select
+          v-model="selectedCountry"
+          :options="countryOptions"
+          label="Pais"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onCountryChange"
+        />
+      </div>
       <q-space />
       <div class="row no-wrap q-gutter-x-sm justify-end items-center">
         <q-btn icon="download" color="grey-7" flat round :loading="exporting" @click="onExport">
@@ -261,6 +274,7 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import type {
   MemberListItem,
   MemberSegment,
@@ -275,6 +289,27 @@ const log = createLogger('AlumnosPage');
 const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
+const authStore = useAuthStore();
+
+// =========================================================================
+// Country selector (owner-only per D-06)
+// =========================================================================
+
+const isOwner = computed(() => authStore.user?.role === 'owner');
+
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
+
+const selectedCountry = ref<'AR' | 'ES'>('AR');
+
+async function onCountryChange() {
+  filters.branchId = null;
+  filters.planId = null;
+  tablePagination.value.page = 1;
+  await Promise.all([loadBranches(), loadPlans(), loadMembers()]);
+}
 
 // =========================================================================
 // State
@@ -584,7 +619,10 @@ async function loadBranches() {
 
 async function loadPlans() {
   try {
-    const plans = await membersApi.getPlans(true); // includeArchived
+    const plans = await membersApi.getPlans(
+      true,
+      isOwner.value ? { country: selectedCountry.value } : undefined
+    ); // includeArchived
     allPlans.value = plans.map((p) => ({
       id: p.id,
       name: p.name,
@@ -630,6 +668,7 @@ async function loadMembers() {
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
+      country: isOwner.value ? selectedCountry.value : undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -668,6 +707,7 @@ async function onExport() {
       isActive: filters.isActive ?? undefined,
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
+      country: isOwner.value ? selectedCountry.value : undefined,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
