@@ -55,8 +55,11 @@
                 :label="memberProfile.isActive ? 'Activo' : 'Inactivo'"
                 class="text-body2"
               />
-              <!-- Phase 102 R7: always-visible trial counter (renders even for sub-less leads) -->
+              <!-- Phase 102 R7: trial counter — only relevant for sub-less users (leads).
+                   Hidden once they have an active subscription: at that point they're a
+                   member and the trial-pass accounting is no longer actionable. -->
               <q-chip
+                v-if="!memberProfile.isActive"
                 :color="memberProfile.hasUsedTrial ? 'grey-7' : 'primary'"
                 :text-color="memberProfile.hasUsedTrial ? 'white' : 'primary'"
                 :outline="!memberProfile.hasUsedTrial"
