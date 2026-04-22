@@ -103,6 +103,27 @@
             </div>
           </div>
         </q-card-section>
+
+        <!-- Phase 99 R11: session-level counts over last 30 days (hidden if empty, D-18) -->
+        <q-card-section
+          v-if="sessionLevelCounts.length > 0"
+          class="session-levels q-pt-none"
+          data-session-levels
+        >
+          <div class="text-caption text-grey-7 q-mb-xs">Ultimos 30 dias</div>
+          <div class="row q-gutter-xs">
+            <q-chip
+              v-for="entry in sessionLevelCounts"
+              :key="entry.level"
+              :color="levelColor(entry.level)"
+              text-color="white"
+              size="sm"
+              dense
+            >
+              {{ entry.count }} {{ levelDisplayName(entry.level) }}
+            </q-chip>
+          </div>
+        </q-card-section>
       </q-card>
 
       <!-- ========================================== -->
@@ -441,6 +462,20 @@ const recentCompletions = computed(() => {
   return goalPlanDetail.value.completions.slice(0, 20);
 });
 
+// Phase 99 R11 — per-level session counts over the last 30 days. Empty array
+// hides the row (D-18: no "0-of-everything" noise).
+const sessionLevelCounts = ref<Array<{ level: string; count: number }>>([]);
+
+async function loadSessionLevels(): Promise<void> {
+  const id = memberProfile.value?.id;
+  if (!id) return;
+  try {
+    sessionLevelCounts.value = await membersApi.getSessionLevels(id, 30);
+  } catch {
+    sessionLevelCounts.value = [];
+  }
+}
+
 // =========================================================================
 // Greek level display
 // =========================================================================
@@ -551,6 +586,8 @@ async function loadAll() {
 
     // Load goal plan detail in background (non-blocking)
     loadGoalPlanDetail();
+    // Phase 99 R11: load session-level counts in background (non-blocking)
+    loadSessionLevels();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {

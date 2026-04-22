@@ -8,6 +8,7 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { api } from 'src/boot/axios';
 import { extractError } from 'src/utils/extract-error';
+import { createLogger } from 'src/utils/logger';
 import type {
   MemberListItem,
   MemberProfile,
@@ -20,6 +21,14 @@ import type {
   UpdateNoteInput,
   BranchOption,
 } from 'src/types/member';
+
+const log = createLogger('members-api');
+
+export type SessionLevelKey = 'alfa' | 'delta' | 'sigma' | 'omega' | 'spartan';
+export interface SessionLevelCount {
+  level: SessionLevelKey;
+  count: number;
+}
 
 export function useMembersApi() {
   const loading = ref(false);
@@ -101,6 +110,30 @@ export function useMembersApi() {
       throw err;
     } finally {
       loading.value = false;
+    }
+  }
+
+  // ─── Session Levels (Phase 99) ────────────────────────────────────────
+
+  /**
+   * Fetch per-level session completion counts for a member over the last
+   * `days` days (default 30). Returns only levels with count > 0.
+   * Errors are logged and re-thrown so callers can hide the chip row.
+   */
+  async function getSessionLevels(userId: number, days = 30): Promise<SessionLevelCount[]> {
+    try {
+      const { data } = await api.get<{ counts: SessionLevelCount[] }>(
+        `/admin/members/${userId}/session-levels`,
+        { params: { days } }
+      );
+      return data.counts;
+    } catch (err: unknown) {
+      log.error('getSessionLevels failed', {
+        err: err instanceof Error ? err.message : String(err),
+        userId,
+        days,
+      });
+      throw err;
     }
   }
 
@@ -334,6 +367,7 @@ export function useMembersApi() {
     getBranches,
     uploadMemberPhoto,
     exportMembers,
+    getSessionLevels,
     cleanup,
   };
 }
