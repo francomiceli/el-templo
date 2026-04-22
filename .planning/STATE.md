@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 100-04-PLAN.md
-last_updated: "2026-04-22T01:15:48.459Z"
+stopped_at: Completed 100-05-PLAN.md
+last_updated: "2026-04-22T01:22:37.461Z"
 progress:
   total_phases: 91
-  completed_phases: 77
+  completed_phases: 78
   total_plans: 336
-  completed_plans: 326
+  completed_plans: 327
   percent: 97
 ---
 
@@ -120,6 +120,7 @@ _Updated after each plan completion_
 | Phase 90 P03 | 13min | 3 tasks | 8 files |
 | Phase 99 P02 | 20 | 2 tasks | 8 files |
 | Phase 100 P04 | ~12m | 2 tasks | 7 files |
+| Phase 100 P05 | 18m | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -255,6 +256,7 @@ Recent decisions affecting current work:
 - [Phase 90]: Server-side gender read from users table in /complete handler — never trust client-provided gender for avatar resolution (T-90-02)
 - [Phase 90]: avatarType filter uses NOT EXISTS subquery for 'none' to catch both missing profiles and null avatar_type
 - 100-04: Admin route-labels dictionary duplicated byte-for-byte from member-app copy; D-01 preserved (admin exercises + sessions lists unchanged)
+- Phase 100-05: PDF pipeline consumes Spanish route labels via pre-resolved PdfLevelBlock.routeLabel field; customTitle flows through PdfBlockPage with byte-identical null fallback
 
 ### Pending Todos
 
@@ -266,8 +268,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T01:15:43.943Z
-Stopped at: Completed 100-04-PLAN.md
+Last session: 2026-04-22T01:22:29.743Z
+Stopped at: Completed 100-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 101 (debt-tracking-flag-members-with-outstanding-debt) — 3 plans — 2026-04-21T22:54:21.525Z
