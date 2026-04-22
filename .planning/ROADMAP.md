@@ -2158,6 +2158,19 @@ Plans:
 - [ ] 100-04-PLAN.md — Admin session editor: route-labels.ts (admin copy) + games in createRouteOptions + games in FormatParamsEditor defaultsMap + INITIUM custom_title input wired via PATCH + route tooltips in EditableBlockCard/EditableExerciseRow
 - [ ] 100-05-PLAN.md — Admin PDF: PdfBlockPage.customTitle + session-data-transformer propagation + conditional INITIUM subtitle + Spanish route labels on grid pages (byte-identical null-customTitle fallback)
 
+### Phase 101: Debt tracking — flag members with outstanding debt
+
+**Goal:** Admins can flag members as debtors with an amount, currency, and free-form note; filter the alumnos list by debtors only; and see total debt grouped by currency. New `debts` table (userId, amount, currency, note, isCancelled, cancelledAt, timestamps) with one active debt per user enforced at service layer. Admin AlumnosPage filter bar is split into two rows (row 1: wider search + export/new buttons; row 2: existing selects + "Solo deudores" toggle). When toggle on: "Deuda total: ARS $X · USD $Y" banner + "Deuda" column per alumno. MemberFormDialog gets Deudor toggle + amount input + currency select + note textarea with placeholder "Aclarar de qué suscripción es la deuda (ej: debe $20000 de la mensualidad de abril)". GET /members extended with `debtorOnly` filter + `totalDebtByCurrency` response field respecting applied filters. Foundation for future accounting/payments integration — intentionally NOT integrated with payments table in this phase.
+**Requirements**: CONTEXT.md D-01..D-17 (no mapped REQ-IDs; CONTEXT is authoritative)
+**Depends on:** Phase 100
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 101-01-PLAN.md — Drizzle schema debts.ts + migration 0094_debts_table.sql + apply via pnpm db:migrate (BLOCKING foundation)
+- [ ] 101-02-PLAN.md — DebtService + extend GET /admin/members (debtorOnly + totalDebtByCurrency + per-row debt) + extend PUT /admin/members/:userId (upsert/cancel debt with ADMIN_ROLES RBAC) + integration tests
+- [ ] 101-03-PLAN.md — Admin frontend: types/composable extension, MemberFormDialog Deuda section, AlumnosPage row-split filter bar + Solo deudores toggle + banner + column + UAT checkpoint
+
 ---
 
 _v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_

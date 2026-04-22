@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 100 context gathered
-last_updated: "2026-04-21T22:29:27.443Z"
+stopped_at: Completed 99-02-PLAN.md
+last_updated: "2026-04-22T00:35:59.053Z"
 progress:
-  total_phases: 90
+  total_phases: 91
   completed_phases: 76
-  total_plans: 333
-  completed_plans: 311
-  percent: 93
+  total_plans: 336
+  completed_plans: 321
+  percent: 96
 ---
 
 # Project State
@@ -118,6 +118,7 @@ _Updated after each plan completion_
 | Phase 89 P07 | 6min | 2 tasks | 2 files |
 | Phase 90 P01 | 12min | 2 tasks | 9 files |
 | Phase 90 P03 | 13min | 3 tasks | 8 files |
+| Phase 99 P02 | 20 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,7 @@ _Updated after each plan completion_
 - Phase 88 (old): Reservation Rules — Per-Plan Booking Configuration — removed from v4.4
 - Phase 98 added: Multi-currency and country-scoped plans — AR/ES plan segregation with EUR pricing, owner country toggle, branch-scoped filtering
 - Phase 100 added: Games format, exercise route overhaul, and session editor route UX — coach-driven session authoring changes (new format, INITIUM block titles, new games route, Spanish route renaming)
+- Phase 101 added: Debt tracking — flag members with outstanding debt via new `debts` table (one active per user, soft-cancel for history), admin AlumnosPage filter + total debt banner grouped by currency, MemberFormDialog deudor toggle + amount + note; intentionally not integrated with payments table in this phase
 
 ### Decisions
 
@@ -262,8 +264,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 100 context gathered
-Resume file: --resume-file
+Last session: 2026-04-22T00:35:59.023Z
+Stopped at: Completed 99-02-PLAN.md
+Resume file: None
 
-**Planned Phase:** 100 (games-format-exercise-route-overhaul-and-session-editor-rout) — 5 plans — 2026-04-21T22:29:27.423Z
+**Planned Phase:** 101 (debt-tracking-flag-members-with-outstanding-debt) — 3 plans — 2026-04-21T22:54:21.525Z
