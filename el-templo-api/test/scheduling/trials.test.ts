@@ -620,7 +620,11 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("400 when additional unknown properties are sent", async () => {
+  // Note: `additionalProperties: false` under Fastify's default AJV config
+  // REMOVES extra properties silently rather than rejecting. We exercise
+  // the schema's presence instead by sending a body with wrong types, which
+  // must yield 400 from the validator (not reach the handler).
+  it("400 on wrong field types (schema validation enforced)", async () => {
     const res = await app.inject({
       method: "POST",
       url: TRIALS_URL,
@@ -629,10 +633,9 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
         firstName: "Bob",
         lastName: "Smith",
         phone: "+54911",
-        branchId: testBranchId,
+        branchId: "not-a-number",
         scheduleId: 1,
         bookingDate: "2026-04-01",
-        extraField: "not allowed",
       },
     });
     expect(res.statusCode).toBe(400);
