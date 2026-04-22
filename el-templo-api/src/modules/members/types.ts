@@ -27,6 +27,13 @@ export interface MemberListParams {
    * the resulting filter set.
    */
   debtorOnly?: boolean;
+  /**
+   * Phase 102 (R8): server-side leads filter.
+   *   "todos"   (default) — no additional filter applied
+   *   "leads"             — has is_trial=TRUE booking AND no active/paused sub
+   *   "alumnos"           — inverse of leads (everyone not matching the leads definition)
+   */
+  status?: "todos" | "alumnos" | "leads";
   page: number;
   limit: number;
 }
@@ -50,6 +57,11 @@ export interface MemberListItem {
   createdAt: string;
   /** Phase 101: populated when the user has an active (non-cancelled) debt. */
   debt: ActiveDebt | null;
+  /**
+   * Phase 102 (R7): true iff the user has at least one is_trial=TRUE booking
+   * in their history. Derived via EXISTS subquery — no per-row N+1.
+   */
+  hasUsedTrial: boolean;
 }
 
 export interface MemberProfile {
@@ -74,6 +86,12 @@ export interface MemberProfile {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Phase 102 (R7): true iff the user has at least one is_trial=TRUE booking
+   * in their history. Drives the "Clases de prueba: N/1" counter on the
+   * admin profile header.
+   */
+  hasUsedTrial: boolean;
 }
 
 export interface CreateMemberInput {

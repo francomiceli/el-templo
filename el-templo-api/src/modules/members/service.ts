@@ -56,6 +56,7 @@ export class MemberService {
       avatarType,
       country,
       debtorOnly,
+      status,
       page,
       limit,
     } = params;
@@ -176,6 +177,38 @@ export class MemberService {
       );
     }
 
+    // Phase 102 (R8): "leads" = user has ≥1 is_trial=TRUE booking AND no
+    // currently active/paused subscription. "alumnos" is the inverse (every
+    // user not matching the leads predicate). "todos" (or undefined) is a
+    // no-op. Composing with other filters is intentional (e.g. status=leads
+    // + branchId = leads within that branch).
+    if (status === "leads") {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM bookings b
+        WHERE b.member_id = users.id AND b.is_trial = 1
+      )`);
+      conditions.push(sql`NOT EXISTS (
+        SELECT 1 FROM subscriptions s
+        WHERE s.user_id = users.id
+          AND s.subscription_status IN ('active','paused')
+          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+      )`);
+    } else if (status === "alumnos") {
+      conditions.push(sql`NOT (
+        EXISTS (
+          SELECT 1 FROM bookings b
+          WHERE b.member_id = users.id AND b.is_trial = 1
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM subscriptions s
+          WHERE s.user_id = users.id
+            AND s.subscription_status IN ('active','paused')
+            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+        )
+      )`);
+    }
+    // status === "todos" or undefined → no-op
+
     const whereClause = and(...conditions);
 
     // Get total count. Joins branches so the country scope condition (when
@@ -219,6 +252,16 @@ export class MemberService {
       )
     )`;
 
+    // Phase 102 (R7): EXISTS projection for the trial-history boolean.
+    // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
+    // Uses idx_bookings_member_date (member_id prefix) for the lookup.
+    const hasUsedTrialSubquery = sql<number>`(
+      SELECT EXISTS (
+        SELECT 1 FROM bookings b
+        WHERE b.member_id = users.id AND b.is_trial = 1
+      )
+    )`;
+
     // Get paginated members with branch join and plan name
     const rows = await this.db
       .select({
@@ -238,6 +281,7 @@ export class MemberService {
         planName: planNameSubquery,
         segment: segmentSubquery,
         avatarType: avatarTypeSubquery,
+        hasUsedTrial: hasUsedTrialSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -269,6 +313,7 @@ export class MemberService {
       avatarType: r.avatarType ?? null,
       createdAt: r.createdAt.toISOString(),
       debt: debtsByUser.get(r.id) ?? null,
+      hasUsedTrial: Boolean(r.hasUsedTrial),
     }));
 
     // Phase 101 (D-07): totalDebtByCurrency aggregates active debts over the
@@ -305,6 +350,15 @@ export class MemberService {
       )
     )`;
 
+    // Phase 102 (R7): same EXISTS predicate as the list endpoint — single
+    // source of truth for hasUsedTrial semantics.
+    const hasUsedTrialSubquery = sql<number>`(
+      SELECT EXISTS (
+        SELECT 1 FROM bookings b
+        WHERE b.member_id = users.id AND b.is_trial = 1
+      )
+    )`;
+
     const [row] = await this.db
       .select({
         id: schema.users.id,
@@ -328,6 +382,7 @@ export class MemberService {
         isActive: isActiveSubquery,
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
+        hasUsedTrial: hasUsedTrialSubquery,
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
@@ -357,6 +412,7 @@ export class MemberService {
       isActive: Boolean(row.isActive),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      hasUsedTrial: Boolean(row.hasUsedTrial),
     };
   }
 
