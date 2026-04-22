@@ -1,54 +1,21 @@
 /**
- * Route code to full name mapping
+ * Route code → display name helper (member app).
  *
- * Routes represent the main movement skill being trained.
- * These codes are used in the SPOM system and displayed in block headers.
+ * Phase 100: labels switched from English to Spanish. The dictionary moved to
+ * `src/constants/route-labels.ts` to match the SPEC-mandated location and to
+ * support the new `games` entry. This file remains as a thin re-export so the
+ * ~9 existing `getRouteName()` call sites continue working.
  */
-export const ROUTE_NAMES: Record<string, string> = {
-  // Pull routes
-  FL: 'Front Lever',
-  FLR: 'Front Lever Row',
-  BL: 'Back Lever',
-  MU: 'Muscle Up',
-  OAP: 'One Arm Pull Up',
-  OAR: 'One Arm Row',
-  TTB: 'Toe to Bar',
-  'MN/RP': 'Manna / Reverse Planche',
+import { ROUTE_LABELS, getRouteLabel } from 'src/constants/route-labels'
 
-  // Push routes
-  PL: 'Planche',
-  PLPU: 'Planche Push Up',
-  HSPU: 'Handstand Push Up',
-  HS: 'Handstand',
-  PHS: 'Press Handstand',
-  OAPU: 'One Arm Push Up',
-  'HD/ID': 'Hefesto / Impossible Dip',
-
-  // Leg routes
-  PS: 'Pistol Squat',
-  DS: 'Dragon Squat',
-  NC: 'Nordic Curl',
-  SS: 'Sissy Squat',
-  QC: 'Quad Curl',
-  HR: 'Ham Raises',
-  HT: 'Hip Thrust',
-  L: 'Lunge',
-  SU: 'Step Up',
-  'REVERSE HYPER': 'Reverse Hyper',
-
-  // Other routes
-  INITIUM: 'Initium',
-  AF: 'Active Flexibility',
-  BRIDGE: 'Bridge',
-  PIKE: 'Pike',
-  SPAGAT: 'Spagat',
-  'SIDE PCK': 'Side Pick',
-}
+/** @deprecated Use ROUTE_LABELS from 'src/constants/route-labels' directly. */
+export const ROUTE_NAMES = ROUTE_LABELS
 
 /**
- * Get the full name for a route code
- * Returns the code itself if no mapping exists
+ * Get the Spanish display label for a route code. Kept for backward compatibility
+ * with the pre-Phase-100 `getRouteName` API. New code should call `getRouteLabel`
+ * from 'src/constants/route-labels' directly.
  */
 export function getRouteName(code: string): string {
-  return ROUTE_NAMES[code?.toUpperCase()] || code
+  return getRouteLabel(code)
 }
