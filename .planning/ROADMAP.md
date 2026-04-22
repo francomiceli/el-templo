@@ -2171,6 +2171,34 @@ Plans:
 - [ ] 101-02-PLAN.md — DebtService + extend GET /admin/members (debtorOnly + totalDebtByCurrency + per-row debt) + extend PUT /admin/members/:userId (upsert/cancel debt with ADMIN_ROLES RBAC) + integration tests
 - [ ] 101-03-PLAN.md — Admin frontend: types/composable extension, MemberFormDialog Deuda section, AlumnosPage row-split filter bar + Solo deudores toggle + banner + column + UAT checkpoint
 
+### Phase 102: Trial Classes (Sesiones de Prueba)
+
+**Goal:** Allow admins to register potential members for a single free trial class with minimal friction, replacing the current WhatsApp-plus-Excel flow. A "lead" is a user record created via this flow (minimal data, no subscription, fixed password `eltemplo2026`) with exactly one booking marked `is_trial=true`. Trials do NOT consume class capacity (5/12 stays 5/12 when a trial is added). Conversion to a paying member happens via existing flows (edit dialog + Gestionar Plan) — no separate convert endpoint. One trial per phone enforced at create time.
+**Requirements:** R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 (see 102-SPEC.md)
+**Depends on:** Phase 101
+**Plans:** 5 plans
+
+Scope:
+
+- Backend: `bookings.is_trial BOOLEAN` column + migration; capacity/roster queries exclude trial bookings from counts
+- Backend: `POST /api/admin/trials` — creates user (status implicit: minimal fields, no sub) + trial booking; one-trial-per-phone guard with clear error including previous trial date
+- Admin UI: "Nueva Sesión de Prueba" button in SlotDetailDialog with minimal form (nombre + apellido + teléfono)
+- Admin UI: SlotDetailDialog roster shows trials as a visually separated section with a "PRUEBA" badge, not counted in capacity
+- Admin UI: "Clases de prueba" counter (0/1 or 1/1 usada) on alumno detail header, always visible
+- Admin UI: Alumnos list "Leads" filter (inferred from `is_trial` booking + no active sub; lapsed members excluded)
+- Coach marks attendance via existing check-in/force-check-in flow — no new endpoint
+- Member app: no changes — leads inherit existing sub-less member UX
+- Architectural choice: Option B (no `users.status` column); lead is inferred, not a first-class entity
+- Out of scope: WhatsApp bot integration, lead expiry, conversion analytics dashboard, coach-specific admin view
+
+Plans:
+
+- [ ] 102-01-PLAN.md — Schema foundation: add bookings.is_trial column + migration 0097 (R1)
+- [ ] 102-02-PLAN.md — Capacity excludes trials + POST /api/admin/scheduling/trials endpoint + integration tests (R2, R3, R4)
+- [ ] 102-03-PLAN.md — Members API: hasUsedTrial field + status=leads filter + integration tests (R7, R8)
+- [x] 102-04-PLAN.md — Admin UI: SlotDetailDialog trial button + NewTrialDialog form + roster split with PRUEBA badge (R5, R6, R9, R10)
+- [ ] 102-05-PLAN.md — Admin UI: Clases de prueba counter on alumno detail + Leads filter on AlumnosPage (R7, R8)
+
 ---
 
 _v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_
