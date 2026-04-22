@@ -218,6 +218,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       segment?: string;
       avatarType?: string;
       debtorOnly?: boolean;
+      status?: "todos" | "alumnos" | "leads";
       page?: number;
       limit?: number;
     };
@@ -232,6 +233,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       segment,
       avatarType,
       debtorOnly,
+      status,
       page = 1,
       limit = 20,
     } = request.query;
@@ -250,6 +252,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       avatarType,
       country: request.scope.country,
       debtorOnly,
+      status,
       page,
       limit,
     };

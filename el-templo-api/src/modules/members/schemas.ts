@@ -36,6 +36,8 @@ const memberListItemSchema = {
     avatarType: { type: ["string", "null"] },
     createdAt: { type: "string" },
     debt: activeDebtSchema,
+    // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
+    hasUsedTrial: { type: "boolean" },
   },
 } as const;
 
@@ -84,6 +86,8 @@ const memberProfileSchema = {
     onboardingProfile: onboardingProfileSchema,
     // Phase 101: active debt (null when user has no active debt).
     debt: activeDebtSchema,
+    // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
+    hasUsedTrial: { type: "boolean" },
   },
 } as const;
 
@@ -139,6 +143,8 @@ export const listMembersSchema = {
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },
       debtorOnly: { type: "boolean" },
+      // Phase 102 (R8): leads/alumnos filter. "todos" = no-op (default).
+      status: { type: "string", enum: ["todos", "alumnos", "leads"] },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
