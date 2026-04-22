@@ -122,6 +122,18 @@
       </div>
       <div class="col-6 col-sm-3 col-md-2">
         <q-select
+          v-model="filters.status"
+          :options="tipoFilterOptions"
+          label="Tipo"
+          dense
+          outlined
+          emit-value
+          map-options
+          @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-3 col-md-2">
+        <q-select
           v-model="filters.segment"
           :options="segmentFilterOptions"
           label="Segmento"
@@ -337,6 +349,7 @@ const filters = reactive({
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
+  status: null as 'todos' | 'alumnos' | 'leads' | null,
 });
 
 // Phase 101: aggregated total debt grouped by currency, scoped to the same
@@ -387,6 +400,13 @@ const statusFilterOptions = [
   { label: 'Todos', value: null },
   { label: 'Activos', value: true },
   { label: 'Inactivos', value: false },
+];
+
+// Phase 102 R8: "Tipo" filter — Alumnos vs Leads (server-side inferred)
+const tipoFilterOptions: Array<{ label: string; value: 'todos' | 'alumnos' | 'leads' | null }> = [
+  { label: 'Todos', value: null },
+  { label: 'Alumnos', value: 'alumnos' },
+  { label: 'Leads', value: 'leads' },
 ];
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
@@ -669,6 +689,7 @@ async function loadMembers() {
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
+      status: filters.status ?? undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -708,6 +729,7 @@ async function onExport() {
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
+      status: filters.status ?? undefined,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
