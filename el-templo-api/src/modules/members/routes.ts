@@ -8,7 +8,7 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as schema from "../../db/schema";
@@ -23,6 +23,8 @@ import { MemberService } from "./service";
 import { DebtService } from "./debts-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { BookingService } from "../scheduling/booking-service";
+import { NotFoundError } from "../shared/errors";
 import { EmailService } from "../email";
 import type {
   CreateMemberInput,
@@ -569,6 +571,55 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .code(404)
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
+
+      // Cancel any active/paused subscription and the future bookings it
+      // owns. cancelSubscription also nukes the scheduled successor (if any)
+      // and calls BookingService.cancelFutureBookings for fixed-plan subs
+      // — so this one call covers subscription-tied bookings.
+      const auraService = new AuraService(fastify.db);
+      const subscriptionService = new SubscriptionService(
+        fastify.db,
+        request.log,
+        auraService,
+      );
+      const bookingService = new BookingService(
+        fastify.db,
+        request.log,
+        subscriptionService,
+      );
+      subscriptionService.setBookingService(bookingService);
+
+      try {
+        await subscriptionService.cancelSubscription(
+          request.params.userId,
+          "Cancelado por eliminación del alumno",
+        );
+      } catch (err) {
+        // Members with no active/paused subscription hit NotFoundError —
+        // that is expected, keep going. Anything else is unexpected; log
+        // and rethrow so the admin sees a 500 rather than a silent partial.
+        if (!(err instanceof NotFoundError)) throw err;
+      }
+
+      // Catch remaining future bookings the subscription cancel didn't
+      // touch: trial bookings (no subscription), bookings attached to a
+      // subscription that already ended, and any flex-plan reservations
+      // that aren't wired through subscription_schedules.
+      const today = new Date().toISOString().split("T")[0];
+      await fastify.db
+        .update(schema.bookings)
+        .set({
+          status: "cancelado",
+          cancelledAt: new Date(),
+          waitlistPosition: null,
+        })
+        .where(
+          and(
+            eq(schema.bookings.memberId, request.params.userId),
+            sql`${schema.bookings.bookingDate} >= ${today}`,
+            inArray(schema.bookings.status, ["reservado", "lista_espera"]),
+          ),
+        );
 
       const result = await memberService.softDeleteMember(
         request.params.userId,

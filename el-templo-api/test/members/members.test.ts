@@ -577,6 +577,67 @@ describe("Members Management Routes", () => {
       expect(res.statusCode).toBe(404);
     });
 
+    it("cancels the active subscription and future bookings on delete", async () => {
+      // createMember(planId=...) auto-creates an active subscription, so the
+      // member starts with one active/paused sub on the books.
+      const member = await createMember({
+        email: "sub-cancel@test-members.com",
+        dni: "35777888",
+      });
+
+      // Stand up a schedule + a future booking so the inline booking
+      // cancellation branch has something to catch. The booking is NOT tied
+      // through subscription_schedules — it stands in for trial bookings or
+      // stale reservations that cancelSubscription would otherwise miss.
+      const [actIns] = await app.db
+        .insert(activities)
+        .values({ name: "Test Activity Delete" })
+        .$returningId();
+      const [schedIns] = await app.db
+        .insert(schedules)
+        .values({
+          branchId: 1,
+          activityId: actIns.id,
+          dayOfWeek: 1,
+          startTime: "10:00",
+          endTime: "11:00",
+          maxCapacity: 10,
+        })
+        .$returningId();
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      await app.db.insert(bookings).values({
+        memberId: member.id,
+        scheduleId: schedIns.id,
+        bookingDate: tomorrow,
+        status: "reservado",
+      });
+
+      // Delete
+      const delRes = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(delRes.statusCode).toBe(204);
+
+      // Every subscription for this member is now cancelled.
+      const subs = await app.db
+        .select({ status: subscriptions.status })
+        .from(subscriptions)
+        .where(eq(subscriptions.userId, member.id));
+      expect(subs.length).toBeGreaterThan(0);
+      for (const s of subs) expect(s.status).toBe("cancelled");
+
+      // The future booking is cancelled too.
+      const [book] = await app.db
+        .select({ status: bookings.status })
+        .from(bookings)
+        .where(eq(bookings.memberId, member.id));
+      expect(book.status).toBe("cancelado");
+    });
+
     it("coach cannot delete a member (403) — ADMIN_ROLES gate", async () => {
       const member = await createMember({
         email: "coach-cannot-delete@test-members.com",
