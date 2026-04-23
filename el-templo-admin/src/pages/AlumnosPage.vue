@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <!-- Filter bar — Row 1: search + Solo deudores -->
+    <!-- Filter bar — Row 1: search + Solo deudores + Solo Leads -->
     <div class="row q-col-gutter-sm q-mb-sm items-end">
       <div class="col-12 col-sm-6 col-md-6">
         <q-input
@@ -50,11 +50,19 @@
           </template>
         </q-input>
       </div>
-      <div class="col-12 col-sm-3 col-md-3 items-center">
+      <div class="col-6 col-sm-3 col-md-3 items-center">
         <q-toggle
           v-model="filters.debtorOnly"
           label="Solo deudores"
           color="negative"
+          @update:model-value="onFilterChange"
+        />
+      </div>
+      <div class="col-6 col-sm-3 col-md-3 items-center">
+        <q-toggle
+          v-model="filters.leadsOnly"
+          label="Solo Leads"
+          color="primary"
           @update:model-value="onFilterChange"
         />
       </div>
@@ -113,18 +121,6 @@
           v-model="filters.isActive"
           :options="statusFilterOptions"
           label="Estado"
-          dense
-          outlined
-          emit-value
-          map-options
-          @update:model-value="onFilterChange"
-        />
-      </div>
-      <div class="col-6 col-sm-3 col-md-2">
-        <q-select
-          v-model="filters.status"
-          :options="tipoFilterOptions"
-          label="Tipo"
           dense
           outlined
           emit-value
@@ -349,7 +345,7 @@ const filters = reactive({
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
-  status: null as 'todos' | 'alumnos' | 'leads' | null,
+  leadsOnly: false as boolean,
 });
 
 // Phase 101: aggregated total debt grouped by currency, scoped to the same
@@ -400,13 +396,6 @@ const statusFilterOptions = [
   { label: 'Todos', value: null },
   { label: 'Activos', value: true },
   { label: 'Inactivos', value: false },
-];
-
-// Phase 102 R8: "Tipo" filter — Alumnos vs Leads (server-side inferred)
-const tipoFilterOptions: Array<{ label: string; value: 'todos' | 'alumnos' | 'leads' | null }> = [
-  { label: 'Todos', value: null },
-  { label: 'Alumnos', value: 'alumnos' },
-  { label: 'Leads', value: 'leads' },
 ];
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
@@ -689,7 +678,7 @@ async function loadMembers() {
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
-      status: filters.status ?? undefined,
+      status: filters.leadsOnly ? 'leads' : undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -729,7 +718,7 @@ async function onExport() {
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
-      status: filters.status ?? undefined,
+      status: filters.leadsOnly ? 'leads' : undefined,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
