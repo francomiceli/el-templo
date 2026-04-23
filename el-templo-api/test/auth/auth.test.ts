@@ -244,6 +244,34 @@ describe("Auth Routes", () => {
       expect(body.user).toHaveProperty("branchId");
     });
 
+    it("exposes dateOfBirth and gender so the app can skip the onboarding DOB step for admin-created members", async () => {
+      // Simulate an admin-created account by writing DOB + gender directly to
+      // the row after registration (the /register endpoint does not accept a
+      // DOB, but /admin/members and manual DB work do). The login response
+      // must surface both fields so OnboardingPage can derive the age bucket
+      // up-front (see deriveAgeRangeFromDob in the app).
+      const { user: registered } = await registerUser(app, {
+        email: "dob-login@test.com",
+        password: "password123",
+        branchId: 1,
+      });
+      await app.db
+        .update(schema.users)
+        .set({ dateOfBirth: "1990-06-15", gender: "female" })
+        .where(eq(schema.users.id, (registered as { id: number }).id));
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/login",
+        payload: { email: "dob-login@test.com", password: "password123" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.user.dateOfBirth).toBe("1990-06-15");
+      expect(body.user.gender).toBe("female");
+    });
+
     it("returns 401 for wrong password", async () => {
       const res = await app.inject({
         method: "POST",
