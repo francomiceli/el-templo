@@ -49,22 +49,13 @@ export function todayInTz(tz: string, now: Date = new Date()): string {
 
 /** ISO day-of-week (1=Mon ... 7=Sun) in the given timezone. */
 export function dowInTz(tz: string, now: Date = new Date()): number {
-  const weekday = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    weekday: 'short',
-  })
-    .formatToParts(now)
-    .find((p) => p.type === 'weekday')!.value;
-  const map: Record<string, number> = {
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-    Sun: 7,
-  };
-  return map[weekday]!;
+  // Derive weekday from the zoned Y/M/D via UTC date math. Avoids
+  // Intl.DateTimeFormat weekday:'short' string matching, which has shipped
+  // locale-dependent variants on some iOS builds (e.g. "Thu." with trailing
+  // punctuation) that silently break a Mon..Sun lookup table.
+  const [y, m, d] = todayInTz(tz, now).split('-').map(Number);
+  const utcDow = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay(); // 0=Sun..6=Sat
+  return utcDow === 0 ? 7 : utcDow;
 }
 
 /** True if the wall-clock moment has passed in the given timezone. */
