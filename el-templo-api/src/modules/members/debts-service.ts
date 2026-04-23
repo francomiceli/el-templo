@@ -14,7 +14,7 @@ import { MySql2Database } from "drizzle-orm/mysql2";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
-import type { ActiveDebt, DebtUpsertInput, TotalDebtRow } from "./types";
+import type { ActiveDebt, DebtUpsertInput } from "./types";
 
 export class DebtService {
   constructor(
@@ -130,32 +130,6 @@ export class DebtService {
       });
     }
     return result;
-  }
-
-  /**
-   * Sum active debt amounts grouped by currency (D-07). Scoped to the
-   * caller-provided userIds so the total reflects the same filter set
-   * the paginated list used. Empty input → empty array.
-   */
-  async getTotalDebtByCurrency(userIds: number[]): Promise<TotalDebtRow[]> {
-    if (userIds.length === 0) return [];
-    const rows = await this.db
-      .select({
-        currency: schema.debts.currency,
-        amount: sql<number>`CAST(SUM(${schema.debts.amount}) AS SIGNED)`,
-      })
-      .from(schema.debts)
-      .where(
-        and(
-          inArray(schema.debts.userId, userIds),
-          eq(schema.debts.isCancelled, false),
-        ),
-      )
-      .groupBy(schema.debts.currency);
-    return rows.map((r) => ({
-      currency: r.currency,
-      amount: Number(r.amount),
-    }));
   }
 
   /** Internal: returns the active debt row id for a user, or null. */

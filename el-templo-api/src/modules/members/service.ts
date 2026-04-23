@@ -211,16 +211,6 @@ export class MemberService {
 
     const whereClause = and(...conditions);
 
-    // Get total count. Joins branches so the country scope condition (when
-    // present) resolves against the same column the paginated SELECT does.
-    const [countResult] = await this.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(whereClause);
-
-    const total = countResult?.count ?? 0;
-
     // Subquery: active subscription plan name (most recent if multiple)
     const planNameSubquery = sql<string | null>`(
       SELECT sp.name FROM subscriptions s
@@ -262,8 +252,20 @@ export class MemberService {
       )
     )`;
 
-    // Get paginated members with branch join and plan name
-    const rows = await this.db
+    // Run the three filter-scoped queries in parallel:
+    //   1. COUNT(*) for pagination
+    //   2. Paginated page SELECT
+    //   3. Per-currency debt aggregate joined directly against the same
+    //      filter set (replaces the previous two-step "collect filtered ids
+    //      then SUM...IN(...)" round-trip from Phase 101 D-07).
+    // Parallelism turns total latency into max(q1,q2,q3) instead of the sum.
+    const countPromise = this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(whereClause);
+
+    const rowsPromise = this.db
       .select({
         id: schema.users.id,
         email: schema.users.email,
@@ -290,6 +292,29 @@ export class MemberService {
       .limit(limit)
       .offset(offset);
 
+    const totalDebtPromise = this.db
+      .select({
+        currency: schema.debts.currency,
+        amount: sql<number>`CAST(SUM(${schema.debts.amount}) AS SIGNED)`,
+      })
+      .from(schema.debts)
+      .innerJoin(schema.users, eq(schema.users.id, schema.debts.userId))
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(and(eq(schema.debts.isCancelled, false), whereClause))
+      .groupBy(schema.debts.currency);
+
+    const [countResult, rows, totalDebtRows] = await Promise.all([
+      countPromise,
+      rowsPromise,
+      totalDebtPromise,
+    ]);
+
+    const total = countResult[0]?.count ?? 0;
+    const totalDebtByCurrency: TotalDebtRow[] = totalDebtRows.map((r) => ({
+      currency: r.currency,
+      amount: Number(r.amount),
+    }));
+
     // Phase 101: populate `debt` per row via a single batch lookup (no N+1).
     const pageUserIds = rows.map((r) => r.id);
     const debtsByUser =
@@ -315,22 +340,6 @@ export class MemberService {
       debt: debtsByUser.get(r.id) ?? null,
       hasUsedTrial: Boolean(r.hasUsedTrial),
     }));
-
-    // Phase 101 (D-07): totalDebtByCurrency aggregates active debts over the
-    // SAME filter set as the paginated list (not just the current page). We
-    // re-run the filter query selecting only user ids (no joins beyond the
-    // branches join that may already be referenced by whereClause) and then
-    // ask the debt service to SUM...GROUP BY currency over them. This is the
-    // "one extra query" acknowledged in D-08; cost is bounded by total
-    // filtered users and is covered by idx_debts_user_active.
-    const filteredIdRows = await this.db
-      .select({ id: schema.users.id })
-      .from(schema.users)
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(whereClause);
-    const filteredIds = filteredIdRows.map((r) => r.id);
-    const totalDebtByCurrency =
-      await this.debtService.getTotalDebtByCurrency(filteredIds);
 
     return { members, total, totalDebtByCurrency };
   }
