@@ -102,9 +102,35 @@
     <!-- Block stats (per selected level) -->
     <q-card-section v-if="selectedBlock" class="q-py-sm bg-grey-2">
       <div class="row q-gutter-md text-caption items-center">
-        <div>
+        <div v-if="isInitium">
           <q-icon name="directions" size="xs" />
           {{ selectedBlock.route }}
+          <q-tooltip>{{ getRouteLabel(selectedBlock.route) }}</q-tooltip>
+        </div>
+        <div v-else class="row items-center q-gutter-xs">
+          <q-icon name="directions" size="xs" />
+          <q-select
+            :model-value="selectedBlock.route"
+            :options="routeOptions"
+            :loading="routeSaving"
+            dense
+            borderless
+            emit-value
+            map-options
+            options-dense
+            class="route-select"
+            style="min-width: 140px"
+            @update:model-value="onRouteChange"
+          >
+            <template #option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section>
+                  <q-item-label>{{ scope.opt.label }}</q-item-label>
+                  <q-item-label caption>{{ getRouteLabel(scope.opt.value) }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
           <q-tooltip>{{ getRouteLabel(selectedBlock.route) }}</q-tooltip>
         </div>
         <div>
@@ -308,7 +334,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import type { SessionExercise, PrescriptionUpdate, CompatibleFormat } from 'src/types/session';
 import type { BlockGroup, LevelBlock } from 'src/types/block-group';
-import { useEditApi } from 'src/composables/useEditApi';
+import { useEditApi, type RouteOption } from 'src/composables/useEditApi';
 import { useDragReorder } from 'src/composables/useDragReorder';
 import EditableExerciseRow from './EditableExerciseRow.vue';
 import ContractionMixBadge from './ContractionMixBadge.vue';
@@ -449,6 +475,46 @@ async function onCustomTitleBlur() {
       type: 'negative',
       message: err instanceof Error ? err.message : 'No se pudo guardar el titulo',
     });
+  }
+}
+
+// Coach-override of block route (non-INITIUM blocks only)
+const routeOptionsRaw = ref<RouteOption[]>([]);
+const routeOptions = computed(() =>
+  routeOptionsRaw.value.map((r) => ({ label: r.code, value: r.code }))
+);
+const routeSaving = ref(false);
+
+async function loadRoutes() {
+  if (isInitium.value) return;
+  if (routeOptionsRaw.value.length > 0) return;
+  try {
+    routeOptionsRaw.value = await editApi.fetchRoutes();
+  } catch (err: unknown) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'No se pudieron cargar las rutas',
+    });
+  }
+}
+
+async function onRouteChange(newRoute: string) {
+  if (!selectedLevelBlock.value || !selectedBlock.value) return;
+  if (newRoute === selectedBlock.value.route) return;
+  const sessionId = selectedLevelBlock.value.sessionId;
+  const blockId = selectedBlock.value.id;
+  routeSaving.value = true;
+  try {
+    await editApi.updateBlockRoute(sessionId, blockId, newRoute);
+    $q.notify({ type: 'positive', message: `Ruta cambiada a ${newRoute}`, timeout: 2000 });
+    emit('refresh');
+  } catch (err: unknown) {
+    $q.notify({
+      type: 'negative',
+      message: err instanceof Error ? err.message : 'No se pudo cambiar la ruta',
+    });
+  } finally {
+    routeSaving.value = false;
   }
 }
 
@@ -886,6 +952,7 @@ onMounted(() => {
   } else {
     loadCompatibleFormats();
   }
+  loadRoutes();
 });
 </script>
 

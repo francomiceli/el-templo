@@ -279,6 +279,27 @@ export function useEditApi() {
     );
   }
 
+  async function updateBlockRoute(
+    sessionId: number,
+    blockId: number,
+    route: string
+  ): Promise<{ route: string }> {
+    return apiCall(async () => {
+      const { data } = await api.patch<{ route: string }>(
+        `/admin/sessions/${sessionId}/blocks/${blockId}/route`,
+        { route }
+      );
+      return data;
+    }, 'Error al cambiar la ruta del bloque');
+  }
+
+  async function fetchRoutes(): Promise<RouteOption[]> {
+    return apiCall(async () => {
+      const { data } = await api.get<{ routes: RouteOption[] }>('/admin/routes');
+      return data.routes;
+    }, 'Error cargando rutas');
+  }
+
   return {
     loading,
     error,
@@ -300,5 +321,13 @@ export function useEditApi() {
     fetchMobilityPool,
     swapMobilityExercise,
     updateBlockRole,
+    updateBlockRoute,
+    fetchRoutes,
   };
+}
+
+export interface RouteOption {
+  id: number;
+  code: string;
+  displayName: string | null;
 }

@@ -13,7 +13,8 @@ export type EditAction =
   | "mobility_swap"
   | "reset_to_algorithm"
   | "status_change"
-  | "custom_title_update";
+  | "custom_title_update"
+  | "route_update";
 
 /** Preview block for member-facing session view */
 export interface PreviewBlock {

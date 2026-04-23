@@ -101,6 +101,13 @@ export interface UpdateCustomTitleParams {
   userId: number;
 }
 
+export interface UpdateBlockRouteParams {
+  sessionId: number;
+  blockId: number;
+  route: string;
+  userId: number;
+}
+
 export interface ResetToAlgorithmParams {
   sessionId: number;
   userId: number;

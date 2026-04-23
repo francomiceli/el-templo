@@ -393,6 +393,52 @@ export const updateBlockRoleSchema = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Block Route Update Schema (coach-override of generated route code)
+// ---------------------------------------------------------------------------
+
+export const updateBlockRouteSchema = {
+  params: {
+    type: "object" as const,
+    required: ["sessionId", "blockId"] as const,
+    properties: {
+      sessionId: { type: "integer" },
+      blockId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object" as const,
+    required: ["route"] as const,
+    properties: {
+      route: { type: "string", minLength: 1, maxLength: 20 },
+    },
+    additionalProperties: false,
+  },
+};
+
+export const listRoutesSchema = {
+  response: {
+    200: {
+      type: "object" as const,
+      required: ["routes"] as const,
+      properties: {
+        routes: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "code"],
+            properties: {
+              id: { type: "integer" },
+              code: { type: "string" },
+              displayName: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+
 export const deleteSavedBlockSchema = {
   params: {
     type: "object",

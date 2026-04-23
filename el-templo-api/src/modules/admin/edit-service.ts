@@ -26,6 +26,7 @@ import { revertToPendingIfApproved, logEdit } from "./session-edit-helpers";
 import { ExerciseSwapService } from "./exercise-swap-service";
 import { SessionMutationService } from "./session-mutation-service";
 import { parseDayId, LEVEL_DIFFICULTY_MAP } from "../shared/training-constants";
+import { BadRequestError, NotFoundError } from "../shared/errors";
 import type {
   ExercisePoolParams,
   ExercisePoolItem,
@@ -37,6 +38,7 @@ import type {
   ReorderExerciseParams,
   UpdateFormatParamsParams,
   UpdateCustomTitleParams,
+  UpdateBlockRouteParams,
   ResetToAlgorithmParams,
   CompatibleFormatsParams,
   CompatibleFormat,
@@ -569,6 +571,59 @@ export class AdminEditService {
     await revertToPendingIfApproved(this.db, sessionId);
     await logEdit(this.db, sessionId, userId, "custom_title_update");
     return { customTitle: normalized };
+  }
+
+  async updateBlockRoute(params: UpdateBlockRouteParams) {
+    const { sessionId, blockId, route, userId } = params;
+
+    const [block] = await this.db
+      .select()
+      .from(schema.sessionBlocks)
+      .where(
+        and(
+          eq(schema.sessionBlocks.id, blockId),
+          eq(schema.sessionBlocks.sessionId, sessionId),
+        ),
+      );
+
+    if (!block) throw new NotFoundError("Bloque no encontrado en esta sesion");
+
+    if (block.role === "INITIUM") {
+      throw new BadRequestError(
+        "No se puede cambiar la ruta de un bloque INITIUM",
+      );
+    }
+
+    // Validate route code exists in the routes catalog
+    const [routeRow] = await this.db
+      .select({ code: schema.routes.code })
+      .from(schema.routes)
+      .where(eq(schema.routes.code, route));
+
+    if (!routeRow) {
+      throw new BadRequestError("Ruta no valida");
+    }
+
+    await this.db
+      .update(schema.sessionBlocks)
+      .set({ route })
+      .where(eq(schema.sessionBlocks.id, blockId));
+
+    await revertToPendingIfApproved(this.db, sessionId);
+    await logEdit(this.db, sessionId, userId, "route_update");
+    return { route };
+  }
+
+  async listRoutes() {
+    const rows = await this.db
+      .select({
+        id: schema.routes.id,
+        code: schema.routes.code,
+        displayName: schema.routes.displayName,
+      })
+      .from(schema.routes)
+      .orderBy(asc(schema.routes.code));
+    return { routes: rows };
   }
 
   async getCompatibleFormats(

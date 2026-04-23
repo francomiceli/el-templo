@@ -32,6 +32,8 @@ import {
   getMobilityPoolSchema,
   swapMobilityExerciseSchema,
   updateBlockRoleSchema,
+  updateBlockRouteSchema,
+  listRoutesSchema,
   searchExercisesSchema,
   getDaySessionDetailsSchema,
   getCompatibleFormatsBatchSchema,
@@ -536,6 +538,48 @@ export const adminRoutes: FastifyPluginAsync = async (fastify) => {
         return result;
       } catch (err: unknown) {
         return handleServiceError(err, reply, request.log, "update block role");
+      }
+    },
+  );
+
+  // PATCH /admin/sessions/:sessionId/blocks/:blockId/route - Coach-override block route
+  fastify.patch<{
+    Params: { sessionId: number; blockId: number };
+    Body: { route: string };
+  }>(
+    "/sessions/:sessionId/blocks/:blockId/route",
+    {
+      schema: updateBlockRouteSchema,
+    },
+    async (request, reply) => {
+      try {
+        const result = await editService.updateBlockRoute({
+          sessionId: request.params.sessionId,
+          blockId: request.params.blockId,
+          route: request.body.route,
+          userId: request.user.userId,
+        });
+        return result;
+      } catch (err: unknown) {
+        return handleServiceError(
+          err,
+          reply,
+          request.log,
+          "update block route",
+        );
+      }
+    },
+  );
+
+  // GET /admin/routes - List all canonical route codes for edit dropdowns
+  fastify.get(
+    "/routes",
+    { schema: listRoutesSchema },
+    async (request, reply) => {
+      try {
+        return await editService.listRoutes();
+      } catch (err: unknown) {
+        return handleServiceError(err, reply, request.log, "list routes");
       }
     },
   );
