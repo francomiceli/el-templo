@@ -92,6 +92,19 @@ export function useMembersApi() {
     }
   }
 
+  async function deleteMember(userId: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.delete(`/admin/members/${userId}`);
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error eliminando miembro');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Session Levels (Phase 99) ────────────────────────────────────────
 
   /**
@@ -335,6 +348,7 @@ export function useMembersApi() {
     getMember,
     createMember,
     updateMember,
+    deleteMember,
     checkDni,
     getPlans,
     bulkMigratePlan,

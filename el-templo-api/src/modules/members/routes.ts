@@ -517,6 +517,90 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  // DELETE /admin/members/:userId — Soft-delete a member.
+  //
+  // Scrubs email + DNI so the person can be re-onboarded with their real
+  // identifiers, and sets deletedAt so the row drops out of admin lists and
+  // single-member reads. Financial history (payments, debts, subscriptions)
+  // stays intact. ADMIN_ROLES only — coaches cannot delete. Refuses to delete
+  // non-members (coach/admin/owner rows) as a safety net.
+  fastify.delete<{ Params: { userId: number } }>(
+    "/:userId",
+    async (request, reply) => {
+      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo admin/owner puede eliminar alumnos",
+        });
+      }
+
+      // Cross-country guard: read the target row directly (getMemberById
+      // already filters deletedAt, so we query the join here to resolve the
+      // branch country for the scope check). Returns 404 for cross-country
+      // (mirrors GET /:userId) so nothing leaks.
+      const [target] = await fastify.db
+        .select({
+          id: schema.users.id,
+          role: schema.users.role,
+          deletedAt: schema.users.deletedAt,
+          branchCountry: schema.branches.country,
+          branchIsVirtual: schema.branches.isVirtual,
+        })
+        .from(schema.users)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.users.branchId),
+        )
+        .where(eq(schema.users.id, request.params.userId))
+        .limit(1);
+
+      if (!target || target.deletedAt) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      if (
+        request.scope.country &&
+        !target.branchIsVirtual &&
+        target.branchCountry !== request.scope.country
+      ) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      const result = await memberService.softDeleteMember(
+        request.params.userId,
+      );
+
+      if (!result.ok) {
+        if (result.reason === "not_found") {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+        if (result.reason === "not_member") {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Solo se pueden eliminar alumnos",
+          });
+        }
+        // already_deleted
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      request.log.info(
+        { userId: request.params.userId, deletedBy: request.user.userId },
+        "Member soft-deleted",
+      );
+
+      return reply.code(204).send();
+    },
+  );
+
   // =========================================================================
   // Photo Upload
   // =========================================================================

@@ -66,6 +66,8 @@ export class MemberService {
 
     // Only show actual members (not coaches/admins)
     conditions.push(eq(schema.users.role, "member"));
+    // Hide soft-deleted rows from the admin list.
+    conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
       const condition = buildMemberNameSearchCondition(search);
@@ -402,7 +404,7 @@ export class MemberService {
       })
       .from(schema.users)
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(eq(schema.users.id, id));
+      .where(and(eq(schema.users.id, id), isNull(schema.users.deletedAt)));
 
     if (!row) return null;
 
@@ -535,6 +537,61 @@ export class MemberService {
   }
 
   /**
+   * Soft-delete a member. Sets deletedAt, rewrites email to a deleted-shaped
+   * placeholder, nulls out DNI, and flips isActive=false. The unique email
+   * and dni are scrubbed so the real values can be reused if the person
+   * re-registers (the operational trigger for this feature: post-password-
+   * policy change, a handful of alumnos couldn't be re-onboarded because
+   * their real email was still occupying the row).
+   *
+   * FK-bearing history (payments, subscriptions, bookings, debts, aura, etc.)
+   * is deliberately kept intact: the row stays so audit trails and reports
+   * don't change. Listing/reading endpoints filter by deletedAt IS NULL.
+   *
+   * Returns:
+   *   - { ok: true }                    on success
+   *   - { ok: false, reason: "not_found" }
+   *   - { ok: false, reason: "not_member" } — refuses to delete non-members
+   *                                           (coach/admin/owner/etc.)
+   *   - { ok: false, reason: "already_deleted" }
+   */
+  async softDeleteMember(
+    id: number,
+  ): Promise<
+    | { ok: true }
+    | { ok: false; reason: "not_found" | "not_member" | "already_deleted" }
+  > {
+    const [existing] = await this.db
+      .select({
+        id: schema.users.id,
+        role: schema.users.role,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+
+    if (!existing) return { ok: false, reason: "not_found" };
+    if (existing.role !== "member") return { ok: false, reason: "not_member" };
+    if (existing.deletedAt) return { ok: false, reason: "already_deleted" };
+
+    const timestamp = Date.now();
+    const scrubbedEmail = `deleted-${id}-${timestamp}@deleted.local`;
+
+    await this.db
+      .update(schema.users)
+      .set({
+        deletedAt: new Date(),
+        email: scrubbedEmail,
+        dni: null,
+        isActive: false,
+      })
+      .where(eq(schema.users.id, id));
+
+    return { ok: true };
+  }
+
+  /**
    * Check if a DNI is available (unique).
    * Optionally excludes a specific user (for edit scenarios).
    */
@@ -601,6 +658,8 @@ export class MemberService {
     const conditions: ReturnType<typeof eq>[] = [];
 
     conditions.push(eq(schema.users.role, "member"));
+    // Hide soft-deleted rows from exports (mirrors listMembers).
+    conditions.push(isNull(schema.users.deletedAt));
 
     if (search) {
       const condition = buildMemberNameSearchCondition(search);

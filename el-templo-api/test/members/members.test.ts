@@ -6,6 +6,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  createStaffUser,
 } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { memberNotes } from "../../src/db/schema/member-notes";
@@ -484,6 +485,156 @@ describe("Members Management Routes", () => {
       });
 
       expect(res.statusCode).toBe(404);
+    });
+  });
+
+  // =========================================================================
+  // DELETE /api/admin/members/:userId -- Soft-delete a member
+  // =========================================================================
+  describe("DELETE /api/admin/members/:userId", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("admin soft-deletes a member; GETs return 404 and email/dni are freed", async () => {
+      const member = await createMember({
+        email: "reusable@test-members.com",
+        dni: "35111222",
+      });
+
+      // Delete
+      const delRes = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(delRes.statusCode).toBe(204);
+
+      // Single-member GET returns 404
+      const getRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(getRes.statusCode).toBe(404);
+
+      // List endpoint hides the deleted row
+      const listRes = await app.inject({
+        method: "GET",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      const listBody = JSON.parse(listRes.body) as {
+        members: Array<{ id: number }>;
+      };
+      expect(listBody.members.map((m) => m.id)).not.toContain(member.id);
+
+      // The original email and DNI are now reusable: re-register with them.
+      const reregRes = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email: "reusable@test-members.com",
+          password: "newpass123",
+          branchId: 1,
+          firstName: "Reborn",
+          lastName: "Alumno",
+          dni: "35111222",
+          gender: "male",
+        },
+      });
+      expect(reregRes.statusCode).toBe(200);
+    });
+
+    it("second delete on the same id returns 404 (row already scrubbed)", async () => {
+      const member = await createMember({
+        email: "double-delete@test-members.com",
+        dni: "35333444",
+      });
+
+      const first = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(first.statusCode).toBe(204);
+
+      const second = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(second.statusCode).toBe(404);
+    });
+
+    it("returns 404 for non-existent member id", async () => {
+      const res = await app.inject({
+        method: "DELETE",
+        url: "/api/admin/members/99999",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
+    it("coach cannot delete a member (403) — ADMIN_ROLES gate", async () => {
+      const member = await createMember({
+        email: "coach-cannot-delete@test-members.com",
+        dni: "35555666",
+      });
+
+      await createStaffUser(app, {
+        email: "coach-delete-test@test.com",
+        password: "coachpass123",
+        firstName: "Coach",
+        lastName: "Test",
+        role: "coach",
+        branchId: 1,
+      });
+      const coachToken = await getAuthToken(
+        app,
+        "coach-delete-test@test.com",
+        "coachpass123",
+      );
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+
+      // The member is still readable afterwards — the delete never landed.
+      const getRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(getRes.statusCode).toBe(200);
+    });
+
+    it("refuses to delete non-member rows (role=coach) — returns 400", async () => {
+      await createStaffUser(app, {
+        email: "protected-coach@test.com",
+        password: "coachpass123",
+        firstName: "Protected",
+        lastName: "Coach",
+        role: "coach",
+        branchId: 1,
+      });
+      const [row] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "protected-coach@test.com"));
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${row.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("alumnos");
     });
   });
 

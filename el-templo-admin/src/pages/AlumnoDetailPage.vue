@@ -100,6 +100,15 @@
                 color="primary"
                 @click="showEditDialog = true"
               />
+              <q-btn
+                v-if="canDeleteMember"
+                flat
+                icon="delete_outline"
+                label="Eliminar"
+                color="negative"
+                :loading="deleting"
+                @click="showDeleteDialog = true"
+              />
             </div>
           </div>
         </q-card-section>
@@ -392,6 +401,51 @@
         :branches="branches"
         @saved="onMemberSaved"
       />
+
+      <!-- ========================================== -->
+      <!-- Delete Confirmation Dialog -->
+      <!--                                            -->
+      <!-- Soft-delete: the backend scrubs email/DNI  -->
+      <!-- so the alumno can be re-created with the   -->
+      <!-- same real identifiers. Financial history   -->
+      <!-- stays intact. Requires typing the full     -->
+      <!-- name to avoid accidental clicks.           -->
+      <!-- ========================================== -->
+      <q-dialog v-model="showDeleteDialog" persistent>
+        <q-card style="min-width: 380px; max-width: 480px">
+          <q-card-section>
+            <div class="text-h6 text-negative">Eliminar alumno</div>
+          </q-card-section>
+          <q-card-section class="q-pt-none">
+            <p class="q-mb-sm">
+              Vas a eliminar a <strong>{{ memberName }}</strong
+              >. Esto libera su email y DNI para que pueda recrearse otra cuenta.
+            </p>
+            <p class="text-caption text-grey-7 q-mb-md">
+              Los pagos, suscripciones y reservas históricas se preservan y siguen atribuidos a este
+              registro. La acción no se puede deshacer desde el admin.
+            </p>
+            <q-input
+              v-model="deleteConfirmInput"
+              label="Escribí el nombre completo para confirmar"
+              dense
+              outlined
+              autofocus
+              :disable="deleting"
+            />
+          </q-card-section>
+          <q-card-actions align="right" class="q-pa-md">
+            <q-btn flat label="Cancelar" :disable="deleting" @click="onCancelDelete" />
+            <q-btn
+              color="negative"
+              label="Eliminar"
+              :disable="!canConfirmDelete"
+              :loading="deleting"
+              @click="onConfirmDelete"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
     </template>
   </q-page>
 </template>
@@ -443,10 +497,51 @@ const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
+const showDeleteDialog = ref(false);
+const deleteConfirmInput = ref('');
+const deleting = ref(false);
 
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
+
+// Only admin/owner can eliminate a member — consistent with the backend
+// ADMIN_ROLES gate. Coaches keep the Editar path but never see Eliminar.
+const canDeleteMember = computed(() => {
+  const role = currentUser.value?.role;
+  return role === 'admin' || role === 'owner';
+});
+
+// Require an exact name match to commit the delete — cheap guardrail against
+// clicking the wrong row. Whitespace and case are normalized.
+const canConfirmDelete = computed(() => {
+  if (deleting.value) return false;
+  const expected = memberName.value.trim().toLocaleLowerCase();
+  const typed = deleteConfirmInput.value.trim().toLocaleLowerCase();
+  return expected.length > 0 && typed === expected;
+});
+
+function onCancelDelete() {
+  showDeleteDialog.value = false;
+  deleteConfirmInput.value = '';
+}
+
+async function onConfirmDelete() {
+  if (!canConfirmDelete.value || !memberProfile.value) return;
+  deleting.value = true;
+  try {
+    await membersApi.deleteMember(memberProfile.value.id);
+    $q.notify({ type: 'positive', message: 'Alumno eliminado' });
+    showDeleteDialog.value = false;
+    await router.push('/alumnos');
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error eliminando alumno';
+    log.error('Error deleting member', { error: message });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    deleting.value = false;
+  }
+}
 
 // boardingPassUsed is not in the member profile API response; the pricing preview API handles eligibility
 const memberBoardingPassUsed = computed(() => false);
