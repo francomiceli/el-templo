@@ -414,20 +414,19 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
         branchId = member.branchId;
       }
 
-      const result = await schedulingService.getWeeklyGrid(
-        branchId,
-        request.query.weekStart,
-      );
-
-      const myBookings = await bookingService.getMyBookings(
-        request.user.userId,
-        request.query.weekStart,
-      );
-
-      const myAttendance = await bookingService.getMyWeeklyAttendance(
-        request.user.userId,
-        request.query.weekStart,
-      );
+      // Three independent queries — run in parallel so total latency is
+      // max(q1,q2,q3) instead of the sum. Mitigates rare 504s under load.
+      const [result, myBookings, myAttendance] = await Promise.all([
+        schedulingService.getWeeklyGrid(branchId, request.query.weekStart),
+        bookingService.getMyBookings(
+          request.user.userId,
+          request.query.weekStart,
+        ),
+        bookingService.getMyWeeklyAttendance(
+          request.user.userId,
+          request.query.weekStart,
+        ),
+      ]);
 
       return {
         slots: result.slots,
