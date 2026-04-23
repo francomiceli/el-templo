@@ -325,6 +325,82 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
   });
 
   // =========================================================================
+  // Virtual branches bypass country scope
+  //
+  // Self-registered members default to the ONLINE virtual branch (country=AR
+  // by historic default). Without this exemption, any ES coach (e.g. BCN)
+  // would lose visibility of students who signed up from the app before a
+  // coach could reassign them to their physical branch.
+  // =========================================================================
+
+  describe("Virtual branches are cross-country for staff reads", () => {
+    let virtualBranchId: number;
+    let virtualMemberId: number;
+
+    beforeAll(async () => {
+      const insert = await app.db
+        .insert(schema.branches)
+        .values({
+          name: "Online Test",
+          // code is varchar(20) — keep short to avoid ER_DATA_TOO_LONG.
+          code: `ONL-${Date.now() % 1000000}`,
+          country: "AR",
+          isVirtual: true,
+        })
+        .$returningId();
+      virtualBranchId = insert[0].id;
+
+      const reg = await registerUser(app, {
+        email: `virtual-member-${Date.now()}@test.com`,
+        password: "virtualpass123",
+        firstName: "Virtual",
+        lastName: "Member",
+        branchId: virtualBranchId,
+      });
+      virtualMemberId = (reg.user as { id: number }).id;
+    });
+
+    it("ES admin GET /admin/members includes members of AR virtual branches", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_MEMBERS_URL}/`,
+        headers: { authorization: `Bearer ${esAdminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        members: Array<{ id: number }>;
+      };
+      const ids = body.members.map((m) => m.id);
+      expect(ids).toContain(virtualMemberId);
+    });
+
+    it("AR admin GET /admin/members includes members of AR virtual branches", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_MEMBERS_URL}/`,
+        headers: { authorization: `Bearer ${arAdminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as {
+        members: Array<{ id: number }>;
+      };
+      const ids = body.members.map((m) => m.id);
+      expect(ids).toContain(virtualMemberId);
+    });
+
+    it("ES admin GET /admin/members/:id succeeds for virtual-branch member (no 404)", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `${ADMIN_MEMBERS_URL}/${virtualMemberId}`,
+        headers: { authorization: `Bearer ${esAdminToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body) as { id: number };
+      expect(body.id).toBe(virtualMemberId);
+    });
+  });
+
+  // =========================================================================
   // REQ-98-06 — cross-country plan assignment guard (400 with Spanish error)
   // =========================================================================
 

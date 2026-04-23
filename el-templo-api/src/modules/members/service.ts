@@ -89,8 +89,15 @@ export class MemberService {
 
     // Country scope (Phase 98): filter by the member's branch country. The
     // query already innerJoins `branches` below, so the condition is safe.
+    // Virtual branches (e.g. ONLINE) are cross-country: self-registered
+    // members default to ONLINE (AR) and must stay visible to ES staff until
+    // a coach reassigns them to their physical branch.
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      const countryOrVirtual = or(
+        eq(schema.branches.country, country),
+        eq(schema.branches.isVirtual, true),
+      );
+      if (countryOrVirtual) conditions.push(countryOrVirtual);
     }
 
     if (level !== undefined) {
@@ -616,9 +623,15 @@ export class MemberService {
 
     // Country scope (Phase 98): filter export by the member's branch country
     // so /export never leaks cross-country rows even when the client omits
-    // ?country=. The branches innerJoin below resolves this column.
+    // ?country=. The branches innerJoin below resolves this column. Virtual
+    // branches (e.g. ONLINE) are cross-country so self-registered members
+    // remain exportable by staff of either country until reassigned.
     if (country !== undefined) {
-      conditions.push(eq(schema.branches.country, country));
+      const countryOrVirtual = or(
+        eq(schema.branches.country, country),
+        eq(schema.branches.isVirtual, true),
+      );
+      if (countryOrVirtual) conditions.push(countryOrVirtual);
     }
 
     if (level !== undefined) {
