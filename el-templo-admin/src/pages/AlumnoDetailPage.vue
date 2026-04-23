@@ -403,13 +403,15 @@
       />
 
       <!-- ========================================== -->
-      <!-- Delete Confirmation Dialog -->
+      <!-- Delete Confirmation Dialog                 -->
       <!--                                            -->
-      <!-- Soft-delete: the backend scrubs email/DNI  -->
-      <!-- so the alumno can be re-created with the   -->
-      <!-- same real identifiers. Financial history   -->
-      <!-- stays intact. Requires typing the full     -->
-      <!-- name to avoid accidental clicks.           -->
+      <!-- Soft-delete: the backend cancels the       -->
+      <!-- active subscription and future bookings,   -->
+      <!-- then scrubs email/DNI so the alumno can be -->
+      <!-- re-created with the same real identifiers. -->
+      <!-- Historical financial records stay intact.  -->
+      <!-- Requires typing the full name to avoid     -->
+      <!-- accidental clicks.                         -->
       <!-- ========================================== -->
       <q-dialog v-model="showDeleteDialog" persistent>
         <q-card style="min-width: 380px; max-width: 480px">
@@ -421,9 +423,20 @@
               Vas a eliminar a <strong>{{ memberName }}</strong
               >. Esto libera su email y DNI para que pueda recrearse otra cuenta.
             </p>
+            <q-banner dense rounded class="bg-amber-1 text-amber-10 q-mb-md">
+              <template #avatar>
+                <q-icon name="warning" color="amber-10" />
+              </template>
+              <div class="text-weight-medium q-mb-xs">Al eliminar va a pasar esto:</div>
+              <ul class="q-ma-none q-pl-md text-body2">
+                <li>Su suscripción activa o pausada se cancela.</li>
+                <li>Las reservas futuras (de clases y clases de prueba) se cancelan.</li>
+                <li>Se libera su email y DNI para crear otra cuenta.</li>
+                <li>El historial de pagos, asistencias y AURA queda atribuido al registro.</li>
+              </ul>
+            </q-banner>
             <p class="text-caption text-grey-7 q-mb-md">
-              Los pagos, suscripciones y reservas históricas se preservan y siguen atribuidos a este
-              registro. La acción no se puede deshacer desde el admin.
+              La acción no se puede deshacer desde el admin.
             </p>
             <q-input
               v-model="deleteConfirmInput"
