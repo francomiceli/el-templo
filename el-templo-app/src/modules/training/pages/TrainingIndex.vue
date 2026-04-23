@@ -38,18 +38,16 @@
 import { computed, onMounted } from 'vue'
 import TemploLoader from 'src/components/TemploLoader.vue'
 import { useUserStore } from 'src/stores/useUserStore'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import WeeklyView from './WeeklyView.vue'
 
 const userStore = useUserStore()
-
-const WHATSAPP_NUMBER = '5492235820521'
 
 const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
 
 function openWhatsApp(): void {
   const message = 'Hola, quiero consultar por los planes de entrenamiento'
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
 onMounted(async () => {

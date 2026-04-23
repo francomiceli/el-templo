@@ -129,6 +129,7 @@ import { api } from 'src/boot/axios'
 import { useUserStore } from 'src/stores/useUserStore'
 import { createLogger } from 'src/utils/logger'
 import { formatPrice } from 'src/utils/format-price'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import { useProgramsApi } from 'src/modules/programs/composables/useProgramsApi'
 import type { MemberProgramCatalogItem } from 'src/modules/programs/types'
 
@@ -155,8 +156,6 @@ const PLAN_TIER_LABELS: Record<string, string> = {
   performance: 'Performance',
   other: 'Otro',
 }
-
-const WHATSAPP_NUMBER = '5492235820521'
 
 const userStore = useUserStore()
 const plans = ref<MemberPlan[]>([])
@@ -225,14 +224,12 @@ function buildWhatsAppMessage(
 
 function openWhatsApp(plan: MemberPlan): void {
   const message = buildWhatsAppMessage(plan.name, plan.priceRegular, plan.currency)
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
 function openExperienciaWhatsApp(exp: MemberProgramCatalogItem) {
   const message = buildWhatsAppMessage(exp.name, exp.price, exp.currency)
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
 onMounted(async () => {

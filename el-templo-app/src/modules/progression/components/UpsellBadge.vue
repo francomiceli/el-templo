@@ -37,12 +37,14 @@
 </template>
 
 <script setup lang="ts">
-const WHATSAPP_NUMBER = '5492235820521'
+import { useUserStore } from 'src/stores/useUserStore'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
+
+const userStore = useUserStore()
 
 function openWhatsApp(): void {
   const message = 'Hola, me interesa entrenar de forma presencial'
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 </script>
 

@@ -1,9 +1,9 @@
 /**
  * Sede data — 8 physical El Templo locations.
  *
- * Grouped by city: Mar del Plata (7), Barcelona (1).
- * Shared WhatsApp link for all "Reservar sesion" CTAs until
- * individual sede numbers are available.
+ * Grouped by city: Mar del Plata (7), Barcelona (1). Each sede carries the
+ * WhatsApp number for its country (AR for Mar del Plata, ES for Barcelona)
+ * until individual per-sede numbers are introduced.
  */
 
 export interface Sede {
@@ -25,8 +25,13 @@ export interface Sede {
   lng?: number;
 }
 
-const WHATSAPP_URL =
+// Argentine support line, used by all Mar del Plata sedes.
+const WHATSAPP_URL_AR =
   "https://wa.me/5492235820521?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
+
+// Spain support line, used by Barcelona sede.
+const WHATSAPP_URL_ES =
+  "https://wa.me/34680774331?text=Hola%21%20Quiero%20reservar%20mi%20primera%20sesi%C3%B3n%20de%20prueba";
 
 export const sedes: Sede[] = [
   {
@@ -35,7 +40,7 @@ export const sedes: Sede[] = [
     address: "Av. Constituci\u00F3n 6745",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Av+Constitucion+6745+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.005,
     lng: -57.545,
   },
@@ -45,7 +50,7 @@ export const sedes: Sede[] = [
     address: "Jujuy 3761",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Jujuy+3761+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.008,
     lng: -57.553,
   },
@@ -55,7 +60,7 @@ export const sedes: Sede[] = [
     address: "Moreno 3751",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Moreno+3751+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.007,
     lng: -57.552,
   },
@@ -65,7 +70,7 @@ export const sedes: Sede[] = [
     address: "Alem 3958",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Alem+3958+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.004,
     lng: -57.548,
   },
@@ -75,7 +80,7 @@ export const sedes: Sede[] = [
     address: "Mario Bravo 618",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Mario+Bravo+618+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.01,
     lng: -57.555,
   },
@@ -85,7 +90,7 @@ export const sedes: Sede[] = [
     address: "Parque Primavesi",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Parque+Primavesi+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     photo: "/images/photos/sede-park.webp",
     lat: -38.015,
     lng: -57.56,
@@ -96,7 +101,7 @@ export const sedes: Sede[] = [
     address: "Los Lobos, Chapadmalal",
     city: "Mar del Plata",
     mapsUrl: "https://maps.google.com/?q=Los+Lobos+Chapadmalal+Mar+del+Plata",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_AR,
     lat: -38.18,
     lng: -57.7,
   },
@@ -106,7 +111,7 @@ export const sedes: Sede[] = [
     address: "Av. Diagonal 368",
     city: "Barcelona",
     mapsUrl: "https://maps.google.com/?q=Av+Diagonal+368+Barcelona",
-    whatsappUrl: WHATSAPP_URL,
+    whatsappUrl: WHATSAPP_URL_ES,
     lat: 41.393,
     lng: 2.163,
   },

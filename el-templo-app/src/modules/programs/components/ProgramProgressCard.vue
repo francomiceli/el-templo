@@ -115,6 +115,8 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
+import { useUserStore } from 'src/stores/useUserStore'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import type { MemberEnrollmentProgress, ContentBlockDetail, ContentBlockType } from '../types'
 
 const log = createLogger('ProgramProgressCard')
@@ -129,7 +131,7 @@ const textDialogVisible = ref(false)
 const textDialogTitle = ref('')
 const textDialogContent = ref('')
 
-const WHATSAPP_NUMBER = '5492235820521'
+const userStore = useUserStore()
 
 const weeklyBarWidth = computed(() => {
   if (props.progress.sessionsPerWeekToAdvance === 0) return '1%'
@@ -204,8 +206,7 @@ function goToTraining() {
 
 function openRenewalWhatsApp() {
   const message = `Hola, quiero renovar mi experiencia "${props.progress.programName}"`
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 </script>
 

@@ -39,16 +39,21 @@
 </template>
 
 <script setup lang="ts">
+import { useUserStore } from 'src/stores/useUserStore'
 import type { MemberSegment } from 'src/stores/useUserStore'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 
 defineProps<{
   segment: MemberSegment | null
 }>()
 
-const WHATSAPP_NUMBER = '5492235820521'
+const userStore = useUserStore()
 
 function openWhatsApp() {
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hola! Quiero saber más sobre mi plan personalizado 💪')}`
+  const url = buildWhatsAppUrl(
+    userStore.profile?.branchCountry,
+    'Hola! Quiero saber más sobre mi plan personalizado 💪',
+  )
   window.open(url, '_blank')
 }
 </script>

@@ -35,6 +35,7 @@ export interface UserProfile {
   branchId: number
   branchName: string
   branchIsVirtual: boolean
+  branchCountry: 'AR' | 'ES'
   segment: MemberSegment | null
   onboardingCompleted: boolean
   gender: 'male' | 'female' | 'other' | 'unspecified' | null

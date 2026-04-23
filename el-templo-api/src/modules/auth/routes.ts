@@ -197,7 +197,11 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Get branch info for response
       const [branchRow] = await fastify.db
-        .select({ name: branches.name, isVirtual: branches.isVirtual })
+        .select({
+          name: branches.name,
+          isVirtual: branches.isVirtual,
+          country: branches.country,
+        })
         .from(branches)
         .where(eq(branches.id, branchId))
         .limit(1);
@@ -217,6 +221,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId,
           branchName: branchRow?.name ?? "",
           branchIsVirtual: branchRow?.isVirtual ?? false,
+          branchCountry: branchRow?.country ?? "AR",
         },
         promoApplied,
       };
@@ -275,13 +280,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Get branch name and virtual status
       const branchResults = await fastify.db
-        .select({ name: branches.name, isVirtual: branches.isVirtual })
+        .select({
+          name: branches.name,
+          isVirtual: branches.isVirtual,
+          country: branches.country,
+        })
         .from(branches)
         .where(eq(branches.id, user.branchId))
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
+      const branchCountry = branchResults[0]?.country ?? "AR";
 
       // Check onboarding status
       const profileRows = await fastify.db
@@ -313,6 +323,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId: user.branchId,
           branchName,
           branchIsVirtual,
+          branchCountry,
           gender: user.gender,
           dateOfBirth: user.dateOfBirth,
           isActive: user.isActive,
@@ -361,13 +372,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Get branch name and virtual status
       const branchResults = await fastify.db
-        .select({ name: branches.name, isVirtual: branches.isVirtual })
+        .select({
+          name: branches.name,
+          isVirtual: branches.isVirtual,
+          country: branches.country,
+        })
         .from(branches)
         .where(eq(branches.id, user.branchId))
         .limit(1);
 
       const branchName = branchResults[0]?.name || null;
       const branchIsVirtual = branchResults[0]?.isVirtual ?? false;
+      const branchCountry = branchResults[0]?.country ?? "AR";
 
       // Segment calculation + login tracking for members only (per D-05)
       let segment: string | null = null;
@@ -419,6 +435,7 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchId: user.branchId,
         branchName,
         branchIsVirtual,
+        branchCountry,
         isActive: user.isActive,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,

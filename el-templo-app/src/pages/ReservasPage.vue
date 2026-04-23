@@ -366,6 +366,7 @@ import type {
 } from 'src/types/scheduling'
 import { DAY_LABELS, DAY_LABELS_FULL, BOOKING_STATUS_LABELS } from 'src/types/scheduling'
 import { todayInTz, dowInTz, zonedWallClockToUtc, isWallClockPast } from 'src/utils/tz'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 
 const $q = useQuasar()
 const log = createLogger('ReservasV2')
@@ -395,14 +396,12 @@ const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
-const WHATSAPP_NUMBER = '5492235820521'
 const isOnlineUser = computed(() => userStore.profile?.branchIsVirtual ?? false)
 const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
 
 function openWhatsApp(): void {
   const message = 'Hola, quiero consultar por los planes de entrenamiento'
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 const isMultiBranch = computed(() => userStore.subscription?.multiBranch ?? false)
 const branchOptions = computed(() =>

@@ -55,9 +55,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useUserStore } from 'src/stores/useUserStore'
+import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 
-const WHATSAPP_NUMBER = '5492235820521'
 const FOUNDATION_PROGRAM = 'Foundation - Cuerpo Completo'
+
+const userStore = useUserStore()
 
 const props = defineProps<{
   programName: string
@@ -87,8 +90,7 @@ function openWhatsApp(): void {
   const message = isSpecializedProgram.value
     ? `Hola! Hice el quiz en la app y me recomendaron el programa: ${props.programName}. Quiero saber más.`
     : 'Hola! Hice el quiz en la app y quiero saber más sobre los programas especializados y el entrenamiento personalizado.'
-  const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank')
+  window.open(buildWhatsAppUrl(userStore.profile?.branchCountry, message), '_blank')
 }
 
 const showCelebration = ref(false)
