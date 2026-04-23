@@ -199,6 +199,8 @@ export const financialAnalyticsSchema = {
             },
           },
         },
+        totalOutstanding: { type: "number" },
+        collectionRate: { type: "number" },
       },
     },
     401: errorSchema,

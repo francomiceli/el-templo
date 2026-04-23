@@ -577,6 +577,28 @@ describe("Analytics API", () => {
       expect(body.revenueByMethod.transfer).toBe(3000);
       expect(body.revenueByMethod.card).toBe(0);
     });
+
+    it("should include totalOutstanding and collectionRate", async () => {
+      const member = await createMember({
+        email: "fin-m3@test.com",
+        dni: "90000022",
+      });
+      await recordPayment(member.id, 5000);
+
+      const today = new Date().toISOString().split("T")[0];
+      const firstOfMonth = today.substring(0, 8) + "01";
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial?dateFrom=${firstOfMonth}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(typeof body.totalOutstanding).toBe("number");
+      expect(typeof body.collectionRate).toBe("number");
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
