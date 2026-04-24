@@ -13,6 +13,7 @@ import type {
   BookingRecord,
   HolidayRecord,
   ScheduleSlot,
+  TrialListResponse,
 } from 'src/types/scheduling';
 
 export function useSchedulingApi() {
@@ -251,6 +252,26 @@ export function useSchedulingApi() {
     }
   }
 
+  async function listTrials(params: {
+    date: string;
+    shift?: 'TM' | 'TT' | 'all';
+    branchId?: number;
+  }): Promise<TrialListResponse> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TrialListResponse>('/admin/scheduling/trials', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando sesiones de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Holidays ─────────────────────────────────────────────────────────
 
   async function addHoliday(data: {
@@ -325,6 +346,7 @@ export function useSchedulingApi() {
     adminAddBooking,
     adminRemoveBooking,
     createTrial,
+    listTrials,
     addHoliday,
     removeHoliday,
     listHolidays,

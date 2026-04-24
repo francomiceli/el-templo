@@ -22,6 +22,8 @@ import { ActivityService } from "./activity-service";
 import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
+import { attachCountryScope } from "../shared/country-scope";
+import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { handleServiceError } from "../shared/error-handler";
@@ -38,6 +40,7 @@ import {
   adminAddBookingSchema,
   adminRemoveBookingSchema,
   createTrialSchema,
+  listTrialsSchema,
   addHolidaySchema,
   removeHolidaySchema,
   listHolidaysSchema,
@@ -313,6 +316,34 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "create trial");
     }
   });
+
+  // GET /trials — list active trials for a date, grouped by branch (102-06).
+  // Used by the coach-facing "Sesiones de Prueba" page to replace the
+  // pre-shift WhatsApp. Country-scoped; owners may pass ?country=.
+  fastify.get<{
+    Querystring: { date: string; shift?: TrialShift; branchId?: number };
+  }>(
+    "/trials",
+    {
+      schema: listTrialsSchema,
+      preHandler: async (request) => {
+        await attachCountryScope(request, fastify.db);
+      },
+    },
+    async (request, reply) => {
+      try {
+        const result = await trialService.listTrials({
+          date: request.query.date,
+          shift: request.query.shift ?? "all",
+          country: request.scope.country,
+          branchId: request.query.branchId,
+        });
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list trials");
+      }
+    },
+  );
 
   // ─── Holidays ───────────────────────────────────────────────────────────
 

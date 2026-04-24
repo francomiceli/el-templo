@@ -41,6 +41,32 @@ export interface WeeklySlotView extends ScheduleSlot {
   isHoliday: boolean;
 }
 
+/** Phase 102-06: coach-facing trial list response, grouped by branch. */
+export interface TrialListItem {
+  bookingId: number;
+  userId: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  scheduleId: number;
+  startTime: string;
+  endTime: string;
+  activityName: string;
+  status: string;
+}
+
+export interface TrialListBranchGroup {
+  branchId: number;
+  branchName: string;
+  trials: TrialListItem[];
+}
+
+export interface TrialListResponse {
+  date: string;
+  shift: 'TM' | 'TT' | 'all';
+  groups: TrialListBranchGroup[];
+}
+
 export interface BookingRecord {
   id: number;
   memberId: number;

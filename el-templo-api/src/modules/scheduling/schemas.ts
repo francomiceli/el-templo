@@ -360,6 +360,76 @@ export const createTrialSchema = {
   },
 } as const;
 
+/**
+ * Phase 102-06: listTrialsSchema
+ *
+ * GET /api/admin/scheduling/trials?date=YYYY-MM-DD&shift=TM|TT|all&branchId?
+ * Returns trials grouped by branch for a coach-facing shift briefing.
+ */
+export const listTrialsSchema = {
+  querystring: {
+    type: "object",
+    required: ["date"],
+    properties: {
+      date: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      shift: { type: "string", enum: ["TM", "TT", "all"] },
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["date", "shift", "groups"],
+      properties: {
+        date: { type: "string" },
+        shift: { type: "string", enum: ["TM", "TT", "all"] },
+        groups: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["branchId", "branchName", "trials"],
+            properties: {
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              trials: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: [
+                    "bookingId",
+                    "userId",
+                    "firstName",
+                    "lastName",
+                    "phone",
+                    "scheduleId",
+                    "startTime",
+                    "endTime",
+                    "activityName",
+                    "status",
+                  ],
+                  properties: {
+                    bookingId: { type: "integer" },
+                    userId: { type: "integer" },
+                    firstName: { type: "string" },
+                    lastName: { type: "string" },
+                    phone: { type: ["string", "null"] },
+                    scheduleId: { type: "integer" },
+                    startTime: { type: "string" },
+                    endTime: { type: "string" },
+                    activityName: { type: "string" },
+                    status: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+  },
+} as const;
+
 export const adminRemoveBookingSchema = {
   params: {
     type: "object",

@@ -53,6 +53,12 @@
           </q-item-section>
           <q-item-section>Horarios</q-item-section>
         </q-item>
+        <q-item clickable v-ripple to="/sesiones-de-prueba">
+          <q-item-section avatar>
+            <q-icon name="star_outline" />
+          </q-item-section>
+          <q-item-section>Sesiones de Prueba</q-item-section>
+        </q-item>
         <q-item v-if="isCajaRole" clickable v-ripple to="/planes">
           <q-item-section avatar>
             <q-icon name="card_membership" />

@@ -622,6 +622,103 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(after).toBe(1);
   });
 
+  // ─── 102-06: list trials grouped by branch ────────────────────────────
+
+  it("GET /trials lists active trials for a date grouped by branch (102-06)", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+
+    // Morning slot (07:00 → TM shift) and afternoon slot (18:00 → TT shift).
+    const morningSlot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      "07:00",
+      "08:00",
+    );
+    const afternoonSlot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      "18:00",
+      "19:00",
+    );
+
+    // Two trials in the afternoon, one in the morning.
+    async function create(
+      phone: string,
+      firstName: string,
+      slotId: number,
+    ): Promise<void> {
+      const r = await app.inject({
+        method: "POST",
+        url: TRIALS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName,
+          lastName: "Test",
+          phone,
+          branchId: testBranchId,
+          scheduleId: slotId,
+          bookingDate: futureSlot.date,
+        },
+      });
+      expect(r.statusCode).toBe(201);
+    }
+    await create("+5491155558001", "Morning", morningSlot.id);
+    await create("+5491155558002", "Afternoon1", afternoonSlot.id);
+    await create("+5491155558003", "Afternoon2", afternoonSlot.id);
+
+    // Cancel one — must not appear in the listing.
+    const cancelRes = await app.inject({
+      method: "DELETE",
+      url: `${ADMIN_URL}/bookings/${
+        JSON.parse(
+          (
+            await app.inject({
+              method: "GET",
+              url: `${ADMIN_URL}/schedules/${afternoonSlot.id}/detail?date=${futureSlot.date}`,
+              headers: { authorization: `Bearer ${adminToken}` },
+            })
+          ).body,
+        ).bookings.find(
+          (b: { memberName: string }) => b.memberName === "Afternoon2 Test",
+        ).id
+      }`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(cancelRes.statusCode).toBe(200);
+
+    // all — returns TM (1) + TT (1 remaining after cancel) = 2 trials.
+    const allRes = await app.inject({
+      method: "GET",
+      url: `${TRIALS_URL}?date=${futureSlot.date}&shift=all`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(allRes.statusCode).toBe(200);
+    const all = JSON.parse(allRes.body);
+    expect(all.date).toBe(futureSlot.date);
+    expect(all.groups).toHaveLength(1); // single branch
+    expect(all.groups[0].branchId).toBe(testBranchId);
+    const names = all.groups[0].trials.map(
+      (t: { firstName: string }) => t.firstName,
+    );
+    expect(names).toContain("Morning");
+    expect(names).toContain("Afternoon1");
+    expect(names).not.toContain("Afternoon2"); // cancelled
+
+    // TT shift only.
+    const tt = await app.inject({
+      method: "GET",
+      url: `${TRIALS_URL}?date=${futureSlot.date}&shift=TT`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(tt.statusCode).toBe(200);
+    const ttBody = JSON.parse(tt.body);
+    const ttNames = ttBody.groups[0].trials.map(
+      (t: { firstName: string }) => t.firstName,
+    );
+    expect(ttNames).toEqual(["Afternoon1"]);
+  });
+
   // ─── AuthZ ──────────────────────────────────────────────────────────────
 
   it("403 when a non-staff (member) JWT calls /trials", async () => {
