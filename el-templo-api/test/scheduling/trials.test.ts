@@ -719,6 +719,133 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(ttNames).toEqual(["Afternoon1"]);
   });
 
+  // ─── 102-07: converted_at hook ────────────────────────────────────────
+
+  it("Assigning first plan to a lead sets users.converted_at (102-07)", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+
+    // 1. Create a lead via the trial flow.
+    const trialRes = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        firstName: "ConvertMe",
+        lastName: "Lead",
+        phone: "+5491155559501",
+        branchId: testBranchId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(trialRes.statusCode).toBe(201);
+    const leadUserId = JSON.parse(trialRes.body).userId;
+
+    // converted_at starts NULL.
+    const [beforeRow] = await app.db
+      .select({ convertedAt: users.convertedAt })
+      .from(users)
+      .where(eq(users.id, leadUserId));
+    expect(beforeRow.convertedAt).toBeNull();
+
+    // 2. Admin creates a plan and assigns it.
+    const planRes = await app.inject({
+      method: "POST",
+      url: `/api/admin/subscriptions/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Convert Test Plan",
+        planTier: "flex",
+        bookingMode: "flexible",
+        priceRegular: 10000,
+        priceZero: 8000,
+        durationDays: 30,
+        classesPerWeek: 3,
+        multiBranch: false,
+      },
+    });
+    expect(planRes.statusCode).toBe(201);
+    const plan = JSON.parse(planRes.body);
+
+    const assignRes = await app.inject({
+      method: "POST",
+      url: `/api/admin/subscriptions/members/${leadUserId}/subscription/assign`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: plan.id,
+        branchId: testBranchId,
+        startDate: "2026-03-01",
+        priceTypeApplied: "regular",
+        paymentMethod: "cash",
+      },
+    });
+    expect(assignRes.statusCode).toBe(201);
+
+    // 3. converted_at must now be set.
+    const [afterRow] = await app.db
+      .select({ convertedAt: users.convertedAt })
+      .from(users)
+      .where(eq(users.id, leadUserId));
+    expect(afterRow.convertedAt).not.toBeNull();
+  });
+
+  it("Assigning a plan to a non-lead leaves converted_at NULL (102-07)", async () => {
+    // Plain member, no trial booking ever.
+    const member = await registerUser(app, {
+      email: "noleadconvert@test.com",
+      password: "pass123456",
+      branchId: testBranchId,
+      dni: "60000500",
+      phone: "+5491155559502",
+    });
+    const memberId = (member.user as { id: number }).id;
+
+    const planRes = await app.inject({
+      method: "POST",
+      url: `/api/admin/subscriptions/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Non-Lead Plan",
+        planTier: "flex",
+        bookingMode: "flexible",
+        priceRegular: 10000,
+        priceZero: 8000,
+        durationDays: 30,
+        classesPerWeek: 3,
+        multiBranch: false,
+      },
+    });
+    expect(planRes.statusCode).toBe(201);
+    const plan = JSON.parse(planRes.body);
+
+    const assignRes = await app.inject({
+      method: "POST",
+      url: `/api/admin/subscriptions/members/${memberId}/subscription/assign`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        planId: plan.id,
+        branchId: testBranchId,
+        startDate: "2026-03-01",
+        priceTypeApplied: "regular",
+        paymentMethod: "cash",
+      },
+    });
+    expect(assignRes.statusCode).toBe(201);
+
+    const [row] = await app.db
+      .select({ convertedAt: users.convertedAt })
+      .from(users)
+      .where(eq(users.id, memberId));
+    expect(row.convertedAt).toBeNull();
+  });
+
   // ─── AuthZ ──────────────────────────────────────────────────────────────
 
   it("403 when a non-staff (member) JWT calls /trials", async () => {

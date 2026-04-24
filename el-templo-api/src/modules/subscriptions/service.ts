@@ -772,6 +772,12 @@ export class SubscriptionService {
 
     const subscriptionId = Number(result[0].insertId);
 
+    // ── Trial conversion hook (Phase 102-07) ──
+    // Set converted_at once when a user who ever had a trial booking gets
+    // their first subscription. Non-lead users and already-converted users
+    // pass straight through.
+    await this.markConvertedIfLead(userId);
+
     // ── Persist schedule slot references and generate bookings ──
     // Fixed plans always have scheduleIds; flexible presencial plans may have
     // 0..N partial fixed anchors. Replacement credits (holiday makeups) apply
@@ -3103,5 +3109,26 @@ export class SubscriptionService {
       .update(schema.promoPlans)
       .set({ isActive: false })
       .where(eq(schema.promoPlans.id, promoId));
+  }
+
+  /**
+   * Phase 102-07: mark a user as converted from trial IF they have any
+   * is_trial=1 booking (any status, incl. cancelled) AND converted_at is
+   * still NULL. Idempotent — later subs for the same user no-op.
+   *
+   * Intentionally uses a single conditional UPDATE to avoid a read-then-write
+   * race in concurrent sub-assignment flows.
+   */
+  private async markConvertedIfLead(userId: number): Promise<void> {
+    await this.db.execute(sql`
+      UPDATE users u
+      SET u.converted_at = CURRENT_TIMESTAMP
+      WHERE u.id = ${userId}
+        AND u.converted_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM bookings b
+          WHERE b.member_id = u.id AND b.is_trial = 1
+        )
+    `);
   }
 }

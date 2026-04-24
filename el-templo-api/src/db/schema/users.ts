@@ -68,6 +68,9 @@ export const users = mysqlTable(
     isActive: boolean("is_active").default(true).notNull(),
     deletedAt: timestamp("deleted_at"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
+    // Phase 102-07: trial→alumno conversion timestamp. Set once, on first
+    // subscription creation if the user has any is_trial=1 booking.
+    convertedAt: timestamp("converted_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
@@ -76,6 +79,7 @@ export const users = mysqlTable(
     index("idx_users_role").on(table.role),
     index("idx_users_created_at").on(table.createdAt),
     index("idx_users_is_active").on(table.isActive),
+    index("idx_users_converted_at").on(table.convertedAt),
   ],
 );
 
