@@ -56,6 +56,7 @@
       <q-tab name="cobros" label="Cobros" icon="payments" />
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
+      <q-tab name="conversion" label="Conversión" icon="trending_up" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated>
@@ -466,6 +467,189 @@
           </template>
         </q-table>
       </q-tab-panel>
+
+      <!-- ================================================================ -->
+      <!-- Conversión de Trials Tab (Phase 102-07) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="conversion">
+        <div class="row items-center q-gutter-sm q-mb-md">
+          <div class="col-auto">
+            <q-btn-dropdown outline :label="conversionDateLabel" icon="date_range" dense>
+              <q-list dense>
+                <q-item
+                  v-for="preset in conversionDatePresets"
+                  :key="preset.label"
+                  clickable
+                  v-close-popup
+                  @click="applyConversionPreset(preset)"
+                >
+                  <q-item-section>{{ preset.label }}</q-item-section>
+                </q-item>
+              </q-list>
+            </q-btn-dropdown>
+          </div>
+          <div class="col-auto text-caption text-grey-7">
+            {{ conversionDateFrom }} al {{ conversionDateTo }}
+          </div>
+        </div>
+
+        <div v-if="loadingConversion" class="flex flex-center q-pa-lg">
+          <q-spinner-dots size="40px" color="primary" />
+        </div>
+
+        <div v-else-if="conversionReport">
+          <!-- KPI Cards -->
+          <div class="row q-col-gutter-sm q-mb-md">
+            <div class="col-6 col-md-3">
+              <q-card flat bordered>
+                <q-card-section class="q-pa-sm">
+                  <div class="text-caption text-grey-7">Conversión</div>
+                  <div class="text-h5 text-weight-bold">
+                    {{ formatPct(conversionReport.totals.conversionRatePct) }}
+                  </div>
+                  <div class="text-caption text-grey-7">
+                    {{ conversionReport.totals.convertedCount }} de
+                    {{ conversionReport.totals.trialsCount }} leads
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+            <div class="col-6 col-md-3">
+              <q-card flat bordered>
+                <q-card-section class="q-pa-sm">
+                  <div class="text-caption text-grey-7">Mediana días a conversión</div>
+                  <div class="text-h5 text-weight-bold">
+                    {{
+                      conversionReport.totals.medianDaysToConvert !== null
+                        ? `${conversionReport.totals.medianDaysToConvert}d`
+                        : '—'
+                    }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+            <div class="col-6 col-md-3">
+              <q-card flat bordered>
+                <q-card-section class="q-pa-sm">
+                  <div class="text-caption text-grey-7">Revenue de convertidos</div>
+                  <div class="text-h5 text-weight-bold">
+                    {{ formatPrice(conversionReport.totals.revenueFromConverted, displayCurrency) }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+            <div class="col-6 col-md-3">
+              <q-card flat bordered>
+                <q-card-section class="q-pa-sm">
+                  <div class="text-caption text-grey-7">Revenue por trial</div>
+                  <div class="text-h5 text-weight-bold">
+                    {{ formatPrice(conversionReport.totals.revenuePerTrial, displayCurrency) }}
+                  </div>
+                </q-card-section>
+              </q-card>
+            </div>
+          </div>
+
+          <!-- Breakdowns -->
+          <div class="row q-col-gutter-md q-mb-md">
+            <div class="col-12 col-md-6">
+              <q-card flat bordered>
+                <q-card-section class="q-pb-none">
+                  <div class="text-subtitle2 text-weight-bold">Por sede</div>
+                </q-card-section>
+                <q-table
+                  :rows="conversionReport.byBranch"
+                  :columns="branchBreakdownColumns"
+                  row-key="branchId"
+                  flat
+                  :pagination="{ rowsPerPage: 0 }"
+                  hide-pagination
+                />
+              </q-card>
+            </div>
+            <div class="col-12 col-md-6">
+              <q-card flat bordered>
+                <q-card-section class="q-pb-none">
+                  <div class="text-subtitle2 text-weight-bold">Por turno</div>
+                </q-card-section>
+                <q-table
+                  :rows="conversionReport.byShift"
+                  :columns="shiftBreakdownColumns"
+                  row-key="shift"
+                  flat
+                  :pagination="{ rowsPerPage: 0 }"
+                  hide-pagination
+                />
+              </q-card>
+            </div>
+            <div class="col-12">
+              <q-card flat bordered>
+                <q-card-section class="q-pb-none">
+                  <div class="text-subtitle2 text-weight-bold">Por horario</div>
+                </q-card-section>
+                <q-table
+                  :rows="conversionReport.byHourSlot"
+                  :columns="hourBreakdownColumns"
+                  row-key="hour"
+                  flat
+                  :pagination="{ rowsPerPage: 0 }"
+                  hide-pagination
+                />
+              </q-card>
+            </div>
+          </div>
+
+          <!-- Pending leads -->
+          <q-card flat bordered>
+            <q-card-section class="q-pb-none">
+              <div class="text-subtitle2 text-weight-bold">
+                Leads pendientes ({{ conversionReport.pendingLeads.length }})
+              </div>
+              <div class="text-caption text-grey-7">
+                No convirtieron todavía — ordenados por más antiguos primero
+              </div>
+            </q-card-section>
+            <q-table
+              :rows="conversionReport.pendingLeads"
+              :columns="pendingLeadsColumns"
+              row-key="userId"
+              flat
+              :pagination="{ rowsPerPage: 20 }"
+            >
+              <template #body-cell-acciones="props">
+                <q-td :props="props">
+                  <q-btn
+                    round
+                    flat
+                    dense
+                    icon="chat"
+                    color="positive"
+                    :disable="!props.row.phone"
+                    @click="contactMember(props.row.phone)"
+                  >
+                    <q-tooltip>Contactar por WhatsApp</q-tooltip>
+                  </q-btn>
+                  <q-btn
+                    round
+                    flat
+                    dense
+                    icon="person"
+                    color="primary"
+                    :to="`/alumnos/${props.row.userId}`"
+                  >
+                    <q-tooltip>Ver alumno</q-tooltip>
+                  </q-btn>
+                </q-td>
+              </template>
+              <template #no-data>
+                <div class="full-width text-center q-pa-lg text-grey-6">
+                  Sin leads pendientes en este período
+                </div>
+              </template>
+            </q-table>
+          </q-card>
+        </div>
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
@@ -488,6 +672,7 @@ import type {
   ChargeReportRow,
   ExpiringReportRow,
   InactiveReportRow,
+  TrialConversionReport,
 } from 'src/types/report';
 import type { BranchOption } from 'src/types/member';
 
@@ -1061,6 +1246,177 @@ async function onExportInactive() {
 }
 
 // ============================================================================
+// CONVERSION TAB (Phase 102-07)
+// ============================================================================
+
+const conversionReport = ref<TrialConversionReport | null>(null);
+const loadingConversion = ref(false);
+const conversionDateFrom = ref(toIsoDate(getDaysAgo(new Date(), 30)));
+const conversionDateTo = ref(toIsoDate(new Date()));
+
+const conversionDateLabel = computed(
+  () => `${conversionDateFrom.value} — ${conversionDateTo.value}`
+);
+
+interface ConversionDatePreset {
+  label: string;
+  getRange: () => { dateFrom: string; dateTo: string };
+}
+
+const conversionDatePresets: ConversionDatePreset[] = [
+  {
+    label: 'Últimos 30 días',
+    getRange: () => ({
+      dateFrom: toIsoDate(getDaysAgo(new Date(), 30)),
+      dateTo: toIsoDate(new Date()),
+    }),
+  },
+  {
+    label: 'Últimos 90 días',
+    getRange: () => ({
+      dateFrom: toIsoDate(getDaysAgo(new Date(), 90)),
+      dateTo: toIsoDate(new Date()),
+    }),
+  },
+  {
+    label: 'Este mes',
+    getRange: () => ({
+      dateFrom: toIsoDate(getMonthStart(new Date())),
+      dateTo: toIsoDate(getMonthEnd(new Date())),
+    }),
+  },
+  {
+    label: 'Desde siempre',
+    getRange: () => ({ dateFrom: '2020-01-01', dateTo: toIsoDate(new Date()) }),
+  },
+];
+
+function getDaysAgo(from: Date, days: number): Date {
+  const d = new Date(from);
+  d.setDate(d.getDate() - days);
+  return d;
+}
+
+function applyConversionPreset(preset: ConversionDatePreset) {
+  const range = preset.getRange();
+  conversionDateFrom.value = range.dateFrom;
+  conversionDateTo.value = range.dateTo;
+  void fetchConversionData();
+}
+
+function formatPct(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
+const branchBreakdownColumns: QTableColumn[] = [
+  { name: 'branchName', label: 'Sede', field: 'branchName', align: 'left' },
+  { name: 'trialsCount', label: 'Leads', field: 'trialsCount', align: 'center' },
+  {
+    name: 'convertedCount',
+    label: 'Convertidos',
+    field: 'convertedCount',
+    align: 'center',
+  },
+  {
+    name: 'conversionRatePct',
+    label: 'Conversión',
+    field: 'conversionRatePct',
+    align: 'right',
+    format: (v: number) => formatPct(v),
+  },
+];
+
+const hourBreakdownColumns: QTableColumn[] = [
+  { name: 'hour', label: 'Hora', field: 'hour', align: 'left' },
+  { name: 'trialsCount', label: 'Leads', field: 'trialsCount', align: 'center' },
+  {
+    name: 'convertedCount',
+    label: 'Convertidos',
+    field: 'convertedCount',
+    align: 'center',
+  },
+  {
+    name: 'conversionRatePct',
+    label: 'Conversión',
+    field: 'conversionRatePct',
+    align: 'right',
+    format: (v: number) => formatPct(v),
+  },
+];
+
+const shiftBreakdownColumns: QTableColumn[] = [
+  {
+    name: 'shift',
+    label: 'Turno',
+    field: 'shift',
+    align: 'left',
+    format: (v: string) => (v === 'TM' ? 'Mañana (TM)' : 'Tarde (TT)'),
+  },
+  { name: 'trialsCount', label: 'Leads', field: 'trialsCount', align: 'center' },
+  {
+    name: 'convertedCount',
+    label: 'Convertidos',
+    field: 'convertedCount',
+    align: 'center',
+  },
+  {
+    name: 'conversionRatePct',
+    label: 'Conversión',
+    field: 'conversionRatePct',
+    align: 'right',
+    format: (v: number) => formatPct(v),
+  },
+];
+
+const pendingLeadsColumns: QTableColumn[] = [
+  {
+    name: 'memberName',
+    label: 'Lead',
+    field: (r: { firstName: string; lastName: string }) => `${r.firstName} ${r.lastName}`.trim(),
+    align: 'left',
+  },
+  { name: 'branchName', label: 'Sede', field: 'branchName', align: 'left' },
+  {
+    name: 'trialDate',
+    label: 'Fecha trial',
+    field: 'trialDate',
+    align: 'left',
+    format: (val: string) => formatDate(val),
+  },
+  {
+    name: 'daysSinceTrial',
+    label: 'Días desde trial',
+    field: 'daysSinceTrial',
+    align: 'center',
+  },
+  {
+    name: 'phone',
+    label: 'Teléfono',
+    field: 'phone',
+    align: 'left',
+    format: (val: string | null) => val ?? '-',
+  },
+  { name: 'acciones', label: 'Acciones', field: 'userId', align: 'center' },
+];
+
+async function fetchConversionData() {
+  loadingConversion.value = true;
+  try {
+    conversionReport.value = await reportsApi.getTrialConversion({
+      branchId: selectedBranchId.value,
+      country: countryScope.value,
+      dateFrom: conversionDateFrom.value,
+      dateTo: conversionDateTo.value,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error fetching trial conversion report', { error: message });
+  } finally {
+    loadingConversion.value = false;
+  }
+}
+
+// ============================================================================
 // TAB DATA FETCHING
 // ============================================================================
 
@@ -1077,6 +1433,9 @@ async function fetchTabData() {
       break;
     case 'inactivos':
       await fetchInactiveData();
+      break;
+    case 'conversion':
+      await fetchConversionData();
       break;
   }
 }

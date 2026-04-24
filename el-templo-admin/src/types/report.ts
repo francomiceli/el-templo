@@ -92,3 +92,62 @@ export interface InactiveReportParams {
   country?: 'AR' | 'ES';
   daysThreshold?: number;
 }
+
+// Phase 102-07: Trial Conversion report.
+
+export interface TrialConversionParams {
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface TrialConversionTotals {
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+  medianDaysToConvert: number | null;
+  revenueFromConverted: number;
+  revenuePerTrial: number;
+}
+
+export interface TrialConversionBranchRow {
+  branchId: number;
+  branchName: string;
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionHourRow {
+  hour: string;
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionShiftRow {
+  shift: 'TM' | 'TT';
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionPendingLead {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  branchId: number;
+  branchName: string;
+  trialDate: string;
+  daysSinceTrial: number;
+}
+
+export interface TrialConversionReport {
+  totals: TrialConversionTotals;
+  byBranch: TrialConversionBranchRow[];
+  byHourSlot: TrialConversionHourRow[];
+  byShift: TrialConversionShiftRow[];
+  pendingLeads: TrialConversionPendingLead[];
+}

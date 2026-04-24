@@ -17,6 +17,8 @@ import type {
   ChargeReportParams,
   ExpiringReportParams,
   InactiveReportParams,
+  TrialConversionParams,
+  TrialConversionReport,
 } from 'src/types/report';
 
 export function useReportsApi() {
@@ -87,6 +89,24 @@ export function useReportsApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cargando miembros inactivos');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function getTrialConversion(
+    params: TrialConversionParams = {}
+  ): Promise<TrialConversionReport> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<TrialConversionReport>('/admin/reports/trial-conversion', {
+        params,
+      });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando conversión de trials');
       throw err;
     } finally {
       loading.value = false;
@@ -177,6 +197,7 @@ export function useReportsApi() {
     getChargeHistory,
     getExpiringMemberships,
     getInactiveMembers,
+    getTrialConversion,
     exportAccessLog,
     exportChargeHistory,
     exportExpiringMemberships,
