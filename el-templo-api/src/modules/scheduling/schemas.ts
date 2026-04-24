@@ -46,6 +46,7 @@ const weeklySlotViewSchema = {
   properties: {
     ...scheduleSlotSchema.properties,
     bookedCount: { type: "integer" },
+    trialCount: { type: "integer" },
     maxCapacity: { type: "integer" },
     isFull: { type: "boolean" },
     isHoliday: { type: "boolean" },

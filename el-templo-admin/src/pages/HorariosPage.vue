@@ -120,6 +120,9 @@
             <q-item-label class="text-weight-medium">{{ slot.activityName }}</q-item-label>
             <q-item-label caption>
               {{ slot.bookedCount }}/{{ slot.maxCapacity }} reservados
+              <span v-if="slot.trialCount > 0" class="text-warning text-weight-medium q-ml-xs">
+                · {{ slot.trialCount }} SP
+              </span>
             </q-item-label>
           </q-item-section>
           <q-item-section side>
@@ -169,6 +172,12 @@
                 {{ getCellSlot(time, day.dayOfWeek)!.bookedCount }}/{{
                   getCellSlot(time, day.dayOfWeek)!.maxCapacity
                 }}
+                <span
+                  v-if="(getCellSlot(time, day.dayOfWeek)!.trialCount ?? 0) > 0"
+                  class="text-warning cell-trial-count"
+                >
+                  +{{ getCellSlot(time, day.dayOfWeek)!.trialCount }} SP
+                </span>
               </div>
             </template>
           </div>
@@ -574,6 +583,14 @@ watch(selectedBranchId, (val) => {
 
 .cell-occupancy {
   font-size: 1.1rem;
+  margin-top: 2px;
+}
+
+.cell-trial-count {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
   margin-top: 2px;
 }
 

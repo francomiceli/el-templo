@@ -334,6 +334,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       );
       expect(slotView).toBeTruthy();
       expect(slotView.bookedCount).toBe(2);
+      expect(slotView.trialCount).toBe(1); // 102-06: exposed alongside bookedCount
       expect(slotView.isFull).toBe(true);
 
       // Slot detail returns 3 bookings (2 regular + 1 trial), with isTrial flag.

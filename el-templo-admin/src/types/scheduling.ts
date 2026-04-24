@@ -35,6 +35,7 @@ export interface ScheduleSlot {
 
 export interface WeeklySlotView extends ScheduleSlot {
   bookedCount: number;
+  trialCount: number;
   maxCapacity: number;
   isFull: boolean;
   isHoliday: boolean;

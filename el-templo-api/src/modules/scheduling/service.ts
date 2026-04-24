@@ -175,34 +175,38 @@ export class SchedulingService {
     );
     const holidayDates = new Set(holidaysInWeek.map((h) => h.date));
 
-    // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1)
+    // Batch-fetch confirmed booking counts (single GROUP BY instead of N+1).
+    // Phase 102-06: compute bookedCount (non-trials, drives capacity) and
+    // trialCount (trials walking in, displayed separately) in one query —
+    // a conditional COUNT lets us keep the single round-trip.
     const scheduleIds = scheduleRows.map((r) => r.id);
-    const bookingCountMap = new Map<string, number>();
+    const bookingCountMap = new Map<
+      string,
+      { bookedCount: number; trialCount: number }
+    >();
 
     if (scheduleIds.length > 0) {
       const bookingCounts = await this.db
         .select({
           scheduleId: schema.bookings.scheduleId,
           bookingDate: schema.bookings.bookingDate,
-          count: sql<number>`COUNT(*)`,
+          bookedCount: sql<number>`SUM(CASE WHEN ${schema.bookings.isTrial} = FALSE THEN 1 ELSE 0 END)`,
+          trialCount: sql<number>`SUM(CASE WHEN ${schema.bookings.isTrial} = TRUE THEN 1 ELSE 0 END)`,
         })
         .from(schema.bookings)
         .where(
           and(
             inArray(schema.bookings.scheduleId, scheduleIds),
             sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
-            // Phase 102: trials don't consume capacity, so the weekly chip
-            // `bookedCount/maxCapacity` must not inflate when trials exist.
-            eq(schema.bookings.isTrial, false),
           ),
         )
         .groupBy(schema.bookings.scheduleId, schema.bookings.bookingDate);
 
       for (const row of bookingCounts) {
-        bookingCountMap.set(
-          `${row.scheduleId}-${row.bookingDate}`,
-          Number(row.count),
-        );
+        bookingCountMap.set(`${row.scheduleId}-${row.bookingDate}`, {
+          bookedCount: Number(row.bookedCount ?? 0),
+          trialCount: Number(row.trialCount ?? 0),
+        });
       }
     }
 
@@ -213,7 +217,10 @@ export class SchedulingService {
       // Calculate the actual date for this slot in the given week
       // weekStartDate is Monday (day 1), so offset = dayOfWeek - 1
       const slotDate = addDays(weekStartDate, row.dayOfWeek - 1);
-      const bookedCount = bookingCountMap.get(`${row.id}-${slotDate}`) ?? 0;
+      const counts = bookingCountMap.get(`${row.id}-${slotDate}`) ?? {
+        bookedCount: 0,
+        trialCount: 0,
+      };
 
       slots.push({
         id: row.id,
@@ -225,9 +232,10 @@ export class SchedulingService {
         startTime: row.startTime,
         endTime: row.endTime,
         isActive: row.isActive,
-        bookedCount,
+        bookedCount: counts.bookedCount,
+        trialCount: counts.trialCount,
         maxCapacity,
-        isFull: bookedCount >= maxCapacity,
+        isFull: counts.bookedCount >= maxCapacity,
         isHoliday: holidayDates.has(slotDate),
         unconfirmedAttendance: 0,
       });
