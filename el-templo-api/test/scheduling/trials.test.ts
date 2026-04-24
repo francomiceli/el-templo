@@ -486,6 +486,65 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     );
   });
 
+  // ─── 102-06: cancelled trials don't block re-creation ──────────────────
+
+  it("Cancelling a trial booking frees the phone for a new trial (102-06)", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+
+    const phone = "+5491155557001";
+
+    // First trial — success.
+    const first = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        firstName: "Juan",
+        lastName: "Pérez",
+        phone,
+        branchId: testBranchId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(first.statusCode).toBe(201);
+    const firstBody = JSON.parse(first.body);
+
+    // Admin cancels the trial booking.
+    const cancelRes = await app.inject({
+      method: "DELETE",
+      url: `${ADMIN_URL}/bookings/${firstBody.bookingId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(cancelRes.statusCode).toBe(200);
+
+    // Second trial for the same phone — must succeed (cancelled doesn't count).
+    // Note: a new user row is created because we match on phone, and the
+    // prior user still exists with that phone. That's acceptable; the guard
+    // is "one active trial at a time", not "one lead row per phone ever".
+    const second = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        firstName: "Juan",
+        lastName: "Pérez",
+        phone,
+        branchId: testBranchId,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(second.statusCode).toBe(201);
+  });
+
   // ─── Atomicity: no orphan user on guard rejection ───────────────────────
 
   it("404 on missing scheduleId creates no user row (no-orphan-user)", async () => {

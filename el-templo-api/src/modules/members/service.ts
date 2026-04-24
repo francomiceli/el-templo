@@ -191,10 +191,12 @@ export class MemberService {
     // user not matching the leads predicate). "todos" (or undefined) is a
     // no-op. Composing with other filters is intentional (e.g. status=leads
     // + branchId = leads within that branch).
+    // Cancelled trials don't count — admin can cancel a trial booking to
+    // free the lead for re-scheduling, which also moves them out of "Leads".
     if (status === "leads") {
       conditions.push(sql`EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1
+        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )`);
       conditions.push(sql`NOT EXISTS (
         SELECT 1 FROM subscriptions s
@@ -206,7 +208,7 @@ export class MemberService {
       conditions.push(sql`NOT (
         EXISTS (
           SELECT 1 FROM bookings b
-          WHERE b.member_id = users.id AND b.is_trial = 1
+          WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
         )
         AND NOT EXISTS (
           SELECT 1 FROM subscriptions s
@@ -254,10 +256,12 @@ export class MemberService {
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
     // Returns 1/0 from MySQL; coerced to boolean in the mapper below.
     // Uses idx_bookings_member_date (member_id prefix) for the lookup.
+    // Cancelled trials are excluded so that admin can cancel a trial booking
+    // (from the slot dialog) to reset the chip back to 0/1 and re-schedule.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1
+        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 
@@ -369,11 +373,11 @@ export class MemberService {
     )`;
 
     // Phase 102 (R7): same EXISTS predicate as the list endpoint — single
-    // source of truth for hasUsedTrial semantics.
+    // source of truth for hasUsedTrial semantics. Cancelled trials excluded.
     const hasUsedTrialSubquery = sql<number>`(
       SELECT EXISTS (
         SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1
+        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
       )
     )`;
 

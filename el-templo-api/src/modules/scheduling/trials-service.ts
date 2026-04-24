@@ -20,7 +20,7 @@
 
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
@@ -60,7 +60,8 @@ export class TrialService {
     }
 
     // 2. One-trial-per-phone guard (R4). Must precede the INSERT so we
-    //    don't leak a user row on conflict.
+    //    don't leak a user row on conflict. Cancelled trials don't count —
+    //    admin can cancel an existing trial to free the phone for a new one.
     const [priorTrial] = await this.db
       .select({ bookingDate: schema.bookings.bookingDate })
       .from(schema.bookings)
@@ -69,6 +70,7 @@ export class TrialService {
         and(
           eq(schema.users.phone, input.phone),
           eq(schema.bookings.isTrial, true),
+          ne(schema.bookings.status, "cancelado"),
         ),
       )
       .orderBy(desc(schema.bookings.bookingDate))

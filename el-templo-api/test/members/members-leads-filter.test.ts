@@ -280,6 +280,36 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
     expect(body.hasUsedTrial).toBe(false);
   });
 
+  // ─── 102-06: cancelled trials don't count as "used" ──────────────────
+
+  it("cancelling L1's trial booking flips hasUsedTrial back to false and moves them out of leads", async () => {
+    // Cancel L1's single trial booking.
+    await app.db
+      .update(bookings)
+      .set({ status: "cancelado", cancelledAt: new Date() })
+      .where(eq(bookings.memberId, userL1));
+
+    // Profile: hasUsedTrial resets to false.
+    const profileRes = await app.inject({
+      method: "GET",
+      url: `/api/admin/members/${userL1}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(profileRes.statusCode).toBe(200);
+    expect(
+      (JSON.parse(profileRes.body) as { hasUsedTrial: boolean }).hasUsedTrial,
+    ).toBe(false);
+
+    // Leads filter: L1 no longer appears (no active trial + no sub = alumno-without-plan).
+    const leadsBody = await listMembers("status=leads");
+    expect(leadsBody.members.map((m) => m.id)).not.toContain(userL1);
+    expect(leadsBody.total).toBe(0);
+
+    // Alumnos filter: L1 now appears (everyone-except-leads).
+    const alumnosBody = await listMembers("status=alumnos");
+    expect(alumnosBody.members.map((m) => m.id)).toContain(userL1);
+  });
+
   // ─── Composition: status + branchId ───────────────────────────────────
 
   it("status=leads composes with branchId filter (returns leads in that branch only)", async () => {
