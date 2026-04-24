@@ -186,6 +186,94 @@ export const inactiveReportSchema = {
 } as const;
 
 // =============================================================================
+// Trial Conversion Report Schema (Phase 102-07)
+// =============================================================================
+
+export const trialConversionReportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      branchId: { type: "integer" },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["totals", "byBranch", "byHourSlot", "byShift", "pendingLeads"],
+      properties: {
+        totals: {
+          type: "object",
+          properties: {
+            trialsCount: { type: "integer" },
+            convertedCount: { type: "integer" },
+            conversionRatePct: { type: "number" },
+            medianDaysToConvert: { type: ["number", "null"] },
+            revenueFromConverted: { type: "number" },
+            revenuePerTrial: { type: "number" },
+          },
+        },
+        byBranch: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              trialsCount: { type: "integer" },
+              convertedCount: { type: "integer" },
+              conversionRatePct: { type: "number" },
+            },
+          },
+        },
+        byHourSlot: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              hour: { type: "string" },
+              trialsCount: { type: "integer" },
+              convertedCount: { type: "integer" },
+              conversionRatePct: { type: "number" },
+            },
+          },
+        },
+        byShift: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              shift: { type: "string", enum: ["TM", "TT"] },
+              trialsCount: { type: "integer" },
+              convertedCount: { type: "integer" },
+              conversionRatePct: { type: "number" },
+            },
+          },
+        },
+        pendingLeads: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              userId: { type: "integer" },
+              firstName: { type: "string" },
+              lastName: { type: "string" },
+              phone: { type: ["string", "null"] },
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              trialDate: { type: "string" },
+              daysSinceTrial: { type: "integer" },
+            },
+          },
+        },
+      },
+    },
+    400: errorSchema,
+  },
+} as const;
+
+// =============================================================================
 // Export Schemas (same querystrings, binary response)
 // =============================================================================
 

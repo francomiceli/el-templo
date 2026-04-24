@@ -86,6 +86,65 @@ export interface InactiveReportRow {
   phone: string | null;
 }
 
+// -- Trial Conversion (Phase 102-07) ----------------------------------------
+
+export interface TrialConversionFilters {
+  country?: "AR" | "ES";
+  dateFrom?: string; // YYYY-MM-DD — filters on trial.booking_date
+  dateTo?: string;
+  branchId?: number; // optional single-branch scope
+}
+
+export interface TrialConversionTotals {
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+  medianDaysToConvert: number | null;
+  revenueFromConverted: number; // raw number, currency inferred from context
+  revenuePerTrial: number;
+}
+
+export interface TrialConversionBranchRow {
+  branchId: number;
+  branchName: string;
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionHourRow {
+  hour: string; // "HH:00"
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionShiftRow {
+  shift: "TM" | "TT";
+  trialsCount: number;
+  convertedCount: number;
+  conversionRatePct: number;
+}
+
+export interface TrialConversionPendingLead {
+  userId: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  branchId: number;
+  branchName: string;
+  trialDate: string; // YYYY-MM-DD (first trial)
+  daysSinceTrial: number;
+}
+
+export interface TrialConversionReport {
+  totals: TrialConversionTotals;
+  byBranch: TrialConversionBranchRow[];
+  byHourSlot: TrialConversionHourRow[];
+  byShift: TrialConversionShiftRow[];
+  pendingLeads: TrialConversionPendingLead[];
+}
+
 // -- Paginated Result --------------------------------------------------------
 
 export interface PaginatedResult<T> {

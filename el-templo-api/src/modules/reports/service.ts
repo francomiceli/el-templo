@@ -19,6 +19,8 @@ import type {
   InactiveReportFilters,
   InactiveReportRow,
   PaginatedResult,
+  TrialConversionFilters,
+  TrialConversionReport,
 } from "./types";
 
 const DAY_LABELS: Record<number, string> = {
@@ -29,6 +31,19 @@ const DAY_LABELS: Record<number, string> = {
   5: "Vie",
   6: "Sab",
 };
+
+/**
+ * Median of a pre-sorted numeric array. Returns null for empty input.
+ * Used by the trial-conversion report for days-to-convert.
+ */
+function median(sorted: number[]): number | null {
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+}
 
 export class ReportsService {
   constructor(
@@ -347,6 +362,300 @@ export class ReportsService {
         phone: r.phone ? String(r.phone) : null,
       };
     });
+  }
+
+  // ─── Trial Conversion (Phase 102-07) ─────────────────────────────────────
+
+  /**
+   * Surface the trial→alumno conversion funnel for the Reportes tab.
+   *
+   * Date window semantics: `dateFrom`/`dateTo` filter on the *first trial's*
+   * booking_date, i.e. "of the leads whose first trial was in this window,
+   * how many converted?" — not "which conversions happened in this window".
+   *
+   * Country-scoped via filters.country (and optionally a single branchId).
+   * Virtual branches are included on country match to mirror the rest of
+   * the admin country-scope behaviour.
+   */
+  async getTrialConversionReport(
+    filters: TrialConversionFilters,
+  ): Promise<TrialConversionReport> {
+    // Subquery: each lead's first trial (one row per user with is_trial=1,
+    // giving the earliest trial's schedule + booking_date). Used as the
+    // join key for per-branch / per-hour / per-shift breakdowns.
+    //
+    // We hit this subquery repeatedly below — inline SQL to keep the
+    // query planner's job simple rather than materializing into a temp.
+    const firstTrialSQL = sql`
+      (
+        SELECT
+          b.member_id AS user_id,
+          MIN(b.booking_date) AS trial_date,
+          (
+            SELECT b2.schedule_id
+            FROM bookings b2
+            WHERE b2.member_id = b.member_id
+              AND b2.is_trial = 1
+            ORDER BY b2.booking_date ASC, b2.id ASC
+            LIMIT 1
+          ) AS first_schedule_id
+        FROM bookings b
+        WHERE b.is_trial = 1
+        GROUP BY b.member_id
+      )
+    `;
+
+    const dateFrom = filters.dateFrom ?? "1970-01-01";
+    const dateTo = filters.dateTo ?? "9999-12-31";
+    const country = filters.country ?? "AR";
+    const branchIdFilter =
+      filters.branchId !== undefined
+        ? sql`AND s.branch_id = ${filters.branchId}`
+        : sql`AND (br.country = ${country} OR br.is_virtual = 1)`;
+
+    // Totals: one query that hits every lead matching the window + scope,
+    // returns converted flag + days-to-convert for median + revenue sum.
+    const rowsForStats = await this.db.execute<{
+      user_id: number;
+      converted: number;
+      days_to_convert: number | null;
+      revenue: number;
+    }>(sql`
+      SELECT
+        ft.user_id,
+        CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END AS converted,
+        CASE
+          WHEN u.converted_at IS NOT NULL
+          THEN DATEDIFF(u.converted_at, ft.trial_date)
+          ELSE NULL
+        END AS days_to_convert,
+        COALESCE((
+          SELECT SUM(p.amount)
+          FROM payments p
+          WHERE p.member_id = ft.user_id AND p.voided_at IS NULL
+        ), 0) AS revenue
+      FROM ${firstTrialSQL} AS ft
+      JOIN users u ON u.id = ft.user_id
+      JOIN schedules s ON s.id = ft.first_schedule_id
+      JOIN branches br ON br.id = s.branch_id
+      WHERE ft.trial_date >= ${dateFrom}
+        AND ft.trial_date <= ${dateTo}
+        ${branchIdFilter}
+    `);
+
+    const stats = rowsForStats[0] as unknown as Array<{
+      user_id: number;
+      converted: number;
+      days_to_convert: number | null;
+      revenue: number;
+    }>;
+
+    const trialsCount = stats.length;
+    const convertedRows = stats.filter((r) => r.converted === 1);
+    const convertedCount = convertedRows.length;
+    const conversionRatePct =
+      trialsCount > 0 ? (convertedCount * 100) / trialsCount : 0;
+
+    const daysList = convertedRows
+      .map((r) => Number(r.days_to_convert))
+      .filter((d) => Number.isFinite(d))
+      .sort((a, b) => a - b);
+    const medianDaysToConvert = median(daysList);
+
+    const revenueFromConverted = convertedRows.reduce(
+      (acc, r) => acc + Number(r.revenue ?? 0),
+      0,
+    );
+    const revenuePerTrial =
+      trialsCount > 0 ? revenueFromConverted / trialsCount : 0;
+
+    // Breakdowns — three grouped queries with the same scope filters.
+    const byBranchRaw = await this.db.execute<{
+      branch_id: number;
+      branch_name: string;
+      trials_count: number;
+      converted_count: number;
+    }>(sql`
+      SELECT
+        br.id AS branch_id,
+        br.name AS branch_name,
+        COUNT(*) AS trials_count,
+        SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
+      FROM ${firstTrialSQL} AS ft
+      JOIN users u ON u.id = ft.user_id
+      JOIN schedules s ON s.id = ft.first_schedule_id
+      JOIN branches br ON br.id = s.branch_id
+      WHERE ft.trial_date >= ${dateFrom}
+        AND ft.trial_date <= ${dateTo}
+        ${branchIdFilter}
+      GROUP BY br.id, br.name
+      ORDER BY br.name ASC
+    `);
+
+    const byBranch = (
+      byBranchRaw[0] as unknown as Array<{
+        branch_id: number;
+        branch_name: string;
+        trials_count: number;
+        converted_count: number;
+      }>
+    ).map((r) => {
+      const t = Number(r.trials_count);
+      const c = Number(r.converted_count);
+      return {
+        branchId: Number(r.branch_id),
+        branchName: String(r.branch_name),
+        trialsCount: t,
+        convertedCount: c,
+        conversionRatePct: t > 0 ? (c * 100) / t : 0,
+      };
+    });
+
+    const byHourRaw = await this.db.execute<{
+      hour: string;
+      trials_count: number;
+      converted_count: number;
+    }>(sql`
+      SELECT
+        DATE_FORMAT(s.start_time, '%H:00') AS hour,
+        COUNT(*) AS trials_count,
+        SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
+      FROM ${firstTrialSQL} AS ft
+      JOIN users u ON u.id = ft.user_id
+      JOIN schedules s ON s.id = ft.first_schedule_id
+      JOIN branches br ON br.id = s.branch_id
+      WHERE ft.trial_date >= ${dateFrom}
+        AND ft.trial_date <= ${dateTo}
+        ${branchIdFilter}
+      GROUP BY hour
+      ORDER BY hour ASC
+    `);
+
+    const byHourSlot = (
+      byHourRaw[0] as unknown as Array<{
+        hour: string;
+        trials_count: number;
+        converted_count: number;
+      }>
+    ).map((r) => {
+      const t = Number(r.trials_count);
+      const c = Number(r.converted_count);
+      return {
+        hour: String(r.hour),
+        trialsCount: t,
+        convertedCount: c,
+        conversionRatePct: t > 0 ? (c * 100) / t : 0,
+      };
+    });
+
+    const byShiftRaw = await this.db.execute<{
+      shift: "TM" | "TT";
+      trials_count: number;
+      converted_count: number;
+    }>(sql`
+      SELECT
+        CASE WHEN s.start_time < '13:00:00' THEN 'TM' ELSE 'TT' END AS shift,
+        COUNT(*) AS trials_count,
+        SUM(CASE WHEN u.converted_at IS NOT NULL THEN 1 ELSE 0 END) AS converted_count
+      FROM ${firstTrialSQL} AS ft
+      JOIN users u ON u.id = ft.user_id
+      JOIN schedules s ON s.id = ft.first_schedule_id
+      JOIN branches br ON br.id = s.branch_id
+      WHERE ft.trial_date >= ${dateFrom}
+        AND ft.trial_date <= ${dateTo}
+        ${branchIdFilter}
+      GROUP BY shift
+      ORDER BY shift ASC
+    `);
+
+    const byShift = (
+      byShiftRaw[0] as unknown as Array<{
+        shift: "TM" | "TT";
+        trials_count: number;
+        converted_count: number;
+      }>
+    ).map((r) => {
+      const t = Number(r.trials_count);
+      const c = Number(r.converted_count);
+      return {
+        shift: r.shift,
+        trialsCount: t,
+        convertedCount: c,
+        conversionRatePct: t > 0 ? (c * 100) / t : 0,
+      };
+    });
+
+    // Pending leads: un-converted, sorted oldest trial first (most stale).
+    const pendingRaw = await this.db.execute<{
+      user_id: number;
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+      branch_id: number;
+      branch_name: string;
+      trial_date: string;
+      days_since_trial: number;
+    }>(sql`
+      SELECT
+        ft.user_id,
+        u.first_name,
+        u.last_name,
+        u.phone,
+        br.id AS branch_id,
+        br.name AS branch_name,
+        ft.trial_date,
+        DATEDIFF(CURDATE(), ft.trial_date) AS days_since_trial
+      FROM ${firstTrialSQL} AS ft
+      JOIN users u ON u.id = ft.user_id
+      JOIN schedules s ON s.id = ft.first_schedule_id
+      JOIN branches br ON br.id = s.branch_id
+      WHERE ft.trial_date >= ${dateFrom}
+        AND ft.trial_date <= ${dateTo}
+        AND u.converted_at IS NULL
+        AND u.deleted_at IS NULL
+        ${branchIdFilter}
+      ORDER BY ft.trial_date ASC, u.first_name ASC
+    `);
+
+    const pendingLeads = (
+      pendingRaw[0] as unknown as Array<{
+        user_id: number;
+        first_name: string;
+        last_name: string;
+        phone: string | null;
+        branch_id: number;
+        branch_name: string;
+        trial_date: string;
+        days_since_trial: number;
+      }>
+    ).map((r) => ({
+      userId: Number(r.user_id),
+      firstName: String(r.first_name ?? ""),
+      lastName: String(r.last_name ?? ""),
+      phone: r.phone ? String(r.phone) : null,
+      branchId: Number(r.branch_id),
+      branchName: String(r.branch_name),
+      trialDate:
+        typeof r.trial_date === "string"
+          ? r.trial_date.slice(0, 10)
+          : new Date(r.trial_date).toISOString().slice(0, 10),
+      daysSinceTrial: Number(r.days_since_trial),
+    }));
+
+    return {
+      totals: {
+        trialsCount,
+        convertedCount,
+        conversionRatePct,
+        medianDaysToConvert,
+        revenueFromConverted,
+        revenuePerTrial,
+      },
+      byBranch,
+      byHourSlot,
+      byShift,
+      pendingLeads,
+    };
   }
 
   // ─── Export Methods (no pagination) ───────────────────────────────────────

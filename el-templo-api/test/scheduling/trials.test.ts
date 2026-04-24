@@ -796,6 +796,106 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(afterRow.convertedAt).not.toBeNull();
   });
 
+  it("GET /api/admin/reports/trial-conversion reflects converted vs pending (102-07)", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+
+    // Two trials; convert only one of them.
+    async function createAndMaybeConvert(
+      phone: string,
+      firstName: string,
+      convert: boolean,
+    ): Promise<number> {
+      const trialRes = await app.inject({
+        method: "POST",
+        url: TRIALS_URL,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName,
+          lastName: "Lead",
+          phone,
+          branchId: testBranchId,
+          scheduleId: slot.id,
+          bookingDate: futureSlot.date,
+        },
+      });
+      expect(trialRes.statusCode).toBe(201);
+      const userId = JSON.parse(trialRes.body).userId;
+
+      if (convert) {
+        const planRes = await app.inject({
+          method: "POST",
+          url: `/api/admin/subscriptions/plans`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            name: `Conv Plan ${firstName}`,
+            planTier: "flex",
+            bookingMode: "flexible",
+            priceRegular: 10000,
+            priceZero: 8000,
+            durationDays: 30,
+            classesPerWeek: 3,
+            multiBranch: false,
+          },
+        });
+        const plan = JSON.parse(planRes.body);
+        const assignRes = await app.inject({
+          method: "POST",
+          url: `/api/admin/subscriptions/members/${userId}/subscription/assign`,
+          headers: { authorization: `Bearer ${adminToken}` },
+          payload: {
+            planId: plan.id,
+            branchId: testBranchId,
+            startDate: "2026-03-01",
+            priceTypeApplied: "regular",
+            paymentMethod: "cash",
+          },
+        });
+        expect(assignRes.statusCode).toBe(201);
+      }
+      return userId;
+    }
+
+    await createAndMaybeConvert("+5491155559601", "Converted", true);
+    const pendingUserId = await createAndMaybeConvert(
+      "+5491155559602",
+      "Pending",
+      false,
+    );
+
+    const res = await app.inject({
+      method: "GET",
+      url: `/api/admin/reports/trial-conversion`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+
+    expect(body.totals.trialsCount).toBeGreaterThanOrEqual(2);
+    expect(body.totals.convertedCount).toBeGreaterThanOrEqual(1);
+    expect(body.totals.conversionRatePct).toBeGreaterThan(0);
+    expect(body.totals.conversionRatePct).toBeLessThanOrEqual(100);
+
+    // Pending user must be in pendingLeads, converted user must NOT be.
+    const pendingIds = body.pendingLeads.map(
+      (l: { userId: number }) => l.userId,
+    );
+    expect(pendingIds).toContain(pendingUserId);
+
+    // byBranch should have one row for testBranchId.
+    const branchRow = body.byBranch.find(
+      (r: { branchId: number }) => r.branchId === testBranchId,
+    );
+    expect(branchRow).toBeTruthy();
+    expect(branchRow.trialsCount).toBeGreaterThanOrEqual(2);
+  });
+
   it("Assigning a plan to a non-lead leaves converted_at NULL (102-07)", async () => {
     // Plain member, no trial booking ever.
     const member = await registerUser(app, {

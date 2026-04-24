@@ -17,12 +17,14 @@ import type {
   ChargeReportFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
+  TrialConversionFilters,
 } from "./types";
 import {
   accessReportSchema,
   chargeReportSchema,
   expiringReportSchema,
   inactiveReportSchema,
+  trialConversionReportSchema,
   accessExportSchema,
   chargeExportSchema,
   expiringExportSchema,
@@ -150,6 +152,31 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       handleServiceError(err, reply, request.log, "get inactive report");
     }
   });
+
+  // GET /trial-conversion — Trial→alumno conversion funnel (Phase 102-07)
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/trial-conversion",
+    { schema: trialConversionReportSchema },
+    async (request, reply) => {
+      try {
+        const filters: TrialConversionFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        return await reportsService.getTrialConversionReport(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get trial conversion");
+      }
+    },
+  );
 
   // =========================================================================
   // Export Endpoints

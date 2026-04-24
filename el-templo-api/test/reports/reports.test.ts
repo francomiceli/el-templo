@@ -607,6 +607,7 @@ describe("Reports API", () => {
         `${REPORTS_URL}/charges`,
         `${REPORTS_URL}/expiring`,
         `${REPORTS_URL}/inactive`,
+        `${REPORTS_URL}/trial-conversion`,
       ];
 
       for (const url of endpoints) {
