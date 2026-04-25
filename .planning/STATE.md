@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 103-07-PLAN.md (auth routes cleanup + new staff_disabled login gate, R12 + final grep gate — Wave 4 done)
-last_updated: "2026-04-25T18:49:16.351Z"
+stopped_at: Completed 103-05-PLAN.md (admin AlumnosPage + AlumnoDetailPage UI refactor — 4-state badge + Estado dropdown; manual UX checklist pending user verification)
+last_updated: "2026-04-25T18:56:10.018Z"
 progress:
   total_phases: 93
-  completed_phases: 79
+  completed_phases: 80
   total_plans: 349
-  completed_plans: 341
+  completed_plans: 342
   percent: 98
 ---
 
@@ -132,6 +132,7 @@ _Updated after each plan completion_
 | Phase 103 P06 | 8min | 3 tasks | 8 files |
 | Phase 103 P04 | 30min | 2 tasks | 11 files |
 | Phase 103 P07 | 5min | 3 tasks | 3 files |
+| Phase 103 P05 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -279,6 +280,7 @@ Recent decisions affecting current work:
 - Plan 103-06: PATCH /api/admin/users/:id/status payload renamed isActive→disabled with additionalProperties:false rejecting legacy shape (T-103-09 mitigated end-to-end); UserService.toggleDisabled is an explicit-value setter (no server-side toggle) so concurrent admin clicks converge instead of fighting; createStaff insert path explicitly writes status:null (BLOCKER 1 fix per CONTEXT D-12); admin-app UsuariosPage UX wording preserved while underlying boolean flips from isActive to staffDisabled
 - Plan 103-04: Members API contract migration — drop derived isActiveSubquery (3 sites in service.ts) and project users.status directly; createMember insert is single-owner (status='prueba' as const, BLOCKER 3); analytics countActiveMembers + SlotAttendancePanel hidden refs migrated; legacy ?status=leads/alumnos returns 400 (no shim); admin types/SlotAttendancePanel migrated in lockstep; AlumnosPage/AlumnoDetailPage explicitly deferred to Plan 05.
 - Plan 103-07: New staff_disabled login gate at POST /login closes pre-existing security loophole — non-member roles with staff_disabled=true are now rejected with 401 Cuenta desactivada (was previously enforced only at the column level, never at runtime). staffDisabled is projected ONLY in /login SELECT (sole consumer); /me deliberately omits it to keep auth response surface minimal. Phase 103 R3 grep gate satisfied: only 2 doc-comment matches remain (analytics/users service.ts), no runtime users.isActive references.
+- Plan 103-05: Shared useStatusBadge composable (named exports getColor/getLabel) reused by both AlumnosPage row chip and AlumnoDetailPage header chip; trial counter v-if uses status !== 'activo' to preserve original semantic (visible for freemium/prueba/inactivo, hidden for activo); no shim — single status param replaces dual isActive+leadsOnly logic at all 4 API call sites.
 
 ### Pending Todos
 
@@ -290,8 +292,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T18:49:06.085Z
-Stopped at: Completed 103-07-PLAN.md (auth routes cleanup + new staff_disabled login gate, R12 + final grep gate — Wave 4 done)
+Last session: 2026-04-25T18:56:09.978Z
+Stopped at: Completed 103-05-PLAN.md (admin AlumnosPage + AlumnoDetailPage UI refactor — 4-state badge + Estado dropdown; manual UX checklist pending user verification)
 Resume file: None
 
 **Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25
