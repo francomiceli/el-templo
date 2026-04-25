@@ -223,7 +223,10 @@ export const createMemberSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
-      dateOfBirth: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+      dateOfBirth: {
+        type: ["string", "null"],
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+      },
       gender: {
         type: "string",
         enum: ["male", "female", "other", "unspecified"],

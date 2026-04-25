@@ -149,63 +149,51 @@
                 </div>
 
                 <!-- Datos Adicionales -->
-                <q-expansion-item
-                  label="Datos Adicionales"
-                  header-class="text-subtitle2 text-weight-bold"
-                  dense
-                >
-                  <div class="q-pa-sm q-gutter-sm">
-                    <div class="row q-col-gutter-sm">
-                      <div class="col-12 col-sm-6">
-                        <q-input
-                          v-model="form.dateOfBirth"
-                          label="Fecha de Nacimiento"
-                          type="date"
-                          dense
-                          outlined
-                        />
-                      </div>
-                      <div class="col-12 col-sm-6">
-                        <q-select
-                          v-model="form.gender"
-                          :options="genderOptions"
-                          label="Genero"
-                          dense
-                          outlined
-                          emit-value
-                          map-options
-                          clearable
-                        />
-                      </div>
-                    </div>
+                <div class="text-subtitle2 text-weight-bold q-mt-md">Datos Adicionales</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model="form.dateOfBirth"
+                      label="Fecha de Nacimiento"
+                      type="date"
+                      dense
+                      outlined
+                    />
                   </div>
-                </q-expansion-item>
+                  <div class="col-12 col-sm-6">
+                    <q-select
+                      v-model="form.gender"
+                      :options="genderOptions"
+                      label="Genero"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      clearable
+                    />
+                  </div>
+                </div>
 
                 <!-- Contacto de Emergencia -->
-                <q-expansion-item
-                  label="Contacto de Emergencia"
-                  header-class="text-subtitle2 text-weight-bold"
-                  dense
-                >
-                  <div class="q-pa-sm q-gutter-sm">
-                    <div class="row q-col-gutter-sm">
-                      <div class="col-12 col-sm-6">
-                        <q-input
-                          v-model="form.emergencyContactName"
-                          label="Nombre del Contacto"
-                          dense
-                          outlined
-                        />
-                      </div>
-                      <div class="col-12 col-sm-6">
-                        <q-input
-                          v-model="form.emergencyContactPhone"
-                          label="Telefono del Contacto"
-                          dense
-                          outlined
-                        />
-                      </div>
-                    </div>
+                <div class="text-subtitle2 text-weight-bold q-mt-md">Contacto de Emergencia</div>
+                <div class="row q-col-gutter-sm">
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model="form.emergencyContactName"
+                      label="Nombre del Contacto"
+                      dense
+                      outlined
+                    />
+                  </div>
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model="form.emergencyContactPhone"
+                      label="Telefono del Contacto"
+                      dense
+                      outlined
+                    />
+                  </div>
+                  <div class="col-12">
                     <q-input
                       v-model="form.emergencyContactRelationship"
                       label="Relacion (ej: madre, padre, pareja)"
@@ -213,7 +201,7 @@
                       outlined
                     />
                   </div>
-                </q-expansion-item>
+                </div>
 
                 <q-stepper-navigation class="q-mt-md">
                   <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
@@ -367,63 +355,51 @@
             </div>
 
             <!-- Datos Adicionales -->
-            <q-expansion-item
-              label="Datos Adicionales"
-              header-class="text-subtitle2 text-weight-bold"
-              dense
-            >
-              <div class="q-pa-sm q-gutter-sm">
-                <div class="row q-col-gutter-sm">
-                  <div class="col-12 col-sm-6">
-                    <q-input
-                      v-model="form.dateOfBirth"
-                      label="Fecha de Nacimiento"
-                      type="date"
-                      dense
-                      outlined
-                    />
-                  </div>
-                  <div class="col-12 col-sm-6">
-                    <q-select
-                      v-model="form.gender"
-                      :options="genderOptions"
-                      label="Genero"
-                      dense
-                      outlined
-                      emit-value
-                      map-options
-                      clearable
-                    />
-                  </div>
-                </div>
+            <div class="text-subtitle2 text-weight-bold q-mt-md">Datos Adicionales</div>
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="form.dateOfBirth"
+                  label="Fecha de Nacimiento"
+                  type="date"
+                  dense
+                  outlined
+                />
               </div>
-            </q-expansion-item>
+              <div class="col-12 col-sm-6">
+                <q-select
+                  v-model="form.gender"
+                  :options="genderOptions"
+                  label="Genero"
+                  dense
+                  outlined
+                  emit-value
+                  map-options
+                  clearable
+                />
+              </div>
+            </div>
 
             <!-- Contacto de Emergencia -->
-            <q-expansion-item
-              label="Contacto de Emergencia"
-              header-class="text-subtitle2 text-weight-bold"
-              dense
-            >
-              <div class="q-pa-sm q-gutter-sm">
-                <div class="row q-col-gutter-sm">
-                  <div class="col-12 col-sm-6">
-                    <q-input
-                      v-model="form.emergencyContactName"
-                      label="Nombre del Contacto"
-                      dense
-                      outlined
-                    />
-                  </div>
-                  <div class="col-12 col-sm-6">
-                    <q-input
-                      v-model="form.emergencyContactPhone"
-                      label="Telefono del Contacto"
-                      dense
-                      outlined
-                    />
-                  </div>
-                </div>
+            <div class="text-subtitle2 text-weight-bold q-mt-md">Contacto de Emergencia</div>
+            <div class="row q-col-gutter-sm">
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="form.emergencyContactName"
+                  label="Nombre del Contacto"
+                  dense
+                  outlined
+                />
+              </div>
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="form.emergencyContactPhone"
+                  label="Telefono del Contacto"
+                  dense
+                  outlined
+                />
+              </div>
+              <div class="col-12">
                 <q-input
                   v-model="form.emergencyContactRelationship"
                   label="Relacion (ej: madre, padre, pareja)"
@@ -431,7 +407,7 @@
                   outlined
                 />
               </div>
-            </q-expansion-item>
+            </div>
 
             <!-- ─── Deuda (Phase 101) ─────────────────────────────────────── -->
             <q-separator class="q-my-md" />
