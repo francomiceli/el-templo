@@ -97,14 +97,19 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // PATCH /:userId/status - Toggle active/inactive
-  fastify.patch<{ Params: { userId: number } }>(
+  // PATCH /:userId/status - Set staff_disabled (Phase 103-06, R11)
+  // Payload: { disabled: boolean }. `disabled=true` deactivates the staff
+  // member (writes users.staff_disabled=TRUE); `disabled=false` reactivates.
+  // Replaces the prior toggle-style endpoint that read the current state and
+  // flipped it server-side (now the client sends the explicit desired value).
+  fastify.patch<{ Params: { userId: number }; Body: { disabled: boolean } }>(
     "/:userId/status",
     { schema: toggleStatusSchema },
     async (request, reply) => {
       try {
-        const result = await userService.toggleActive(
+        const result = await userService.toggleDisabled(
           request.params.userId,
+          request.body.disabled,
           request.user.userId,
         );
         if (!result) {

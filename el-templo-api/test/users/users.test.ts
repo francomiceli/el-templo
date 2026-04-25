@@ -252,14 +252,17 @@ describe("User Management Routes", () => {
         method: "PATCH",
         url: `/api/admin/users/${userId}/status`,
         headers: { authorization: `Bearer ${ownerToken}` },
+        // Phase 103-06: payload renamed from { isActive: bool } to
+        // { disabled: bool } with semantic inversion.
+        payload: { disabled: true },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(body.isActive).toBe(false);
+      expect(body.staffDisabled).toBe(true);
     });
 
-    it("deactivated user cannot login", async () => {
+    it("deactivated user can still login (login gate added in Plan 07)", async () => {
       const userId = await createStaffUser(app, {
         email: "nodeactivated@test.com",
         password: "testpass123",
@@ -269,12 +272,14 @@ describe("User Management Routes", () => {
         branchId: 1,
       });
 
-      // Deactivate
+      // Deactivate via the new payload contract
       await app.inject({
         method: "PATCH",
         url: `/api/admin/users/${userId}/status`,
         headers: { authorization: `Bearer ${ownerToken}` },
+        payload: { disabled: true },
       });
+      void userId;
 
       // Try to login
       const loginRes = await app.inject({
@@ -283,7 +288,8 @@ describe("User Management Routes", () => {
         payload: { email: "nodeactivated@test.com", password: "testpass123" },
       });
 
-      // Inactive users can now login (features gated in frontend)
+      // Phase 103-06: staff_disabled login gate is Plan 07's work.
+      // For now login still succeeds; Plan 07 will tighten this to 401/403.
       expect(loginRes.statusCode).toBe(200);
     });
   });

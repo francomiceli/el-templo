@@ -21,6 +21,10 @@ export class UserService {
   /**
    * List all staff users (non-member roles).
    * Optionally filter by branchId.
+   *
+   * Phase 103-06 (R11): exposes `staffDisabled` per row (replaces `isActive`).
+   * Semantic inversion: `staffDisabled=true` means the staff member is
+   * deactivated; `staffDisabled=false` means active.
    */
   async listStaff(branchId?: number): Promise<StaffUser[]> {
     const rows = await this.db
@@ -32,7 +36,7 @@ export class UserService {
         role: schema.users.role,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: schema.users.isActive,
+        staffDisabled: schema.users.staffDisabled,
         createdAt: schema.users.createdAt,
       })
       .from(schema.users)
@@ -100,6 +104,13 @@ export class UserService {
         lastName: input.lastName,
         role: input.role,
         branchId: input.branchId,
+        // Phase 103-06 (R7, D-12, BLOCKER 1 reassignment from Plan 03):
+        // Staff inserts (coach/admin/owner/gestion/recepcion) explicitly
+        // pass status: null. The DB default is also NULL but we set it
+        // explicitly here to make the intent unmistakable: only members
+        // get a lifecycle status (freemium/prueba/activo/inactivo); staff
+        // rows always have status=NULL and use staff_disabled instead.
+        status: null,
       })
       .$returningId();
 
@@ -180,7 +191,7 @@ export class UserService {
         role: schema.users.role,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: schema.users.isActive,
+        staffDisabled: schema.users.staffDisabled,
         createdAt: schema.users.createdAt,
       })
       .from(schema.users)
@@ -197,20 +208,29 @@ export class UserService {
   }
 
   /**
-   * Toggle isActive on a staff user.
-   * Only allows toggling non-member users.
-   * Prevents owner from deactivating themselves.
+   * Set the staff_disabled flag on a staff user.
+   * Only applies to non-member users.
+   * Prevents owner from disabling themselves.
+   *
+   * Phase 103-06 (R11, D-11): replaces the legacy `toggleActive` (which
+   * read/wrote `users.is_active`, the column dropped in Plan 01). The
+   * payload field is now `disabled` (semantic inversion: `disabled=true`
+   * deactivates the staff member). Writes `users.staff_disabled` directly
+   * with the explicit value from the caller — no toggling on the server
+   * side, so concurrent admin clicks converge on the requested state
+   * instead of fighting each other.
    */
-  async toggleActive(
+  async toggleDisabled(
     userId: number,
+    disabled: boolean,
     requesterId: number,
-  ): Promise<{ isActive: boolean } | null> {
+  ): Promise<{ staffDisabled: boolean } | null> {
     // Verify target is a staff user
     const [target] = await this.db
       .select({
         id: schema.users.id,
         role: schema.users.role,
-        isActive: schema.users.isActive,
+        staffDisabled: schema.users.staffDisabled,
       })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
@@ -220,24 +240,25 @@ export class UserService {
       return null;
     }
 
-    // Prevent owner from deactivating themselves
-    if (userId === requesterId) {
+    // Prevent owner from disabling themselves (preserves prior behavior).
+    // Only block the destructive direction (disabled=true). Self re-enabling
+    // is a no-op for the requester — they're already logged in to call this.
+    if (userId === requesterId && disabled) {
       const error = new Error("Cannot deactivate your own account");
       (error as Error & { statusCode: number }).statusCode = 400;
       throw error;
     }
 
-    const newIsActive = !target.isActive;
     await this.db
       .update(schema.users)
-      .set({ isActive: newIsActive })
+      .set({ staffDisabled: disabled })
       .where(eq(schema.users.id, userId));
 
     this.log.info(
-      { staffId: userId, isActive: newIsActive },
-      "Staff user status toggled",
+      { staffId: userId, staffDisabled: disabled },
+      "Staff user staff_disabled toggled",
     );
 
-    return { isActive: newIsActive };
+    return { staffDisabled: disabled };
   }
 }

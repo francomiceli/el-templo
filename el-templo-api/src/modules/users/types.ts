@@ -6,7 +6,9 @@ export interface StaffUser {
   role: string;
   branchId: number;
   branchName: string | null;
-  isActive: boolean;
+  // Phase 103-06 (R11): replaces legacy `isActive`. `staffDisabled=true`
+  // means the staff member is deactivated (login gate added in Plan 07).
+  staffDisabled: boolean;
   createdAt: Date;
 }
 
