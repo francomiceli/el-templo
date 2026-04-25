@@ -36,12 +36,13 @@
         </q-td>
       </template>
 
-      <!-- Status column -->
+      <!-- Status column (Phase 103-06: reads staffDisabled with semantic
+           inversion — staffDisabled=false = "Activo" positive, true = grey) -->
       <template #body-cell-estado="props">
         <q-td :props="props">
           <q-badge
-            :color="props.row.isActive ? 'positive' : 'grey'"
-            :label="props.row.isActive ? 'Activo' : 'Inactivo'"
+            :color="props.row.staffDisabled ? 'grey' : 'positive'"
+            :label="props.row.staffDisabled ? 'Inactivo' : 'Activo'"
           />
         </q-td>
       </template>
@@ -56,11 +57,11 @@
             flat
             dense
             round
-            :icon="props.row.isActive ? 'block' : 'check_circle'"
-            :color="props.row.isActive ? 'negative' : 'positive'"
+            :icon="props.row.staffDisabled ? 'check_circle' : 'block'"
+            :color="props.row.staffDisabled ? 'positive' : 'negative'"
             @click="handleToggleStatus(props.row)"
           >
-            <q-tooltip>{{ props.row.isActive ? 'Desactivar' : 'Activar' }}</q-tooltip>
+            <q-tooltip>{{ props.row.staffDisabled ? 'Activar' : 'Desactivar' }}</q-tooltip>
           </q-btn>
         </q-td>
       </template>
@@ -244,7 +245,10 @@ const columns: QTableProps['columns'] = [
   {
     name: 'estado',
     label: 'Estado',
-    field: 'isActive',
+    // Phase 103-06: column sorts on staffDisabled (semantic inversion —
+    // grey/Inactivo bubble to one end of the sort, positive/Activo to the
+    // other; users sort intuitively because the badge mirrors the column).
+    field: 'staffDisabled',
     align: 'center',
     sortable: true,
     style: 'width: 100px',
@@ -393,10 +397,14 @@ async function handleSave() {
 }
 
 function handleToggleStatus(user: StaffUser) {
-  const action = user.isActive ? 'desactivado' : 'activado';
-  const title = user.isActive ? 'Desactivar usuario' : 'Activar usuario';
+  // Phase 103-06: UX wording stays identical (Activar/Desactivar usuario);
+  // internal booleans flip from `isActive` (true=enabled) to `staffDisabled`
+  // (true=disabled). The new desired payload is `disabled: !user.staffDisabled`.
+  const isCurrentlyActive = !user.staffDisabled;
+  const action = isCurrentlyActive ? 'desactivado' : 'activado';
+  const title = isCurrentlyActive ? 'Desactivar usuario' : 'Activar usuario';
   const name = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
-  const message = user.isActive
+  const message = isCurrentlyActive
     ? `El usuario ${name} sera desactivado. Los usuarios desactivados no pueden iniciar sesion.`
     : `El usuario ${name} sera activado.`;
 
@@ -405,12 +413,14 @@ function handleToggleStatus(user: StaffUser) {
     message,
     cancel: { flat: true, label: 'Cancelar' },
     ok: {
-      color: user.isActive ? 'negative' : 'positive',
-      label: user.isActive ? 'Desactivar' : 'Activar',
+      color: isCurrentlyActive ? 'negative' : 'positive',
+      label: isCurrentlyActive ? 'Desactivar' : 'Activar',
     },
   }).onOk(async () => {
     try {
-      await usersApi.toggleUserStatus(user.id);
+      // The new desired `disabled` value is the opposite of the current
+      // `staffDisabled` (toggle the persisted state).
+      await usersApi.setStaffDisabled(user.id, !user.staffDisabled);
       $q.notify({ type: 'positive', message: `Usuario ${action}` });
       await loadUsers();
     } catch (err: unknown) {

@@ -9,7 +9,10 @@ export interface StaffUser {
   role: string;
   branchId: number;
   branchName: string | null;
-  isActive: boolean;
+  // Phase 103-06 (R11): replaces legacy `isActive`. Semantic inversion:
+  // staffDisabled=true means deactivated (cannot log in once Plan 07 ships
+  // the staff_disabled login gate); staffDisabled=false means active.
+  staffDisabled: boolean;
   createdAt: string;
 }
 
@@ -94,12 +97,23 @@ export function useUsersApi() {
     }
   }
 
-  async function toggleUserStatus(userId: number): Promise<boolean> {
+  /**
+   * Phase 103-06 (R11): renamed from `toggleUserStatus`. The endpoint
+   * payload is now `{ disabled: boolean }` with semantic inversion:
+   * `disabled=true` deactivates (writes users.staff_disabled=TRUE);
+   * `disabled=false` reactivates. The caller computes the desired state
+   * from the current `staffDisabled` value: `disabled: !user.staffDisabled`.
+   * Returns the new `staffDisabled` value from the server response.
+   */
+  async function setStaffDisabled(userId: number, disabled: boolean): Promise<boolean> {
     loading.value = true;
     error.value = null;
     try {
-      const { data } = await api.patch<{ isActive: boolean }>(`/admin/users/${userId}/status`);
-      return data.isActive;
+      const { data } = await api.patch<{ staffDisabled: boolean }>(
+        `/admin/users/${userId}/status`,
+        { disabled }
+      );
+      return data.staffDisabled;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error cambiando estado');
       throw err;
@@ -114,5 +128,5 @@ export function useUsersApi() {
     users.value = [];
   }
 
-  return { loading, error, users, fetchUsers, createUser, updateUser, toggleUserStatus, cleanup };
+  return { loading, error, users, fetchUsers, createUser, updateUser, setStaffDisabled, cleanup };
 }
