@@ -200,9 +200,13 @@ export class AnalyticsService {
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
   ): Promise<number> {
+    // Phase 103 (R10): users.is_active was dropped in migration 0100. The
+    // commercial "active member" definition is now first-class on
+    // users.status — same row count as the legacy isActive=true projection
+    // because Plan 02 backfilled the column from the same EXISTS predicate.
     const conditions = [
       eq(schema.users.role, "member"),
-      eq(schema.users.isActive, true),
+      eq(schema.users.status, "activo"),
     ];
     if (branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, branchId));

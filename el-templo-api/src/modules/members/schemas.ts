@@ -30,7 +30,13 @@ const memberListItemSchema = {
     level: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
-    isActive: { type: "boolean" },
+    // Phase 103 (R10): first-class status enum (replaces the legacy
+    // isActive boolean). Nullable to match the DB column (staff rows are
+    // NULL — though staff are filtered out of member list endpoints).
+    status: {
+      type: ["string", "null"],
+      enum: ["freemium", "prueba", "activo", "inactivo", null],
+    },
     planName: { type: ["string", "null"] },
     segment: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
@@ -77,7 +83,11 @@ const memberProfileSchema = {
     level: { type: "string" },
     branchId: { type: "integer" },
     branchName: { type: "string" },
-    isActive: { type: "boolean" },
+    // Phase 103 (R10): see memberListItemSchema.status.
+    status: {
+      type: ["string", "null"],
+      enum: ["freemium", "prueba", "activo", "inactivo", null],
+    },
     segment: { type: ["string", "null"] },
     segmentUpdatedAt: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
@@ -127,7 +137,6 @@ export const listMembersSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
-      isActive: { type: "boolean" },
       planId: { type: "integer" },
       segment: {
         type: "string",
@@ -143,8 +152,13 @@ export const listMembersSchema = {
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },
       debtorOnly: { type: "boolean" },
-      // Phase 102 (R8): leads/alumnos filter. "todos" = no-op (default).
-      status: { type: "string", enum: ["todos", "alumnos", "leads"] },
+      // Phase 103 (R8): first-class users.status filter. "todos" = no-op
+      // (default). The Phase 102 'alumnos'/'leads' values are no longer
+      // accepted — admin-app updated in lockstep (no shim, per SPEC).
+      status: {
+        type: "string",
+        enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
+      },
       page: { type: "integer", minimum: 1, default: 1 },
       limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
     },
@@ -317,7 +331,11 @@ export const exportMembersSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
-      isActive: { type: "boolean" },
+      // Phase 103 (R8): export uses the same status enum as the list endpoint.
+      status: {
+        type: "string",
+        enum: ["todos", "freemium", "prueba", "activo", "inactivo"],
+      },
       planId: { type: "integer" },
       avatarType: { type: "string" },
       country: { type: "string", enum: ["AR", "ES"] },

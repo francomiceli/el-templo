@@ -50,7 +50,6 @@ export class MemberService {
       branchId,
       multiBranch,
       level,
-      isActive,
       planId,
       segment,
       avatarType,
@@ -109,18 +108,6 @@ export class MemberService {
           level as "alfa" | "delta" | "sigma" | "omega" | "spartan",
         ),
       );
-    }
-
-    if (isActive !== undefined) {
-      // Derive active status from subscriptions (not the stale users.is_active column).
-      // Active iff ∃ sub with status ∈ ('active','paused') AND endDate IS NULL OR endDate >= today.
-      const activeExists = sql`EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )`;
-      conditions.push(isActive ? activeExists : sql`NOT ${activeExists}`);
     }
 
     // Plan filter: planId=0 means "no active subscription" (Sin plan),
@@ -186,37 +173,17 @@ export class MemberService {
       );
     }
 
-    // Phase 102 (R8): "leads" = user has ≥1 is_trial=TRUE booking AND no
-    // currently active/paused subscription. "alumnos" is the inverse (every
-    // user not matching the leads predicate). "todos" (or undefined) is a
-    // no-op. Composing with other filters is intentional (e.g. status=leads
-    // + branchId = leads within that branch).
-    // Cancelled trials don't count — admin can cancel a trial booking to
-    // free the lead for re-scheduling, which also moves them out of "Leads".
-    if (status === "leads") {
-      conditions.push(sql`EXISTS (
-        SELECT 1 FROM bookings b
-        WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
-      )`);
-      conditions.push(sql`NOT EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )`);
-    } else if (status === "alumnos") {
-      conditions.push(sql`NOT (
-        EXISTS (
-          SELECT 1 FROM bookings b
-          WHERE b.member_id = users.id AND b.is_trial = 1 AND b.booking_status != 'cancelado'
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM subscriptions s
-          WHERE s.user_id = users.id
-            AND s.subscription_status IN ('active','paused')
-            AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-        )
-      )`);
+    // Phase 103 (R8): direct read of users.status. The legacy 'leads'/'alumnos'
+    // derivation is gone — Plan 02's recomputeUserStatus keeps users.status in
+    // sync with subscription/booking transitions, so a single column read is
+    // the truth. 'todos' (or undefined) is a no-op.
+    if (
+      status === "freemium" ||
+      status === "prueba" ||
+      status === "activo" ||
+      status === "inactivo"
+    ) {
+      conditions.push(eq(schema.users.status, status));
     }
     // status === "todos" or undefined → no-op
 
@@ -240,17 +207,6 @@ export class MemberService {
     const avatarTypeSubquery = sql<string | null>`(
       SELECT mp.avatar_type FROM member_profiles mp
       WHERE mp.user_id = users.id LIMIT 1
-    )`;
-
-    // Subquery: derive active status from subscriptions (source of truth).
-    // Returns 1/0 from MySQL EXISTS; coerced to boolean in the mapper below.
-    const isActiveSubquery = sql<number>`(
-      SELECT EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )
     )`;
 
     // Phase 102 (R7): EXISTS projection for the trial-history boolean.
@@ -291,7 +247,10 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: isActiveSubquery,
+        // Phase 103 (R10): direct projection of users.status (replaces
+        // the derived isActiveSubquery). Plan 02's recomputeUserStatus
+        // keeps this column in sync with sub create/cancel transitions.
+        status: schema.users.status,
         createdAt: schema.users.createdAt,
         planName: planNameSubquery,
         segment: segmentSubquery,
@@ -345,7 +304,7 @@ export class MemberService {
       level: r.level,
       branchId: r.branchId,
       branchName: r.branchName,
-      isActive: Boolean(r.isActive),
+      status: r.status,
       planName: r.planName ?? null,
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,
@@ -361,16 +320,8 @@ export class MemberService {
    * Get full member profile by ID. Returns null if not found.
    */
   async getMemberById(id: number): Promise<MemberProfile | null> {
-    // Active = has an active/paused subscription that hasn't ended.
-    // Same definition used by the member list query (single source of truth).
-    const isActiveSubquery = sql<number>`(
-      SELECT EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )
-    )`;
+    // Phase 103 (R10): users.status is the source of truth — direct
+    // projection (no derived subquery).
 
     // Phase 102 (R7): same EXISTS predicate as the list endpoint — single
     // source of truth for hasUsedTrial semantics. Cancelled trials excluded.
@@ -401,7 +352,7 @@ export class MemberService {
         level: schema.users.level,
         branchId: schema.users.branchId,
         branchName: schema.branches.name,
-        isActive: isActiveSubquery,
+        status: schema.users.status,
         createdAt: schema.users.createdAt,
         updatedAt: schema.users.updatedAt,
         hasUsedTrial: hasUsedTrialSubquery,
@@ -431,7 +382,7 @@ export class MemberService {
       level: row.level,
       branchId: row.branchId,
       branchName: row.branchName,
-      isActive: Boolean(row.isActive),
+      status: row.status,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
       hasUsedTrial: Boolean(row.hasUsedTrial),
@@ -470,7 +421,13 @@ export class MemberService {
       emergencyContactPhone: input.emergencyContactPhone || null,
       emergencyContactRelationship: input.emergencyContactRelationship || null,
       role: "member",
-      isActive: true,
+      // Phase 103-04 (R7, D-12, BLOCKER 3): admin enrolling someone who walked
+      // into a sede starts as 'prueba'. If planId is also provided, the
+      // route handler calls subscriptionService.assignPlan which triggers
+      // Plan 02's recomputeUserStatus → flips status to 'activo' inside
+      // the same transaction. Single-owner edit per the wave-conflict
+      // resolution.
+      status: "prueba" as const,
     });
 
     const userId = Number(result[0].insertId);
@@ -542,11 +499,12 @@ export class MemberService {
 
   /**
    * Soft-delete a member. Sets deletedAt, rewrites email to a deleted-shaped
-   * placeholder, nulls out DNI, and flips isActive=false. The unique email
-   * and dni are scrubbed so the real values can be reused if the person
-   * re-registers (the operational trigger for this feature: post-password-
-   * policy change, a handful of alumnos couldn't be re-onboarded because
-   * their real email was still occupying the row).
+   * placeholder, and nulls out DNI. The unique email and dni are scrubbed
+   * so the real values can be reused if the person re-registers (the
+   * operational trigger for this feature: post-password-policy change, a
+   * handful of alumnos couldn't be re-onboarded because their real email
+   * was still occupying the row). The read side filters by deletedAt IS
+   * NULL — no users.status transition needed (the row is hidden everywhere).
    *
    * FK-bearing history (payments, subscriptions, bookings, debts, aura, etc.)
    * is deliberately kept intact: the row stays so audit trails and reports
@@ -588,7 +546,6 @@ export class MemberService {
         deletedAt: new Date(),
         email: scrubbedEmail,
         dni: null,
-        isActive: false,
       })
       .where(eq(schema.users.id, id));
 
@@ -653,7 +610,7 @@ export class MemberService {
       branchId,
       multiBranch,
       level,
-      isActive,
+      status,
       planId,
       avatarType,
       country,
@@ -706,15 +663,15 @@ export class MemberService {
       );
     }
 
-    if (isActive !== undefined) {
-      // Derive active status from subscriptions (same as listMembers).
-      const activeExists = sql`EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )`;
-      conditions.push(isActive ? activeExists : sql`NOT ${activeExists}`);
+    // Phase 103 (R8): export uses the same first-class status filter as
+    // listMembers (no derived isActiveSubquery).
+    if (
+      status === "freemium" ||
+      status === "prueba" ||
+      status === "activo" ||
+      status === "inactivo"
+    ) {
+      conditions.push(eq(schema.users.status, status));
     }
 
     if (planId !== undefined) {
@@ -771,16 +728,6 @@ export class MemberService {
       ORDER BY s.created_at DESC LIMIT 1
     )`;
 
-    // Subquery: derive active status from subscriptions (same as listMembers).
-    const isActiveSubquery = sql<number>`(
-      SELECT EXISTS (
-        SELECT 1 FROM subscriptions s
-        WHERE s.user_id = users.id
-          AND s.subscription_status IN ('active','paused')
-          AND (s.end_date IS NULL OR s.end_date >= CURDATE())
-      )
-    )`;
-
     const rows = await this.db
       .select({
         firstName: schema.users.firstName,
@@ -790,7 +737,9 @@ export class MemberService {
         phone: schema.users.phone,
         branchName: schema.branches.name,
         level: schema.users.level,
-        isActive: isActiveSubquery,
+        // Phase 103 (R10): direct projection of users.status (replaces the
+        // legacy isActiveSubquery). Mapping below renders the 4-state label.
+        status: schema.users.status,
         planName: planNameSubquery,
         endDate: endDateSubquery,
         dateOfBirth: schema.users.dateOfBirth,
@@ -801,6 +750,16 @@ export class MemberService {
       .where(whereClause)
       .orderBy(schema.users.lastName, schema.users.firstName);
 
+    // Phase 103 (R10, D-09): 4-state label mapping for the export 'Estado'
+    // column. NULL (staff) is filtered out by role='member' above; defensive
+    // empty-string fallback preserved.
+    const STATUS_LABELS: Record<string, string> = {
+      freemium: "Freemium",
+      prueba: "En Prueba",
+      activo: "Activo",
+      inactivo: "Inactivo",
+    };
+
     return rows.map((r) => ({
       nombre: `${r.firstName ?? ""} ${r.lastName ?? ""}`.trim(),
       email: r.email,
@@ -809,7 +768,7 @@ export class MemberService {
       sucursal: r.branchName,
       nivel: r.level.charAt(0).toUpperCase() + r.level.slice(1),
       plan: r.planName ?? "Sin plan",
-      estado: r.isActive ? "Activo" : "Inactivo",
+      estado: r.status ? (STATUS_LABELS[r.status] ?? "") : "",
       vencimientoSuscripcion: r.endDate ?? "",
       fechaNacimiento: r.dateOfBirth ?? "",
       direccion: r.address ?? "",

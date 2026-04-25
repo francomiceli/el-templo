@@ -1,27 +1,19 @@
 /**
- * Phase 102 (R7 + R8): integration tests for the members API additions.
+ * Phase 102 (R7): integration tests for the `hasUsedTrial` projection on
+ * GET /admin/members and GET /admin/members/:id.
  *
- * R7 — `hasUsedTrial: boolean` on MemberListItem and MemberProfile, derived
- *      server-side via an EXISTS subquery on bookings.is_trial.
- * R8 — `?status=todos|alumnos|leads` filter on GET /admin/members.
- *        - "leads"   = users with ≥1 is_trial=TRUE booking AND no currently
- *                      active/paused subscription.
- *        - "alumnos" = inverse of leads (everyone else).
- *        - "todos"   = no-op, identical to omitting the param.
- *
- * Fixtures are inserted directly via drizzle so these tests remain
- * independent of the trial-creation endpoint (Plan 02 territory).
+ * Originally this file also covered the Phase 102 derived `?status=leads|
+ * alumnos` filter. Phase 103 Plan 04 replaced that contract with a
+ * first-class users.status enum (freemium/prueba/activo/inactivo) — the new
+ * filter is exercised by `test/members/members-status-filter.test.ts`. The
+ * `hasUsedTrial` boolean is unrelated to the status migration and stays
+ * here as the canonical test.
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
 import { eq } from "drizzle-orm";
-import {
-  createTestApp,
-  getAuthToken,
-  registerUser,
-  cleanAllTestData,
-} from "../helpers";
+import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -29,7 +21,7 @@ import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
 import { activities } from "../../src/db/schema/activities";
 
-describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)", () => {
+describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => {
   let app: FastifyInstance;
   let adminToken: string;
   const branchId = 1; // seeded by test setup
@@ -38,10 +30,10 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
   let planId: number;
   let activityId: number;
   let scheduleId: number;
-  let userL1: number; // trial booking, no sub → lead
-  let userL2: number; // trial booking + active sub → alumno
-  let userA1: number; // regular booking + active sub → alumno
-  let userA2: number; // no bookings, no sub → alumno
+  let userL1: number; // trial booking, no sub → hasUsedTrial=true
+  let userL2: number; // trial booking + active sub → hasUsedTrial=true
+  let userA1: number; // regular booking + active sub → hasUsedTrial=false
+  let userA2: number; // no bookings, no sub → hasUsedTrial=false
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -52,10 +44,6 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
     await app.close();
   });
 
-  /**
-   * Seed a minimal fixture: one subscription plan, one activity/schedule,
-   * four users matching the four scenarios from R7/R8.
-   */
   beforeEach(async () => {
     await cleanAllTestData(app);
 
@@ -96,11 +84,12 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
 
     const passwordHash = await argon2.hash("ignored");
 
-    // Helper: insert a member user and return the id.
     async function makeMember(data: {
       email: string | null;
       firstName: string;
       dni: string | null;
+      // Phase 103 (R10): explicit status per fixture intent (no longer derived).
+      status: "freemium" | "prueba" | "activo" | "inactivo";
     }): Promise<number> {
       const [row] = await app.db
         .insert(users)
@@ -114,6 +103,7 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
           branchId,
           role: "member",
           level: "alfa",
+          status: data.status,
         })
         .$returningId();
       return row.id;
@@ -123,21 +113,25 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
       email: null,
       firstName: "LeadOne",
       dni: null,
+      status: "prueba",
     });
     userL2 = await makeMember({
       email: "l2@test.com",
       firstName: "LeadTwoConverted",
       dni: "L200000002",
+      status: "activo",
     });
     userA1 = await makeMember({
       email: "a1@test.com",
       firstName: "AlumnoOne",
       dni: "A100000001",
+      status: "activo",
     });
     userA2 = await makeMember({
       email: "a2@test.com",
       firstName: "AlumnoTwoPlain",
       dni: "A200000002",
+      status: "inactivo",
     });
 
     // L1: one trial booking.
@@ -216,34 +210,6 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
     return JSON.parse(res.body) as ListResponse;
   }
 
-  // ─── R8: status filter ────────────────────────────────────────────────
-
-  it("status=leads returns only user L1 (trial booking + no active sub)", async () => {
-    const body = await listMembers("status=leads");
-    const ids = body.members.map((m) => m.id).sort();
-    expect(ids).toEqual([userL1].sort());
-    expect(body.total).toBe(1);
-  });
-
-  it("status=alumnos excludes L1 and includes L2, A1, A2", async () => {
-    const body = await listMembers("status=alumnos");
-    const ids = body.members.map((m) => m.id).sort();
-    expect(ids).toEqual([userL2, userA1, userA2].sort());
-    expect(body.total).toBe(3);
-  });
-
-  it("status=todos and omitted status both return all four users", async () => {
-    const expected = [userL1, userL2, userA1, userA2].sort();
-
-    const bodyTodos = await listMembers("status=todos");
-    expect(bodyTodos.members.map((m) => m.id).sort()).toEqual(expected);
-    expect(bodyTodos.total).toBe(4);
-
-    const bodyDefault = await listMembers("");
-    expect(bodyDefault.members.map((m) => m.id).sort()).toEqual(expected);
-    expect(bodyDefault.total).toBe(4);
-  });
-
   // ─── R7: hasUsedTrial on list items ───────────────────────────────────
 
   it("each MemberListItem carries the correct hasUsedTrial boolean", async () => {
@@ -282,7 +248,7 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
 
   // ─── 102-06: cancelled trials don't count as "used" ──────────────────
 
-  it("cancelling L1's trial booking flips hasUsedTrial back to false and moves them out of leads", async () => {
+  it("cancelling L1's trial booking flips hasUsedTrial back to false", async () => {
     // Cancel L1's single trial booking.
     await app.db
       .update(bookings)
@@ -299,43 +265,5 @@ describe("GET /admin/members — status filter + hasUsedTrial (Phase 102 R7, R8)
     expect(
       (JSON.parse(profileRes.body) as { hasUsedTrial: boolean }).hasUsedTrial,
     ).toBe(false);
-
-    // Leads filter: L1 no longer appears (no active trial + no sub = alumno-without-plan).
-    const leadsBody = await listMembers("status=leads");
-    expect(leadsBody.members.map((m) => m.id)).not.toContain(userL1);
-    expect(leadsBody.total).toBe(0);
-
-    // Alumnos filter: L1 now appears (everyone-except-leads).
-    const alumnosBody = await listMembers("status=alumnos");
-    expect(alumnosBody.members.map((m) => m.id)).toContain(userL1);
-  });
-
-  // ─── Composition: status + branchId ───────────────────────────────────
-
-  it("status=leads composes with branchId filter (returns leads in that branch only)", async () => {
-    const body = await listMembers(`status=leads&branchId=${branchId}`);
-    const ids = body.members.map((m) => m.id).sort();
-    expect(ids).toEqual([userL1].sort());
-    // And every returned row is in the requested branch.
-    for (const m of body.members) {
-      expect(m.branchId).toBe(branchId);
-    }
-  });
-
-  // ─── Guard: non-staff JWT gets 403 ────────────────────────────────────
-
-  it("non-staff JWT gets 403 on /admin/members?status=leads", async () => {
-    const { token: memberToken } = await registerUser(app, {
-      email: "plainmember@test.com",
-      password: "password123",
-      branchId,
-    });
-
-    const res = await app.inject({
-      method: "GET",
-      url: "/api/admin/members?status=leads",
-      headers: { authorization: `Bearer ${memberToken}` },
-    });
-    expect(res.statusCode).toBe(403);
   });
 });

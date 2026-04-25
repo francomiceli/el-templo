@@ -138,7 +138,8 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       multiBranch?: boolean;
       level?: string;
-      isActive?: boolean;
+      // Phase 103 (R8): export uses the same status enum as the list endpoint.
+      status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
       planId?: number;
       avatarType?: string;
     };
@@ -152,7 +153,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId: request.query.branchId,
       multiBranch: request.query.multiBranch,
       level: request.query.level,
-      isActive: request.query.isActive,
+      status: request.query.status,
       planId: request.query.planId,
       avatarType: request.query.avatarType,
       country: request.scope.country,
@@ -215,12 +216,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       multiBranch?: boolean;
       level?: string;
-      isActive?: boolean;
       planId?: number;
       segment?: string;
       avatarType?: string;
       debtorOnly?: boolean;
-      status?: "todos" | "alumnos" | "leads";
+      // Phase 103 (R8): first-class users.status filter (replaces Phase 102 enum).
+      status?: "todos" | "freemium" | "prueba" | "activo" | "inactivo";
       page?: number;
       limit?: number;
     };
@@ -230,7 +231,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId,
       multiBranch,
       level,
-      isActive,
       planId,
       segment,
       avatarType,
@@ -248,7 +248,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       branchId,
       multiBranch,
       level,
-      isActive,
       planId,
       segment,
       avatarType,
@@ -408,8 +407,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        // Re-fetch so isActive (derived from subscriptions) reflects the
-        // subscription created above.
+        // Re-fetch so users.status reflects the auto-transition triggered
+        // by the subscription created above (Plan 02 recomputeUserStatus
+        // flips 'prueba' → 'activo' inside assignPlan's transaction).
         const freshMember =
           (await memberService.getMemberById(member.id)) ?? member;
         return reply.code(201).send(freshMember);

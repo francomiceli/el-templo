@@ -7,12 +7,13 @@
 
 export type DocumentType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
+export type UserStatus = "freemium" | "prueba" | "activo" | "inactivo";
+
 export interface MemberListParams {
   search?: string;
   branchId?: number;
   multiBranch?: boolean;
   level?: string;
-  isActive?: boolean;
   planId?: number;
   segment?: string;
   avatarType?: string;
@@ -28,12 +29,12 @@ export interface MemberListParams {
    */
   debtorOnly?: boolean;
   /**
-   * Phase 102 (R8): server-side leads filter.
-   *   "todos"   (default) — no additional filter applied
-   *   "leads"             — has is_trial=TRUE booking AND no active/paused sub
-   *   "alumnos"           — inverse of leads (everyone not matching the leads definition)
+   * Phase 103 (R8): first-class users.status filter (replaces the Phase
+   * 102 derived "leads/alumnos" model). 'todos' is a no-op default.
+   * Reads users.status directly — see Plan 02 for the recompute helper
+   * that keeps the column in sync with sub create/cancel transitions.
    */
-  status?: "todos" | "alumnos" | "leads";
+  status?: "todos" | UserStatus;
   page: number;
   limit: number;
 }
@@ -50,7 +51,12 @@ export interface MemberListItem {
   level: string;
   branchId: number;
   branchName: string;
-  isActive: boolean;
+  /**
+   * Phase 103 (R10): first-class users.status (replaces the derived isActive
+   * boolean). Nullable because staff rows have NULL — though staff don't
+   * appear in member list endpoints, the column shape mirrors the DB.
+   */
+  status: UserStatus | null;
   planName: string | null;
   segment: string | null;
   avatarType: string | null;
@@ -83,7 +89,8 @@ export interface MemberProfile {
   level: string;
   branchId: number;
   branchName: string;
-  isActive: boolean;
+  /** Phase 103 (R10): see MemberListItem.status. */
+  status: UserStatus | null;
   createdAt: string;
   updatedAt: string;
   /**
