@@ -148,16 +148,15 @@
                   </div>
                 </div>
 
-                <!-- Datos Adicionales -->
-                <div class="text-subtitle2 text-weight-bold q-mt-md">Datos Adicionales</div>
                 <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
                     <q-input
                       v-model="form.dateOfBirth"
-                      label="Fecha de Nacimiento"
+                      label="Fecha de Nacimiento *"
                       type="date"
                       dense
                       outlined
+                      :rules="[requiredRule('Fecha de Nacimiento')]"
                     />
                   </div>
                   <div class="col-12 col-sm-6">
@@ -354,16 +353,15 @@
               </div>
             </div>
 
-            <!-- Datos Adicionales -->
-            <div class="text-subtitle2 text-weight-bold q-mt-md">Datos Adicionales</div>
             <div class="row q-col-gutter-sm">
               <div class="col-12 col-sm-6">
                 <q-input
                   v-model="form.dateOfBirth"
-                  label="Fecha de Nacimiento"
+                  label="Fecha de Nacimiento *"
                   type="date"
                   dense
                   outlined
+                  :rules="[requiredRule('Fecha de Nacimiento')]"
                 />
               </div>
               <div class="col-12 col-sm-6">
