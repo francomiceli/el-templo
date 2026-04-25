@@ -76,3 +76,36 @@ Remaining errors (all `users.isActive` references awaiting Plans 04/06):
 
 None block Plan 03's tests (the 3 cases in
 `test/users/member-creation-defaults.test.ts` all pass).
+
+## Post Plan 07 (final grep gate state)
+
+After Plan 07 (auth routes cleanup + new staff_disabled login gate), the
+SPEC R3 grep gate `grep -rn "users\.isActive|users\.is_active"` returns
+2 documentation comments (both narrating the old column for context):
+
+- `src/modules/analytics/service.ts:203` — comment in `countActiveMembers`
+  explaining the migration to `users.status`
+- `src/modules/users/service.ts:216` — JSDoc on `toggleDisabled` referencing
+  the legacy `toggleActive` it replaced
+
+Neither is an actual read or write — both are historical context for future
+maintainers. SPEC R3 is satisfied.
+
+The broader sanity check (`user.isActive|memberProfile.isActive|m.isActive`)
+still surfaces:
+
+- `src/db/import-members.ts:804,861,890,975,978` — one-shot bulk import
+  script referencing `m.isActive` from a legacy CSV record TYPE. The script
+  is now broken against the post-103 schema (will fail at INSERT). Owner:
+  follow-up cleanup plan or the next bulk-import operator (whoever runs the
+  script next will need to map legacy `isActive` → `status='inactivo'` /
+  `'activo'`). Not in Phase 103's scope per SPEC's "Out of scope" section.
+- `src/db/import-vigentes.ts:527` — same situation, sibling import script.
+- `src/modules/programs/service.ts:183` — `program.isActive` is the
+  `programs` entity, NOT `users`. Allowed false-positive per SPEC R3.
+- `el-templo-admin/src/pages/AlumnoDetailPage.vue:54-62` — `memberProfile.isActive`
+  reads. Owned by **Plan 05 (Wave 5)**, the next plan in this phase.
+  Expected to be cleared when Plan 05 ships.
+
+After Plan 05 ships, only the import scripts and the doc comments will
+remain — no live `users.isActive` references in the runtime codebase.
