@@ -749,12 +749,12 @@ export class SubscriptionService {
 
     // ── Atomic subscription mutation (Phase 103 D-16) ──
     // Wrap the core writes (subscriptions INSERT, subscription_schedules,
-    // virtual-branch user migration, programEnrollments) in a single
-    // transaction so a Task-1b recomputeUserStatus call can roll back
-    // alongside the sub INSERT on failure. External side effects
-    // (bookingService, paymentService, auraService, markConvertedIfLead)
-    // continue to use this.db — refactoring them is out of scope per the
-    // plan's WARNING-9 (separate plan / Rule 4 architectural change).
+    // virtual-branch user migration, programEnrollments, status recompute)
+    // in a single transaction so recomputeUserStatus rolls back alongside
+    // the sub INSERT on failure. External side effects (bookingService,
+    // paymentService, auraService) continue to use this.db — refactoring
+    // them is out of scope per the plan's WARNING-9 (separate plan / Rule 4
+    // architectural change).
     const { subscriptionId, replacementCredits } = await this.db.transaction(
       async (tx) => {
         // Insert subscription. `currency` is inherited from the plan so EUR
@@ -873,19 +873,17 @@ export class SubscriptionService {
           );
         }
 
+        // ── Recompute user.status (R5/D-01) ──
+        // Final write inside the tx. Flips status to 'activo' (single source
+        // of truth) and absorbs the Phase 102-07 trial-conversion logic.
+        await this.recomputeUserStatus(userId, tx);
+
         return {
           subscriptionId: newSubscriptionId,
           replacementCredits: credits,
         };
       },
     );
-
-    // ── Trial conversion hook (Phase 102-07) ──
-    // Set converted_at once when a user who ever had a trial booking gets
-    // their first subscription. Non-lead users and already-converted users
-    // pass straight through. Task 1b will replace this with
-    // recomputeUserStatus(userId, tx) inside the transaction above.
-    await this.markConvertedIfLead(userId);
 
     const subscription = await this.getSubscriptionById(subscriptionId);
     if (!subscription) {
@@ -1155,9 +1153,10 @@ export class SubscriptionService {
     }
 
     // ── Atomic pause (Phase 103 D-16, defensive) ──
-    // Wrap the sub UPDATE in a transaction so Task 1b's recomputeUserStatus
-    // can run inside it. paused counts as active for status purposes
-    // (R5: "active/paused"), so user.status should not change here.
+    // paused counts as active for status purposes (R5: "active/paused"), so
+    // recomputeUserStatus is a no-op transition here, but consistency
+    // matters: the tx ensures any future status-affecting change in this
+    // path stays atomic.
     await this.db.transaction(async (tx) => {
       await tx
         .update(schema.subscriptions)
@@ -1167,6 +1166,8 @@ export class SubscriptionService {
           pauseEndDate: pauseEndDate ?? null,
         })
         .where(eq(schema.subscriptions.id, sub.id));
+
+      await this.recomputeUserStatus(userId, tx);
     });
 
     // Cancel all future reservations for this sub's fixed slots. Schedules
@@ -1226,14 +1227,15 @@ export class SubscriptionService {
     }
 
     // ── Atomic resume (Phase 103 D-16, defensive) ──
-    // Wrap the sub UPDATE in a transaction so Task 1b's recomputeUserStatus
-    // can run inside it. paused→active doesn't change user.status (already
-    // 'activo'), but consistency matters.
+    // paused→active doesn't change user.status (already 'activo'), but the
+    // recomputeUserStatus call inside the tx keeps the invariant explicit.
     await this.db.transaction(async (tx) => {
       await tx
         .update(schema.subscriptions)
         .set(updateData)
         .where(eq(schema.subscriptions.id, sub.id));
+
+      await this.recomputeUserStatus(userId, tx);
     });
 
     // Regenerate bookings for the resume window (today → endDate).
@@ -1318,9 +1320,11 @@ export class SubscriptionService {
       updateData.notes = notes;
     }
 
-    // ── Atomic cancel (Phase 103 D-16) ──
-    // Cancel the active sub + any scheduled successor in a single transaction
-    // so Task 1b's recomputeUserStatus rolls back atomically with both.
+    // ── Atomic cancel (Phase 103 D-16, R6) ──
+    // Cancel the active sub + any scheduled successor + recompute user
+    // status in a single transaction. recomputeUserStatus flips user to
+    // 'inactivo' if no other active/paused sub remains (D-04: never back to
+    // freemium/prueba — paying history is preserved).
     await this.db.transaction(async (tx) => {
       await tx
         .update(schema.subscriptions)
@@ -1341,6 +1345,8 @@ export class SubscriptionService {
             eq(schema.subscriptions.status, "scheduled"),
           ),
         );
+
+      await this.recomputeUserStatus(userId, tx);
     });
 
     // Cancel all future bookings for fixed-plan subscriptions (external
@@ -1742,6 +1748,9 @@ export class SubscriptionService {
           );
         }
 
+        // ── Recompute user.status (R5/D-01) ──
+        await this.recomputeUserStatus(userId, tx);
+
         return { newSubscriptionId: subId };
       });
 
@@ -2098,6 +2107,12 @@ export class SubscriptionService {
         }
       }
 
+      // ── Recompute user.status (defensive) ──
+      // Scheduled subs don't change current status (user is already 'activo'
+      // since changePlanAfterCurrent requires an active sub), but consistency
+      // with the other mutating methods matters.
+      await this.recomputeUserStatus(userId, tx);
+
       return { newSubscriptionId: subId };
     });
 
@@ -2342,6 +2357,11 @@ export class SubscriptionService {
         }
       }
 
+      // ── Recompute user.status (R5/D-01) ──
+      // Renewal of an active sub keeps user 'activo'. Renewal of an expired
+      // sub flips user back to 'activo' (was 'inactivo' until now).
+      await this.recomputeUserStatus(userId, tx);
+
       return { newSubscriptionId: subId };
     });
 
@@ -2458,6 +2478,10 @@ export class SubscriptionService {
             priceTypeApplied: "regular",
             notes: "Migrado desde plan legacy",
           });
+
+          // Recompute user.status (R5/D-01). User stays 'activo' (had a sub
+          // before, has one after) — recompute keeps the invariant explicit.
+          await this.recomputeUserStatus(userId, tx);
         });
 
         migrated++;
@@ -3191,23 +3215,59 @@ export class SubscriptionService {
   }
 
   /**
-   * Phase 102-07: mark a user as converted from trial IF they have any
-   * is_trial=1 booking (any status, incl. cancelled) AND converted_at is
-   * still NULL. Idempotent — later subs for the same user no-op.
+   * Phase 103 (R5/R6/D-01): single source of truth for users.status after
+   * any subscription mutation. Replaces the deleted Phase 102-07 trial
+   * conversion helper — the converted_at logic is folded into the same
+   * UPDATE so a single round-trip fixes both columns atomically.
    *
-   * Intentionally uses a single conditional UPDATE to avoid a read-then-write
-   * race in concurrent sub-assignment flows.
+   * MUST be called inside a db.transaction() — the caller passes its tx
+   * handle so the status update rolls back atomically with the subscription
+   * mutation that triggered it (D-16, SPEC Constraint "Atomic transitions").
+   *
+   * One-statement UPDATE (Option B per RESEARCH §3) — avoids a read-then-
+   * write race in concurrent sub-assignment flows:
+   *  - status='activo' if user has any sub with subscription_status IN
+   *    ('active','paused') AND not expired
+   *  - else if user.status was 'activo' or 'inactivo' (paying history) →
+   *    status='inactivo' (D-04: never demote a paying-history user back to
+   *    freemium/prueba)
+   *  - else leave status unchanged (freemium/prueba without sub stays as-is)
+   *  - converted_at: set to CURRENT_TIMESTAMP if NULL AND new status is
+   *    'activo' AND user has any is_trial booking (Phase 102-07 absorbed)
    */
-  private async markConvertedIfLead(userId: number): Promise<void> {
-    await this.db.execute(sql`
+  private async recomputeUserStatus(
+    userId: number,
+    tx: MySql2Database<typeof schema>,
+  ): Promise<void> {
+    await tx.execute(sql`
       UPDATE users u
-      SET u.converted_at = CURRENT_TIMESTAMP
+      SET
+        u.status = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM subscriptions s
+            WHERE s.user_id = u.id
+              AND s.subscription_status IN ('active','paused')
+              AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+          ) THEN 'activo'
+          WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
+          ELSE u.status
+        END,
+        u.converted_at = CASE
+          WHEN u.converted_at IS NULL
+            AND EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            )
+            AND EXISTS (
+              SELECT 1 FROM bookings b
+              WHERE b.member_id = u.id AND b.is_trial = 1
+            )
+          THEN CURRENT_TIMESTAMP
+          ELSE u.converted_at
+        END
       WHERE u.id = ${userId}
-        AND u.converted_at IS NULL
-        AND EXISTS (
-          SELECT 1 FROM bookings b
-          WHERE b.member_id = u.id AND b.is_trial = 1
-        )
     `);
   }
 }
