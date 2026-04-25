@@ -24,20 +24,11 @@
               map-options
               :rules="[(v: number | null) => v !== null || 'Sede es requerida']"
             />
-
-            <q-stepper-navigation class="q-mt-md">
-              <q-btn
-                color="primary"
-                label="Continuar"
-                :disable="form.branchId === null"
-                @click="step = 2"
-              />
-            </q-stepper-navigation>
           </q-step>
 
           <!-- Step 2: Personal Data -->
           <q-step :name="2" title="Datos Personales" icon="person" :done="step > 2">
-            <q-form ref="formRef" @submit.prevent="onSubmit">
+            <q-form id="member-create-form" ref="formRef" @submit.prevent="onSubmit">
               <div class="q-gutter-sm">
                 <div class="row q-col-gutter-sm">
                   <div class="col-12 col-sm-6">
@@ -100,26 +91,34 @@
                     />
                   </div>
                   <div class="col-12 col-sm-6">
-                    <q-input
-                      v-model="form.dni"
-                      label="DNI *"
-                      dense
-                      outlined
-                      :rules="[requiredRule('DNI')]"
-                      debounce="500"
-                      @update:model-value="onDniChange"
-                    />
-                    <div v-if="dniStatus === 'checking'" class="text-caption text-grey q-mt-xs">
-                      Verificando DNI...
-                    </div>
-                    <div v-else-if="dniStatus === 'taken'" class="text-caption text-orange q-mt-xs">
-                      DNI ya registrado para {{ dniExistingName }}
-                    </div>
-                    <div
-                      v-else-if="dniStatus === 'available'"
-                      class="text-caption text-positive q-mt-xs"
-                    >
-                      <q-icon name="check_circle" size="xs" /> DNI disponible
+                    <div class="dni-field">
+                      <q-input
+                        v-model="form.dni"
+                        label="DNI *"
+                        dense
+                        outlined
+                        :rules="[requiredRule('DNI')]"
+                        debounce="500"
+                        @update:model-value="onDniChange"
+                      />
+                      <div
+                        v-if="dniStatus === 'checking'"
+                        class="dni-caption text-caption text-grey"
+                      >
+                        Verificando DNI...
+                      </div>
+                      <div
+                        v-else-if="dniStatus === 'taken'"
+                        class="dni-caption text-caption text-orange"
+                      >
+                        DNI ya registrado para {{ dniExistingName }}
+                      </div>
+                      <div
+                        v-else-if="dniStatus === 'available'"
+                        class="dni-caption text-caption text-positive"
+                      >
+                        <q-icon name="check_circle" size="xs" /> DNI disponible
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -148,7 +147,7 @@
                   </div>
                 </div>
 
-                <div class="row q-col-gutter-sm">
+                <div class="row q-col-gutter-sm q-mt-sm">
                   <div class="col-12 col-sm-6">
                     <q-input
                       v-model="form.dateOfBirth"
@@ -201,17 +200,6 @@
                     />
                   </div>
                 </div>
-
-                <q-stepper-navigation class="q-mt-md">
-                  <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
-                  <q-btn
-                    type="submit"
-                    label="Crear"
-                    color="primary"
-                    :loading="submitting"
-                    :disable="submitting || dniStatus === 'taken'"
-                  />
-                </q-stepper-navigation>
               </div>
             </q-form>
           </q-step>
@@ -219,8 +207,28 @@
 
         <q-separator />
 
-        <q-card-actions align="right" class="q-pa-md">
+        <q-card-actions class="row q-pa-md">
           <q-btn flat label="Cancelar" color="grey" @click="$emit('update:modelValue', false)" />
+          <q-space />
+          <template v-if="step === 1">
+            <q-btn
+              color="primary"
+              label="Continuar"
+              :disable="form.branchId === null"
+              @click="step = 2"
+            />
+          </template>
+          <template v-else-if="step === 2">
+            <q-btn flat label="Volver" class="q-mr-sm" @click="step = 1" />
+            <q-btn
+              type="submit"
+              form="member-create-form"
+              label="Crear"
+              color="primary"
+              :loading="submitting"
+              :disable="submitting || dniStatus === 'taken'"
+            />
+          </template>
         </q-card-actions>
       </template>
 
@@ -291,26 +299,31 @@
                 />
               </div>
               <div class="col-12 col-sm-6">
-                <q-input
-                  v-model="form.dni"
-                  label="DNI *"
-                  dense
-                  outlined
-                  :rules="[requiredRule('DNI')]"
-                  debounce="500"
-                  @update:model-value="onDniChange"
-                />
-                <div v-if="dniStatus === 'checking'" class="text-caption text-grey q-mt-xs">
-                  Verificando DNI...
-                </div>
-                <div v-else-if="dniStatus === 'taken'" class="text-caption text-orange q-mt-xs">
-                  DNI ya registrado para {{ dniExistingName }}
-                </div>
-                <div
-                  v-else-if="dniStatus === 'available'"
-                  class="text-caption text-positive q-mt-xs"
-                >
-                  <q-icon name="check_circle" size="xs" /> DNI disponible
+                <div class="dni-field">
+                  <q-input
+                    v-model="form.dni"
+                    label="DNI *"
+                    dense
+                    outlined
+                    :rules="[requiredRule('DNI')]"
+                    debounce="500"
+                    @update:model-value="onDniChange"
+                  />
+                  <div v-if="dniStatus === 'checking'" class="dni-caption text-caption text-grey">
+                    Verificando DNI...
+                  </div>
+                  <div
+                    v-else-if="dniStatus === 'taken'"
+                    class="dni-caption text-caption text-orange"
+                  >
+                    DNI ya registrado para {{ dniExistingName }}
+                  </div>
+                  <div
+                    v-else-if="dniStatus === 'available'"
+                    class="dni-caption text-caption text-positive"
+                  >
+                    <q-icon name="check_circle" size="xs" /> DNI disponible
+                  </div>
                 </div>
               </div>
             </div>
@@ -353,7 +366,7 @@
               </div>
             </div>
 
-            <div class="row q-col-gutter-sm">
+            <div class="row q-col-gutter-sm q-mt-sm">
               <div class="col-12 col-sm-6">
                 <q-input
                   v-model="form.dateOfBirth"
@@ -768,3 +781,18 @@ async function onSubmit() {
   }
 }
 </script>
+
+<style scoped>
+/* DNI status caption is positioned absolutely so it does not push the next
+   row down when it appears (checking / taken / available states). */
+.dni-field {
+  position: relative;
+}
+.dni-caption {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+</style>
