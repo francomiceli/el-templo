@@ -801,7 +801,10 @@ async function main(): Promise<void> {
             address: m.address,
             dateOfBirth: m.dateOfBirth,
             gender: m.gender,
-            isActive: m.isActive,
+            // Phase 103: users.is_active was dropped. Map the CSV's
+            // active/inactive boolean onto the new status enum so the import
+            // produces a consistent post-migration state.
+            status: m.isActive ? "activo" : "inactivo",
           };
 
           // Use fechaIngreso as createdAt if available
@@ -858,7 +861,8 @@ async function main(): Promise<void> {
                     address: m.address || undefined,
                     dateOfBirth: m.dateOfBirth || undefined,
                     gender: m.gender || undefined,
-                    isActive: m.isActive,
+                    // Phase 103: see status mapping note in the insert above.
+                    status: m.isActive ? "activo" : "inactivo",
                     branchId,
                   })
                   .where(eq(users.id, userId));
@@ -885,9 +889,11 @@ async function main(): Promise<void> {
           if (m.address) updateFields.address = m.address;
           if (m.dateOfBirth) updateFields.dateOfBirth = m.dateOfBirth;
           if (m.gender) updateFields.gender = m.gender;
-          // Always update branchId and isActive from CSV
+          // Always update branchId and status from CSV. Phase 103 dropped
+          // users.is_active; the active/inactive boolean now maps onto the
+          // status enum (activo/inactivo).
           updateFields.branchId = branchId;
-          updateFields.isActive = m.isActive;
+          updateFields.status = m.isActive ? "activo" : "inactivo";
 
           if (Object.keys(updateFields).length > 0) {
             await db

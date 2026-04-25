@@ -519,12 +519,13 @@ async function main(): Promise<void> {
           usersUpdatedIngreso++;
         }
 
-        // Determine if user should be active or inactive
-        // Active = has at least one subscription with endDate >= today
+        // Determine if user should be active or inactive.
+        // Phase 103: users.is_active was dropped — write the new status enum
+        // directly. Active = has at least one subscription with endDate >= today.
         const hasActiveSub = history.rows.some((r) => r.endDate >= today);
         await db
           .update(users)
-          .set({ isActive: hasActiveSub })
+          .set({ status: hasActiveSub ? "activo" : "inactivo" })
           .where(eq(users.id, user.id));
         if (!hasActiveSub) {
           usersMarkedInactive++;
