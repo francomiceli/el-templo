@@ -50,27 +50,14 @@
 
             <!-- Status badge + segment badge + action buttons -->
             <div class="q-gutter-sm row items-center">
-              <!-- Phase 103 R10: 4-state badge from users.status (was binary isActive). -->
+              <!-- Phase 103 R10: 4-state badge from users.status (was binary
+                   isActive). For status='prueba' the label embeds the trial
+                   counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
+                   hasUsedTrial flag — replaces the standalone Phase 102 trial
+                   chip. -->
               <q-badge
                 :color="getStatusColor(memberProfile.status)"
-                :label="getStatusLabel(memberProfile.status)"
-                class="text-body2"
-              />
-              <!-- Phase 102 R7 / Phase 103 R10: trial counter — only relevant
-                   for non-active users (Freemium / En Prueba / Inactivo). Hidden
-                   once they reach 'activo' since the trial-pass accounting is no
-                   longer actionable. -->
-              <q-chip
-                v-if="memberProfile.status !== 'activo'"
-                :color="memberProfile.hasUsedTrial ? 'grey-7' : 'primary'"
-                :text-color="memberProfile.hasUsedTrial ? 'white' : 'primary'"
-                :outline="!memberProfile.hasUsedTrial"
-                dense
-                :label="
-                  memberProfile.hasUsedTrial
-                    ? 'Clases de prueba: 1/1 usada'
-                    : 'Clases de prueba: 0/1'
-                "
+                :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
                 class="text-body2"
               />
               <q-badge

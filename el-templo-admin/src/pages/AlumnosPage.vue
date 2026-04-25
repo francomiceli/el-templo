@@ -240,7 +240,7 @@
         <q-td :props="props">
           <q-badge
             :color="getStatusColor(props.row.status)"
-            :label="getStatusLabel(props.row.status)"
+            :label="getStatusLabel(props.row.status, props.row.hasUsedTrial)"
           />
         </q-td>
       </template>

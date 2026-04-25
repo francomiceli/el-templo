@@ -37,8 +37,13 @@ export function useStatusBadge() {
   const getColor = (status: UserStatus | null | undefined): string =>
     status ? STATUS_COLOR[status] : 'grey';
 
-  const getLabel = (status: UserStatus | null | undefined): string =>
-    status ? STATUS_LABEL[status] : '—';
+  const getLabel = (status: UserStatus | null | undefined, hasUsedTrial?: boolean): string => {
+    if (!status) return '—';
+    if (status === 'prueba') {
+      return `${STATUS_LABEL.prueba} (${hasUsedTrial ? '1/1' : '0/1'})`;
+    }
+    return STATUS_LABEL[status];
+  };
 
   return { getColor, getLabel };
 }
