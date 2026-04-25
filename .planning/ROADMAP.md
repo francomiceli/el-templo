@@ -2225,11 +2225,11 @@ Plans:
 
 - [x] 103-01-PLAN.md — Schema migration + 6-stage backfill (R1, R2, R3, R4) — see 103-01-SUMMARY.md
 - [x] 103-02-PLAN.md — recomputeUserStatus helper + transaction wrapping for 8 sub-mutating methods (R5, R6) — see 103-02-SUMMARY.md
-- [ ] 103-03-PLAN.md — Member-creation entry-point status defaults (freemium/prueba/null) (R7)
-- [ ] 103-04-PLAN.md — Members API contract migration + analytics + SlotAttendancePanel (R8, R10)
+- [x] 103-03-PLAN.md — Member-creation entry-point status defaults (freemium/prueba/null) (R7) — see 103-03-SUMMARY.md
+- [x] 103-04-PLAN.md — Members API contract migration + analytics + SlotAttendancePanel (R8, R10) — see 103-04-SUMMARY.md
 - [ ] 103-05-PLAN.md — AlumnosPage 5-option dropdown + AlumnoDetailPage badge + shared composable (R9, R10)
-- [ ] 103-06-PLAN.md — UsuariosPage staff toggle migration to staff_disabled (R11)
-- [ ] 103-07-PLAN.md — Auth routes cleanup + new staff_disabled login gate (R12)
+- [x] 103-06-PLAN.md — UsuariosPage staff toggle migration to staff_disabled (R11) — see 103-06-SUMMARY.md
+- [x] 103-07-PLAN.md — Auth routes cleanup + new staff_disabled login gate (R12) — see 103-07-SUMMARY.md
 
 ---
 
