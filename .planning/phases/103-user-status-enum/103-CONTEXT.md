@@ -84,13 +84,29 @@ Downstream agents (researcher, planner, executor) MUST read `103-SPEC.md` before
 
 - **D-14:** Backfill rule for members with no active sub and no trial booking: **`branchId == ONLINE` → `freemium`; everything else → `inactivo`**. Edge case (a self-registered online user who later attended presential and was migrated to a physical branch) is acknowledged as rare and not worth special-casing in this phase. They'd land in `inactivo` and could be hand-fixed if it ever surfaces.
 
+### AlumnosPage UI — Concrete Component Spec
+
+- **D-15:** **Reuse the existing `q-select` "Estado"** at `el-templo-admin/src/pages/AlumnosPage.vue:120-129` — do NOT add a new component. Apply these surgical changes only:
+  1. **Repoint the v-model:** `v-model="filters.isActive"` → `v-model="filters.status"`. The state shape changes from `boolean | null` to `string | null` (one of `'freemium' | 'prueba' | 'activo' | 'inactivo' | null`).
+  2. **Update the `statusFilterOptions` array** that this select consumes. Old shape: 3 options (Todos / Activo / Inactivo) with boolean values. New shape: 5 options:
+     - `{ label: 'Todos', value: null }`
+     - `{ label: 'Freemium', value: 'freemium' }`
+     - `{ label: 'En Prueba', value: 'prueba' }`
+     - `{ label: 'Activos', value: 'activo' }`
+     - `{ label: 'Inactivos', value: 'inactivo' }`
+  3. **Keep all other props identical:** `dense outlined emit-value map-options @update:model-value="onFilterChange"` and the wrapper `<div class="col-6 col-sm-3 col-md-2">`. The Quasar-generated CSS classes (`q-field--outlined q-select q-field--auto-height q-select--without-input q-select--without-chips q-select--single q-field--float q-field--labeled q-field--dense`) follow automatically from these props — no manual class manipulation.
+  4. **Delete the "Solo Leads" `q-toggle`** at lines 61-68 (the entire `<div class="col-6 col-sm-3 col-md-3 items-center">` wrapper containing `q-toggle v-model="filters.leadsOnly"`). Free up the column slot — the dropdown already conveys the "leads" filter via the `'prueba'` value.
+  5. **Update the filters reactive object** (line 344, 348): remove `isActive: true as boolean | null` and `leadsOnly: false as boolean`, add `status: null as string | null`.
+  6. **Update API call sites** (lines 676, 681, 717, 721): collapse the dual `isActive` / `status: leadsOnly ? 'leads' : undefined` into a single `status: filters.status ?? undefined`.
+  7. **Update the row chip** (line 250-251): instead of `isActive ? 'positive' : 'grey'` and `'Activo' : 'Inactivo'`, render from `props.row.status` using a small mapping helper: `freemium → info / 'Freemium'`, `prueba → warning / 'En Prueba'`, `activo → positive / 'Activo'`, `inactivo → grey / 'Inactivo'`.
+  8. **Update the column definition** (line 500): `field: 'isActive'` → `field: 'status'`.
+
 ### Claude's Discretion
 
 - Naming of the helper inside `SubscriptionService` (`recomputeUserStatus` is the working name; a refactor to `syncUserStatusAfterSubscriptionChange` or similar is fine if the planner prefers).
 - Exact SQL syntax for the backfill UPDATE statements (using `EXISTS` subqueries vs `JOIN`s) — both work; pick whichever the rest of the migrations in `el-templo-api/src/db/migrations/` favor.
 - Whether the integration tests live in one new test file (e.g., `test/user-status-transitions.test.ts`) or are added to existing per-module test files. Either is fine; pick what's lowest-friction.
-- Quasar component used for the new dropdown (`q-select` with options array is the obvious choice based on existing AlumnosPage patterns).
-- Whether the 5-option dropdown is rendered as `q-select` with chips/labels or as a button-toggle group. Pick whatever is consistent with the rest of AlumnosPage's filter row.
+- Whether the row-chip status→color/label mapping is a small inline object literal in `AlumnosPage.vue` or a shared composable in `el-templo-admin/src/composables/` (also reused by `AlumnoDetailPage.vue:54-55`). Pick whichever matches existing utility patterns.
 
 ### Folded Todos
 
