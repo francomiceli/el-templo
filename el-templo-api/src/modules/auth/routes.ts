@@ -253,6 +253,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           gender: users.gender,
           dateOfBirth: users.dateOfBirth,
           deletedAt: users.deletedAt,
+          // Phase 103 R12: needed for the staff_disabled login gate below.
+          // Intentionally NOT projected by /me (no consumer there) to avoid
+          // dead surface area in the auth response payload.
+          staffDisabled: users.staffDisabled,
         })
         .from(users)
         .where(eq(users.email, email))
@@ -279,6 +283,18 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply
           .code(401)
           .send({ error: "No autorizado", message: "Credenciales invalidas" });
+      }
+
+      // NEW gate (Phase 103 R12): closes pre-existing loophole where staff with
+      // the legacy is_active=false could still log in (the column existed but
+      // login never enforced it). After the staff_disabled split, only
+      // non-member roles are subject to this disable check; members use
+      // status/deleted_at instead.
+      if (user.role !== "member" && user.staffDisabled === true) {
+        return reply.code(401).send({
+          error: "No autorizado",
+          message: "Cuenta desactivada",
+        });
       }
 
       // Get branch name and virtual status
