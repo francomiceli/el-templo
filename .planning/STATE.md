@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 103-06-PLAN.md (UsuariosPage staff_disabled migration + staff insert null status)
-last_updated: "2026-04-25T17:53:31.798Z"
+stopped_at: Completed 103-04-PLAN.md (members API contract migration to users.status, R7+R8+R10)
+last_updated: "2026-04-25T18:40:56.919Z"
 progress:
   total_phases: 93
   completed_phases: 79
   total_plans: 349
-  completed_plans: 339
+  completed_plans: 340
   percent: 97
 ---
 
@@ -130,6 +130,7 @@ _Updated after each plan completion_
 | Phase 103 P02 | 30min | 3 tasks | 3 files |
 | Phase 103 P03 | 10min | 2 tasks | 3 files |
 | Phase 103 P06 | 8min | 3 tasks | 8 files |
+| Phase 103 P04 | 30min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -275,6 +276,7 @@ Recent decisions affecting current work:
 - Plan 103-01: Single atomic SQL migration (0100) adds users.status ENUM(freemium/prueba/activo/inactivo) DEFAULT NULL + users.staff_disabled, drops users.is_active and idx_users_is_active, swaps in idx_users_status; backfill is 6 sequential UPDATEs guarded by `WHERE status IS NULL` (idempotent). Hand-written SQL (not drizzle-kit generate) because the runner cannot produce backfill UPDATEs. CRITICAL: SQL comments must not contain inline `;` because run-migrations.ts splits on `;` BEFORE stripping `--` comments.
 - Plan 103-03: Per-endpoint explicit status at /register (freemium) and /api/admin/trials (prueba). Folded the leftover trials-service.ts isActive: true into the same edit (Rule 3). Test file uses real clock — vi.useFakeTimers desyncs from MySQL CURDATE() in Plan 02 recomputeUserStatus.
 - Plan 103-06: PATCH /api/admin/users/:id/status payload renamed isActive→disabled with additionalProperties:false rejecting legacy shape (T-103-09 mitigated end-to-end); UserService.toggleDisabled is an explicit-value setter (no server-side toggle) so concurrent admin clicks converge instead of fighting; createStaff insert path explicitly writes status:null (BLOCKER 1 fix per CONTEXT D-12); admin-app UsuariosPage UX wording preserved while underlying boolean flips from isActive to staffDisabled
+- Plan 103-04: Members API contract migration — drop derived isActiveSubquery (3 sites in service.ts) and project users.status directly; createMember insert is single-owner (status='prueba' as const, BLOCKER 3); analytics countActiveMembers + SlotAttendancePanel hidden refs migrated; legacy ?status=leads/alumnos returns 400 (no shim); admin types/SlotAttendancePanel migrated in lockstep; AlumnosPage/AlumnoDetailPage explicitly deferred to Plan 05.
 
 ### Pending Todos
 
@@ -286,8 +288,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T17:53:31.772Z
-Stopped at: Completed 103-06-PLAN.md (UsuariosPage staff_disabled migration + staff insert null status)
+Last session: 2026-04-25T18:40:49.064Z
+Stopped at: Completed 103-04-PLAN.md (members API contract migration to users.status, R7+R8+R10)
 Resume file: None
 
 **Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25
