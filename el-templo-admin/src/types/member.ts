@@ -42,6 +42,11 @@ export interface SegmentThresholds {
   windowDays: number;
 }
 
+// Phase 103 (R10): user lifecycle status. NULL only for staff rows
+// (members always have a value). UI labels mirror the enum 1:1
+// (Freemium, En Prueba, Activo, Inactivo) per CONTEXT D-09.
+export type UserStatus = 'freemium' | 'prueba' | 'activo' | 'inactivo';
+
 export interface MemberListItem {
   id: number;
   email: string;
@@ -52,7 +57,10 @@ export interface MemberListItem {
   level: string;
   branchId: number;
   branchName: string;
-  isActive: boolean;
+  // Phase 103 (R10): first-class status (replaces the derived isActive
+  // boolean). Plan 02's recomputeUserStatus keeps this in sync with
+  // subscription create/cancel transitions.
+  status: UserStatus | null;
   documentType: string | null;
   photoUrl: string | null;
   planName: string | null;
@@ -142,13 +150,14 @@ export interface MemberListParams {
   multiBranch?: boolean;
   planId?: number;
   level?: string;
-  isActive?: boolean;
   overdue?: boolean;
   segment?: MemberSegment;
   avatarType?: string;
   debtorOnly?: boolean;
   country?: 'AR' | 'ES';
-  status?: 'todos' | 'alumnos' | 'leads';
+  // Phase 103 (R8): first-class users.status filter (replaces Phase 102's
+  // 'leads'/'alumnos' derived values). 'todos' is a no-op default.
+  status?: 'todos' | UserStatus;
   page?: number;
   limit?: number;
 }

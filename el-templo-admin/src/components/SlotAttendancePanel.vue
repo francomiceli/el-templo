@@ -315,7 +315,11 @@ function onMemberSearch(val: string, update: (fn: () => void) => void, _abort: (
           let statusColor = 'grey';
 
           if (m.planName) {
-            if (m.isActive) {
+            // Phase 103 (R10): read users.status (replaces the derived
+            // isActive boolean). 'activo' is the only state where the
+            // member has a current paying subscription — every other
+            // value renders the "Inactiva" badge as before.
+            if (m.status === 'activo') {
               statusLabel = 'Activa';
               statusColor = 'positive';
             } else {
