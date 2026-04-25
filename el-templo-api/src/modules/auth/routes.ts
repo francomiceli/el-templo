@@ -248,7 +248,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId: users.branchId,
           gender: users.gender,
           dateOfBirth: users.dateOfBirth,
-          isActive: users.isActive,
           deletedAt: users.deletedAt,
         })
         .from(users)
@@ -326,7 +325,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchCountry,
           gender: user.gender,
           dateOfBirth: user.dateOfBirth,
-          isActive: user.isActive,
           onboardingCompleted,
         },
       };
@@ -356,7 +354,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           branchId: users.branchId,
           gender: users.gender,
           dateOfBirth: users.dateOfBirth,
-          isActive: users.isActive,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -436,7 +433,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         branchName,
         branchIsVirtual,
         branchCountry,
-        isActive: user.isActive,
         gender: user.gender,
         dateOfBirth: user.dateOfBirth,
         segment,
@@ -569,7 +565,6 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
           emergencyContactRelationship: null,
           photoUrl: null,
           passwordHash: "DELETED",
-          isActive: false,
           deletedAt: now,
         })
         .where(eq(users.id, userId));
