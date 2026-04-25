@@ -214,11 +214,11 @@ describe("Members Management Routes", () => {
       }
     });
 
-    it("filters by isActive=false returns only inactive members", async () => {
+    it("filters by status=inactivo returns only inactive members (Phase 103 R8)", async () => {
       const member = await createMember();
 
-      // isActive is derived from subscriptions: cancel the member's sub so
-      // they become derivably inactive.
+      // Phase 103: cancelling the last active sub triggers Plan 02's
+      // recomputeUserStatus, which flips users.status -> 'inactivo'.
       await app.inject({
         method: "POST",
         url: `/api/admin/subscriptions/members/${member.id}/subscription/cancel`,
@@ -228,13 +228,13 @@ describe("Members Management Routes", () => {
 
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/members?isActive=false",
+        url: "/api/admin/members?status=inactivo",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 
       const body = JSON.parse(res.body);
       expect(body.members.length).toBe(1);
-      expect(body.members[0].isActive).toBe(false);
+      expect(body.members[0].status).toBe("inactivo");
     });
 
     it("returns planName field for members with active subscription", async () => {
@@ -338,7 +338,9 @@ describe("Members Management Routes", () => {
       expect(body.phone).toBe(getBaseMember().phone);
       expect(body.dni).toBe(getBaseMember().dni);
       expect(body.branchId).toBe(getBaseMember().branchId);
-      expect(body.isActive).toBe(true);
+      // Phase 103 (R7): admin-create with planId triggers assignPlan ->
+      // recomputeUserStatus -> 'activo'. Without planId it would be 'prueba'.
+      expect(body.status).toBe("activo");
       expect(body.level).toBe("alfa");
       expect(body.role).toBe("member");
       expect(body).toHaveProperty("branchName");
@@ -1075,7 +1077,7 @@ describe("Members Management Routes", () => {
       expect(res.rawPayload.length).toBeGreaterThan(0);
     });
 
-    it("filter params (isActive=true) reduce result set correctly", async () => {
+    it("filter params (status=activo) reduce result set correctly (Phase 103 R8)", async () => {
       // Create active member
       await createMember({
         firstName: "Activo",
@@ -1083,8 +1085,9 @@ describe("Members Management Routes", () => {
         email: "activo@test.com",
         dni: "50111111",
       });
-      // Create member then deactivate by cancelling their subscription
-      // (isActive is derived from subs, not the stale users.is_active column).
+      // Create member then deactivate by cancelling their subscription.
+      // Phase 103: cancellation triggers Plan 02 recomputeUserStatus →
+      // users.status flips to 'inactivo'.
       const inactive = await createMember({
         firstName: "Inactivo",
         lastName: "Member",
@@ -1100,7 +1103,7 @@ describe("Members Management Routes", () => {
 
       const res = await app.inject({
         method: "GET",
-        url: "/api/admin/members/export?isActive=true",
+        url: "/api/admin/members/export?status=activo",
         headers: { authorization: `Bearer ${adminToken}` },
       });
 

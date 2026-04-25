@@ -171,6 +171,8 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(body.bookingId).toBeTruthy();
 
     // DB assertion: user row has null email and the correct phone.
+    // Phase 103 (R7, R10): users.is_active was dropped; trial endpoint
+    // explicitly inserts users.status='prueba' (Plan 03).
     const [userRow] = await app.db
       .select({
         id: users.id,
@@ -180,7 +182,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
         lastName: users.lastName,
         level: users.level,
         role: users.role,
-        isActive: users.isActive,
+        status: users.status,
         branchId: users.branchId,
       })
       .from(users)
@@ -192,7 +194,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(userRow.lastName).toBe("Pérez");
     expect(userRow.level).toBe("alfa");
     expect(userRow.role).toBe("member");
-    expect(Boolean(userRow.isActive)).toBe(true);
+    expect(userRow.status).toBe("prueba");
     expect(userRow.branchId).toBe(testBranchId);
 
     // DB assertion: booking row has is_trial=1, status=reservado.

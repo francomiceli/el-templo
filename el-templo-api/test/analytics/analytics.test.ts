@@ -189,9 +189,16 @@ describe("Analytics API", () => {
     });
 
     it("should return KPI stats with correct activeMembers count", async () => {
-      // Create 2 active members
-      await createMember({ email: "m1@test.com", dni: "90000002" });
-      await createMember({ email: "m2@test.com", dni: "90000003" });
+      // Phase 103 (R10): activeMembers now reads users.status='activo' (no
+      // longer the legacy isActive=true that defaulted true for every
+      // non-deleted user). Self-registered members start at 'freemium' —
+      // assign each a subscription so recomputeUserStatus flips them to
+      // 'activo' and they're counted.
+      const m1 = await createMember({ email: "m1@test.com", dni: "90000002" });
+      const m2 = await createMember({ email: "m2@test.com", dni: "90000003" });
+      const plan = await createPlan({ name: `KPI-Plan-${Date.now()}` });
+      await assignSubscription(m1.id, plan.id);
+      await assignSubscription(m2.id, plan.id);
 
       const res = await app.inject({
         method: "GET",
@@ -209,7 +216,11 @@ describe("Analytics API", () => {
     });
 
     it("should accept branchId filter and return branch-scoped results", async () => {
-      await createMember({ email: "m1@test.com", dni: "90000002" });
+      // Phase 103 (R10): same migration as the test above — assign sub so
+      // status='activo' and the member is counted by countActiveMembers.
+      const m1 = await createMember({ email: "m1@test.com", dni: "90000002" });
+      const plan = await createPlan({ name: `KPI-Plan-${Date.now()}` });
+      await assignSubscription(m1.id, plan.id);
 
       const res = await app.inject({
         method: "GET",
