@@ -2199,27 +2199,27 @@ Plans:
 - [x] 102-04-PLAN.md — Admin UI: SlotDetailDialog trial button + NewTrialDialog form + roster split with PRUEBA badge (R5, R6, R9, R10)
 - [ ] 102-05-PLAN.md — Admin UI: Clases de prueba counter on alumno detail + Leads filter on AlumnosPage (R7, R8)
 
-### Phase 103: User Status Enum (prueba/alumno/inactivo)
+### Phase 103: User Status Enum (freemium/prueba/activo/inactivo)
 
-**Goal:** Materialize the alumno lifecycle as a `users.status` enum (`prueba` | `alumno` | `inactivo`), maintained automatically by subscription create/cancel transitions; in the same change, split the operational staff-disable flag into its own `users.staff_disabled` column and remove the legacy `users.is_active` column. Reverses Phase 102's Option B decision now that the trial flow is shipped and the friction of a derived "lead" concept is visible in the UI and call sites.
+**Goal:** Materialize the user lifecycle as a `users.status` enum (`freemium` | `prueba` | `activo` | `inactivo`), maintained automatically by subscription create/cancel transitions and by the trial-creation endpoint; in the same change, split the operational staff-disable flag into its own `users.staff_disabled` column and remove the legacy `users.is_active` column. Reverses Phase 102's Option B decision now that the trial flow is shipped and the friction of a derived "lead" concept is visible in the UI and call sites; adds the `freemium` state in anticipation of fase 89-91 (Planes Online).
 **Requirements:** R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12 (see 103-SPEC.md)
 **Depends on:** Phase 102
 **Plans:** TBD (run /gsd-plan-phase 103 to break down)
 
 Scope:
 
-- Schema: add `users.status` enum + `users.staff_disabled`, drop `users.is_active`, drop `idx_users_is_active`, add `idx_users_status` (single migration)
-- Data migration: backfill all existing users (alumno if active sub, prueba if trial booking, inactivo otherwise; staff_disabled = NOT is_active for non-members)
-- Subscription service: auto-transition status on create (→ alumno) and cancel (→ inactivo when last active sub is cancelled), inside the same DB transaction
-- Member creation: default `status='prueba'` for new `role='member'` rows
-- Members API: `status` filter renamed to enum (`prueba`/`alumno`/`inactivo`); response includes `status` field; legacy `isActive` field removed
-- Admin UI (AlumnosPage): single "Estado" dropdown replaces `leadsOnly` and `isActive` toggles; row badge renders 3-state from `status`
-- Admin UI (AlumnoDetailPage): header badge renders 3-state from `status`
+- Schema: add `users.status` enum (4 values) + `users.staff_disabled`, drop `users.is_active`, drop `idx_users_is_active`, add `idx_users_status` (single migration)
+- Data migration: 3 sequential idempotent UPDATEs (activo if active sub → prueba if trial booking → freemium if branch=ONLINE else inactivo; legacy is_active=FALSE overrides to inactivo); staff_disabled = NOT is_active for non-members
+- Subscription service: new helper `recomputeUserStatus(userId, tx)` (replaces `markConvertedIfLead`), called from every sub-mutating method inside the same DB transaction; sets both `status` and `converted_at`
+- Member creation: DB default `status='freemium'`; `/api/admin/trials` overrides to `prueba`; subscription creation auto-flips to `activo`
+- Members API: `status` filter renamed to 4-value enum; response includes `status` field; legacy `isActive` field removed
+- Admin UI (AlumnosPage): single "Estado" dropdown (5 options including Todos) replaces `leadsOnly` and `isActive` toggles; row badge renders 4-state from `status`
+- Admin UI (AlumnoDetailPage): header badge renders 4-state from `status`
 - Admin UI (UsuariosPage + useUsersApi): staff toggle writes `staff_disabled`; payload field renamed to `disabled`
 - Auth routes: replace `is_active` reads/writes with `deleted_at` (soft-delete) and `staff_disabled` (staff gate); auth payload no longer includes `isActive`
-- Integration tests for every endpoint contract change and every auto-transition
+- Integration tests for every endpoint contract change and every auto-transition (incl. freemium→activo, activo→inactivo, never freemium→inactivo→freemium)
 - Architectural choice: Option A (materialized status column), reverses Phase 102's Option B; rationale documented in 103-SPEC.md Background
-- Out of scope: member-app UI changes (none needed), manual admin status override, reports refactor beyond R8/R10, status values beyond the 3-state enum, dual-write/shim during rollout
+- Out of scope: member-app UI changes (none needed), manual admin status override, reports refactor beyond R8/R10, status values beyond the 4-state enum, dual-write/shim during rollout, online-plans UX (deferred to fase 89-91)
 
 Plans:
 
