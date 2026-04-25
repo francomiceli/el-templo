@@ -747,125 +747,149 @@ export class SubscriptionService {
         ? Math.ceil(plan.durationDays / 7) * plan.classesPerWeek
         : null;
 
-    // Insert subscription. `currency` is inherited from the plan so EUR plans
-    // produce EUR subscriptions (defense in depth — the country guard above
-    // already prevents cross-country assignments).
-    const result = await this.db.insert(schema.subscriptions).values({
-      userId,
-      planId: input.planId,
-      branchId: input.branchId,
-      status: "active",
-      startDate: input.startDate,
-      endDate: endDateStr,
-      pricePaid,
-      priceTypeApplied,
-      auraDiscount,
-      auraDiscountPercent,
-      boardingPassUsed,
-      priceOverrideAmount,
-      priceOverrideReason,
-      classesRemaining,
-      classesBudget: classesRemaining,
-      notes: input.notes ?? null,
-      currency: plan.currency,
-    });
+    // ── Atomic subscription mutation (Phase 103 D-16) ──
+    // Wrap the core writes (subscriptions INSERT, subscription_schedules,
+    // virtual-branch user migration, programEnrollments) in a single
+    // transaction so a Task-1b recomputeUserStatus call can roll back
+    // alongside the sub INSERT on failure. External side effects
+    // (bookingService, paymentService, auraService, markConvertedIfLead)
+    // continue to use this.db — refactoring them is out of scope per the
+    // plan's WARNING-9 (separate plan / Rule 4 architectural change).
+    const { subscriptionId, replacementCredits } = await this.db.transaction(
+      async (tx) => {
+        // Insert subscription. `currency` is inherited from the plan so EUR
+        // plans produce EUR subscriptions (defense in depth — the country
+        // guard above already prevents cross-country assignments).
+        const insResult = await tx.insert(schema.subscriptions).values({
+          userId,
+          planId: input.planId,
+          branchId: input.branchId,
+          status: "active",
+          startDate: input.startDate,
+          endDate: endDateStr,
+          pricePaid,
+          priceTypeApplied,
+          auraDiscount,
+          auraDiscountPercent,
+          boardingPassUsed,
+          priceOverrideAmount,
+          priceOverrideReason,
+          classesRemaining,
+          classesBudget: classesRemaining,
+          notes: input.notes ?? null,
+          currency: plan.currency,
+        });
 
-    const subscriptionId = Number(result[0].insertId);
+        const newSubscriptionId = Number(insResult[0].insertId);
+
+        // ── Persist schedule slot references and generate bookings ──
+        // Fixed plans always have scheduleIds; flexible presencial plans may
+        // have 0..N partial fixed anchors. Replacement credits (holiday
+        // makeups) apply only to fixed plans where the member pre-paid for
+        // the whole schedule.
+        let credits = 0;
+        if (input.scheduleIds && input.scheduleIds.length > 0) {
+          await tx.insert(schema.subscriptionSchedules).values(
+            input.scheduleIds.map((scheduleId) => ({
+              subscriptionId: newSubscriptionId,
+              scheduleId,
+            })),
+          );
+
+          if (this.bookingService) {
+            const bookingResult =
+              await this.bookingService.generateFixedBookings(
+                newSubscriptionId,
+                userId,
+                input.scheduleIds,
+                input.startDate,
+                endDateStr,
+                input.branchId,
+              );
+            if (plan.bookingMode === "fixed") {
+              credits = bookingResult.holidaysSkipped;
+            }
+          }
+
+          if (credits > 0) {
+            await tx
+              .update(schema.subscriptions)
+              .set({ replacementCredits: credits })
+              .where(eq(schema.subscriptions.id, newSubscriptionId));
+          }
+        }
+
+        // Auto-migrate member from virtual branch to subscription's physical branch
+        if (member.branchId !== input.branchId) {
+          const [currentBranch] = await tx
+            .select({ isVirtual: schema.branches.isVirtual })
+            .from(schema.branches)
+            .where(eq(schema.branches.id, member.branchId));
+
+          if (currentBranch?.isVirtual) {
+            await tx
+              .update(schema.users)
+              .set({ branchId: input.branchId })
+              .where(eq(schema.users.id, userId));
+
+            this.log.info(
+              {
+                userId,
+                fromBranchId: member.branchId,
+                toBranchId: input.branchId,
+              },
+              "Auto-migrated member from virtual branch to subscription branch",
+            );
+          }
+        }
+
+        // Auto-create program enrollment if plan has linked program (D-34/D-39)
+        if (plan.linkedProgramId) {
+          // Cancel any existing active enrollment for this user in this program
+          await tx
+            .update(schema.programEnrollments)
+            .set({ status: "cancelled", cancelledAt: new Date() })
+            .where(
+              and(
+                eq(schema.programEnrollments.userId, userId),
+                eq(schema.programEnrollments.programId, plan.linkedProgramId),
+                eq(schema.programEnrollments.status, "active"),
+              ),
+            );
+
+          // Create new enrollment
+          await tx.insert(schema.programEnrollments).values({
+            userId,
+            programId: plan.linkedProgramId,
+            status: "active",
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: new Date(),
+          });
+
+          this.log.info(
+            { userId, programId: plan.linkedProgramId },
+            "Auto-created program enrollment from plan assignment",
+          );
+        }
+
+        return {
+          subscriptionId: newSubscriptionId,
+          replacementCredits: credits,
+        };
+      },
+    );
 
     // ── Trial conversion hook (Phase 102-07) ──
     // Set converted_at once when a user who ever had a trial booking gets
     // their first subscription. Non-lead users and already-converted users
-    // pass straight through.
+    // pass straight through. Task 1b will replace this with
+    // recomputeUserStatus(userId, tx) inside the transaction above.
     await this.markConvertedIfLead(userId);
-
-    // ── Persist schedule slot references and generate bookings ──
-    // Fixed plans always have scheduleIds; flexible presencial plans may have
-    // 0..N partial fixed anchors. Replacement credits (holiday makeups) apply
-    // only to fixed plans where the member pre-paid for the whole schedule.
-    let replacementCredits = 0;
-    if (input.scheduleIds && input.scheduleIds.length > 0) {
-      await this.db.insert(schema.subscriptionSchedules).values(
-        input.scheduleIds.map((scheduleId) => ({
-          subscriptionId,
-          scheduleId,
-        })),
-      );
-
-      if (this.bookingService) {
-        const bookingResult = await this.bookingService.generateFixedBookings(
-          subscriptionId,
-          userId,
-          input.scheduleIds,
-          input.startDate,
-          endDateStr,
-          input.branchId,
-        );
-        if (plan.bookingMode === "fixed") {
-          replacementCredits = bookingResult.holidaysSkipped;
-        }
-      }
-
-      if (replacementCredits > 0) {
-        await this.db
-          .update(schema.subscriptions)
-          .set({ replacementCredits })
-          .where(eq(schema.subscriptions.id, subscriptionId));
-      }
-    }
-
-    // Auto-migrate member from virtual branch to subscription's physical branch
-    if (member.branchId !== input.branchId) {
-      const [currentBranch] = await this.db
-        .select({ isVirtual: schema.branches.isVirtual })
-        .from(schema.branches)
-        .where(eq(schema.branches.id, member.branchId));
-
-      if (currentBranch?.isVirtual) {
-        await this.db
-          .update(schema.users)
-          .set({ branchId: input.branchId })
-          .where(eq(schema.users.id, userId));
-
-        this.log.info(
-          { userId, fromBranchId: member.branchId, toBranchId: input.branchId },
-          "Auto-migrated member from virtual branch to subscription branch",
-        );
-      }
-    }
 
     const subscription = await this.getSubscriptionById(subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
-    }
-
-    // Auto-create program enrollment if plan has linked program (D-34/D-39)
-    if (plan.linkedProgramId) {
-      // Cancel any existing active enrollment for this user in this program
-      await this.db
-        .update(schema.programEnrollments)
-        .set({ status: "cancelled", cancelledAt: new Date() })
-        .where(
-          and(
-            eq(schema.programEnrollments.userId, userId),
-            eq(schema.programEnrollments.programId, plan.linkedProgramId),
-            eq(schema.programEnrollments.status, "active"),
-          ),
-        );
-
-      // Create new enrollment
-      await this.db.insert(schema.programEnrollments).values({
-        userId,
-        programId: plan.linkedProgramId,
-        status: "active",
-        currentWeek: 1,
-        sessionsCompletedThisWeek: 0,
-        weekUnlockedAt: new Date(),
-      });
-
-      this.log.info(
-        { userId, programId: plan.linkedProgramId },
-        "Auto-created program enrollment from plan assignment",
-      );
     }
 
     // Auto-record payment for the subscription. Pass the plan's currency
@@ -1130,14 +1154,20 @@ export class SubscriptionService {
       }
     }
 
-    await this.db
-      .update(schema.subscriptions)
-      .set({
-        status: "paused",
-        pausedAt: new Date(),
-        pauseEndDate: pauseEndDate ?? null,
-      })
-      .where(eq(schema.subscriptions.id, sub.id));
+    // ── Atomic pause (Phase 103 D-16, defensive) ──
+    // Wrap the sub UPDATE in a transaction so Task 1b's recomputeUserStatus
+    // can run inside it. paused counts as active for status purposes
+    // (R5: "active/paused"), so user.status should not change here.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.subscriptions)
+        .set({
+          status: "paused",
+          pausedAt: new Date(),
+          pauseEndDate: pauseEndDate ?? null,
+        })
+        .where(eq(schema.subscriptions.id, sub.id));
+    });
 
     // Cancel all future reservations for this sub's fixed slots. Schedules
     // (subscription_schedules) stay intact so resume can auto-regenerate.
@@ -1195,14 +1225,21 @@ export class SubscriptionService {
       updateData.endDate = newEndDate;
     }
 
-    await this.db
-      .update(schema.subscriptions)
-      .set(updateData)
-      .where(eq(schema.subscriptions.id, sub.id));
+    // ── Atomic resume (Phase 103 D-16, defensive) ──
+    // Wrap the sub UPDATE in a transaction so Task 1b's recomputeUserStatus
+    // can run inside it. paused→active doesn't change user.status (already
+    // 'activo'), but consistency matters.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.subscriptions)
+        .set(updateData)
+        .where(eq(schema.subscriptions.id, sub.id));
+    });
 
     // Regenerate bookings for the resume window (today → endDate).
     // Pause cleared out future bookings; subscription_schedules stayed,
     // so we can auto-populate without asking the admin to re-set slots.
+    // (External helper, not transaction-aware — kept on this.db.)
     await populateBookings(this.db, this.log, sub.id);
 
     const updated = await this.getSubscriptionById(sub.id);
@@ -1281,27 +1318,33 @@ export class SubscriptionService {
       updateData.notes = notes;
     }
 
-    await this.db
-      .update(schema.subscriptions)
-      .set(updateData)
-      .where(eq(schema.subscriptions.id, sub.id));
+    // ── Atomic cancel (Phase 103 D-16) ──
+    // Cancel the active sub + any scheduled successor in a single transaction
+    // so Task 1b's recomputeUserStatus rolls back atomically with both.
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.subscriptions)
+        .set(updateData)
+        .where(eq(schema.subscriptions.id, sub.id));
 
-    // Also cancel any scheduled successor
-    await this.db
-      .update(schema.subscriptions)
-      .set({
-        status: "cancelled",
-        cancelledAt: new Date(),
-        notes: "Cancelado por cancelacion de suscripcion activa",
-      })
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          eq(schema.subscriptions.status, "scheduled"),
-        ),
-      );
+      // Also cancel any scheduled successor
+      await tx
+        .update(schema.subscriptions)
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          notes: "Cancelado por cancelacion de suscripcion activa",
+        })
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            eq(schema.subscriptions.status, "scheduled"),
+          ),
+        );
+    });
 
-    // Cancel all future bookings for fixed-plan subscriptions
+    // Cancel all future bookings for fixed-plan subscriptions (external
+    // helper, not transaction-aware — Rule 4 / WARNING 9 keeps it on this.db).
     if (this.bookingService) {
       await this.bookingService.cancelFutureBookings(sub.id);
     }
@@ -1596,101 +1639,111 @@ export class SubscriptionService {
           ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
           : null;
 
-      const result = await this.db.insert(schema.subscriptions).values({
-        userId,
-        planId: input.planId,
-        branchId: input.branchId,
-        status: "active",
-        startDate: input.startDate,
-        endDate: endDateStr,
-        pricePaid: netAmount,
-        priceTypeApplied: input.priceTypeApplied,
-        priceOverrideAmount: netAmount,
-        priceOverrideReason: `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`,
-        classesRemaining,
-        classesBudget: classesRemaining,
-        previousSubscriptionId: existingSub.id,
-        notes: input.notes ?? null,
-        // Propagate the new plan's currency onto the subscription. Cross-
-        // country transitions are rejected above, but this is an explicit
-        // grep-visible marker that currency follows the plan.
-        currency: newPlan.currency,
-      });
-
-      const newSubscriptionId = Number(result[0].insertId);
-
-      // Fixed plan: store schedules and generate bookings
-      let replacementCredits = 0;
-      if (
-        targetPlan.bookingMode === "fixed" &&
-        input.scheduleIds &&
-        input.scheduleIds.length > 0
-      ) {
-        await this.db.insert(schema.subscriptionSchedules).values(
-          input.scheduleIds.map((scheduleId) => ({
-            subscriptionId: newSubscriptionId,
-            scheduleId,
-          })),
-        );
-
-        if (this.bookingService) {
-          const bookingResult = await this.bookingService.generateFixedBookings(
-            newSubscriptionId,
-            userId,
-            input.scheduleIds,
-            input.startDate,
-            endDateStr,
-            input.branchId,
-          );
-          replacementCredits = bookingResult.holidaysSkipped;
-        }
-
-        if (replacementCredits > 0) {
-          await this.db
-            .update(schema.subscriptions)
-            .set({ replacementCredits })
-            .where(eq(schema.subscriptions.id, newSubscriptionId));
-        }
-      }
-
-      // Cancel old program enrollment if old plan had a linked program
-      if (currentPlan.linkedProgramId) {
-        await this.db
-          .update(schema.programEnrollments)
-          .set({ status: "cancelled", cancelledAt: new Date() })
-          .where(
-            and(
-              eq(schema.programEnrollments.userId, userId),
-              eq(
-                schema.programEnrollments.programId,
-                currentPlan.linkedProgramId,
-              ),
-              eq(schema.programEnrollments.status, "active"),
-            ),
-          );
-
-        this.log.info(
-          { userId, programId: currentPlan.linkedProgramId },
-          "Cancelled program enrollment from old plan on plan change",
-        );
-      }
-
-      // Create new program enrollment if new plan has a linked program
-      if (targetPlan.linkedProgramId) {
-        await this.db.insert(schema.programEnrollments).values({
+      // ── Atomic new-sub creation (Phase 103 D-16) ──
+      // Wrap the new subscription INSERT + dependent writes in a single
+      // transaction so Task 1b's recomputeUserStatus rolls back atomically
+      // with the new sub on failure. External helpers (bookingService,
+      // paymentService) stay on this.db (out of scope per WARNING 9).
+      const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+        const insResult = await tx.insert(schema.subscriptions).values({
           userId,
-          programId: targetPlan.linkedProgramId,
+          planId: input.planId,
+          branchId: input.branchId,
           status: "active",
-          currentWeek: 1,
-          sessionsCompletedThisWeek: 0,
-          weekUnlockedAt: new Date(),
+          startDate: input.startDate,
+          endDate: endDateStr,
+          pricePaid: netAmount,
+          priceTypeApplied: input.priceTypeApplied,
+          priceOverrideAmount: netAmount,
+          priceOverrideReason: `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`,
+          classesRemaining,
+          classesBudget: classesRemaining,
+          previousSubscriptionId: existingSub.id,
+          notes: input.notes ?? null,
+          // Propagate the new plan's currency onto the subscription. Cross-
+          // country transitions are rejected above, but this is an explicit
+          // grep-visible marker that currency follows the plan.
+          currency: newPlan.currency,
         });
 
-        this.log.info(
-          { userId, programId: targetPlan.linkedProgramId },
-          "Auto-created program enrollment from plan change",
-        );
-      }
+        const subId = Number(insResult[0].insertId);
+
+        // Fixed plan: store schedules and generate bookings
+        let credits = 0;
+        if (
+          targetPlan.bookingMode === "fixed" &&
+          input.scheduleIds &&
+          input.scheduleIds.length > 0
+        ) {
+          await tx.insert(schema.subscriptionSchedules).values(
+            input.scheduleIds.map((scheduleId) => ({
+              subscriptionId: subId,
+              scheduleId,
+            })),
+          );
+
+          if (this.bookingService) {
+            const bookingResult =
+              await this.bookingService.generateFixedBookings(
+                subId,
+                userId,
+                input.scheduleIds,
+                input.startDate,
+                endDateStr,
+                input.branchId,
+              );
+            credits = bookingResult.holidaysSkipped;
+          }
+
+          if (credits > 0) {
+            await tx
+              .update(schema.subscriptions)
+              .set({ replacementCredits: credits })
+              .where(eq(schema.subscriptions.id, subId));
+          }
+        }
+
+        // Cancel old program enrollment if old plan had a linked program
+        if (currentPlan.linkedProgramId) {
+          await tx
+            .update(schema.programEnrollments)
+            .set({ status: "cancelled", cancelledAt: new Date() })
+            .where(
+              and(
+                eq(schema.programEnrollments.userId, userId),
+                eq(
+                  schema.programEnrollments.programId,
+                  currentPlan.linkedProgramId,
+                ),
+                eq(schema.programEnrollments.status, "active"),
+              ),
+            );
+
+          this.log.info(
+            { userId, programId: currentPlan.linkedProgramId },
+            "Cancelled program enrollment from old plan on plan change",
+          );
+        }
+
+        // Create new program enrollment if new plan has a linked program
+        if (targetPlan.linkedProgramId) {
+          await tx.insert(schema.programEnrollments).values({
+            userId,
+            programId: targetPlan.linkedProgramId,
+            status: "active",
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: new Date(),
+          });
+
+          this.log.info(
+            { userId, programId: targetPlan.linkedProgramId },
+            "Auto-created program enrollment from plan change",
+          );
+        }
+
+        return { newSubscriptionId: subId };
+      });
 
       // Record payment for the net amount. Pass the new plan's currency so
       // the payment-service cross-currency guard is exercised.
@@ -1982,62 +2035,71 @@ export class SubscriptionService {
         ? Math.ceil(targetPlan.durationDays / 7) * targetPlan.classesPerWeek
         : null;
 
-    const result = await this.db.insert(schema.subscriptions).values({
-      userId,
-      planId: input.planId,
-      branchId: input.branchId,
-      status: "scheduled",
-      startDate: newStartDate,
-      endDate: newEndDate,
-      pricePaid,
-      priceTypeApplied,
-      auraDiscount,
-      auraDiscountPercent,
-      boardingPassUsed,
-      priceOverrideAmount,
-      priceOverrideReason,
-      classesRemaining,
-      classesBudget: classesRemaining,
-      previousSubscriptionId: currentSub.id,
-      notes: input.notes ?? null,
-      currency: targetPlan.currency,
-    });
+    // ── Atomic queued-creation (Phase 103 D-16) ──
+    // Wrap the scheduled-sub INSERT + dependent writes in a transaction so
+    // Task 1b's recomputeUserStatus rolls back atomically on failure.
+    // (recomputeUserStatus is defensive here — scheduled subs don't change
+    // user.status, but consistency matters.)
+    const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+      const insResult = await tx.insert(schema.subscriptions).values({
+        userId,
+        planId: input.planId,
+        branchId: input.branchId,
+        status: "scheduled",
+        startDate: newStartDate,
+        endDate: newEndDate,
+        pricePaid,
+        priceTypeApplied,
+        auraDiscount,
+        auraDiscountPercent,
+        boardingPassUsed,
+        priceOverrideAmount,
+        priceOverrideReason,
+        classesRemaining,
+        classesBudget: classesRemaining,
+        previousSubscriptionId: currentSub.id,
+        notes: input.notes ?? null,
+        currency: targetPlan.currency,
+      });
 
-    const newSubscriptionId = Number(result[0].insertId);
+      const subId = Number(insResult[0].insertId);
 
-    // Fixed plan: store schedules and generate bookings for the future period
-    let replacementCredits = 0;
-    if (
-      targetPlan.bookingMode === "fixed" &&
-      input.scheduleIds &&
-      input.scheduleIds.length > 0
-    ) {
-      await this.db.insert(schema.subscriptionSchedules).values(
-        input.scheduleIds.map((scheduleId) => ({
-          subscriptionId: newSubscriptionId,
-          scheduleId,
-        })),
-      );
-
-      if (this.bookingService) {
-        const bookingResult = await this.bookingService.generateFixedBookings(
-          newSubscriptionId,
-          userId,
-          input.scheduleIds,
-          newStartDate,
-          newEndDate,
-          input.branchId,
+      // Fixed plan: store schedules and generate bookings for the future period
+      let credits = 0;
+      if (
+        targetPlan.bookingMode === "fixed" &&
+        input.scheduleIds &&
+        input.scheduleIds.length > 0
+      ) {
+        await tx.insert(schema.subscriptionSchedules).values(
+          input.scheduleIds.map((scheduleId) => ({
+            subscriptionId: subId,
+            scheduleId,
+          })),
         );
-        replacementCredits = bookingResult.holidaysSkipped;
+
+        if (this.bookingService) {
+          const bookingResult = await this.bookingService.generateFixedBookings(
+            subId,
+            userId,
+            input.scheduleIds,
+            newStartDate,
+            newEndDate,
+            input.branchId,
+          );
+          credits = bookingResult.holidaysSkipped;
+        }
+
+        if (credits > 0) {
+          await tx
+            .update(schema.subscriptions)
+            .set({ replacementCredits: credits })
+            .where(eq(schema.subscriptions.id, subId));
+        }
       }
 
-      if (replacementCredits > 0) {
-        await this.db
-          .update(schema.subscriptions)
-          .set({ replacementCredits })
-          .where(eq(schema.subscriptions.id, newSubscriptionId));
-      }
-    }
+      return { newSubscriptionId: subId };
+    });
 
     // Record payment now (charged at scheduling time)
     if (this.paymentService && pricePaid > 0) {
@@ -2170,109 +2232,118 @@ export class SubscriptionService {
     // If still active (early renewal), leave it active — auto-expire will
     // transition it to "completed" and activate the scheduled sub.
     const oldSubExpired = !currentSub.endDate || currentSub.endDate < today;
-    if (oldSubExpired) {
-      await this.db
-        .update(schema.subscriptions)
-        .set({ status: "completed" })
-        .where(eq(schema.subscriptions.id, currentSub.id));
-    }
 
     // Early renewal → new sub is "scheduled" (paid, queued, not yet usable).
     // Expired renewal → new sub is "active" immediately.
     const newStatus = oldSubExpired ? "active" : "scheduled";
 
-    // Create new subscription record for the new period. Currency is
-    // inherited from the existing plan — renewals never change plan/country.
-    const result = await this.db.insert(schema.subscriptions).values({
-      userId,
-      planId: currentSub.planId,
-      branchId: currentSub.branchId,
-      status: newStatus,
-      startDate: newStartDate,
-      endDate: newEndDate,
-      pricePaid: renewalPrice,
-      priceTypeApplied: currentSub.priceTypeApplied as
-        | "regular"
-        | "zero"
-        | "credit_card",
-      classesRemaining: periodBudget,
-      classesBudget: periodBudget,
-      previousSubscriptionId: currentSub.id,
-      currency: plan.currency,
-    });
+    // ── Atomic renewal (Phase 103 D-16) ──
+    // Wrap close-old (if expired) + new-sub INSERT + dependent writes in a
+    // single transaction so Task 1b's recomputeUserStatus rolls back
+    // atomically with the new sub on failure.
+    const { newSubscriptionId } = await this.db.transaction(async (tx) => {
+      if (oldSubExpired) {
+        await tx
+          .update(schema.subscriptions)
+          .set({ status: "completed" })
+          .where(eq(schema.subscriptions.id, currentSub.id));
+      }
 
-    const newSubscriptionId = Number(result[0].insertId);
+      // Create new subscription record for the new period. Currency is
+      // inherited from the existing plan — renewals never change plan/country.
+      const insResult = await tx.insert(schema.subscriptions).values({
+        userId,
+        planId: currentSub.planId,
+        branchId: currentSub.branchId,
+        status: newStatus,
+        startDate: newStartDate,
+        endDate: newEndDate,
+        pricePaid: renewalPrice,
+        priceTypeApplied: currentSub.priceTypeApplied as
+          | "regular"
+          | "zero"
+          | "credit_card",
+        classesRemaining: periodBudget,
+        classesBudget: periodBudget,
+        previousSubscriptionId: currentSub.id,
+        currency: plan.currency,
+      });
 
-    // Copy schedule assignments (fixed plans always, flexible presencial
-    // plans if the member had partial fixed anchors). Replacement credits
-    // only accrue for fixed plans.
-    let replacementCredits = 0;
-    const scheduleRows = await this.db
-      .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
-      .from(schema.subscriptionSchedules)
-      .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
+      const subId = Number(insResult[0].insertId);
 
-    const scheduleIds = scheduleRows.map((r) => r.scheduleId);
-    if (scheduleIds.length > 0) {
-      await this.db.insert(schema.subscriptionSchedules).values(
-        scheduleIds.map((scheduleId) => ({
-          subscriptionId: newSubscriptionId,
-          scheduleId,
-        })),
-      );
+      // Copy schedule assignments (fixed plans always, flexible presencial
+      // plans if the member had partial fixed anchors). Replacement credits
+      // only accrue for fixed plans.
+      let credits = 0;
+      const scheduleRows = await tx
+        .select({ scheduleId: schema.subscriptionSchedules.scheduleId })
+        .from(schema.subscriptionSchedules)
+        .where(eq(schema.subscriptionSchedules.subscriptionId, currentSub.id));
 
-      if (this.bookingService) {
-        const bookingResult = await this.bookingService.generateFixedBookings(
-          newSubscriptionId,
-          userId,
-          scheduleIds,
-          newStartDate,
-          newEndDate,
-          currentSub.branchId,
+      const scheduleIds = scheduleRows.map((r) => r.scheduleId);
+      if (scheduleIds.length > 0) {
+        await tx.insert(schema.subscriptionSchedules).values(
+          scheduleIds.map((scheduleId) => ({
+            subscriptionId: subId,
+            scheduleId,
+          })),
         );
-        if (plan.bookingMode === "fixed") {
-          replacementCredits = bookingResult.holidaysSkipped;
+
+        if (this.bookingService) {
+          const bookingResult = await this.bookingService.generateFixedBookings(
+            subId,
+            userId,
+            scheduleIds,
+            newStartDate,
+            newEndDate,
+            currentSub.branchId,
+          );
+          if (plan.bookingMode === "fixed") {
+            credits = bookingResult.holidaysSkipped;
+          }
         }
       }
-    }
 
-    if (replacementCredits > 0) {
-      await this.db
-        .update(schema.subscriptions)
-        .set({ replacementCredits })
-        .where(eq(schema.subscriptions.id, newSubscriptionId));
-    }
-
-    // Handle program enrollment on renewal
-    if (plan.linkedProgramId) {
-      const existingEnrollment = await this.db
-        .select({ id: schema.programEnrollments.id })
-        .from(schema.programEnrollments)
-        .where(
-          and(
-            eq(schema.programEnrollments.userId, userId),
-            eq(schema.programEnrollments.programId, plan.linkedProgramId),
-            eq(schema.programEnrollments.status, "active"),
-          ),
-        );
-
-      // Only create new enrollment if no active one exists
-      if (existingEnrollment.length === 0) {
-        await this.db.insert(schema.programEnrollments).values({
-          userId,
-          programId: plan.linkedProgramId,
-          status: "active",
-          currentWeek: 1,
-          sessionsCompletedThisWeek: 0,
-          weekUnlockedAt: new Date(),
-        });
-
-        this.log.info(
-          { userId, programId: plan.linkedProgramId },
-          "Auto-created program enrollment on renewal",
-        );
+      if (credits > 0) {
+        await tx
+          .update(schema.subscriptions)
+          .set({ replacementCredits: credits })
+          .where(eq(schema.subscriptions.id, subId));
       }
-    }
+
+      // Handle program enrollment on renewal
+      if (plan.linkedProgramId) {
+        const existingEnrollment = await tx
+          .select({ id: schema.programEnrollments.id })
+          .from(schema.programEnrollments)
+          .where(
+            and(
+              eq(schema.programEnrollments.userId, userId),
+              eq(schema.programEnrollments.programId, plan.linkedProgramId),
+              eq(schema.programEnrollments.status, "active"),
+            ),
+          );
+
+        // Only create new enrollment if no active one exists
+        if (existingEnrollment.length === 0) {
+          await tx.insert(schema.programEnrollments).values({
+            userId,
+            programId: plan.linkedProgramId,
+            status: "active",
+            currentWeek: 1,
+            sessionsCompletedThisWeek: 0,
+            weekUnlockedAt: new Date(),
+          });
+
+          this.log.info(
+            { userId, programId: plan.linkedProgramId },
+            "Auto-created program enrollment on renewal",
+          );
+        }
+      }
+
+      return { newSubscriptionId: subId };
+    });
 
     // Record payment linked to the NEW subscription
     if (this.paymentService && renewalPrice > 0) {
@@ -2358,27 +2429,35 @@ export class SubscriptionService {
           continue;
         }
 
-        // Cancel current subscription
-        await this.db
-          .update(schema.subscriptions)
-          .set({
-            status: "cancelled",
-            cancelledAt: new Date(),
-            notes: `Migrado a ${targetPlan.name}`,
-          })
-          .where(eq(schema.subscriptions.id, activeSub.id));
+        // ── Atomic per-user migration (Phase 103 D-16) ──
+        // Wrap cancel-old + insert-new in a per-user transaction so Task 1b's
+        // recomputeUserStatus rolls back atomically with both writes for this
+        // user. Per-user (not bulk-loop) tx keeps lock scope small and
+        // preserves the existing one-user-fail-doesnt-block-others pattern
+        // (T-103-03 acceptance per threat model).
+        await this.db.transaction(async (tx) => {
+          // Cancel current subscription
+          await tx
+            .update(schema.subscriptions)
+            .set({
+              status: "cancelled",
+              cancelledAt: new Date(),
+              notes: `Migrado a ${targetPlan.name}`,
+            })
+            .where(eq(schema.subscriptions.id, activeSub.id));
 
-        // Create new subscription
-        await this.db.insert(schema.subscriptions).values({
-          userId,
-          planId: input.targetPlanId,
-          branchId: input.targetBranchId,
-          status: "active",
-          startDate: today,
-          endDate: endDateStr,
-          pricePaid: 0,
-          priceTypeApplied: "regular",
-          notes: "Migrado desde plan legacy",
+          // Create new subscription
+          await tx.insert(schema.subscriptions).values({
+            userId,
+            planId: input.targetPlanId,
+            branchId: input.targetBranchId,
+            status: "active",
+            startDate: today,
+            endDate: endDateStr,
+            pricePaid: 0,
+            priceTypeApplied: "regular",
+            notes: "Migrado desde plan legacy",
+          });
         });
 
         migrated++;
