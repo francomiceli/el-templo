@@ -124,6 +124,10 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         gender,
         role: "member",
         level: "alfa",
+        // Phase 103-03 (R7, D-12, D-13): online self-register starts as freemium.
+        // If a valid promoCode follows, assignPlan → recomputeUserStatus flips
+        // it to 'activo' inside the same transaction (Plan 02 wiring).
+        status: "freemium" as const,
       });
 
       const userId = Number(result[0].insertId);

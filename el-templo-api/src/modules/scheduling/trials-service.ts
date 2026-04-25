@@ -142,7 +142,9 @@ export class TrialService {
         branchId: input.branchId,
         level: "alfa",
         role: "member",
-        isActive: true,
+        // Phase 103-03 (R7, D-12): trial endpoint creates a presential lead.
+        // Replaces the leftover `isActive: true` (column dropped in Plan 01).
+        status: "prueba" as const,
       });
       const userId = Number(userInsert[0].insertId);
 
