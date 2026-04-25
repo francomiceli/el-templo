@@ -91,35 +91,29 @@
                     />
                   </div>
                   <div class="col-12 col-sm-6">
-                    <div class="dni-field">
-                      <q-input
-                        v-model="form.dni"
-                        label="DNI *"
-                        dense
-                        outlined
-                        :rules="[requiredRule('DNI')]"
-                        debounce="500"
-                        @update:model-value="onDniChange"
-                      />
-                      <div
-                        v-if="dniStatus === 'checking'"
-                        class="dni-caption text-caption text-grey"
-                      >
-                        Verificando DNI...
-                      </div>
-                      <div
-                        v-else-if="dniStatus === 'taken'"
-                        class="dni-caption text-caption text-orange"
-                      >
-                        DNI ya registrado para {{ dniExistingName }}
-                      </div>
-                      <div
-                        v-else-if="dniStatus === 'available'"
-                        class="dni-caption text-caption text-positive"
-                      >
-                        <q-icon name="check_circle" size="xs" /> DNI disponible
-                      </div>
-                    </div>
+                    <q-input
+                      v-model="form.dni"
+                      label="DNI *"
+                      dense
+                      outlined
+                      :rules="[requiredRule('DNI')]"
+                      :error="dniStatus === 'taken'"
+                      :error-message="`DNI ya registrado para ${dniExistingName}`"
+                      debounce="500"
+                      @update:model-value="onDniChange"
+                    >
+                      <template #append>
+                        <q-spinner v-if="dniStatus === 'checking'" size="xs" color="grey" />
+                        <q-icon
+                          v-else-if="dniStatus === 'available'"
+                          name="check_circle"
+                          color="positive"
+                          size="xs"
+                        >
+                          <q-tooltip>DNI disponible</q-tooltip>
+                        </q-icon>
+                      </template>
+                    </q-input>
                   </div>
                 </div>
 
@@ -162,12 +156,15 @@
                     <q-select
                       v-model="form.gender"
                       :options="genderOptions"
-                      label="Genero"
+                      label="Genero *"
                       dense
                       outlined
                       emit-value
                       map-options
                       clearable
+                      :rules="[
+                        (v: string | null) => (v !== null && v.length > 0) || 'Genero es requerido',
+                      ]"
                     />
                   </div>
                 </div>
@@ -299,32 +296,29 @@
                 />
               </div>
               <div class="col-12 col-sm-6">
-                <div class="dni-field">
-                  <q-input
-                    v-model="form.dni"
-                    label="DNI *"
-                    dense
-                    outlined
-                    :rules="[requiredRule('DNI')]"
-                    debounce="500"
-                    @update:model-value="onDniChange"
-                  />
-                  <div v-if="dniStatus === 'checking'" class="dni-caption text-caption text-grey">
-                    Verificando DNI...
-                  </div>
-                  <div
-                    v-else-if="dniStatus === 'taken'"
-                    class="dni-caption text-caption text-orange"
-                  >
-                    DNI ya registrado para {{ dniExistingName }}
-                  </div>
-                  <div
-                    v-else-if="dniStatus === 'available'"
-                    class="dni-caption text-caption text-positive"
-                  >
-                    <q-icon name="check_circle" size="xs" /> DNI disponible
-                  </div>
-                </div>
+                <q-input
+                  v-model="form.dni"
+                  label="DNI *"
+                  dense
+                  outlined
+                  :rules="[requiredRule('DNI')]"
+                  :error="dniStatus === 'taken'"
+                  :error-message="`DNI ya registrado para ${dniExistingName}`"
+                  debounce="500"
+                  @update:model-value="onDniChange"
+                >
+                  <template #append>
+                    <q-spinner v-if="dniStatus === 'checking'" size="xs" color="grey" />
+                    <q-icon
+                      v-else-if="dniStatus === 'available'"
+                      name="check_circle"
+                      color="positive"
+                      size="xs"
+                    >
+                      <q-tooltip>DNI disponible</q-tooltip>
+                    </q-icon>
+                  </template>
+                </q-input>
               </div>
             </div>
 
@@ -381,12 +375,15 @@
                 <q-select
                   v-model="form.gender"
                   :options="genderOptions"
-                  label="Genero"
+                  label="Genero *"
                   dense
                   outlined
                   emit-value
                   map-options
                   clearable
+                  :rules="[
+                    (v: string | null) => (v !== null && v.length > 0) || 'Genero es requerido',
+                  ]"
                 />
               </div>
             </div>
@@ -781,18 +778,3 @@ async function onSubmit() {
   }
 }
 </script>
-
-<style scoped>
-/* DNI status caption is positioned absolutely so it does not push the next
-   row down when it appears (checking / taken / available states). */
-.dni-field {
-  position: relative;
-}
-.dni-caption {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 2px;
-  line-height: 1.2;
-}
-</style>
