@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 103-03-PLAN.md (per-endpoint status defaults at /register and /api/admin/trials)
-last_updated: "2026-04-25T17:41:53.676Z"
+stopped_at: Completed 103-06-PLAN.md (UsuariosPage staff_disabled migration + staff insert null status)
+last_updated: "2026-04-25T17:53:31.798Z"
 progress:
   total_phases: 93
   completed_phases: 79
   total_plans: 349
-  completed_plans: 338
+  completed_plans: 339
   percent: 97
 ---
 
@@ -129,6 +129,7 @@ _Updated after each plan completion_
 | Phase 103 P01 | ~25m | 2 tasks | 3 files |
 | Phase 103 P02 | 30min | 3 tasks | 3 files |
 | Phase 103 P03 | 10min | 2 tasks | 3 files |
+| Phase 103 P06 | 8min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -273,6 +274,7 @@ Recent decisions affecting current work:
 - Plan 102-05: Trial counter placed in header q-card-section (NOT SubscriptionCard) so it renders for sub-less leads; `Tipo` filter label chosen to avoid clashing with existing `Estado` (Activo/Inactivo) label; filters.status default = null so axios serializer omits the key, matching level/segment/avatarType convention.
 - Plan 103-01: Single atomic SQL migration (0100) adds users.status ENUM(freemium/prueba/activo/inactivo) DEFAULT NULL + users.staff_disabled, drops users.is_active and idx_users_is_active, swaps in idx_users_status; backfill is 6 sequential UPDATEs guarded by `WHERE status IS NULL` (idempotent). Hand-written SQL (not drizzle-kit generate) because the runner cannot produce backfill UPDATEs. CRITICAL: SQL comments must not contain inline `;` because run-migrations.ts splits on `;` BEFORE stripping `--` comments.
 - Plan 103-03: Per-endpoint explicit status at /register (freemium) and /api/admin/trials (prueba). Folded the leftover trials-service.ts isActive: true into the same edit (Rule 3). Test file uses real clock — vi.useFakeTimers desyncs from MySQL CURDATE() in Plan 02 recomputeUserStatus.
+- Plan 103-06: PATCH /api/admin/users/:id/status payload renamed isActive→disabled with additionalProperties:false rejecting legacy shape (T-103-09 mitigated end-to-end); UserService.toggleDisabled is an explicit-value setter (no server-side toggle) so concurrent admin clicks converge instead of fighting; createStaff insert path explicitly writes status:null (BLOCKER 1 fix per CONTEXT D-12); admin-app UsuariosPage UX wording preserved while underlying boolean flips from isActive to staffDisabled
 
 ### Pending Todos
 
@@ -284,8 +286,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T17:41:53.652Z
-Stopped at: Completed 103-03-PLAN.md (per-endpoint status defaults at /register and /api/admin/trials)
+Last session: 2026-04-25T17:53:31.772Z
+Stopped at: Completed 103-06-PLAN.md (UsuariosPage staff_disabled migration + staff insert null status)
 Resume file: None
 
 **Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25
