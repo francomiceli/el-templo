@@ -10,14 +10,7 @@
 
 process.env.DRY_RUN = "true";
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import {
   createTestApp,
@@ -275,6 +268,14 @@ describe("Notification Module", () => {
     it("POST /api/notifications/:id/opened with valid ID returns 200", async () => {
       // First, queue a notification via service to get a valid notification ID
       const service = new NotificationService(app.db, app.log, true);
+
+      // Device token required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-opened-tracking-token-abcdef123456789012345678901234567890",
+        "android",
+      );
+
       const notificationId = await service.queueNotification({
         userId: memberId,
         templateKey: "morning_energy",
@@ -430,6 +431,14 @@ describe("Notification Module", () => {
         segmentUpdatedAt: new Date(),
       });
 
+      // A device token is required at enqueue time
+      const service = new NotificationService(app.db, app.log, true);
+      await service.registerToken(
+        memberId,
+        "fcm-send-segment-token-abcdef123456789012345678901234567890",
+        "android",
+      );
+
       const res = await app.inject({
         method: "POST",
         url: "/api/notifications/admin/send-segment",
@@ -487,6 +496,13 @@ describe("Notification Module", () => {
     it("queueNotification creates a pending notification", async () => {
       const service = new NotificationService(app.db, app.log, true);
 
+      // A device token is required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-queue-create-token-abcdef123456789012345678901234567890",
+        "android",
+      );
+
       const notificationId = await service.queueNotification({
         userId: memberId,
         templateKey: "morning_energy",
@@ -502,6 +518,25 @@ describe("Notification Module", () => {
       expect(row).toBeDefined();
       expect(row.status).toBe("pending");
       expect(row.userId).toBe(memberId);
+    });
+
+    it("queueNotification returns -1 when user has no device tokens", async () => {
+      const service = new NotificationService(app.db, app.log, true);
+
+      // No registerToken call — member has no device tokens
+      const notificationId = await service.queueNotification({
+        userId: memberId,
+        templateKey: "morning_energy",
+      });
+
+      expect(notificationId).toBe(-1);
+
+      // And no row was inserted
+      const rows = await app.db
+        .select()
+        .from(schema.pendingNotifications)
+        .where(eq(schema.pendingNotifications.userId, memberId));
+      expect(rows).toHaveLength(0);
     });
 
     it("processQueue sends pending notifications and marks as sent (DRY_RUN)", async () => {
@@ -537,9 +572,7 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(
-          eq(schema.notificationTemplates.templateKey, "morning_energy"),
-        );
+        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
       expect(template.sentCount).toBeGreaterThanOrEqual(1);
     });
 
@@ -586,12 +619,7 @@ describe("Notification Module", () => {
       await app.db
         .update(schema.notificationTemplates)
         .set({ isEnabled: false })
-        .where(
-          eq(
-            schema.notificationTemplates.templateKey,
-            "morning_energy",
-          ),
-        );
+        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
 
       const notificationId = await service.queueNotification({
         userId: memberId,
@@ -616,21 +644,29 @@ describe("Notification Module", () => {
       expect(notificationId).toBe(-1);
     });
 
-    it("processQueue marks as failed when no device tokens registered", async () => {
+    it("processQueue marks as failed when token is deleted between enqueue and process", async () => {
       const service = new NotificationService(app.db, app.log, true);
 
-      // Queue a notification (member has no device tokens)
+      // Register a token so queueNotification's pre-check passes
+      const tokenValue =
+        "fcm-race-test-token-abcdef123456789012345678901234567890";
+      await service.registerToken(memberId, tokenValue, "android");
+
       const notificationId = await service.queueNotification({
         userId: memberId,
         templateKey: "morning_energy",
       });
       expect(notificationId).toBeGreaterThan(0);
 
-      // Process queue — should fail due to no tokens
+      // Simulate the token disappearing before the queue runs (e.g. logout
+      // or FCM-invalid cleanup from a previous send).
+      await app.db
+        .delete(schema.deviceTokens)
+        .where(eq(schema.deviceTokens.token, tokenValue));
+
       const result = await service.processQueue();
       expect(result.failed).toBeGreaterThanOrEqual(1);
 
-      // Verify the notification is marked as 'failed'
       const [row] = await app.db
         .select()
         .from(schema.pendingNotifications)
@@ -677,6 +713,13 @@ describe("Notification Module", () => {
         "Cuerpo femenino test",
       );
 
+      // Device token required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-gender-female-token-abcdef123456789012345678901234567890",
+        "android",
+      );
+
       // Queue notification
       const notificationId = await service.queueNotification({
         userId: memberId,
@@ -713,9 +756,14 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(
-          eq(schema.notificationTemplates.templateKey, "morning_energy"),
-        );
+        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+
+      // Device token required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-gender-male-token-abcdef123456789012345678901234567890",
+        "android",
+      );
 
       // Queue notification
       const notificationId = await service.queueNotification({
@@ -755,9 +803,14 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(
-          eq(schema.notificationTemplates.templateKey, "morning_energy"),
-        );
+        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+
+      // Device token required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-gender-null-token-abcdef123456789012345678901234567890",
+        "android",
+      );
 
       // Queue notification
       const notificationId = await service.queueNotification({
@@ -794,9 +847,14 @@ describe("Notification Module", () => {
       const [template] = await app.db
         .select()
         .from(schema.notificationTemplates)
-        .where(
-          eq(schema.notificationTemplates.templateKey, "morning_energy"),
-        );
+        .where(eq(schema.notificationTemplates.templateKey, "morning_energy"));
+
+      // Device token required at enqueue time
+      await service.registerToken(
+        memberId,
+        "fcm-gender-unspecified-token-abcdef123456789012345678901234567890",
+        "android",
+      );
 
       // Queue notification
       const notificationId = await service.queueNotification({
@@ -849,6 +907,19 @@ describe("Notification Module", () => {
         segment: "espartano",
         segmentUpdatedAt: new Date(),
       });
+
+      // Device tokens required at enqueue time
+      const service = new NotificationService(app.db, app.log, true);
+      await service.registerToken(
+        memberId,
+        "fcm-dual-copy-male-token-abcdef123456789012345678901234567890",
+        "android",
+      );
+      await service.registerToken(
+        femaleMemberId,
+        "fcm-dual-copy-female-token-abcdef123456789012345678901234567890",
+        "android",
+      );
 
       // POST to send-segment with dual-copy
       const res = await app.inject({

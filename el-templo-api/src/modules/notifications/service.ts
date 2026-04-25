@@ -266,6 +266,17 @@ export class NotificationService {
       return -1;
     }
 
+    // Skip enqueueing for users without a device token. Without one, the
+    // queue processor would only mark the row 'failed' with
+    // "No device tokens registered" — pure noise that drowns real FCM errors.
+    if (!(await this.userHasDeviceToken(userId))) {
+      this.log.info(
+        { userId, templateKey },
+        "User has no device tokens — skipping",
+      );
+      return -1;
+    }
+
     // Resolve gender-specific copy (per D-12)
     const useFemale = await this.resolveUseFemale(userId);
     const resolvedTitle =
@@ -275,9 +286,7 @@ export class NotificationService {
         : template.title);
     const resolvedBody =
       bodyOverride ??
-      (useFemale && template.bodyFemale
-        ? template.bodyFemale
-        : template.body);
+      (useFemale && template.bodyFemale ? template.bodyFemale : template.body);
 
     // Insert into pending_notifications
     const result = await this.db.insert(schema.pendingNotifications).values({
@@ -314,6 +323,15 @@ export class NotificationService {
       this.log.info(
         { userId, category },
         "User preference disabled for ad-hoc category — skipping",
+      );
+      return -1;
+    }
+
+    // Skip if user has no device token — see queueNotification for rationale.
+    if (!(await this.userHasDeviceToken(userId))) {
+      this.log.info(
+        { userId, category },
+        "User has no device tokens — skipping ad-hoc",
       );
       return -1;
     }
@@ -620,6 +638,20 @@ export class NotificationService {
   }
 
   // ── Private Helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Check whether the user has at least one registered device token.
+   * Used as an enqueue-time guard to avoid filling pending_notifications
+   * with rows that the processor will only mark 'failed: No device tokens'.
+   */
+  private async userHasDeviceToken(userId: number): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: schema.deviceTokens.id })
+      .from(schema.deviceTokens)
+      .where(eq(schema.deviceTokens.userId, userId))
+      .limit(1);
+    return rows.length > 0;
+  }
 
   /**
    * Check if an FCM error indicates an invalid/expired token.
