@@ -2224,7 +2224,7 @@ Scope:
 Plans:
 
 - [x] 103-01-PLAN.md — Schema migration + 6-stage backfill (R1, R2, R3, R4) — see 103-01-SUMMARY.md
-- [ ] 103-02-PLAN.md — recomputeUserStatus helper + transaction wrapping for 6 sub-mutating methods (R5, R6)
+- [x] 103-02-PLAN.md — recomputeUserStatus helper + transaction wrapping for 8 sub-mutating methods (R5, R6) — see 103-02-SUMMARY.md
 - [ ] 103-03-PLAN.md — Member-creation entry-point status defaults (freemium/prueba/null) (R7)
 - [ ] 103-04-PLAN.md — Members API contract migration + analytics + SlotAttendancePanel (R8, R10)
 - [ ] 103-05-PLAN.md — AlumnosPage 5-option dropdown + AlumnoDetailPage badge + shared composable (R9, R10)
