@@ -58,14 +58,6 @@
           @update:model-value="onFilterChange"
         />
       </div>
-      <div class="col-6 col-sm-3 col-md-3 items-center">
-        <q-toggle
-          v-model="filters.leadsOnly"
-          label="Solo Leads"
-          color="primary"
-          @update:model-value="onFilterChange"
-        />
-      </div>
     </div>
 
     <!-- Filter bar — Row 2: filters -->
@@ -118,7 +110,7 @@
       </div>
       <div class="col-6 col-sm-3 col-md-2">
         <q-select
-          v-model="filters.isActive"
+          v-model="filters.status"
           :options="statusFilterOptions"
           label="Estado"
           dense
@@ -243,12 +235,12 @@
         </q-td>
       </template>
 
-      <!-- Estado column -->
+      <!-- Estado column (Phase 103 R10: 4-state badge from users.status) -->
       <template #body-cell-estado="props">
         <q-td :props="props">
           <q-badge
-            :color="props.row.isActive ? 'positive' : 'grey'"
-            :label="props.row.isActive ? 'Activo' : 'Inactivo'"
+            :color="getStatusColor(props.row.status)"
+            :label="getStatusLabel(props.row.status)"
           />
         </q-td>
       </template>
@@ -282,6 +274,7 @@ import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useStatusBadge } from 'src/composables/useStatusBadge';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import type {
   MemberListItem,
@@ -289,6 +282,7 @@ import type {
   BranchOption,
   TotalDebtRow,
   ActiveDebt,
+  UserStatus,
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
@@ -298,6 +292,7 @@ const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
+const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 
 // =========================================================================
 // Country selector (owner-only per D-06)
@@ -341,11 +336,12 @@ const filters = reactive({
   planId: null as number | null,
   branchId: null as number | string | null,
   level: null as string | null,
-  isActive: true as boolean | null,
+  // Phase 103 R10: replaces previous boolean isActive + leadsOnly toggles.
+  // null = "Todos" (no filter); enum values map 1:1 to users.status.
+  status: null as UserStatus | null,
   segment: null as MemberSegment | null,
   avatarType: null as string | null,
   debtorOnly: false as boolean,
-  leadsOnly: false as boolean,
 });
 
 // Phase 101: aggregated total debt grouped by currency, scoped to the same
@@ -392,10 +388,13 @@ const levelFilterOptions = [
   { label: 'Spartan', value: 'spartan' },
 ];
 
-const statusFilterOptions = [
+// Phase 103 R10 (D-15.2): 5 options matching the 4 user lifecycle states.
+const statusFilterOptions: Array<{ label: string; value: UserStatus | null }> = [
   { label: 'Todos', value: null },
-  { label: 'Activos', value: true },
-  { label: 'Inactivos', value: false },
+  { label: 'Freemium', value: 'freemium' },
+  { label: 'En Prueba', value: 'prueba' },
+  { label: 'Activos', value: 'activo' },
+  { label: 'Inactivos', value: 'inactivo' },
 ];
 
 const segmentFilterOptions: Array<{ label: string; value: MemberSegment | null }> = [
@@ -497,7 +496,7 @@ const columns: QTableProps['columns'] = [
   {
     name: 'estado',
     label: 'Estado',
-    field: 'isActive',
+    field: 'status',
     align: 'center',
     sortable: false,
     style: 'width: 100px',
@@ -673,12 +672,12 @@ async function loadMembers() {
       branchId: isMultiBranch ? undefined : ((filters.branchId as number) ?? undefined),
       multiBranch: isMultiBranch || undefined,
       level: filters.level ?? undefined,
-      isActive: filters.isActive ?? undefined,
+      // Phase 103 R10: single first-class users.status filter.
+      status: filters.status ?? undefined,
       segment: filters.segment ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       debtorOnly: filters.debtorOnly || undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
-      status: filters.leadsOnly ? 'leads' : undefined,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
@@ -714,11 +713,11 @@ async function onExport() {
           : ((filters.branchId as number | undefined) ?? undefined),
       multiBranch: filters.branchId === 'multiBranch' ? true : undefined,
       level: filters.level || undefined,
-      isActive: filters.isActive ?? undefined,
+      // Phase 103 R10: single first-class users.status filter.
+      status: filters.status ?? undefined,
       planId: filters.planId ?? undefined,
       avatarType: filters.avatarType ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
-      status: filters.leadsOnly ? 'leads' : undefined,
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
