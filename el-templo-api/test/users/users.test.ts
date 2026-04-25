@@ -262,7 +262,7 @@ describe("User Management Routes", () => {
       expect(body.staffDisabled).toBe(true);
     });
 
-    it("deactivated user can still login (login gate added in Plan 07)", async () => {
+    it("deactivated staff is rejected at /login (gate added in Plan 07)", async () => {
       const userId = await createStaffUser(app, {
         email: "nodeactivated@test.com",
         password: "testpass123",
@@ -288,9 +288,10 @@ describe("User Management Routes", () => {
         payload: { email: "nodeactivated@test.com", password: "testpass123" },
       });
 
-      // Phase 103-06: staff_disabled login gate is Plan 07's work.
-      // For now login still succeeds; Plan 07 will tighten this to 401/403.
-      expect(loginRes.statusCode).toBe(200);
+      // Phase 103-07: staff_disabled login gate now rejects deactivated
+      // staff with 401. (Pre-Plan 07 this returned 200 — the placeholder
+      // assertion was kept until the gate landed.)
+      expect(loginRes.statusCode).toBe(401);
     });
   });
 

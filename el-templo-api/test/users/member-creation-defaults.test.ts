@@ -172,66 +172,10 @@ describe("Phase 103-03 — Member creation status defaults (R7)", () => {
     expect(subs.length).toBeGreaterThan(0);
   });
 
-  // ─── Test 5: /api/admin/trials → prueba ───────────────────────────────
-
-  it("POST /api/admin/scheduling/trials → status='prueba'", async () => {
-    // Create a future schedule slot to attach the trial booking to.
-    const activityRes = await app.inject({
-      method: "POST",
-      url: `${ADMIN_SCHEDULING}/activities`,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: { name: "Calistenia 103-03", description: "test" },
-    });
-    expect(activityRes.statusCode).toBe(201);
-    const activity = JSON.parse(activityRes.body);
-
-    // Pick a guaranteed-future weekday (today + 2 days, ISO dayOfWeek).
-    // Using +2 days avoids same-day reserve-window edge cases.
-    const target = new Date();
-    target.setDate(target.getDate() + 2);
-    // ISO dayOfWeek: 1=Mon..7=Sun. Convert from JS getDay() (0=Sun..6=Sat).
-    const jsDay = target.getDay();
-    const isoDayOfWeek = jsDay === 0 ? 7 : jsDay;
-    const bookingDate = target.toISOString().split("T")[0];
-
-    const slotRes = await app.inject({
-      method: "POST",
-      url: `${ADMIN_SCHEDULING}/schedules`,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: {
-        branchId: presentialBranchId,
-        activityId: activity.id,
-        dayOfWeek: isoDayOfWeek,
-        startTime: "10:00",
-        endTime: "11:00",
-      },
-    });
-    expect(slotRes.statusCode).toBe(201);
-    const slot = JSON.parse(slotRes.body);
-
-    const phone = `+5491177${uniqueSuffix().slice(0, 6)}`;
-    const trialRes = await app.inject({
-      method: "POST",
-      url: TRIALS_URL,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: {
-        firstName: "Trial",
-        lastName: "Lead",
-        phone,
-        branchId: presentialBranchId,
-        scheduleId: slot.id,
-        bookingDate,
-      },
-    });
-    expect(trialRes.statusCode).toBe(201);
-    const trialBody = JSON.parse(trialRes.body);
-    expect(trialBody.userId).toBeTruthy();
-
-    const [row] = await app.db
-      .select({ status: schema.users.status, phone: schema.users.phone })
-      .from(schema.users)
-      .where(eq(schema.users.id, trialBody.userId));
-    expect(row.status).toBe("prueba");
-    expect(row.phone).toBe(phone);
-  });
+  // Phase 103 update: the legacy "POST /trials creates a prueba user"
+  // assertion is no longer applicable — /trials only books an existing
+  // user now. Coverage for the new flow lives in trials.test.ts (which
+  // calls createPruebaUser via /admin/members and asserts status='prueba'
+  // there). The /admin/members → prueba contract itself is exercised by
+  // members-status-filter.test.ts.
 });
