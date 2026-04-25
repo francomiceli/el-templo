@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 102-04-PLAN.md (admin UI — SlotDetailDialog trial creation + roster split)
-last_updated: "2026-04-22T22:45:00.000Z"
+stopped_at: Completed 103-01-PLAN.md (user_status_enum schema migration + 6-stage backfill)
+last_updated: "2026-04-25T13:55:00.000Z"
 progress:
-  total_phases: 92
-  completed_phases: 80
-  total_plans: 341
-  completed_plans: 336
-  percent: 99
+  total_phases: 93
+  completed_phases: 79
+  total_plans: 349
+  completed_plans: 337
+  percent: 96
 ---
 
 # Project State
@@ -126,6 +126,7 @@ _Updated after each plan completion_
 | Phase 102 P03 | 35m | 2 tasks | 4 files |
 | Phase 102 P04 | ~20m | 4 tasks | 5 files |
 | Phase 102 P05 | ~15m | 3 tasks | 3 files |
+| Phase 103 P01 | ~25m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -268,6 +269,7 @@ Recent decisions affecting current work:
 - Phase 101-01: FK fk_debts_user_id has no ON DELETE/UPDATE — users are soft-deleted via users.deleted_at so no cascade needed
 - Plan 102-03: EXISTS subquery for hasUsedTrial (no new index); reused isActiveSubquery pattern for leads filter.
 - Plan 102-05: Trial counter placed in header q-card-section (NOT SubscriptionCard) so it renders for sub-less leads; `Tipo` filter label chosen to avoid clashing with existing `Estado` (Activo/Inactivo) label; filters.status default = null so axios serializer omits the key, matching level/segment/avatarType convention.
+- Plan 103-01: Single atomic SQL migration (0100) adds users.status ENUM(freemium/prueba/activo/inactivo) DEFAULT NULL + users.staff_disabled, drops users.is_active and idx_users_is_active, swaps in idx_users_status; backfill is 6 sequential UPDATEs guarded by `WHERE status IS NULL` (idempotent). Hand-written SQL (not drizzle-kit generate) because the runner cannot produce backfill UPDATEs. CRITICAL: SQL comments must not contain inline `;` because run-migrations.ts splits on `;` BEFORE stripping `--` comments.
 
 ### Pending Todos
 
@@ -279,8 +281,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-22T22:45:00.000Z
-Stopped at: Completed 102-05-PLAN.md (admin UI — trial counter + Leads filter)
+Last session: 2026-04-25T13:55:00.000Z
+Stopped at: Completed 103-01-PLAN.md (user_status_enum schema migration + 6-stage backfill)
 Resume file: None
 
-**Planned Phase:** 102 (trial-classes-sesiones-de-prueba) — 5 plans — 2026-04-22T21:56:03.933Z
+**Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25

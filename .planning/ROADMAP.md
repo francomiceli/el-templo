@@ -2204,7 +2204,7 @@ Plans:
 **Goal:** Materialize the user lifecycle as a `users.status` enum (`freemium` | `prueba` | `activo` | `inactivo`), maintained automatically by subscription create/cancel transitions and by the trial-creation endpoint; in the same change, split the operational staff-disable flag into its own `users.staff_disabled` column and remove the legacy `users.is_active` column. Reverses Phase 102's Option B decision now that the trial flow is shipped and the friction of a derived "lead" concept is visible in the UI and call sites; adds the `freemium` state in anticipation of fase 89-91 (Planes Online).
 **Requirements:** R1, R2, R3, R4, R5, R6, R7, R8, R9, R10, R11, R12 (see 103-SPEC.md)
 **Depends on:** Phase 102
-**Plans:** TBD (run /gsd-plan-phase 103 to break down)
+**Plans:** 7 plans
 
 Scope:
 
@@ -2223,7 +2223,13 @@ Scope:
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 103 to break down)
+- [x] 103-01-PLAN.md — Schema migration + 6-stage backfill (R1, R2, R3, R4) — see 103-01-SUMMARY.md
+- [ ] 103-02-PLAN.md — recomputeUserStatus helper + transaction wrapping for 6 sub-mutating methods (R5, R6)
+- [ ] 103-03-PLAN.md — Member-creation entry-point status defaults (freemium/prueba/null) (R7)
+- [ ] 103-04-PLAN.md — Members API contract migration + analytics + SlotAttendancePanel (R8, R10)
+- [ ] 103-05-PLAN.md — AlumnosPage 5-option dropdown + AlumnoDetailPage badge + shared composable (R9, R10)
+- [ ] 103-06-PLAN.md — UsuariosPage staff toggle migration to staff_disabled (R11)
+- [ ] 103-07-PLAN.md — Auth routes cleanup + new staff_disabled login gate (R12)
 
 ---
 
