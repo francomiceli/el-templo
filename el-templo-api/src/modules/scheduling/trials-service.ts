@@ -1,17 +1,21 @@
 /**
- * Phase 102: TrialService
+ * Phase 102 + 103: TrialService
  *
- * Creates a minimal lead user + a trial booking in one atomic transaction.
- * A "lead" is inferred later from (is_trial=true booking) + (no active sub)
- * — no users.status column (Option B, see 102-SPEC.md).
+ * Trial creation is split across two responsibilities:
  *
- * Atomicity contract:
- *   Pre-transaction validation (schedule existence, branch/schedule
- *   coherence, one-trial-per-phone) runs BEFORE the transaction block.
- *   When any of those fail, no user row is created because we never
- *   reached the INSERT. The transaction block itself wraps BOTH INSERTs
- *   so that if the booking insert fails post-user-insert (e.g. FK
- *   violation), the user insert rolls back.
+ *   1. Creating the user (status='prueba') is the job of the standard
+ *      member-creation flow (members/service.ts createMember). This keeps
+ *      DNI/dateOfBirth/gender validation in one place and avoids a second
+ *      "lite create" code path that would drift over time.
+ *
+ *   2. Booking that user into a specific class slot is the job of this
+ *      service: bookTrial({userId, scheduleId, bookingDate}).
+ *
+ * Eligibility for booking a trial:
+ *   - users.status = 'prueba'
+ *   - user.branch_id matches the slot's branch
+ *   - user has no non-cancelled is_trial=true booking yet (one trial per
+ *     lifetime — "0/1" badge becomes "1/1")
  *
  * Capacity: trials INTENTIONALLY bypass schedule capacity checks — the
  * schedule-capacity queries filter is_trial=false (see booking-service.ts
@@ -21,23 +25,30 @@
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import { and, asc, desc, eq, ne, or, sql } from "drizzle-orm";
-import argon2 from "argon2";
 import * as schema from "../../db/schema";
 import { ConflictError, NotFoundError } from "../shared/errors";
 import type { CountryCode } from "../shared/country-scope";
 
-export interface CreateTrialInput {
-  firstName: string;
-  lastName: string;
-  phone: string;
-  branchId: number;
+export interface BookTrialInput {
+  userId: number;
   scheduleId: number;
   bookingDate: string; // YYYY-MM-DD
 }
 
-export interface CreateTrialResult {
-  userId: number;
+export interface BookTrialResult {
   bookingId: number;
+}
+
+export interface EligibleTrialUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  dni: string | null;
+}
+
+export interface ListEligibleTrialsResult {
+  users: EligibleTrialUser[];
 }
 
 /**
@@ -84,8 +95,25 @@ export class TrialService {
     private log: FastifyBaseLogger,
   ) {}
 
-  async createTrial(input: CreateTrialInput): Promise<CreateTrialResult> {
-    // 1. Validate schedule + branch match (fail-fast before hashing password).
+  /**
+   * Phase 103: Book an existing prueba user into a specific class slot.
+   *
+   * Replaces Phase 102's createTrial (user+booking in one shot). Now the
+   * user must be created first via the standard /admin/members flow
+   * (which defaults status='prueba'); this method only attaches a
+   * trial booking.
+   *
+   * Validations (all run BEFORE the INSERT so we never leave dangling state):
+   *   - schedule exists
+   *   - user exists with status='prueba'
+   *   - user.branch_id matches schedule.branch_id (prevents booking a
+   *     prueba into another sede's class)
+   *   - user has no non-cancelled is_trial=true booking yet (one per
+   *     lifetime — admin can cancel an existing trial booking to free up
+   *     the slot, mirroring the Phase 102-06 cancellation contract)
+   */
+  async bookTrial(input: BookTrialInput): Promise<BookTrialResult> {
+    // 1. Validate schedule exists.
     const [scheduleRow] = await this.db
       .select({
         id: schema.schedules.id,
@@ -94,20 +122,38 @@ export class TrialService {
       .from(schema.schedules)
       .where(eq(schema.schedules.id, input.scheduleId));
     if (!scheduleRow) throw new NotFoundError("Horario no encontrado");
-    if (scheduleRow.branchId !== input.branchId) {
-      throw new NotFoundError("El horario no pertenece a la sede indicada");
+
+    // 2. Validate user exists and is in 'prueba' state.
+    const [userRow] = await this.db
+      .select({
+        id: schema.users.id,
+        status: schema.users.status,
+        branchId: schema.users.branchId,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, input.userId));
+    if (!userRow) throw new NotFoundError("Alumno no encontrado");
+    if (userRow.status !== "prueba") {
+      throw new ConflictError(
+        "El alumno no está en estado 'prueba' — no se puede reservar una sesión de prueba",
+      );
     }
 
-    // 2. One-trial-per-phone guard (R4). Must precede the INSERT so we
-    //    don't leak a user row on conflict. Cancelled trials don't count —
-    //    admin can cancel an existing trial to free the phone for a new one.
+    // 3. Branch coherence: user's home branch must match the slot's branch.
+    if (userRow.branchId !== scheduleRow.branchId) {
+      throw new ConflictError(
+        "El alumno pertenece a otra sede — solo puede reservar pruebas en su sede",
+      );
+    }
+
+    // 4. One-trial-per-lifetime guard. Cancelled trials don't count so
+    //    admin can cancel + re-book if the alumno reschedules.
     const [priorTrial] = await this.db
       .select({ bookingDate: schema.bookings.bookingDate })
       .from(schema.bookings)
-      .innerJoin(schema.users, eq(schema.users.id, schema.bookings.memberId))
       .where(
         and(
-          eq(schema.users.phone, input.phone),
+          eq(schema.bookings.memberId, input.userId),
           eq(schema.bookings.isTrial, true),
           ne(schema.bookings.status, "cancelado"),
         ),
@@ -118,59 +164,111 @@ export class TrialService {
     if (priorTrial) {
       const [y, m, d] = priorTrial.bookingDate.split("-");
       throw new ConflictError(
-        `Esta persona ya tuvo una sesión de prueba el ${d}/${m}/${y}`,
+        `El alumno ya tiene una sesión de prueba reservada para el ${d}/${m}/${y}`,
       );
     }
 
-    // 3. Hash the shared trial password once (reused for every lead — see
-    //    members/service.ts createMember for the fixed-password precedent).
-    const passwordHash = await argon2.hash("eltemplo2026");
+    // 5. Insert booking. There's a UNIQUE constraint on
+    //    (member_id, schedule_id, booking_date) regardless of status, so a
+    //    plain INSERT would 500 if the user previously cancelled a booking
+    //    on this exact slot+date. We look for a cancelled row for this
+    //    (user, slot, date) tuple and reactivate it; otherwise INSERT fresh.
+    let bookingId: number;
+    const [existingCancelled] = await this.db
+      .select({ id: schema.bookings.id })
+      .from(schema.bookings)
+      .where(
+        and(
+          eq(schema.bookings.memberId, input.userId),
+          eq(schema.bookings.scheduleId, input.scheduleId),
+          eq(schema.bookings.bookingDate, input.bookingDate),
+        ),
+      )
+      .limit(1);
 
-    // 4. Atomic user + booking. Both INSERTs live inside the transaction
-    //    callback so a failure after the user insert rolls it back.
-    //    Plan 01 migrated users.email to nullable (0098), so `email: null`
-    //    both type-checks and runs.
-    const result = await this.db.transaction(async (tx) => {
-      const userInsert = await tx.insert(schema.users).values({
-        email: null,
-        passwordHash,
-        firstName: input.firstName,
-        lastName: input.lastName,
-        phone: input.phone,
-        dni: null,
-        documentType: null,
-        branchId: input.branchId,
-        level: "alfa",
-        role: "member",
-        // Phase 103-03 (R7, D-12): trial endpoint creates a presential lead.
-        // Replaces the leftover `isActive: true` (column dropped in Plan 01).
-        status: "prueba" as const,
-      });
-      const userId = Number(userInsert[0].insertId);
-
-      const bookingInsert = await tx.insert(schema.bookings).values({
-        memberId: userId,
+    if (existingCancelled) {
+      await this.db
+        .update(schema.bookings)
+        .set({
+          status: "reservado",
+          isTrial: true,
+          cancelledAt: null,
+          waitlistPosition: null,
+        })
+        .where(eq(schema.bookings.id, existingCancelled.id));
+      bookingId = existingCancelled.id;
+    } else {
+      const bookingInsert = await this.db.insert(schema.bookings).values({
+        memberId: input.userId,
         scheduleId: input.scheduleId,
         bookingDate: input.bookingDate,
         status: "reservado",
         isTrial: true,
       });
-      const bookingId = Number(bookingInsert[0].insertId);
-
-      return { userId, bookingId };
-    });
+      bookingId = Number(bookingInsert[0].insertId);
+    }
 
     this.log.info(
       {
-        userId: result.userId,
-        bookingId: result.bookingId,
+        userId: input.userId,
+        bookingId,
         scheduleId: input.scheduleId,
         bookingDate: input.bookingDate,
       },
-      "Trial created",
+      "Trial booked",
     );
 
-    return result;
+    return { bookingId };
+  }
+
+  /**
+   * Phase 103: List users eligible to book a trial in the given branch.
+   *
+   * "Eligible" means:
+   *   - users.status = 'prueba'
+   *   - user.branch_id = branchId
+   *   - no non-cancelled is_trial=true booking
+   *
+   * Used by the SlotDetailDialog inline trial picker so coaches can attach
+   * a trial booking to an existing prueba alumno without re-creating one.
+   * Sorted by created_at DESC so the most recently-created alumno (the
+   * common case — admin just created them via /alumnos) appears first.
+   */
+  async listEligibleTrials(
+    branchId: number,
+  ): Promise<ListEligibleTrialsResult> {
+    const rows = await this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        phone: schema.users.phone,
+        dni: schema.users.dni,
+      })
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.status, "prueba"),
+          eq(schema.users.branchId, branchId),
+          sql`NOT EXISTS (
+            SELECT 1 FROM bookings b
+            WHERE b.member_id = users.id
+              AND b.is_trial = 1
+              AND b.booking_status != 'cancelado'
+          )`,
+        ),
+      )
+      .orderBy(desc(schema.users.createdAt));
+
+    const users: EligibleTrialUser[] = rows.map((r) => ({
+      id: r.id,
+      firstName: r.firstName ?? "",
+      lastName: r.lastName ?? "",
+      phone: r.phone,
+      dni: r.dni,
+    }));
+
+    return { users };
   }
 
   /**

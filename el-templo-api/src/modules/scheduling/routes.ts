@@ -39,7 +39,8 @@ import {
   seedSchedulesSchema,
   adminAddBookingSchema,
   adminRemoveBookingSchema,
-  createTrialSchema,
+  bookTrialSchema,
+  listEligibleTrialsSchema,
   listTrialsSchema,
   addHolidaySchema,
   removeHolidaySchema,
@@ -294,28 +295,47 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // ─── Trials (Phase 102) ─────────────────────────────────────────────────
+  // ─── Trials (Phase 102 + 103) ───────────────────────────────────────────
 
-  // POST /trials — create a lead user + trial booking atomically.
+  // POST /trials — book an existing prueba user into a slot (Phase 103).
   // Full path: /api/admin/scheduling/trials (inherits plugin prefix + guard).
-  // Rejects a second trial for the same phone with HTTP 409.
+  // The user must be created beforehand via /admin/members (defaults to
+  // status='prueba'). Rejects with 409 if the user is not in 'prueba' state,
+  // belongs to another branch, or already has a non-cancelled trial booking.
   fastify.post<{
     Body: {
-      firstName: string;
-      lastName: string;
-      phone: string;
-      branchId: number;
+      userId: number;
       scheduleId: number;
       bookingDate: string;
     };
-  }>("/trials", { schema: createTrialSchema }, async (request, reply) => {
+  }>("/trials", { schema: bookTrialSchema }, async (request, reply) => {
     try {
-      const result = await trialService.createTrial(request.body);
+      const result = await trialService.bookTrial(request.body);
       return reply.code(201).send(result);
     } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "create trial");
+      handleServiceError(err, reply, request.log, "book trial");
     }
   });
+
+  // GET /trials/eligible?branchId=X — list prueba users without a trial
+  // booking yet for the given branch (Phase 103). Powers the inline trial
+  // picker in SlotDetailDialog.
+  fastify.get<{
+    Querystring: { branchId: number };
+  }>(
+    "/trials/eligible",
+    { schema: listEligibleTrialsSchema },
+    async (request, reply) => {
+      try {
+        const result = await trialService.listEligibleTrials(
+          request.query.branchId,
+        );
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "list eligible trials");
+      }
+    },
+  );
 
   // GET /trials — list active trials for a date, grouped by branch (102-06).
   // Used by the coach-facing "Sesiones de Prueba" page to replace the

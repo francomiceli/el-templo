@@ -1,13 +1,20 @@
 /**
- * Phase 102 Plan 02: Trial endpoint integration tests.
+ * Phase 102 + 103: Trial endpoint integration tests.
  *
- * Covers requirements:
+ * Phase 103 split the trial flow into two phases:
+ *   1. Create the prueba user via POST /api/admin/members (defaults
+ *      status='prueba' — see members-status-filter.test.ts).
+ *   2. Book the trial via POST /api/admin/scheduling/trials with
+ *      `{userId, scheduleId, bookingDate}`.
+ *
+ * Covers:
  *   R2  — Trial bookings do NOT consume schedule capacity.
- *   R3  — POST /api/admin/scheduling/trials creates a user (email=null) and
- *         a booking (is_trial=true) atomically.
- *   R4  — Second trial for the same phone → 409 with Spanish DD/MM/YYYY msg.
- *   Plus: no-orphan-user on guard rejection (404 + 409 paths), 403 for
- *   non-staff JWTs, 400 for missing body fields.
+ *   R3  — POST /trials creates a booking with is_trial=true (Phase 103).
+ *   R4  — Second trial for the same user → 409.
+ *   Plus: 409 for non-prueba user, 409 for cross-branch user,
+ *         GET /trials/eligible filtering, GET /trials grouped listing,
+ *         103-07 conversion hooks, 403 for non-staff JWTs, 400 for
+ *         missing/wrong-type body fields.
  */
 import {
   describe,
@@ -27,16 +34,16 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
-import { schedules } from "../../src/db/schema/schedules";
-import { activities } from "../../src/db/schema/activities";
 import { users } from "../../src/db/schema/users";
 import { branches } from "../../src/db/schema/branches";
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
 const TRIALS_URL = `${ADMIN_URL}/trials`;
+const ELIGIBLE_URL = `${TRIALS_URL}/eligible`;
+const ADMIN_MEMBERS_URL = "/api/admin/members";
 
-describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
+describe("Scheduling Trials API (Phase 102 + 103)", () => {
   let app: FastifyInstance;
   let adminToken: string;
   let testBranchId: number;
@@ -130,17 +137,48 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     };
   }
 
-  async function countUsersByPhone(phone: string): Promise<number> {
-    const [row] = await app.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(users)
-      .where(eq(users.phone, phone));
-    return Number(row?.count ?? 0);
+  /**
+   * Phase 103: create a prueba user via /admin/members. Returns the user
+   * id so a subsequent POST /trials can attach a booking.
+   */
+  let pruebaCounter = 0;
+  async function createPruebaUser(
+    overrides: Partial<{
+      firstName: string;
+      lastName: string;
+      phone: string;
+      dni: string;
+      branchId: number;
+      email: string;
+    }> = {},
+  ): Promise<number> {
+    pruebaCounter += 1;
+    const seq = String(pruebaCounter).padStart(4, "0");
+    const stamp = `${Date.now() % 100000}${seq}`;
+    const res = await app.inject({
+      method: "POST",
+      url: ADMIN_MEMBERS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        email: overrides.email ?? `prueba${stamp}@test.com`,
+        firstName: overrides.firstName ?? "Trial",
+        lastName: overrides.lastName ?? `User${seq}`,
+        phone: overrides.phone ?? `+549115555${seq}`,
+        dni: overrides.dni ?? `TR${stamp}`,
+        branchId: overrides.branchId ?? testBranchId,
+      },
+    });
+    if (res.statusCode !== 201) {
+      throw new Error(`createPruebaUser failed: ${res.statusCode} ${res.body}`);
+    }
+    const body = JSON.parse(res.body) as { id: number; status: string };
+    expect(body.status).toBe("prueba");
+    return body.id;
   }
 
   // ─── R3: happy path ─────────────────────────────────────────────────────
 
-  it("POST /trials creates user with null email + booking is_trial=true (R3)", async () => {
+  it("POST /trials creates booking with is_trial=true for an existing prueba user (R3)", async () => {
     const activity = await createActivity();
     const futureSlot = getFutureSlot();
     const slot = await createScheduleSlot(
@@ -150,16 +188,17 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       futureSlot.endTime,
     );
 
-    const phone = "+5491155551001";
+    const userId = await createPruebaUser({
+      firstName: "Juan",
+      lastName: "Pérez",
+    });
+
     const res = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Juan",
-        lastName: "Pérez",
-        phone,
-        branchId: testBranchId,
+        userId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
@@ -167,37 +206,9 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
 
     expect(res.statusCode).toBe(201);
     const body = JSON.parse(res.body);
-    expect(body.userId).toBeTruthy();
     expect(body.bookingId).toBeTruthy();
+    expect(body).not.toHaveProperty("userId"); // booking-only response
 
-    // DB assertion: user row has null email and the correct phone.
-    // Phase 103 (R7, R10): users.is_active was dropped; trial endpoint
-    // explicitly inserts users.status='prueba' (Plan 03).
-    const [userRow] = await app.db
-      .select({
-        id: users.id,
-        email: users.email,
-        phone: users.phone,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        level: users.level,
-        role: users.role,
-        status: users.status,
-        branchId: users.branchId,
-      })
-      .from(users)
-      .where(eq(users.id, body.userId));
-    expect(userRow).toBeTruthy();
-    expect(userRow.email).toBeNull();
-    expect(userRow.phone).toBe(phone);
-    expect(userRow.firstName).toBe("Juan");
-    expect(userRow.lastName).toBe("Pérez");
-    expect(userRow.level).toBe("alfa");
-    expect(userRow.role).toBe("member");
-    expect(userRow.status).toBe("prueba");
-    expect(userRow.branchId).toBe(testBranchId);
-
-    // DB assertion: booking row has is_trial=1, status=reservado.
     const [bookingRow] = await app.db
       .select({
         id: bookings.id,
@@ -210,7 +221,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       .from(bookings)
       .where(eq(bookings.id, body.bookingId));
     expect(bookingRow).toBeTruthy();
-    expect(bookingRow.memberId).toBe(body.userId);
+    expect(bookingRow.memberId).toBe(userId);
     expect(bookingRow.scheduleId).toBe(slot.id);
     expect(bookingRow.bookingDate).toBe(futureSlot.date);
     expect(bookingRow.status).toBe("reservado");
@@ -293,15 +304,16 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       expect(Number(beforeCount?.count ?? 0)).toBe(2);
 
       // Add a trial — must succeed even though capacity=2 is full with non-trials.
+      const trialUserId = await createPruebaUser({
+        firstName: "Lead",
+        lastName: "Prospecto",
+      });
       const trialRes = await app.inject({
         method: "POST",
         url: TRIALS_URL,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          firstName: "Lead",
-          lastName: "Prospecto",
-          phone: "+5491155559999",
-          branchId: testBranchId,
+          userId: trialUserId,
           scheduleId: slot.id,
           bookingDate: futureSlot.date,
         },
@@ -359,7 +371,6 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
 
       // A paying member reserving on the still-full slot must be waitlisted
       // (capacity reached by non-trials; the trial didn't take a seat).
-      // Use setupMemberWithSubscription pattern: create plan + member + sub.
       const planRes = await app.inject({
         method: "POST",
         url: `/api/admin/subscriptions/plans`,
@@ -436,9 +447,9 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     }
   });
 
-  // ─── R4: one-per-phone guard + DD/MM/YYYY ───────────────────────────────
+  // ─── R4: one-trial-per-user guard ──────────────────────────────────────
 
-  it("Second trial for same phone returns 409 with DD/MM/YYYY Spanish message (R4)", async () => {
+  it("Second trial booking for same user returns 409 with DD/MM/YYYY (R4)", async () => {
     const activity = await createActivity();
     const futureSlot = getFutureSlot();
     const slot = await createScheduleSlot(
@@ -448,34 +459,26 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       futureSlot.endTime,
     );
 
-    const phone = "+5491155552001";
+    const userId = await createPruebaUser();
 
-    // First trial — success.
     const first = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Juan",
-        lastName: "Pérez",
-        phone,
-        branchId: testBranchId,
+        userId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
     });
     expect(first.statusCode).toBe(201);
 
-    // Second trial — 409, exact Spanish message with DD/MM/YYYY.
     const second = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Juan",
-        lastName: "Pérez",
-        phone,
-        branchId: testBranchId,
+        userId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
@@ -485,42 +488,46 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     const [y, m, d] = futureSlot.date.split("-");
     const expectedDate = `${d}/${m}/${y}`;
     expect(body.message).toBe(
-      `Esta persona ya tuvo una sesión de prueba el ${expectedDate}`,
+      `El alumno ya tiene una sesión de prueba reservada para el ${expectedDate}`,
     );
   });
 
   // ─── 102-06: cancelled trials don't block re-creation ──────────────────
 
-  it("Cancelling a trial booking frees the phone for a new trial (102-06)", async () => {
+  it("Cancelling a trial booking lets the same user book a new one (102-06)", async () => {
     const activity = await createActivity();
     const futureSlot = getFutureSlot();
-    const slot = await createScheduleSlot(
+    // Two slots so the second booking doesn't hit the
+    // (member_id, schedule_id, booking_date) unique constraint left by the
+    // cancelled-but-not-deleted first booking.
+    const slotA = await createScheduleSlot(
       activity.id,
       futureSlot.dayOfWeek,
-      futureSlot.startTime,
-      futureSlot.endTime,
+      "10:00",
+      "11:00",
+    );
+    const slotB = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      "12:00",
+      "13:00",
     );
 
-    const phone = "+5491155557001";
+    const userId = await createPruebaUser();
 
-    // First trial — success.
     const first = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Juan",
-        lastName: "Pérez",
-        phone,
-        branchId: testBranchId,
-        scheduleId: slot.id,
+        userId,
+        scheduleId: slotA.id,
         bookingDate: futureSlot.date,
       },
     });
     expect(first.statusCode).toBe(201);
     const firstBody = JSON.parse(first.body);
 
-    // Admin cancels the trial booking.
     const cancelRes = await app.inject({
       method: "DELETE",
       url: `${ADMIN_URL}/bookings/${firstBody.bookingId}`,
@@ -528,52 +535,23 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     });
     expect(cancelRes.statusCode).toBe(200);
 
-    // Second trial for the same phone — must succeed (cancelled doesn't count).
-    // Note: a new user row is created because we match on phone, and the
-    // prior user still exists with that phone. That's acceptable; the guard
-    // is "one active trial at a time", not "one lead row per phone ever".
+    // Same user re-books on a different slot — cancelled trial doesn't count.
     const second = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Juan",
-        lastName: "Pérez",
-        phone,
-        branchId: testBranchId,
-        scheduleId: slot.id,
+        userId,
+        scheduleId: slotB.id,
         bookingDate: futureSlot.date,
       },
     });
     expect(second.statusCode).toBe(201);
   });
 
-  // ─── Atomicity: no orphan user on guard rejection ───────────────────────
+  // ─── 103: status guard ────────────────────────────────────────────────
 
-  it("404 on missing scheduleId creates no user row (no-orphan-user)", async () => {
-    const phone = "+5491155553001";
-    const before = await countUsersByPhone(phone);
-
-    const res = await app.inject({
-      method: "POST",
-      url: TRIALS_URL,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: {
-        firstName: "Orphan",
-        lastName: "Check",
-        phone,
-        branchId: testBranchId,
-        scheduleId: 999999,
-        bookingDate: "2026-04-01",
-      },
-    });
-    expect(res.statusCode).toBe(404);
-
-    const after = await countUsersByPhone(phone);
-    expect(after).toBe(before);
-  });
-
-  it("409 duplicate-phone creates no extra user row (no-orphan-user)", async () => {
+  it("POST /trials returns 409 if user is not in 'prueba' state", async () => {
     const activity = await createActivity();
     const futureSlot = getFutureSlot();
     const slot = await createScheduleSlot(
@@ -583,45 +561,198 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       futureSlot.endTime,
     );
 
-    const phone = "+5491155554001";
+    // Self-registered user → status='freemium', not 'prueba'.
+    const reg = await registerUser(app, {
+      email: "freemium-trial@test.com",
+      password: "pass123456",
+      branchId: testBranchId,
+      dni: "60000700",
+      phone: "+5491155557007",
+    });
+    const userId = (reg.user as { id: number }).id;
 
-    // First trial — success.
-    const first = await app.inject({
+    const res = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "First",
-        lastName: "Try",
-        phone,
-        branchId: testBranchId,
+        userId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
     });
-    expect(first.statusCode).toBe(201);
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toContain("prueba");
+  });
 
-    const before = await countUsersByPhone(phone);
-    expect(before).toBe(1);
+  // ─── 103: branch guard ────────────────────────────────────────────────
 
-    // Second trial — 409, must NOT create a new user row.
-    const second = await app.inject({
+  it("POST /trials returns 409 if user belongs to another branch", async () => {
+    // Need a second branch.
+    const [otherBranch] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(eq(branches.isVirtual, false), sql`id != ${testBranchId}`))
+      .limit(1);
+    expect(otherBranch).toBeTruthy();
+
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+      testBranchId,
+    );
+
+    const userId = await createPruebaUser({ branchId: otherBranch.id });
+
+    const res = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Second",
-        lastName: "Try",
-        phone,
-        branchId: testBranchId,
+        userId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
     });
-    expect(second.statusCode).toBe(409);
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).message).toContain("otra sede");
+  });
 
-    const after = await countUsersByPhone(phone);
-    expect(after).toBe(1);
+  // ─── 103: 404 missing schedule ────────────────────────────────────────
+
+  it("POST /trials returns 404 if schedule does not exist", async () => {
+    const userId = await createPruebaUser();
+    const res = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId,
+        scheduleId: 999999,
+        bookingDate: "2026-04-01",
+      },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  // ─── 103: 404 missing user ────────────────────────────────────────────
+
+  it("POST /trials returns 404 if user does not exist", async () => {
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+    const res = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: 999999,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  // ─── 103: GET /trials/eligible ────────────────────────────────────────
+
+  it("GET /trials/eligible lists prueba users without a trial booking", async () => {
+    const u1 = await createPruebaUser({ firstName: "Eligible1" });
+    const u2 = await createPruebaUser({ firstName: "Eligible2" });
+    const u3 = await createPruebaUser({ firstName: "AlreadyBooked" });
+
+    // Book u3 so they become ineligible.
+    const activity = await createActivity();
+    const futureSlot = getFutureSlot();
+    const slot = await createScheduleSlot(
+      activity.id,
+      futureSlot.dayOfWeek,
+      futureSlot.startTime,
+      futureSlot.endTime,
+    );
+    const bookRes = await app.inject({
+      method: "POST",
+      url: TRIALS_URL,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        userId: u3,
+        scheduleId: slot.id,
+        bookingDate: futureSlot.date,
+      },
+    });
+    expect(bookRes.statusCode).toBe(201);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ELIGIBLE_URL}?branchId=${testBranchId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body) as {
+      users: Array<{ id: number; firstName: string }>;
+    };
+    const ids = body.users.map((u) => u.id);
+    expect(ids).toContain(u1);
+    expect(ids).toContain(u2);
+    expect(ids).not.toContain(u3);
+  });
+
+  it("GET /trials/eligible filters by branch", async () => {
+    const [otherBranch] = await app.db
+      .select({ id: branches.id })
+      .from(branches)
+      .where(and(eq(branches.isVirtual, false), sql`id != ${testBranchId}`))
+      .limit(1);
+    expect(otherBranch).toBeTruthy();
+
+    const here = await createPruebaUser({ firstName: "InBranch" });
+    const there = await createPruebaUser({
+      firstName: "OtherBranch",
+      branchId: otherBranch.id,
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ELIGIBLE_URL}?branchId=${testBranchId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const ids = (
+      JSON.parse(res.body) as { users: Array<{ id: number }> }
+    ).users.map((u) => u.id);
+    expect(ids).toContain(here);
+    expect(ids).not.toContain(there);
+  });
+
+  it("GET /trials/eligible excludes non-prueba users (freemium/activo)", async () => {
+    const reg = await registerUser(app, {
+      email: "free-eligible@test.com",
+      password: "pass123456",
+      branchId: testBranchId,
+      dni: "60000800",
+      phone: "+5491155558800",
+    });
+    const freemiumId = (reg.user as { id: number }).id;
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${ELIGIBLE_URL}?branchId=${testBranchId}`,
+      headers: { authorization: `Bearer ${adminToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const ids = (
+      JSON.parse(res.body) as { users: Array<{ id: number }> }
+    ).users.map((u) => u.id);
+    expect(ids).not.toContain(freemiumId);
   });
 
   // ─── 102-06: list trials grouped by branch ────────────────────────────
@@ -644,30 +775,23 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       "19:00",
     );
 
-    // Two trials in the afternoon, one in the morning.
-    async function create(
-      phone: string,
-      firstName: string,
-      slotId: number,
-    ): Promise<void> {
+    async function bookTrial(firstName: string, slotId: number): Promise<void> {
+      const userId = await createPruebaUser({ firstName });
       const r = await app.inject({
         method: "POST",
         url: TRIALS_URL,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          firstName,
-          lastName: "Test",
-          phone,
-          branchId: testBranchId,
+          userId,
           scheduleId: slotId,
           bookingDate: futureSlot.date,
         },
       });
       expect(r.statusCode).toBe(201);
     }
-    await create("+5491155558001", "Morning", morningSlot.id);
-    await create("+5491155558002", "Afternoon1", afternoonSlot.id);
-    await create("+5491155558003", "Afternoon2", afternoonSlot.id);
+    await bookTrial("Morning", morningSlot.id);
+    await bookTrial("Afternoon1", afternoonSlot.id);
+    await bookTrial("Afternoon2", afternoonSlot.id);
 
     // Cancel one — must not appear in the listing.
     const cancelRes = await app.inject({
@@ -682,7 +806,8 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
             })
           ).body,
         ).bookings.find(
-          (b: { memberName: string }) => b.memberName === "Afternoon2 Test",
+          (b: { memberName: string }) =>
+            b.memberName && b.memberName.startsWith("Afternoon2 "),
         ).id
       }`,
       headers: { authorization: `Bearer ${adminToken}` },
@@ -733,22 +858,18 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       futureSlot.endTime,
     );
 
-    // 1. Create a lead via the trial flow.
+    const leadUserId = await createPruebaUser({ firstName: "ConvertMe" });
     const trialRes = await app.inject({
       method: "POST",
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "ConvertMe",
-        lastName: "Lead",
-        phone: "+5491155559501",
-        branchId: testBranchId,
+        userId: leadUserId,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
     });
     expect(trialRes.statusCode).toBe(201);
-    const leadUserId = JSON.parse(trialRes.body).userId;
 
     // converted_at starts NULL.
     const [beforeRow] = await app.db
@@ -757,7 +878,6 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       .where(eq(users.id, leadUserId));
     expect(beforeRow.convertedAt).toBeNull();
 
-    // 2. Admin creates a plan and assigns it.
     const planRes = await app.inject({
       method: "POST",
       url: `/api/admin/subscriptions/plans`,
@@ -768,7 +888,10 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
         bookingMode: "flexible",
         priceRegular: 10000,
         priceZero: 8000,
-        durationDays: 30,
+        // 365d so end_date stays >= MySQL's real CURDATE(); the JS-side
+        // fakeTimer doesn't affect server-side CURDATE() so a 30d plan
+        // would look "expired" and recomputeUserStatus would no-op.
+        durationDays: 365,
         classesPerWeek: 3,
         multiBranch: false,
       },
@@ -790,7 +913,6 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     });
     expect(assignRes.statusCode).toBe(201);
 
-    // 3. converted_at must now be set.
     const [afterRow] = await app.db
       .select({ convertedAt: users.convertedAt })
       .from(users)
@@ -808,27 +930,22 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       futureSlot.endTime,
     );
 
-    // Two trials; convert only one of them.
     async function createAndMaybeConvert(
-      phone: string,
       firstName: string,
       convert: boolean,
     ): Promise<number> {
+      const userId = await createPruebaUser({ firstName });
       const trialRes = await app.inject({
         method: "POST",
         url: TRIALS_URL,
         headers: { authorization: `Bearer ${adminToken}` },
         payload: {
-          firstName,
-          lastName: "Lead",
-          phone,
-          branchId: testBranchId,
+          userId,
           scheduleId: slot.id,
           bookingDate: futureSlot.date,
         },
       });
       expect(trialRes.statusCode).toBe(201);
-      const userId = JSON.parse(trialRes.body).userId;
 
       if (convert) {
         const planRes = await app.inject({
@@ -841,7 +958,8 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
             bookingMode: "flexible",
             priceRegular: 10000,
             priceZero: 8000,
-            durationDays: 30,
+            // See "Convert Test Plan" above — 365d to outlive MySQL CURDATE().
+            durationDays: 365,
             classesPerWeek: 3,
             multiBranch: false,
           },
@@ -864,12 +982,8 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       return userId;
     }
 
-    await createAndMaybeConvert("+5491155559601", "Converted", true);
-    const pendingUserId = await createAndMaybeConvert(
-      "+5491155559602",
-      "Pending",
-      false,
-    );
+    await createAndMaybeConvert("Converted", true);
+    const pendingUserId = await createAndMaybeConvert("Pending", false);
 
     const res = await app.inject({
       method: "GET",
@@ -884,13 +998,11 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
     expect(body.totals.conversionRatePct).toBeGreaterThan(0);
     expect(body.totals.conversionRatePct).toBeLessThanOrEqual(100);
 
-    // Pending user must be in pendingLeads, converted user must NOT be.
     const pendingIds = body.pendingLeads.map(
       (l: { userId: number }) => l.userId,
     );
     expect(pendingIds).toContain(pendingUserId);
 
-    // byBranch should have one row for testBranchId.
     const branchRow = body.byBranch.find(
       (r: { branchId: number }) => r.branchId === testBranchId,
     );
@@ -899,7 +1011,6 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
   });
 
   it("Assigning a plan to a non-lead leaves converted_at NULL (102-07)", async () => {
-    // Plain member, no trial booking ever.
     const member = await registerUser(app, {
       email: "noleadconvert@test.com",
       password: "pass123456",
@@ -951,7 +1062,6 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
   // ─── AuthZ ──────────────────────────────────────────────────────────────
 
   it("403 when a non-staff (member) JWT calls /trials", async () => {
-    // Register a plain member user.
     const memberReg = await registerUser(app, {
       email: "member-trial@test.com",
       password: "pass123456",
@@ -980,10 +1090,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${memberToken}` },
       payload: {
-        firstName: "Nope",
-        lastName: "NotAllowed",
-        phone: "+5491155559901",
-        branchId: testBranchId,
+        userId: 1,
         scheduleId: slot.id,
         bookingDate: futureSlot.date,
       },
@@ -999,8 +1106,8 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Only",
-        // lastName, phone, branchId, scheduleId, bookingDate missing
+        userId: 1,
+        // scheduleId, bookingDate missing
       },
     });
     expect(res.statusCode).toBe(400);
@@ -1016,10 +1123,7 @@ describe("Scheduling Trials API (Phase 102 Plan 02)", () => {
       url: TRIALS_URL,
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
-        firstName: "Bob",
-        lastName: "Smith",
-        phone: "+54911",
-        branchId: "not-a-number",
+        userId: "not-a-number",
         scheduleId: 1,
         bookingDate: "2026-04-01",
       },

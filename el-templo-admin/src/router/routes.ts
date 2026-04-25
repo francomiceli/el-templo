@@ -74,13 +74,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: 'sesiones-de-prueba',
-        component: () => import('pages/SesionesDePruebaPage.vue'),
-        meta: {
-          allowedRoles: ['coach', 'admin', 'owner', 'gestion', 'recepcion'] as AdminRole[],
-        },
-      },
-      {
         path: 'analiticas',
         component: () => import('pages/AnaliticasPage.vue'),
         meta: { allowedRoles: ['admin', 'owner'] as AdminRole[] },

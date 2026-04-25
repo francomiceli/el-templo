@@ -231,20 +231,6 @@
 
       <!-- Add member section -->
       <q-card-section>
-        <!-- Trial registration button (today or future; hidden on past dates) -->
-        <div v-if="canRegisterTrial" class="q-mb-sm">
-          <q-btn
-            color="warning"
-            icon="star_outline"
-            label="Nueva Sesión de Prueba"
-            no-caps
-            unelevated
-            class="full-width"
-            :disable="!slotDetail"
-            @click="showNewTrialDialog = true"
-          />
-        </div>
-
         <!-- Mode toggle: today supports both; past = checkin only; future = reserve only -->
         <q-btn-toggle
           v-if="isToday"
@@ -301,6 +287,78 @@
           outlined
           class="q-mt-sm"
         />
+
+        <!-- Inline trial registration (today or future; hidden on past dates) -->
+        <q-expansion-item
+          v-if="canRegisterTrial"
+          v-model="trialFormOpen"
+          label="Agregar sesión de prueba"
+          header-class="text-subtitle2 q-mt-md q-px-none"
+          dense
+          :disable="!slotDetail"
+        >
+          <div class="q-mt-sm">
+            <div v-if="loadingEligibles" class="flex flex-center q-pa-md">
+              <q-spinner-dots size="24px" color="primary" />
+            </div>
+            <template v-else-if="eligibleTrials.length === 0">
+              <div class="text-caption text-grey-7 q-mb-sm">
+                No hay alumnos en prueba sin sesión reservada en esta sede. Creá uno desde Alumnos
+                para reservarle una sesión.
+              </div>
+              <q-btn
+                color="primary"
+                icon="person_add"
+                label="Crear alumno en prueba"
+                no-caps
+                unelevated
+                class="full-width"
+                @click="goToCreateTrialMember"
+              />
+            </template>
+            <template v-else>
+              <q-select
+                v-model="selectedTrialUser"
+                :options="eligibleTrials"
+                option-value="id"
+                option-label="displayLabel"
+                label="Buscar alumno en prueba"
+                dense
+                outlined
+                use-input
+                clearable
+                input-debounce="0"
+                :input-class="'text-body2'"
+                @filter="filterEligibleTrials"
+              >
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey-5 text-italic">
+                      Sin resultados
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+              <div class="row justify-end q-gutter-sm q-mt-sm">
+                <q-btn
+                  flat
+                  label="Cancelar"
+                  color="grey-7"
+                  :disable="bookingTrial"
+                  @click="trialFormOpen = false"
+                />
+                <q-btn
+                  unelevated
+                  label="Reservar"
+                  color="primary"
+                  :loading="bookingTrial"
+                  :disable="!selectedTrialUser"
+                  @click="onBookTrial"
+                />
+              </div>
+            </template>
+          </div>
+        </q-expansion-item>
       </q-card-section>
 
       <q-card-actions align="right">
@@ -308,27 +366,16 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-
-  <NewTrialDialog
-    v-if="slotDetail"
-    v-model:show="showNewTrialDialog"
-    :branch-id="slotDetail.schedule.branchId"
-    :schedule-id="slotDetail.schedule.id"
-    :booking-date="date"
-    :branch-name="slotDetail.schedule.branchName"
-    :schedule-start-time="slotDetail.schedule.startTime"
-    @created="onTrialCreated"
-  />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useSchedulingApi } from 'src/composables/useSchedulingApi';
 import { useAttendanceApi } from 'src/composables/useAttendanceApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
-import NewTrialDialog from 'src/components/scheduling/NewTrialDialog.vue';
 import type {
   SlotDetailView,
   BookingStatus,
@@ -384,8 +431,23 @@ const checkInReason = ref('');
 const submitting = ref(false);
 const addMode = ref<'checkin' | 'reserve'>('checkin');
 
-// Trial dialog
-const showNewTrialDialog = ref(false);
+// Inline trial booking — picks an existing prueba user (created via /alumnos)
+// and attaches a trial booking to this slot.
+type EligibleTrial = {
+  id: number;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  dni: string | null;
+  displayLabel: string;
+};
+const trialFormOpen = ref(false);
+const loadingEligibles = ref(false);
+const bookingTrial = ref(false);
+const eligibleTrialsAll = ref<EligibleTrial[]>([]);
+const eligibleTrials = ref<EligibleTrial[]>([]);
+const selectedTrialUser = ref<EligibleTrial | null>(null);
+const router = useRouter();
 
 // Activity edit
 const editingActivity = ref(false);
@@ -732,12 +794,90 @@ async function saveActivityChange() {
   }
 }
 
-// ─── Trial creation ────────────────────────────────────────────────────────
+// ─── Trial booking (Phase 103) ─────────────────────────────────────────────
 
-async function onTrialCreated() {
-  await refreshAll();
-  emit('bookings-changed');
+function buildTrialLabel(u: {
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  dni: string | null;
+}): string {
+  const name = `${u.firstName} ${u.lastName}`.trim();
+  const extras = [u.dni, u.phone].filter(Boolean).join(' · ');
+  return extras ? `${name} (${extras})` : name;
 }
+
+async function loadEligibleTrials() {
+  if (!slotDetail.value) return;
+  loadingEligibles.value = true;
+  try {
+    const res = await schedulingApi.listEligibleTrials(slotDetail.value.schedule.branchId);
+    eligibleTrialsAll.value = res.users.map((u) => ({
+      ...u,
+      displayLabel: buildTrialLabel(u),
+    }));
+    eligibleTrials.value = eligibleTrialsAll.value;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading eligible trials', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando alumnos en prueba' });
+    eligibleTrialsAll.value = [];
+    eligibleTrials.value = [];
+  } finally {
+    loadingEligibles.value = false;
+  }
+}
+
+function filterEligibleTrials(val: string, update: (fn: () => void) => void): void {
+  update(() => {
+    const q = val.trim().toLowerCase();
+    if (!q) {
+      eligibleTrials.value = eligibleTrialsAll.value;
+      return;
+    }
+    eligibleTrials.value = eligibleTrialsAll.value.filter((u) =>
+      u.displayLabel.toLowerCase().includes(q)
+    );
+  });
+}
+
+async function onBookTrial() {
+  if (!selectedTrialUser.value || !slotDetail.value) return;
+  bookingTrial.value = true;
+  try {
+    await schedulingApi.bookTrial({
+      userId: selectedTrialUser.value.id,
+      scheduleId: slotDetail.value.schedule.id,
+      bookingDate: props.date,
+    });
+    $q.notify({ type: 'positive', message: 'Sesión de prueba reservada' });
+    selectedTrialUser.value = null;
+    trialFormOpen.value = false;
+    await refreshAll();
+    emit('bookings-changed');
+  } catch (err: unknown) {
+    const fallback = err instanceof Error ? err.message : 'Error reservando sesión de prueba';
+    const msg = schedulingApi.error.value ?? fallback;
+    log.error('Error booking trial', { error: msg });
+    $q.notify({ type: 'negative', message: msg, timeout: 5000 });
+  } finally {
+    bookingTrial.value = false;
+  }
+}
+
+function goToCreateTrialMember() {
+  emit('update:show', false);
+  void router.push({ path: '/alumnos', query: { nuevo: 'prueba' } });
+}
+
+// Re-fetch eligibles when the toggle opens, so the list reflects newly
+// created prueba alumnos without forcing a dialog reopen.
+watch(trialFormOpen, (open) => {
+  if (open) {
+    selectedTrialUser.value = null;
+    void loadEligibleTrials();
+  }
+});
 
 // ─── Watchers ───────────────────────────────────────────────────────────────
 
@@ -749,6 +889,10 @@ watch(
       memberSearchResults.value = [];
       checkInReason.value = '';
       editingActivity.value = false;
+      trialFormOpen.value = false;
+      selectedTrialUser.value = null;
+      eligibleTrialsAll.value = [];
+      eligibleTrials.value = [];
       addMode.value = isToday.value ? 'checkin' : isPastOrToday.value ? 'checkin' : 'reserve';
       refreshAll();
     }

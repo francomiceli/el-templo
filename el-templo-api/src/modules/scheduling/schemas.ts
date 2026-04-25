@@ -318,28 +318,19 @@ export const adminAddBookingSchema = {
 };
 
 /**
- * Phase 102: createTrialSchema
+ * Phase 103: bookTrialSchema
  *
  * POST /api/admin/scheduling/trials
- * Creates a lead user + trial booking atomically. Validates minimal fields;
- * the 409 one-per-phone guard and the atomic insert happen in TrialService.
+ * Books an existing prueba user into a class slot. The user must be created
+ * via /admin/members first (which defaults status='prueba'); this endpoint
+ * only attaches the booking. Validation/conflict logic lives in TrialService.
  */
-export const createTrialSchema = {
+export const bookTrialSchema = {
   body: {
     type: "object",
-    required: [
-      "firstName",
-      "lastName",
-      "phone",
-      "branchId",
-      "scheduleId",
-      "bookingDate",
-    ],
+    required: ["userId", "scheduleId", "bookingDate"],
     properties: {
-      firstName: { type: "string", minLength: 1, maxLength: 100 },
-      lastName: { type: "string", minLength: 1, maxLength: 100 },
-      phone: { type: "string", minLength: 5, maxLength: 30 },
-      branchId: { type: "integer", minimum: 1 },
+      userId: { type: "integer", minimum: 1 },
       scheduleId: { type: "integer", minimum: 1 },
       bookingDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
     },
@@ -348,15 +339,53 @@ export const createTrialSchema = {
   response: {
     201: {
       type: "object",
-      required: ["userId", "bookingId"],
+      required: ["bookingId"],
       properties: {
-        userId: { type: "integer" },
         bookingId: { type: "integer" },
       },
     },
     400: errorSchema,
     404: errorSchema,
     409: errorSchema,
+  },
+} as const;
+
+/**
+ * Phase 103: listEligibleTrialsSchema
+ *
+ * GET /api/admin/scheduling/trials/eligible?branchId=X
+ * Returns prueba users in the given branch who have not yet booked a trial.
+ * Used by the SlotDetailDialog inline trial picker.
+ */
+export const listEligibleTrialsSchema = {
+  querystring: {
+    type: "object",
+    required: ["branchId"],
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+    },
+  },
+  response: {
+    200: {
+      type: "object",
+      required: ["users"],
+      properties: {
+        users: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["id", "firstName", "lastName", "phone", "dni"],
+            properties: {
+              id: { type: "integer" },
+              firstName: { type: "string" },
+              lastName: { type: "string" },
+              phone: { type: ["string", "null"] },
+              dni: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
   },
 } as const;
 

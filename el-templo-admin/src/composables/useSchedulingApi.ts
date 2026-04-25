@@ -228,24 +228,51 @@ export function useSchedulingApi() {
     }
   }
 
-  async function createTrial(data: {
-    firstName: string;
-    lastName: string;
-    phone: string;
-    branchId: number;
+  async function bookTrial(data: {
+    userId: number;
     scheduleId: number;
     bookingDate: string; // YYYY-MM-DD
-  }): Promise<{ userId: number; bookingId: number }> {
+  }): Promise<{ bookingId: number }> {
     loading.value = true;
     error.value = null;
     try {
-      const { data: result } = await api.post<{ userId: number; bookingId: number }>(
+      const { data: result } = await api.post<{ bookingId: number }>(
         '/admin/scheduling/trials',
         data
       );
       return result;
     } catch (err: unknown) {
-      error.value = extractError(err, 'Error creando sesión de prueba');
+      error.value = extractError(err, 'Error reservando sesión de prueba');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function listEligibleTrials(branchId: number): Promise<{
+    users: Array<{
+      id: number;
+      firstName: string;
+      lastName: string;
+      phone: string | null;
+      dni: string | null;
+    }>;
+  }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<{
+        users: Array<{
+          id: number;
+          firstName: string;
+          lastName: string;
+          phone: string | null;
+          dni: string | null;
+        }>;
+      }>('/admin/scheduling/trials/eligible', { params: { branchId } });
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando alumnos en prueba');
       throw err;
     } finally {
       loading.value = false;
@@ -345,7 +372,8 @@ export function useSchedulingApi() {
     seedSchedules,
     adminAddBooking,
     adminRemoveBooking,
-    createTrial,
+    bookTrial,
+    listEligibleTrials,
     listTrials,
     addHoliday,
     removeHoliday,

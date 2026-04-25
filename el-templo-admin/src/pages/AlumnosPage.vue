@@ -269,7 +269,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
@@ -290,6 +290,7 @@ import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
 const router = useRouter();
+const route = useRoute();
 const membersApi = useMembersApi();
 const authStore = useAuthStore();
 const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
@@ -761,5 +762,14 @@ onMounted(() => {
   loadBranches();
   loadPlans();
   loadMembers();
+
+  // Phase 103: SlotDetailDialog redirects here with ?nuevo=prueba when no
+  // eligible alumno exists for the trial slot. Auto-open the create dialog
+  // (POST /admin/members defaults to status='prueba'), then strip the param
+  // so a refresh doesn't reopen it.
+  if (route.query.nuevo === 'prueba') {
+    showCreateDialog.value = true;
+    void router.replace({ path: route.path, query: {} });
+  }
 });
 </script>
