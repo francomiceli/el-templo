@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 103-02-PLAN.md (recomputeUserStatus + tx wrapping)
-last_updated: "2026-04-25T17:17:10.267Z"
+stopped_at: Completed 103-03-PLAN.md (per-endpoint status defaults at /register and /api/admin/trials)
+last_updated: "2026-04-25T17:41:53.676Z"
 progress:
   total_phases: 93
   completed_phases: 79
   total_plans: 349
-  completed_plans: 337
+  completed_plans: 338
   percent: 97
 ---
 
@@ -128,6 +128,7 @@ _Updated after each plan completion_
 | Phase 102 P05 | ~15m | 3 tasks | 3 files |
 | Phase 103 P01 | ~25m | 2 tasks | 3 files |
 | Phase 103 P02 | 30min | 3 tasks | 3 files |
+| Phase 103 P03 | 10min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -271,6 +272,7 @@ Recent decisions affecting current work:
 - Plan 102-03: EXISTS subquery for hasUsedTrial (no new index); reused isActiveSubquery pattern for leads filter.
 - Plan 102-05: Trial counter placed in header q-card-section (NOT SubscriptionCard) so it renders for sub-less leads; `Tipo` filter label chosen to avoid clashing with existing `Estado` (Activo/Inactivo) label; filters.status default = null so axios serializer omits the key, matching level/segment/avatarType convention.
 - Plan 103-01: Single atomic SQL migration (0100) adds users.status ENUM(freemium/prueba/activo/inactivo) DEFAULT NULL + users.staff_disabled, drops users.is_active and idx_users_is_active, swaps in idx_users_status; backfill is 6 sequential UPDATEs guarded by `WHERE status IS NULL` (idempotent). Hand-written SQL (not drizzle-kit generate) because the runner cannot produce backfill UPDATEs. CRITICAL: SQL comments must not contain inline `;` because run-migrations.ts splits on `;` BEFORE stripping `--` comments.
+- Plan 103-03: Per-endpoint explicit status at /register (freemium) and /api/admin/trials (prueba). Folded the leftover trials-service.ts isActive: true into the same edit (Rule 3). Test file uses real clock — vi.useFakeTimers desyncs from MySQL CURDATE() in Plan 02 recomputeUserStatus.
 
 ### Pending Todos
 
@@ -282,8 +284,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T17:17:10.242Z
-Stopped at: Completed 103-02-PLAN.md (recomputeUserStatus + tx wrapping)
+Last session: 2026-04-25T17:41:53.652Z
+Stopped at: Completed 103-03-PLAN.md (per-endpoint status defaults at /register and /api/admin/trials)
 Resume file: None
 
 **Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25
