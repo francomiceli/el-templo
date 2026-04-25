@@ -715,6 +715,8 @@ export class SubscriptionService {
           id: schema.schedules.id,
           branchId: schema.schedules.branchId,
           isActive: schema.schedules.isActive,
+          dayOfWeek: schema.schedules.dayOfWeek,
+          startTime: schema.schedules.startTime,
         })
         .from(schema.schedules)
         .where(inArray(schema.schedules.id, input.scheduleIds));
@@ -738,6 +740,29 @@ export class SubscriptionService {
             `El horario ${row.id} no pertenece a la sucursal seleccionada`,
           );
         }
+      }
+
+      // One slot per day-of-week — fixed plans should distribute classes
+      // across distinct days, not stack two slots on the same day.
+      const dayCounts = new Map<number, number>();
+      for (const row of scheduleRows) {
+        dayCounts.set(row.dayOfWeek, (dayCounts.get(row.dayOfWeek) ?? 0) + 1);
+      }
+      const duplicates = [...dayCounts.entries()].filter(([, n]) => n > 1);
+      if (duplicates.length > 0) {
+        const dayNames: Record<number, string> = {
+          1: "lunes",
+          2: "martes",
+          3: "miércoles",
+          4: "jueves",
+          5: "viernes",
+          6: "sábado",
+          7: "domingo",
+        };
+        const labels = duplicates.map(([dow]) => dayNames[dow] ?? `día ${dow}`);
+        throw new BadRequestError(
+          `No se puede elegir más de un turno fijo el mismo día: ${labels.join(", ")}`,
+        );
       }
     }
 
@@ -991,6 +1016,7 @@ export class SubscriptionService {
           id: schema.schedules.id,
           branchId: schema.schedules.branchId,
           isActive: schema.schedules.isActive,
+          dayOfWeek: schema.schedules.dayOfWeek,
         })
         .from(schema.schedules)
         .where(inArray(schema.schedules.id, input.scheduleIds));
@@ -1013,6 +1039,28 @@ export class SubscriptionService {
             `El horario ${row.id} no pertenece a la sucursal de la suscripcion`,
           );
         }
+      }
+
+      // One slot per day-of-week (matches assignPlan).
+      const dayCounts = new Map<number, number>();
+      for (const row of scheduleRows) {
+        dayCounts.set(row.dayOfWeek, (dayCounts.get(row.dayOfWeek) ?? 0) + 1);
+      }
+      const duplicates = [...dayCounts.entries()].filter(([, n]) => n > 1);
+      if (duplicates.length > 0) {
+        const dayNames: Record<number, string> = {
+          1: "lunes",
+          2: "martes",
+          3: "miércoles",
+          4: "jueves",
+          5: "viernes",
+          6: "sábado",
+          7: "domingo",
+        };
+        const labels = duplicates.map(([dow]) => dayNames[dow] ?? `día ${dow}`);
+        throw new BadRequestError(
+          `No se puede elegir más de un turno fijo el mismo día: ${labels.join(", ")}`,
+        );
       }
     }
 

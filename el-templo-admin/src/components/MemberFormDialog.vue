@@ -650,12 +650,12 @@ watch(
         emergencyContactName: props.member.emergencyContactName ?? '',
         emergencyContactPhone: props.member.emergencyContactPhone ?? '',
         emergencyContactRelationship: props.member.emergencyContactRelationship ?? '',
-        isDebtor: props.member.debt !== null,
+        isDebtor: props.member.debt != null,
         debtAmount: props.member.debt?.amount ?? null,
         debtCurrency: (props.member.debt?.currency as 'ARS' | 'EUR' | 'USD') ?? 'ARS',
         debtNote: props.member.debt?.note ?? '',
       };
-      hadDebtOnLoad.value = props.member.debt !== null;
+      hadDebtOnLoad.value = props.member.debt != null;
     } else {
       // Create mode: reset everything
       step.value = 1;

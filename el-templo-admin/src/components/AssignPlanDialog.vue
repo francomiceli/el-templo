@@ -189,16 +189,6 @@
                 </div>
               </q-card-section>
             </q-card>
-
-            <q-stepper-navigation class="q-mt-md">
-              <q-btn flat label="Volver" @click="step = 1" class="q-mr-sm" />
-              <q-btn
-                color="primary"
-                label="Continuar"
-                :disable="assignForm.useOverride && !assignForm.priceOverrideReason?.trim()"
-                @click="step = showScheduleStep ? 3 : confirmStep"
-              />
-            </q-stepper-navigation>
           </template>
         </q-step>
 
@@ -226,20 +216,6 @@
             :branch-name="memberBranchName"
             class="q-mb-md"
           />
-
-          <q-stepper-navigation>
-            <q-btn flat label="Volver" @click="step = 2" class="q-mr-sm" />
-            <q-btn
-              color="primary"
-              :label="
-                !isFixedMode && selectedScheduleIds.length === 0
-                  ? 'Continuar sin turnos fijos'
-                  : 'Continuar'
-              "
-              :disable="!scheduleStepValid"
-              @click="step = confirmStep"
-            />
-          </q-stepper-navigation>
         </q-step>
 
         <!-- ============================================================ -->
@@ -510,35 +486,49 @@
               outlined
               class="q-mb-md"
             />
-
-            <q-stepper-navigation>
-              <q-btn
-                flat
-                label="Volver"
-                @click="step = props.mode === 'change' ? 1 : showScheduleStep ? 3 : 2"
-                class="q-mr-sm"
-              />
-              <q-btn
-                color="primary"
-                label="Confirmar"
-                icon="check"
-                :loading="assigning"
-                :disable="
-                  props.mode === 'change' &&
-                  startMode === 'now' &&
-                  changePlanPreviewData?.allowed === false
-                "
-                @click="onConfirm"
-              />
-            </q-stepper-navigation>
           </template>
         </q-step>
       </q-stepper>
 
       <q-separator />
 
-      <q-card-actions align="right" class="q-pa-md">
+      <q-card-actions class="q-pa-md row items-center">
         <q-btn flat label="Cerrar" color="grey" @click="$emit('update:modelValue', false)" />
+        <q-space />
+        <template v-if="step > 1">
+          <q-btn flat label="Volver" color="grey-8" class="q-mr-sm" @click="goToPrevStep" />
+        </template>
+        <q-btn
+          v-if="step === 2"
+          color="primary"
+          label="Continuar"
+          :disable="assignForm.useOverride && !assignForm.priceOverrideReason?.trim()"
+          @click="step = showScheduleStep ? 3 : confirmStep"
+        />
+        <q-btn
+          v-else-if="step === 3 && showScheduleStep"
+          color="primary"
+          :label="
+            !isFixedMode && selectedScheduleIds.length === 0
+              ? 'Continuar sin turnos fijos'
+              : 'Continuar'
+          "
+          :disable="!scheduleStepValid"
+          @click="step = confirmStep"
+        />
+        <q-btn
+          v-else-if="step === confirmStep"
+          color="primary"
+          label="Confirmar"
+          icon="check"
+          :loading="assigning"
+          :disable="
+            props.mode === 'change' &&
+            startMode === 'now' &&
+            changePlanPreviewData?.allowed === false
+          "
+          @click="onConfirm"
+        />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -665,6 +655,22 @@ const showScheduleStep = computed(() => {
 });
 
 const confirmStep = computed(() => (showScheduleStep.value ? 4 : 3));
+
+function goToPrevStep(): void {
+  // Mirrors the per-step "Volver" callbacks the stepper-navigation blocks
+  // had before the action bar was unified.
+  if (step.value === confirmStep.value) {
+    step.value = props.mode === 'change' ? 1 : showScheduleStep.value ? 3 : 2;
+    return;
+  }
+  if (step.value === 3) {
+    step.value = 2;
+    return;
+  }
+  if (step.value === 2) {
+    step.value = 1;
+  }
+}
 
 const requiredSlotCount = computed(() => selectedPlan.value?.classesPerWeek ?? 0);
 

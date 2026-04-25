@@ -140,11 +140,23 @@ function slotFor(time: string, dayOfWeek: DayOfWeek): WeeklySlotView | undefined
   return slotMap.value.get(`${time}-${dayOfWeek}`);
 }
 
+// Days-of-week already covered by a selected slot — used to grey out
+// other cells in those days so the user can only pick one slot per day.
+const selectedDays = computed<Set<DayOfWeek>>(() => {
+  const set = new Set<DayOfWeek>();
+  for (const id of props.modelValue) {
+    const sel = slots.value.find((s) => s.id === id);
+    if (sel) set.add(sel.dayOfWeek as DayOfWeek);
+  }
+  return set;
+});
+
 function cellClass(time: string, dayOfWeek: DayOfWeek): string {
   const s = slotFor(time, dayOfWeek);
   if (!s) return 'slot-cell--empty';
-  if (s.isFull && !props.modelValue.includes(s.id)) return 'slot-cell--full';
   if (props.modelValue.includes(s.id)) return 'slot-cell--selected';
+  if (selectedDays.value.has(dayOfWeek)) return 'slot-cell--day-taken';
+  if (s.isFull) return 'slot-cell--full';
   return 'slot-cell--available';
 }
 
@@ -158,7 +170,9 @@ function toggleCell(time: string, dayOfWeek: DayOfWeek): void {
     emit('update:modelValue', current);
     return;
   }
+  // Block: full slot, day already taken, or selection cap reached.
   if (s.isFull) return;
+  if (selectedDays.value.has(dayOfWeek)) return;
   if (current.length >= props.requiredCount) return;
   current.push(s.id);
   emit('update:modelValue', current);
@@ -261,7 +275,10 @@ defineExpose({ reload: load, slots });
 .slot-cell--selected {
   background: #bbdefb;
   border-color: var(--q-primary);
-  border-width: 3px;
+  /* outline keeps the highlight visible without changing the cell's
+     box-size, so selecting/unselecting doesn't shift the grid layout. */
+  outline: 1px solid var(--q-primary);
+  outline-offset: -2px;
 }
 
 .slot-cell--full {
@@ -269,6 +286,14 @@ defineExpose({ reload: load, slots });
   color: #bdbdbd;
   cursor: not-allowed;
   border-color: #eeeeee;
+}
+
+.slot-cell--day-taken {
+  background: #fafafa;
+  color: #bdbdbd;
+  cursor: not-allowed;
+  border-color: #eeeeee;
+  opacity: 0.6;
 }
 
 .slot-cell-activity {

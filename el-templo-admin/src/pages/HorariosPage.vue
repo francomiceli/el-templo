@@ -28,16 +28,37 @@
         />
       </div>
 
-      <div class="col-auto row items-center no-wrap q-gutter-xs">
-        <q-btn flat dense round icon="chevron_left" @click="prevWeek" />
-        <q-btn flat dense label="Esta semana" @click="goToCurrentWeek" />
-        <q-btn flat dense round icon="chevron_right" @click="nextWeek" />
-        <span class="text-body2 text-grey-8 q-ml-sm">{{ weekRangeLabel }}</span>
+      <div class="col-auto row items-center q-gutter-sm">
+        <q-btn icon="chevron_left" flat round @click="prevWeek" />
+        <div class="text-subtitle1">{{ weekRangeLabel }}</div>
+        <q-btn icon="chevron_right" flat round @click="nextWeek" />
+        <q-btn icon="event" flat round dense>
+          <q-popup-proxy
+            v-model="showWeekDatePicker"
+            cover
+            transition-show="scale"
+            transition-hide="scale"
+          >
+            <q-date
+              :model-value="weekStartDate.replaceAll('-', '/')"
+              @update:model-value="onWeekDatePicked"
+              minimal
+              first-day-of-week="1"
+            />
+          </q-popup-proxy>
+        </q-btn>
       </div>
 
       <q-space />
 
       <div class="col-auto row q-gutter-xs">
+        <q-btn
+          outline
+          icon="how_to_reg"
+          label="Sesiones de Prueba"
+          color="warning"
+          @click="showTrialsDialog = true"
+        />
         <q-btn
           outline
           icon="sports_gymnastics"
@@ -197,6 +218,7 @@
     />
     <ActivitiesDialog v-model:show="showActivitiesDialog" />
     <HolidaysDialog v-model:show="showHolidaysDialog" @holidays-changed="loadWeeklyGrid" />
+    <SesionesDePruebaDialog v-model:show="showTrialsDialog" />
   </q-page>
 </template>
 
@@ -212,6 +234,7 @@ import type { BranchOption } from 'src/types/member';
 import SlotDetailDialog from 'src/components/scheduling/SlotDetailDialog.vue';
 import ActivitiesDialog from 'src/components/scheduling/ActivitiesDialog.vue';
 import HolidaysDialog from 'src/components/scheduling/HolidaysDialog.vue';
+import SesionesDePruebaDialog from 'src/components/scheduling/SesionesDePruebaDialog.vue';
 import { todayInTz, dowInTz, getMondayInTz } from 'src/utils/tz';
 
 const log = createLogger('HorariosPage');
@@ -236,6 +259,8 @@ const selectedSlotScheduleId = ref<number | null>(null);
 const selectedSlotDate = ref('');
 const showActivitiesDialog = ref(false);
 const showHolidaysDialog = ref(false);
+const showTrialsDialog = ref(false);
+const showWeekDatePicker = ref(false);
 
 // ─── Mobile detection + day picker state ────────────────────────────────────
 
@@ -444,8 +469,16 @@ function nextWeek() {
   weekStartDate.value = d.toISOString().slice(0, 10);
 }
 
-function goToCurrentWeek() {
-  weekStartDate.value = getMondayInTz(branchTimezone.value);
+function onWeekDatePicked(val: string | null) {
+  showWeekDatePicker.value = false;
+  if (!val) return;
+  // q-date emits "YYYY/MM/DD"; snap to the Monday of that week so the grid
+  // stays aligned to the Mon–Sat layout.
+  const picked = new Date(val.replaceAll('/', '-') + 'T12:00:00Z');
+  const dow = picked.getUTCDay(); // 0=Sun..6=Sat
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
+  picked.setUTCDate(picked.getUTCDate() + diffToMon);
+  weekStartDate.value = picked.toISOString().slice(0, 10);
 }
 
 function onBranchChange() {
