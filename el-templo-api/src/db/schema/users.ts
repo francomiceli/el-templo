@@ -39,6 +39,17 @@ export const documentTypeEnum = mysqlEnum("document_type", [
   "NIF",
   "Otro",
 ]);
+// Phase 103: User lifecycle status. Nullable at DB level — staff rows stay NULL,
+// member-creating endpoints set the value explicitly per their intent
+// (POST /register → 'freemium', POST /api/admin/members → 'prueba',
+// POST /api/admin/trials → 'prueba'). Subscription create/cancel transitions
+// recompute the value via SubscriptionService.recomputeUserStatus.
+export const userStatusEnum = mysqlEnum("status", [
+  "freemium",
+  "prueba",
+  "activo",
+  "inactivo",
+]);
 
 export const users = mysqlTable(
   "users",
@@ -65,7 +76,11 @@ export const users = mysqlTable(
       length: 50,
     }),
     photoUrl: varchar("photo_url", { length: 500 }),
-    isActive: boolean("is_active").default(true).notNull(),
+    // Phase 103: status is nullable; DB DEFAULT NULL. Member-creating endpoints
+    // set the value explicitly per intent. Staff inserts omit the field (stays NULL).
+    status: userStatusEnum,
+    // Phase 103: staff disable flag (semantically only applies to non-member roles).
+    staffDisabled: boolean("staff_disabled").notNull().default(false),
     deletedAt: timestamp("deleted_at"),
     boardingPassUsed: boolean("boarding_pass_used").default(false).notNull(),
     // Phase 102-07: trial→alumno conversion timestamp. Set once, on first
@@ -78,7 +93,9 @@ export const users = mysqlTable(
     index("idx_users_branch_id").on(table.branchId),
     index("idx_users_role").on(table.role),
     index("idx_users_created_at").on(table.createdAt),
-    index("idx_users_is_active").on(table.isActive),
+    // Phase 103: idx_users_is_active replaced by idx_users_status; the legacy
+    // is_active column is dropped in migration 0100.
+    index("idx_users_status").on(table.status),
     index("idx_users_converted_at").on(table.convertedAt),
   ],
 );
