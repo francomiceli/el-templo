@@ -74,15 +74,26 @@ Downstream agents (researcher, planner, executor) MUST read `103-SPEC.md` before
 
 ### Default Status at Member Creation
 
-- **D-12:** DB column default for new members = `freemium`. Three explicit overrides:
-  - `POST /api/admin/trials` → `INSERT ... status='prueba'` (the trial endpoint always knows it's creating a trial lead)
-  - Any flow that creates a user + assigns a subscription in the same transaction (admin `createMember + planId`, self-register `/register` with valid `promoCode`) → after `assignPlan`, `recomputeUserStatus` runs and flips to `activo`
-  - All other inserts (self-register without promo, admin-create without plan) → fall through to the DB default `freemium`
-- **D-13:** Self-register flow (`auth/routes.ts:32-228`) needs no special-case logic — it inserts a user with `branchId` defaulting to `ONLINE` and lets the DB default handle `status`. The `assignPlan` call that runs when a `promoCode` matches will trigger `recomputeUserStatus` automatically.
+- **D-12:** DB column default = `NULL` (so staff inserts that omit the field stay NULL). Each member-creating endpoint sets `status` explicitly based on intent of the entry point:
+  - `POST /register` (self-register from app) → `INSERT ... status='freemium'` (online signup, no presential intent)
+  - `POST /api/admin/members` (admin creates member) → `INSERT ... status='prueba'` (presential intent — admin enrolling someone who walked in). If `planId` is also provided, the subsequent `assignPlan` triggers `recomputeUserStatus` → flips to `'activo'`.
+  - `POST /api/admin/trials` → `INSERT ... status='prueba'` (trial endpoint also creates the trial booking, Phase 102 behavior unchanged)
+  - Subscription create from any path (including the auto-flow when `/register` has a valid `promoCode` or admin createMember has `planId`) → `recomputeUserStatus` flips to `'activo'` automatically
+  - Staff role inserts (coach/recepcion/etc.) → no `status` field passed → DB default `NULL`
+- **D-13:** Self-register flow (`auth/routes.ts:32-228`) needs ONE explicit change: the existing `INSERT INTO users` (around line 116) gets `status: 'freemium'` added to the values map. The `assignPlan` call at line 163-173 already triggers the auto-transition path when `promoCode` matches, so no extra wiring needed there.
 
 ### Migration Backfill: Distinguishing `freemium` from `inactivo`
 
 - **D-14:** Backfill rule for members with no active sub and no trial booking: **`branchId == ONLINE` → `freemium`; everything else → `inactivo`**. Edge case (a self-registered online user who later attended presential and was migrated to a physical branch) is acknowledged as rare and not worth special-casing in this phase. They'd land in `inactivo` and could be hand-fixed if it ever surfaces.
+
+### Transaction Refactor in SubscriptionService
+
+- **D-16:** **Wrap subscription-mutating methods in `db.transaction()`** to satisfy SPEC Constraint "Atomic transitions". Today `subscriptions/service.ts` uses `this.db` directly across 5 sub-INSERT methods (`assignPlan` line 753, `changePlan` 1599, queued-creation 1985, `renew` 2186, `bulkMigrate` 2372) and `cancelSubscription` (line 1262) — none use transactions. The refactor:
+  1. Each sub-mutating method opens `await this.db.transaction(async (tx) => { ... })`, scoping all the writes (subscription INSERT, schedule slots INSERT, booking generation, scheduled-successor cancel, `recomputeUserStatus`) inside the same `tx`.
+  2. `recomputeUserStatus(userId, tx)` accepts the transaction handle and runs its UPDATE inside it. If the sub-mutation rolls back, the status update rolls back with it.
+  3. Pattern reference: see `programs/service.ts`, `attendance/service.ts`, `scheduling/booking-service.ts` — already use this Drizzle transaction pattern in this codebase.
+  4. Test coverage: integration test that simulates a mid-transaction failure (e.g., booking generation fails) and asserts that `users.status` did NOT change.
+- **D-17:** **5 sub-INSERT call sites identified** by the researcher (not 4 as the SPEC originally noted): `assignPlan` (line 753), `changePlan` (1599), queued-creation (1985), `renew` (2186), `bulkMigrate` (2372). Plus `cancelSubscription` (1262). Plus any pause/resume operations (planner enumerate during planning). Each gets the wrap + `recomputeUserStatus(userId, tx)` call.
 
 ### AlumnosPage UI — Concrete Component Spec
 

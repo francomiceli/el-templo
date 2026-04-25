@@ -66,13 +66,14 @@ This phase reverses Phase 102's Option B decision, deliberately, and cleans up t
    - Target: `cancelSubscription` calls `recomputeUserStatus(userId, tx)` before the transaction commits. If the affected user has no other subscription with `subscription_status IN ('active','paused')` post-update, `recomputeUserStatus` sets `users.status='inactivo'`. A user with another active subscription remains `'activo'`. Cancelled users always go to `inactivo` — never back to `freemium` or `prueba` — because they were paying members at some point.
    - Acceptance: Integration test: member with one active subscription (status='activo'), cancel it, assert `status='inactivo'`. Integration test: member with two active subscriptions, cancel one, assert `status` stays `'activo'`. Integration test: previously-freemium user who bought and then cancelled → `status='inactivo'`, not back to `freemium`.
 
-7. **Member creation default is `status='freemium'`; specific endpoints override.**
-   - Current: `members/service.ts` creates members without a status concept. Self-register `auth/routes.ts:116` and admin-create both insert with no status. Trial endpoint `POST /api/admin/trials` (Phase 102) creates user + trial booking but no status.
-   - Target: The DB column default for `status` on members is `freemium` (set via the schema). Three explicit overrides in code:
-     - `POST /api/admin/trials` → explicitly inserts with `status='prueba'` (the user is by definition a presential trial lead)
-     - Any flow that creates user + assigns subscription in the same transaction → after `assignPlan`, `recomputeUserStatus` runs and flips to `activo`
-     - All other inserts (self-register without promo, admin-create without plan) → fall through to the column default `freemium`
-   - Acceptance: Integration test: `POST /register` without `promoCode` and `branchId` defaulting to ONLINE → user has `status='freemium'`. Integration test: `POST /register` with valid `promoCode` (auto-assigns plan) → user has `status='activo'`. Integration test: `POST /api/admin/trials` → user has `status='prueba'`. Integration test: `POST /api/admin/members` without `planId` → user has `status='freemium'`. With `planId` → `status='activo'`.
+7. **Member creation status is set per entry-point intent (DB default is NULL).**
+   - Current: `members/service.ts` creates members without a status concept. Self-register `auth/routes.ts:116`, admin-create, and trial endpoint all insert with no status.
+   - Target: The DB column default for `status` is `NULL` (so staff inserts that omit the field stay NULL). Each member-creating endpoint explicitly sets `status` based on the intent of that entry point:
+     - `POST /register` (self-register from app) → INSERT with `status='freemium'` (online signup, no presential intent yet). If a valid `promoCode` is provided, the subsequent `assignPlan` triggers `recomputeUserStatus` → flips to `activo`.
+     - `POST /api/admin/members` (admin creates member) → INSERT with `status='prueba'` (presential intent — admin is enrolling someone who walked into a sede). If `planId` is also provided in the same request, the subsequent `assignPlan` triggers `recomputeUserStatus` → flips to `activo`.
+     - `POST /api/admin/trials` (admin creates trial-class lead) → INSERT with `status='prueba'` and a trial booking (Phase 102 behavior unchanged).
+     - Staff role inserts (coach, recepcion, etc.) → no `status` field passed → DB default NULL.
+   - Acceptance: Integration test: `POST /register` without `promoCode` (default ONLINE branch) → user has `status='freemium'`. Integration test: `POST /register` with valid `promoCode` → user has `status='activo'`. Integration test: `POST /api/admin/members` without `planId` → user has `status='prueba'`. Integration test: `POST /api/admin/members` with `planId` → user has `status='activo'`. Integration test: `POST /api/admin/trials` → user has `status='prueba'`. Integration test: creating a `coach` user via the staff endpoint → user has `status=NULL`.
 
 8. **Members list API replaces the derived `status` filter with a first-class enum filter.**
    - Current: `GET /api/admin/members` accepts `status: 'todos' | 'alumnos' | 'leads'` (Phase 102-03). The implementation in `members/service.ts:196-203` runs `EXISTS`/`NOT EXISTS` subqueries against `bookings` and `subscriptions` to compute lead-ness on the fly.
@@ -143,9 +144,12 @@ This phase reverses Phase 102's Option B decision, deliberately, and cleans up t
 - [ ] `SHOW INDEX FROM users WHERE Key_name = 'idx_users_status'` returns one row; `idx_users_is_active` does not exist.
 - [ ] After migration, `SELECT COUNT(*) FROM users WHERE role='member' AND status IS NULL AND deleted_at IS NULL` returns 0.
 - [ ] After migration, `SELECT COUNT(*) FROM users WHERE role!='member' AND status IS NOT NULL` returns 0.
-- [ ] Integration test: self-register without promo (default ONLINE branch) → `status='freemium'`.
-- [ ] Integration test: self-register with valid promo (auto-assigns plan) → `status='activo'`.
+- [ ] Integration test: `POST /register` without promo (default ONLINE branch) → `status='freemium'`.
+- [ ] Integration test: `POST /register` with valid promo (auto-assigns plan) → `status='activo'`.
+- [ ] Integration test: `POST /api/admin/members` without `planId` → `status='prueba'`.
+- [ ] Integration test: `POST /api/admin/members` with `planId` → `status='activo'`.
 - [ ] Integration test: `POST /api/admin/trials` → `status='prueba'`.
+- [ ] Integration test: creating a `coach` (or any non-member role) → `status=NULL`.
 - [ ] Integration test: creating a subscription for a `freemium`/`prueba`/`inactivo` user → `status='activo'` post-commit, in the same transaction.
 - [ ] Integration test: cancelling the last active subscription for an `activo` user → `status='inactivo'` post-commit, in the same transaction.
 - [ ] Integration test: cancelling one of two active subscriptions → `status` stays `'activo'`.
