@@ -50,16 +50,18 @@
 
             <!-- Status badge + segment badge + action buttons -->
             <div class="q-gutter-sm row items-center">
+              <!-- Phase 103 R10: 4-state badge from users.status (was binary isActive). -->
               <q-badge
-                :color="memberProfile.isActive ? 'positive' : 'grey'"
-                :label="memberProfile.isActive ? 'Activo' : 'Inactivo'"
+                :color="getStatusColor(memberProfile.status)"
+                :label="getStatusLabel(memberProfile.status)"
                 class="text-body2"
               />
-              <!-- Phase 102 R7: trial counter — only relevant for sub-less users (leads).
-                   Hidden once they have an active subscription: at that point they're a
-                   member and the trial-pass accounting is no longer actionable. -->
+              <!-- Phase 102 R7 / Phase 103 R10: trial counter — only relevant
+                   for non-active users (Freemium / En Prueba / Inactivo). Hidden
+                   once they reach 'activo' since the trial-pass accounting is no
+                   longer actionable. -->
               <q-chip
-                v-if="!memberProfile.isActive"
+                v-if="memberProfile.status !== 'activo'"
                 :color="memberProfile.hasUsedTrial ? 'grey-7' : 'primary'"
                 :text-color="memberProfile.hasUsedTrial ? 'white' : 'primary'"
                 :outline="!memberProfile.hasUsedTrial"
@@ -472,6 +474,7 @@ import { formatDate } from 'src/utils/format-date';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { useGoalPlanAdminApi } from 'src/composables/useGoalPlanAdminApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
@@ -497,6 +500,7 @@ const $q = useQuasar();
 const authStore = useAuthStore();
 const membersApi = useMembersApi();
 const goalPlanApi = useGoalPlanAdminApi();
+const { getColor: getStatusColor, getLabel: getStatusLabel } = useStatusBadge();
 
 // =========================================================================
 // State
