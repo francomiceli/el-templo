@@ -25,6 +25,9 @@ export default defineConfig({
       DB_USER: process.env.DB_USER || "root",
       DB_PASSWORD: process.env.DB_PASSWORD || "",
       JWT_SECRET: "test-secret-for-testing",
+      // Silence non-Fastify pino loggers (session-generator, cron jobs, etc.)
+      // unless explicitly overridden for debugging.
+      LOG_LEVEL: process.env.LOG_LEVEL || "silent",
     },
   },
 });

@@ -13,7 +13,13 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
 import { eq } from "drizzle-orm";
-import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
+import {
+  createTestApp,
+  getAuthToken,
+  cleanAllTestData,
+  dateOffsetStr,
+  todayStr,
+} from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
@@ -138,7 +144,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     await app.db.insert(bookings).values({
       memberId: userL1,
       scheduleId,
-      bookingDate: "2026-04-10",
+      bookingDate: dateOffsetStr(-7),
       status: "confirmado",
       isTrial: true,
     });
@@ -147,20 +153,17 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     await app.db.insert(bookings).values({
       memberId: userL2,
       scheduleId,
-      bookingDate: "2026-03-20",
+      bookingDate: dateOffsetStr(-30),
       status: "confirmado",
       isTrial: true,
     });
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const futureEnd = new Date(Date.now() + 30 * 86400000)
-      .toISOString()
-      .slice(0, 10);
+    const futureEnd = dateOffsetStr(30);
     await app.db.insert(subscriptions).values({
       userId: userL2,
       planId,
       branchId,
       status: "active",
-      startDate: todayStr,
+      startDate: todayStr(),
       endDate: futureEnd,
       pricePaid: 10000,
       priceTypeApplied: "regular",
@@ -170,7 +173,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
     await app.db.insert(bookings).values({
       memberId: userA1,
       scheduleId,
-      bookingDate: "2026-04-10",
+      bookingDate: dateOffsetStr(-7),
       status: "confirmado",
       isTrial: false,
     });
@@ -179,7 +182,7 @@ describe("GET /admin/members — hasUsedTrial projection (Phase 102 R7)", () => 
       planId,
       branchId,
       status: "active",
-      startDate: todayStr,
+      startDate: todayStr(),
       endDate: futureEnd,
       pricePaid: 10000,
       priceTypeApplied: "regular",

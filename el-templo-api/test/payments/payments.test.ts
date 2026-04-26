@@ -7,6 +7,7 @@ import {
   registerUser,
   cleanAllTestData,
   dateOffsetStr,
+  todayStr,
 } from "../helpers";
 import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
@@ -146,7 +147,7 @@ describe("Payments API", () => {
       payload: {
         amount: 15000,
         paymentMethod: "cash",
-        paymentDate: "2026-03-10",
+        paymentDate: todayStr(),
         subscriptionId,
         ...overrides,
       },
@@ -167,13 +168,14 @@ describe("Payments API", () => {
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id);
 
+      const expectedDate = todayStr();
       const { statusCode, body } = await recordPayment(
         member.id,
         sub.id as number,
         {
           amount: 15000,
           paymentMethod: "cash",
-          paymentDate: "2026-03-10",
+          paymentDate: expectedDate,
           reference: "REC-001",
           notes: "Pago mensual",
         },
@@ -185,7 +187,7 @@ describe("Payments API", () => {
       expect(body.subscriptionId).toBe(sub.id);
       expect(body.amount).toBe(15000);
       expect(body.paymentMethod).toBe("cash");
-      expect(body.paymentDate).toBe("2026-03-10");
+      expect(body.paymentDate).toBe(expectedDate);
       expect(body.reference).toBe("REC-001");
       expect(body.notes).toBe("Pago mensual");
       expect(body.memberName).toBeTruthy();
@@ -206,7 +208,7 @@ describe("Payments API", () => {
         payload: {
           amount: 0,
           paymentMethod: "cash",
-          paymentDate: "2026-03-10",
+          paymentDate: todayStr(),
           subscriptionId: sub.id,
         },
       });
@@ -235,7 +237,7 @@ describe("Payments API", () => {
         payload: {
           amount: 15000,
           paymentMethod: "cash",
-          paymentDate: "2026-03-10",
+          paymentDate: todayStr(),
         },
       });
 
@@ -385,7 +387,7 @@ describe("Payments API", () => {
 
       const { body: p1 } = await recordPayment(member.id, sub.id as number, {
         amount: 5000,
-        paymentDate: "2026-03-02",
+        paymentDate: dateOffsetStr(-1),
       });
 
       // Void the manually recorded payment
@@ -664,7 +666,7 @@ describe("Payments API", () => {
           payload: {
             amount: 1000,
             paymentMethod: "cash",
-            paymentDate: "2026-03-10",
+            paymentDate: todayStr(),
             subscriptionId: 1,
           },
         },

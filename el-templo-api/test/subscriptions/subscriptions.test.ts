@@ -421,7 +421,7 @@ describe("Subscriptions API", () => {
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
         boardingPass: true,
-        startDate: "2026-04-01",
+        startDate: dateOffsetStr(5),
         priceTypeApplied: "regular",
       });
 

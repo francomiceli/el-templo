@@ -8,6 +8,7 @@ import {
   registerUser,
   cleanAllTestData,
   dateOffsetStr,
+  todayStr,
 } from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -130,7 +131,7 @@ describe("Goal Plan Routes", () => {
         headers: { authorization: `Bearer ${memberToken2}` },
         payload: {
           dayId: "GP-empuje-W1-lunes-alfa",
-          date: "2026-03-18",
+          date: todayStr(),
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM"],
         },
@@ -465,7 +466,7 @@ describe("Goal Plan Routes", () => {
         headers: { authorization: `Bearer ${memberToken}` },
         payload: {
           dayId: "GP-tren_superior-W1-lunes-alfa",
-          date: "2026-02-10",
+          date: todayStr(),
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM", "NUCLEUS", "DEUTEROS_1"],
           rpe: 7,
@@ -904,7 +905,7 @@ describe("Goal Plan Routes", () => {
         headers: { authorization: `Bearer ${mToken}` },
         payload: {
           dayId: "GP-empuje-W3-lunes-omega",
-          date: "2026-03-16",
+          date: todayStr(),
           startedAt: new Date().toISOString(),
           blocksCompleted: ["INITIUM", "NUCLEUS"],
           rpe: 6,
