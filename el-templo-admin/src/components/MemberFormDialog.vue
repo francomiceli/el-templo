@@ -505,7 +505,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  saved: [];
+  // saved fires with the newly created member on creation, or null on edit.
+  // Parents use the create payload to chain into the assign-plan flow.
+  saved: [created: MemberProfile | null];
 }>();
 
 // =========================================================================
@@ -744,8 +746,9 @@ async function onSubmit() {
         updatePayload.debt = debtPayload;
       }
       await membersApi.updateMember(props.member.id, updatePayload);
+      emit('saved', null);
     } else {
-      await membersApi.createMember({
+      const created = await membersApi.createMember({
         email: form.value.email,
         firstName: form.value.firstName,
         lastName: form.value.lastName,
@@ -761,9 +764,12 @@ async function onSubmit() {
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
       });
+      // Pass the new member up so the parent can offer to load a membership
+      // right after creation (skipping the "go find user → edit → subs"
+      // navigation). Edits emit null because the parent already has the row.
+      emit('saved', created);
     }
 
-    emit('saved');
     emit('update:modelValue', false);
   } catch (err: unknown) {
     const message = extractError(err, 'Error guardando miembro');

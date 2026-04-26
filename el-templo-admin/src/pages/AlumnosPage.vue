@@ -264,6 +264,19 @@
 
     <!-- Create Member Dialog -->
     <MemberFormDialog v-model="showCreateDialog" :branches="branches" @saved="onMemberSaved" />
+
+    <!-- Assign Plan Dialog: opens after creating a member when admin
+         confirms they want to load the membership right away. -->
+    <AssignPlanDialog
+      v-if="postCreateAssignTarget"
+      v-model="showAssignFromCreate"
+      :userId="postCreateAssignTarget.id"
+      :memberBranchId="postCreateAssignTarget.branchId"
+      :memberBranchName="postCreateAssignTarget.branchName"
+      :boardingPassUsed="false"
+      @assigned="onPostCreateAssigned"
+      @update:modelValue="onPostCreateAssignDialog"
+    />
   </q-page>
 </template>
 
@@ -278,6 +291,7 @@ import { useStatusBadge } from 'src/composables/useStatusBadge';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import type {
   MemberListItem,
+  MemberProfile,
   MemberSegment,
   BranchOption,
   TotalDebtRow,
@@ -286,6 +300,7 @@ import type {
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
+import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 
 const log = createLogger('AlumnosPage');
 const $q = useQuasar();
@@ -749,9 +764,51 @@ function viewMember(member: MemberListItem) {
   router.push(`/alumnos/${member.id}`);
 }
 
-function onMemberSaved() {
+// Track when AssignPlanDialog was opened from the post-create flow so we can
+// flag "user created without membership" when the admin closes it without
+// assigning. We only show this warning in the creation chain — the same
+// dialog opened from the member subscription tab stays silent on cancel.
+const showAssignFromCreate = ref(false);
+const postCreateAssignTarget = ref<MemberProfile | null>(null);
+const postCreateAssignmentDone = ref(false);
+
+function onMemberSaved(created: MemberProfile | null) {
   $q.notify({ type: 'positive', message: 'Alumno guardado correctamente' });
   loadMembers();
+  if (!created) return;
+
+  $q.dialog({
+    title: '¿Cargar membresía?',
+    message: `El alumno ${[created.firstName, created.lastName].filter(Boolean).join(' ') || created.email} fue creado. ¿Querés cargar la membresía ahora?`,
+    cancel: { flat: true, label: 'Más tarde' },
+    ok: { color: 'primary', label: 'Cargar membresía' },
+  }).onOk(() => {
+    postCreateAssignTarget.value = created;
+    postCreateAssignmentDone.value = false;
+    showAssignFromCreate.value = true;
+  });
+}
+
+function onPostCreateAssigned() {
+  postCreateAssignmentDone.value = true;
+  loadMembers();
+}
+
+function onPostCreateAssignDialog(open: boolean) {
+  if (open) return;
+  // Dialog just closed. If the admin didn't actually assign a plan, surface
+  // a warning so the orphan-user case (created without sub) doesn't go
+  // unnoticed.
+  if (!postCreateAssignmentDone.value && postCreateAssignTarget.value) {
+    $q.notify({
+      type: 'warning',
+      message:
+        'El alumno fue creado pero no tiene membresía cargada. Podés cargarla más tarde desde su perfil.',
+      timeout: 6000,
+    });
+  }
+  postCreateAssignTarget.value = null;
+  postCreateAssignmentDone.value = false;
 }
 
 // =========================================================================
