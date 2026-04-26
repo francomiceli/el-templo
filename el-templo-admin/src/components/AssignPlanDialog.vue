@@ -103,8 +103,21 @@
               type="date"
               dense
               outlined
-              class="q-mb-md"
+              :min="startDateMin"
+              :max="startDateMax"
+              class="q-mb-xs"
             />
+            <div class="text-caption text-grey-7 q-mb-xs">
+              Vencimiento estimado: {{ calculatedEndDate ? formatDate(calculatedEndDate) : '—' }}
+            </div>
+            <q-banner v-if="isFutureStart" dense rounded class="bg-blue-1 q-mb-md">
+              <template #avatar>
+                <q-icon name="schedule" color="primary" />
+              </template>
+              La membresía quedará programada y se activará automáticamente el
+              {{ formatDate(assignForm.startDate) }}.
+            </q-banner>
+            <div v-else class="q-mb-md" />
 
             <!-- Boarding pass -->
             <div class="q-mb-md">
@@ -757,6 +770,24 @@ const calculatedEndDate = computed(() => {
   const end = new Date(start);
   end.setDate(end.getDate() + selectedPlan.value.durationDays);
   return end.toISOString().split('T')[0];
+});
+
+// Mirrors backend assertStartDateWithinLimits (-90 / +60 from today).
+const PAST_LIMIT_DAYS = 90;
+const FUTURE_LIMIT_DAYS = 60;
+
+function offsetIso(days: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+const startDateMin = computed(() => offsetIso(-PAST_LIMIT_DAYS));
+const startDateMax = computed(() => offsetIso(FUTURE_LIMIT_DAYS));
+const isFutureStart = computed(() => {
+  if (!assignForm.value.startDate) return false;
+  return assignForm.value.startDate > offsetIso(0);
 });
 
 // Change mode: the "after current" start date (= current sub's endDate).

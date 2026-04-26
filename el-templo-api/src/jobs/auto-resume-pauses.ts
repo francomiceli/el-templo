@@ -41,11 +41,22 @@ export function startAutoResumePausesJob(db: MySql2Database<typeof schema>) {
       } catch (err: unknown) {
         log.error({ err }, "Auto-resume job failed");
       }
+
+      try {
+        const activated = await subscriptionService.activateDueScheduledSubs();
+        if (activated === 0) {
+          log.info("No scheduled subscriptions due for activation");
+        } else {
+          log.info({ activated }, "Activated scheduled subscriptions");
+        }
+      } catch (err: unknown) {
+        log.error({ err }, "Activate-scheduled job failed");
+      }
     },
     { timezone: "America/Argentina/Buenos_Aires" },
   );
 
   log.info(
-    "Auto-resume cron job scheduled for 00:05 daily (Argentina timezone)",
+    "Auto-resume + activate-scheduled cron job scheduled for 00:05 daily (Argentina timezone)",
   );
 }

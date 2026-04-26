@@ -389,6 +389,26 @@ export function useSubscriptionsApi() {
     }
   }
 
+  async function editSubscriptionStartDate(
+    subscriptionId: number,
+    startDate: string
+  ): Promise<SubscriptionDetail> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.patch<SubscriptionDetail>(
+        `/admin/subscriptions/subscriptions/${subscriptionId}/start-date`,
+        { startDate }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error editando fecha de inicio');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function listScheduleChanges(
     subscriptionId: number
   ): Promise<SubscriptionScheduleChangeEntry[]> {
@@ -430,6 +450,7 @@ export function useSubscriptionsApi() {
     updatePromo,
     deactivatePromo,
     changeFixedSchedules,
+    editSubscriptionStartDate,
     listScheduleChanges,
     cleanup,
   };

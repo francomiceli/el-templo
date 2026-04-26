@@ -687,6 +687,28 @@ const scheduleChangeEntrySchema = {
   },
 } as const;
 
+export const editStartDateSchema = {
+  params: {
+    type: "object",
+    required: ["subscriptionId"],
+    properties: {
+      subscriptionId: { type: "integer" },
+    },
+  },
+  body: {
+    type: "object",
+    required: ["startDate"],
+    properties: {
+      startDate: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
+    },
+  },
+  response: {
+    200: subscriptionDetailSchema,
+    400: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const changeFixedSchedulesSchema = {
   params: {
     type: "object",

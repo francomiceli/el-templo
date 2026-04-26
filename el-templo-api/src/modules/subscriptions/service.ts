@@ -49,6 +49,44 @@ type BookingServiceType =
   import("../scheduling/booking-service").BookingService;
 
 /**
+ * Bounds for any admin-supplied subscription startDate (assign or edit).
+ * Past bound covers retroactive loads ("the member started last week and we
+ * forgot to register it"); future bound covers pre-sold memberships that
+ * begin in the coming weeks. Tighter than "no bound" — typo guardrail.
+ */
+export const START_DATE_PAST_LIMIT_DAYS = 90;
+export const START_DATE_FUTURE_LIMIT_DAYS = 60;
+
+function todayDateString(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const fromMs = new Date(fromIso).getTime();
+  const toMs = new Date(toIso).getTime();
+  return Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Throws BadRequestError if startDate is outside the allowed window
+ * relative to today. Used by assignPlan and editSubscriptionStartDate.
+ */
+function assertStartDateWithinLimits(startDate: string): void {
+  const today = todayDateString();
+  const delta = daysBetween(today, startDate);
+  if (delta < -START_DATE_PAST_LIMIT_DAYS) {
+    throw new BadRequestError(
+      `La fecha de inicio no puede ser más de ${START_DATE_PAST_LIMIT_DAYS} días en el pasado`,
+    );
+  }
+  if (delta > START_DATE_FUTURE_LIMIT_DAYS) {
+    throw new BadRequestError(
+      `La fecha de inicio no puede ser más de ${START_DATE_FUTURE_LIMIT_DAYS} días en el futuro`,
+    );
+  }
+}
+
+/**
  * Filter options for listPlans. Accepts optional country scope and a
  * branchId that is resolved to a country server-side (branchId wins over
  * an explicit country if both are provided).
@@ -325,13 +363,17 @@ export class SubscriptionService {
           or(
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
+            eq(schema.subscriptions.status, "scheduled"),
           ),
         ),
       )
-      // When multiple active subs exist (early renewal), prefer the one
-      // covering today (startDate <= today). Fall back to earliest future sub.
+      // Prefer subs covering today (startDate <= today) over future ones,
+      // and within those prefer active/paused over scheduled. Renewal/early-
+      // change-plan flows can produce an active sub + a scheduled successor;
+      // this ordering keeps the active one as "current".
       .orderBy(
         sql`CASE WHEN ${schema.subscriptions.startDate} <= CURDATE() THEN 0 ELSE 1 END`,
+        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END`,
         schema.subscriptions.startDate,
       )
       .limit(1);
@@ -396,10 +438,17 @@ export class SubscriptionService {
           or(
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
+            eq(schema.subscriptions.status, "scheduled"),
           ),
         ),
       )
-      .orderBy(schema.subscriptions.createdAt);
+      // active first, then paused, then scheduled — keeps the "current" sub
+      // at the top of the list for the admin tab, while still surfacing
+      // standalone scheduled subs created with a future startDate.
+      .orderBy(
+        sql`CASE ${schema.subscriptions.status} WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END`,
+        schema.subscriptions.createdAt,
+      );
 
     const mapped = rows.map((r) => this.mapSubscriptionRow(r));
     return Promise.all(mapped.map((m) => this.enrichWithScheduleIds(m)));
@@ -564,9 +613,14 @@ export class SubscriptionService {
       );
     }
 
-    // Check no existing active/paused subscription in the same category group (D-35)
+    // Bound startDate to a sane window (typo guardrail).
+    assertStartDateWithinLimits(input.startDate);
+
+    // Check no existing active/paused/scheduled subscription in the same category group (D-35)
     // A member CAN have one presencial + one online simultaneously
     // A member CANNOT have two presencial or two online simultaneously
+    // Scheduled subs (future startDate) count too — otherwise an admin could
+    // queue a duplicate for next week without the system noticing.
     const planIsOnline = isOnlinePlan(plan.planCategory);
     const existingInSameGroup = await this.db
       .select({ id: schema.subscriptions.id })
@@ -581,6 +635,7 @@ export class SubscriptionService {
           or(
             eq(schema.subscriptions.status, "active"),
             eq(schema.subscriptions.status, "paused"),
+            eq(schema.subscriptions.status, "scheduled"),
           ),
           planIsOnline
             ? ne(schema.subscriptionPlans.planCategory, "presencial")
@@ -601,6 +656,13 @@ export class SubscriptionService {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + plan.durationDays);
     const endDateStr = endDate.toISOString().split("T")[0];
+
+    // Status: scheduled when startDate is in the future, active otherwise.
+    // The status drives recomputeUserStatus (only active/paused count for
+    // user.status='activo') and getMemberSubscription's "current" pick.
+    const today = todayDateString();
+    const initialStatus: "active" | "scheduled" =
+      input.startDate > today ? "scheduled" : "active";
 
     // Determine price
     let pricePaid: number;
@@ -789,7 +851,7 @@ export class SubscriptionService {
           userId,
           planId: input.planId,
           branchId: input.branchId,
-          status: "active",
+          status: initialStatus,
           startDate: input.startDate,
           endDate: endDateStr,
           pricePaid,
@@ -1135,6 +1197,179 @@ export class SubscriptionService {
   }
 
   /**
+   * Edit a subscription's startDate. Recalculates endDate from the plan's
+   * durationDays, transitions status (scheduled ↔ active) when the new
+   * startDate crosses today, regenerates bookings for fixed/anchored
+   * presencial subs, and recomputes the member's user.status.
+   *
+   * Guards:
+   * - Sub must be in active / paused / scheduled (not editable once
+   *   cancelled / expired / completed / changed).
+   * - newStartDate must fall within the same window as assignPlan.
+   * - Cannot move startDate past an existing attendance — would orphan
+   *   the attended class outside the new sub range.
+   */
+  async editSubscriptionStartDate(
+    subscriptionId: number,
+    newStartDate: string,
+    actorId: number,
+  ): Promise<SubscriptionDetail> {
+    const sub = await this.getSubscriptionById(subscriptionId);
+    if (!sub) {
+      throw new NotFoundError("Suscripcion no encontrada");
+    }
+
+    const editableStatuses: SubscriptionStatus[] = [
+      "active",
+      "paused",
+      "scheduled",
+    ];
+    if (!editableStatuses.includes(sub.status as SubscriptionStatus)) {
+      throw new BadRequestError(
+        "Solo se pueden editar fechas de suscripciones activas, pausadas o programadas",
+      );
+    }
+
+    assertStartDateWithinLimits(newStartDate);
+
+    if (newStartDate === sub.startDate) {
+      throw new BadRequestError(
+        "La nueva fecha de inicio es igual a la actual",
+      );
+    }
+
+    // Block when an attendance would fall before the new startDate. We
+    // only consider attendances that already lived inside this sub's
+    // original range — older sessions belonged to a previous sub.
+    const attendanceConflict = await this.db
+      .select({ id: schema.attendance.id })
+      .from(schema.attendance)
+      .where(
+        and(
+          eq(schema.attendance.memberId, sub.userId),
+          sql`${schema.attendance.sessionDate} >= ${sub.startDate}`,
+          sql`${schema.attendance.sessionDate} < ${newStartDate}`,
+        ),
+      )
+      .limit(1);
+
+    if (attendanceConflict.length > 0) {
+      throw new BadRequestError(
+        "El alumno ya tiene asistencias registradas dentro del rango actual; no se puede mover la fecha de inicio más adelante",
+      );
+    }
+
+    // Plan-derived duration drives the new endDate (single source of truth
+    // — same formula as assignPlan / renew).
+    const [plan] = await this.db
+      .select({ durationDays: schema.subscriptionPlans.durationDays })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, sub.planId));
+
+    if (!plan) {
+      throw new BadRequestError("Plan no encontrado");
+    }
+
+    const newEndDateObj = new Date(newStartDate);
+    newEndDateObj.setDate(newEndDateObj.getDate() + plan.durationDays);
+    const newEndDate = newEndDateObj.toISOString().split("T")[0];
+
+    const today = todayDateString();
+    // Paused subs stay paused — only the date window shifts. For active /
+    // scheduled subs, the status follows the new startDate vs today.
+    const newStatus: SubscriptionStatus =
+      sub.status === "paused"
+        ? "paused"
+        : newStartDate > today
+          ? "scheduled"
+          : "active";
+
+    const previousStartDate = sub.startDate;
+    const previousStatus = sub.status;
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(schema.subscriptions)
+        .set({
+          startDate: newStartDate,
+          endDate: newEndDate,
+          status: newStatus,
+        })
+        .where(eq(schema.subscriptions.id, subscriptionId));
+
+      await this.recomputeUserStatus(sub.userId, tx);
+    });
+
+    // Regenerate bookings for presencial subs with anchors. Cancel covers
+    // the whole future range (today onwards); regen seeds bookings from
+    // max(today, newStartDate) to newEndDate so a moved-to-future sub
+    // doesn't materialize bookings before it actually starts.
+    if (
+      this.bookingService &&
+      sub.scheduleIds.length > 0 &&
+      newStatus !== "paused"
+    ) {
+      await this.bookingService.cancelFutureBookings(subscriptionId);
+      const regenStart = newStartDate > today ? newStartDate : today;
+      if (regenStart <= newEndDate) {
+        await this.bookingService.generateFixedBookings(
+          subscriptionId,
+          sub.userId,
+          sub.scheduleIds,
+          regenStart,
+          newEndDate,
+          sub.branchId,
+        );
+      }
+    }
+
+    this.log.info(
+      {
+        subscriptionId,
+        userId: sub.userId,
+        actorId,
+        previousStartDate,
+        newStartDate,
+        previousStatus,
+        newStatus,
+      },
+      "Subscription start date edited",
+    );
+
+    const updated = await this.getSubscriptionById(subscriptionId);
+    return updated!;
+  }
+
+  /**
+   * Cron entrypoint — flips every scheduled sub whose startDate has arrived
+   * to 'active' and recomputes the owning member's user.status. Handles
+   * standalone scheduled subs (created via assignPlan with future startDate)
+   * as well as scheduled successors created by change-plan / renewal.
+   */
+  async activateDueScheduledSubs(): Promise<number> {
+    const today = todayDateString();
+    const due = await this.db
+      .select({
+        id: schema.subscriptions.id,
+        userId: schema.subscriptions.userId,
+      })
+      .from(schema.subscriptions)
+      .where(
+        and(
+          eq(schema.subscriptions.status, "scheduled"),
+          sql`${schema.subscriptions.startDate} <= ${today}`,
+        ),
+      );
+
+    for (const row of due) {
+      await this.activateScheduledSub(row.id);
+      await this.recomputeUserStatus(row.userId, this.db);
+    }
+
+    return due.length;
+  }
+
+  /**
    * List schedule-change audit entries for a subscription (newest first).
    */
   async listScheduleChanges(
@@ -1352,11 +1587,17 @@ export class SubscriptionService {
   ): Promise<SubscriptionDetail> {
     const sub = await this.getMemberSubscription(userId);
     if (!sub) {
-      throw new NotFoundError("No se encontro suscripcion activa o pausada");
+      throw new NotFoundError(
+        "No se encontro suscripcion activa, pausada o programada",
+      );
     }
-    if (sub.status !== "active" && sub.status !== "paused") {
+    if (
+      sub.status !== "active" &&
+      sub.status !== "paused" &&
+      sub.status !== "scheduled"
+    ) {
       throw new BadRequestError(
-        "Solo se pueden cancelar suscripciones activas o pausadas",
+        "Solo se pueden cancelar suscripciones activas, pausadas o programadas",
       );
     }
 
@@ -3287,6 +3528,9 @@ export class SubscriptionService {
     userId: number,
     tx: MySql2Database<typeof schema>,
   ): Promise<void> {
+    // 'activo' requires a sub that has actually started — a 'scheduled' sub
+    // (or an 'active' sub whose startDate is still in the future) does NOT
+    // make the member active today. Hence the s.start_date <= CURDATE() guard.
     await tx.execute(sql`
       UPDATE users u
       SET
@@ -3295,6 +3539,7 @@ export class SubscriptionService {
             SELECT 1 FROM subscriptions s
             WHERE s.user_id = u.id
               AND s.subscription_status IN ('active','paused')
+              AND s.start_date <= CURDATE()
               AND (s.end_date IS NULL OR s.end_date >= CURDATE())
           ) THEN 'activo'
           WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
@@ -3306,6 +3551,7 @@ export class SubscriptionService {
               SELECT 1 FROM subscriptions s
               WHERE s.user_id = u.id
                 AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
                 AND (s.end_date IS NULL OR s.end_date >= CURDATE())
             )
             AND EXISTS (

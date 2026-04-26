@@ -17,6 +17,7 @@
         @renew="openRenewal(presencialSub!)"
         @change="showChangeDialog = true"
         @change-turnos="openChangeTurnos"
+        @edit-start-date="openEditStartDate(presencialSub!)"
         @pause="confirmPause"
         @resume="confirmResume"
         @cancel="confirmCancel"
@@ -115,6 +116,7 @@
         label="Suscripcion Online"
         show-category-badge
         @renew="openRenewal(programaSub!)"
+        @edit-start-date="openEditStartDate(programaSub!)"
         @cancel="confirmCancelPrograma"
       />
 
@@ -195,6 +197,13 @@
       :currentSubEndDate="presencialSub?.endDate ?? null"
       mode="change"
       @assigned="onAssigned"
+    />
+
+    <!-- Edit Start Date Dialog -->
+    <EditSubscriptionStartDateDialog
+      v-model="showEditStartDateDialog"
+      :subscription="editStartDateTarget"
+      @saved="onStartDateEdited"
     />
 
     <!-- Change Fixed Schedules Dialog -->
@@ -399,6 +408,7 @@ import {
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
+import EditSubscriptionStartDateDialog from 'src/components/EditSubscriptionStartDateDialog.vue';
 import SubscriptionCard from 'src/components/SubscriptionCard.vue';
 import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 
@@ -448,6 +458,8 @@ const showRenewalDialog = ref(false);
 const renewTarget = ref<SubscriptionDetail | null>(null);
 const renewalMethod = ref<PaymentMethod>('cash');
 const renewalLoading = ref(false);
+const showEditStartDateDialog = ref(false);
+const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
 const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 
@@ -643,6 +655,16 @@ async function refreshAll() {
 function openRenewal(sub: SubscriptionDetail) {
   renewTarget.value = sub;
   showRenewalDialog.value = true;
+}
+
+function openEditStartDate(sub: SubscriptionDetail) {
+  editStartDateTarget.value = sub;
+  showEditStartDateDialog.value = true;
+}
+
+function onStartDateEdited() {
+  refreshAll();
+  emit('subscription-changed');
 }
 
 async function executeRenewal() {

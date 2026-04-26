@@ -43,6 +43,7 @@ import {
   classUsageSchema,
   pricingPreviewSchema,
   changeFixedSchedulesSchema,
+  editStartDateSchema,
   listScheduleChangesSchema,
   listPromosSchema,
   createPromoSchema,
@@ -322,6 +323,32 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
         return sub;
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "change fixed schedules");
+      }
+    },
+  );
+
+  // PATCH /subscriptions/:subscriptionId/start-date — Edit subscription startDate
+  fastify.patch<{
+    Params: { subscriptionId: number };
+    Body: { startDate: string };
+  }>(
+    "/subscriptions/:subscriptionId/start-date",
+    { schema: editStartDateSchema },
+    async (request, reply) => {
+      try {
+        const sub = await subscriptionService.editSubscriptionStartDate(
+          request.params.subscriptionId,
+          request.body.startDate,
+          request.user.userId,
+        );
+        return sub;
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "edit subscription start date",
+        );
       }
     },
   );

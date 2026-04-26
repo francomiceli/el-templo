@@ -134,6 +134,7 @@
       v-if="
         subscription.status === 'active' ||
         subscription.status === 'paused' ||
+        subscription.status === 'scheduled' ||
         subscription.status === 'expired'
       "
     >
@@ -146,6 +147,13 @@
           label="Cambiar turnos"
           color="primary"
           @click="emit('change-turnos')"
+        />
+        <q-btn
+          flat
+          icon="event"
+          label="Editar fecha"
+          color="primary"
+          @click="emit('edit-start-date')"
         />
         <q-btn
           v-if="isPresencial"
@@ -167,6 +175,13 @@
       </template>
       <template v-else-if="subscription.status === 'paused'">
         <q-btn
+          flat
+          icon="event"
+          label="Editar fecha"
+          color="primary"
+          @click="emit('edit-start-date')"
+        />
+        <q-btn
           v-if="isPresencial"
           flat
           icon="swap_horiz"
@@ -181,6 +196,16 @@
           label="Reanudar"
           color="positive"
           @click="emit('resume')"
+        />
+        <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
+      </template>
+      <template v-else-if="subscription.status === 'scheduled'">
+        <q-btn
+          flat
+          icon="event"
+          label="Editar fecha"
+          color="primary"
+          @click="emit('edit-start-date')"
         />
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
@@ -221,6 +246,7 @@ const emit = defineEmits<{
   renew: [];
   change: [];
   'change-turnos': [];
+  'edit-start-date': [];
   pause: [];
   resume: [];
   cancel: [];
