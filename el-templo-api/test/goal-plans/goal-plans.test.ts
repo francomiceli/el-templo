@@ -7,6 +7,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  dateOffsetStr,
 } from "../helpers";
 
 const SUBSCRIPTIONS_URL = "/api/admin/subscriptions";
@@ -97,7 +98,7 @@ describe("Goal Plan Routes", () => {
       payload: {
         planId: plan.id,
         branchId: 1,
-        startDate: "2026-03-01",
+        startDate: dateOffsetStr(-25),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
       },
@@ -877,7 +878,7 @@ describe("Goal Plan Routes", () => {
         payload: {
           planId: plan.id,
           branchId: 1,
-          startDate: "2026-03-01",
+          startDate: dateOffsetStr(-25),
           priceTypeApplied: "regular",
           paymentMethod: "cash",
         },

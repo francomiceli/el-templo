@@ -14,6 +14,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  dateOffsetStr,
 } from "../helpers";
 import { bookings } from "../../src/db/schema/bookings";
 import { schedules } from "../../src/db/schema/schedules";
@@ -132,7 +133,7 @@ describe("Scheduling API", () => {
       payload: {
         planId,
         branchId: testBranchId,
-        startDate: "2026-03-01",
+        startDate: dateOffsetStr(-25),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
         ...overrides,
@@ -1737,7 +1738,10 @@ describe("Scheduling API", () => {
 
       const slotIds = [monResult.id, wedResult.id];
 
-      // Assign fixed plan with scheduleIds
+      // Assign fixed plan with scheduleIds. 2026-04-13 is a Monday and
+      // sits within the +60d future limit relative to the faked clock
+      // (2026-03-11). Switching from the original "2026-06-01" keeps the
+      // test deterministic without breaking the validation guardrail.
       const assignRes = await app.inject({
         method: "POST",
         url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
@@ -1745,7 +1749,7 @@ describe("Scheduling API", () => {
         payload: {
           planId: plan.id,
           branchId: testBranchId,
-          startDate: "2026-06-01",
+          startDate: "2026-04-13",
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           scheduleIds: slotIds,
@@ -1760,8 +1764,8 @@ describe("Scheduling API", () => {
         .from(bookings)
         .where(eq(bookings.memberId, member.id));
 
-      // 14 days from June 1 -> end June 15 inclusive
-      // Mon: June 1, 8, 15; Wed: June 3, 10 = 5 bookings
+      // 14 days from April 13 -> end April 27 inclusive
+      // Mon: April 13, 20, 27; Wed: April 15, 22 = 5 bookings
       expect(bookingRows.length).toBe(5);
       // All should be reservado
       for (const b of bookingRows) {
@@ -1770,10 +1774,11 @@ describe("Scheduling API", () => {
     });
 
     it("generateFixedBookings skips holiday dates", async () => {
-      // Add a holiday on a Monday
+      // Add a holiday on a Monday within the assignPlan validation window
+      // (the faked clock is 2026-03-11; 2026-04-13 is a Monday, +33d).
       await app.db.insert(holidays).values({
         country: "AR",
-        date: "2026-06-01",
+        date: "2026-04-13",
         name: "Test Holiday",
       });
 
@@ -1808,7 +1813,7 @@ describe("Scheduling API", () => {
         payload: {
           planId: plan.id,
           branchId: testBranchId,
-          startDate: "2026-06-01",
+          startDate: "2026-04-13",
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           scheduleIds: [monResult.id],
@@ -1818,7 +1823,7 @@ describe("Scheduling API", () => {
       expect(assignRes.statusCode).toBe(201);
       const sub = JSON.parse(assignRes.body);
 
-      // June 1 is a holiday, June 8 and June 15 are valid = 2 bookings
+      // April 13 is a holiday, April 20 and April 27 are valid = 2 bookings
       const bookingRows = await app.db
         .select()
         .from(bookings)
@@ -1826,8 +1831,8 @@ describe("Scheduling API", () => {
 
       expect(bookingRows.length).toBe(2);
       const dates = bookingRows.map((b) => b.bookingDate).sort();
-      expect(dates).toContain("2026-06-08");
-      expect(dates).toContain("2026-06-15");
+      expect(dates).toContain("2026-04-20");
+      expect(dates).toContain("2026-04-27");
 
       // replacementCredits should be 1
       expect(sub.replacementCredits).toBe(1);
@@ -1866,7 +1871,7 @@ describe("Scheduling API", () => {
         payload: {
           planId: plan.id,
           branchId: testBranchId,
-          startDate: "2026-03-02", // starts in past (we're pinned to Wed Mar 11)
+          startDate: dateOffsetStr(-25), // starts in past (we're pinned to Wed Mar 11)
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           scheduleIds: [monResult.id],

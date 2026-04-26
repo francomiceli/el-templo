@@ -109,6 +109,12 @@ describe("Subscriptions API", () => {
     return new Date().toISOString().split("T")[0];
   }
 
+  function dateOffsetStr(days: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split("T")[0];
+  }
+
   async function assignPlan(
     userId: number,
     overrides: Record<string, unknown> = {},
@@ -526,11 +532,17 @@ describe("Subscriptions API", () => {
       const plan = await createPlan({ durationDays: 1 });
       const member = await createMember();
 
-      // Assign with a past start date so the end date is also in the past
+      // Assign with a startDate within the validation window, then force the
+      // endDate into the past so auto-expire kicks in. The validation window
+      // (~30 days back) blocks "2025-01-01"-style fixtures.
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2025-01-01",
+        startDate: dateOffsetStr(-2),
       });
+      await app.db
+        .update(subscriptions)
+        .set({ startDate: dateOffsetStr(-10), endDate: dateOffsetStr(-5) })
+        .where(eq(subscriptions.userId, member.id));
 
       const res = await app.inject({
         method: "GET",
@@ -814,10 +826,13 @@ describe("Subscriptions API", () => {
       const plan = await createPlan();
       const member = await createMember();
 
+      const firstStart = dateOffsetStr(5);
+      const secondStart = dateOffsetStr(40);
+
       // Assign then cancel (use future start date to avoid auto-expire)
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: firstStart,
       });
       await app.inject({
         method: "POST",
@@ -829,7 +844,7 @@ describe("Subscriptions API", () => {
       // Assign again with a later date
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-07-01",
+        startDate: secondStart,
       });
 
       const res = await app.inject({
@@ -845,18 +860,19 @@ describe("Subscriptions API", () => {
       const startDates = body.subscriptions.map(
         (s: Record<string, unknown>) => s.startDate,
       );
-      expect(startDates).toContain("2026-07-01");
-      expect(startDates).toContain("2026-06-01");
-      // The cancelled one should be the June subscription
+      expect(startDates).toContain(secondStart);
+      expect(startDates).toContain(firstStart);
+      // The cancelled one should be the first subscription
       const cancelledSub = body.subscriptions.find(
-        (s: Record<string, unknown>) => s.startDate === "2026-06-01",
+        (s: Record<string, unknown>) => s.startDate === firstStart,
       );
       expect(cancelledSub.status).toBe("cancelled");
-      // The active one should be the July subscription
-      const activeSub = body.subscriptions.find(
-        (s: Record<string, unknown>) => s.startDate === "2026-07-01",
+      // The other one is scheduled (future startDate) — assignPlan flips
+      // status='active' to 'scheduled' when startDate > today.
+      const futureSub = body.subscriptions.find(
+        (s: Record<string, unknown>) => s.startDate === secondStart,
       );
-      expect(activeSub.status).toBe("active");
+      expect(futureSub.status).toBe("scheduled");
     });
   });
 
@@ -1033,7 +1049,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
         scheduleIds: slotIds,
       });
 
@@ -1060,7 +1076,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
         scheduleIds: slotIds,
       });
 
@@ -1086,7 +1102,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
         scheduleIds: slotIds,
       });
 
@@ -1105,7 +1121,7 @@ describe("Subscriptions API", () => {
 
       const { statusCode, body } = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
         // No scheduleIds
       });
 
@@ -1125,7 +1141,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
         scheduleIds: slotIds,
       });
 
@@ -1224,7 +1240,7 @@ describe("Subscriptions API", () => {
       // Assign plan A
       await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       // Simulate some classes used: budget is 15, set remaining to 6
@@ -1271,9 +1287,10 @@ describe("Subscriptions API", () => {
       const member = await createMember();
 
       // Assign expensive plan
+      const start = todayStr();
       await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: start,
       });
 
       // Preview downgrade: should be blocked
@@ -1287,7 +1304,7 @@ describe("Subscriptions API", () => {
       const preview = JSON.parse(previewRes.body);
       expect(preview.allowed).toBe(false);
       expect(preview.reason).toContain("menor precio");
-      expect(preview.expiryDate).toBe("2026-07-01");
+      expect(preview.expiryDate).toBe(dateOffsetStr(30));
       expect(preview.proration).toBeNull();
       expect(preview.netAmount).toBeNull();
     });
@@ -1311,7 +1328,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       const previewRes = await app.inject({
@@ -1346,7 +1363,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       // Attempt downgrade via POST
@@ -1388,7 +1405,7 @@ describe("Subscriptions API", () => {
       // Assign plan A
       const assignResult = await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
       const oldSubId = assignResult.body.id;
 
@@ -1467,7 +1484,7 @@ describe("Subscriptions API", () => {
 
       const assignResult = await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
       const oldSubId = assignResult.body.id as number;
       const oldEndDate = assignResult.body.endDate as string;
@@ -1533,7 +1550,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       const first = await app.inject({
@@ -1586,7 +1603,7 @@ describe("Subscriptions API", () => {
 
       const assignResult = await assignPlan(member.id, {
         planId: planA.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
       const subId = assignResult.body.id as number;
 
@@ -1734,7 +1751,7 @@ describe("Subscriptions API", () => {
       // Assign plan (future start — sub is still active)
       const assignResult = await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
       const oldSubId = assignResult.body.id;
 
@@ -1791,7 +1808,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       // First renewal (creates scheduled sub)
@@ -1825,7 +1842,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       const res = await app.inject({
@@ -1866,7 +1883,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       const res = await app.inject({
@@ -1878,9 +1895,9 @@ describe("Subscriptions API", () => {
 
       expect(res.statusCode).toBe(201);
       const newSub = JSON.parse(res.body);
-      // New sub starts from old endDate (2026-07-01) and extends by 30 days
-      expect(newSub.startDate).toBe("2026-07-01");
-      expect(newSub.endDate).toBe("2026-07-31");
+      // New sub starts from old endDate (today + 30) and extends by 30 days
+      expect(newSub.startDate).toBe(dateOffsetStr(30));
+      expect(newSub.endDate).toBe(dateOffsetStr(60));
     });
 
     it("history shows active + scheduled after early renewal", async () => {
@@ -1895,7 +1912,7 @@ describe("Subscriptions API", () => {
 
       await assignPlan(member.id, {
         planId: plan.id,
-        startDate: "2026-06-01",
+        startDate: todayStr(),
       });
 
       // Renew once (early — old sub still active)

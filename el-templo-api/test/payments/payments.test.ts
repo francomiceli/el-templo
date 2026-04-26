@@ -6,6 +6,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  dateOffsetStr,
 } from "../helpers";
 import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
@@ -477,8 +478,16 @@ describe("Payments API", () => {
       const plan = await createPlan({ durationDays: 1 });
       const member = await createMember();
       const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
+        startDate: dateOffsetStr(-2),
       });
+
+      // Drop the auto-recorded subscription payment so monthlyRevenue
+      // reflects only the test's manual payment below. (Original test used
+      // a far-past startDate to keep the auto-payment out of the current
+      // month — the validation window now blocks that, so we delete instead.)
+      await app.db
+        .delete(payments)
+        .where(eq(payments.subscriptionId, sub.id as number));
 
       // Record a payment in current month
       const today = new Date().toISOString().split("T")[0];
@@ -591,13 +600,14 @@ describe("Payments API", () => {
         dni: "80000300",
       });
       const sub = await assignPlan(member.id, plan.id, {
-        startDate: "2025-01-01",
+        startDate: dateOffsetStr(-2),
       });
 
-      // Force status to expired
+      // Force status AND endDate to expired — renewSubscription decides
+      // active-vs-scheduled by `endDate < today`, not by status alone.
       await app.db
         .update(subscriptions)
-        .set({ status: "expired" })
+        .set({ status: "expired", endDate: dateOffsetStr(-1) })
         .where(eq(subscriptions.id, sub.id as number));
 
       const res = await app.inject({

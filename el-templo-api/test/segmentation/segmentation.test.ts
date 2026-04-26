@@ -15,6 +15,7 @@ import {
   registerUser,
   getAuthToken,
   createStaffUser,
+  cleanAllTestData,
 } from "../helpers";
 import * as schema from "../../src/db/schema";
 import { SegmentationService } from "../../src/modules/segmentation/service";
@@ -34,18 +35,12 @@ describe("Segmentation", () => {
   });
 
   beforeEach(async () => {
-    // Clean only segmentation-related data, not all test data (preserves pre-seeded admin)
-    await app.db.delete(schema.memberLogins);
-    await app.db.delete(schema.checkInResponses);
-    await app.db.delete(schema.onboardingAnalytics);
-    await app.db.delete(schema.memberProfiles);
-    // Subscriptions + plans: tests insert fixed-name plans (Plan-2x/3x/5x) per case;
-    // the (name, country) unique index rejects the second test without this cleanup.
-    await app.db.delete(schema.subscriptions);
-    await app.db.delete(schema.subscriptionPlans);
-    await app.db.execute(
-      sql`DELETE FROM ${schema.systemSettings} WHERE setting_key LIKE 'segment.%'`,
-    );
+    // Use the shared FK-safe cleaner so residual rows from prior test files
+    // (subscription_schedules, bookings, payments, …) don't block the
+    // subscriptions delete. The narrow cleanup that lived here used to work
+    // because subscription tests left less residual state — adding the
+    // scheduled-status flow + plan-edit history makes that fragile.
+    await cleanAllTestData(app);
 
     // Seed segment threshold settings for all tests
     await app.db.insert(schema.systemSettings).values([

@@ -28,6 +28,21 @@ export async function createTestApp(): Promise<FastifyInstance> {
 }
 
 /**
+ * Date helpers for test fixtures. Keep dates within the assignPlan
+ * validation window (-90 / +60 days from today) so production guardrails
+ * apply uniformly to test code as well.
+ */
+export function todayStr(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+export function dateOffsetStr(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+/**
  * Log in with email/password and return the JWT token.
  */
 export async function getAuthToken(

@@ -14,6 +14,7 @@ import {
   getAuthToken,
   registerUser,
   cleanAllTestData,
+  dateOffsetStr,
 } from "../helpers";
 import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
@@ -147,7 +148,7 @@ describe("Attendance API", () => {
       payload: {
         planId,
         branchId: testBranchId,
-        startDate: "2026-03-01",
+        startDate: dateOffsetStr(-25),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
         ...overrides,
@@ -347,7 +348,7 @@ describe("Attendance API", () => {
         email: "expired-checkin@test.com",
         dni: "90000025",
       });
-      await assignPlan(member.id, plan.id, { startDate: "2025-01-01" });
+      await assignPlan(member.id, plan.id, { startDate: dateOffsetStr(-2) });
       // Subscription endDate 2025-01-02, 14+ months ago — auto-expire catches it
 
       const memberToken = await getAuthToken(
