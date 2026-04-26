@@ -149,13 +149,6 @@
           @click="emit('change-turnos')"
         />
         <q-btn
-          flat
-          icon="event"
-          label="Editar fecha"
-          color="primary"
-          @click="emit('edit-start-date')"
-        />
-        <q-btn
           v-if="isPresencial"
           flat
           icon="swap_horiz"
@@ -175,13 +168,6 @@
       </template>
       <template v-else-if="subscription.status === 'paused'">
         <q-btn
-          flat
-          icon="event"
-          label="Editar fecha"
-          color="primary"
-          @click="emit('edit-start-date')"
-        />
-        <q-btn
           v-if="isPresencial"
           flat
           icon="swap_horiz"
@@ -200,13 +186,6 @@
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'scheduled'">
-        <q-btn
-          flat
-          icon="event"
-          label="Editar fecha"
-          color="primary"
-          @click="emit('edit-start-date')"
-        />
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'expired'">
