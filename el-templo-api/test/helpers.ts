@@ -199,6 +199,131 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
   }
 }
 
+// =========================================================================
+// Canonical fixture helpers (use these in new tests instead of reinventing)
+//
+// Existing tests have local copies of similar helpers. New tests should use
+// these canonical versions; over time, files being touched can migrate.
+// =========================================================================
+
+/**
+ * Default subscription plan payload. Override per test as needed.
+ */
+export const DEFAULT_TEST_PLAN = {
+  name: "Test Plan",
+  planTier: "flex",
+  bookingMode: "flexible",
+  priceRegular: 15000,
+  priceZero: 10000,
+  durationDays: 30,
+  classesPerWeek: 3,
+};
+
+/**
+ * Create a subscription plan via the admin API. Throws on non-201 so tests
+ * fail fast at the setup step instead of cascading downstream.
+ */
+export async function createTestPlan(
+  app: FastifyInstance,
+  adminToken: string,
+  overrides: Record<string, unknown> = {},
+): Promise<{ id: number; [key: string]: unknown }> {
+  const res = await app.inject({
+    method: "POST",
+    url: "/api/admin/subscriptions/plans",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { ...DEFAULT_TEST_PLAN, ...overrides },
+  });
+  if (res.statusCode !== 201) {
+    throw new Error(`createTestPlan failed: ${res.statusCode} ${res.body}`);
+  }
+  return JSON.parse(res.body) as { id: number; [key: string]: unknown };
+}
+
+/**
+ * Register a member via the auth API. Returns { id, token, email, ... } so
+ * callers can both assert on the user and authenticate as them.
+ *
+ * Email defaults to a unique value so parallel/quick successive calls don't
+ * collide; pass `overrides.email` when the test needs a specific one.
+ */
+export async function createTestMember(
+  app: FastifyInstance,
+  overrides: Record<string, unknown> = {},
+): Promise<{
+  id: number;
+  token: string;
+  email: string;
+  [key: string]: unknown;
+}> {
+  const uniqueSuffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const data = {
+    email: `test-member-${uniqueSuffix}@test.com`,
+    password: "pass123456",
+    firstName: "Test",
+    lastName: "Member",
+    branchId: 1,
+    ...overrides,
+  } as {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    branchId: number;
+    dni?: string;
+    phone?: string;
+  };
+  const result = await registerUser(app, data);
+  const user = result.user as { id: number; [key: string]: unknown };
+  return {
+    id: user.id,
+    token: result.token,
+    email: data.email,
+    ...user,
+  };
+}
+
+/**
+ * Assign a subscription plan to a member. Returns both statusCode and body
+ * (does NOT throw on non-201) so tests can assert on 409 / 400 / etc.
+ */
+export async function assignTestPlan(
+  app: FastifyInstance,
+  adminToken: string,
+  userId: number,
+  planId: number,
+  overrides: Record<string, unknown> = {},
+): Promise<{ statusCode: number; body: Record<string, unknown> }> {
+  const res = await app.inject({
+    method: "POST",
+    url: `/api/admin/subscriptions/members/${userId}/subscription/assign`,
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: {
+      planId,
+      branchId: 1,
+      startDate: todayStr(),
+      priceTypeApplied: "regular",
+      paymentMethod: "cash",
+      ...overrides,
+    },
+  });
+  return { statusCode: res.statusCode, body: JSON.parse(res.body) };
+}
+
+/**
+ * Seed an AURA balance for a user. Idempotent (UPSERT).
+ */
+export async function seedAuraBalance(
+  app: FastifyInstance,
+  userId: number,
+  amount: number,
+): Promise<void> {
+  await app.db.execute(
+    sql`INSERT INTO aura_balances (user_id, balance) VALUES (${userId}, ${amount})
+        ON DUPLICATE KEY UPDATE balance = ${amount}`,
+  );
+}
+
 /**
  * Create a staff user directly in the database (bypasses API auth).
  * Returns the created user's ID.
