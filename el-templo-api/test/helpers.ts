@@ -106,14 +106,18 @@ export async function registerUser(
 /**
  * Comprehensive cleanup of ALL test data tables.
  *
- * Sends every DELETE as a single multi-statement query via the raw
- * mysql2 pool (one MySQL round-trip total instead of ~50). FK constraints
- * are disabled for the duration so order doesn't matter.
+ * Pulls a single dedicated connection from the pool and runs every
+ * statement on it sequentially. This guarantees that:
+ *   1. SET FOREIGN_KEY_CHECKS=0 stays in scope for every DELETE (the
+ *      session variable is per-connection, so multiple pool.query() calls
+ *      could pick different connections and re-enable FK checks mid-way).
+ *   2. We never depend on mysql2's multi-statement support, which silently
+ *      drops statements after the first in CI (verified empirically — works
+ *      locally, fails in CI's MySQL 8.0 service container).
  *
- * IMPORTANT: must use `app.dbPool.query()` (not `app.db.execute()`):
- * Drizzle's execute() uses mysql2's prepared statements which DO NOT
- * support multi-statement queries even when `multipleStatements: true`
- * is set. Only the connection.query() / pool.query() path supports it.
+ * Round-trip count: ~55. On a local socket this is ~1ms total, far cheaper
+ * than the previous Drizzle-per-table version which paid pool acquire/release
+ * overhead on every DELETE.
  *
  * Preserves only the seed data: admin@test.com user and the seeded
  * branches / spom_config rows.
@@ -180,21 +184,20 @@ const TABLES_TO_CLEAN = [
 ];
 
 export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
-  const deletes = TABLES_TO_CLEAN.map(
-    (t) => `DELETE FROM \`${getTableName(t)}\``,
-  ).join("; ");
-
-  // One multi-statement query → one round-trip to MySQL.
-  // FK_CHECKS=0 lets us delete in any order; users-table cleanup is folded
-  // into the same query (DELETE non-admins, reset boarding_pass_used).
-  // Use pool.query (not db.execute) — see comment above.
-  await app.dbPool.query(
-    `SET FOREIGN_KEY_CHECKS=0; ` +
-      `${deletes}; ` +
-      `DELETE FROM \`users\` WHERE email != 'admin@test.com'; ` +
-      `UPDATE \`users\` SET boarding_pass_used = 0 WHERE email = 'admin@test.com'; ` +
-      `SET FOREIGN_KEY_CHECKS=1`,
-  );
+  const conn = await app.dbPool.getConnection();
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS=0");
+    for (const t of TABLES_TO_CLEAN) {
+      await conn.query(`DELETE FROM \`${getTableName(t)}\``);
+    }
+    await conn.query("DELETE FROM `users` WHERE email != 'admin@test.com'");
+    await conn.query(
+      "UPDATE `users` SET boarding_pass_used = 0 WHERE email = 'admin@test.com'",
+    );
+    await conn.query("SET FOREIGN_KEY_CHECKS=1");
+  } finally {
+    conn.release();
+  }
 }
 
 // =========================================================================

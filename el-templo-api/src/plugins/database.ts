@@ -25,11 +25,6 @@ const databasePlugin: FastifyPluginAsync = async (fastify) => {
     idleTimeout: 60000,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
-    // Enable multi-statement queries only in tests so cleanAllTestData can
-    // batch its ~50 DELETEs into a single round-trip via pool.query() (NOT
-    // db.execute(), which uses prepared statements that don't support
-    // multi-statement). Disabled in dev/prod for defense-in-depth.
-    multipleStatements: process.env.NODE_ENV === "test",
   });
 
   const db = drizzle(pool, { schema, mode: "default" });
