@@ -13,15 +13,13 @@ import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
 
 /**
- * Create a Fastify test app instance connected to the eltemplo_test database.
- * Environment variables are set by vitest.config.ts env block, but we
- * reinforce the critical ones here for safety.
+ * Create a Fastify test app instance connected to the per-worker test
+ * database. DB_NAME is set by test/setup.ts (it includes a suffix derived
+ * from VITEST_POOL_ID so parallel workers don't share state).
+ *
+ * NODE_ENV and JWT_SECRET are set by vitest.config.ts env block.
  */
 export async function createTestApp(): Promise<FastifyInstance> {
-  process.env.DB_NAME = "eltemplo_test";
-  process.env.NODE_ENV = "test";
-  process.env.JWT_SECRET = "test-secret-for-testing";
-
   const app = await buildApp();
   await app.ready();
   return app;

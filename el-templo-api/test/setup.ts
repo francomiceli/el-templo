@@ -1,9 +1,13 @@
 /**
- * Vitest globalSetup: creates and seeds a test MySQL database.
+ * Vitest setupFiles: per-worker test DB provisioning.
  *
- * Uses mysql2/promise for database creation (works in CI Docker containers),
- * drizzle-kit push for schema from TypeScript definitions, and mysql2/promise
- * again for seed data.
+ * Each vitest worker (process) gets its own database (eltemplo_test_<POOL_ID>)
+ * so workers never share state. Within a worker, the DB is created exactly
+ * once (cached promise) regardless of how many test files run there.
+ *
+ * Cross-run cleanup of stale per-worker DBs is handled by globalSetup
+ * (test/setup-global.ts), which runs once in the main process before workers
+ * spawn.
  */
 
 import dotenv from "dotenv";
@@ -11,6 +15,7 @@ import mysql from "mysql2/promise";
 import path from "path";
 import fs from "fs";
 import argon2 from "argon2";
+import { beforeAll } from "vitest";
 
 dotenv.config({ path: path.resolve(__dirname, "../.env.development") });
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -19,7 +24,16 @@ const DB_HOST = process.env.DB_HOST || "localhost";
 const DB_PORT = Number(process.env.DB_PORT) || 3306;
 const DB_USER = process.env.DB_USER || "root";
 const DB_PASSWORD = process.env.DB_PASSWORD || "";
-const TEST_DB = "eltemplo_test";
+
+// VITEST_POOL_ID is "1", "2", ... when fileParallelism is on. Falls back to
+// "1" for single-worker mode so the DB name is always deterministic.
+const POOL_ID = process.env.VITEST_POOL_ID || "1";
+const TEST_DB = `eltemplo_test_${POOL_ID}`;
+
+// Override DB_NAME so buildApp's database plugin connects to the per-worker DB.
+// This must happen at module load time (top-level), before any test code
+// constructs a Fastify app.
+process.env.DB_NAME = TEST_DB;
 
 async function seedTestData(conn: mysql.Connection): Promise<void> {
   // Migrations may have already inserted some of these rows (e.g. Templo
@@ -47,8 +61,13 @@ async function seedTestData(conn: mysql.Connection): Promise<void> {
   );
 }
 
-export async function setup(): Promise<void> {
-  // Connect without database to create/drop (uses TCP, works in CI containers)
+async function provisionWorkerDB(): Promise<void> {
+  // Connect without database. With pool: 'forks' + isolate: true (default),
+  // each test file runs in a fresh process, so the in-memory provisionPromise
+  // cache resets between files. We rely instead on the DB itself as the cache
+  // key: globalSetup drops all eltemplo_test_* DBs at the start of every run,
+  // so if our worker's DB already exists, an earlier file on this fork did
+  // the provisioning and we can reuse it.
   const rootConn = await mysql.createConnection({
     host: DB_HOST,
     port: DB_PORT,
@@ -57,25 +76,25 @@ export async function setup(): Promise<void> {
     multipleStatements: true,
   });
 
-  await rootConn.execute(`DROP DATABASE IF EXISTS \`${TEST_DB}\``);
+  const [existing] = (await rootConn.query(
+    `SELECT SCHEMA_NAME AS name FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?`,
+    [TEST_DB],
+  )) as unknown as [Array<{ name: string }>];
+  if (existing.length > 0) {
+    await rootConn.end();
+    return;
+  }
+
   await rootConn.execute(`CREATE DATABASE \`${TEST_DB}\``);
   await rootConn.end();
 
   // Apply committed SQL migrations with FK checks disabled.
   //
-  // Historical note: this used `drizzle-kit push` but that now fails because
-  // Drizzle's auto-generated FK name for subscription_schedule_changes
-  // exceeds MySQL's 64-char identifier limit. Production migrations use
-  // short, explicit FK names so they don't hit the limit — per CLAUDE.md the
-  // _migrations table (and the hand-written .sql files under
-  // src/db/migrations) is the single source of truth, including for tests.
-  //
-  // Data-only migrations (e.g. 0017_add_coach_user.sql) reference seed rows
-  // that only exist in the production DB. Running the test DB migrations in
-  // order with FK checks off lets DDL/ALTER migrations apply cleanly while
-  // data INSERTs against missing rows fail silently (swallowed below) — the
-  // post-migration seedTestData() below installs the rows the test suite
-  // actually uses.
+  // The _migrations table (and the hand-written .sql files under
+  // src/db/migrations) is the single source of truth, including for tests
+  // (per CLAUDE.md). Data-only migrations that reference seed rows missing
+  // from a fresh test DB are tolerated below; the post-migration
+  // seedTestData() installs the rows the test suite actually uses.
   const migrationsDir = path.resolve(
     __dirname,
     "..",
@@ -131,9 +150,6 @@ export async function setup(): Promise<void> {
         await migrateConn.execute(stmt);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        // Tolerate duplicate definitions (idempotent reruns) and data-only
-        // migrations that reference seed rows not present in the fresh test
-        // DB (e.g. INSERT … WHERE branch_id=1 before branches are seeded).
         const tolerated =
           msg.includes("Duplicate") ||
           msg.includes("already exists") ||
@@ -158,7 +174,7 @@ export async function setup(): Promise<void> {
   await migrateConn.query("SET FOREIGN_KEY_CHECKS=1");
   await migrateConn.end();
 
-  // Seed test data
+  // Seed test data.
   const conn = await mysql.createConnection({
     host: DB_HOST,
     port: DB_PORT,
@@ -170,6 +186,13 @@ export async function setup(): Promise<void> {
   await conn.end();
 }
 
-export async function teardown(): Promise<void> {
-  // no-op
-}
+// Cache the provisioning promise at module level so it runs exactly once per
+// worker, regardless of how many test files import this setup.
+let provisionPromise: Promise<void> | null = null;
+
+beforeAll(async () => {
+  if (!provisionPromise) {
+    provisionPromise = provisionWorkerDB();
+  }
+  await provisionPromise;
+});
