@@ -283,10 +283,14 @@ describe("Goal Plan Routes", () => {
       });
       expect(res.statusCode).toBe(200);
       const plans = JSON.parse(res.body).plans;
+      // Look up the specific plan created in beforeAll. Migration 0072 seeds
+      // additional online_goal plans (gluteos, etc.), so finding by category
+      // alone is order-dependent.
       const goalPlan = plans.find(
-        (p: { planCategory: string }) => p.planCategory === "online_goal",
+        (p: { id: number }) => p.id === goalPlanPlanId,
       );
       expect(goalPlan).toBeDefined();
+      expect(goalPlan.planCategory).toBe("online_goal");
       expect(goalPlan.goalPlanType).toBe("tren_superior");
     });
 
