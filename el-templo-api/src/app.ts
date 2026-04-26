@@ -40,7 +40,9 @@ import { programRoutes } from "./modules/programs";
 import { notificationRoutes } from "./modules/notifications";
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({
+    logger: process.env.NODE_ENV === "test" ? { level: "silent" } : true,
+  });
 
   // CORS configuration
   await app.register(cors, {
