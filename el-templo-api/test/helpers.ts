@@ -7,7 +7,7 @@
  */
 
 import { buildApp } from "../src/app";
-import { eq, sql } from "drizzle-orm";
+import { sql, getTableName } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
@@ -106,95 +106,95 @@ export async function registerUser(
 /**
  * Comprehensive cleanup of ALL test data tables.
  *
- * Deletes from every user-data table in FK-safe order, preserving only
- * the seed data (admin user, branch, spom_config). Call this in beforeEach
- * to guarantee a clean slate regardless of what previous test files wrote.
+ * Sends every DELETE as a single multi-statement query via the raw
+ * mysql2 pool (one MySQL round-trip total instead of ~50). FK constraints
+ * are disabled for the duration so order doesn't matter.
+ *
+ * IMPORTANT: must use `app.dbPool.query()` (not `app.db.execute()`):
+ * Drizzle's execute() uses mysql2's prepared statements which DO NOT
+ * support multi-statement queries even when `multipleStatements: true`
+ * is set. Only the connection.query() / pool.query() path supports it.
+ *
+ * Preserves only the seed data: admin@test.com user and the seeded
+ * branches / spom_config rows.
  */
-export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
-  // Layer 0: notification tables (depend on users and templates)
-  await app.db.delete(schema.pendingNotifications);
-  await app.db.delete(schema.notificationPreferences);
-  await app.db.delete(schema.deviceTokens);
-  await app.db.delete(schema.notificationTemplates);
-
-  // Layer 0b: program enrollments, onboarding, and check-in tables (depend on users)
-  await app.db.delete(schema.programEnrollments);
-  await app.db.delete(schema.programContentBlocks);
-  // NOTE: programs deleted in Layer 3b (after subscriptionPlans due to linkedProgramId FK)
-  await app.db.delete(schema.checkInResponses);
-  await app.db.delete(schema.onboardingAnalytics);
-  await app.db.delete(schema.memberProfiles);
-
-  // Layer 1: junction tables and leaf tables (no dependents)
-  await app.db.delete(schema.blogPostTags);
-  await app.db.delete(schema.bookings);
-  await app.db.delete(schema.subscriptionScheduleChanges);
-  await app.db.delete(schema.subscriptionSchedules);
-  await app.db.delete(schema.completedSessions);
-  await app.db.delete(schema.sessionTraces);
-  await app.db.delete(schema.sessionBlocks);
-  await app.db.delete(schema.sessionEditLogs);
-  await app.db.delete(schema.sessionPrescriptions);
-  await app.db.delete(schema.savedBlocks);
-  await app.db.delete(schema.evaluationRequests);
-  await app.db.delete(schema.formatCompatibility);
-  await app.db.delete(schema.memberLogins);
-  await app.db.delete(schema.memberProfiles);
-
-  // Layer 2: tables that reference layer-3 parents
-  await app.db.delete(schema.memberProfiles);
-  await app.db.delete(schema.attendance);
-  await app.db.delete(schema.payments);
-  await app.db.delete(schema.auraTransactions);
-  await app.db.delete(schema.memberNotes);
-  await app.db.delete(schema.holidays);
-  // Phase 101: debts FK(user_id → users.id) blocks user delete if rows remain.
-  await app.db.delete(schema.debts);
-
-  // Layer 3: core entity tables
-  await app.db.delete(schema.promoPlans);
-  await app.db.delete(schema.subscriptions);
-  await app.db.delete(schema.schedules);
-  await app.db.delete(schema.subscriptionPlans);
-  // Layer 3b: programs depends on subscriptionPlans.linkedProgramId being clear
-  await app.db.delete(schema.programs);
-  await app.db.delete(schema.auraBalances);
-  await app.db.delete(schema.activities);
-  await app.db.delete(schema.sessions);
-
-  // Layer 4: reference/config tables
-  await app.db.delete(schema.blogPosts);
-  await app.db.delete(schema.blogTags);
-  await app.db.delete(schema.academyInquiries);
-  await app.db.delete(schema.appWaitlist);
-  await app.db.delete(schema.labsInquiries);
-  await app.db.delete(schema.franchiseApplications);
-  await app.db.delete(schema.gladiusInquiries);
-  await app.db.delete(schema.gladiusProducts);
-  await app.db.delete(schema.systemSettings);
-
+const TABLES_TO_CLEAN = [
+  // Notification + onboarding (FK to users)
+  schema.pendingNotifications,
+  schema.notificationPreferences,
+  schema.deviceTokens,
+  schema.notificationTemplates,
+  schema.programEnrollments,
+  schema.programContentBlocks,
+  schema.checkInResponses,
+  schema.onboardingAnalytics,
+  schema.memberProfiles,
+  // Junction + leaf tables
+  schema.blogPostTags,
+  schema.bookings,
+  schema.subscriptionScheduleChanges,
+  schema.subscriptionSchedules,
+  schema.completedSessions,
+  schema.sessionTraces,
+  schema.sessionBlocks,
+  schema.sessionEditLogs,
+  schema.sessionPrescriptions,
+  schema.savedBlocks,
+  schema.evaluationRequests,
+  schema.formatCompatibility,
+  schema.memberLogins,
+  // Tables referencing layer-3 parents
+  schema.attendance,
+  schema.payments,
+  schema.auraTransactions,
+  schema.memberNotes,
+  schema.holidays,
+  schema.debts,
+  // Core entity tables
+  schema.promoPlans,
+  schema.subscriptions,
+  schema.schedules,
+  schema.subscriptionPlans,
+  schema.programs,
+  schema.auraBalances,
+  schema.activities,
+  schema.sessions,
+  // Reference / config tables
+  schema.blogPosts,
+  schema.blogTags,
+  schema.academyInquiries,
+  schema.appWaitlist,
+  schema.labsInquiries,
+  schema.franchiseApplications,
+  schema.gladiusInquiries,
+  schema.gladiusProducts,
+  schema.systemSettings,
   // SPOM reference tables
-  await app.db.delete(schema.exercises);
-  await app.db.delete(schema.formats);
-  await app.db.delete(schema.routes);
-  await app.db.delete(schema.spomRules);
-  await app.db.delete(schema.intensityRules);
-  await app.db.delete(schema.contractionRules);
-  await app.db.delete(schema.weeklyRotator);
+  schema.exercises,
+  schema.formats,
+  schema.routes,
+  schema.spomRules,
+  schema.intensityRules,
+  schema.contractionRules,
+  schema.weeklyRotator,
+];
 
-  // Layer 5: user management test data
-  // (nothing extra needed; non-admin users are cleaned below)
+export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
+  const deletes = TABLES_TO_CLEAN.map(
+    (t) => `DELETE FROM \`${getTableName(t)}\``,
+  ).join("; ");
 
-  // Reset user flags and delete non-admin users
-  await app.db.update(schema.users).set({ boardingPassUsed: false });
-  const testUsers = await app.db
-    .select({ id: schema.users.id, email: schema.users.email })
-    .from(schema.users);
-  for (const u of testUsers) {
-    if (u.email !== "admin@test.com") {
-      await app.db.delete(schema.users).where(eq(schema.users.id, u.id));
-    }
-  }
+  // One multi-statement query → one round-trip to MySQL.
+  // FK_CHECKS=0 lets us delete in any order; users-table cleanup is folded
+  // into the same query (DELETE non-admins, reset boarding_pass_used).
+  // Use pool.query (not db.execute) — see comment above.
+  await app.dbPool.query(
+    `SET FOREIGN_KEY_CHECKS=0; ` +
+      `${deletes}; ` +
+      `DELETE FROM \`users\` WHERE email != 'admin@test.com'; ` +
+      `UPDATE \`users\` SET boarding_pass_used = 0 WHERE email = 'admin@test.com'; ` +
+      `SET FOREIGN_KEY_CHECKS=1`,
+  );
 }
 
 // =========================================================================
