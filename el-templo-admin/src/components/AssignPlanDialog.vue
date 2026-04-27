@@ -1069,6 +1069,11 @@ watch(
       startMode.value = 'now';
       loadPlans();
     }
-  }
+  },
+  // immediate covers the post-create flow in AlumnosPage where the dialog is
+  // rendered with `v-if` and mounts already with modelValue=true; without
+  // immediate the watch would never see that initial open and loadPlans
+  // would not run, leaving the plan picker empty.
+  { immediate: true }
 );
 </script>
