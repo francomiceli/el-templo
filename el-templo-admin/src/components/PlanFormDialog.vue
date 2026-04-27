@@ -176,19 +176,31 @@
             <q-select
               v-model="form.linkedProgramId"
               :options="programOptions"
-              label="Programa Vinculado *"
+              label="Programa Vinculado"
               dense
               outlined
               emit-value
               map-options
-              :rules="[(val) => !!val || 'Programa es requerido para planes online']"
+              :rules="[
+                (val) =>
+                  form.grantsAllPrograms || !!val || 'Programa es requerido para planes online',
+              ]"
               :loading="loadingPrograms"
+              :disable="form.grantsAllPrograms"
             />
             <div
               v-if="programOptions.length === 0 && !loadingPrograms"
               class="text-caption text-grey-7 q-mt-xs"
             >
               No hay programas. Crea uno en la pagina de Programas.
+            </div>
+
+            <div class="q-mt-md">
+              <q-toggle v-model="form.grantsAllPrograms" label="Da acceso a TODOS los programas" />
+              <div class="text-caption text-grey-7 q-ml-md" style="margin-top: -4px">
+                Inscribe automaticamente al miembro en todos los programas activos durante la
+                vigencia del plan
+              </div>
             </div>
           </div>
 
@@ -300,6 +312,7 @@ const form = ref({
   durationDays: null as number | null,
   classesPerWeek: null as number | null,
   linkedProgramId: null as number | null,
+  grantsAllPrograms: false,
   multiBranch: false,
   isTrial: false,
   isGroup: false,
@@ -380,11 +393,24 @@ watch(
     if (newCategory === 'presencial') {
       // Switching to presencial: clear online-specific fields
       form.value.linkedProgramId = null;
+      // Bundle is online-only by SPEC; force off when switching to presencial.
+      form.value.grantsAllPrograms = false;
     } else {
       // Switching to online: set defaults, clear presencial-specific fields
       form.value.planTier = 'other';
       form.value.bookingMode = 'flexible';
       form.value.classesPerWeek = null;
+    }
+  }
+);
+
+// Bundle plans don't bind to a single program — clear the linked id when
+// the toggle flips ON so we never POST both fields populated.
+watch(
+  () => form.value.grantsAllPrograms,
+  (next) => {
+    if (next) {
+      form.value.linkedProgramId = null;
     }
   }
 );
@@ -414,6 +440,7 @@ watch(
         durationDays: props.plan.durationDays,
         classesPerWeek: props.plan.classesPerWeek,
         linkedProgramId: props.plan.linkedProgramId,
+        grantsAllPrograms: props.plan.grantsAllPrograms ?? false,
         multiBranch: props.plan.multiBranch,
         isTrial: props.plan.isTrial,
         isGroup: props.plan.isGroup,
@@ -434,6 +461,7 @@ watch(
         durationDays: null,
         classesPerWeek: null,
         linkedProgramId: null,
+        grantsAllPrograms: false,
         multiBranch: false,
         isTrial: false,
         isGroup: false,
@@ -474,9 +502,11 @@ async function onSubmit() {
           ? (form.value.classesPerWeek ?? undefined)
           : undefined,
       linkedProgramId:
-        form.value.planCategory !== 'presencial'
+        form.value.planCategory !== 'presencial' && !form.value.grantsAllPrograms
           ? (form.value.linkedProgramId ?? undefined)
           : undefined,
+      grantsAllPrograms:
+        form.value.planCategory !== 'presencial' ? form.value.grantsAllPrograms : false,
       multiBranch: form.value.multiBranch,
       isTrial: form.value.isTrial,
       isGroup: form.value.isGroup,

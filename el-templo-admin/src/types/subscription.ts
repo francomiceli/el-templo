@@ -114,6 +114,7 @@ export interface PlanListItem {
   isGroup: boolean;
   planCategory: PlanCategory;
   linkedProgramId: number | null;
+  grantsAllPrograms: boolean;
   groupMaxMembers: number | null;
   isActive: boolean;
   isArchived: boolean;
@@ -146,6 +147,7 @@ export interface CreatePlanInput {
   linkedProgramId?: number;
   groupMaxMembers?: number;
   country?: 'AR' | 'ES';
+  grantsAllPrograms?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -164,6 +166,7 @@ export interface UpdatePlanInput {
   planCategory?: PlanCategory;
   linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
+  grantsAllPrograms?: boolean;
 }
 
 import type { PaymentMethod } from './payment';
