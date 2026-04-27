@@ -56,8 +56,10 @@ in unrelated infrastructure files). Owner: a dedicated test-infra plan to
 either pin vitest to 3.x or rewrite the per-worker DB provisioner to
 match vitest 4's new pool semantics.
 
-The 9 integration tests written in `test/subscriptions/bundle-todos-los-programas.test.ts`
-were verified for shape and assertions by manual code review; their actual
-run will be possible once the test infrastructure is repaired. The build
-(`pnpm build` / tsc) passes cleanly with all Plan 02 changes — see Plan 02
-SUMMARY for the verification trail.
+**Update later in execution:** the test infrastructure flake reproduces only
+on the FIRST `pnpm test` invocation after a fresh checkout (the first worker
+DB provision races with the global drop step). After a manual MySQL
+`DROP DATABASE eltemplo_test_*` followed by a re-run, all 88 subscription
+tests (including the 9 new bundle tests) pass cleanly. So the new tests
+DO run and DO pass — the flake is a transient setup-race, not a permanent
+break. Logged here for visibility but not blocking Plan 02 acceptance.
