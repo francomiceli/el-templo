@@ -4,13 +4,13 @@ milestone: v3.0
 milestone_name: Landing Page
 status: unknown
 stopped_at: Completed 103-05-PLAN.md (admin AlumnosPage + AlumnoDetailPage UI refactor — 4-state badge + Estado dropdown; manual UX checklist pending user verification)
-last_updated: "2026-04-25T18:56:10.018Z"
+last_updated: "2026-04-27T17:40:45.477Z"
 progress:
-  total_phases: 93
+  total_phases: 94
   completed_phases: 80
-  total_plans: 349
+  total_plans: 356
   completed_plans: 342
-  percent: 98
+  percent: 96
 ---
 
 # Project State
@@ -297,4 +297,4 @@ Last session: 2026-04-25T18:56:09.978Z
 Stopped at: Completed 103-05-PLAN.md (admin AlumnosPage + AlumnoDetailPage UI refactor — 4-state badge + Estado dropdown; manual UX checklist pending user verification)
 Resume file: None
 
-**Planned Phase:** 103 (user-status-enum) — 7 plans — 2026-04-25
+**Planned Phase:** 104 (planes-vs-programas-bundle) — 7 plans — 2026-04-27T17:40:45.457Z
