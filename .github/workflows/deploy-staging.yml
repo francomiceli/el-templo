@@ -54,7 +54,12 @@ jobs:
   build-api:
     name: Build API
     needs: detect-changes
-    if: github.event_name == 'workflow_dispatch' || needs.detect-changes.outputs.api == 'true'
+    # Staging builds every project on every push. Path-filter on this
+    # workflow has been unreliable (deploys finishing in 11-13s with
+    # everything skipped while the same commit deploys fine on master).
+    # Trading ~10 extra CI minutes for guaranteed parity is worth it on
+    # the pre-production branch.
+    if: always() && needs.detect-changes.result != 'failure'
     runs-on: ubuntu-latest
 
     services:
