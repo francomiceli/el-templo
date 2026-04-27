@@ -67,6 +67,13 @@
                 :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
                 :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
               />
+              <q-badge
+                v-if="props.row.grantsAllPrograms"
+                color="amber"
+                text-color="black"
+                label="Bundle"
+                class="q-ml-xs"
+              />
             </q-td>
           </template>
 
@@ -167,6 +174,13 @@
               <q-badge
                 :color="PLAN_CATEGORY_COLORS[props.row.planCategory as PlanCategory]"
                 :label="PLAN_CATEGORY_LABELS[props.row.planCategory as PlanCategory]"
+              />
+              <q-badge
+                v-if="props.row.grantsAllPrograms"
+                color="amber"
+                text-color="black"
+                label="Bundle"
+                class="q-ml-xs"
               />
             </q-td>
           </template>
