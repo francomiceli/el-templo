@@ -190,7 +190,15 @@ export async function cleanAllTestData(app: FastifyInstance): Promise<void> {
     for (const t of TABLES_TO_CLEAN) {
       await conn.query(`DELETE FROM \`${getTableName(t)}\``);
     }
-    await conn.query("DELETE FROM `users` WHERE email != 'admin@test.com'");
+    // NULL-safe inequality: `email != 'admin@test.com'` returns NULL (not TRUE)
+    // for rows with email IS NULL — Phase 102 trial users have null emails and
+    // would survive cleanup, leaking IDs across test files within the same
+    // vitest worker (per-worker DB, fileParallelism + isolate=false). The
+    // `<=>` operator returns FALSE instead of NULL, so `NOT (email <=> ...)`
+    // correctly catches both null and non-admin emails.
+    await conn.query(
+      "DELETE FROM `users` WHERE NOT (email <=> 'admin@test.com')",
+    );
     await conn.query(
       "UPDATE `users` SET boarding_pass_used = 0 WHERE email = 'admin@test.com'",
     );
