@@ -10,7 +10,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { addDays } from "../shared/date-utils";
@@ -167,8 +167,10 @@ export class SchedulingService {
       )
       .orderBy(schema.schedules.dayOfWeek, schema.schedules.startTime);
 
-    // Get holidays for the week
-    const weekEnd = addDays(weekStartDate, 5); // Saturday
+    // Get holidays for the week. weekRangeEnd covers the full Mon-Sun span
+    // used by the bookings query below; the holiday helper still gets the
+    // start since it computes its own range internally.
+    const weekRangeEnd = addDays(weekStartDate, 6); // Sunday inclusive
     const holidaysInWeek = await this.holidayService.getHolidaysForWeek(
       branch.country,
       weekStartDate,
@@ -179,6 +181,11 @@ export class SchedulingService {
     // Phase 102-06: compute bookedCount (non-trials, drives capacity) and
     // trialCount (trials walking in, displayed separately) in one query —
     // a conditional COUNT lets us keep the single round-trip.
+    //
+    // The bookingDate filter is essential: without it MySQL scans every
+    // historical booking for the branch's schedules, which timed out
+    // (>10s) in production once the table grew. With the range bound the
+    // result set is at most ~slots × 7 rows.
     const scheduleIds = scheduleRows.map((r) => r.id);
     const bookingCountMap = new Map<
       string,
@@ -197,6 +204,8 @@ export class SchedulingService {
         .where(
           and(
             inArray(schema.bookings.scheduleId, scheduleIds),
+            gte(schema.bookings.bookingDate, weekStartDate),
+            lte(schema.bookings.bookingDate, weekRangeEnd),
             sql`${schema.bookings.status} IN ('reservado', 'qr_escaneado', 'confirmado')`,
           ),
         )
