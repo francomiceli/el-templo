@@ -73,6 +73,7 @@ export interface PlanListItem {
   isArchived: boolean;
   country: "AR" | "ES";
   currency: "ARS" | "EUR";
+  grantsAllPrograms: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -109,6 +110,7 @@ export interface CreatePlanInput {
   planCategory?: PlanCategory;
   linkedProgramId?: number;
   groupMaxMembers?: number;
+  grantsAllPrograms?: boolean;
 }
 
 export interface UpdatePlanInput {
@@ -127,6 +129,7 @@ export interface UpdatePlanInput {
   planCategory?: PlanCategory;
   linkedProgramId?: number | null;
   groupMaxMembers?: number | null;
+  grantsAllPrograms?: boolean;
 }
 
 // ─── Subscription Types ─────────────────────────────────────────────────────

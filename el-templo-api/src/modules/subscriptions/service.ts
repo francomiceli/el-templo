@@ -215,6 +215,7 @@ export class SubscriptionService {
       planCategory: input.planCategory ?? "presencial",
       linkedProgramId: input.linkedProgramId ?? null,
       groupMaxMembers: input.groupMaxMembers ?? null,
+      grantsAllPrograms: input.grantsAllPrograms ?? false,
     });
 
     const planId = Number(result[0].insertId);
@@ -261,8 +262,13 @@ export class SubscriptionService {
       updateData.linkedProgramId = input.linkedProgramId;
     if (input.groupMaxMembers !== undefined)
       updateData.groupMaxMembers = input.groupMaxMembers;
+    if (input.grantsAllPrograms !== undefined)
+      updateData.grantsAllPrograms = input.grantsAllPrograms;
 
-    // Validate: if resulting plan would be online but without linkedProgramId, reject
+    // Validate: if resulting plan would be online but without linkedProgramId, reject.
+    // Phase 104: bundle plans (grants_all_programs=true) are exempt — the bundle
+    // grants access to ALL active programs at lifecycle hooks, not via a single
+    // linked program reference.
     const resultPlanCategory =
       input.planCategory !== undefined
         ? input.planCategory
@@ -271,7 +277,15 @@ export class SubscriptionService {
       input.linkedProgramId !== undefined
         ? input.linkedProgramId
         : existing.linkedProgramId;
-    if (resultPlanCategory !== "presencial" && !resultLinkedProgramId) {
+    const resultGrantsAllPrograms =
+      input.grantsAllPrograms !== undefined
+        ? input.grantsAllPrograms
+        : existing.grantsAllPrograms;
+    if (
+      resultPlanCategory !== "presencial" &&
+      !resultLinkedProgramId &&
+      !resultGrantsAllPrograms
+    ) {
       throw new BadRequestError(
         "Planes online requieren un programa vinculado (linkedProgramId)",
       );
@@ -3165,6 +3179,7 @@ export class SubscriptionService {
       isArchived: row.isArchived,
       country: row.country as "AR" | "ES",
       currency: row.currency as "ARS" | "EUR",
+      grantsAllPrograms: row.grantsAllPrograms ?? false,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
