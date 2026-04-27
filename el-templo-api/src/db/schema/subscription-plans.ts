@@ -47,6 +47,7 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
   isArchived: boolean("is_archived").default(false).notNull(),
   country: varchar("country", { length: 2 }).default("AR").notNull(),
   currency: varchar("currency", { length: 3 }).default("ARS").notNull(),
+  grantsAllPrograms: boolean("grants_all_programs").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
 });
