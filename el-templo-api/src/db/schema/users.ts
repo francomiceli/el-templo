@@ -86,6 +86,10 @@ export const users = mysqlTable(
     // Phase 102-07: trial→alumno conversion timestamp. Set once, on first
     // subscription creation if the user has any is_trial=1 booking.
     convertedAt: timestamp("converted_at"),
+    // Phase 104 R5: pointer to the program_enrollment the member is currently
+    // viewing. NULL means "Templo view" (only valid if user has presencial
+    // plan). Set/cleared by PUT /api/members/me/current-program (Plan 04).
+    currentProgramEnrollmentId: int("current_program_enrollment_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
