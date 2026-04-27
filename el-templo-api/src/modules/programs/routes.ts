@@ -486,4 +486,102 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // =========================================================================
+  // Phase 104 R6 — Current Program pointer (read/write) + enrollments listing
+  // =========================================================================
+
+  /**
+   * GET /api/members/me/current-program — Read the member's
+   * currentProgramEnrollmentId pointer. Returns { enrollmentId, program } when
+   * set + active, or { enrollmentId: null, program: null } when unset/stale.
+   */
+  fastify.get("/members/me/current-program", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+
+    try {
+      const result = await service.getCurrentProgram(request.user.userId);
+      return reply.code(200).send(result);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "getCurrentProgram");
+    }
+  });
+
+  /**
+   * PUT /api/members/me/current-program — Set the pointer.
+   * Body: { enrollmentId: number | null }.
+   *  - non-null: must be the user's own active enrollment, else 403.
+   *  - null: only allowed when the user has an active presencial subscription
+   *    (per R6 — null means "Templo view"), else 403.
+   */
+  fastify.put<{ Body: { enrollmentId: number | null } }>(
+    "/members/me/current-program",
+    {
+      schema: {
+        body: {
+          type: "object",
+          required: ["enrollmentId"],
+          additionalProperties: false,
+          properties: {
+            enrollmentId: { type: ["integer", "null"] },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              enrollmentId: { type: ["integer", "null"] },
+              program: {
+                type: ["object", "null"],
+                properties: {
+                  id: { type: "integer" },
+                  name: { type: "string" },
+                  goalPlanType: { type: ["string", "null"] },
+                  durationWeeks: { type: ["integer", "null"] },
+                  currentWeek: { type: "integer" },
+                },
+              },
+            },
+          },
+          403: {
+            type: "object",
+            properties: {
+              error: { type: "string" },
+              message: { type: "string" },
+            },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      await fastify.authenticate(request, reply);
+
+      try {
+        const result = await service.setCurrentProgram(
+          request.user.userId,
+          request.body.enrollmentId,
+        );
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "setCurrentProgram");
+      }
+    },
+  );
+
+  /**
+   * GET /api/members/me/enrollments — List the member's active program
+   * enrollments ordered by id ASC. Used by the Plan 05 program selector to
+   * populate the bottom-sheet options. Returns { enrollments: [...] } —
+   * empty array if no active rows.
+   */
+  fastify.get("/members/me/enrollments", async (request, reply) => {
+    await fastify.authenticate(request, reply);
+
+    try {
+      const result = await service.listMyActiveEnrollments(request.user.userId);
+      return reply.code(200).send(result);
+    } catch (err: unknown) {
+      handleServiceError(err, reply, request.log, "listMyActiveEnrollments");
+    }
+  });
 };
