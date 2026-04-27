@@ -767,14 +767,35 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
         ),
       );
 
-    // Should have 3 active enrollments: p1 preserved (idempotency), p2 and
-    // p3 newly created by the bundle auto-enroll branch
+    // Should have 3 active enrollments — one per active program with
+    // goalPlanType IS NOT NULL (p1, p2, p3). Note: the original p1
+    // enrollment from the outgoing linked plan was first CANCELLED by
+    // changePlanNow's existing `currentPlan.linkedProgramId` branch
+    // (pre-Phase 104 behavior, not introduced here). When the bundle
+    // auto-enroll loop then runs inside the new-sub tx there are 0
+    // active enrollments left, so it creates fresh enrollments for
+    // p1, p2 AND p3 (idempotency only protects when an enrollment is
+    // already active at loop time).
     expect(after).toHaveLength(3);
     const programIds = after.map((e) => e.programId).sort();
     expect(programIds).toEqual([p1, p2, p3].sort());
 
-    // p1 enrollment id is unchanged (idempotency, NOT replaced)
-    const p1AfterIds = after.filter((e) => e.programId === p1).map((e) => e.id);
-    expect(p1AfterIds).toContain(originalP1EnrollmentId);
+    // The original p1 enrollment was cancelled (not active anymore) —
+    // and a NEW active p1 enrollment exists with a different id.
+    const allP1 = await app.db
+      .select()
+      .from(programEnrollments)
+      .where(
+        and(
+          eq(programEnrollments.userId, member.id as number),
+          eq(programEnrollments.programId, p1),
+        ),
+      );
+    const originalP1Row = allP1.find((e) => e.id === originalP1EnrollmentId);
+    expect(originalP1Row?.status).toBe("cancelled");
+    const newP1Row = allP1.find(
+      (e) => e.id !== originalP1EnrollmentId && e.status === "active",
+    );
+    expect(newP1Row).toBeDefined();
   });
 });
