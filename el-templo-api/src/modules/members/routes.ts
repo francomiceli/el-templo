@@ -48,7 +48,7 @@ import {
 } from "./schemas";
 import { Workbook } from "exceljs";
 
-import { ADMIN_ROLES, MEMBER_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES, CAJA_ROLES, MEMBER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
 /**
@@ -450,10 +450,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   }>("/:userId", { schema: updateMemberSchema }, async (request, reply) => {
     // Phase 101 RBAC (T-101-10): the route plugin's onRequest admits the full
     // MEMBER_ROLES set (coach/admin/owner/gestion/recepcion), but debt writes
-    // are stricter — only ADMIN_ROLES (admin, owner) may mutate debts.
+    // are stricter — only CAJA_ROLES (gestion, admin, owner) may mutate debts.
     // We check `'debt' in request.body` so that omitting the field entirely
     // (current UX for non-debt edits) is unaffected; supplying `debt: null`
-    // (cancel) or `debt: {...}` (upsert) BOTH require ADMIN_ROLES.
+    // (cancel) or `debt: {...}` (upsert) BOTH require CAJA_ROLES.
     const body = request.body;
     const wantsDebtMutation = Object.prototype.hasOwnProperty.call(
       body,
@@ -461,11 +461,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     );
     if (
       wantsDebtMutation &&
-      !(ADMIN_ROLES as readonly string[]).includes(request.user.role)
+      !(CAJA_ROLES as readonly string[]).includes(request.user.role)
     ) {
       return reply.code(403).send({
         error: "Acceso denegado",
-        message: "Solo admin/owner puede gestionar deudas",
+        message: "Solo gestion, admin u owner puede gestionar deudas",
       });
     }
 
@@ -483,7 +483,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
-      // Apply the debt mutation (already ADMIN_ROLES-gated above).
+      // Apply the debt mutation (already CAJA_ROLES-gated above).
       if (wantsDebtMutation) {
         if (debt === null) {
           await debtService.cancelActiveDebt(request.params.userId);

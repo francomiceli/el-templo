@@ -6,7 +6,7 @@
  *   - GET /api/admin/members ?debtorOnly=true filtering
  *   - totalDebtByCurrency grouping + filter-scope
  *   - JSON schema validation (amount, currency, note length)
- *   - RBAC: ADMIN_ROLES-only debt writes (recepcion + coach get 403)
+ *   - RBAC: CAJA_ROLES-only debt writes (gestion allowed; recepcion + coach get 403)
  *   - Soft-cancel preserves history (row count invariant)
  */
 
@@ -420,7 +420,7 @@ describe("Debt tracking", () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Test 9 + 10: RBAC — debt writes are ADMIN_ROLES-only
+  // Test 9 + 10: RBAC — debt writes are CAJA_ROLES-only
   // ─────────────────────────────────────────────────────────────────────────
   it("returns 403 when recepcion sends a debt payload (but allows non-debt edits)", async () => {
     const m = await createMember();
@@ -491,6 +491,40 @@ describe("Debt tracking", () => {
       payload: { debt: { amount: 1000, currency: "ARS" } },
     });
     expect(res.statusCode).toBe(403);
+  });
+
+  it("allows gestion to upsert and cancel debts", async () => {
+    const m = await createMember();
+
+    await createStaffUser(app, {
+      email: "gestion@test.com",
+      password: "gestpass123",
+      firstName: "Ges",
+      lastName: "Test",
+      role: "gestion",
+      branchId: 1,
+    });
+    const gestionToken = await getAuthToken(
+      app,
+      "gestion@test.com",
+      "gestpass123",
+    );
+
+    const upsertRes = await app.inject({
+      method: "PUT",
+      url: `/api/admin/members/${m.id}`,
+      headers: { authorization: `Bearer ${gestionToken}` },
+      payload: { debt: { amount: 1500, currency: "ARS", note: "test" } },
+    });
+    expect(upsertRes.statusCode).toBe(200);
+
+    const cancelRes = await app.inject({
+      method: "PUT",
+      url: `/api/admin/members/${m.id}`,
+      headers: { authorization: `Bearer ${gestionToken}` },
+      payload: { debt: null },
+    });
+    expect(cancelRes.statusCode).toBe(200);
   });
 
   // ─────────────────────────────────────────────────────────────────────────
