@@ -5,8 +5,10 @@
       <TemploLoader size="lg" />
     </div>
 
-    <!-- No active subscription — blocked state -->
-    <div v-else-if="!hasActiveSubscription" class="training-index__blocked">
+    <!-- No presencial plan AND no active program enrollment — blocked state.
+         Phase 104 R10: online-only members WITH an active enrollment skip
+         this block and go directly to WeeklyView. -->
+    <div v-else-if="!canEnterTraining" class="training-index__blocked">
       <div class="training-index__blocked-content">
         <q-icon
           name="img:/icons/entrenar-dark.svg"
@@ -43,7 +45,16 @@ import WeeklyView from './WeeklyView.vue'
 
 const userStore = useUserStore()
 
-const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
+/**
+ * Phase 104 (R10): users may enter the Entrenar tab when they hold a
+ * presencial plan OR have at least one active program enrollment. The old
+ * `!hasActiveSubscription` gate falsely blocked online-only members with
+ * an active program (e.g. linkedProgramId-driven enrollment from an online
+ * plan, or any of the bundle-driven enrollments).
+ */
+const canEnterTraining = computed(() => {
+  return userStore.hasPresencialPlan || userStore.allActiveEnrollments.length > 0
+})
 
 function openWhatsApp(): void {
   const message = 'Hola, quiero consultar por los planes de entrenamiento'

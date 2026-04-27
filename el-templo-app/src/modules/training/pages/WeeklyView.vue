@@ -3,6 +3,7 @@
     <!-- Header with week info -->
     <div class="weekly-view__header q-pa-md">
       <span class="weekly-view__title">{{ weekRangeLabel }}</span>
+      <ProgramSelector class="weekly-view__selector" @changed="onViewChanged" />
     </div>
 
     <!-- Loading state while fetching sessions -->
@@ -39,6 +40,7 @@ import { useWeekData } from '../composables/useWeekData'
 import { getWeekDates, formatDayName, getDateState } from '../composables/useDateNavigation'
 import type { WeekDay } from '../types/session'
 import WeekCarousel from '../components/WeekCarousel.vue'
+import ProgramSelector from '../components/ProgramSelector.vue'
 
 const log = createLogger('WeeklyView')
 const userStore = useUserStore()
@@ -156,6 +158,16 @@ const weekRangeLabel = computed(() => {
 })
 
 /**
+ * Phase 104 (R9): re-fetch the current week when the user picks a different
+ * view from the ProgramSelector. The selector has already PUT the new
+ * pointer; we just need to re-issue GET /sessions/weekly so useWeekData
+ * derives the new view param against the updated store state.
+ */
+function onViewChanged(): void {
+  void loadWeekData()
+}
+
+/**
  * Navigate to Day Player when Start button clicked
  */
 function handleStartSession(date: string) {
@@ -205,6 +217,10 @@ onMounted(() => {
     color: $primary;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+  }
+
+  &__selector {
+    margin-left: 4px;
   }
 
   &__carousel {

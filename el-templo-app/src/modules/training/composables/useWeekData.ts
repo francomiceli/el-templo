@@ -24,6 +24,7 @@ interface UseWeekDataReturn {
 interface WeeklyResponse {
   sessions: Record<string, Session | null>
   completedDates?: string[]
+  view?: 'templo' | 'program'
 }
 
 /**
@@ -64,6 +65,34 @@ export function useWeekData(): UseWeekDataReturn {
       const params: Record<string, string> = {}
       if (weekStart) params.weekStart = weekStart
       if (userStore.selectedLevel) params.level = userStore.selectedLevel
+
+      // Phase 104 (checker BLOCKER #1 fix): only set params.view when we can
+      // confidently determine it client-side. For an online-only user with
+      // currentProgramEnrollmentId === null but active enrollments (the
+      // default state right after migration 0105), let the server resolve
+      // the default by OMITTING the param — sending view='program' here
+      // would 404 because the user has no current program selected.
+      //
+      // Decision matrix:
+      //   enrollmentId !== null              → view='program'
+      //   enrollmentId === null + presencial → view='templo'
+      //   enrollmentId === null, no presencial, has enrollments → OMIT
+      //   no plan, no enrollment → unreachable (TrainingIndex blocks)
+      const enrollmentId = userStore.currentProgram.enrollmentId
+      const hasPresencial = userStore.hasPresencialPlan
+      const enrollmentsCount = userStore.allActiveEnrollments.length
+
+      if (enrollmentId !== null) {
+        params.view = 'program'
+      } else if (hasPresencial) {
+        params.view = 'templo'
+      } else if (enrollmentsCount > 0) {
+        // Online-only user, no pointer — server picks first enrollment.
+        // Do NOT set params.view (omitting yields no `view=` in query string).
+      } else {
+        // No plan, no enrollment — TrainingIndex blocks upstream; we should
+        // not reach this branch. Leave params.view unset for safety.
+      }
 
       const response = await api.get<WeeklyResponse>('/sessions/weekly', {
         params,
