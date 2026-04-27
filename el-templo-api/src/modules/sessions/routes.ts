@@ -384,10 +384,30 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // train at any level; users.level itself is only changed by a coach).
       const memberLevel = (levelOverride ?? user.level) as ExerciseLevel;
 
-      // 3. Derive week number from the requested date
+      // 3. Phase 104 R7+R8: resolve view + ownership gate (mirrors /weekly).
+      const viewResult = await resolveSessionView(
+        fastify.db,
+        userId,
+        request.query.view,
+      );
+      if (viewResult.kind === "deny") {
+        return reply
+          .status(viewResult.status)
+          .send({ error: viewResult.message });
+      }
+      const buildAsTemplo =
+        viewResult.kind === "templo" ||
+        (viewResult.kind === "program" &&
+          viewResult.enrollment.goalPlanType === null);
+      const goalPlanType =
+        viewResult.kind === "program"
+          ? viewResult.enrollment.goalPlanType
+          : null;
+
+      // 4. Derive week number from the requested date
       const week = dateToWeekNumber(date);
 
-      // 4. Convert date to day of week
+      // 5. Convert date to day of week
       const dayName = dateToDayName(date);
 
       // Skip Sundays (domingo) - no sessions
@@ -397,7 +417,7 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No hay sesiones los domingos" });
       }
 
-      // 5. Check if this day is a ROM day and map level accordingly (per D-29)
+      // 6. Check if this day is a ROM day and map level accordingly (per D-29)
       const dayNumber = DAY_NAME_TO_NUMBER[dayName];
       let effectiveLevel: string = memberLevel;
       if (dayNumber) {
@@ -410,10 +430,15 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // 6. Build dayId with effective level
-      const dayId = `W${week}-${dayName}-${effectiveLevel}`;
+      // 7. Build dayId per resolved view (Phase 104 R7).
+      // - templo OR program-with-no-goalPlanType (Foundation): W{week}-...
+      // - program with goalPlanType: GP-{type}-W{week}-...
+      const dayId =
+        !buildAsTemplo && goalPlanType
+          ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
+          : `W${week}-${dayName}-${effectiveLevel}`;
 
-      // 7. Check DB for approved session only (no auto-generation for members)
+      // 8. Check DB for approved session only (no auto-generation for members)
       const session = await sessionService.getSessionByDayId(dayId, true); // requireApproved=true
       if (!session) {
         return reply.status(404).send({
@@ -422,7 +447,11 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         });
       }
 
-      return sessionToResponse(session, formatDescriptions);
+      // Phase 104 R8: include `view` alongside session payload (sibling shape).
+      return {
+        ...sessionToResponse(session, formatDescriptions),
+        view: viewResult.kind,
+      };
     },
   );
 
