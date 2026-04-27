@@ -7,6 +7,7 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { SUBSCRIPTIONS_URL, basePlan, createPlan } from "./_helpers";
+import { programs } from "../../src/db/schema/micro-programs";
 
 describe("Subscriptions API — Plans CRUD", () => {
   let app: FastifyInstance;
@@ -97,6 +98,103 @@ describe("Subscriptions API — Plans CRUD", () => {
       headers: { authorization: `Bearer ${adminToken}` },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe("Plan invariant: online plans must link a program or grant all", () => {
+    it("presencial plan without linkedProgramId is allowed", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Presencial OK",
+          planCategory: "presencial",
+        },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it("online plan without linkedProgramId and without grantsAllPrograms is rejected with 400", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Online sin nada",
+          planCategory: "online_regular",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toMatch(
+        /Planes online deben vincular un programa.*o dar acceso a todos los programas/,
+      );
+    });
+
+    it("online plan with linkedProgramId is allowed", async () => {
+      const inserted = await app.db.insert(programs).values({
+        name: "Programa de prueba",
+        description: "Programa creado por el test",
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+        goalPlanType: null,
+        isActive: true,
+      });
+      const programId = Number(inserted[0].insertId);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Online con programa",
+          planCategory: "online_regular",
+          linkedProgramId: programId,
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      expect(JSON.parse(res.body).linkedProgramId).toBe(programId);
+    });
+
+    it("online plan with grantsAllPrograms=true is allowed without linkedProgramId", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/plans`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...basePlan,
+          name: "Bundle nuevo",
+          planCategory: "online_regular",
+          grantsAllPrograms: true,
+        },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.grantsAllPrograms).toBe(true);
+      expect(body.linkedProgramId).toBeNull();
+    });
+
+    it("PUT cannot strip both linkedProgramId and grantsAllPrograms from an online plan", async () => {
+      const created = await createPlan(app, adminToken, {
+        name: "Bundle a quebrar",
+        planCategory: "online_regular",
+        grantsAllPrograms: true,
+      });
+      const res = await app.inject({
+        method: "PUT",
+        url: `${SUBSCRIPTIONS_URL}/plans/${created.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { grantsAllPrograms: false },
+      });
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toMatch(
+        /Planes online deben vincular un programa.*o dar acceso a todos los programas/,
+      );
+    });
   });
 
   it("non-admin user gets 403 on plan and subscription routes", async () => {

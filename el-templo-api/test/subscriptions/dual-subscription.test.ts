@@ -48,9 +48,13 @@ describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
       name: "Plan Presencial Dual",
       planCategory: "presencial",
     });
+    const onlineProgramId = await createTestProgram({
+      name: "Online Dual Program",
+    });
     const onlinePlan = await createPlan(app, adminToken, {
       name: "Plan Online Dual",
       planCategory: "online_regular",
+      linkedProgramId: onlineProgramId,
     });
     const member = await createMember(app);
 
@@ -98,14 +102,23 @@ describe("Subscriptions API — Dual subscription + auto-enrollment", () => {
   });
 
   it("blocks two online subscriptions", async () => {
+    const program1Id = await createTestProgram({
+      name: "Online Regular A Program",
+    });
+    const program2Id = await createTestProgram({
+      name: "Online Goal B Program",
+      goalPlanType: "tren_superior",
+    });
     const plan1 = await createPlan(app, adminToken, {
       name: "Online Regular A",
       planCategory: "online_regular",
+      linkedProgramId: program1Id,
     });
     const plan2 = await createPlan(app, adminToken, {
       name: "Online Goal B",
       planCategory: "online_goal",
       goalPlanType: "tren_superior",
+      linkedProgramId: program2Id,
     });
     const member = await createMember(app);
 

@@ -125,6 +125,32 @@ export class SubscriptionService {
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
 
   /**
+   * Domain invariant for subscription plans. A plan in any online category
+   * (online_regular | online_goal | online_coach) MUST grant access to either
+   * a single program (linkedProgramId) OR the bundle of every active program
+   * (grantsAllPrograms). Presencial plans have no such requirement — their
+   * value is the in-person facility itself.
+   *
+   * Called by both createPlan and updatePlan against the post-mutation state
+   * so the rule cannot be bypassed by partial updates.
+   */
+  private assertPlanInvariants(plan: {
+    planCategory: PlanCategory;
+    linkedProgramId: number | null;
+    grantsAllPrograms: boolean;
+  }): void {
+    if (
+      isOnlinePlan(plan.planCategory) &&
+      !plan.linkedProgramId &&
+      !plan.grantsAllPrograms
+    ) {
+      throw new BadRequestError(
+        "Planes online deben vincular un programa (linkedProgramId) o dar acceso a todos los programas (grantsAllPrograms)",
+      );
+    }
+  }
+
+  /**
    * List subscription plans, optionally filtered by isActive, archival, and
    * country scope. When `branchId` is provided the service resolves the
    * branch's country server-side and uses that as the country filter
@@ -199,6 +225,16 @@ export class SubscriptionService {
    * Create a new subscription plan.
    */
   async createPlan(input: CreatePlanInput): Promise<PlanDetail> {
+    const planCategory = input.planCategory ?? "presencial";
+    const linkedProgramId = input.linkedProgramId ?? null;
+    const grantsAllPrograms = input.grantsAllPrograms ?? false;
+
+    this.assertPlanInvariants({
+      planCategory,
+      linkedProgramId,
+      grantsAllPrograms,
+    });
+
     const result = await this.db.insert(schema.subscriptionPlans).values({
       name: input.name,
       description: input.description ?? null,
@@ -212,10 +248,10 @@ export class SubscriptionService {
       multiBranch: input.multiBranch ?? false,
       isTrial: input.isTrial ?? false,
       isGroup: input.isGroup ?? false,
-      planCategory: input.planCategory ?? "presencial",
-      linkedProgramId: input.linkedProgramId ?? null,
+      planCategory,
+      linkedProgramId,
       groupMaxMembers: input.groupMaxMembers ?? null,
-      grantsAllPrograms: input.grantsAllPrograms ?? false,
+      grantsAllPrograms,
     });
 
     const planId = Number(result[0].insertId);
@@ -265,31 +301,20 @@ export class SubscriptionService {
     if (input.grantsAllPrograms !== undefined)
       updateData.grantsAllPrograms = input.grantsAllPrograms;
 
-    // Validate: if resulting plan would be online but without linkedProgramId, reject.
-    // Phase 104: bundle plans (grants_all_programs=true) are exempt — the bundle
-    // grants access to ALL active programs at lifecycle hooks, not via a single
-    // linked program reference.
-    const resultPlanCategory =
-      input.planCategory !== undefined
-        ? input.planCategory
-        : existing.planCategory;
-    const resultLinkedProgramId =
-      input.linkedProgramId !== undefined
-        ? input.linkedProgramId
-        : existing.linkedProgramId;
-    const resultGrantsAllPrograms =
-      input.grantsAllPrograms !== undefined
-        ? input.grantsAllPrograms
-        : existing.grantsAllPrograms;
-    if (
-      resultPlanCategory !== "presencial" &&
-      !resultLinkedProgramId &&
-      !resultGrantsAllPrograms
-    ) {
-      throw new BadRequestError(
-        "Planes online requieren un programa vinculado (linkedProgramId)",
-      );
-    }
+    this.assertPlanInvariants({
+      planCategory:
+        input.planCategory !== undefined
+          ? input.planCategory
+          : existing.planCategory,
+      linkedProgramId:
+        input.linkedProgramId !== undefined
+          ? input.linkedProgramId
+          : existing.linkedProgramId,
+      grantsAllPrograms:
+        input.grantsAllPrograms !== undefined
+          ? input.grantsAllPrograms
+          : existing.grantsAllPrograms,
+    });
 
     if (Object.keys(updateData).length > 0) {
       await this.db
