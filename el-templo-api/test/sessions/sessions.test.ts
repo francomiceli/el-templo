@@ -12,7 +12,7 @@ describe("Session Routes", () => {
     app = await createTestApp();
 
     // Register a member for session tests
-    await registerUser(app, {
+    const reg = await registerUser(app, {
       email: "session-member@test.com",
       password: "password123",
       branchId: 1,
@@ -22,6 +22,33 @@ describe("Session Routes", () => {
       "session-member@test.com",
       "password123",
     );
+
+    // Phase 104 R7: /sessions/* now gates by view ownership. Give this
+    // member an active presencial subscription so the existing tests
+    // (which assume Templo W* dayId resolution) keep their semantics.
+    const memberId = (reg.user as { id: number }).id;
+    const [presencialPlan] = await app.db
+      .insert(schema.subscriptionPlans)
+      .values({
+        name: "Test Presencial Plan (sessions.test)",
+        planTier: "flex",
+        bookingMode: "flexible",
+        planCategory: "presencial",
+        priceRegular: 15000,
+        priceZero: 10000,
+        durationDays: 30,
+        classesPerWeek: 3,
+      })
+      .$returningId();
+    await app.db.insert(schema.subscriptions).values({
+      userId: memberId,
+      planId: presencialPlan.id,
+      branchId: 1,
+      status: "active",
+      startDate: new Date().toISOString().split("T")[0],
+      pricePaid: 15000,
+      priceTypeApplied: "regular",
+    });
   });
 
   afterAll(async () => {

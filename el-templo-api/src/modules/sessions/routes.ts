@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql, and, gte, lte } from "drizzle-orm";
+import { eq, sql, and, or, gte, lte } from "drizzle-orm";
+import type { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "../../db/schema";
 import { SessionGeneratorService } from "./service";
 import { ADMIN_ROLES } from "../shared/permissions";
@@ -145,6 +146,196 @@ function sessionToResponse(
   };
 }
 
+// =============================================================================
+// Phase 104 R7 + R8: view resolution + ownership gating for session endpoints
+// =============================================================================
+//
+// Both `/sessions/daily` and `/sessions/weekly` need identical "which view does
+// this user see, and are they allowed to see it?" logic. The helper below
+// returns one of:
+//   - { kind: "templo" } — build W* dayIds
+//   - { kind: "program", enrollment } — build GP-{type}-* dayIds (or W* if
+//     enrollment.goalPlanType is NULL, e.g. Foundation programs per Phase 83)
+//   - { kind: "deny", status, message } — handler returns the matching HTTP
+//     status with the Spanish message verbatim
+//
+// Spec mapping:
+//   R7 — `view=templo` requires active presencial subscription; `view=program`
+//        requires `currentProgramEnrollmentId` pointing at an active enrollment
+//        owned by the user.
+//   R8 — Default resolution (no `view` param): prefer current program if the
+//        pointer is valid, else templo if presencial active, else first active
+//        enrollment by id ASC, else 404.
+type ResolveViewResult =
+  | { kind: "templo" }
+  | {
+      kind: "program";
+      enrollment: {
+        id: number;
+        programId: number;
+        goalPlanType: string | null;
+      };
+    }
+  | { kind: "deny"; status: 403 | 404; message: string };
+
+async function resolveSessionView(
+  db: MySql2Database<typeof schema>,
+  userId: number,
+  requested: "templo" | "program" | undefined,
+): Promise<ResolveViewResult> {
+  // 1. Active presencial subscription? Active OR paused both count — paused
+  //    members retain plan access (consistent with rest of app per
+  //    subscription state machine).
+  const [presencialSub] = await db
+    .select({ id: schema.subscriptions.id })
+    .from(schema.subscriptions)
+    .innerJoin(
+      schema.subscriptionPlans,
+      eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+    )
+    .where(
+      and(
+        eq(schema.subscriptions.userId, userId),
+        or(
+          eq(schema.subscriptions.status, "active"),
+          eq(schema.subscriptions.status, "paused"),
+        ),
+        eq(schema.subscriptionPlans.planCategory, "presencial"),
+      ),
+    )
+    .limit(1);
+  const hasPresencial = !!presencialSub;
+
+  // 2. Read user's currentProgramEnrollmentId pointer (Phase 104 Plan 01).
+  const [user] = await db
+    .select({
+      currentProgramEnrollmentId: schema.users.currentProgramEnrollmentId,
+    })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .limit(1);
+
+  async function loadEnrollment(enrollmentId: number) {
+    const [row] = await db
+      .select({
+        id: schema.programEnrollments.id,
+        userId: schema.programEnrollments.userId,
+        programId: schema.programEnrollments.programId,
+        status: schema.programEnrollments.status,
+        goalPlanType: schema.programs.goalPlanType,
+      })
+      .from(schema.programEnrollments)
+      .innerJoin(
+        schema.programs,
+        eq(schema.programs.id, schema.programEnrollments.programId),
+      )
+      .where(eq(schema.programEnrollments.id, enrollmentId))
+      .limit(1);
+    return row ?? null;
+  }
+
+  if (requested === "templo") {
+    if (!hasPresencial) {
+      return {
+        kind: "deny",
+        status: 403,
+        message:
+          "Necesitas un plan presencial activo para ver las sesiones del Templo",
+      };
+    }
+    return { kind: "templo" };
+  }
+
+  if (requested === "program") {
+    if (!user || user.currentProgramEnrollmentId === null) {
+      return {
+        kind: "deny",
+        status: 404,
+        message: "No tenes un programa activo seleccionado",
+      };
+    }
+    const enrollment = await loadEnrollment(user.currentProgramEnrollmentId);
+    if (
+      !enrollment ||
+      enrollment.userId !== userId ||
+      enrollment.status !== "active"
+    ) {
+      return {
+        kind: "deny",
+        status: 403,
+        message:
+          "Necesitas estar inscripto en un programa para ver estas sesiones",
+      };
+    }
+    return {
+      kind: "program",
+      enrollment: {
+        id: enrollment.id,
+        programId: enrollment.programId,
+        goalPlanType: enrollment.goalPlanType,
+      },
+    };
+  }
+
+  // No `view` param — derive default per R8.
+  if (
+    user?.currentProgramEnrollmentId !== null &&
+    user?.currentProgramEnrollmentId !== undefined
+  ) {
+    const enrollment = await loadEnrollment(user.currentProgramEnrollmentId);
+    if (
+      enrollment &&
+      enrollment.userId === userId &&
+      enrollment.status === "active"
+    ) {
+      return {
+        kind: "program",
+        enrollment: {
+          id: enrollment.id,
+          programId: enrollment.programId,
+          goalPlanType: enrollment.goalPlanType,
+        },
+      };
+    }
+    // Pointer is stale — fall through to templo or first enrollment.
+  }
+  if (hasPresencial) return { kind: "templo" };
+
+  // Last resort: first active enrollment by id ASC (SPEC R10 heuristic).
+  const [firstEnrollment] = await db
+    .select({
+      id: schema.programEnrollments.id,
+      programId: schema.programEnrollments.programId,
+      goalPlanType: schema.programs.goalPlanType,
+    })
+    .from(schema.programEnrollments)
+    .innerJoin(
+      schema.programs,
+      eq(schema.programs.id, schema.programEnrollments.programId),
+    )
+    .where(
+      and(
+        eq(schema.programEnrollments.userId, userId),
+        eq(schema.programEnrollments.status, "active"),
+      ),
+    )
+    .orderBy(schema.programEnrollments.id)
+    .limit(1);
+
+  if (firstEnrollment) {
+    return {
+      kind: "program",
+      enrollment: firstEnrollment,
+    };
+  }
+
+  return {
+    kind: "deny",
+    status: 404,
+    message: "No hay vista disponible para tu cuenta",
+  };
+}
+
 export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
   const sessionService = new SessionGeneratorService(fastify.db);
   const auraService = new AuraService(fastify.db);
@@ -262,25 +453,27 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
       // 2. Extract memberLevel — honor optional ?level= override.
       const memberLevel = (levelOverride ?? user.level) as ExerciseLevel;
 
-      // 3. Check if member has an active program with a goalPlanType
-      const [enrollment] = await fastify.db
-        .select({
-          goalPlanType: schema.programs.goalPlanType,
-        })
-        .from(schema.programEnrollments)
-        .innerJoin(
-          schema.programs,
-          eq(schema.programs.id, schema.programEnrollments.programId),
-        )
-        .where(
-          and(
-            eq(schema.programEnrollments.userId, userId),
-            eq(schema.programEnrollments.status, "active"),
-          ),
-        )
-        .limit(1);
-
-      const goalPlanType = enrollment?.goalPlanType ?? null;
+      // 3. Phase 104 R7+R8: resolve which view to serve and gate access.
+      const viewResult = await resolveSessionView(
+        fastify.db,
+        userId,
+        request.query.view,
+      );
+      if (viewResult.kind === "deny") {
+        return reply
+          .status(viewResult.status)
+          .send({ error: viewResult.message });
+      }
+      // Foundation programs (goalPlanType=null per Phase 83 D-08) build
+      // templo-style W* dayIds. Templo view obviously also builds W*.
+      const buildAsTemplo =
+        viewResult.kind === "templo" ||
+        (viewResult.kind === "program" &&
+          viewResult.enrollment.goalPlanType === null);
+      const goalPlanType =
+        viewResult.kind === "program"
+          ? viewResult.enrollment.goalPlanType
+          : null;
 
       // 4. Derive week number from the requested weekStart date
       const week = dateToWeekNumber(weekStart);
@@ -305,10 +498,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
           .map((r) => r.dayOfWeek),
       );
 
-      // 7. Build dayIds based on program type
-      // Goal plan programs: GP-{type}-W{week}-{day}-{level}
-      // Regular programs: W{week}-{day}-{level}
-      // ROM days map non-alfa levels to delta (per D-29)
+      // 7. Build dayIds based on resolved view (Phase 104 R7).
+      // - templo OR program-with-no-goalPlanType (Foundation): W{week}-{day}-{level}
+      // - program with goalPlanType: GP-{type}-W{week}-{day}-{level}
+      // ROM days map non-alfa levels to delta (per D-29).
       const dateToDay = new Map<string, string>();
       const dayIds: string[] = [];
       for (const date of weekDates) {
@@ -322,9 +515,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
               ? "alfa"
               : "delta"
             : memberLevel;
-          const dayId = goalPlanType
-            ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
-            : `W${week}-${dayName}-${effectiveLevel}`;
+          const dayId =
+            !buildAsTemplo && goalPlanType
+              ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
+              : `W${week}-${dayName}-${effectiveLevel}`;
           dayIds.push(dayId);
         }
       }
@@ -349,9 +543,10 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
             ? "alfa"
             : "delta"
           : memberLevel;
-        const dayId = goalPlanType
-          ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
-          : `W${week}-${dayName}-${effectiveLevel}`;
+        const dayId =
+          !buildAsTemplo && goalPlanType
+            ? `GP-${goalPlanType}-W${week}-${dayName}-${effectiveLevel}`
+            : `W${week}-${dayName}-${effectiveLevel}`;
         const session = batchSessions.get(dayId);
         sessionsMap[date] = session
           ? sessionToResponse(session, formatDescriptions)
@@ -372,7 +567,12 @@ export const sessionRoutes: FastifyPluginAsync = async (fastify) => {
         );
       const completedDates = completedRows.map((r) => r.date);
 
-      return { sessions: sessionsMap, completedDates };
+      // Phase 104 R8: echo resolved view in response so client knows what was served.
+      return {
+        sessions: sessionsMap,
+        completedDates,
+        view: viewResult.kind,
+      };
     },
   );
 

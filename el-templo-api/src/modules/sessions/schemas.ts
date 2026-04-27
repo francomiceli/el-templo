@@ -10,6 +10,9 @@ export const getDailySessionSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
+      // Phase 104 R8: optional client-chosen view. Absent → server derives
+      // default from users.current_program_enrollment_id.
+      view: { type: "string", enum: ["templo", "program"] },
     },
   },
 };
@@ -17,6 +20,7 @@ export const getDailySessionSchema = {
 export interface GetDailySessionInput {
   date: string;
   level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
+  view?: "templo" | "program";
 }
 
 export const generateSessionSchema = {
@@ -64,6 +68,9 @@ export const getWeeklySessionsSchema = {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
       },
+      // Phase 104 R8: optional client-chosen view. Absent → server derives
+      // default from users.current_program_enrollment_id.
+      view: { type: "string", enum: ["templo", "program"] },
     },
   },
 };
@@ -71,6 +78,7 @@ export const getWeeklySessionsSchema = {
 export interface GetWeeklySessionsInput {
   weekStart: string; // Monday date in YYYY-MM-DD format
   level?: "alfa" | "delta" | "sigma" | "omega" | "spartan";
+  view?: "templo" | "program";
 }
 
 // =============================================================================
@@ -110,9 +118,19 @@ export const sessionWithNotFound = {
   200: sessionResponseSchema,
   404: errorResponseSchema,
 };
+// Phase 104 R8: include `view` field alongside session payload. Sibling
+// (flat) shape chosen over nesting to minimize consumer breakage — existing
+// clients destructuring `dayId`, `blocks`, etc. continue to work unchanged.
 export const dailySessionResponse = {
-  200: sessionResponseSchema,
+  200: {
+    type: "object",
+    properties: {
+      ...sessionResponseSchema.properties,
+      view: { type: "string", enum: ["templo", "program"] },
+    },
+  },
   400: errorResponseSchema,
+  403: errorResponseSchema,
   404: notFoundResponseSchema,
 };
 export const generateSessionResponse = {
@@ -145,8 +163,12 @@ export const weeklySessionsResponse = {
         type: "array",
         items: { type: "string" },
       },
+      // Phase 104 R8: tells the client which view was served.
+      view: { type: "string", enum: ["templo", "program"] },
     },
   },
+  403: errorResponseSchema,
+  404: errorResponseSchema,
 };
 
 // =============================================================================
