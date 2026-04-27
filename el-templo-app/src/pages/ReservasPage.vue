@@ -5,13 +5,11 @@
       <TemploLoader size="lg" />
     </div>
 
-    <!-- No active subscription or online user — blocked state -->
-    <div v-else-if="!hasActiveSubscription || isOnlineUser" class="reservas__empty">
+    <!-- Blocked state — user has no presencial plan (no sub, online, or bundle) -->
+    <div v-else-if="!hasPresencialPlan" class="reservas__empty">
       <q-icon name="event_available" size="64px" color="grey-5" />
-      <h2 class="reservas__empty-title">Activá Tu Plan</h2>
-      <p class="reservas__empty-text">
-        No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.
-      </p>
+      <h2 class="reservas__empty-title">{{ emptyTitle }}</h2>
+      <p class="reservas__empty-text">{{ emptyText }}</p>
       <q-btn no-caps rounded color="positive" class="q-mt-md" @click="openWhatsApp">
         <q-icon
           name="img:/icons/whatsapp.svg"
@@ -396,8 +394,24 @@ const selectedDay = ref<DayOfWeek>(getTodayDow(branchTimezone.value))
 // ─── Multi-branch ───────────────────────────────────────────────────
 const branches = ref<{ id: number; name: string }[]>([])
 const selectedBranchId = ref<number | null>(null)
-const isOnlineUser = computed(() => userStore.profile?.branchIsVirtual ?? false)
-const hasActiveSubscription = computed(() => userStore.hasActiveSubscription)
+// Phase 104 (R11): single-capability gate. `hasPresencialPlan` is exposed by
+// useUserStore (Plan 05) and returns true only for active/paused subs whose
+// planCategory === 'presencial'. Replaces the previous proxy check that relied
+// on a virtual-branch heuristic and missed bundle plans (online_regular).
+const hasPresencialPlan = computed(() => userStore.hasPresencialPlan)
+const hasActiveButNotPresencial = computed(
+  () => userStore.hasActiveSubscription && !userStore.hasPresencialPlan,
+)
+
+// Differentiated empty-state copy: "no plan at all" vs "wrong plan type".
+const emptyTitle = computed(() =>
+  hasActiveButNotPresencial.value ? 'Reservas presenciales' : 'Activá Tu Plan',
+)
+const emptyText = computed(() =>
+  hasActiveButNotPresencial.value
+    ? 'Las reservas son para planes presenciales. Tu plan actual no las incluye.'
+    : 'No tenés un plan activo. Consultá por tu plan para comenzar a entrenar.',
+)
 
 function openWhatsApp(): void {
   const message = 'Hola, quiero consultar por los planes de entrenamiento'

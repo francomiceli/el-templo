@@ -63,3 +63,26 @@ DB provision races with the global drop step). After a manual MySQL
 tests (including the 9 new bundle tests) pass cleanly. So the new tests
 DO run and DO pass — the flake is a transient setup-race, not a permanent
 break. Logged here for visibility but not blocking Plan 02 acceptance.
+
+## From Plan 104-06 execution (2026-04-27)
+
+Pre-existing typecheck errors observed in `el-templo-app` while running
+`npx vue-tsc --noEmit` after the single-line ReservasPage gating change.
+None reference `ReservasPage.vue` and none were introduced by Plan 06.
+Listed here for triage by a dedicated app-types cleanup plan:
+
+- `src/boot/sentry.ts:39,41` — `import.meta.env` typed as missing.
+- `src/utils/logger.ts:29` — same `import.meta.env` issue.
+- `src/pages/IndexPage.vue:78` — same.
+- `src/layouts/MainLayout.vue:162` — `displayName` not in `UserProfile`.
+- `src/modules/onboarding/components/OnboardingQuestion.vue:4` — `frame`
+  prop absent from `QuizQuestion | QuizQuestionV2` union.
+- `src/modules/training/components/BlockCard.vue:17` — `BlockGroup` icon
+  map missing keys (`ATHLOS`, `DEUTEROS_1/2`, `EPIKOS`, `INITIUM`, `NUCLEUS`).
+- `src/pages/ChangePasswordPage.vue:5`, `src/pages/ProfilePage.vue:74` —
+  `$router` not on options-API component (likely missing Vue Router augment).
+- `src/router/index.ts:1` — `#q-app/wrappers` module declaration missing.
+- `src/router/routes.ts:53` — `pages/ErrorNotFound.vue` lacks `.d.ts`.
+
+Lint passes cleanly on `ReservasPage.vue` (one pre-existing warning in
+`useSessionPlayer.ts` is unrelated and pre-existing).
