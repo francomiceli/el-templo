@@ -113,3 +113,28 @@ export interface ProgramAnalytics {
   activeEnrollments: number;
   completedCount: number;
 }
+
+// ---- Current Program (R6) ----
+export interface CurrentProgramResponse {
+  enrollmentId: number | null;
+  program: {
+    id: number;
+    name: string;
+    goalPlanType: string | null;
+    durationWeeks: number | null;
+    currentWeek: number;
+  } | null;
+}
+
+export interface EnrollmentSummary {
+  id: number;
+  programId: number;
+  programName: string;
+  goalPlanType: string | null;
+  currentWeek: number;
+  durationWeeks: number | null;
+}
+
+export interface EnrollmentsListResponse {
+  enrollments: EnrollmentSummary[];
+}

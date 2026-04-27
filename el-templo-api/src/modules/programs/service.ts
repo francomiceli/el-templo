@@ -1,5 +1,5 @@
 // Module: programs
-import { eq, and, sql, desc, count } from "drizzle-orm";
+import { eq, and, or, sql, desc, count } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -10,8 +10,9 @@ import {
   exercises,
   subscriptions,
   subscriptionPlans,
+  users,
 } from "../../db/schema";
-import { NotFoundError, ConflictError } from "../shared/errors";
+import { NotFoundError, ConflictError, ForbiddenError } from "../shared/errors";
 import type { AuraService } from "../aura/service";
 import type {
   CreateProgramInput,
@@ -24,6 +25,8 @@ import type {
   MemberProgramCatalogItem,
   MemberEnrollmentProgress,
   ProgramAnalytics,
+  CurrentProgramResponse,
+  EnrollmentsListResponse,
 } from "./types";
 
 type DbInstance = MySql2Database<typeof schema>;
@@ -880,6 +883,196 @@ export class ProgramsService {
   // =========================================================================
   // Personalizadas Gate
   // =========================================================================
+
+  // =========================================================================
+  // Current Program Pointer (R6)
+  // =========================================================================
+
+  /**
+   * Read the user's current program pointer (users.current_program_enrollment_id)
+   * joined with the program metadata. Returns { enrollmentId: null, program: null }
+   * if no pointer is set OR if the pointer is stale (pointed-to enrollment was
+   * hard-deleted, belongs to another user, or is no longer active).
+   *
+   * Stale pointers are logged as warnings so we can spot data integrity issues.
+   */
+  async getCurrentProgram(userId: number): Promise<CurrentProgramResponse> {
+    const [user] = await this.db
+      .select({ currentProgramEnrollmentId: users.currentProgramEnrollmentId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+
+    if (!user || user.currentProgramEnrollmentId === null) {
+      return { enrollmentId: null, program: null };
+    }
+
+    const [row] = await this.db
+      .select({
+        enrollmentId: programEnrollments.id,
+        enrollmentUserId: programEnrollments.userId,
+        enrollmentStatus: programEnrollments.status,
+        currentWeek: programEnrollments.currentWeek,
+        programId: programs.id,
+        programName: programs.name,
+        goalPlanType: programs.goalPlanType,
+        durationWeeks: programs.durationWeeks,
+      })
+      .from(programEnrollments)
+      .innerJoin(programs, eq(programs.id, programEnrollments.programId))
+      .where(eq(programEnrollments.id, user.currentProgramEnrollmentId))
+      .limit(1);
+
+    if (
+      !row ||
+      row.enrollmentUserId !== userId ||
+      row.enrollmentStatus !== "active"
+    ) {
+      this.log?.warn(
+        {
+          userId,
+          currentProgramEnrollmentId: user.currentProgramEnrollmentId,
+          ownershipMatch: row?.enrollmentUserId === userId,
+          status: row?.enrollmentStatus,
+        },
+        "Stale currentProgramEnrollmentId pointer — returning null",
+      );
+      return { enrollmentId: null, program: null };
+    }
+
+    return {
+      enrollmentId: row.enrollmentId,
+      program: {
+        id: row.programId,
+        name: row.programName,
+        goalPlanType: row.goalPlanType ?? null,
+        durationWeeks: row.durationWeeks,
+        currentWeek: row.currentWeek,
+      },
+    };
+  }
+
+  /**
+   * Set the user's current program pointer.
+   *
+   * - enrollmentId === null means "Templo view" — only valid when the user has
+   *   an active or paused presencial subscription.
+   * - non-null enrollmentId must (a) exist, (b) belong to this user, (c) be
+   *   in status='active'. Ownership-not-found and ownership-mismatch share the
+   *   same generic message to avoid leaking the existence of other users'
+   *   enrollment IDs.
+   *
+   * Throws ForbiddenError on any validation failure (mapped to 403 by
+   * handleServiceError).
+   */
+  async setCurrentProgram(
+    userId: number,
+    enrollmentId: number | null,
+  ): Promise<CurrentProgramResponse> {
+    if (enrollmentId === null) {
+      const [presencialSub] = await this.db
+        .select({ id: subscriptions.id })
+        .from(subscriptions)
+        .innerJoin(
+          subscriptionPlans,
+          eq(subscriptions.planId, subscriptionPlans.id),
+        )
+        .where(
+          and(
+            eq(subscriptions.userId, userId),
+            or(
+              eq(subscriptions.status, "active"),
+              eq(subscriptions.status, "paused"),
+            ),
+            eq(subscriptionPlans.planCategory, "presencial"),
+          ),
+        )
+        .limit(1);
+
+      if (!presencialSub) {
+        throw new ForbiddenError(
+          "Solo usuarios con plan presencial activo pueden ver el Templo",
+        );
+      }
+
+      await this.db
+        .update(users)
+        .set({ currentProgramEnrollmentId: null })
+        .where(eq(users.id, userId));
+
+      this.log?.info(
+        { userId },
+        "currentProgramEnrollmentId cleared (Templo view) for presencial member",
+      );
+
+      return { enrollmentId: null, program: null };
+    }
+
+    const [row] = await this.db
+      .select({
+        id: programEnrollments.id,
+        userId: programEnrollments.userId,
+        status: programEnrollments.status,
+      })
+      .from(programEnrollments)
+      .where(eq(programEnrollments.id, enrollmentId))
+      .limit(1);
+
+    if (!row || row.userId !== userId) {
+      throw new ForbiddenError("Inscripcion no encontrada o no autorizada");
+    }
+    if (row.status !== "active") {
+      throw new ForbiddenError("La inscripcion no esta activa");
+    }
+
+    await this.db
+      .update(users)
+      .set({ currentProgramEnrollmentId: enrollmentId })
+      .where(eq(users.id, userId));
+
+    this.log?.info({ userId, enrollmentId }, "currentProgramEnrollmentId set");
+
+    return this.getCurrentProgram(userId);
+  }
+
+  /**
+   * List the user's active program enrollments ordered by id ASC.
+   * Consumed by the Plan 05 program selector to populate the bottom-sheet
+   * options. Returns an empty array if the user has no active enrollments.
+   */
+  async listMyActiveEnrollments(
+    userId: number,
+  ): Promise<EnrollmentsListResponse> {
+    const rows = await this.db
+      .select({
+        id: programEnrollments.id,
+        programId: programEnrollments.programId,
+        programName: programs.name,
+        goalPlanType: programs.goalPlanType,
+        currentWeek: programEnrollments.currentWeek,
+        durationWeeks: programs.durationWeeks,
+      })
+      .from(programEnrollments)
+      .innerJoin(programs, eq(programs.id, programEnrollments.programId))
+      .where(
+        and(
+          eq(programEnrollments.userId, userId),
+          eq(programEnrollments.status, "active"),
+        ),
+      )
+      .orderBy(programEnrollments.id);
+
+    return {
+      enrollments: rows.map((r) => ({
+        id: r.id,
+        programId: r.programId,
+        programName: r.programName,
+        goalPlanType: r.goalPlanType ?? null,
+        currentWeek: r.currentWeek,
+        durationWeeks: r.durationWeeks,
+      })),
+    };
+  }
 
   /**
    * Check if user has an active program enrollment.

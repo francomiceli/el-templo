@@ -10,6 +10,7 @@ import { AppError } from "./errors";
 
 const STATUS_LABELS: Record<number, string> = {
   400: "Solicitud invalida",
+  403: "Acceso denegado",
   404: "No encontrado",
   409: "Conflicto",
   422: "Datos no procesables",
@@ -34,10 +35,8 @@ export function handleServiceError(
     return;
   }
   log.error({ err }, `Error in ${context}`);
-  reply
-    .code(500)
-    .send({
-      error: "Error del servidor",
-      message: "Error interno del servidor",
-    });
+  reply.code(500).send({
+    error: "Error del servidor",
+    message: "Error interno del servidor",
+  });
 }
