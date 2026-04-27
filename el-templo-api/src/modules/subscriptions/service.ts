@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, ne, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, ne, desc, sql, inArray, isNotNull } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { AuraService, InsufficientBalanceError } from "../aura";
@@ -627,6 +627,40 @@ export class SubscriptionService {
       );
     }
 
+    // Phase 104 R3 (checker WARNING): without a UNIQUE constraint on
+    // grants_all_programs=true at the schema level, an admin could author
+    // multiple bundle SKUs (e.g. monthly vs yearly) and accidentally assign
+    // two simultaneously to the same user. Reject with a clear 409 if the
+    // user already has an active or paused bundle subscription. The general
+    // online+online conflict check below would also catch most cases (bundle
+    // is online_regular), but this guard fires earlier with an explicit
+    // bundle-specific message for staff.
+    if (plan.grantsAllPrograms) {
+      const existingBundle = await this.db
+        .select({ id: schema.subscriptions.id })
+        .from(schema.subscriptions)
+        .innerJoin(
+          schema.subscriptionPlans,
+          eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+        )
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            or(
+              eq(schema.subscriptions.status, "active"),
+              eq(schema.subscriptions.status, "paused"),
+            ),
+            eq(schema.subscriptionPlans.grantsAllPrograms, true),
+          ),
+        )
+        .limit(1);
+      if (existingBundle.length > 0) {
+        throw new ConflictError(
+          "El usuario ya tiene un bundle activo. Cancelalo antes de asignar otro.",
+        );
+      }
+    }
+
     // Bound startDate to a sane window (typo guardrail).
     assertStartDateWithinLimits(input.startDate);
 
@@ -971,6 +1005,67 @@ export class SubscriptionService {
           this.log.info(
             { userId, programId: plan.linkedProgramId },
             "Auto-created program enrollment from plan assignment",
+          );
+        }
+
+        // Phase 104 R3 + Foundation exclusion (checker WARNING): bundle
+        // auto-enroll. If this plan grants access to all programs, create
+        // one active enrollment per programs.isActive=true AND
+        // goalPlanType IS NOT NULL that the user is not already actively
+        // enrolled in. Foundation programs (goalPlanType=null) are EXCLUDED
+        // because they reuse W* templo session content — granting bundle
+        // users Foundation enrollments would let them hit /sessions/* for
+        // W* templo content without a presencial sub, defeating R7's
+        // anti-piracy intent.
+        if (plan.grantsAllPrograms) {
+          const activePrograms = await tx
+            .select({ id: schema.programs.id })
+            .from(schema.programs)
+            .where(
+              and(
+                eq(schema.programs.isActive, true),
+                isNotNull(schema.programs.goalPlanType),
+              ),
+            );
+
+          const existingActiveEnrollments = await tx
+            .select({ programId: schema.programEnrollments.programId })
+            .from(schema.programEnrollments)
+            .where(
+              and(
+                eq(schema.programEnrollments.userId, userId),
+                eq(schema.programEnrollments.status, "active"),
+              ),
+            );
+          const alreadyEnrolledIds = new Set(
+            existingActiveEnrollments.map((r) => r.programId),
+          );
+
+          const toCreate = activePrograms.filter(
+            (p) => !alreadyEnrolledIds.has(p.id),
+          );
+
+          if (toCreate.length > 0) {
+            await tx.insert(schema.programEnrollments).values(
+              toCreate.map((p) => ({
+                userId,
+                programId: p.id,
+                status: "active" as const,
+                currentWeek: 1,
+                sessionsCompletedThisWeek: 0,
+                weekUnlockedAt: new Date(),
+              })),
+            );
+          }
+
+          this.log.info(
+            {
+              userId,
+              planId: plan.id,
+              enrolledCount: toCreate.length,
+              alreadyEnrolledCount: alreadyEnrolledIds.size,
+            },
+            "Bundle (Todos los Programas) auto-enroll completed (Foundation excluded)",
           );
         }
 
@@ -1649,6 +1744,12 @@ export class SubscriptionService {
           ),
         );
 
+      // Phase 104 R4: tear down bundle enrollments + clear stale pointer.
+      // No-op if the cancelled sub's plan is not a bundle. Runs inside
+      // the same tx as the cancel so cancellation + pointer cleanup are
+      // atomic.
+      await this.tearDownBundleEnrollments(tx, userId, sub.id, sub.planId);
+
       await this.recomputeUserStatus(userId, tx);
     });
 
@@ -1872,6 +1973,20 @@ export class SubscriptionService {
       targetPlan.priceRegular - proration.remainingValue,
     );
 
+    // Phase 104 R4: if the outgoing plan was a bundle, tear down its
+    // enrollments BEFORE closing it. Runs on this.db (not in the new-sub
+    // tx) by design — we want the teardown committed so the auto-enroll
+    // loop in the new-sub tx sees a clean slate. No-op if currentPlan is
+    // not a bundle.
+    if (currentPlan.grantsAllPrograms) {
+      await this.tearDownBundleEnrollments(
+        this.db,
+        userId,
+        existingSub.id,
+        existingSub.planId,
+      );
+    }
+
     // Close old subscription with status='changed'.
     // We do this BEFORE creating the new one. If new creation fails,
     // we restore the old sub back to its original status.
@@ -2048,6 +2163,65 @@ export class SubscriptionService {
           this.log.info(
             { userId, programId: targetPlan.linkedProgramId },
             "Auto-created program enrollment from plan change",
+          );
+        }
+
+        // Phase 104 R3 + Foundation exclusion: bundle auto-enroll on plan
+        // change. Mirrors the assignPlan branch — same Foundation filter,
+        // same idempotency. The double-bundle 409 guard from assignPlan is
+        // NOT re-checked here; by definition the outgoing sub (which the
+        // changePlanNow flow is closing) was the user's "current" online
+        // sub, so any other active bundle would have been blocked when
+        // assigned in the first place.
+        if (targetPlan.grantsAllPrograms) {
+          const activePrograms = await tx
+            .select({ id: schema.programs.id })
+            .from(schema.programs)
+            .where(
+              and(
+                eq(schema.programs.isActive, true),
+                isNotNull(schema.programs.goalPlanType),
+              ),
+            );
+
+          const existingActiveEnrollments = await tx
+            .select({ programId: schema.programEnrollments.programId })
+            .from(schema.programEnrollments)
+            .where(
+              and(
+                eq(schema.programEnrollments.userId, userId),
+                eq(schema.programEnrollments.status, "active"),
+              ),
+            );
+          const alreadyEnrolledIds = new Set(
+            existingActiveEnrollments.map((r) => r.programId),
+          );
+
+          const toCreate = activePrograms.filter(
+            (p) => !alreadyEnrolledIds.has(p.id),
+          );
+
+          if (toCreate.length > 0) {
+            await tx.insert(schema.programEnrollments).values(
+              toCreate.map((p) => ({
+                userId,
+                programId: p.id,
+                status: "active" as const,
+                currentWeek: 1,
+                sessionsCompletedThisWeek: 0,
+                weekUnlockedAt: new Date(),
+              })),
+            );
+          }
+
+          this.log.info(
+            {
+              userId,
+              planId: targetPlan.id,
+              enrolledCount: toCreate.length,
+              alreadyEnrolledCount: alreadyEnrolledIds.size,
+            },
+            "Bundle (Todos los Programas) auto-enroll completed via changePlanNow (Foundation excluded)",
           );
         }
 
@@ -2877,6 +3051,128 @@ export class SubscriptionService {
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
   /**
+   * Phase 104 R4 + currentProgramEnrollmentId hygiene (SPEC Constraints):
+   * cancel program_enrollments owned by a bundle subscription, preserving
+   * any enrollment whose program is also covered by another active or
+   * paused subscription's linkedProgramId. After cancellation, NULL out
+   * users.current_program_enrollment_id if it points at any of the
+   * just-cancelled enrollments — required by SPEC line 109 to avoid
+   * stale pointers in /members/me/current-program (Plan 04) and the
+   * member app program selector (Plan 05).
+   *
+   * Caller MAY pass a tx (preferred — keeps cancellation + pointer
+   * cleanup atomic with the parent op) or this.db (auto-expire path;
+   * best-effort, repaired idempotently on next read).
+   *
+   * No-op if the sub's plan is not a bundle (grants_all_programs=false).
+   */
+  private async tearDownBundleEnrollments(
+    txOrDb:
+      | MySql2Database<typeof schema>
+      | Parameters<
+          Parameters<MySql2Database<typeof schema>["transaction"]>[0]
+        >[0],
+    userId: number,
+    subscriptionId: number,
+    planId: number,
+  ): Promise<void> {
+    const subPlan = await txOrDb
+      .select({
+        grantsAllPrograms: schema.subscriptionPlans.grantsAllPrograms,
+      })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, planId))
+      .limit(1);
+
+    if (!subPlan[0]?.grantsAllPrograms) return;
+
+    // Programs protected by other active/paused subs (linkedProgramId binding).
+    const protectedRows = await txOrDb
+      .select({ programId: schema.subscriptionPlans.linkedProgramId })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+          ne(schema.subscriptions.id, subscriptionId),
+        ),
+      );
+    const protectedProgramIds = new Set(
+      protectedRows
+        .map((r) => r.programId)
+        .filter((id): id is number => id !== null),
+    );
+
+    const activeEnrollments = await txOrDb
+      .select({
+        id: schema.programEnrollments.id,
+        programId: schema.programEnrollments.programId,
+      })
+      .from(schema.programEnrollments)
+      .where(
+        and(
+          eq(schema.programEnrollments.userId, userId),
+          eq(schema.programEnrollments.status, "active"),
+        ),
+      );
+
+    const toCancel = activeEnrollments.filter(
+      (e) => !protectedProgramIds.has(e.programId),
+    );
+
+    if (toCancel.length === 0) {
+      this.log.info(
+        {
+          userId,
+          subscriptionId,
+          protectedCount: protectedProgramIds.size,
+        },
+        "Bundle teardown: nothing to cancel",
+      );
+      return;
+    }
+
+    const toCancelIds = toCancel.map((e) => e.id);
+
+    for (const enr of toCancel) {
+      await txOrDb
+        .update(schema.programEnrollments)
+        .set({ status: "cancelled", cancelledAt: new Date() })
+        .where(eq(schema.programEnrollments.id, enr.id));
+    }
+
+    // SPEC Constraints line 109: clear stale pointer atomically with
+    // the cancellation. If users.current_program_enrollment_id points
+    // at any of the just-cancelled enrollments, NULL it.
+    await txOrDb
+      .update(schema.users)
+      .set({ currentProgramEnrollmentId: null })
+      .where(
+        and(
+          eq(schema.users.id, userId),
+          inArray(schema.users.currentProgramEnrollmentId, toCancelIds),
+        ),
+      );
+
+    this.log.info(
+      {
+        userId,
+        subscriptionId,
+        cancelledCount: toCancel.length,
+        protectedCount: protectedProgramIds.size,
+      },
+      "Bundle (Todos los Programas) teardown completed (pointer cleared if stale)",
+    );
+  }
+
+  /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
    * If the expiring sub has a scheduled successor (from early renewal),
@@ -2939,6 +3235,33 @@ export class SubscriptionService {
         .update(schema.subscriptions)
         .set({ status: "expired" })
         .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+    }
+
+    // Phase 104 R4: for every just-expired sub, run bundle teardown
+    // (no-op if the sub's plan is not a bundle — helper short-circuits
+    // on grants_all_programs=false). Best-effort: not wrapped in a tx
+    // with the status flip above (would require touching the
+    // activateScheduledSub path too — out of scope per Phase 103 D-16).
+    // Safe because the helper only acts on currently-active enrollments
+    // and is idempotent — if the process crashes between steps, the
+    // next getMemberSubscription call repairs.
+    if (expiredOnlyIds.length > 0) {
+      const expiredSubRows = await this.db
+        .select({
+          id: schema.subscriptions.id,
+          userId: schema.subscriptions.userId,
+          planId: schema.subscriptions.planId,
+        })
+        .from(schema.subscriptions)
+        .where(inArray(schema.subscriptions.id, expiredOnlyIds));
+      for (const row of expiredSubRows) {
+        await this.tearDownBundleEnrollments(
+          this.db,
+          row.userId,
+          row.id,
+          row.planId,
+        );
+      }
     }
 
     // Activate scheduled successors (handles program enrollment + branch migration
