@@ -30,6 +30,14 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Pin the diff base to the previous staging tip. paths-filter's
+          # default for non-default branches is `merge-base(master, HEAD)`,
+          # which collapses to zero changes whenever staging and master
+          # point to the same commit (typical fast-forward via
+          # `git push origin master:staging`). Using event.before forces
+          # the diff against the actual previous staging head, so the
+          # filter sees what was just pushed regardless of master state.
+          base: ${{ github.event.before }}
           filters: |
             api:
               - 'el-templo-api/**'
