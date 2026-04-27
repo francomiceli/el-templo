@@ -1,6 +1,6 @@
 <template>
   <q-page class="weekly-view">
-    <!-- Header with week info -->
+    <!-- Header with week info + program selector (Phase 104). -->
     <div class="weekly-view__header q-pa-md">
       <span class="weekly-view__title">{{ weekRangeLabel }}</span>
       <ProgramSelector class="weekly-view__selector" @changed="onViewChanged" />
