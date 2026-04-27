@@ -725,7 +725,18 @@ describe("Goal Plan Routes", () => {
       // Clean up to avoid subscription conflicts
       await cleanAllTestData(app);
 
-      // Create online_regular plan (no goalPlanType, no linkedProgramId)
+      // Online plans must satisfy the plan invariant (linkedProgramId OR
+      // grantsAllPrograms). Create a backing program for the link.
+      const programInsert = await app.db.insert(schema.programs).values({
+        name: "MON-09 Test Program",
+        description: "Backing program for online_regular MON-09 test",
+        durationWeeks: 4,
+        sessionsPerWeekToAdvance: 3,
+        goalPlanType: null,
+        isActive: true,
+      });
+      const linkedProgramId = Number(programInsert[0].insertId);
+
       const planRes = await app.inject({
         method: "POST",
         url: `${SUBSCRIPTIONS_URL}/plans`,
@@ -738,6 +749,7 @@ describe("Goal Plan Routes", () => {
           priceZero: 6000,
           durationDays: 30,
           planCategory: "online_regular",
+          linkedProgramId,
         },
       });
       expect(planRes.statusCode).toBe(201);
