@@ -93,6 +93,8 @@
                   type="number"
                   dense
                   outlined
+                  :readonly="isEditMode"
+                  :hint="isEditMode ? 'No editable después de crear' : ''"
                   :rules="[requiredNumberRule('Sesiones por semana')]"
                 />
               </div>
@@ -684,7 +686,6 @@ async function onSubmit() {
         name: form.value.name,
         description: form.value.description || null,
         goalPlanType: form.value.goalPlanType,
-        sessionsPerWeekToAdvance: form.value.sessionsPerWeekToAdvance,
         auraWeeklyBonus: form.value.auraWeeklyBonus,
         auraCompletionBonus: form.value.auraCompletionBonus,
       } as Partial<Program> & { goalPlanType?: string | null });
