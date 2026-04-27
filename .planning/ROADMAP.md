@@ -2231,10 +2231,29 @@ Plans:
 - [x] 103-06-PLAN.md — UsuariosPage staff toggle migration to staff_disabled (R11) — see 103-06-SUMMARY.md
 - [x] 103-07-PLAN.md — Auth routes cleanup + new staff_disabled login gate (R12) — see 103-07-SUMMARY.md
 
+### Phase 104: Planes vs Programas + Bundle "Todos los Programas"
+
+**Goal:** Separar conceptualmente planes (presencial) de programas (virtuales) en el modelo de acceso. Introducir el bundle "Todos los Programas" como un `subscription_plan` con nueva columna `grantsAllPrograms` (boolean) y duración propia. Agregar `users.currentProgramEnrollmentId` (FK nullable) para resolver "qué programa está viendo hoy" cuando un usuario tiene múltiples enrollments activos (caso bundle). Gatear `/sessions/*` por tipo de dayId (presencial requiere plan `planCategory='presencial'`; programa requiere enrollment activo). En member app, agregar selector de programa en weekly view (con opción "Templo" si tiene plan presencial), permitir entrada al ícono Entrenar en usuarios online-only (no más bloqueo "Activá Tu Plan"), y reemplazar gating frágil de ReservasPage por `hasPresencialPlan`. Seed migration del nuevo plan bundle (online_regular, 30 días, $20.000 ARS, `grantsAllPrograms=true`).
+**Requirements**: TBD (será refinado en SPEC)
+**Depends on:** Phase 103
+**Plans:** TBD
+
+Out of scope:
+
+- Aceleración de programas (descartado: era error de transcripción de "acceder")
+- Progreso/badges/% completado (diferido al milestone AURA economy)
+- Cambiar `bookingMode` a nullable (cambio de schema más grande, fuera de alcance)
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 104 to break down)
+
 ---
 
 _v4.7 phases added: 2026-04-08 — 2 phases (96-97), origin: coach requests for no-equipment home programs and Saturday mobility classes_
 
 _Phase 103 added: 2026-04-25 — origin: surfaced friction from Phase 102's derived-lead model once the trial flow shipped; reverts Option B and cleans the related `users.is_active` legacy in one atomic refactor_
+
+_Phase 104 added: 2026-04-27 — origin: WhatsApp transcripts (.docs/WhatsApp Ptt 2026-04-27 13.30/13.33/13.43.\*) clarifying separation of planes presenciales vs programas virtuales, bundle "Todos los Programas" as upsell, and anti-piracy access control for online-only users_
 
 </details>

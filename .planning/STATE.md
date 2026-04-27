@@ -146,6 +146,7 @@ _Updated after each plan completion_
 - Phase 100 added: Games format, exercise route overhaul, and session editor route UX — coach-driven session authoring changes (new format, INITIUM block titles, new games route, Spanish route renaming)
 - Phase 101 added: Debt tracking — flag members with outstanding debt via new `debts` table (one active per user, soft-cancel for history), admin AlumnosPage filter + total debt banner grouped by currency, MemberFormDialog deudor toggle + amount + note; intentionally not integrated with payments table in this phase
 - Phase 102 added: Trial Classes (Sesiones de Prueba) — admins register potential members for a single free trial via SlotDetailDialog; `bookings.is_trial` excludes trials from capacity; one-trial-per-phone guard; "Clases de prueba" counter on alumno detail; Leads filter inferred from booking history (no `users.status` column — Option B); conversion to member reuses existing edit + Gestionar Plan flows
+- Phase 104 added: Planes vs Programas + Bundle "Todos los Programas" — separar conceptualmente plan presencial de programa virtual; nueva columna `subscription_plans.grants_all_programs` para el bundle; nueva columna `users.current_program_enrollment_id` para programa activo cuando hay múltiples enrollments; gating de `/sessions/*` por tipo de dayId (presencial vs enrollment); selector de programa en weekly view del member app; reemplazo de gating frágil de ReservasPage por `hasPresencialPlan`; seed del nuevo plan bundle ($20.000 ARS, 30 días)
 
 ### Decisions
 
