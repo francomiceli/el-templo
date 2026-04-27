@@ -26,14 +26,7 @@ jobs:
       admin: ${{ steps.filter.outputs.admin }}
       web: ${{ steps.filter.outputs.web }}
     steps:
-      # fetch-depth: 0 gives paths-filter the previous tip (event.before) so
-      # it can compute a real git diff. Default depth=1 leaves event.before
-      # unfetchable and paths-filter silently degrades to "no changes",
-      # which makes detect-changes return false for every project even when
-      # files in those paths actually changed.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: dorny/paths-filter@v3
         id: filter
         with:
