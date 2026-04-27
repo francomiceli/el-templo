@@ -87,6 +87,9 @@
                 />
               </div>
               <div class="col-12 col-sm-6">
+                <!-- Locked in edit mode: changing the per-week sessions
+                     mid-program would shift the advancement bar for active
+                     enrollees. Mirrors the durationWeeks rule (D-41). -->
                 <q-input
                   v-model.number="form.sessionsPerWeekToAdvance"
                   label="Sesiones/semana para avanzar *"
