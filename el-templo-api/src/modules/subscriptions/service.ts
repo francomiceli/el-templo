@@ -40,7 +40,7 @@ import type {
   UpdatePromoInput,
 } from "./types";
 import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
-import type { PaymentService } from "../payments/service";
+import type { TransactionService } from "../finance";
 import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings } from "./booking-population";
 
@@ -112,7 +112,7 @@ export class SubscriptionService {
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private auraService: AuraService,
-    private paymentService?: PaymentService,
+    private transactionService?: TransactionService,
   ) {}
 
   /**
@@ -912,7 +912,7 @@ export class SubscriptionService {
     // virtual-branch user migration, programEnrollments, status recompute)
     // in a single transaction so recomputeUserStatus rolls back alongside
     // the sub INSERT on failure. External side effects (bookingService,
-    // paymentService, auraService) continue to use this.db — refactoring
+    // transactionService, auraService) continue to use this.db — refactoring
     // them is out of scope per the plan's WARNING-9 (separate plan / Rule 4
     // architectural change).
     const { subscriptionId, replacementCredits } = await this.db.transaction(
@@ -1114,16 +1114,26 @@ export class SubscriptionService {
     // Auto-record payment for the subscription. Pass the plan's currency
     // explicitly so the payment-service cross-currency guard is exercised
     // even via internal callers.
-    if (this.paymentService && pricePaid > 0) {
-      await this.paymentService.recordPayment(
+    if (this.transactionService && pricePaid > 0) {
+      await this.transactionService.create(
         {
           memberId: userId,
-          subscriptionId,
+          kind: "plan_charge" as const,
+          direction: "inflow" as const,
           amount: pricePaid,
-          paymentMethod: input.paymentMethod,
-          paymentDate: input.startDate,
-          notes: input.notes ?? null,
           currency: plan.currency,
+          paymentMethod: input.paymentMethod,
+          transactionDate: input.startDate,
+          effectiveDate: input.startDate,
+          branchId: input.branchId,
+          notes: input.notes ?? null,
+          links: [
+            {
+              targetKind: "subscription" as const,
+              targetId: subscriptionId,
+              allocatedAmount: pricePaid,
+            },
+          ],
         },
         adminId,
       );
@@ -2092,7 +2102,7 @@ export class SubscriptionService {
       // Wrap the new subscription INSERT + dependent writes in a single
       // transaction so Task 1b's recomputeUserStatus rolls back atomically
       // with the new sub on failure. External helpers (bookingService,
-      // paymentService) stay on this.db (out of scope per WARNING 9).
+      // transactionService) stay on this.db (out of scope per WARNING 9).
       const { newSubscriptionId } = await this.db.transaction(async (tx) => {
         const insResult = await tx.insert(schema.subscriptions).values({
           userId,
@@ -2258,16 +2268,26 @@ export class SubscriptionService {
 
       // Record payment for the net amount. Pass the new plan's currency so
       // the payment-service cross-currency guard is exercised.
-      if (this.paymentService && netAmount > 0) {
-        await this.paymentService.recordPayment(
+      if (this.transactionService && netAmount > 0) {
+        await this.transactionService.create(
           {
             memberId: userId,
-            subscriptionId: newSubscriptionId,
+            kind: "plan_charge" as const,
+            direction: "inflow" as const,
             amount: netAmount,
-            paymentMethod: input.paymentMethod,
-            paymentDate: input.startDate,
-            notes: `Cambio de plan: ${existingSub.planName} → ${targetPlan.name}`,
             currency: newPlan.currency,
+            paymentMethod: input.paymentMethod,
+            transactionDate: input.startDate,
+            effectiveDate: input.startDate,
+            branchId: input.branchId,
+            notes: `Cambio de plan: ${existingSub.planName} → ${targetPlan.name}`,
+            links: [
+              {
+                targetKind: "subscription" as const,
+                targetId: newSubscriptionId,
+                allocatedAmount: netAmount,
+              },
+            ],
           },
           adminId,
         );
@@ -2619,16 +2639,26 @@ export class SubscriptionService {
     });
 
     // Record payment now (charged at scheduling time)
-    if (this.paymentService && pricePaid > 0) {
-      await this.paymentService.recordPayment(
+    if (this.transactionService && pricePaid > 0) {
+      await this.transactionService.create(
         {
           memberId: userId,
-          subscriptionId: newSubscriptionId,
+          kind: "plan_charge" as const,
+          direction: "inflow" as const,
           amount: pricePaid,
-          paymentMethod: input.paymentMethod,
-          paymentDate: today,
-          notes: `Cambio de plan programado: ${currentSub.planName} → ${targetPlan.name} (inicia ${newStartDate})`,
           currency: targetPlan.currency,
+          paymentMethod: input.paymentMethod,
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: input.branchId,
+          notes: `Cambio de plan programado: ${currentSub.planName} → ${targetPlan.name} (inicia ${newStartDate})`,
+          links: [
+            {
+              targetKind: "subscription" as const,
+              targetId: newSubscriptionId,
+              allocatedAmount: pricePaid,
+            },
+          ],
         },
         adminId,
       );
@@ -2867,16 +2897,51 @@ export class SubscriptionService {
       return { newSubscriptionId: subId };
     });
 
-    // Record payment linked to the NEW subscription
-    if (this.paymentService && renewalPrice > 0) {
-      await this.paymentService.recordPayment(
+    // Record payment linked to the NEW subscription.
+    // RenewSubscriptionInput has no branchId — resolve via users.branchId
+    // with fallback to the virtual "Templo Online" branch (D-Migration
+    // Constraints; SPEC §1 requires NOT NULL on financial_transactions.branch_id).
+    if (this.transactionService && renewalPrice > 0) {
+      let renewBranchId: number;
+      const [memberBranchRow] = await this.db
+        .select({ branchId: schema.users.branchId })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      if (memberBranchRow?.branchId) {
+        renewBranchId = memberBranchRow.branchId;
+      } else {
+        const [virtualBranch] = await this.db
+          .select({ id: schema.branches.id })
+          .from(schema.branches)
+          .where(eq(schema.branches.name, "Templo Online"))
+          .limit(1);
+        if (!virtualBranch) {
+          throw new Error(
+            "Branch 'Templo Online' no encontrada al resolver branchId para renew",
+          );
+        }
+        renewBranchId = virtualBranch.id;
+      }
+
+      await this.transactionService.create(
         {
           memberId: userId,
-          subscriptionId: newSubscriptionId,
+          kind: "plan_charge" as const,
+          direction: "inflow" as const,
           amount: renewalPrice,
-          paymentMethod: input.paymentMethod,
-          paymentDate: today,
           currency: plan.currency,
+          paymentMethod: input.paymentMethod,
+          transactionDate: today,
+          effectiveDate: today,
+          branchId: renewBranchId,
+          links: [
+            {
+              targetKind: "subscription" as const,
+              targetId: newSubscriptionId,
+              allocatedAmount: renewalPrice,
+            },
+          ],
         },
         adminId,
       );
