@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, isNull } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
@@ -785,9 +785,14 @@ export class AnalyticsService {
     dateTo: string,
   ): Promise<Array<{ month: string; revenue: number }>> {
     const conditions: ReturnType<typeof eq>[] = [
-      isNull(schema.payments.voidedAt),
-      sql`${schema.payments.paymentDate} >= ${dateFrom}`,
-      sql`${schema.payments.paymentDate} <= ${dateTo}`,
+      isNull(schema.financialTransactions.voidedAt),
+      inArray(schema.financialTransactions.kind, [
+        "plan_charge",
+        "debt_settlement",
+      ]),
+      eq(schema.financialTransactions.direction, "inflow"),
+      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
+      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
@@ -799,15 +804,22 @@ export class AnalyticsService {
 
     const rows = await this.db
       .select({
-        month: sql<string>`DATE_FORMAT(${schema.payments.paymentDate}, '%Y-%m')`,
-        revenue: sql<number>`COALESCE(SUM(${schema.payments.amount}), 0)`,
+        month: sql<string>`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
+        revenue: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
-      .from(schema.payments)
-      .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions))
-      .groupBy(sql`DATE_FORMAT(${schema.payments.paymentDate}, '%Y-%m')`)
-      .orderBy(sql`DATE_FORMAT(${schema.payments.paymentDate}, '%Y-%m')`);
+      .groupBy(
+        sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
+      )
+      .orderBy(
+        sql`DATE_FORMAT(${schema.financialTransactions.transactionDate}, '%Y-%m')`,
+      );
 
     return rows.map((r) => ({
       month: String(r.month),
@@ -822,9 +834,14 @@ export class AnalyticsService {
     dateTo: string,
   ): Promise<{ cash: number; transfer: number; card: number }> {
     const conditions: ReturnType<typeof eq>[] = [
-      isNull(schema.payments.voidedAt),
-      sql`${schema.payments.paymentDate} >= ${dateFrom}`,
-      sql`${schema.payments.paymentDate} <= ${dateTo}`,
+      isNull(schema.financialTransactions.voidedAt),
+      inArray(schema.financialTransactions.kind, [
+        "plan_charge",
+        "debt_settlement",
+      ]),
+      eq(schema.financialTransactions.direction, "inflow"),
+      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
+      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
@@ -836,19 +853,27 @@ export class AnalyticsService {
 
     const rows = await this.db
       .select({
-        method: schema.payments.paymentMethod,
-        total: sql<number>`COALESCE(SUM(${schema.payments.amount}), 0)`,
+        method: schema.financialTransactions.paymentMethod,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
-      .from(schema.payments)
-      .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions))
-      .groupBy(schema.payments.paymentMethod);
+      .groupBy(schema.financialTransactions.paymentMethod);
 
     const result = { cash: 0, transfer: 0, card: 0 };
     for (const row of rows) {
-      const method = row.method as "cash" | "transfer" | "card";
-      result[method] = Number(row.total);
+      if (
+        row.method === "cash" ||
+        row.method === "transfer" ||
+        row.method === "card"
+      ) {
+        result[row.method] = Number(row.total);
+      }
     }
     return result;
   }
@@ -860,13 +885,18 @@ export class AnalyticsService {
     dateTo: string,
   ): Promise<Array<{ branchId: number; branchName: string; revenue: number }>> {
     const conditions: ReturnType<typeof eq>[] = [
-      isNull(schema.payments.voidedAt),
-      sql`${schema.payments.paymentDate} >= ${dateFrom}`,
-      sql`${schema.payments.paymentDate} <= ${dateTo}`,
+      isNull(schema.financialTransactions.voidedAt),
+      inArray(schema.financialTransactions.kind, [
+        "plan_charge",
+        "debt_settlement",
+      ]),
+      eq(schema.financialTransactions.direction, "inflow"),
+      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
+      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
-      conditions.push(eq(schema.users.branchId, branchId));
+      conditions.push(eq(schema.financialTransactions.branchId, branchId));
     }
     if (country !== undefined) {
       conditions.push(eq(schema.branches.country, country));
@@ -874,15 +904,17 @@ export class AnalyticsService {
 
     const rows = await this.db
       .select({
-        branchId: schema.users.branchId,
+        branchId: schema.financialTransactions.branchId,
         branchName: schema.branches.name,
-        total: sql<number>`COALESCE(SUM(${schema.payments.amount}), 0)`,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
-      .from(schema.payments)
-      .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
-      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
       .where(and(...conditions))
-      .groupBy(schema.users.branchId, schema.branches.name);
+      .groupBy(schema.financialTransactions.branchId, schema.branches.name);
 
     return rows.map((r) => ({
       branchId: r.branchId,
@@ -945,9 +977,14 @@ export class AnalyticsService {
     dateTo: string,
   ): Promise<number> {
     const conditions: ReturnType<typeof eq>[] = [
-      isNull(schema.payments.voidedAt),
-      sql`${schema.payments.paymentDate} >= ${dateFrom}`,
-      sql`${schema.payments.paymentDate} <= ${dateTo}`,
+      isNull(schema.financialTransactions.voidedAt),
+      inArray(schema.financialTransactions.kind, [
+        "plan_charge",
+        "debt_settlement",
+      ]),
+      eq(schema.financialTransactions.direction, "inflow"),
+      sql`${schema.financialTransactions.transactionDate} >= ${dateFrom}`,
+      sql`${schema.financialTransactions.transactionDate} <= ${dateTo}`,
     ];
 
     if (branchId !== undefined) {
@@ -959,10 +996,13 @@ export class AnalyticsService {
 
     const [result] = await this.db
       .select({
-        total: sql<number>`COALESCE(SUM(${schema.payments.amount}), 0)`,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
       })
-      .from(schema.payments)
-      .innerJoin(schema.users, eq(schema.users.id, schema.payments.memberId))
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
       .where(and(...conditions));
 
