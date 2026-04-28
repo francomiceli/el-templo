@@ -61,8 +61,6 @@ export interface MemberListItem {
   segment: string | null;
   avatarType: string | null;
   createdAt: string;
-  /** Phase 101: populated when the user has an active (non-cancelled) debt. */
-  debt: ActiveDebt | null;
   /**
    * Phase 102 (R7): true iff the user has at least one is_trial=TRUE booking
    * in their history. Derived via EXISTS subquery — no per-row N+1.
@@ -174,27 +172,20 @@ export interface MemberExportRow {
   direccion: string;
 }
 
-// ─── Phase 101: Debt Tracking ──────────────────────────────────────────
+// ─── Phase 105: Outstanding-balance aggregates ────────────────────────
 
-/** Currencies supported for debts in v1 (D-13). */
-export const DEBT_CURRENCIES = ["ARS", "EUR", "USD"] as const;
-export type DebtCurrency = (typeof DEBT_CURRENCIES)[number];
-
-/** Shape of an active debt row as exposed to API consumers. */
-export interface ActiveDebt {
-  amount: number;
-  currency: string;
-  note: string | null;
-}
-
-/** Input accepted by DebtService.upsertActiveDebt. */
-export interface DebtUpsertInput {
-  amount: number;
-  currency: DebtCurrency;
-  note?: string | null;
-}
-
-/** Row returned by DebtService.getTotalDebtByCurrency. */
+/**
+ * Aggregated outstanding balance per currency, sourced from the
+ * `balances` cache (Phase 105 D-10). Used by listMembers' banner under
+ * the "Solo deudores" filter on AlumnosPage. Semantics: amount > 0 means
+ * members owe; saldo-a-favor (amount < 0) and saldado (amount = 0) rows
+ * are excluded from the aggregate.
+ *
+ * Shape preserved from the Phase 101 `debts`-backed version so the
+ * AlumnosPage banner contract stays stable across the drop. The `debt`
+ * per-row enrichment that used to live alongside this row is gone — the
+ * aggregate is the only debt info on the listing endpoint now.
+ */
 export interface TotalDebtRow {
   currency: string;
   amount: number;

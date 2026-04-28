@@ -20,7 +20,6 @@ import {
   MOTIVATION_LABELS,
 } from "../onboarding/types";
 import { MemberService } from "./service";
-import { DebtService } from "./debts-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
@@ -30,7 +29,6 @@ import type {
   CreateMemberInput,
   UpdateMemberInput,
   MemberListParams,
-  DebtUpsertInput,
 } from "./types";
 import {
   listMembersSchema,
@@ -48,7 +46,7 @@ import {
 } from "./schemas";
 import { Workbook } from "exceljs";
 
-import { ADMIN_ROLES, CAJA_ROLES, MEMBER_ROLES } from "../shared/permissions";
+import { ADMIN_ROLES, MEMBER_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 
 /**
@@ -81,8 +79,7 @@ function isDuplicateKeyError(err: unknown): {
 }
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
-  const debtService = new DebtService(fastify.db, fastify.log);
-  const memberService = new MemberService(fastify.db, fastify.log, debtService);
+  const memberService = new MemberService(fastify.db, fastify.log);
 
   /**
    * Guard: require admin role on all routes in this plugin.
@@ -443,39 +440,21 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // PUT /admin/members/:userId — Update member (+ optional debt upsert/cancel)
+  // PUT /admin/members/:userId — Update member fields.
+  //
+  // Phase 105 (D-11): debt mutation is gone. The Zod/JSON schema is closed
+  // (additionalProperties:false) so legacy admin clients posting
+  // `debt`/`isDebtor`/`debtAmount`/`debtCurrency`/`debtNote` get a 400 with
+  // a clear error. The new finance model (Phase 106+) exposes
+  // POST /transactions for any debt/payment workflow.
   fastify.put<{
     Params: { userId: number };
-    Body: UpdateMemberInput & { debt?: DebtUpsertInput | null };
+    Body: UpdateMemberInput;
   }>("/:userId", { schema: updateMemberSchema }, async (request, reply) => {
-    // Phase 101 RBAC (T-101-10): the route plugin's onRequest admits the full
-    // MEMBER_ROLES set (coach/admin/owner/gestion/recepcion), but debt writes
-    // are stricter — only CAJA_ROLES (gestion, admin, owner) may mutate debts.
-    // We check `'debt' in request.body` so that omitting the field entirely
-    // (current UX for non-debt edits) is unaffected; supplying `debt: null`
-    // (cancel) or `debt: {...}` (upsert) BOTH require CAJA_ROLES.
-    const body = request.body;
-    const wantsDebtMutation = Object.prototype.hasOwnProperty.call(
-      body,
-      "debt",
-    );
-    if (
-      wantsDebtMutation &&
-      !(CAJA_ROLES as readonly string[]).includes(request.user.role)
-    ) {
-      return reply.code(403).send({
-        error: "Acceso denegado",
-        message: "Solo gestion, admin u owner puede gestionar deudas",
-      });
-    }
-
-    // Separate debt payload from the regular member update fields.
-    const { debt, ...memberFields } = body;
-
     try {
       const member = await memberService.updateMember(
         request.params.userId,
-        memberFields,
+        request.body,
       );
       if (!member) {
         return reply
@@ -483,19 +462,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "No encontrado", message: "Miembro no encontrado" });
       }
 
-      // Apply the debt mutation (already CAJA_ROLES-gated above).
-      if (wantsDebtMutation) {
-        if (debt === null) {
-          await debtService.cancelActiveDebt(request.params.userId);
-        } else if (debt !== undefined) {
-          await debtService.upsertActiveDebt(request.params.userId, debt);
-        }
-      }
-
-      const currentDebt = await debtService.getActiveDebtForUser(
-        request.params.userId,
-      );
-      return { ...member, debt: currentDebt };
+      return member;
     } catch (err: unknown) {
       const { isDuplicate, detail } = isDuplicateKeyError(err);
 
@@ -523,9 +490,9 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   //
   // Scrubs email + DNI so the person can be re-onboarded with their real
   // identifiers, and sets deletedAt so the row drops out of admin lists and
-  // single-member reads. Financial history (payments, debts, subscriptions)
-  // stays intact. ADMIN_ROLES only — coaches cannot delete. Refuses to delete
-  // non-members (coach/admin/owner rows) as a safety net.
+  // single-member reads. Financial history (financial_transactions,
+  // subscriptions) stays intact. ADMIN_ROLES only — coaches cannot delete.
+  // Refuses to delete non-members (coach/admin/owner rows) as a safety net.
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId",
     async (request, reply) => {

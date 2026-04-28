@@ -6,16 +6,6 @@
 // Shared response fragments
 // =============================================================================
 
-// Phase 101: shape of an active debt as exposed on member list/profile responses.
-const activeDebtSchema = {
-  type: ["object", "null"],
-  properties: {
-    amount: { type: "integer" },
-    currency: { type: "string" },
-    note: { type: ["string", "null"] },
-  },
-} as const;
-
 const memberListItemSchema = {
   type: "object",
   properties: {
@@ -41,7 +31,6 @@ const memberListItemSchema = {
     segment: { type: ["string", "null"] },
     avatarType: { type: ["string", "null"] },
     createdAt: { type: "string" },
-    debt: activeDebtSchema,
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
   },
@@ -94,8 +83,6 @@ const memberProfileSchema = {
     createdAt: { type: "string" },
     updatedAt: { type: "string" },
     onboardingProfile: onboardingProfileSchema,
-    // Phase 101: active debt (null when user has no active debt).
-    debt: activeDebtSchema,
     // Phase 102 (R7): true iff user has ≥1 is_trial=TRUE booking.
     hasUsedTrial: { type: "boolean" },
   },
@@ -252,6 +239,12 @@ export const updateMemberSchema = {
   },
   body: {
     type: "object",
+    // Phase 105 (D-11): close the schema so legacy admin clients posting
+    // `debt`/`isDebtor`/`debtAmount`/`debtCurrency`/`debtNote` get a 400
+    // with a clear validation error. The new finance model exposes the
+    // dedicated POST /transactions endpoint (Phase 106+) for any
+    // debt/payment workflow.
+    additionalProperties: false,
     properties: {
       firstName: { type: "string" },
       lastName: { type: "string" },
@@ -275,19 +268,6 @@ export const updateMemberSchema = {
       level: {
         type: "string",
         enum: ["alfa", "delta", "sigma", "omega", "spartan"],
-      },
-      // Phase 101: optional debt payload.
-      //   omitted  → no debt change
-      //   null     → soft-cancel active debt
-      //   object   → upsert active debt (RBAC: ADMIN_ROLES only)
-      debt: {
-        type: ["object", "null"],
-        properties: {
-          amount: { type: "integer", exclusiveMinimum: 0 },
-          currency: { type: "string", enum: ["ARS", "EUR", "USD"] },
-          note: { type: ["string", "null"], maxLength: 500 },
-        },
-        required: ["amount", "currency"],
       },
     },
   },
