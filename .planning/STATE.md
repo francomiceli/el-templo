@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-02-PLAN.md
-last_updated: "2026-04-28T13:52:59.236Z"
+stopped_at: Completed 105-03-PLAN.md
+last_updated: "2026-04-28T14:01:02.778Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 348
+  completed_plans: 349
   percent: 97
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 3 of 8
+Plan: 4 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -139,6 +139,7 @@ _Updated after each plan completion_
 | Phase 104 P04 | 23 min | 3 tasks | 6 files |
 | Phase 105 P01 | 12min | 3 tasks | 5 files |
 | Phase 105 P02 | 7min | 3 tasks | 5 files |
+| Phase 105 P03 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -295,6 +296,9 @@ Recent decisions affecting current work:
 - Plan 105-02: Lazy seed from subscriptions.pricePaid is two-step (SELECT existing → INSERT-with-seed OR UPDATE delta) inside db.transaction, NOT a single ON DUPLICATE KEY UPDATE. The seed value depends on a per-target lookup which a single upsert cannot express.
 - Plan 105-02: TXN-05 immutability enforced by TS surface — TransactionService deliberately exposes no update() method. Test K probes via cast: (txService as Record<string, unknown>).update is undefined.
 - Plan 105-02: Tests seed subscriptions directly via Drizzle insert (not the /assign API) because /assign still calls paymentService.recordPayment against the dropped payments table — that path is repaired by Plan 03.
+- Plan 105-03: Renew callsite (RenewSubscriptionInput has no branchId) resolves branchId via users.branchId lookup with fallback to 'Templo Online' virtual branch — throws if neither resolves; SPEC §1 NOT NULL invariant maintained
+- Plan 105-03: All 4 transactionService.create callsites pass amount===allocatedAmount (preserves legacy full-payment assumption); transactionDate===effectiveDate (legacy paymentDate semantics)
+- Plan 105-03: SubscriptionService takes transactionService?: TransactionService via 4th positional constructor arg; type-only import at consumer, concrete-class import at 3 DI sites (auth/routes, subscriptions/routes, auto-resume-pauses)
 
 ### Pending Todos
 
@@ -306,8 +310,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T13:52:59.218Z
-Stopped at: Completed 105-02-PLAN.md
+Last session: 2026-04-28T14:01:02.762Z
+Stopped at: Completed 105-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
