@@ -129,20 +129,63 @@ export class GoalPlanService {
   // A "goal plan" is a program enrollment where the linked program has a goalPlanType.
 
   /**
-   * Get the active goal plan for a user, or null if none is active.
-   * Queries program_enrollments joined with programs where goalPlanType is set.
+   * Resolve the user's active goal-plan-bearing enrollment.
+   *
+   * Bundle members hold N active enrollments at once. The home dropdown
+   * persists the chosen one in users.currentProgramEnrollmentId; we honor
+   * that pointer here so /goal-plans/active and /goal-plans/session return
+   * data for the program the member is actually viewing.
+   *
+   * Falls back to the first active enrollment with a goalPlanType for
+   * single-program members and stale pointers.
    */
-  async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
-    const [enrollment] = await this.db
+  private async resolveActiveGoalPlanEnrollment(userId: number): Promise<{
+    goalPlanType: GoalPlanType;
+    durationWeeks: number | null;
+    enrolledAt: Date;
+  } | null> {
+    const baseSelect = () =>
+      this.db
+        .select({
+          goalPlanType: schema.programs.goalPlanType,
+          durationWeeks: schema.programs.durationWeeks,
+          enrolledAt: schema.programEnrollments.enrolledAt,
+        })
+        .from(schema.programEnrollments)
+        .innerJoin(
+          schema.programs,
+          eq(schema.programs.id, schema.programEnrollments.programId),
+        );
+
+    const [user] = await this.db
       .select({
-        goalPlanType: schema.programs.goalPlanType,
-        enrolledAt: schema.programEnrollments.enrolledAt,
+        currentProgramEnrollmentId: schema.users.currentProgramEnrollmentId,
       })
-      .from(schema.programEnrollments)
-      .innerJoin(
-        schema.programs,
-        eq(schema.programs.id, schema.programEnrollments.programId),
-      )
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+
+    if (user?.currentProgramEnrollmentId != null) {
+      const [pointed] = await baseSelect()
+        .where(
+          and(
+            eq(schema.programEnrollments.id, user.currentProgramEnrollmentId),
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.status, "active"),
+            sql`${schema.programs.goalPlanType} IS NOT NULL`,
+          ),
+        )
+        .limit(1);
+      if (pointed?.goalPlanType) {
+        return {
+          goalPlanType: pointed.goalPlanType as GoalPlanType,
+          durationWeeks: pointed.durationWeeks,
+          enrolledAt: pointed.enrolledAt,
+        };
+      }
+    }
+
+    const [first] = await baseSelect()
       .where(
         and(
           eq(schema.programEnrollments.userId, userId),
@@ -152,10 +195,24 @@ export class GoalPlanService {
       )
       .limit(1);
 
-    if (!enrollment || !enrollment.goalPlanType) return null;
-
+    if (!first?.goalPlanType) return null;
     return {
-      goalPlanType: enrollment.goalPlanType as GoalPlanType,
+      goalPlanType: first.goalPlanType as GoalPlanType,
+      durationWeeks: first.durationWeeks,
+      enrolledAt: first.enrolledAt,
+    };
+  }
+
+  /**
+   * Get the active goal plan for a user, or null if none is active.
+   * Resolves via users.currentProgramEnrollmentId (bundle pointer) with
+   * fallback to the first active enrollment.
+   */
+  async getActiveGoalPlan(userId: number): Promise<GoalPlanProgress | null> {
+    const enrollment = await this.resolveActiveGoalPlanEnrollment(userId);
+    if (!enrollment) return null;
+    return {
+      goalPlanType: enrollment.goalPlanType,
       isActive: true,
       startedAt: enrollment.enrolledAt.toISOString(),
     };
@@ -203,28 +260,10 @@ export class GoalPlanService {
    * Returns null if no active goal plan or no goal plan subscription.
    */
   async getCycleStats(userId: number): Promise<CycleStats | null> {
-    // Step 1: Get active enrollment with goal plan type and program duration
-    const [enrollment] = await this.db
-      .select({
-        goalPlanType: schema.programs.goalPlanType,
-        durationWeeks: schema.programs.durationWeeks,
-        enrolledAt: schema.programEnrollments.enrolledAt,
-      })
-      .from(schema.programEnrollments)
-      .innerJoin(
-        schema.programs,
-        eq(schema.programs.id, schema.programEnrollments.programId),
-      )
-      .where(
-        and(
-          eq(schema.programEnrollments.userId, userId),
-          eq(schema.programEnrollments.status, "active"),
-          sql`${schema.programs.goalPlanType} IS NOT NULL`,
-        ),
-      )
-      .limit(1);
-
-    if (!enrollment || !enrollment.goalPlanType) return null;
+    // Step 1: resolve the active enrollment via the bundle pointer with
+    // fallback to first active (see resolveActiveGoalPlanEnrollment).
+    const enrollment = await this.resolveActiveGoalPlanEnrollment(userId);
+    if (!enrollment) return null;
 
     // Indefinite programs don't have cycle stats
     if (!enrollment.durationWeeks) return null;
