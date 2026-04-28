@@ -147,3 +147,232 @@ _Last phase: 12_
 ---
 
 _Last phase: 28_
+
+> **Note on retroactive entries (v3.0 → v4.7):** These milestones were documented after-the-fact on 2026-04-27. Dates reflect the last commit touching the milestone's phase artifacts (per `git log` on `*-SUMMARY.md` files). Real shipping dates may extend beyond these — significant non-phase work (hotfixes, infra tweaks, tooling, design polish) accompanied each milestone but is not enumerated here. Requirement counts come from `ROADMAP.md` per-phase headers and dedicated `REQUIREMENTS-v4.X.md` files where they exist.
+
+## v3.0 — Landing Page (el-templo-web)
+
+**Completed:** 2026-03-03 (last phase artifact commit; ad-hoc work extended into March)
+**Phases:** 29-44
+
+### What Shipped
+
+- Nuxt 3 scaffold + infrastructure parity (CI/CD, staging, Sentry, deploy pipeline)
+- Design system, navigation, footer (`.docs/brand-landing/`)
+- Homepage sections: Hero, Identity, Method, Levels, Approaches, Conversion, Locations, Community, Ecosystem, FAQ
+- Separate pages: Franquicias, Gladius, Blog, Academy, App
+- SEO audit + analytics, brand alignment, content/media handoff
+- Day Player redesign, blog internal linking system (tags, related posts, cross-page CTAs)
+- Franchise application management page
+
+### Requirements Completed
+
+By category (ROADMAP.md): FRAN-01..11, SEO-01..08, DS-01..08, NIV-01..07, INFRA-01..07, HERO-01..07, NAV-01..06, GLAD-01..06, BLOG-01..06, SED-01..05, MET-01..05, IDEN-01..05, FOOT-01..05, FAQ-01..05, ENF-01..05, ECO-01..04, COM-01..05, DESC-01..05 — **~110 requirements across 18 categories**.
+
+### Reference
+
+`.planning/research/landing-design-decisions.md` for design system; `.docs/brand-landing/` (38 files) for full spec.
+
+---
+
+_Last phase: 44_
+
+## v4.0 — Ecosystem Foundation
+
+**Completed:** 2026-03-25
+**Phases:** 45-56 (45-52 ecosystem core + 53-56 codebase health)
+
+### What Shipped
+
+- Architecture foundation (modular monolith, virtual "Templo Online" branch, AURA tables)
+- Lifestyle content extraction from arete-web reference codebase
+- Members CRUD, subscriptions, payments (initial schema), attendance, scheduling, analytics
+- QR check-in, class booking, dashboard analytics
+- Codebase health: god object decomposition (DayPlayer, edit-service), timezone fixes, performance, test coverage
+- Pattern fixes: composable instantiation, type safety, convention compliance
+
+### Requirements Completed
+
+By category (ROADMAP.md): SCHD-01..06, MEMB-01..06, SUBS-01..05, RSTRC-01..05, ATTN-01..05, PAY-01..04 — **31 requirements across 6 categories**.
+
+---
+
+_Last phase: 56_
+
+## v4.1 — Admin Consolidation & Data Migration
+
+**Completed:** 2026-03-25
+**Phases:** 58-66 (Phase 62 — payment enhancements — skipped)
+
+### What Shipped
+
+- Production deployment with EC2/Nginx/PM2 stack
+- Real data import: DeportNet → MySQL migration with legacy plan archival, bulk subscription seeding
+- Plan configuration with budgets, fixed days (`subscription_schedules` junction table), grace period system
+- QR access control: scan → confirmado + 10 AURA award; grace period removed (Phase 61 decision)
+- Cash box (CajaPage) with payment recording, voiding, financial summary by method/branch
+- Member management enhancements: photos via R2, member detail timeline
+- Reports dashboard with paginated tables and Excel export (exceljs)
+- Roles & permissions: owner > admin > coach = recepcionista (4-role hierarchy, centralized in `shared/permissions.ts`)
+
+### Requirements Completed
+
+By category (ROADMAP.md): PLANS-01..06, DATA-01..06, REPORT-01..05, ACCESS-01..05, ROLES-01..04, PAY-01..04, MEMBER-01..04, CASH-02..03, DEPLOY-01 — **38 requirements across 9 categories**.
+
+---
+
+_Last phase: 66_
+
+## v4.2 — Clases Personalizadas Launch
+
+**Completed:** 2026-03-19
+**Phases:** 67-73
+
+### What Shipped
+
+- Personalizadas backend + frontend rename (journey → personalizada, J-prefix → P-prefix)
+- Subscription gate, AURA rewards, module enable
+- Personalizadas cycle config (configurable cycle length per plan, no new DB column)
+- Plan-driven personalizada assignment (PersonalizadasService instantiated by SubscriptionService)
+- Unified training experience: context-aware `/training` routing, post-session flows unified to `/mi-camino`
+- Planes — plan catalog for members (Mi Camino three-mode layout)
+
+### Requirements Completed
+
+`REQUIREMENTS-v4.2.md`: **PERS-01..17** (17 requirements, single category).
+
+---
+
+_Last phase: 73_
+
+## v4.3 — Android Play Store Launch
+
+**Completed:** 2026-03-21
+**Phases:** 74-77
+
+### What Shipped
+
+- Capacitor v8 alignment (CLI ↔ native plugins), Node 22 requirement, minSdkVersion 24
+- Upload keystore generation + secure storage in GitHub Secrets
+- Production-only ProGuard via androidComponents API; cleartext disabled in production via flavor manifest overlays
+- Production signed AAB build via `build-android-production.yml` (variant-scoped signing, master branch guard)
+- Play Store listing: descriptions, screenshots, feature graphic, privacy policy
+- Compliance: data safety, content rating (IARC), target audience declaration
+- Internal testing → production track promotion → live on Play Store
+
+### Requirements Completed
+
+`REQUIREMENTS-v4.3.md`: **PLAY-01..22** (22 requirements, single category).
+
+### Reference
+
+`project_play_store_setup.md` in memory for full setup status.
+
+---
+
+_Last phase: 77_
+
+## v4.4 — App Engagement & Intelligent Companion
+
+**Completed:** 2026-04-03
+**Phases:** 78-88
+
+### What Shipped
+
+- Onboarding profiling (member_profiles table, gender, training intent, segments)
+- Behavioral segmentation (calculateSegment with 1-hour cooldown, batch cron)
+- "Tu Día" daily game plan with segment-driven card ordering
+- Streaks & engagement mechanics (StreakService, milestone-driven AURA awards)
+- Progressive profiling & check-ins (advisory feedback loop with energy/soreness/sleep priority)
+- Micro-program upsells "Experiencias a Medida" (program_enrollments, polymorphic content blocks, weekly session-gated unlocks)
+- Push notifications foundation (FCM via firebase-admin, queue-based delivery via pending_notifications + 15-min cron)
+- Guía — exercise & mobility library
+- QR Promo — Free Month campaign (302 redirects, eltemplo.org QR encoding)
+- Localization — Spain vs Argentina copywriting variants
+- Reservation rules — per-plan booking configuration
+
+### Requirements Completed
+
+`REQUIREMENTS-v4.4.md`: **ENG-01..24** (24 requirements, single category).
+
+### Reference
+
+`project_v44_app_engagement.md` in memory.
+
+---
+
+_Last phase: 88_
+
+## v4.5 — Planes Online (Digital Monetization)
+
+**Completed:** 2026-04-06
+**Phases:** 89-92
+
+### What Shipped
+
+- Backend & admin "Planes Online" infrastructure (Phase 89 = 7 plans + admin dual-subscription support)
+- Onboarding quiz redesign with avatar profiling (`avatar_type`, V2 onboarding service alongside V1)
+- App UX: plan catalog & purchase flow
+- Marketing deliverables: launch collateral
+
+### Requirements Completed
+
+By category (ROADMAP.md): MON-01..10 (digital monetization), AVA-01..08 (avatar profiling), plus design decisions D-12, D-13 — **~20 requirements across 2 categories**.
+
+### Reference
+
+`.docs/planes-online-strategy.md`.
+
+---
+
+_Last phase: 92_
+
+## v4.6 — iOS App Store Launch
+
+**Completed:** 2026-04-07
+**Phases:** 93-95 (Phase 93 has artifacts; 94-95 absorbed into v4.7 ad-hoc execution)
+
+### What Shipped
+
+- iOS build pipeline via GitHub Actions (macOS runners, Xcode 26 / iOS 26 SDK alignment per ITMS-90725 deadline 2026-04-28)
+- Xcode signing config, version management mirroring Android approach
+- App Store Connect setup: bundle ID, listing, privacy, age rating
+- TestFlight distribution + App Store submission
+
+### Requirements Completed
+
+`ROADMAP.md`: **IOS-01..15** (15 requirements).
+
+---
+
+_Last phase: 95_
+
+## v4.7 — Full Body, ROM, and Ad-Hoc Coach Requests
+
+**Completed:** 2026-04-27
+**Phases:** 96-104 (originally 96-97 coach work, expanded ad hoc with 98-104)
+
+### What Shipped
+
+**Coach session enhancements (96-97):**
+
+- Full Body goal plan type for home calisthenics with no-equipment + coach-driven exercise equipment tagging (Phase 96)
+- ROM Mode — Saturday mobility sessions (Lower/Core/Upper body zones, Básico/Avanzado tiers, Phase 97)
+
+**Ad-hoc additions (98-104):**
+
+- Phase 98: Multi-currency + country-scoped plans (AR/ARS, ES/EUR), owner-only country toggle, branch-scoped staff filtering
+- Phase 99: Member-selectable training level
+- Phase 100: Games format + exercise route overhaul + session editor route UX (Spanish route renaming)
+- Phase 101: Debt tracking — `debts` table with one-active-per-user invariant **(to be replaced in v4.8 by transactional model)**
+- Phase 102: Trial Classes (Sesiones de Prueba) via `bookings.is_trial`, one-trial-per-phone guard, leads filter
+- Phase 103: User Status enum (freemium/prueba/activo/inactivo) replacing `users.is_active`; `staff_disabled` login gate
+- Phase 104: Planes vs Programas + Bundle "Todos los Programas" (`grants_all_programs`, `current_program_enrollment_id`)
+
+### Requirements Completed
+
+Phase 98: **REQ-98-01..11** (11 requirements). Phases 96, 97, 99-104 specified inline in ROADMAP via SPEC sections and design decisions (D-IDs).
+
+---
+
+_Last phase: 104_

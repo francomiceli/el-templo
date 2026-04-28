@@ -4,7 +4,35 @@
 
 A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 locations (7 Mar del Plata, 1 Barcelona). The monorepo contains: a Fastify API (el-templo-api), a member mobile app (el-templo-app), a coach/admin web app (el-templo-admin), and a public-facing marketing site (el-templo-web). v1 delivered the Training module, v2 the Admin app, v3 the landing page and public web presence, v4 begins ecosystem integration — consolidating admin operations, adding attendance/scheduling, and laying the foundation for AURA economy and lifestyle features.
 
-## Current Milestone: v4.3 Android Play Store Launch
+## Current Milestone: v4.8 Modelo Financiero
+
+**Goal:** Reemplazar el modelo de pagos y deudas (`payments` + `debts`) con un modelo transaccional unificado (`financial_transactions` + `transaction_links`) que soporte cobros parciales, saldos pendientes con trazabilidad, anulaciones consistentes, ajustes auditables, y una página de Caja que refleje la realidad financiera real.
+
+**Target features:**
+
+- Modelo `financial_transactions` + `transaction_links` (pivot N:M para soportar pagos split y saldos linkeados a conceptos)
+- Drop completo de `payments` y `debts` — sin backfill, sin deudas activas a preservar
+- Endpoints transaccionales: crear, anular (con motivo y reverso de links), listar, historial financiero por miembro
+- UX: cobro integrado al asignar plan en `AssignPlanDialog` (con preview de saldo si cobro parcial)
+- UX: eliminar sección "Deuda" editable del `MemberFormDialog` (las deudas ahora son derivadas)
+- UX: tab "Historial financiero" en perfil del miembro + flujo "Registrar pago" sobre conceptos pendientes
+- CajaPage v2: summary segmentado por kind, tabla con tipo de transacción, reporte aging de deudas pendientes, export Excel actualizado
+
+**Out of scope this milestone (deferred to v4.6+ or later):**
+
+- Mercado Pago / Stripe (Phase 7 ecosistema, milestone v6.x)
+- Reembolsos como flow de UX dedicado
+- Señales / pagos anticipados como flow de UX dedicado
+- Cierre Z diario, conciliación bancaria
+- Transferencias inter-miembros como concepto primario
+
+**Reference:** `.planning/research/v48-financial-model-analysis.md` — análisis profundo, gray areas pre-votadas, propuesta de fases 105-109.
+
+## Previous Milestone: v4.7 Full Body & ROM — Coach Session Requests
+
+**Phases 96-104** (96-97 plus ad hoc 98-104). Completed 2026-04-27.
+
+## Earlier Milestone: v4.3 Android Play Store Launch
 
 **Goal:** Publish the member app (el-templo-app) on Google Play Store — Capacitor version alignment, release signing with upload keystore, production AAB build workflow, Play Store listing with all compliance forms, and launch through testing tracks to production.
 
@@ -46,7 +74,7 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-See: .planning/REQUIREMENTS-v4.3.md (v4.3 scope)
+See: .planning/REQUIREMENTS.md (v4.8 scope — Modelo Financiero)
 
 ### Out of Scope
 
@@ -112,4 +140,4 @@ See: .planning/REQUIREMENTS-v4.3.md (v4.3 scope)
 
 ---
 
-_Last updated: 2026-03-21 — Phase 74 (Pre-Release Prep) complete: Capacitor v8, version management, production hardening_
+_Last updated: 2026-04-27 — Milestone v4.8 (Modelo Financiero) initialized. Phases 105-109 to come. v4.4-v4.7 marked complete retroactively._
