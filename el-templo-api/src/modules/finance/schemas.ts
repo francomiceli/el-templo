@@ -251,6 +251,77 @@ export const transactionsSummarySchema = {
   },
 } as const;
 
+// -- GET /members/:userId/financial-history — D-13 -------------------------
+
+export const financialHistorySchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: { userId: { type: "integer", minimum: 1 } },
+  },
+  querystring: {
+    type: "object",
+    properties: {
+      ...paginationQuerystring,
+    },
+    additionalProperties: false,
+  },
+  response: {
+    // Loose response — properties listed for documentation/type-inference but
+    // additionalProperties intentionally omitted on response objects. Service
+    // produces trusted shape (FinancialHistoryItem from
+    // TransactionService.getFinancialHistory). Matches the loose-response
+    // pattern in listTransactionsSchema (see Plan 03 comment). If Phase 109
+    // audit requires strict response shapes, this comment is the gate to flip.
+    200: {
+      type: "object",
+      properties: {
+        rows: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              // Loose passthrough — trusted shape from
+              // TransactionService.getFinancialHistory(). Matches the
+              // loose-response pattern in listTransactionsSchema (see Plan 03
+              // comment). If Phase 109 audit requires strict response shapes,
+              // this comment is the gate to flip.
+              transaction: { type: "object" },
+              links: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    targetKind: { type: "string", enum: TARGET_KIND_ENUM },
+                    targetId: { type: "integer" },
+                    allocatedAmount: { type: "integer" },
+                    conceptLabel: { type: "string" },
+                  },
+                },
+              },
+              voidInfo: {
+                type: "object",
+                properties: {
+                  voidedAt: { type: "string" },
+                  voidedBy: { type: "integer" },
+                  voidReason: { type: "string" },
+                },
+              },
+            },
+          },
+        },
+        total: { type: "integer" },
+        page: { type: "integer" },
+        limit: { type: "integer" },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;
