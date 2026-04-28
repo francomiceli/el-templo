@@ -19,6 +19,7 @@ import { handleServiceError } from "../shared/error-handler";
 import {
   createTransactionSchema,
   listTransactionsSchema,
+  transactionsSummarySchema,
   voidTransactionSchema,
 } from "./schemas";
 import {
@@ -32,6 +33,7 @@ import * as schema from "../../db/schema";
 import type {
   CreateTransactionInput,
   CreateTransactionResponse,
+  FinanceSummaryFilters,
   PaymentMethod,
   TransactionKind,
   TransactionListFilters,
@@ -263,6 +265,51 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
           reply,
           request.log,
           "list finance transactions",
+        );
+        return reply;
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /transactions/summary — CajaPage legacy summary (D-16)
+  // Same owner-aware country resolution as GET /transactions (above).
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    };
+  }>(
+    "/transactions/summary",
+    { schema: transactionsSummarySchema },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution — mirrors GET /transactions.
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country;
+        }
+
+        const filters: FinanceSummaryFilters = {
+          branchId: request.query.branchId,
+          country: country as FinanceSummaryFilters["country"],
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        return await transactionService.getSummary(filters);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "finance transactions summary",
         );
         return reply;
       }

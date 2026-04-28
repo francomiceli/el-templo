@@ -1297,3 +1297,254 @@ describe("Finance API — POST /transactions/:id/void", () => {
     expect(second.statusCode).toBe(400);
   });
 });
+
+describe("Finance API — GET /transactions/summary", () => {
+  let app: FastifyInstance;
+  const ctx = {} as SeededContext;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    const seeded = await seedFixtures(app);
+    Object.assign(ctx, seeded);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    // Summary aggregates ALL financial_transactions (no INNER JOIN to users),
+    // so prior describe blocks' rows would otherwise leak into our totals.
+    // financial_transactions / transaction_links / balances aren't in
+    // TABLES_TO_CLEAN; clear them explicitly here.
+    const conn = await app.dbPool.getConnection();
+    try {
+      await conn.query("SET FOREIGN_KEY_CHECKS=0");
+      await conn.query("DELETE FROM `transaction_links`");
+      await conn.query("DELETE FROM `financial_transactions`");
+      await conn.query("DELETE FROM `balances`");
+      await conn.query("SET FOREIGN_KEY_CHECKS=1");
+    } finally {
+      conn.release();
+    }
+    await seedUsersAndPlan(app, ctx);
+  });
+
+  /** Helper: create an AR txn via owner POST. Returns the created txn id. */
+  async function createArTxn(amount = 1000): Promise<number> {
+    const [sub] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        userId: ctx.memberArId,
+        planId: ctx.planId,
+        branchId: ctx.arBranchId,
+        status: "active",
+        startDate: TODAY,
+        pricePaid: 50000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    const res = await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        amount,
+        links: [
+          {
+            targetKind: "subscription",
+            targetId: sub.id,
+            allocatedAmount: amount,
+          },
+        ],
+      }),
+    });
+    if (res.statusCode !== 201) {
+      throw new Error(`createArTxn failed: ${res.statusCode} ${res.body}`);
+    }
+    return res.json().transaction.id as number;
+  }
+
+  /** Helper: insert an ES inflow txn directly via Drizzle. */
+  async function insertEsTxn(amount = 5000): Promise<number> {
+    const [inserted] = await app.db
+      .insert(schema.financialTransactions)
+      .values({
+        memberId: ctx.memberEsId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "EUR",
+        paymentMethod: "cash",
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId: ctx.esBranchId,
+        recordedBy: ctx.ownerId,
+      });
+    const txnId = (inserted as { insertId: number }).insertId;
+    await app.db.insert(schema.transactionLinks).values({
+      transactionId: txnId,
+      targetKind: "subscription",
+      targetId: ctx.subEsId,
+      allocatedAmount: amount,
+    });
+    return txnId;
+  }
+
+  // ─── Happy path ──────────────────────────────────────────────────────────
+
+  it("SU1: owner GET → 200 with { monthlyRevenue, revenueByMethod (5 keys), revenueByBranch }", async () => {
+    await createArTxn(1000);
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("monthlyRevenue");
+    expect(body).toHaveProperty("revenueByMethod");
+    expect(body).toHaveProperty("revenueByBranch");
+    expect(body.revenueByMethod).toEqual({
+      cash: 1000,
+      transfer: 0,
+      card: 0,
+      aura_credit: 0,
+      internal: 0,
+    });
+  });
+
+  it("SU2: dateFrom/dateTo + branchId filters narrow the response", async () => {
+    // 1 txn at default AR branch.
+    await createArTxn(1000);
+    // 1 txn at ES branch (filtered OUT by branchId param).
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary?branchId=${ctx.arBranchId}&dateFrom=${TODAY}&dateTo=${TODAY}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.monthlyRevenue).toBe(1000);
+    expect(body.revenueByBranch).toHaveLength(1);
+    expect(body.revenueByBranch[0].branchId).toBe(ctx.arBranchId);
+  });
+
+  it("SU3: voided transactions are excluded (regression guard for Plan 09 swap)", async () => {
+    const t1 = await createArTxn(1000);
+    await createArTxn(2000);
+    const voidRes = await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions/${t1}/void`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: { reason: "test void" },
+    });
+    expect(voidRes.statusCode).toBe(200);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().monthlyRevenue).toBe(2000);
+  });
+
+  // ─── Owner-only country override (Blocker #1 reconciliation) ─────────────
+
+  it("SU4: owner GET ?country=AR → revenueByBranch contains only AR branches", async () => {
+    await createArTxn(1000);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary?country=AR`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.monthlyRevenue).toBe(1000);
+    for (const b of body.revenueByBranch) {
+      expect(b.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  it("SU5: owner GET ?country=ES → revenueByBranch contains only ES branches", async () => {
+    await createArTxn(1000);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary?country=ES`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.monthlyRevenue).toBe(5000);
+    expect(body.revenueByBranch).toHaveLength(1);
+    expect(body.revenueByBranch[0].branchId).toBe(ctx.esBranchId);
+  });
+
+  it("SU6: non-owner-AR GET ?country=ES → query is IGNORED, response scoped to AR", async () => {
+    await createArTxn(1000);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary?country=ES`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // Non-owner override silently ignored; revenue equals AR-only sum.
+    expect(body.monthlyRevenue).toBe(1000);
+    for (const b of body.revenueByBranch) {
+      expect(b.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  // ─── RBAC + scope baseline ──────────────────────────────────────────────
+
+  it("SUD1: coach GET → 403", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary`,
+      headers: { authorization: `Bearer ${ctx.coachToken}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("SUS1: non-owner-AR GET (no ?country) → revenueByBranch contains only AR branches", async () => {
+    await createArTxn(1000);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const b of body.revenueByBranch) {
+      expect(b.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  // ─── Validation ──────────────────────────────────────────────────────────
+
+  // Note: Fastify default AJV STRIPS unknown query params silently (project-
+  // wide convention; see Plan 02 V3b note + GET /transactions LV5). Wrong-
+  // type query params are still rejected — branchId="abc" returns 400.
+  it("SUV1: branchId=abc → 400 (wrong-type query param)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions/summary?branchId=abc`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
