@@ -64,51 +64,6 @@
         </q-card-section>
       </q-card>
 
-      <!-- ========================================== -->
-      <!-- Programa Section -->
-      <!-- ========================================== -->
-      <q-card flat bordered class="q-mb-md">
-        <q-card-section>
-          <div class="row items-center q-mb-sm">
-            <div class="text-subtitle1 text-weight-bold col">Programa</div>
-            <q-btn
-              flat
-              dense
-              icon="swap_horiz"
-              label="Cambiar"
-              color="primary"
-              @click="showSwapProgramDialog = true"
-            />
-          </div>
-
-          <div v-if="loadingEnrollment" class="flex flex-center q-pa-md">
-            <q-spinner-dots size="24px" color="primary" />
-          </div>
-
-          <template v-else-if="activeEnrollment">
-            <div class="row items-center q-gutter-sm q-mb-xs">
-              <div class="text-body1 text-weight-medium">{{ activeEnrollment.programName }}</div>
-              <q-badge
-                v-if="activeEnrollment.durationWeeks"
-                outline
-                color="grey-7"
-                :label="`${activeEnrollment.durationWeeks} semanas`"
-              />
-              <q-badge v-else outline color="grey-7" label="Indefinido" />
-            </div>
-            <div class="text-caption text-grey-7">
-              Semana {{ activeEnrollment.currentWeek }}
-              <template v-if="activeEnrollment.durationWeeks">
-                de {{ activeEnrollment.durationWeeks }}
-              </template>
-              · Inscripto {{ formatDate(activeEnrollment.enrolledAt) }}
-            </div>
-          </template>
-
-          <div v-else class="text-grey-5 text-italic">Sin programa activo</div>
-        </q-card-section>
-      </q-card>
-
       <!-- Online Subscription Card (if exists) -->
       <SubscriptionCard
         v-if="programaSub"
@@ -229,43 +184,6 @@
       category-filter="online"
       @assigned="onAssigned"
     />
-
-    <!-- Swap Program Dialog -->
-    <q-dialog v-model="showSwapProgramDialog">
-      <q-card style="width: 450px; max-width: 95vw">
-        <q-card-section>
-          <div class="text-h6">Cambiar Programa</div>
-        </q-card-section>
-        <q-separator />
-        <q-card-section>
-          <div v-if="activeEnrollment" class="text-caption text-grey-7 q-mb-md">
-            Programa actual: <strong>{{ activeEnrollment.programName }}</strong>
-          </div>
-          <q-select
-            v-model="swapTargetProgramId"
-            :options="availablePrograms"
-            option-value="id"
-            option-label="name"
-            emit-value
-            map-options
-            label="Nuevo programa"
-            dense
-            outlined
-          />
-        </q-card-section>
-        <q-card-actions align="right" class="q-pa-md">
-          <q-btn flat label="Cancelar" color="grey" @click="showSwapProgramDialog = false" />
-          <q-btn
-            color="primary"
-            label="Confirmar Cambio"
-            icon="swap_horiz"
-            :loading="swapLoading"
-            :disable="!swapTargetProgramId"
-            @click="executeSwapProgram"
-          />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
 
     <!-- Renewal Dialog -->
     <q-dialog v-model="showRenewalDialog">
@@ -390,8 +308,6 @@ import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import { useSubscriptionsApi } from 'src/composables/useSubscriptionsApi';
-import { useProgramsApi } from 'src/composables/useProgramsApi';
-import type { Program, ProgramEnrollment } from 'src/types/program';
 import {
   PLAN_TIER_LABELS,
   STATUS_LABELS,
@@ -415,7 +331,6 @@ import type { SubscriptionScheduleChangeEntry } from 'src/types/subscription';
 const log = createLogger('MemberSubscriptionTab');
 const $q = useQuasar();
 const subsApi = useSubscriptionsApi();
-const programsApi = useProgramsApi();
 
 // =========================================================================
 // Props & Emits
@@ -448,12 +363,6 @@ const showChangeDialog = ref(false);
 const showChangeTurnosDialog = ref(false);
 const scheduleChanges = ref<SubscriptionScheduleChangeEntry[]>([]);
 const loadingScheduleChanges = ref(false);
-const showSwapProgramDialog = ref(false);
-const swapTargetProgramId = ref<number | null>(null);
-const swapLoading = ref(false);
-const loadingEnrollment = ref(false);
-const activeEnrollment = ref<ProgramEnrollment | null>(null);
-const allPrograms = ref<Program[]>([]);
 const showRenewalDialog = ref(false);
 const renewTarget = ref<SubscriptionDetail | null>(null);
 const renewalMethod = ref<PaymentMethod>('cash');
@@ -576,75 +485,8 @@ async function loadClassUsage() {
   }
 }
 
-async function loadEnrollment() {
-  loadingEnrollment.value = true;
-  try {
-    const enrollments = await programsApi.getUserEnrollments(props.userId);
-    activeEnrollment.value = enrollments.find((e) => e.status === 'active') ?? null;
-  } catch (err: unknown) {
-    activeEnrollment.value = null;
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.warn('Error loading enrollment', { error: message, userId: props.userId });
-  } finally {
-    loadingEnrollment.value = false;
-  }
-}
-
-async function loadAllPrograms() {
-  try {
-    allPrograms.value = await programsApi.getPrograms();
-  } catch {
-    allPrograms.value = [];
-  }
-}
-
-const availablePrograms = computed(() =>
-  allPrograms.value.filter((p) => p.isActive && p.id !== activeEnrollment.value?.programId)
-);
-
-function executeSwapProgram() {
-  if (!swapTargetProgramId.value) return;
-
-  // If a presencial member upgrades from Foundation (free) to a paid program, warn about payment
-  const isPresencial = presencialSub.value !== null;
-  const isFromFoundation =
-    activeEnrollment.value?.programName?.toLowerCase().includes('foundation') ?? false;
-  const targetProgram = allPrograms.value.find((p) => p.id === swapTargetProgramId.value);
-  const isToFoundation = targetProgram?.name?.toLowerCase().includes('foundation') ?? false;
-
-  if (isPresencial && isFromFoundation && !isToFoundation) {
-    $q.dialog({
-      title: 'Registrar pago',
-      message: `Estas cambiando de Foundation (incluido) a "${targetProgram?.name}". Asegurate de registrar el pago en Caja antes de confirmar el cambio.`,
-      cancel: { flat: true, label: 'Cancelar' },
-      ok: { color: 'primary', label: 'Ya registre el pago, continuar' },
-    }).onOk(() => doSwapProgram());
-  } else {
-    doSwapProgram();
-  }
-}
-
-async function doSwapProgram() {
-  if (!swapTargetProgramId.value) return;
-  swapLoading.value = true;
-  try {
-    await programsApi.swapProgram(props.userId, swapTargetProgramId.value);
-    $q.notify({ type: 'positive', message: 'Programa cambiado correctamente' });
-    showSwapProgramDialog.value = false;
-    swapTargetProgramId.value = null;
-    await loadEnrollment();
-    emit('subscription-changed');
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error swapping program', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cambiando programa' });
-  } finally {
-    swapLoading.value = false;
-  }
-}
-
 async function refreshAll() {
-  await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage(), loadEnrollment()]);
+  await Promise.all([loadSubscriptions(), loadHistory(), loadClassUsage()]);
   await loadScheduleChanges();
 }
 
@@ -862,6 +704,5 @@ function dayShort(dow: number): string {
 
 onMounted(() => {
   refreshAll();
-  loadAllPrograms();
 });
 </script>

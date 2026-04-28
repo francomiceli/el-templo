@@ -286,52 +286,6 @@ export class ProgramsService {
   // =========================================================================
 
   /**
-   * Swap a member's active program enrollment.
-   * Cancels the current active enrollment (if any) and creates a new one
-   * for the target program.
-   */
-  async swapProgram(userId: number, newProgramId: number): Promise<number> {
-    // Verify target program exists and is active
-    const [program] = await this.db
-      .select({ id: programs.id, name: programs.name })
-      .from(programs)
-      .where(and(eq(programs.id, newProgramId), eq(programs.isActive, true)));
-
-    if (!program) {
-      throw new NotFoundError("Programa no encontrado o inactivo");
-    }
-
-    // Cancel any existing active enrollment
-    await this.db
-      .update(programEnrollments)
-      .set({ status: "cancelled", cancelledAt: new Date() })
-      .where(
-        and(
-          eq(programEnrollments.userId, userId),
-          eq(programEnrollments.status, "active"),
-        ),
-      );
-
-    // Create new enrollment
-    const result = await this.db.insert(programEnrollments).values({
-      userId,
-      programId: newProgramId,
-      status: "active",
-      currentWeek: 1,
-      sessionsCompletedThisWeek: 0,
-    });
-
-    const enrollmentId = Number(result[0].insertId);
-
-    this.log?.info(
-      { userId, newProgramId, enrollmentId, programName: program.name },
-      "Program swapped",
-    );
-
-    return enrollmentId;
-  }
-
-  /**
    * Cancel an enrollment. Per D-29: admin-only action.
    * Only active enrollments can be cancelled.
    */
@@ -546,36 +500,71 @@ export class ProgramsService {
   /**
    * Get member's active enrollment progress including current week's content blocks.
    * Returns null if no active enrollment exists.
+   *
+   * Bundle members can hold multiple active enrollments at once. Resolution:
+   *   1. If users.currentProgramEnrollmentId points at one of the user's
+   *      active enrollments, use that one (the home dropdown drives this).
+   *   2. Otherwise fall back to the first active enrollment — preserves the
+   *      original behavior for single-program members and stale pointers.
+   *
    * IMPORTANT: includes programId for PlanesPage enrollment check per D-47.
    */
   async getMemberProgress(
     userId: number,
   ): Promise<MemberEnrollmentProgress | null> {
-    // Get active enrollment with program fields
-    const enrollmentRows = await this.db
-      .select({
-        enrollmentId: programEnrollments.id,
-        programId: programEnrollments.programId,
-        programName: programs.name,
-        goalPlanType: programs.goalPlanType,
-        currentWeek: programEnrollments.currentWeek,
-        durationWeeks: programs.durationWeeks,
-        sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
-        sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
-        enrolledAt: programEnrollments.enrolledAt,
-      })
-      .from(programEnrollments)
-      .innerJoin(programs, eq(programEnrollments.programId, programs.id))
-      .where(
-        and(
-          eq(programEnrollments.userId, userId),
-          eq(programEnrollments.status, "active"),
-        ),
-      );
+    const [userRow] = await this.db
+      .select({ currentProgramEnrollmentId: users.currentProgramEnrollmentId })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    if (enrollmentRows.length === 0) return null;
+    const baseSelect = () =>
+      this.db
+        .select({
+          enrollmentId: programEnrollments.id,
+          programId: programEnrollments.programId,
+          programName: programs.name,
+          goalPlanType: programs.goalPlanType,
+          currentWeek: programEnrollments.currentWeek,
+          durationWeeks: programs.durationWeeks,
+          sessionsCompletedThisWeek:
+            programEnrollments.sessionsCompletedThisWeek,
+          sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+          enrolledAt: programEnrollments.enrolledAt,
+        })
+        .from(programEnrollments)
+        .innerJoin(programs, eq(programEnrollments.programId, programs.id));
 
-    const enrollment = enrollmentRows[0];
+    // Try the pointer first; fall back to the first active enrollment for
+    // single-program members and stale pointers.
+    let enrollment: Awaited<ReturnType<typeof baseSelect>>[number] | null =
+      null;
+
+    if (userRow?.currentProgramEnrollmentId != null) {
+      const [pointed] = await baseSelect()
+        .where(
+          and(
+            eq(programEnrollments.id, userRow.currentProgramEnrollmentId),
+            eq(programEnrollments.userId, userId),
+            eq(programEnrollments.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (pointed) enrollment = pointed;
+    }
+
+    if (!enrollment) {
+      const [first] = await baseSelect()
+        .where(
+          and(
+            eq(programEnrollments.userId, userId),
+            eq(programEnrollments.status, "active"),
+          ),
+        )
+        .limit(1);
+      if (!first) return null;
+      enrollment = first;
+    }
 
     // Fetch content blocks for current week only, with exercise join
     const blockRows = await this.db

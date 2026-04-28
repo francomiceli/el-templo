@@ -22,6 +22,7 @@
       <ProgramProgressCard
         v-if="programProgress && !programProgress.isLinkedToSubscription"
         :progress="programProgress"
+        @program-changed="onProgramChanged"
       />
 
       <!-- Upsell: virtual users get carousel, presencial with linked program get CTA -->
@@ -280,20 +281,7 @@ async function handleRequestEvaluation() {
   await requestEvaluation()
 }
 
-onMounted(async () => {
-  fetchStats()
-  fetchWeeklySummary()
-  fetchTodayCheckIns()
-
-  // Fetch program enrollment status
-  try {
-    programProgress.value = await getMyProgress()
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
-    log.warn('Failed to load program progress', { error: message })
-  }
-
-  // Fetch week sessions for today's route
+function currentWeekDates(): string[] {
   const now = new Date()
   const dayOfWeek = now.getDay()
   const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
@@ -307,7 +295,37 @@ onMounted(async () => {
       `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
     )
   }
-  fetchWeekSessions(dates)
+  return dates
+}
+
+async function loadProgramProgress(): Promise<void> {
+  try {
+    programProgress.value = await getMyProgress()
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    log.warn('Failed to load program progress', { error: message })
+  }
+}
+
+async function onProgramChanged(): Promise<void> {
+  // Bundle members switching programs from the home card. Re-fetch progress
+  // (the my-progress endpoint follows the server-side current-program pointer)
+  // and the week sessions so today's route + day cards reflect the new program.
+  await Promise.all([loadProgramProgress(), fetchWeekSessions(currentWeekDates())])
+}
+
+onMounted(async () => {
+  fetchStats()
+  fetchWeeklySummary()
+  fetchTodayCheckIns()
+
+  // Hydrate active enrollments so the bundle dropdown on ProgramProgressCard
+  // appears on first load. loadSubscription is only called from /training,
+  // /reservas, /profile, /planes — without this, the dropdown would only
+  // light up after visiting one of those pages.
+  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
+
+  fetchWeekSessions(currentWeekDates())
 
   // Handle pending deep link from notification tap (per D-30)
   const pendingRoute = notificationStore.consumePendingRoute()

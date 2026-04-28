@@ -9,7 +9,7 @@
       <div class="prog-bottom-line" />
 
       <!-- Header + Title + CTA arrow -->
-      <div class="prog-top" @click="goToTraining">
+      <div class="prog-top">
         <div class="prog-top__info">
           <div class="prog-header">
             <div class="prog-badge">
@@ -20,12 +20,46 @@
                   opacity=".9"
                 />
               </svg>
-              <span class="prog-badge-text">Tu Programa</span>
+              <span class="prog-badge-text">{{ badgeText }}</span>
             </div>
           </div>
-          <h3 class="prog-title">{{ progress.programName }}</h3>
+          <div
+            class="prog-title-row"
+            :class="{ 'prog-title-row--switchable': canSwitch }"
+            :tabindex="canSwitch ? 0 : -1"
+            :role="canSwitch ? 'button' : undefined"
+            :aria-haspopup="canSwitch ? 'menu' : undefined"
+          >
+            <h3 class="prog-title">{{ progress.programName }}</h3>
+            <q-icon v-if="canSwitch" name="expand_more" size="20px" class="prog-title-chevron" />
+            <q-menu v-if="canSwitch" anchor="bottom left" self="top left" :offset="[0, 6]">
+              <q-list class="prog-menu">
+                <q-item-label header class="prog-menu__header">Cambiar de programa</q-item-label>
+                <q-item
+                  v-for="enr in enrollments"
+                  :key="enr.id"
+                  v-close-popup
+                  clickable
+                  :active="currentEnrollmentId === enr.id"
+                  :disable="isUpdating"
+                  @click="onSelectEnrollment(enr.id)"
+                >
+                  <q-item-section>
+                    <q-item-label>{{ enr.programName }}</q-item-label>
+                    <q-item-label caption>
+                      Semana {{ enr.currentWeek
+                      }}<span v-if="enr.durationWeeks"> de {{ enr.durationWeeks }}</span>
+                    </q-item-label>
+                  </q-item-section>
+                  <q-item-section v-if="currentEnrollmentId === enr.id" side>
+                    <q-icon name="check" color="positive" />
+                  </q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </div>
         </div>
-        <div class="prog-arrow">
+        <div class="prog-arrow" @click="goToTraining">
           <q-icon name="chevron_right" size="24px" />
         </div>
       </div>
@@ -116,6 +150,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { createLogger } from 'src/utils/logger'
 import { useUserStore } from 'src/stores/useUserStore'
+import { useCurrentProgram } from 'src/modules/training/composables/useCurrentProgram'
 import { buildWhatsAppUrl } from 'src/utils/whatsapp'
 import type { MemberEnrollmentProgress, ContentBlockDetail, ContentBlockType } from '../types'
 
@@ -126,12 +161,35 @@ const props = defineProps<{
   progress: MemberEnrollmentProgress
 }>()
 
+const emit = defineEmits<{
+  (e: 'program-changed'): void
+}>()
+
 const expanded = ref(false)
 const textDialogVisible = ref(false)
 const textDialogTitle = ref('')
 const textDialogContent = ref('')
 
 const userStore = useUserStore()
+
+const { currentEnrollmentId, enrollments, isUpdating, select } = useCurrentProgram()
+
+// Show the dropdown only when the member has more than one active enrollment
+// (i.e. bundle users). Single-program members keep the static title.
+const canSwitch = computed(() => enrollments.value.length > 1)
+
+const badgeText = computed(() => (canSwitch.value ? 'Tus Programas' : 'Tu Programa'))
+
+async function onSelectEnrollment(enrollmentId: number): Promise<void> {
+  if (isUpdating.value) return
+  if (enrollmentId === currentEnrollmentId.value) return
+  try {
+    await select(enrollmentId)
+    emit('program-changed')
+  } catch {
+    // useCurrentProgram already logged; let the UI keep the previous program.
+  }
+}
 
 const weeklyBarWidth = computed(() => {
   if (props.progress.sessionsPerWeekToAdvance === 0) return '1%'
@@ -362,12 +420,12 @@ function openRenewalWhatsApp() {
   display: flex;
   align-items: center;
   gap: 12px;
-  cursor: pointer;
   margin-bottom: 14px;
 }
 
 .prog-top__info {
   flex: 1;
+  min-width: 0;
 }
 
 .prog-arrow {
@@ -380,6 +438,7 @@ function openRenewalWhatsApp() {
   background: linear-gradient(135deg, #c4956a, #a07850);
   color: #fff;
   flex-shrink: 0;
+  cursor: pointer;
 }
 
 .prog-header {
@@ -411,14 +470,77 @@ function openRenewalWhatsApp() {
   text-transform: uppercase;
 }
 
+.prog-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  padding: 4px 0 0;
+
+  &--switchable {
+    cursor: pointer;
+    border-radius: 6px;
+
+    &:hover {
+      background: rgba(196, 149, 106, 0.08);
+    }
+  }
+}
+
+.prog-title-chevron {
+  color: rgba(240, 230, 214, 0.65);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
 .prog-title {
   font-size: 20px;
   font-weight: 600;
   color: #f0e6d6;
   letter-spacing: 0.3px;
   line-height: 1.3;
-  padding: 4px 0 0;
   margin: 0;
+}
+
+.prog-menu {
+  background: linear-gradient(135deg, #1a1612 0%, #2c2318 50%, #1e1914 100%);
+  min-width: 240px;
+  padding: 4px 0;
+
+  :deep(.q-item) {
+    color: #f0e6d6;
+    transition: background 0.15s ease;
+  }
+
+  :deep(.q-item__label) {
+    color: #f0e6d6;
+  }
+
+  :deep(.q-item__label--caption) {
+    color: rgba(240, 230, 214, 0.65);
+  }
+
+  :deep(.q-item--active) {
+    color: #c4956a;
+    background: rgba(196, 149, 106, 0.12);
+
+    .q-item__label,
+    .q-item__label--caption {
+      color: #c4956a;
+    }
+  }
+
+  :deep(.q-item:hover:not(.q-item--active)) {
+    background: rgba(196, 149, 106, 0.08);
+  }
+}
+
+.prog-menu__header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #c4956a;
+  padding: 8px 16px 4px;
 }
 
 .prog-bar-section {

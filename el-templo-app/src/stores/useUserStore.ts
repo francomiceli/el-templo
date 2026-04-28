@@ -112,7 +112,7 @@ export const useUserStore = defineStore('user', () => {
   // Phase 104: current-program pointer + active enrollments listing.
   // Both populated by fetchCurrentProgram() (called from loadSubscription).
   // isUpdatingCurrentProgram is the concurrent-PUT guard surfaced via the
-  // selector's :loading/:disable bindings in ProgramSelector.vue.
+  // selector's :loading/:disable bindings in the home program card dropdown.
   const currentProgram = ref<CurrentProgramData>({ enrollmentId: null, program: null })
   const allActiveEnrollments = ref<EnrollmentSummary[]>([])
   const isUpdatingCurrentProgram = ref<boolean>(false)
