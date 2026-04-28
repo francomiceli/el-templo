@@ -2322,7 +2322,7 @@ Plans:
 
 Plans:
 
-- [ ] 106-01-PLAN.md — RBAC constants + service layer extensions (list/getFinancialHistory/getRowsForTransaction) + relocate PaginatedResult
+- [x] 106-01-PLAN.md — RBAC constants + service layer extensions (list/getFinancialHistory/getRowsForTransaction) + relocate PaginatedResult
 - [ ] 106-02-PLAN.md — POST /transactions + POST /transactions/:id/void (writes) + register financeRoutes in app.ts + integration tests (RBAC matrix, country guards)
 - [ ] 106-03-PLAN.md — GET /transactions (paginated list) + GET /transactions/summary (CajaPage legacy summary) + integration tests
 - [ ] 106-04-PLAN.md — GET /members/:id/financial-history mounted in members/routes.ts (D-04 coach privacy override) + integration tests

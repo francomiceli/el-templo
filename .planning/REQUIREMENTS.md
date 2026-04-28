@@ -33,10 +33,14 @@
 - [ ] **API-01**: `POST /transactions` crea transacción + N links atómicamente en una transacción DB. Payload acepta `member_id`, `kind`, `direction`, `amount`, `currency`, `payment_method`, dates, `branch_id`, `notes`, `links[]`.
 - [ ] **API-02**: `POST /transactions/:id/void` requiere `reason` no vacío, marca `voided_at`/`voided_by`/`void_reason`, y revierte el efecto de los links sobre el saldo derivado de cada target.
 - [ ] **API-03**: `GET /members/:id/financial-history` retorna timeline cronológico de todas las transacciones del miembro (con sus links, info de void, montos). Ordenado por `transaction_date` desc.
-- [ ] **API-04**: `GET /transactions` retorna lista paginada y filtrable por `branch_id`, `kind`, `date_from`, `date_to`, `member_id`, `payment_method`, búsqueda por nombre. Reusa el patrón `PaginatedResult<T>` existente.
-- [ ] **API-05**: RBAC para crear transacción — `POST /transactions` con `kind=adjustment` requiere rol `owner`; otros `kind` requieren `owner | admin | recepcionista`.
-- [ ] **API-06**: RBAC para anular — `POST /transactions/:id/void` requiere rol `owner | admin` (recepcionista excluido por riesgo de abuso).
-- [ ] **API-07**: RBAC para lectura — `GET /transactions` y `GET /members/:id/financial-history` siguen las `PAYMENT_READ_ROLES` actuales (`owner | admin | coach | recepcionista`), con scope por sucursal para no-owners.
+- [x] **API-04
+      **: `GET /transactions` retorna lista paginada y filtrable por `branch_id`, `kind`, `date_from`, `date_to`, `member_id`, `payment_method`, búsqueda por nombre. Reusa el patrón `PaginatedResult<T>` existente.
+- [x] **API-05
+      **: RBAC para crear transacción — `POST /transactions` con `kind=adjustment` requiere rol `owner`; otros `kind` requieren `owner | admin | recepcionista`.
+- [x] **API-06
+      **: RBAC para anular — `POST /transactions/:id/void` requiere rol `owner | admin` (recepcionista excluido por riesgo de abuso).
+- [x] **API-07
+      **: RBAC para lectura — `GET /transactions` y `GET /members/:id/financial-history` siguen las `PAYMENT_READ_ROLES` actuales (`owner | admin | coach | recepcionista`), con scope por sucursal para no-owners.
 
 ### Cobro al Asignar Plan (CHARGE) — Phase 107
 

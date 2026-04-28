@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 105-07-PLAN.md
-last_updated: "2026-04-28T17:58:54.947Z"
+stopped_at: Completed 106-01-PLAN.md
+last_updated: "2026-04-28T19:30:04.973Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 96
   completed_phases: 82
   total_plans: 365
-  completed_plans: 354
+  completed_plans: 355
   percent: 97
 ---
 
@@ -21,12 +21,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff. v4.8 reemplaza el modelo financiero por uno transaccional unificado.
-**Current focus:** Phase 106 — Endpoints Transaccionales (next)
+**Current focus:** Phase 106 — endpoints-transaccionales
 
 ## Current Position
 
-Phase: 105 (modelo-de-datos-drop-del-viejo) — COMPLETE (2026-04-28)
-Plan: 8 of 8 done · human-verify approved
+Phase: 106 (endpoints-transaccionales) — EXECUTING
+Plan: 2 of 6
 Next: Phase 106 — Endpoints Transaccionales
 Last activity: 2026-04-28
 
@@ -144,6 +144,7 @@ _Updated after each plan completion_
 | Phase 105 P05 | 10min | 2 tasks | 4 files |
 | Phase 105 P06 | 67min | 2 tasks | 13 files |
 | Phase Phase 105 PP07 | 5min | 2 tasks tasks | 3 files files |
+| Phase 106 P01 | 10min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -313,6 +314,10 @@ Recent decisions affecting current work:
 - Plan 105-06: 1 reports.test.ts assertion negated from toBeDefined→toBeUndefined for voided-row visibility because Plan 04 D-01 canonical revenue filter (voided_at IS NULL) excludes voided rows from /charges by design; legacy test asserted contradictory behavior (Rule 1 — bug)
 - Plan 105-07: AlumnosPage per-row Deuda column DELETED (not stubbed) — backend Plan 05 removed MemberListItem.debt; banner aggregate (totalDebtByCurrency) preserves admin prioritization signal at list level; per-member saldo detail returns in Phase 108 via dedicated /financial-history endpoint
 - Plan 105-07: usePaymentsApi.ts NOT deleted — Option A selected over Option B (stub CajaPage). Phase 106 owns CajaPage migration to /api/admin/transactions + new useTransactionsApi composable; deleting now would force a stub-and-rewrite-twice pattern. Cost during gap: CajaPage shows 404 banner (admin-staging-only)
+- Plan 106-01: PaginatedResult<T> relocated to shared/types.ts (finance is the second consumer); reports/types.ts re-exports for zero callsite churn
+- Plan 106-01: Drizzle alias() pattern for recorder self-join in TransactionService.list — first non-raw-SQL recorder join in the codebase
+- Plan 106-01: TransactionService.list pagination clamped server-side (max=200) as defense-in-depth (T-106-LISTSIZE) even though route layer also caps via Fastify schema
+- Plan 106-01: Test fixture bug fixes — branch.code <= 20 chars (Rule 1); kind='refund' with empty links forbidden, used 'advance_payment' instead (Rule 1)
 
 ### Pending Todos
 
@@ -324,8 +329,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T15:36:16.109Z
-Stopped at: Completed 105-07-PLAN.md
+Last session: 2026-04-28T19:30:04.950Z
+Stopped at: Completed 106-01-PLAN.md
 Resume file: None
 
 **Planned Phase:** 106 (endpoints-transaccionales) — 6 plans — 2026-04-28T17:58:54.931Z
