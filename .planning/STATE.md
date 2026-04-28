@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 106-02-PLAN.md
-last_updated: "2026-04-28T19:49:12.310Z"
+stopped_at: Completed 106-03-PLAN.md
+last_updated: "2026-04-28T20:24:17.674Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 96
   completed_phases: 82
   total_plans: 365
-  completed_plans: 356
+  completed_plans: 357
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 106 (endpoints-transaccionales) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Next: Phase 106 — Endpoints Transaccionales
 Last activity: 2026-04-28
 
@@ -146,6 +146,7 @@ _Updated after each plan completion_
 | Phase Phase 105 PP07 | 5min | 2 tasks tasks | 3 files files |
 | Phase 106 P01 | 10min | 3 tasks | 7 files |
 | Phase Phase 106 PP02 | 25min | 3 tasks tasks | 5 files files |
+| Phase 106 P03 | 50min | 4 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -321,6 +322,7 @@ Recent decisions affecting current work:
 - Plan 106-01: Test fixture bug fixes — branch.code <= 20 chars (Rule 1); kind='refund' with empty links forbidden, used 'advance_payment' instead (Rule 1)
 - Plan 106-02: country gate uses !request.scope.isOwner (request.scope.country always populated by attachCountryScope default 'AR'); plan-template's if (request.scope.country) check would have run cross-country guard for owners and broken S3/VS2 (Rule 1)
 - Plan 106-02: V3/V4 retargeted from extra-property rejection (plan template) to wrong-type rejection (project reality) because Fastify default AJV STRIPS extra props silently — documented project-wide in current-program.test.ts:340 + trials.test.ts:1116; V3b pins the strip behavior (Rule 1)
+- Owner-aware country resolution: owner without ?country sees ALL countries (no filter); owner with ?country=XX filters; non-owners locked to scope.country (T-106-02 mitigation per Phase 106-03)
 
 ### Pending Todos
 
@@ -332,8 +334,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T19:49:12.291Z
-Stopped at: Completed 106-02-PLAN.md
+Last session: 2026-04-28T20:24:11.004Z
+Stopped at: Completed 106-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 106 (endpoints-transaccionales) — 6 plans — 2026-04-28T17:58:54.931Z
