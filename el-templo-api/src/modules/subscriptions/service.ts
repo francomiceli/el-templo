@@ -41,8 +41,37 @@ import type {
 } from "./types";
 import { AURA_DISCOUNT_TIERS, isOnlinePlan } from "./types";
 import type { TransactionService } from "../finance";
+import type { TxHandle } from "../finance/balance-service";
+import type { PaymentMethod } from "../finance/types";
 import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings } from "./booking-population";
+
+// ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
+
+/**
+ * Discriminator for the 4 flows that record an inflow `plan_charge` transaction:
+ * assignPlan, changePlanNow (proration), changePlanAfterCurrent (scheduled), renew.
+ *
+ * Drives the human-readable `notes` written to financial_transactions, visible
+ * in CajaPage (Barcelona / Chapadmalal) under the "Concepto" column.
+ */
+type ChargeFlow = "assign" | "change-now" | "change-after-current" | "renew";
+
+/**
+ * Operative Spanish labels — assembled into the transaction `notes` template
+ * `Cobro al ${flowLabel} plan ${planName}`. Operations reads these daily.
+ *
+ * - assign                   → "Cobro al asignar plan X"
+ * - change-now               → "Cobro al cambiar a plan X" (proration / inmediato)
+ * - change-after-current     → "Cobro al cambio programado a plan X" (post-período actual)
+ * - renew                    → "Cobro al renovar plan X"
+ */
+const flowLabelMap: Record<ChargeFlow, string> = {
+  assign: "asignar",
+  "change-now": "cambiar a",
+  "change-after-current": "cambio programado a",
+  renew: "renovar",
+};
 
 // Lazy import type to avoid circular dependency at module load time
 type BookingServiceType =
@@ -146,6 +175,114 @@ export class SubscriptionService {
     ) {
       throw new BadRequestError(
         "Planes online deben vincular un programa (linkedProgramId) o dar acceso a todos los programas (grantsAllPrograms)",
+      );
+    }
+  }
+
+  /**
+   * Phase 107 (D-08, D-09, D-10, D-13, D-14, D-16): centraliza el registro
+   * del cobro al asignar / cambiar / renovar plan.
+   *
+   * Validación cap (lanzada antes de cualquier write):
+   *   - amountReceived < 0 → BadRequestError
+   *   - amountReceived > chargeBase → BadRequestError ("no puede exceder…")
+   *
+   * Default backward-compat: si params.amountReceived es undefined, se usa
+   * chargeBase (D-13 — clientes pre-Phase-107 siguen funcionando idénticos).
+   *
+   * Cuando el cobro efectivo es > 0 invoca transactionService.create con el
+   * outer `tx` (D-10 atomicidad — si applyDelta tira, la subscription
+   * rollbackea junto con el financial_transaction y el balance row).
+   *
+   * Cuando es 0 (boarding pass / chargeBase=0 / explícito 0), no crea
+   * transaction (preserva el guard `pricePaid > 0` actual del codebase).
+   *
+   * Cuando el cobro es parcial (0 < amountReceived < chargeBase), emite log
+   * estructurado info con los campos del D-16 — observabilidad operativa
+   * sin queries adhoc a balances.
+   *
+   * El `notes` de la financial_transaction se genera con `flowLabelMap[flow]`
+   * para que ops vea en CajaPage textos como "Cobro al asignar plan
+   * Performance Mensual", "Cobro al cambiar a plan X", "Cobro al cambio
+   * programado a plan X", "Cobro al renovar plan Y".
+   *
+   * INVARIANTE: el método NO abre db.transaction propia. Recibe `tx` del
+   * caller; el caller debe estar dentro de un
+   * `this.db.transaction(async (tx) => { ... })` para que la atomicidad
+   * subscription + transaction + balance funcione como CHARGE-03 exige.
+   */
+  private async recordAssignmentCharge(
+    tx: TxHandle,
+    params: {
+      userId: number;
+      subscriptionId: number;
+      planId: number;
+      planName: string;
+      planCurrency: "ARS" | "EUR";
+      chargeBase: number;
+      amountReceived: number | undefined;
+      paymentMethod: PaymentMethod;
+      branchId: number;
+      effectiveDate: string;
+      adminId: number;
+      flow: ChargeFlow;
+    },
+  ): Promise<void> {
+    if (!this.transactionService) return;
+
+    const amountReceived = params.amountReceived ?? params.chargeBase;
+
+    if (amountReceived < 0) {
+      throw new BadRequestError("amountReceived no puede ser negativo");
+    }
+    if (amountReceived > params.chargeBase) {
+      throw new BadRequestError(
+        `amountReceived no puede exceder el monto a cobrar ($${params.chargeBase})`,
+      );
+    }
+
+    if (amountReceived > 0) {
+      const flowLabel = flowLabelMap[params.flow];
+      await this.transactionService.create(
+        {
+          memberId: params.userId,
+          kind: "plan_charge" as const,
+          direction: "inflow" as const,
+          amount: amountReceived,
+          currency: params.planCurrency,
+          paymentMethod: params.paymentMethod,
+          transactionDate: params.effectiveDate,
+          effectiveDate: params.effectiveDate,
+          branchId: params.branchId,
+          notes: `Cobro al ${flowLabel} plan ${params.planName}`,
+          links: [
+            {
+              targetKind: "subscription" as const,
+              targetId: params.subscriptionId,
+              allocatedAmount: amountReceived,
+            },
+          ],
+        },
+        params.adminId,
+        tx,
+      );
+    }
+
+    if (amountReceived < params.chargeBase) {
+      this.log.info(
+        {
+          userId: params.userId,
+          subscriptionId: params.subscriptionId,
+          planId: params.planId,
+          pricePaid: params.chargeBase,
+          amountReceived,
+          pendingBalance: params.chargeBase - amountReceived,
+          paymentMethod: params.paymentMethod,
+          branchId: params.branchId,
+          recordedBy: params.adminId,
+          flow: params.flow,
+        },
+        "Plan asignado con cobro parcial",
       );
     }
   }
@@ -1099,6 +1236,25 @@ export class SubscriptionService {
         // of truth) and absorbs the Phase 102-07 trial-conversion logic.
         await this.recomputeUserStatus(userId, tx);
 
+        // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
+        // Move the financial_transaction + balance write INSIDE the same tx
+        // that persists the subscription. If applyDelta fails the entire
+        // assignment rollbacks — no orphan subscription without a charge.
+        await this.recordAssignmentCharge(tx, {
+          userId,
+          subscriptionId: newSubscriptionId,
+          planId: plan.id,
+          planName: plan.name,
+          planCurrency: plan.currency,
+          chargeBase: pricePaid,
+          amountReceived: input.amountReceived,
+          paymentMethod: input.paymentMethod,
+          branchId: input.branchId,
+          effectiveDate: input.startDate,
+          adminId,
+          flow: "assign",
+        });
+
         return {
           subscriptionId: newSubscriptionId,
           replacementCredits: credits,
@@ -1109,34 +1265,6 @@ export class SubscriptionService {
     const subscription = await this.getSubscriptionById(subscriptionId);
     if (!subscription) {
       throw new Error("Failed to retrieve newly created subscription");
-    }
-
-    // Auto-record payment for the subscription. Pass the plan's currency
-    // explicitly so the payment-service cross-currency guard is exercised
-    // even via internal callers.
-    if (this.transactionService && pricePaid > 0) {
-      await this.transactionService.create(
-        {
-          memberId: userId,
-          kind: "plan_charge" as const,
-          direction: "inflow" as const,
-          amount: pricePaid,
-          currency: plan.currency,
-          paymentMethod: input.paymentMethod,
-          transactionDate: input.startDate,
-          effectiveDate: input.startDate,
-          branchId: input.branchId,
-          notes: input.notes ?? null,
-          links: [
-            {
-              targetKind: "subscription" as const,
-              targetId: subscriptionId,
-              allocatedAmount: pricePaid,
-            },
-          ],
-        },
-        adminId,
-      );
     }
 
     this.log.info(
@@ -2263,35 +2391,27 @@ export class SubscriptionService {
         // ── Recompute user.status (R5/D-01) ──
         await this.recomputeUserStatus(userId, tx);
 
+        // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
+        // Net (post-proration) charge persisted inside the same tx as the
+        // new subscription. amountReceived defaults to netAmount when the
+        // client doesn't supply it (D-13 backward-compat).
+        await this.recordAssignmentCharge(tx, {
+          userId,
+          subscriptionId: subId,
+          planId: targetPlan.id,
+          planName: targetPlan.name,
+          planCurrency: newPlan.currency,
+          chargeBase: netAmount,
+          amountReceived: input.amountReceived,
+          paymentMethod: input.paymentMethod,
+          branchId: input.branchId,
+          effectiveDate: input.startDate,
+          adminId,
+          flow: "change-now",
+        });
+
         return { newSubscriptionId: subId };
       });
-
-      // Record payment for the net amount. Pass the new plan's currency so
-      // the payment-service cross-currency guard is exercised.
-      if (this.transactionService && netAmount > 0) {
-        await this.transactionService.create(
-          {
-            memberId: userId,
-            kind: "plan_charge" as const,
-            direction: "inflow" as const,
-            amount: netAmount,
-            currency: newPlan.currency,
-            paymentMethod: input.paymentMethod,
-            transactionDate: input.startDate,
-            effectiveDate: input.startDate,
-            branchId: input.branchId,
-            notes: `Cambio de plan: ${existingSub.planName} → ${targetPlan.name}`,
-            links: [
-              {
-                targetKind: "subscription" as const,
-                targetId: newSubscriptionId,
-                allocatedAmount: netAmount,
-              },
-            ],
-          },
-          adminId,
-        );
-      }
 
       // Auto-migrate member from virtual branch to subscription's physical branch
       const [memberForMigration] = await this.db
@@ -2635,34 +2755,26 @@ export class SubscriptionService {
       // with the other mutating methods matters.
       await this.recomputeUserStatus(userId, tx);
 
+      // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
+      // Scheduled changes charge the full new-plan price now (no proration).
+      // Persisted inside the same tx as the scheduled subscription.
+      await this.recordAssignmentCharge(tx, {
+        userId,
+        subscriptionId: subId,
+        planId: targetPlan.id,
+        planName: targetPlan.name,
+        planCurrency: targetPlan.currency,
+        chargeBase: pricePaid,
+        amountReceived: input.amountReceived,
+        paymentMethod: input.paymentMethod,
+        branchId: input.branchId,
+        effectiveDate: today,
+        adminId,
+        flow: "change-after-current",
+      });
+
       return { newSubscriptionId: subId };
     });
-
-    // Record payment now (charged at scheduling time)
-    if (this.transactionService && pricePaid > 0) {
-      await this.transactionService.create(
-        {
-          memberId: userId,
-          kind: "plan_charge" as const,
-          direction: "inflow" as const,
-          amount: pricePaid,
-          currency: targetPlan.currency,
-          paymentMethod: input.paymentMethod,
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: input.branchId,
-          notes: `Cambio de plan programado: ${currentSub.planName} → ${targetPlan.name} (inicia ${newStartDate})`,
-          links: [
-            {
-              targetKind: "subscription" as const,
-              targetId: newSubscriptionId,
-              allocatedAmount: pricePaid,
-            },
-          ],
-        },
-        adminId,
-      );
-    }
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {
@@ -2784,6 +2896,41 @@ export class SubscriptionService {
     // Expired renewal → new sub is "active" immediately.
     const newStatus = oldSubExpired ? "active" : "scheduled";
 
+    // ── Resolve renewBranchId BEFORE opening the tx (Phase 107 — PATTERNS) ──
+    // RenewSubscriptionInput has no branchId — resolve via users.branchId
+    // with fallback to the virtual "Templo Online" branch (D-Migration
+    // Constraints; SPEC §1 requires NOT NULL on financial_transactions.branch_id).
+    // Hoisted out of the tx (was previously executed AFTER tx close) so the
+    // recordAssignmentCharge call inside the tx has the value available.
+    let renewBranchId: number;
+    if (renewalPrice > 0) {
+      const [memberBranchRow] = await this.db
+        .select({ branchId: schema.users.branchId })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      if (memberBranchRow?.branchId) {
+        renewBranchId = memberBranchRow.branchId;
+      } else {
+        const [virtualBranch] = await this.db
+          .select({ id: schema.branches.id })
+          .from(schema.branches)
+          .where(eq(schema.branches.name, "Templo Online"))
+          .limit(1);
+        if (!virtualBranch) {
+          throw new Error(
+            "Branch 'Templo Online' no encontrada al resolver branchId para renew",
+          );
+        }
+        renewBranchId = virtualBranch.id;
+      }
+    } else {
+      // chargeBase is 0 (free renewal) — no transaction will be created so
+      // branchId is unused. Use currentSub.branchId as a stable, validated
+      // fallback rather than throwing for a no-op path.
+      renewBranchId = currentSub.branchId;
+    }
+
     // ── Atomic renewal (Phase 103 D-16) ──
     // Wrap close-old (if expired) + new-sub INSERT + dependent writes in a
     // single transaction so Task 1b's recomputeUserStatus rolls back
@@ -2894,58 +3041,26 @@ export class SubscriptionService {
       // sub flips user back to 'activo' (was 'inactivo' until now).
       await this.recomputeUserStatus(userId, tx);
 
+      // ── Atomic charge recording (Phase 107 D-10 / CHARGE-03) ──
+      // renewBranchId resolved above (out of tx). Charge persisted inside
+      // the same tx as the new subscription — rollback on any failure.
+      await this.recordAssignmentCharge(tx, {
+        userId,
+        subscriptionId: subId,
+        planId: plan.id,
+        planName: plan.name,
+        planCurrency: plan.currency,
+        chargeBase: renewalPrice,
+        amountReceived: input.amountReceived,
+        paymentMethod: input.paymentMethod,
+        branchId: renewBranchId,
+        effectiveDate: today,
+        adminId,
+        flow: "renew",
+      });
+
       return { newSubscriptionId: subId };
     });
-
-    // Record payment linked to the NEW subscription.
-    // RenewSubscriptionInput has no branchId — resolve via users.branchId
-    // with fallback to the virtual "Templo Online" branch (D-Migration
-    // Constraints; SPEC §1 requires NOT NULL on financial_transactions.branch_id).
-    if (this.transactionService && renewalPrice > 0) {
-      let renewBranchId: number;
-      const [memberBranchRow] = await this.db
-        .select({ branchId: schema.users.branchId })
-        .from(schema.users)
-        .where(eq(schema.users.id, userId))
-        .limit(1);
-      if (memberBranchRow?.branchId) {
-        renewBranchId = memberBranchRow.branchId;
-      } else {
-        const [virtualBranch] = await this.db
-          .select({ id: schema.branches.id })
-          .from(schema.branches)
-          .where(eq(schema.branches.name, "Templo Online"))
-          .limit(1);
-        if (!virtualBranch) {
-          throw new Error(
-            "Branch 'Templo Online' no encontrada al resolver branchId para renew",
-          );
-        }
-        renewBranchId = virtualBranch.id;
-      }
-
-      await this.transactionService.create(
-        {
-          memberId: userId,
-          kind: "plan_charge" as const,
-          direction: "inflow" as const,
-          amount: renewalPrice,
-          currency: plan.currency,
-          paymentMethod: input.paymentMethod,
-          transactionDate: today,
-          effectiveDate: today,
-          branchId: renewBranchId,
-          links: [
-            {
-              targetKind: "subscription" as const,
-              targetId: newSubscriptionId,
-              allocatedAmount: renewalPrice,
-            },
-          ],
-        },
-        adminId,
-      );
-    }
 
     const newSub = await this.getSubscriptionById(newSubscriptionId);
     if (!newSub) {

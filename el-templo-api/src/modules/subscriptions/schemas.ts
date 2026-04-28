@@ -305,6 +305,7 @@ export const assignPlanSchema = {
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
+      amountReceived: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },
@@ -347,6 +348,7 @@ export const changePlanSchema = {
       scheduleIds: { type: "array", items: { type: "integer" }, minItems: 1 },
       auraSpend: { type: "integer", minimum: 0 },
       priceOverrideAmount: { type: "integer", minimum: 0 },
+      amountReceived: { type: "integer", minimum: 0 },
       priceOverrideReason: { type: "string" },
       boardingPass: { type: "boolean" },
       notes: { type: "string" },
@@ -377,6 +379,7 @@ export const renewSubscriptionSchema = {
     required: ["paymentMethod"],
     properties: {
       paymentMethod: { type: "string", enum: ["cash", "transfer", "card"] },
+      amountReceived: { type: "integer", minimum: 0 },
     },
   },
   response: {

@@ -228,10 +228,21 @@ export interface AssignPlanInput {
   boardingPass?: boolean;
   notes?: string;
   startMode?: "now" | "after_current";
+  /**
+   * Monto efectivamente recibido al asignar (D-12, D-13).
+   * Backward-compat: undefined → defaults to pricePaid en service layer.
+   * Validación: 0 <= amountReceived <= pricePaid (cap-violación = 400).
+   */
+  amountReceived?: number;
 }
 
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
+  /**
+   * Monto efectivamente recibido al renovar (D-12, D-13).
+   * Backward-compat: undefined → defaults to renewalPrice en service layer.
+   */
+  amountReceived?: number;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────
