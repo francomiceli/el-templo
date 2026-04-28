@@ -295,7 +295,6 @@ import type {
   MemberSegment,
   BranchOption,
   TotalDebtRow,
-  ActiveDebt,
   UserStatus,
 } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS } from 'src/types/member';
@@ -535,23 +534,12 @@ const columns: QTableProps['columns'] = [
   },
 ];
 
-// Phase 101: append a Deuda column when the Solo deudores toggle is on.
-const visibleColumns = computed<QTableProps['columns']>(() => {
-  const base = [...(columns as NonNullable<QTableProps['columns']>)];
-  if (filters.debtorOnly) {
-    base.push({
-      name: 'deuda',
-      label: 'Deuda',
-      field: (row: MemberListItem) => row.debt,
-      align: 'right' as const,
-      sortable: false,
-      style: 'width: 140px',
-      format: (val: ActiveDebt | null) =>
-        val ? `${val.currency} $${val.amount.toLocaleString()}` : '',
-    });
-  }
-  return base;
-});
+// Phase 105 Plan 07: per-row Deuda column dropped because backend Plan 05
+// removed MemberListItem.debt. The aggregate "Deuda total" banner above the
+// table still surfaces outstanding balance by currency. Per-member saldo
+// detail will return as a dedicated AlumnoDetailPage section once Phase 108
+// adds the financial-history endpoint.
+const visibleColumns = computed<QTableProps['columns']>(() => columns);
 
 // =========================================================================
 // Greek level display
