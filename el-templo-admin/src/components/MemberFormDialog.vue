@@ -416,52 +416,6 @@
                 />
               </div>
             </div>
-
-            <!-- ─── Deuda (Phase 101) ─────────────────────────────────────── -->
-            <q-separator class="q-my-md" />
-            <div class="text-subtitle2 text-weight-bold">Deuda</div>
-
-            <q-toggle v-model="form.isDebtor" label="Deudor" color="negative" class="q-mt-sm" />
-
-            <div v-if="form.isDebtor" class="q-gutter-sm q-mt-sm">
-              <div class="row q-col-gutter-sm">
-                <div class="col-12 col-sm-6">
-                  <q-input
-                    v-model.number="form.debtAmount"
-                    label="Monto adeudado *"
-                    type="number"
-                    min="1"
-                    dense
-                    outlined
-                    :rules="[
-                      (val: number | null) =>
-                        (val !== null && val > 0) || 'El monto debe ser mayor a 0',
-                    ]"
-                  />
-                </div>
-                <div class="col-12 col-sm-6">
-                  <q-select
-                    v-model="form.debtCurrency"
-                    :options="debtCurrencyOptions"
-                    label="Moneda"
-                    dense
-                    outlined
-                    emit-value
-                    map-options
-                  />
-                </div>
-              </div>
-              <q-input
-                v-model="form.debtNote"
-                label="Nota (opcional)"
-                type="textarea"
-                rows="2"
-                dense
-                outlined
-                maxlength="500"
-                placeholder="Aclarar de qué suscripción es la deuda (ej: debe $20000 de la mensualidad de abril)"
-              />
-            </div>
           </q-card-section>
 
           <q-separator />
@@ -489,7 +443,6 @@ import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
-import { DEBT_CURRENCY_OPTIONS } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
 
@@ -542,18 +495,7 @@ const form = ref({
   emergencyContactName: '',
   emergencyContactPhone: '',
   emergencyContactRelationship: '',
-  isDebtor: false,
-  debtAmount: null as number | null,
-  debtCurrency: 'ARS' as 'ARS' | 'EUR' | 'USD',
-  debtNote: '',
 });
-
-// Tracks whether the loaded member already had an active debt so we know
-// whether to emit `debt: null` (explicit cancel) on submit when the toggle
-// is off, vs. omitting the field entirely.
-const hadDebtOnLoad = ref(false);
-
-const debtCurrencyOptions = DEBT_CURRENCY_OPTIONS;
 
 // =========================================================================
 // Options
@@ -652,12 +594,7 @@ watch(
         emergencyContactName: props.member.emergencyContactName ?? '',
         emergencyContactPhone: props.member.emergencyContactPhone ?? '',
         emergencyContactRelationship: props.member.emergencyContactRelationship ?? '',
-        isDebtor: props.member.debt != null,
-        debtAmount: props.member.debt?.amount ?? null,
-        debtCurrency: (props.member.debt?.currency as 'ARS' | 'EUR' | 'USD') ?? 'ARS',
-        debtNote: props.member.debt?.note ?? '',
       };
-      hadDebtOnLoad.value = props.member.debt != null;
     } else {
       // Create mode: reset everything
       step.value = 1;
@@ -676,12 +613,7 @@ watch(
         emergencyContactName: '',
         emergencyContactPhone: '',
         emergencyContactRelationship: '',
-        isDebtor: false,
-        debtAmount: null,
-        debtCurrency: 'ARS',
-        debtNote: '',
       };
-      hadDebtOnLoad.value = false;
     }
   }
 );
@@ -697,36 +629,6 @@ async function onSubmit() {
   submitting.value = true;
   try {
     if (isEditMode.value && props.member) {
-      // Build debt payload based on toggle state + whether the member had a
-      // debt on load. Three cases (D-09):
-      //   toggle on          → upsert (object)
-      //   toggle off + had   → explicit cancel (null)
-      //   toggle off + none  → omit key entirely (undefined)
-      let debtPayload:
-        | { amount: number; currency: 'ARS' | 'EUR' | 'USD'; note: string | null }
-        | null
-        | undefined;
-      if (form.value.isDebtor) {
-        if (form.value.debtAmount === null || form.value.debtAmount <= 0) {
-          // Client-side guard (server also validates — D-13).
-          $q.notify({
-            type: 'negative',
-            message: 'El monto de la deuda debe ser mayor a 0',
-          });
-          submitting.value = false;
-          return;
-        }
-        debtPayload = {
-          amount: form.value.debtAmount,
-          currency: form.value.debtCurrency,
-          note: form.value.debtNote.trim() === '' ? null : form.value.debtNote.trim(),
-        };
-      } else if (hadDebtOnLoad.value) {
-        debtPayload = null;
-      } else {
-        debtPayload = undefined;
-      }
-
       const updatePayload: UpdateMemberInput = {
         firstName: form.value.firstName,
         lastName: form.value.lastName,
@@ -742,9 +644,6 @@ async function onSubmit() {
         emergencyContactPhone: form.value.emergencyContactPhone || null,
         emergencyContactRelationship: form.value.emergencyContactRelationship || null,
       };
-      if (debtPayload !== undefined) {
-        updatePayload.debt = debtPayload;
-      }
       await membersApi.updateMember(props.member.id, updatePayload);
       emit('saved', null);
     } else {
