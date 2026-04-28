@@ -36,8 +36,14 @@ type DbInstance = MySql2Database<typeof schema>;
  * callback. Pragmatic typing: same shape as the parent `MySql2Database`,
  * scoped to the running transaction. (D-04 deferred TypeScript brand types
  * to a later phase.)
+ *
+ * Exported so callers in `transaction-service.ts` (Phase 107 Plan 01) and
+ * `subscriptions/service.ts` (Phase 107 Plan 02) can pass-through the same
+ * tx handle for atomic nested operations (D-09 / CHARGE-03).
  */
-type TxHandle = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
+export type TxHandle = Parameters<
+  Parameters<DbInstance["transaction"]>[0]
+>[0];
 
 export class BalanceService {
   constructor(
@@ -46,6 +52,13 @@ export class BalanceService {
   ) {}
 
   /**
+   * Mantiene atómicamente la cache `balances` aplicando el delta de una transacción.
+   *
+   * INVARIANTE (no romper): todas las queries del body usan el `tx` recibido,
+   * nunca `this.db`. Si un caller envuelve `applyDelta` en una `db.transaction`
+   * externa (ej. `subscriptions/service.ts` en Phase 107), `tx` ES la conexión
+   * externa y `this.db` rompería el rollback unificado. Ver SPEC §7-§8.
+   *
    * Apply the cache effect of a freshly-inserted (sign=+1) or freshly-voided
    * (sign=-1) financial transaction onto the `balances` table.
    *
