@@ -184,6 +184,7 @@ export class ProgramsService {
       sessionsPerWeekToAdvance: program.sessionsPerWeekToAdvance,
       auraWeeklyBonus: program.auraWeeklyBonus ?? 15,
       auraCompletionBonus: program.auraCompletionBonus ?? 100,
+      goalPlanType: program.goalPlanType,
       isActive: program.isActive,
       createdAt: program.createdAt.toISOString(),
       contentBlocks,
