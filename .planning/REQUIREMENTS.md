@@ -30,8 +30,10 @@
 
 ### Endpoints API (API) — Phase 106
 
-- [ ] **API-01**: `POST /transactions` crea transacción + N links atómicamente en una transacción DB. Payload acepta `member_id`, `kind`, `direction`, `amount`, `currency`, `payment_method`, dates, `branch_id`, `notes`, `links[]`.
-- [ ] **API-02**: `POST /transactions/:id/void` requiere `reason` no vacío, marca `voided_at`/`voided_by`/`void_reason`, y revierte el efecto de los links sobre el saldo derivado de cada target.
+- [x] **API-01
+      **: `POST /transactions` crea transacción + N links atómicamente en una transacción DB. Payload acepta `member_id`, `kind`, `direction`, `amount`, `currency`, `payment_method`, dates, `branch_id`, `notes`, `links[]`.
+- [x] **API-02
+      **: `POST /transactions/:id/void` requiere `reason` no vacío, marca `voided_at`/`voided_by`/`void_reason`, y revierte el efecto de los links sobre el saldo derivado de cada target.
 - [ ] **API-03**: `GET /members/:id/financial-history` retorna timeline cronológico de todas las transacciones del miembro (con sus links, info de void, montos). Ordenado por `transaction_date` desc.
 - [x] **API-04
       **: `GET /transactions` retorna lista paginada y filtrable por `branch_id`, `kind`, `date_from`, `date_to`, `member_id`, `payment_method`, búsqueda por nombre. Reusa el patrón `PaginatedResult<T>` existente.
