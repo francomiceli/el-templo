@@ -2347,12 +2347,12 @@ Plans:
 
 Plans:
 
-- [ ] 107-01-PLAN.md — TransactionService.create + BalanceService aceptan tx? opcional (Wave 1)
-- [ ] 107-02-PLAN.md — Subscriptions backend: types/schemas + helper recordAssignmentCharge + 4 callsites atómicos + log estructurado (Wave 2)
-- [ ] 107-03-PLAN.md — Integration tests charge-on-assign (happy/sad matrix + atomicity D-11) (Wave 3)
-- [ ] 107-04-PLAN.md — Frontend admin types: AssignPlanInput + RenewSubscriptionInput.amountReceived (Wave 1)
-- [ ] 107-05-PLAN.md — AssignPlanDialog UI: bloque Cobro en step Confirmar + banner + disabled + payload (Wave 2, has checkpoint)
-- [ ] 107-06-PLAN.md — VERIFICATION.md + smoke staging D-20 + sign-off prod D-21 (Wave 3, has checkpoint)
+- [x] 107-01-PLAN.md — TransactionService.create + BalanceService aceptan tx? opcional (Wave 1)
+- [x] 107-02-PLAN.md — Subscriptions backend: types/schemas + helper recordAssignmentCharge + 4 callsites atómicos + log estructurado (Wave 2)
+- [x] 107-03-PLAN.md — Integration tests charge-on-assign (happy/sad matrix + atomicity D-11) (Wave 3)
+- [x] 107-04-PLAN.md — Frontend admin types: AssignPlanInput + RenewSubscriptionInput.amountReceived (Wave 1)
+- [x] 107-05-PLAN.md — AssignPlanDialog UI: bloque Cobro en step Confirmar + banner + disabled + payload (Wave 2, has checkpoint)
+- [x] 107-06-PLAN.md — VERIFICATION.md scaffold listo (smoke staging D-20 + sign-off prod D-21 pendientes de acción humana)
 
 ---
 
@@ -2402,13 +2402,13 @@ Plans:
 **Execution Order:**
 Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 108 (Payment UX) → Phase 109 (Caja v2)
 
-| Phase                                     | Plans Complete | Status    | Completed |
-| ----------------------------------------- | -------------- | --------- | --------- |
-| 105. Modelo de Datos + Drop del Viejo     | 7/8            | Executing | —         |
-| 106. Endpoints Transaccionales            | —              | Planned   | —         |
-| 107. Cobro al Asignar Plan                | —              | Planned   | —         |
-| 108. Pago de Saldo + Historial Financiero | —              | Planned   | —         |
-| 109. Caja v2 + Reportes                   | —              | Planned   | —         |
+| Phase                                     | Plans Complete | Status        | Completed |
+| ----------------------------------------- | -------------- | ------------- | --------- |
+| 105. Modelo de Datos + Drop del Viejo     | 7/8            | Executing     | —         |
+| 106. Endpoints Transaccionales            | —              | Planned       | —         |
+| 107. Cobro al Asignar Plan                | 6/6            | Smoke pending | —         |
+| 108. Pago de Saldo + Historial Financiero | —              | Planned       | —         |
+| 109. Caja v2 + Reportes                   | —              | Planned       | —         |
 
 ---
 
