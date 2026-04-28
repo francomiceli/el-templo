@@ -477,17 +477,78 @@
               </q-card-section>
             </q-card>
 
-            <!-- Payment method selector -->
-            <q-select
-              v-model="assignForm.paymentMethod"
-              :options="paymentMethodOptions"
-              label="Metodo de pago *"
-              dense
-              outlined
-              emit-value
-              map-options
-              class="q-mb-md"
-            />
+            <!-- ========================================================== -->
+            <!-- BLOQUE COBRO (Phase 107 D-01..D-07) -->
+            <!-- ========================================================== -->
+            <q-card flat bordered class="q-mb-md">
+              <q-card-section>
+                <div class="text-subtitle1 text-weight-bold q-mb-md">Cobro</div>
+
+                <!-- Plan gratuito (chargeBase = 0): leyenda deshabilitada (D-06) -->
+                <div
+                  v-if="chargeBase === 0"
+                  class="bg-grey-2 q-pa-md rounded-borders q-mb-md"
+                >
+                  <div class="row items-center q-gutter-sm">
+                    <q-icon name="info" size="sm" />
+                    <div class="text-body2">Plan gratuito - sin cobro</div>
+                  </div>
+                </div>
+
+                <!-- Inputs (siempre visibles, deshabilitados si chargeBase = 0) -->
+                <div class="row q-col-gutter-md">
+                  <div class="col-12 col-sm-6">
+                    <q-input
+                      v-model.number="amountReceived"
+                      label="Monto recibido"
+                      type="number"
+                      dense
+                      outlined
+                      prefix="$"
+                      :max="chargeBase"
+                      :min="0"
+                      :disable="chargeBase === 0"
+                      hint="Por defecto se cobra el total. Modificá si el cobro es parcial."
+                    />
+                  </div>
+                  <div class="col-12 col-sm-6">
+                    <q-select
+                      v-model="assignForm.paymentMethod"
+                      :options="paymentMethodOptions"
+                      label="Metodo de pago *"
+                      dense
+                      outlined
+                      emit-value
+                      map-options
+                      :disable="chargeBase === 0"
+                    />
+                  </div>
+                </div>
+
+                <!-- Preview saldo pendiente (CHARGE-02) -->
+                <div
+                  v-if="chargeBase > 0 && amountReceived !== null"
+                  class="q-mt-md text-body2"
+                >
+                  <span class="text-weight-medium">Saldo pendiente:</span>
+                  {{ formatPrice(pendingBalance, displayCurrency) }}
+                </div>
+              </q-card-section>
+            </q-card>
+
+            <!-- Banner cobro parcial (D-03) — above-the-fold tras el bloque Cobro -->
+            <q-card v-if="isPartialCharge" flat bordered class="q-mb-md bg-yellow-1">
+              <q-card-section>
+                <div class="row items-center q-gutter-sm q-mb-sm">
+                  <q-icon name="warning" color="warning" size="sm" />
+                  <div class="text-subtitle2 text-weight-bold">Cobro parcial</div>
+                </div>
+                <div class="text-body2">
+                  El plan se asigna con saldo pendiente. El miembro quedará como deudor por
+                  {{ formatPrice(pendingBalance, displayCurrency) }}.
+                </div>
+              </q-card-section>
+            </q-card>
 
             <!-- Notes -->
             <q-input
@@ -536,9 +597,10 @@
           icon="check"
           :loading="assigning"
           :disable="
-            props.mode === 'change' &&
-            startMode === 'now' &&
-            changePlanPreviewData?.allowed === false
+            (props.mode === 'change' &&
+              startMode === 'now' &&
+              changePlanPreviewData?.allowed === false) ||
+            isCobroInvalid
           "
           @click="onConfirm"
         />
@@ -633,6 +695,14 @@ const assignForm = ref({
 const startMode = ref<'now' | 'after_current'>('now');
 
 const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
+
+// =========================================================================
+// Cobro al asignar (Phase 107 D-01..D-07)
+// =========================================================================
+
+// Monto recibido en caja al asignar/cambiar plan. `null` = no inicializado;
+// se pre-llena con `chargeBase` cuando el usuario entra al step Confirmar.
+const amountReceived = ref<number | null>(null);
 
 // =========================================================================
 // Computed
@@ -762,6 +832,43 @@ const pricingDisplay = computed(() => {
   }
   const base = getBasePrice();
   return { basePrice: base, discountAmount: 0, finalPrice: base };
+});
+
+// Monto base a cobrar — Phase 107 D-02/D-07.
+// - mode='change' + startMode='now' (proration activa) → netAmount del preview.
+// - resto (assign / change-after_current) → finalPrice del pricingDisplay.
+const chargeBase = computed<number>(() => {
+  if (
+    props.mode === 'change' &&
+    startMode.value === 'now' &&
+    changePlanPreviewData.value?.netAmount != null
+  ) {
+    return changePlanPreviewData.value.netAmount;
+  }
+  return pricingDisplay.value.finalPrice ?? 0;
+});
+
+// Cobro parcial activo: hay algo a cobrar y el admin recibió menos. Phase 107 D-03.
+const isPartialCharge = computed<boolean>(
+  () =>
+    chargeBase.value > 0 &&
+    amountReceived.value !== null &&
+    amountReceived.value < chargeBase.value
+);
+
+// Saldo pendiente en vivo (CHARGE-02). Nunca negativo.
+const pendingBalance = computed<number>(() =>
+  Math.max(0, chargeBase.value - (amountReceived.value ?? 0))
+);
+
+// Validación del bloque Cobro — bloquea Confirmar cuando inválido (D-04).
+// chargeBase === 0 (plan gratuito): el bloque queda deshabilitado y NO bloquea Confirmar.
+const isCobroInvalid = computed<boolean>(() => {
+  if (chargeBase.value === 0) return false;
+  if (amountReceived.value === null) return true;
+  if (amountReceived.value < 0) return true;
+  if (amountReceived.value > chargeBase.value) return true;
+  return false;
 });
 
 const calculatedEndDate = computed(() => {
@@ -1005,6 +1112,11 @@ async function executeConfirm() {
         : undefined,
       notes: assignForm.value.notes.trim() || undefined,
       startMode: props.mode === 'change' ? startMode.value : undefined,
+      // Phase 107 D-12/D-13: cobro al asignar. Si chargeBase=0 (plan gratuito)
+      // se omite el campo para no crear transaction; resto envía amountReceived
+      // o undefined (backend defaultea a pricePaid por backward-compat).
+      amountReceived:
+        chargeBase.value === 0 ? undefined : (amountReceived.value ?? undefined),
     };
 
     if (props.mode === 'change') {
@@ -1067,6 +1179,9 @@ watch(
         notes: '',
       };
       startMode.value = 'now';
+      // Phase 107 D-02: reset del cobro al reabrir el dialog. Se pre-llena
+      // automáticamente al entrar al step Confirmar mediante el watch debajo.
+      amountReceived.value = null;
       loadPlans();
     }
   },
@@ -1075,5 +1190,17 @@ watch(
   // immediate the watch would never see that initial open and loadPlans
   // would not run, leaving the plan picker empty.
   { immediate: true }
+);
+
+// Phase 107 D-02: pre-llenar amountReceived con chargeBase la primera vez
+// que el usuario entra al step Confirmar. No se sobrescribe si ya tipeó algo
+// (admin que retrocedió y volvió mantiene su valor).
+watch(
+  [step, chargeBase],
+  ([newStep, base]: [number, number]) => {
+    if (newStep === confirmStep.value && amountReceived.value === null) {
+      amountReceived.value = base;
+    }
+  }
 );
 </script>
