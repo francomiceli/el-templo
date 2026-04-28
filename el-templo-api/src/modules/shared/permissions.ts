@@ -74,3 +74,26 @@ export const SUBSCRIPTION_ROLES = [
 ] as const;
 
 export type AdminRole = (typeof ALL_STAFF_ROLES)[number];
+
+/** Roles that can create finance transactions of operational kinds
+ *  (plan_charge, debt_settlement, refund, advance_payment) — Phase 106 D-02. */
+export const FINANCE_WRITE_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "recepcion",
+] as const;
+
+/** Roles that can create kind=adjustment (sensitive — Phase 106 D-01). */
+export const FINANCE_ADJUSTMENT_ROLES = ["owner", "admin", "gestion"] as const;
+
+/** Roles that can void a finance transaction (Phase 106 D-03 — recepcion excluded for abuse risk). */
+export const FINANCE_VOID_ROLES = ["owner", "admin", "gestion"] as const;
+
+/** Roles that can read finance transactions / financial history (Phase 106 D-04 — coach excluded for privacy). */
+export const FINANCE_READ_ROLES = [
+  "owner",
+  "admin",
+  "gestion",
+  "recepcion",
+] as const;

@@ -146,10 +146,6 @@ export interface TrialConversionReport {
 }
 
 // -- Paginated Result --------------------------------------------------------
-
-export interface PaginatedResult<T> {
-  rows: T[];
-  total: number;
-  page: number;
-  limit: number;
-}
+// Re-exported from shared so finance/ and other modules can consume it
+// without depending on reports/. Phase 106 relocation.
+export { type PaginatedResult } from "../shared/types";
