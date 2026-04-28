@@ -2300,7 +2300,7 @@ Plans:
 - [x] 105-05-PLAN.md — Rewrite members/service.ts Solo-deudores filter against balances + clean members/routes/types/schemas of DebtService
 - [x] 105-06-PLAN.md — Delete payments module + debts-service.ts + schema files + dead tests + dead composable; remove paymentRoutes from app.ts
 - [x] 105-07-PLAN.md — Delete Deuda section from MemberFormDialog.vue + clean types/member.ts + verify AlumnosPage data flow
-- [ ] 105-08-PLAN.md — Final verification sweep (12 SPEC AC checks + typecheck/lint/test green + human smoke)
+- [x] 105-08-PLAN.md — Final verification sweep (12 SPEC AC checks + typecheck/lint/test green + human smoke)
 
 ---
 

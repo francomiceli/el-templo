@@ -83,10 +83,10 @@ End-to-end automated verification of all 12 SPEC §Acceptance Criteria for Phase
 
 ## Tasks Executed
 
-| Task | Name                                                         | Commit  | Files                                    |
-| ---- | ------------------------------------------------------------ | ------- | ---------------------------------------- |
-| 1    | Run automated SPEC acceptance-criteria checklist (12 ACs)    | pending | `.planning/.../105-08-SUMMARY.md`        |
-| 2    | Smoke check UX (Solo deudores + MemberFormDialog Deuda gone) | n/a     | (human-verify checkpoint — not executed) |
+| Task | Name                                                         | Commit                      | Files                                                                                                                                 |
+| ---- | ------------------------------------------------------------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Run automated SPEC acceptance-criteria checklist (12 ACs)    | 739a1989                    | `.planning/.../105-08-SUMMARY.md`                                                                                                     |
+| 2    | Smoke check UX (Solo deudores + MemberFormDialog Deuda gone) | approved by user 2026-04-28 | 6/6 smoke checks OK; 2 expected 404s en CajaPage (usePaymentsApi.ts queda intacto para que Phase 106 migre a /api/admin/transactions) |
 
 ## SPEC §Acceptance Criteria Results
 
@@ -194,9 +194,9 @@ None — Plan 08 introduces no new attack surface; it observes the deployed stat
 - All implementation work (plans 01-07) executed and committed.
 - All automated SPEC §Acceptance Criteria PASS.
 - Migration 0106 applied and tracked.
-- Pending only the human-verify smoke check (Task 2).
+- **Human-verify Task 2: APPROVED by user on 2026-04-28** — 6/6 smoke checks OK. The 2 expected 404s in CajaPage (`usePaymentsApi.ts` calls dropped paymentRoutes endpoints) are intentional and documented for Phase 106 to migrate to `/api/admin/transactions` in a coherent edit.
 
-**After the user types "approved":** Phase 105 is closed; phase 106 (REST endpoints exposing `POST /transactions` + the admin CajaPage migration) is unblocked.
+**Phase 105 is CLOSED.** Phase 106 (REST endpoints exposing `POST /transactions` + the admin CajaPage migration) is unblocked.
 
 ## Self-Check: PASSED
 
