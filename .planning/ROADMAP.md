@@ -2257,3 +2257,145 @@ _Phase 103 added: 2026-04-25 — origin: surfaced friction from Phase 102's deri
 _Phase 104 added: 2026-04-27 — origin: WhatsApp transcripts (.docs/WhatsApp Ptt 2026-04-27 13.30/13.33/13.43.\*) clarifying separation of planes presenciales vs programas virtuales, bundle "Todos los Programas" as upsell, and anti-piracy access control for online-only users_
 
 </details>
+
+<details>
+<summary>v4.8 Modelo Financiero — Transactional Payments + Caja Refactor (Phases 105-109)</summary>
+
+## v4.8 Overview
+
+Reemplaza el modelo financiero actual (`payments` + `debts`) con un modelo transaccional unificado (`financial_transactions` + `transaction_links`) que cubre cobros parciales, saldos pendientes con trazabilidad, anulaciones consistentes, ajustes auditables, y reembolsos/señales en el modelo (UX dedicada de esos dos queda para v4.9+). La página de Caja se rehace sobre el modelo nuevo y refleja la realidad financiera real.
+
+**Empezamos de cero**: las tablas `payments` y `debts` se descartan en Phase 105 sin backfill ni dual-write. No hay deudas activas que preservar.
+
+**Out of scope este milestone:** Mercado Pago / Stripe (v6.x ecosistema), reembolsos como UX dedicada, señales/pagos anticipados como UX dedicada, cierre Z, conciliación bancaria, transferencias inter-miembros como concepto primario.
+
+**Origin:** Pedido de operaciones (Maman, 2026-04-27) por incluir deuda al cargar membresía. Análisis profundo reveló que el requerimiento real es modelado transaccional, no UX puntual. Doc completo en `.planning/research/v48-financial-model-analysis.md`.
+
+## v4.8 Phases
+
+### Phase 105: Modelo de Datos + Drop del Viejo
+
+**Goal:** Crear las tablas `financial_transactions` y `transaction_links` con su schema completo; eliminar las tablas `payments` y `debts` junto con todo el código asociado (módulos, services, types, tests, endpoints, sección "Deudor" del MemberFormDialog); enforced invariantes a nivel service layer (inmutabilidad post-creación, suma de allocated_amount = amount, integridad referencial de links).
+**Depends on:** None (greenfield — empezamos de cero)
+**Requirements:** TXN-01, TXN-02, TXN-03, TXN-04, TXN-05, TXN-06, TXN-07
+**Success Criteria** (what must be TRUE):
+
+1. Tabla `financial_transactions` existe con todos los campos y enums del schema definidos en REQUIREMENTS.md TXN-01
+2. Tabla `transaction_links` (pivot) existe con UNIQUE(transaction_id, target_kind, target_id) e índice secundario por target
+3. Migration SQL generada (manual, no `drizzle-kit generate` para evitar prompts) y committeada
+4. Tablas `payments` y `debts` dropeadas en la misma migration
+5. Código eliminado: módulo `payments/`, `debts-service.ts` y archivos relacionados, sección "Deuda" del `MemberFormDialog`, schema de payments y debts, endpoints viejos
+6. Service layer (`TransactionService` o equivalente) enforced las 3 invariantes con tests unitarios pasando
+7. `pnpm typecheck`, `pnpm lint`, y `pnpm test` pasan limpio (cero referencias colgadas a tablas viejas)
+8. CI pasa end-to-end
+
+**Plans:** TBD
+
+Plans:
+
+- [ ] TBD (run /gsd-spec-phase 105 then /gsd-plan-phase 105 to break down)
+
+---
+
+### Phase 106: Endpoints Transaccionales
+
+**Goal:** Exponer endpoints REST para crear, anular, listar y leer transacciones financieras con RBAC adecuado. El service layer queda completamente usable desde el frontend.
+**Depends on:** Phase 105
+**Requirements:** API-01, API-02, API-03, API-04, API-05, API-06, API-07
+**Success Criteria** (what must be TRUE):
+
+1. `POST /transactions` crea transacción + N links atómicamente en una transacción DB
+2. `POST /transactions/:id/void` requiere `reason` no vacío, marca campos de auditoría, revierte el efecto de los links sobre saldos derivados
+3. `GET /members/:id/financial-history` retorna timeline cronológico ordenado por `transaction_date` desc
+4. `GET /transactions` retorna lista paginada (`PaginatedResult<T>`) con filtros por branch, kind, fechas, member, payment_method, búsqueda por nombre
+5. RBAC enforced: ajustes owner-only, void owner|admin, reads per `PAYMENT_READ_ROLES` con scope por sucursal
+6. Tests de integración cubren happy path + casos de error (RBAC, validación, atomicidad)
+
+**Plans:** TBD
+
+Plans:
+
+- [ ] TBD (run /gsd-spec-phase 106 then /gsd-plan-phase 106 to break down)
+
+---
+
+### Phase 107: Cobro al Asignar Plan
+
+**Goal:** Reemplazar el flujo manual de carga de deuda por un formulario de cobro integrado al asignar/renovar plan. `AssignPlanDialog` gana sección "Cobro", `MemberFormDialog` pierde su sección "Deuda", y asignar plan con cobro parcial genera la transacción + link atómicamente. Cumple el pedido original de operaciones.
+**Depends on:** Phase 106
+**Requirements:** CHARGE-01, CHARGE-02, CHARGE-03, CHARGE-04
+**Success Criteria** (what must be TRUE):
+
+1. `AssignPlanDialog` muestra sección "Cobro" con monto, método de pago, fecha
+2. Cuando monto recibido < `pricePaid`, el dialog muestra preview en vivo del saldo pendiente (ej.: "Saldo pendiente: $10.000 ARS")
+3. Asignar plan + crear `financial_transaction` + crear `transaction_link` ocurre atómicamente; fallo en cualquier paso revierte todos
+4. Sección "Deuda" del `MemberFormDialog` (toggle "Deudor" + monto + moneda + nota) eliminada del form y del API de update de miembro
+5. UAT operativo: admin carga membresía con cobro parcial, perfil del miembro refleja el saldo correctamente, CajaPage registra el cobro real
+
+**Plans:** TBD
+
+Plans:
+
+- [ ] TBD (run /gsd-spec-phase 107 then /gsd-plan-phase 107 to break down)
+
+---
+
+### Phase 108: Pago de Saldo + Historial Financiero
+
+**Goal:** Permitir a admins registrar pagos contra saldos pendientes con split allocation, y proveer un tab de historial financiero en el perfil del miembro.
+**Depends on:** Phase 106
+**Requirements:** PAYMENT-01, PAYMENT-02, PAYMENT-03
+**Success Criteria** (what must be TRUE):
+
+1. Botón "Registrar pago" visible en `AlumnoDetailPage`
+2. Dialog "Registrar pago" lista conceptos con saldo + antigüedad y permite split allocation con validación `Σ allocated = monto total`
+3. Tab "Historial financiero" en perfil muestra timeline cronológico de transacciones con info de void cuando aplica
+4. UAT: admin recibe pago de saldo, lo distribuye entre dos conceptos, ambos saldos reflejan el cambio correctamente; el cobro aparece en CajaPage del día
+
+**Plans:** TBD
+
+Plans:
+
+- [ ] TBD (run /gsd-spec-phase 108 then /gsd-plan-phase 108 to break down)
+
+---
+
+### Phase 109: Caja v2 + Reportes
+
+**Goal:** Actualizar `CajaPage` para reflejar el modelo transaccional con segmentación por `kind`, agregar reporte de aging de deudas pendientes, y actualizar exports Excel.
+**Depends on:** Phase 107, Phase 108 (necesita data fluyendo end-to-end)
+**Requirements:** CAJA-01, CAJA-02, CAJA-03, CAJA-04
+**Success Criteria** (what must be TRUE):
+
+1. `CajaPage` summary segmentado por `kind` (cobros de plan, saldos de deuda, ajustes, reembolsos) además del corte por método y sucursal
+2. Tabla de `CajaPage` muestra columna `kind` + filtro por tipo de transacción
+3. Reporte aging de deudas pendientes accesible desde `ReportesPage`, agrupable por sucursal, plan, antigüedad (0-30, 31-60, 61-90, 90+ días), miembro
+4. Excel export del CajaPage y del aging report actualizado al modelo nuevo (kind, allocated amounts, target del link)
+5. Sanity check end-to-end: ingreso del mes en summary = suma manual de inflows no anulados del mes en `financial_transactions`
+
+**Plans:** TBD
+
+Plans:
+
+- [ ] TBD (run /gsd-spec-phase 109 then /gsd-plan-phase 109 to break down)
+
+---
+
+## v4.8 Progress
+
+**Execution Order:**
+Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 108 (Payment UX) → Phase 109 (Caja v2)
+
+| Phase                                     | Plans Complete | Status  | Completed |
+| ----------------------------------------- | -------------- | ------- | --------- |
+| 105. Modelo de Datos + Drop del Viejo     | —              | Planned | —         |
+| 106. Endpoints Transaccionales            | —              | Planned | —         |
+| 107. Cobro al Asignar Plan                | —              | Planned | —         |
+| 108. Pago de Saldo + Historial Financiero | —              | Planned | —         |
+| 109. Caja v2 + Reportes                   | —              | Planned | —         |
+
+---
+
+_v4.8 added: 2026-04-27 — 5 phases (105-109), 25 requirements (TXN, API, CHARGE, PAYMENT, CAJA). Origin: requerimiento de operaciones por integrar deuda al cargar membresía; análisis reveló necesidad de modelo transaccional. Doc: `.planning/research/v48-financial-model-analysis.md`_
+
+</details>
