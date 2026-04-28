@@ -158,16 +158,36 @@ export class ReportsService {
     const offset = (page - 1) * limit;
 
     const memberAlias = schema.users;
-    const recorderAlias = sql`recorder`;
 
     const conditions = this.buildChargeConditions(filters);
 
     // Count total — join branches so country filter in buildChargeConditions
-    // resolves without reference errors.
+    // resolves without reference errors. Phase 105 D-01: revenue rows are
+    // financial_transactions with kind IN ('plan_charge','debt_settlement')
+    // AND direction='inflow' AND voided_at IS NULL. The transaction_links join
+    // is required because financial_transactions has no subscription_id column
+    // (links go through the pivot, see SPEC §2).
     const [countResult] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
-      .from(schema.payments)
-      .innerJoin(memberAlias, eq(memberAlias.id, schema.payments.memberId))
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.transactionLinks,
+        and(
+          eq(
+            schema.transactionLinks.transactionId,
+            schema.financialTransactions.id,
+          ),
+          eq(schema.transactionLinks.targetKind, "subscription"),
+        ),
+      )
+      .innerJoin(
+        schema.subscriptions,
+        eq(schema.subscriptions.id, schema.transactionLinks.targetId),
+      )
+      .innerJoin(
+        memberAlias,
+        eq(memberAlias.id, schema.financialTransactions.memberId),
+      )
       .innerJoin(schema.branches, eq(schema.branches.id, memberAlias.branchId))
       .where(and(...conditions));
 
@@ -176,26 +196,33 @@ export class ReportsService {
     // Fetch rows — use raw SQL for recorder self-join since drizzle doesn't support
     // multiple aliases on the same table easily. Alias `branches b` so the raw
     // `b.country = ?` predicate from buildChargeConditionsRaw resolves.
+    // Column alias `paymentDate` preserved (sourced from ft.transaction_date)
+    // so the ChargeReportRow mapper at L204+ stays unchanged.
     const rows = await this.db.execute(sql`
       SELECT
-        p.id,
-        p.payment_date AS paymentDate,
+        ft.id,
+        ft.transaction_date AS paymentDate,
         CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, '')) AS memberName,
-        p.member_id AS memberId,
+        ft.member_id AS memberId,
         sp.name AS planName,
-        p.amount,
-        p.currency,
-        p.payment_method AS paymentMethod,
+        ft.amount,
+        ft.currency,
+        ft.payment_method AS paymentMethod,
         CONCAT(COALESCE(r.first_name, ''), ' ', COALESCE(r.last_name, '')) AS recorderName,
-        p.voided_at AS voidedAt
-      FROM payments p
-      INNER JOIN users m ON m.id = p.member_id
+        ft.voided_at AS voidedAt
+      FROM financial_transactions ft
+      INNER JOIN transaction_links tl
+        ON tl.transaction_id = ft.id AND tl.target_kind = 'subscription'
+      INNER JOIN subscriptions s ON s.id = tl.target_id
+      INNER JOIN users m ON m.id = ft.member_id
       INNER JOIN branches b ON b.id = m.branch_id
-      INNER JOIN subscriptions s ON s.id = p.subscription_id
       INNER JOIN subscription_plans sp ON sp.id = s.plan_id
-      INNER JOIN users r ON r.id = p.recorded_by
-      WHERE ${this.buildChargeConditionsRaw(filters)}
-      ORDER BY p.payment_date DESC, p.created_at DESC
+      INNER JOIN users r ON r.id = ft.recorded_by
+      WHERE ft.kind IN ('plan_charge', 'debt_settlement')
+        AND ft.direction = 'inflow'
+        AND ft.voided_at IS NULL
+        AND ${this.buildChargeConditionsRaw(filters)}
+      ORDER BY ft.transaction_date DESC, ft.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `);
 
@@ -430,9 +457,12 @@ export class ReportsService {
           ELSE NULL
         END AS days_to_convert,
         COALESCE((
-          SELECT SUM(p.amount)
-          FROM payments p
-          WHERE p.member_id = ft.user_id AND p.voided_at IS NULL
+          SELECT SUM(fx.amount)
+          FROM financial_transactions fx
+          WHERE fx.member_id = ft.user_id
+            AND fx.voided_at IS NULL
+            AND fx.direction = 'inflow'
+            AND fx.kind IN ('plan_charge', 'debt_settlement')
         ), 0) AS revenue
       FROM ${firstTrialSQL} AS ft
       JOIN users u ON u.id = ft.user_id
@@ -740,7 +770,16 @@ export class ReportsService {
   private buildChargeConditions(
     filters: ChargeReportFilters,
   ): ReturnType<typeof sql>[] {
-    const conditions: ReturnType<typeof sql>[] = [sql`1 = 1`];
+    // Phase 105 D-01: revenue == financial_transactions where kind is a real
+    // cash inflow (plan_charge, debt_settlement) and the row is not voided.
+    // direction='inflow' excludes refunds. These three conditions belong on
+    // every charge-history listing.
+    const conditions: ReturnType<typeof sql>[] = [
+      sql`1 = 1`,
+      sql`${schema.financialTransactions.kind} IN ('plan_charge', 'debt_settlement')`,
+      eq(schema.financialTransactions.direction, "inflow"),
+      isNull(schema.financialTransactions.voidedAt),
+    ];
 
     if (filters.branchId !== undefined) {
       conditions.push(eq(schema.users.branchId, filters.branchId));
@@ -752,16 +791,20 @@ export class ReportsService {
 
     if (filters.dateFrom) {
       conditions.push(
-        sql`${schema.payments.paymentDate} >= ${filters.dateFrom}`,
+        sql`${schema.financialTransactions.transactionDate} >= ${filters.dateFrom}`,
       );
     }
 
     if (filters.dateTo) {
-      conditions.push(sql`${schema.payments.paymentDate} <= ${filters.dateTo}`);
+      conditions.push(
+        sql`${schema.financialTransactions.transactionDate} <= ${filters.dateTo}`,
+      );
     }
 
     if (filters.paymentMethod) {
-      conditions.push(eq(schema.payments.paymentMethod, filters.paymentMethod));
+      conditions.push(
+        eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
+      );
     }
 
     if (filters.search) {
@@ -788,15 +831,15 @@ export class ReportsService {
     }
 
     if (filters.dateFrom) {
-      parts.push(sql`p.payment_date >= ${filters.dateFrom}`);
+      parts.push(sql`ft.transaction_date >= ${filters.dateFrom}`);
     }
 
     if (filters.dateTo) {
-      parts.push(sql`p.payment_date <= ${filters.dateTo}`);
+      parts.push(sql`ft.transaction_date <= ${filters.dateTo}`);
     }
 
     if (filters.paymentMethod) {
-      parts.push(sql`p.payment_method = ${filters.paymentMethod}`);
+      parts.push(sql`ft.payment_method = ${filters.paymentMethod}`);
     }
 
     if (filters.search) {
