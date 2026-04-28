@@ -25,13 +25,11 @@ import type {
   DniCheckResult,
   TotalDebtRow,
 } from "./types";
-import type { DebtService } from "./debts-service";
 
 export class MemberService {
   constructor(
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
-    private debtService: DebtService,
   ) {}
 
   // ─── Member CRUD ───────────────────────────────────────────────────────
@@ -162,13 +160,16 @@ export class MemberService {
       }
     }
 
-    // Phase 101: restrict to users with at least one active (non-cancelled)
-    // debt row. Composite index idx_debts_user_active covers the lookup.
+    // Phase 105 (TXN-04, D-10): restrict to users with at least one
+    // outstanding balance (amount > 0) in the new finance cache. The
+    // composite index idx_balances_amount_member(amount, member_id)
+    // (Plan 01) backs this lookup. Replaces the previous EXISTS against
+    // the dropped `debts` table.
     if (debtorOnly === true) {
       conditions.push(
         sql`EXISTS (
-          SELECT 1 FROM debts d
-          WHERE d.user_id = users.id AND d.is_cancelled = 0
+          SELECT 1 FROM balances b
+          WHERE b.member_id = users.id AND b.amount > 0
         )`,
       );
     }
@@ -264,16 +265,22 @@ export class MemberService {
       .limit(limit)
       .offset(offset);
 
+    // Phase 105 (TXN-04, D-10): outstanding-balance aggregate per currency,
+    // sourced from the `balances` cache (the dropped `debts` table replacement).
+    // Filter `amount > 0` excludes saldo-a-favor rows (D-08 negative amounts)
+    // and saldado rows (D-07 zero amounts kept for audit), so the banner
+    // shows what members still owe. Response shape `TotalDebtRow[]` is
+    // preserved unchanged for the AlumnosPage banner contract.
     const totalDebtPromise = this.db
       .select({
-        currency: schema.debts.currency,
-        amount: sql<number>`CAST(SUM(${schema.debts.amount}) AS SIGNED)`,
+        currency: schema.balances.currency,
+        amount: sql<number>`CAST(SUM(${schema.balances.amount}) AS SIGNED)`,
       })
-      .from(schema.debts)
-      .innerJoin(schema.users, eq(schema.users.id, schema.debts.userId))
+      .from(schema.balances)
+      .innerJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
       .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
-      .where(and(eq(schema.debts.isCancelled, false), whereClause))
-      .groupBy(schema.debts.currency);
+      .where(and(sql`${schema.balances.amount} > 0`, whereClause))
+      .groupBy(schema.balances.currency);
 
     const [countResult, rows, totalDebtRows] = await Promise.all([
       countPromise,
@@ -287,11 +294,10 @@ export class MemberService {
       amount: Number(r.amount),
     }));
 
-    // Phase 101: populate `debt` per row via a single batch lookup (no N+1).
-    const pageUserIds = rows.map((r) => r.id);
-    const debtsByUser =
-      await this.debtService.getActiveDebtsForUsers(pageUserIds);
-
+    // Phase 105 (TXN-04, D-10): per-row `debt` enrichment is gone. The
+    // aggregate banner (totalDebtByCurrency) covers the listing UX; if
+    // Phase 108+ needs per-member breakdowns, a dedicated endpoint will
+    // expose the new finance model directly.
     const members: MemberListItem[] = rows.map((r) => ({
       id: r.id,
       email: r.email,
@@ -309,7 +315,6 @@ export class MemberService {
       segment: r.segment ?? null,
       avatarType: r.avatarType ?? null,
       createdAt: r.createdAt.toISOString(),
-      debt: debtsByUser.get(r.id) ?? null,
       hasUsedTrial: Boolean(r.hasUsedTrial),
     }));
 
@@ -506,9 +511,10 @@ export class MemberService {
    * was still occupying the row). The read side filters by deletedAt IS
    * NULL — no users.status transition needed (the row is hidden everywhere).
    *
-   * FK-bearing history (payments, subscriptions, bookings, debts, aura, etc.)
-   * is deliberately kept intact: the row stays so audit trails and reports
-   * don't change. Listing/reading endpoints filter by deletedAt IS NULL.
+   * FK-bearing history (financial_transactions, subscriptions, bookings,
+   * aura, etc.) is deliberately kept intact: the row stays so audit trails
+   * and reports don't change. Listing/reading endpoints filter by
+   * deletedAt IS NULL.
    *
    * Returns:
    *   - { ok: true }                    on success
