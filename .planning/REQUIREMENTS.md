@@ -13,10 +13,14 @@
 
 ### Modelo de Datos (TXN) — Phase 105
 
-- [ ] **TXN-01**: Tabla `financial_transactions` creada con schema completo: `kind` enum (`plan_charge`, `debt_settlement`, `refund`, `adjustment`, `advance_payment`), `direction` enum (`inflow`, `outflow`), `amount`, `currency`, `payment_method` enum (`cash`, `transfer`, `card`, `aura_credit`, `internal`), `transaction_date`, `effective_date`, `branch_id`, `recorded_by`, `voided_at`, `voided_by`, `void_reason`, `notes`, timestamps.
-- [ ] **TXN-02**: Tabla pivot `transaction_links` creada con `transaction_id`, `target_kind` enum (`subscription`, `debt_balance`, `transaction`), `target_id`, `allocated_amount`, UNIQUE(`transaction_id`, `target_kind`, `target_id`), índice por `target_kind` + `target_id` para lookups eficientes.
-- [ ] **TXN-03**: Tabla `payments` y todo el código relacionado eliminados (módulo `payments/`, schema, types, tests, endpoints).
-- [ ] **TXN-04**: Tabla `debts` y todo el código relacionado eliminados (`debts-service.ts`, schema, types, tests, endpoints, UI "Deudor" en `MemberFormDialog`).
+- [x] **TXN-01
+      **: Tabla `financial_transactions` creada con schema completo: `kind` enum (`plan_charge`, `debt_settlement`, `refund`, `adjustment`, `advance_payment`), `direction` enum (`inflow`, `outflow`), `amount`, `currency`, `payment_method` enum (`cash`, `transfer`, `card`, `aura_credit`, `internal`), `transaction_date`, `effective_date`, `branch_id`, `recorded_by`, `voided_at`, `voided_by`, `void_reason`, `notes`, timestamps.
+- [x] **TXN-02
+      **: Tabla pivot `transaction_links` creada con `transaction_id`, `target_kind` enum (`subscription`, `debt_balance`, `transaction`), `target_id`, `allocated_amount`, UNIQUE(`transaction_id`, `target_kind`, `target_id`), índice por `target_kind` + `target_id` para lookups eficientes.
+- [x] **TXN-03
+      **: Tabla `payments` y todo el código relacionado eliminados (módulo `payments/`, schema, types, tests, endpoints).
+- [x] **TXN-04
+      **: Tabla `debts` y todo el código relacionado eliminados (`debts-service.ts`, schema, types, tests, endpoints, UI "Deudor" en `MemberFormDialog`).
 - [ ] **TXN-05**: Transacciones inmutables post-creación. Service layer no permite UPDATE de `financial_transactions` excepto sobre los campos `voided_at`, `voided_by`, `void_reason`. Modificaciones reales se hacen vía void + recreate.
 - [ ] **TXN-06**: Suma de `allocated_amount` de los links de una transacción = `amount` de la transacción. Service layer rechaza inputs que violen la igualdad. Excepción: transacciones sin links (e.g., `kind='advance_payment'` sin destino aún) son válidas.
 - [ ] **TXN-07**: Integridad referencial de links: `transaction_links.target_id` debe apuntar a una entidad existente del `target_kind` correspondiente al momento de creación. Service layer valida explícitamente.

@@ -2293,7 +2293,7 @@ Reemplaza el modelo financiero actual (`payments` + `debts`) con un modelo trans
 
 Plans:
 
-- [ ] 105-01-PLAN.md — Schema files (financial_transactions, transaction_links, balances) + manual migration 0106 + [BLOCKING] db:migrate apply
+- [x] 105-01-PLAN.md — Schema files (financial_transactions, transaction_links, balances) + manual migration 0106 + [BLOCKING] db:migrate apply
 - [ ] 105-02-PLAN.md — Finance module (TransactionService + BalanceService) + integration tests for invariants/cache/UNIQUE
 - [ ] 105-03-PLAN.md — Swap PaymentService→TransactionService in subscriptions/service.ts (4 callsites) + auth/routes + subscriptions/routes + auto-resume-pauses job
 - [ ] 105-04-PLAN.md — Rewrite analytics/service.ts revenue queries + reports/service.ts queries against financial_transactions

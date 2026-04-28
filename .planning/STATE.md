@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: Defining requirements
-stopped_at: Phase 105 context gathered
-last_updated: "2026-04-28T12:39:03.627Z"
-last_activity: 2026-04-27 — Milestone v4.8 started
+status: executing
+stopped_at: Completed 105-01-PLAN.md
+last_updated: "2026-04-28T13:41:09.151Z"
+last_activity: 2026-04-28
 progress:
-  total_phases: 37
-  completed_phases: 34
-  total_plans: 115
-  completed_plans: 114
-  percent: 99
+  total_phases: 95
+  completed_phases: 81
+  total_plans: 359
+  completed_plans: 347
+  percent: 97
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff. v4.8 reemplaza el modelo financiero por uno transaccional unificado.
-**Current focus:** Milestone v4.8 (Modelo Financiero) — defining requirements
+**Current focus:** Phase 105 — modelo-de-datos-drop-del-viejo
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-27 — Milestone v4.8 started
+Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
+Plan: 2 of 8
+Status: Ready to execute
+Last activity: 2026-04-28
 
 ## Performance Metrics
 
@@ -137,6 +137,7 @@ _Updated after each plan completion_
 | Phase 103 P07 | 5min | 3 tasks | 3 files |
 | Phase 103 P05 | 3 | 2 tasks | 3 files |
 | Phase 104 P04 | 23 min | 3 tasks | 6 files |
+| Phase 105 P01 | 12min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -286,6 +287,9 @@ Recent decisions affecting current work:
 - Plan 103-04: Members API contract migration — drop derived isActiveSubquery (3 sites in service.ts) and project users.status directly; createMember insert is single-owner (status='prueba' as const, BLOCKER 3); analytics countActiveMembers + SlotAttendancePanel hidden refs migrated; legacy ?status=leads/alumnos returns 400 (no shim); admin types/SlotAttendancePanel migrated in lockstep; AlumnosPage/AlumnoDetailPage explicitly deferred to Plan 05.
 - Plan 103-07: New staff_disabled login gate at POST /login closes pre-existing security loophole — non-member roles with staff_disabled=true are now rejected with 401 Cuenta desactivada (was previously enforced only at the column level, never at runtime). staffDisabled is projected ONLY in /login SELECT (sole consumer); /me deliberately omits it to keep auth response surface minimal. Phase 103 R3 grep gate satisfied: only 2 doc-comment matches remain (analytics/users service.ts), no runtime users.isActive references.
 - Plan 103-05: Shared useStatusBadge composable (named exports getColor/getLabel) reused by both AlumnosPage row chip and AlumnoDetailPage header chip; trial counter v-if uses status !== 'activo' to preserve original semantic (visible for freemium/prueba/inactivo, hidden for activo); no shim — single status param replaces dual isActive+leadsOnly logic at all 4 API call sites.
+- Plan 105-01: financial_transactions enums declared inline via mysqlEnum (D-05); TS literals derived via $inferSelect downstream; circular schema imports between financial-transactions.ts and transaction-links.ts work via Drizzle thunks
+- Plan 105-01: transaction_links.target_id has no DB-level FK; service layer enforces heterogeneous integrity by target_kind per SPEC §7. balances.amount is signed int (negatives allowed for saldo a favor per D-08)
+- Plan 105-01: Migration 0106 ordering CREATE×3 then DROP×2 protects against partial-failure data loss; MySQL \_migrations table column is name not filename so verification SQL must use WHERE name=…
 
 ### Pending Todos
 
@@ -297,8 +301,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 105 context gathered
-Resume file: --resume-file
+Last session: 2026-04-28T13:40:58.759Z
+Stopped at: Completed 105-01-PLAN.md
+Resume file: None
 
-**Planned Phase:** 104 (planes-vs-programas-bundle) — 7 plans — 2026-04-27T17:40:45.457Z
+**Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
