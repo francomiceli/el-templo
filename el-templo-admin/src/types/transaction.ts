@@ -22,6 +22,14 @@ export type TransactionDirection = 'inflow' | 'outflow';
  */
 export type PaymentMethod = 'cash' | 'transfer' | 'card' | 'aura_credit' | 'internal';
 
+/**
+ * Legacy 3-key subset preserved for callsites that still bind to the
+ * narrow contract (charges report `ChargeReportParams.paymentMethod`,
+ * assign-plan + renewal selectors). When Phase 109 widens the reports
+ * pipeline this can be removed and call-sites switched to PaymentMethod.
+ */
+export type LegacyPaymentMethod = 'cash' | 'transfer' | 'card';
+
 export type TargetKind = 'subscription' | 'debt_balance' | 'transaction';
 
 // -- Label / color / option maps -------------------------------------------

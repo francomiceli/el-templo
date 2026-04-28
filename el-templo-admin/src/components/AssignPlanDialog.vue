@@ -566,7 +566,7 @@ import {
   type AssignPlanInput,
   type ChangePlanPreview,
 } from 'src/types/subscription';
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
 

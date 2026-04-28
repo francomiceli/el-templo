@@ -148,10 +148,10 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- Payments Table -->
+    <!-- Transactions Table -->
     <!-- ========================================== -->
     <q-table
-      :rows="payments"
+      :rows="transactions"
       :columns="columns"
       row-key="id"
       :loading="loadingTable"
@@ -162,7 +162,7 @@
       <!-- Fecha column -->
       <template #body-cell-fecha="slotProps">
         <q-td :props="slotProps" :class="{ 'text-grey-5': isVoided(slotProps.row) }">
-          {{ formatDate(slotProps.row.paymentDate) }}
+          {{ formatDate(slotProps.row.transactionDate) }}
         </q-td>
       </template>
 
@@ -202,15 +202,15 @@
         </q-td>
       </template>
 
-      <!-- Plan / Periodo column -->
+      <!-- Concepto column (Phase 106 minimal binding) -->
       <template #body-cell-plan="slotProps">
         <q-td :props="slotProps" :class="{ 'text-grey-5': isVoided(slotProps.row) }">
-          <div>{{ slotProps.row.planName ?? '—' }}</div>
-          <div v-if="slotProps.row.subscriptionStartDate" class="text-caption text-grey-6">
-            {{ formatDate(slotProps.row.subscriptionStartDate) }}
-            <template v-if="slotProps.row.subscriptionEndDate">
-              — {{ formatDate(slotProps.row.subscriptionEndDate) }}
-            </template>
+          <div>
+            {{
+              slotProps.row.linkSummary[0]
+                ? `${slotProps.row.linkSummary[0].targetKind} #${slotProps.row.linkSummary[0].targetId}`
+                : '—'
+            }}
           </div>
         </q-td>
       </template>
@@ -227,7 +227,7 @@
         <q-td :props="slotProps">
           <q-btn flat dense round icon="more_vert" size="sm">
             <q-menu>
-              <q-item clickable v-close-popup @click="showPaymentDetails(slotProps.row)">
+              <q-item clickable v-close-popup @click="showTransactionDetails(slotProps.row)">
                 <q-item-section avatar><q-icon name="info" /></q-item-section>
                 <q-item-section>Detalles</q-item-section>
               </q-item>
@@ -261,12 +261,12 @@
       </q-card-section>
     </q-card>
     <!-- ========================================== -->
-    <!-- Payment Details Dialog -->
+    <!-- Transaction Details Dialog -->
     <!-- ========================================== -->
     <q-dialog v-model="showDetailDialog">
-      <q-card v-if="detailPayment" style="width: 480px; max-width: 95vw">
+      <q-card v-if="detailTransaction" style="width: 480px; max-width: 95vw">
         <q-card-section>
-          <div class="text-h6">Detalle del Pago #{{ detailPayment.id }}</div>
+          <div class="text-h6">Detalle de la Transaccion #{{ detailTransaction.id }}</div>
         </q-card-section>
         <q-separator />
         <q-card-section>
@@ -274,77 +274,79 @@
             <q-item>
               <q-item-section>Alumno</q-item-section>
               <q-item-section side class="text-weight-medium">
-                {{ detailPayment.memberName }}
+                {{ detailTransaction.memberName }}
               </q-item-section>
             </q-item>
             <q-item>
               <q-item-section>Monto</q-item-section>
               <q-item-section side class="text-weight-bold text-h6">
-                {{ formatPrice(detailPayment.amount, detailPayment.currency ?? displayCurrency) }}
+                {{
+                  formatPrice(
+                    detailTransaction.amount,
+                    detailTransaction.currency ?? displayCurrency
+                  )
+                }}
               </q-item-section>
             </q-item>
             <q-item>
               <q-item-section>Metodo</q-item-section>
               <q-item-section side>
                 <q-badge
-                  :color="methodColor(detailPayment.paymentMethod)"
-                  :label="methodLabel(detailPayment.paymentMethod)"
+                  :color="methodColor(detailTransaction.paymentMethod)"
+                  :label="methodLabel(detailTransaction.paymentMethod)"
                 />
               </q-item-section>
             </q-item>
             <q-item>
-              <q-item-section>Fecha de pago</q-item-section>
-              <q-item-section side>{{ formatDate(detailPayment.paymentDate) }}</q-item-section>
+              <q-item-section>Fecha</q-item-section>
+              <q-item-section side>
+                {{ formatDate(detailTransaction.transactionDate) }}
+              </q-item-section>
+            </q-item>
+            <q-item>
+              <q-item-section>Fecha efectiva</q-item-section>
+              <q-item-section side>
+                {{ formatDate(detailTransaction.effectiveDate) }}
+              </q-item-section>
             </q-item>
             <q-separator spaced />
             <q-item>
-              <q-item-section>Plan</q-item-section>
+              <q-item-section>Concepto</q-item-section>
               <q-item-section side class="text-weight-medium">
-                {{ detailPayment.planName ?? '—' }}
+                {{
+                  detailTransaction.linkSummary[0]
+                    ? `${detailTransaction.linkSummary[0].targetKind} #${detailTransaction.linkSummary[0].targetId}`
+                    : '—'
+                }}
               </q-item-section>
             </q-item>
-            <q-item v-if="detailPayment.subscriptionStartDate">
-              <q-item-section>Periodo</q-item-section>
-              <q-item-section side>
-                {{ formatDate(detailPayment.subscriptionStartDate) }}
-                <template v-if="detailPayment.subscriptionEndDate">
-                  — {{ formatDate(detailPayment.subscriptionEndDate) }}
-                </template>
-              </q-item-section>
+            <q-item>
+              <q-item-section>Sucursal</q-item-section>
+              <q-item-section side>{{ detailTransaction.branchName }}</q-item-section>
             </q-item>
             <q-separator spaced />
             <q-item>
               <q-item-section>Registrado por</q-item-section>
-              <q-item-section side>{{ detailPayment.recorderName }}</q-item-section>
+              <q-item-section side>{{ detailTransaction.recorderName }}</q-item-section>
             </q-item>
-            <q-item>
-              <q-item-section>Fecha registro</q-item-section>
-              <q-item-section side>{{ formatDate(detailPayment.createdAt) }}</q-item-section>
-            </q-item>
-            <q-item v-if="detailPayment.reference">
-              <q-item-section>Referencia</q-item-section>
-              <q-item-section side>{{ detailPayment.reference }}</q-item-section>
-            </q-item>
-            <q-item v-if="detailPayment.notes">
+            <q-item v-if="detailTransaction.notes">
               <q-item-section>Notas</q-item-section>
-              <q-item-section side class="text-italic">{{ detailPayment.notes }}</q-item-section>
+              <q-item-section side class="text-italic">
+                {{ detailTransaction.notes }}
+              </q-item-section>
             </q-item>
-            <template v-if="isVoided(detailPayment)">
+            <template v-if="isVoided(detailTransaction)">
               <q-separator spaced />
               <q-item>
                 <q-item-section>
                   <q-badge color="negative" label="ANULADO" class="q-pa-xs" />
                 </q-item-section>
               </q-item>
-              <q-item>
-                <q-item-section>Motivo</q-item-section>
-                <q-item-section side class="text-negative text-italic">
-                  {{ detailPayment.voidReason ?? 'Sin motivo' }}
-                </q-item-section>
-              </q-item>
-              <q-item v-if="detailPayment.voidedAt">
+              <q-item v-if="detailTransaction.voidedAt">
                 <q-item-section>Fecha anulacion</q-item-section>
-                <q-item-section side>{{ formatDate(detailPayment.voidedAt) }}</q-item-section>
+                <q-item-section side>
+                  {{ formatDate(detailTransaction.voidedAt) }}
+                </q-item-section>
               </q-item>
             </template>
           </q-list>
@@ -365,24 +367,24 @@ import type { QTableProps } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { formatDate } from 'src/utils/format-date';
 import { formatPrice } from 'src/utils/format-price';
-import { usePaymentsApi } from 'src/composables/usePaymentsApi';
+import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
-  PAYMENT_METHOD_OPTIONS,
-  type PaymentListItem,
+  PAYMENT_METHOD_FILTER_OPTIONS,
+  type TransactionListItem,
   type PaymentMethod,
-  type FinancialSummary,
-} from 'src/types/payment';
+  type FinanceSummary,
+} from 'src/types/transaction';
 import type { BranchOption } from 'src/types/member';
 
 const log = createLogger('CajaPage');
 const $q = useQuasar();
 const router = useRouter();
 const membersApi = useMembersApi();
-const paymentsApi = usePaymentsApi();
+const transactionsApi = useTransactionsApi();
 const authStore = useAuthStore();
 
 // =========================================================================
@@ -407,20 +409,20 @@ const displayCurrency = computed<'ARS' | 'EUR'>(() =>
 
 async function onCountryChange() {
   tablePagination.value.page = 1;
-  await Promise.all([loadSummary(), loadPayments()]);
+  await Promise.all([loadSummary(), loadTransactions()]);
 }
 
 // =========================================================================
 // State
 // =========================================================================
 
-const payments = ref<PaymentListItem[]>([]);
+const transactions = ref<TransactionListItem[]>([]);
 const loadingTable = ref(false);
 const loadingSummary = ref(false);
 
-const summary = reactive<FinancialSummary>({
+const summary = reactive<FinanceSummary>({
   monthlyRevenue: 0,
-  revenueByMethod: { cash: 0, transfer: 0, card: 0 },
+  revenueByMethod: { cash: 0, transfer: 0, card: 0, aura_credit: 0, internal: 0 },
   revenueByBranch: [],
 });
 
@@ -457,18 +459,28 @@ const branchFilterOptions = ref<Array<{ label: string; value: number | null }>>(
   { label: 'Todas', value: null },
 ]);
 
-const methodFilterOptions = [{ label: 'Todos', value: null }, ...PAYMENT_METHOD_OPTIONS];
+const methodFilterOptions = [{ label: 'Todos', value: null }, ...PAYMENT_METHOD_FILTER_OPTIONS];
 
 // =========================================================================
 // Table columns
 // =========================================================================
 
 const columns: QTableProps['columns'] = [
-  { name: 'fecha', label: 'Fecha', field: 'paymentDate', align: 'left', sortable: false },
+  { name: 'fecha', label: 'Fecha', field: 'transactionDate', align: 'left', sortable: false },
   { name: 'alumno', label: 'Alumno', field: 'memberName', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'metodo', label: 'Metodo', field: 'paymentMethod', align: 'left', sortable: false },
-  { name: 'plan', label: 'Plan / Periodo', field: 'planName', align: 'left', sortable: false },
+  {
+    name: 'plan',
+    label: 'Concepto',
+    // Phase 106 minimal binding — Phase 109 will replace with a richer
+    // kind-driven concept label (e.g. plan name + period). For now we
+    // surface the first link target as "<targetKind> #<targetId>".
+    field: (row: TransactionListItem) =>
+      row.linkSummary[0] ? `${row.linkSummary[0].targetKind} #${row.linkSummary[0].targetId}` : '—',
+    align: 'left',
+    sortable: false,
+  },
   {
     name: 'registrado',
     label: 'Registrado por',
@@ -490,8 +502,8 @@ const columns: QTableProps['columns'] = [
 // Display helpers
 // =========================================================================
 
-function isVoided(payment: PaymentListItem): boolean {
-  return payment.voidedAt !== null;
+function isVoided(transaction: TransactionListItem): boolean {
+  return transaction.voidedAt !== null;
 }
 
 function methodLabel(method: PaymentMethod): string {
@@ -522,12 +534,12 @@ async function loadBranches() {
 async function loadSummary() {
   loadingSummary.value = true;
   try {
-    const data = await paymentsApi.getFinancialSummary(
-      filters.branchId ?? undefined,
-      dateRange.value.dateFrom,
-      dateRange.value.dateTo,
-      isOwner.value ? selectedCountry.value : undefined
-    );
+    const data = await transactionsApi.getSummary({
+      branchId: filters.branchId ?? undefined,
+      dateFrom: dateRange.value.dateFrom,
+      dateTo: dateRange.value.dateTo,
+      country: isOwner.value ? selectedCountry.value : undefined,
+    });
     summary.monthlyRevenue = data.monthlyRevenue;
     summary.revenueByMethod = data.revenueByMethod;
     summary.revenueByBranch = data.revenueByBranch;
@@ -539,39 +551,46 @@ async function loadSummary() {
   }
 }
 
-async function loadPayments() {
+async function loadTransactions() {
   loadingTable.value = true;
   try {
-    const result = await paymentsApi.listPayments({
+    // Phase 106 scope: bind to the inflow revenue types only so the
+    // Caja list keeps its "cobros" semantics (the legacy /payments
+    // endpoint was inherently inflow-only). We only request
+    // plan_charge here; debt_settlement transactions surface in the
+    // member financial-history endpoint (Plan 04). Phase 109 widens
+    // CajaPage to a unified transaction view with a kind dropdown.
+    const result = await transactionsApi.listTransactions({
       search: filters.search || undefined,
       branchId: filters.branchId ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
       paymentMethod: filters.paymentMethod ?? undefined,
+      kind: 'plan_charge',
       dateFrom: dateRange.value.dateFrom,
       dateTo: dateRange.value.dateTo,
       page: tablePagination.value.page,
       limit: tablePagination.value.rowsPerPage,
     });
-    payments.value = result.payments;
+    transactions.value = result.rows;
     tablePagination.value.rowsNumber = result.total;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading payments', { error: message });
-    $q.notify({ type: 'negative', message: 'Error cargando pagos' });
+    log.error('Error loading transactions', { error: message });
+    $q.notify({ type: 'negative', message: 'Error cargando transacciones' });
   } finally {
     loadingTable.value = false;
   }
 }
 
 // =========================================================================
-// Payment details
+// Transaction details
 // =========================================================================
 
-const detailPayment = ref<PaymentListItem | null>(null);
+const detailTransaction = ref<TransactionListItem | null>(null);
 const showDetailDialog = ref(false);
 
-function showPaymentDetails(payment: PaymentListItem) {
-  detailPayment.value = payment;
+function showTransactionDetails(transaction: TransactionListItem) {
+  detailTransaction.value = transaction;
   showDetailDialog.value = true;
 }
 
@@ -579,10 +598,10 @@ function showPaymentDetails(payment: PaymentListItem) {
 // Void action
 // =========================================================================
 
-function confirmVoid(payment: PaymentListItem) {
+function confirmVoid(transaction: TransactionListItem) {
   $q.dialog({
-    title: 'Anular pago',
-    message: `Anular el pago de ${formatPrice(payment.amount, payment.currency ?? displayCurrency.value)} de ${payment.memberName}? Esta accion no se puede deshacer.`,
+    title: 'Anular transaccion',
+    message: `Anular la transaccion de ${formatPrice(transaction.amount, transaction.currency ?? displayCurrency.value)} de ${transaction.memberName}? Esta accion no se puede deshacer.`,
     prompt: {
       model: '',
       type: 'textarea',
@@ -593,14 +612,14 @@ function confirmVoid(payment: PaymentListItem) {
     ok: { color: 'negative', label: 'Anular' },
   }).onOk(async (reason: string) => {
     try {
-      await paymentsApi.voidPayment(payment.id, reason.trim());
-      $q.notify({ type: 'positive', message: 'Pago anulado' });
-      loadPayments();
+      await transactionsApi.voidTransaction(transaction.id, reason.trim());
+      $q.notify({ type: 'positive', message: 'Transaccion anulada' });
+      loadTransactions();
       loadSummary();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error desconocido';
-      log.error('Error voiding payment', { error: message });
-      $q.notify({ type: 'negative', message: 'Error anulando pago' });
+      log.error('Error voiding transaction', { error: message });
+      $q.notify({ type: 'negative', message: 'Error anulando transaccion' });
     }
   });
 }
@@ -611,14 +630,14 @@ function confirmVoid(payment: PaymentListItem) {
 
 function onFilterChange() {
   tablePagination.value.page = 1;
-  loadPayments();
+  loadTransactions();
   loadSummary();
 }
 
 function onTableRequest(props: { pagination: { page: number; rowsPerPage: number } }) {
   tablePagination.value.page = props.pagination.page;
   tablePagination.value.rowsPerPage = props.pagination.rowsPerPage;
-  loadPayments();
+  loadTransactions();
 }
 
 function goToMember(memberId: number) {
@@ -632,6 +651,6 @@ function goToMember(memberId: number) {
 onMounted(() => {
   loadBranches();
   loadSummary();
-  loadPayments();
+  loadTransactions();
 });
 </script>

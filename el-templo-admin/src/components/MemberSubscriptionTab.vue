@@ -321,7 +321,7 @@ import {
   type PlanCategory,
   type SubscriptionStatus,
 } from 'src/types/subscription';
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/payment';
+import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
 import EditSubscriptionStartDateDialog from 'src/components/EditSubscriptionStartDateDialog.vue';

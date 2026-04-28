@@ -169,7 +169,7 @@ export interface UpdatePlanInput {
   grantsAllPrograms?: boolean;
 }
 
-import type { PaymentMethod } from './payment';
+import type { PaymentMethod } from './transaction';
 
 // ─── Subscription Types ─────────────────────────────────────────────────────
 

@@ -666,7 +666,8 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_OPTIONS,
   type PaymentMethod,
-} from 'src/types/payment';
+  type LegacyPaymentMethod,
+} from 'src/types/transaction';
 import type {
   AccessReportRow,
   ChargeReportRow,
@@ -997,7 +998,7 @@ const showChargesCustomRange = ref(false);
 const chargesCustomFrom = ref(chargesDateFrom.value);
 const chargesCustomTo = ref(chargesDateTo.value);
 const chargesSearch = ref('');
-const chargesPaymentMethod = ref<PaymentMethod | undefined>(undefined);
+const chargesPaymentMethod = ref<LegacyPaymentMethod | undefined>(undefined);
 const chargesRows = ref<ChargeReportRow[]>([]);
 const loadingCharges = ref(false);
 const exportingCharges = ref(false);
