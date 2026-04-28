@@ -2324,10 +2324,10 @@ Plans:
 
 - [x] 106-01-PLAN.md — RBAC constants + service layer extensions (list/getFinancialHistory/getRowsForTransaction) + relocate PaginatedResult
 - [x] 106-02-PLAN.md — POST /transactions + POST /transactions/:id/void (writes) + register financeRoutes in app.ts + integration tests (RBAC matrix, country guards)
-- [ ] 106-03-PLAN.md — GET /transactions (paginated list) + GET /transactions/summary (CajaPage legacy summary) + integration tests
-- [ ] 106-04-PLAN.md — GET /members/:id/financial-history mounted in members/routes.ts (D-04 coach privacy override) + integration tests
-- [ ] 106-05-PLAN.md — Frontend admin migration: useTransactionsApi + transaction.ts types + CajaPage.vue swap; delete legacy usePaymentsApi + payment.ts (closes prod 404s — D-14)
-- [ ] 106-06-PLAN.md — End-of-phase verification + VERIFICATION.md + human-verify checkpoint
+- [x] 106-03-PLAN.md — GET /transactions (paginated list) + GET /transactions/summary (CajaPage legacy summary) + integration tests
+- [x] 106-04-PLAN.md — GET /members/:id/financial-history mounted in members/routes.ts (D-04 coach privacy override) + integration tests
+- [x] 106-05-PLAN.md — Frontend admin migration: useTransactionsApi + transaction.ts types + CajaPage.vue swap; delete legacy usePaymentsApi + payment.ts (closes prod 404s — D-14)
+- [x] 106-06-PLAN.md — End-of-phase verification + VERIFICATION.md + human-verify checkpoint
 
 ---
 

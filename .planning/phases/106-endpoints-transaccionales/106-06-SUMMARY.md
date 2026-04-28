@@ -127,9 +127,19 @@ $ grep -cF "scope por sucursal" .planning/REQUIREMENTS.md                → 0 (
 
 All gates pass.
 
-### Task 2: PENDING — Human-verify checkpoint
+### Task 2: APPROVED — Human-verify checkpoint complete (2026-04-28)
 
-See "Pending Human Verification" section below.
+Smoke check completed by user in dev environment. All 8 verification points passed:
+
+- CajaPage loads with no `/admin/payments/*` requests
+- Summary cards + table populate against new endpoints
+- Filters reload correctly
+- Owner country toggle works
+- Void flow works
+- RBAC matrix correct at boundary
+- Network + console clean
+
+D-14 production 404 closure confirmed locally. Ready for staging push when user decides.
 
 ## Task Commits
 
@@ -137,7 +147,7 @@ See "Pending Human Verification" section below.
 | ---- | ---------- | ---- | ------------------------------------------------------------------ |
 | 1    | `7847eb44` | docs | VERIFICATION.md with traceability + Spec Divergence Reconciliation |
 | 1b   | `824ea27b` | docs | Reconcile REQUIREMENTS.md API-05/06/07 with D-01..D-04 + footnotes |
-| 2    | (pending)  | —    | Awaiting human-verify checkpoint                                   |
+| 2    | (approved) | docs | Human-verify smoke complete 2026-04-28 — 8/8 points OK             |
 
 ## Pending Human Verification (Task 2 — CHECKPOINT)
 
