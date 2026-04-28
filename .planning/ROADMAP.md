@@ -2294,12 +2294,12 @@ Reemplaza el modelo financiero actual (`payments` + `debts`) con un modelo trans
 Plans:
 
 - [x] 105-01-PLAN.md — Schema files (financial_transactions, transaction_links, balances) + manual migration 0106 + [BLOCKING] db:migrate apply
-- [ ] 105-02-PLAN.md — Finance module (TransactionService + BalanceService) + integration tests for invariants/cache/UNIQUE
-- [ ] 105-03-PLAN.md — Swap PaymentService→TransactionService in subscriptions/service.ts (4 callsites) + auth/routes + subscriptions/routes + auto-resume-pauses job
-- [ ] 105-04-PLAN.md — Rewrite analytics/service.ts revenue queries + reports/service.ts queries against financial_transactions
-- [ ] 105-05-PLAN.md — Rewrite members/service.ts Solo-deudores filter against balances + clean members/routes/types/schemas of DebtService
-- [ ] 105-06-PLAN.md — Delete payments module + debts-service.ts + schema files + dead tests + dead composable; remove paymentRoutes from app.ts
-- [ ] 105-07-PLAN.md — Delete Deuda section from MemberFormDialog.vue + clean types/member.ts + verify AlumnosPage data flow
+- [x] 105-02-PLAN.md — Finance module (TransactionService + BalanceService) + integration tests for invariants/cache/UNIQUE
+- [x] 105-03-PLAN.md — Swap PaymentService→TransactionService in subscriptions/service.ts (4 callsites) + auth/routes + subscriptions/routes + auto-resume-pauses job
+- [x] 105-04-PLAN.md — Rewrite analytics/service.ts revenue queries + reports/service.ts queries against financial_transactions
+- [x] 105-05-PLAN.md — Rewrite members/service.ts Solo-deudores filter against balances + clean members/routes/types/schemas of DebtService
+- [x] 105-06-PLAN.md — Delete payments module + debts-service.ts + schema files + dead tests + dead composable; remove paymentRoutes from app.ts
+- [x] 105-07-PLAN.md — Delete Deuda section from MemberFormDialog.vue + clean types/member.ts + verify AlumnosPage data flow
 - [ ] 105-08-PLAN.md — Final verification sweep (12 SPEC AC checks + typecheck/lint/test green + human smoke)
 
 ---
@@ -2392,13 +2392,13 @@ Plans:
 **Execution Order:**
 Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 108 (Payment UX) → Phase 109 (Caja v2)
 
-| Phase                                     | Plans Complete | Status  | Completed |
-| ----------------------------------------- | -------------- | ------- | --------- |
-| 105. Modelo de Datos + Drop del Viejo     | —              | Planned | —         |
-| 106. Endpoints Transaccionales            | —              | Planned | —         |
-| 107. Cobro al Asignar Plan                | —              | Planned | —         |
-| 108. Pago de Saldo + Historial Financiero | —              | Planned | —         |
-| 109. Caja v2 + Reportes                   | —              | Planned | —         |
+| Phase                                     | Plans Complete | Status    | Completed |
+| ----------------------------------------- | -------------- | --------- | --------- |
+| 105. Modelo de Datos + Drop del Viejo     | 7/8            | Executing | —         |
+| 106. Endpoints Transaccionales            | —              | Planned   | —         |
+| 107. Cobro al Asignar Plan                | —              | Planned   | —         |
+| 108. Pago de Saldo + Historial Financiero | —              | Planned   | —         |
+| 109. Caja v2 + Reportes                   | —              | Planned   | —         |
 
 ---
 

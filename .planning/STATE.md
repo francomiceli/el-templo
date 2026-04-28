@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-06-PLAN.md
-last_updated: "2026-04-28T15:29:04.293Z"
+stopped_at: Completed 105-07-PLAN.md
+last_updated: "2026-04-28T15:36:25.145Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 352
+  completed_plans: 353
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -143,6 +143,7 @@ _Updated after each plan completion_
 | Phase 105 P04 | 6min | 2 tasks | 2 files |
 | Phase 105 P05 | 10min | 2 tasks | 4 files |
 | Phase 105 P06 | 67min | 2 tasks | 13 files |
+| Phase Phase 105 PP07 | 5min | 2 tasks tasks | 3 files files |
 
 ## Accumulated Context
 
@@ -310,6 +311,8 @@ Recent decisions affecting current work:
 - Plan 105-06: pure-deletion plan with regex-based grep gate; usePaymentsApi.ts admin composable deferred to Plan 07 because CajaPage.vue still consumes it; subscriptions/types.ts inline import('../payments/types').PaymentMethod replaced with top-level import from '../finance/types' (Rule 3 fix); 7 test files migrated from PaymentService DI / schema.payments queries / /api/admin/payments POST helpers to TransactionService + BalanceService DI / financialTransactions+transactionLinks queries / direct ft+tl inserts
 - Plan 105-06: helpers.ts TABLES_TO_CLEAN had stale schema.payments + schema.debts entries that crashed cleanAllTestData with getTableName(undefined) after schema files deleted — both lines removed (Rule 3); test suite recovered from 21/58 file-pass to 58/58
 - Plan 105-06: 1 reports.test.ts assertion negated from toBeDefined→toBeUndefined for voided-row visibility because Plan 04 D-01 canonical revenue filter (voided_at IS NULL) excludes voided rows from /charges by design; legacy test asserted contradictory behavior (Rule 1 — bug)
+- Plan 105-07: AlumnosPage per-row Deuda column DELETED (not stubbed) — backend Plan 05 removed MemberListItem.debt; banner aggregate (totalDebtByCurrency) preserves admin prioritization signal at list level; per-member saldo detail returns in Phase 108 via dedicated /financial-history endpoint
+- Plan 105-07: usePaymentsApi.ts NOT deleted — Option A selected over Option B (stub CajaPage). Phase 106 owns CajaPage migration to /api/admin/transactions + new useTransactionsApi composable; deleting now would force a stub-and-rewrite-twice pattern. Cost during gap: CajaPage shows 404 banner (admin-staging-only)
 
 ### Pending Todos
 
@@ -321,8 +324,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T15:29:04.242Z
-Stopped at: Completed 105-06-PLAN.md
+Last session: 2026-04-28T15:36:16.109Z
+Stopped at: Completed 105-07-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
