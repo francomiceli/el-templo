@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-04-PLAN.md
-last_updated: "2026-04-28T14:08:46.243Z"
+stopped_at: Completed 105-05-PLAN.md
+last_updated: "2026-04-28T14:18:17.878Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 350
-  percent: 97
+  completed_plans: 351
+  percent: 98
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 5 of 8
+Plan: 6 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -141,6 +141,7 @@ _Updated after each plan completion_
 | Phase 105 P02 | 7min | 3 tasks | 5 files |
 | Phase 105 P03 | 4min | 2 tasks | 4 files |
 | Phase 105 P04 | 6min | 2 tasks | 2 files |
+| Phase 105 P05 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -303,6 +304,8 @@ Recent decisions affecting current work:
 - Plan 105-04: D-01 canonical revenue filter (kind IN ('plan_charge','debt_settlement') AND direction='inflow' AND voided_at IS NULL) applied across 4 analytics methods + 4 reports query blocks; getRevenueByBranch dropped users join (branch_id is first-class on financial_transactions); paymentDate alias preserved (sourced from ft.transaction_date) so frontend ChargeReportRow consumers stay unchanged
 - Plan 105-04: getChargeHistory queries (Drizzle count + raw SQL row fetch) join through transaction_links pivot (target_kind='subscription') because financial_transactions has no direct subscription_id; 4-table → 5-table chain preserves response semantics
 - Plan 105-04: getRevenueByMethod tightened payment-method type guard from 'as' cast to literal-union check (T-105-17 defense-in-depth — kind/direction filter already excludes aura_credit/internal but the cast would silently misroute leakage)
+- Plan 105-05: MemberListItem.debt field DELETED (not renamed) — Plan 07 admin frontend must drop AlumnosPage Deuda column + MemberFormDialog Deuda section. TotalDebtRow[] banner contract preserved with new 'outstanding balance' semantics from balances cache.
+- Plan 105-05: PATCH /api/admin/members/:userId hardened with Fastify additionalProperties:false (NOT Zod .strict()) — module convention is Fastify schemas; legacy clients posting isDebtor/debtAmount/debtCurrency/debtNote/debt get HTTP 400 (T-105-18 mitigation).
 
 ### Pending Todos
 
@@ -314,8 +317,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T14:08:39.879Z
-Stopped at: Completed 105-04-PLAN.md
+Last session: 2026-04-28T14:18:17.859Z
+Stopped at: Completed 105-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
