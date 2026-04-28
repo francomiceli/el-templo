@@ -46,8 +46,15 @@ import {
 } from "./schemas";
 import { Workbook } from "exceljs";
 
-import { ADMIN_ROLES, MEMBER_ROLES } from "../shared/permissions";
+import {
+  ADMIN_ROLES,
+  MEMBER_ROLES,
+  FINANCE_READ_ROLES,
+} from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { TransactionService, BalanceService } from "../finance";
+import { financialHistorySchema } from "../finance/schemas";
+import { handleServiceError } from "../shared/error-handler";
 
 /**
  * Check if an error is a MySQL duplicate key error and extract details.
@@ -80,6 +87,12 @@ function isDuplicateKeyError(err: unknown): {
 
 export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   const memberService = new MemberService(fastify.db, fastify.log);
+  const balanceService = new BalanceService(fastify.db, fastify.log);
+  const transactionService = new TransactionService(
+    fastify.db,
+    fastify.log,
+    balanceService,
+  );
 
   /**
    * Guard: require admin role on all routes in this plugin.
@@ -688,6 +701,85 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       const days = Math.max(1, Math.min(365, request.query.days ?? 30));
       const counts = await memberService.getSessionLevelCounts(userId, days);
       return { counts };
+    },
+  );
+
+  // =========================================================================
+  // Financial History (Phase 106-04)
+  // =========================================================================
+
+  // GET /admin/members/:userId/financial-history — D-09 / D-13
+  // Coach is excluded by D-04 even though MEMBER_ROLES (module hook) admits them.
+  // Cross-country reads return 404 to avoid info-leak (T-106-02).
+  fastify.get<{
+    Params: { userId: number };
+    Querystring: { page?: number; limit?: number };
+  }>(
+    "/:userId/financial-history",
+    { schema: financialHistorySchema },
+    async (request, reply) => {
+      try {
+        // D-04 privacy override (FINANCE_READ_ROLES is stricter than
+        // MEMBER_ROLES: it excludes 'coach'). The module-level hook admits
+        // coach because they need other member info; financial history is the
+        // exception per the privacy decision.
+        if (
+          !(FINANCE_READ_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver el historial financiero",
+          });
+        }
+
+        // T-106-02 — verify target member exists and (for non-owners) lives
+        // in a branch that matches the request's country scope. Returns 404
+        // (not 403) for cross-country to mirror DELETE /:userId pattern and
+        // avoid leaking the existence of users outside the caller's country.
+        const [target] = await fastify.db
+          .select({
+            id: schema.users.id,
+            deletedAt: schema.users.deletedAt,
+            branchCountry: schema.branches.country,
+            branchIsVirtual: schema.branches.isVirtual,
+          })
+          .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(eq(schema.users.id, request.params.userId))
+          .limit(1);
+
+        if (!target || target.deletedAt) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        if (
+          !request.scope.isOwner &&
+          !target.branchIsVirtual &&
+          target.branchCountry !== request.scope.country
+        ) {
+          // 404 (not 403) to mirror DELETE /:userId pattern (info-leak avoid).
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        return await transactionService.getFinancialHistory(
+          request.params.userId,
+          {
+            page: request.query.page,
+            limit: request.query.limit,
+          },
+        );
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get financial history");
+      }
     },
   );
 
