@@ -2289,11 +2289,18 @@ Reemplaza el modelo financiero actual (`payments` + `debts`) con un modelo trans
 7. `pnpm typecheck`, `pnpm lint`, y `pnpm test` pasan limpio (cero referencias colgadas a tablas viejas)
 8. CI pasa end-to-end
 
-**Plans:** TBD
+**Plans:** 8 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-spec-phase 105 then /gsd-plan-phase 105 to break down)
+- [ ] 105-01-PLAN.md — Schema files (financial_transactions, transaction_links, balances) + manual migration 0106 + [BLOCKING] db:migrate apply
+- [ ] 105-02-PLAN.md — Finance module (TransactionService + BalanceService) + integration tests for invariants/cache/UNIQUE
+- [ ] 105-03-PLAN.md — Swap PaymentService→TransactionService in subscriptions/service.ts (4 callsites) + auth/routes + subscriptions/routes + auto-resume-pauses job
+- [ ] 105-04-PLAN.md — Rewrite analytics/service.ts revenue queries + reports/service.ts queries against financial_transactions
+- [ ] 105-05-PLAN.md — Rewrite members/service.ts Solo-deudores filter against balances + clean members/routes/types/schemas of DebtService
+- [ ] 105-06-PLAN.md — Delete payments module + debts-service.ts + schema files + dead tests + dead composable; remove paymentRoutes from app.ts
+- [ ] 105-07-PLAN.md — Delete Deuda section from MemberFormDialog.vue + clean types/member.ts + verify AlumnosPage data flow
+- [ ] 105-08-PLAN.md — Final verification sweep (12 SPEC AC checks + typecheck/lint/test green + human smoke)
 
 ---
 
