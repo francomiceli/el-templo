@@ -39,11 +39,11 @@
 - [x] **API-04
       **: `GET /transactions` retorna lista paginada y filtrable por `branch_id`, `kind`, `date_from`, `date_to`, `member_id`, `payment_method`, búsqueda por nombre. Reusa el patrón `PaginatedResult<T>` existente.
 - [x] **API-05
-      **: RBAC para crear transacción — `POST /transactions` con `kind=adjustment` requiere rol `owner`; otros `kind` requieren `owner | admin | recepcionista`.
+      **: RBAC para crear transacción — `POST /transactions` con `kind=adjustment` requiere rol `owner | admin | gestion`; otros `kind` (`plan_charge`, `debt_settlement`, `refund`, `advance_payment`) requieren `owner | admin | gestion | recepcion`. [^api-05-reconciliation]
 - [x] **API-06
-      **: RBAC para anular — `POST /transactions/:id/void` requiere rol `owner | admin` (recepcionista excluido por riesgo de abuso).
+      **: RBAC para anular — `POST /transactions/:id/void` requiere rol `owner | admin | gestion` (recepcion excluido por riesgo de abuso). [^api-06-reconciliation]
 - [x] **API-07
-      **: RBAC para lectura — `GET /transactions` y `GET /members/:id/financial-history` siguen las `PAYMENT_READ_ROLES` actuales (`owner | admin | coach | recepcionista`), con scope por sucursal para no-owners.
+      **: RBAC para lectura — `GET /transactions` y `GET /members/:id/financial-history` requieren rol `owner | admin | gestion | recepcion` (coach EXCLUIDO por privacy: el rol coach no necesita ver historial financiero del alumno). Scope por país para no-owners (vía `attachCountryScope`). Owner puede sobre-escribir el scope con `?country=AR|ES`. [^api-07-reconciliation]
 
 ### Cobro al Asignar Plan (CHARGE) — Phase 107
 
@@ -102,3 +102,13 @@
 **Reqs adicionales lockeados a nivel SPEC** (no en REQUIREMENTS.md, pero en el SPEC.md de cada fase):
 
 - Phase 105 SPEC adds: tabla `balances` (cache de saldos pendientes), reescritura de filtro "Solo deudores" en AlumnosPage contra la nueva cache.
+
+---
+
+## Reconciliation Footnotes
+
+[^api-05-reconciliation]: gestion added to both role lists (was: owner-only for adjustment; owner+admin+recepcionista for others). Rationale: gestion already operates caja in the operational model — CAJA_ROLES alignment. Locked by Phase 106 CONTEXT D-01/D-02 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
+
+[^api-06-reconciliation]: gestion added to the void role list. Rationale: consistent with the API-05 widening; recepcion still excluded for abuse risk per the original spec intent. Locked by Phase 106 CONTEXT D-03 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
+
+[^api-07-reconciliation]: Two changes: (a) coach EXCLUDED — privacy: coach role serves training, not financial oversight. (b) Scope is country (not branch) — aligns with the existing `attachCountryScope` middleware used by reports module; branch scope would require a separate middleware that does not yet exist. Locked by Phase 106 CONTEXT D-04/D-05 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
