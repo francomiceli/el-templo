@@ -21,4 +21,7 @@ export type {
   FinancialHistoryFilters,
   FinancialHistoryItem,
   CreateTransactionResponse,
+  // Phase 106 Plan 03 — finance summary (D-16)
+  FinanceSummary,
+  FinanceSummaryFilters,
 } from "./types";

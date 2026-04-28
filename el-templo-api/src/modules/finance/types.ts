@@ -145,3 +145,34 @@ export interface CreateTransactionResponse {
   links: TransactionLinkRow[];
   affectedBalances: BalanceRow[];
 }
+
+// -- Phase 106 Plan 03: GET /transactions/summary (D-16) -------------------
+
+/**
+ * CajaPage legacy summary shape (D-16). Drives the financial summary cards.
+ * revenueByMethod widened to 5 keys (Phase 105 schema includes aura_credit
+ * + internal). Frontend widens to match in Plan 05.
+ */
+export interface FinanceSummary {
+  monthlyRevenue: number;
+  revenueByMethod: {
+    cash: number;
+    transfer: number;
+    card: number;
+    aura_credit: number;
+    internal: number;
+  };
+  revenueByBranch: Array<{
+    branchId: number;
+    branchName: string;
+    revenue: number;
+  }>;
+}
+
+/** Filters for getSummary — subset of TransactionListFilters. */
+export interface FinanceSummaryFilters {
+  branchId?: number;
+  country?: CountryCode;
+  dateFrom?: string;
+  dateTo?: string;
+}
