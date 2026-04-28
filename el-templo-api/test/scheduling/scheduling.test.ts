@@ -22,7 +22,8 @@ import { activities } from "../../src/db/schema/activities";
 import { holidays } from "../../src/db/schema/holidays";
 import { attendance } from "../../src/db/schema/attendance";
 import { completedSessions } from "../../src/db/schema/completed-sessions";
-import { payments } from "../../src/db/schema/payments";
+import { financialTransactions } from "../../src/db/schema/financial-transactions";
+import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { users } from "../../src/db/schema/users";
@@ -41,6 +42,7 @@ const PAYMENTS_URL = "/api/admin/payments";
 describe("Scheduling API", () => {
   let app: FastifyInstance;
   let adminToken: string;
+  let adminUserId: number;
   let testBranchId: number;
 
   const basePlan = {
@@ -71,6 +73,13 @@ describe("Scheduling API", () => {
 
     app = await createTestApp();
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
+
+    // Get admin user ID for recordedBy on financial_transactions inserts.
+    const [adminUser] = await app.db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, "admin@test.com"));
+    adminUserId = adminUser.id;
 
     const [branch] = await app.db
       .select({ id: branches.id })
@@ -143,23 +152,34 @@ describe("Scheduling API", () => {
     return JSON.parse(res.body);
   }
 
+  /**
+   * Plan 105-06: payments API dropped — write directly to financial_transactions
+   * + transaction_links pivot. Phase 106 will add /api/admin/transactions.
+   */
   async function recordPayment(
     userId: number,
     amount: number,
     subscriptionId: number,
   ): Promise<void> {
-    const res = await app.inject({
-      method: "POST",
-      url: `${PAYMENTS_URL}/members/${userId}/payments`,
-      headers: { authorization: `Bearer ${adminToken}` },
-      payload: {
-        amount,
-        paymentMethod: "cash",
-        paymentDate: "2026-03-10",
-        subscriptionId,
-      },
+    const [inserted] = await app.db.insert(financialTransactions).values({
+      memberId: userId,
+      kind: "plan_charge",
+      direction: "inflow",
+      amount,
+      currency: "ARS",
+      paymentMethod: "cash",
+      transactionDate: "2026-03-10",
+      effectiveDate: "2026-03-10",
+      branchId: testBranchId,
+      recordedBy: adminUserId,
     });
-    expect(res.statusCode).toBe(201);
+    const txnId = (inserted as { insertId: number }).insertId;
+    await app.db.insert(transactionLinks).values({
+      transactionId: txnId,
+      targetKind: "subscription",
+      targetId: subscriptionId,
+      allocatedAmount: amount,
+    });
   }
 
   async function setupMemberWithSubscription(

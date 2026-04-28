@@ -3,7 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
-import { payments } from "../../src/db/schema/payments";
+import { financialTransactions } from "../../src/db/schema/financial-transactions";
+import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { programs } from "../../src/db/schema/micro-programs";
 import { programEnrollments } from "../../src/db/schema/program-enrollments";
 import {
@@ -277,14 +278,25 @@ describe("Subscriptions API — Change plan", () => {
         .where(eq(subscriptions.id, oldSubId as number));
       expect(oldSubRows[0].status).toBe("changed");
 
-      const paymentRows = await app.db
-        .select()
-        .from(payments)
-        .where(eq(payments.memberId, member.id));
-      const upgradePmt = paymentRows.find((p) => p.amount === 8800);
+      // Plan 105-06: payments table dropped — verify against
+      // financial_transactions joined via transaction_links pivot.
+      const txnRows = await app.db
+        .select({
+          id: financialTransactions.id,
+          amount: financialTransactions.amount,
+          paymentMethod: financialTransactions.paymentMethod,
+          targetId: transactionLinks.targetId,
+        })
+        .from(financialTransactions)
+        .leftJoin(
+          transactionLinks,
+          eq(transactionLinks.transactionId, financialTransactions.id),
+        )
+        .where(eq(financialTransactions.memberId, member.id));
+      const upgradePmt = txnRows.find((p) => p.amount === 8800);
       expect(upgradePmt).toBeTruthy();
       expect(upgradePmt!.paymentMethod).toBe("cash");
-      expect(upgradePmt!.subscriptionId).toBe(body.id);
+      expect(upgradePmt!.targetId).toBe(body.id);
     });
   });
 
@@ -340,13 +352,19 @@ describe("Subscriptions API — Change plan", () => {
         .where(eq(subscriptions.id, oldSubId));
       expect(oldSub.status).toBe("active");
 
+      // Plan 105-06: payments table dropped — query financial_transactions joined via links.
       const pmts = await app.db
-        .select()
-        .from(payments)
-        .where(eq(payments.memberId, member.id));
-      const scheduledPmt = pmts.find(
-        (p) => p.subscriptionId === (body.id as number),
-      );
+        .select({
+          amount: financialTransactions.amount,
+          targetId: transactionLinks.targetId,
+        })
+        .from(financialTransactions)
+        .leftJoin(
+          transactionLinks,
+          eq(transactionLinks.transactionId, financialTransactions.id),
+        )
+        .where(eq(financialTransactions.memberId, member.id));
+      const scheduledPmt = pmts.find((p) => p.targetId === (body.id as number));
       expect(scheduledPmt!.amount).toBe(12000);
     });
 

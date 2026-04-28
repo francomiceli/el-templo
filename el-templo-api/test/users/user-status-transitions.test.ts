@@ -26,7 +26,7 @@ import * as schema from "../../src/db/schema";
 import { createTestApp, cleanAllTestData } from "../helpers";
 import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
-import { PaymentService } from "../../src/modules/payments/service";
+import { TransactionService, BalanceService } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
 
 describe("Phase 103 — User status auto-transitions", () => {
@@ -43,8 +43,9 @@ describe("Phase 103 — User status auto-transitions", () => {
 
   function buildService(): SubscriptionService {
     const aura = new AuraService(app.db);
-    const payments = new PaymentService(app.db, app.log);
-    const subs = new SubscriptionService(app.db, app.log, aura, payments);
+    const balances = new BalanceService(app.db, app.log);
+    const txns = new TransactionService(app.db, app.log, balances);
+    const subs = new SubscriptionService(app.db, app.log, aura, txns);
     const bookings = new BookingService(app.db, app.log, subs);
     subs.setBookingService(bookings);
     return subs;

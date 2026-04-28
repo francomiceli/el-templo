@@ -3,7 +3,8 @@ import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
-import { payments } from "../../src/db/schema/payments";
+import { financialTransactions } from "../../src/db/schema/financial-transactions";
+import { transactionLinks } from "../../src/db/schema/transaction-links";
 import {
   SUBSCRIPTIONS_URL,
   createPlan,
@@ -137,16 +138,27 @@ describe("Subscriptions API — Renewal", () => {
     expect(res.statusCode).toBe(201);
     const newSub = JSON.parse(res.body);
 
-    const paymentRows = await app.db
-      .select()
-      .from(payments)
-      .where(eq(payments.memberId, member.id));
-    expect(paymentRows).toHaveLength(2);
+    // Plan 105-06: payments table dropped — verify against financial_transactions
+    // joined via transaction_links pivot (target_kind='subscription').
+    const txnRows = await app.db
+      .select({
+        id: financialTransactions.id,
+        amount: financialTransactions.amount,
+        paymentMethod: financialTransactions.paymentMethod,
+        targetId: transactionLinks.targetId,
+      })
+      .from(financialTransactions)
+      .leftJoin(
+        transactionLinks,
+        eq(transactionLinks.transactionId, financialTransactions.id),
+      )
+      .where(eq(financialTransactions.memberId, member.id));
+    expect(txnRows).toHaveLength(2);
 
-    const renewalPmt = paymentRows.find((p) => p.subscriptionId === newSub.id);
-    expect(renewalPmt).toBeTruthy();
-    expect(renewalPmt!.amount).toBe(10000);
-    expect(renewalPmt!.paymentMethod).toBe("transfer");
+    const renewalTxn = txnRows.find((p) => p.targetId === newSub.id);
+    expect(renewalTxn).toBeTruthy();
+    expect(renewalTxn!.amount).toBe(10000);
+    expect(renewalTxn!.paymentMethod).toBe("transfer");
   });
 
   it("renew uses endDate as new startDate when current sub is still active", async () => {

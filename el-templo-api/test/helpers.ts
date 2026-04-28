@@ -149,11 +149,9 @@ const TABLES_TO_CLEAN = [
   schema.memberLogins,
   // Tables referencing layer-3 parents
   schema.attendance,
-  schema.payments,
   schema.auraTransactions,
   schema.memberNotes,
   schema.holidays,
-  schema.debts,
   // Core entity tables
   schema.promoPlans,
   schema.subscriptions,

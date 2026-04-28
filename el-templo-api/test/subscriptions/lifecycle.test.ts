@@ -293,11 +293,12 @@ describe("Subscriptions API — Lifecycle", () => {
       const { SubscriptionService } =
         await import("../../src/modules/subscriptions/service");
       const { AuraService } = await import("../../src/modules/aura");
-      const { PaymentService } =
-        await import("../../src/modules/payments/service");
+      const { TransactionService, BalanceService } =
+        await import("../../src/modules/finance");
       const aura = new AuraService(app.db);
-      const payments = new PaymentService(app.db, app.log);
-      const svc = new SubscriptionService(app.db, app.log, aura, payments);
+      const balances = new BalanceService(app.db, app.log);
+      const txns = new TransactionService(app.db, app.log, balances);
+      const svc = new SubscriptionService(app.db, app.log, aura, txns);
       const resumed = await svc.autoResumeDuePauses();
       expect(resumed).toBe(1);
 

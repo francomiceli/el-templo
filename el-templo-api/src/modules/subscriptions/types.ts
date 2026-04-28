@@ -5,6 +5,8 @@
  * and pricing engine with AURA discount integration.
  */
 
+import type { PaymentMethod } from "../finance/types";
+
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
 export type SubscriptionStatus =
@@ -218,7 +220,7 @@ export interface AssignPlanInput {
   branchId: number;
   startDate: string;
   priceTypeApplied: PriceType;
-  paymentMethod: import("../payments/types").PaymentMethod;
+  paymentMethod: PaymentMethod;
   scheduleIds?: number[];
   auraSpend?: number;
   priceOverrideAmount?: number;
@@ -229,7 +231,7 @@ export interface AssignPlanInput {
 }
 
 export interface RenewSubscriptionInput {
-  paymentMethod: import("../payments/types").PaymentMethod;
+  paymentMethod: PaymentMethod;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────

@@ -10,7 +10,6 @@ import {
 } from "../helpers";
 import { users } from "../../src/db/schema/users";
 import { memberNotes } from "../../src/db/schema/member-notes";
-import { payments } from "../../src/db/schema/payments";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { auraTransactions } from "../../src/db/schema/aura-transactions";

@@ -8,7 +8,8 @@ import {
   cleanAllTestData,
 } from "../helpers";
 import { attendance } from "../../src/db/schema/attendance";
-import { payments } from "../../src/db/schema/payments";
+import { financialTransactions } from "../../src/db/schema/financial-transactions";
+import { transactionLinks } from "../../src/db/schema/transaction-links";
 import { subscriptions } from "../../src/db/schema/subscriptions";
 import { subscriptionPlans } from "../../src/db/schema/subscription-plans";
 import { users } from "../../src/db/schema/users";
@@ -106,6 +107,47 @@ describe("Reports API", () => {
     });
     expect(res.statusCode).toBe(201);
     return JSON.parse(res.body);
+  }
+
+  /**
+   * Plan 105-06: insert a financial_transactions row + transaction_links pivot
+   * to drive the reports/charges endpoint. Replaces direct inserts into the
+   * dropped `payments` table.
+   */
+  async function insertChargeTxn(opts: {
+    memberId: number;
+    subId: number;
+    amount: number;
+    paymentMethod: "cash" | "transfer" | "card";
+    date: string;
+    voided?: boolean;
+  }): Promise<void> {
+    const [inserted] = await app.db.insert(financialTransactions).values({
+      memberId: opts.memberId,
+      kind: "plan_charge",
+      direction: "inflow",
+      amount: opts.amount,
+      currency: "ARS",
+      paymentMethod: opts.paymentMethod,
+      transactionDate: opts.date,
+      effectiveDate: opts.date,
+      branchId: testBranchId,
+      recordedBy: adminUserId,
+      ...(opts.voided
+        ? {
+            voidedAt: new Date(),
+            voidedBy: adminUserId,
+            voidReason: "Error de carga",
+          }
+        : {}),
+    });
+    const txnId = (inserted as { insertId: number }).insertId;
+    await app.db.insert(transactionLinks).values({
+      transactionId: txnId,
+      targetKind: "subscription",
+      targetId: opts.subId,
+      allocatedAmount: opts.amount,
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -261,37 +303,31 @@ describe("Reports API", () => {
       const sub = await assignSubscription(member.id, plan.id);
       const subId = sub.id as number;
 
-      // Insert payments directly (bypassing auto-payment from assign)
+      // Plan 105-06: payments dropped — insert into financial_transactions +
+      // transaction_links (target_kind='subscription') to feed the reports query.
       const today = new Date().toISOString().split("T")[0];
-      await app.db.insert(payments).values([
-        {
-          memberId: member.id,
-          subscriptionId: subId,
-          amount: 10000,
-          paymentMethod: "cash",
-          paymentDate: today,
-          recordedBy: adminUserId,
-        },
-        {
-          memberId: member.id,
-          subscriptionId: subId,
-          amount: 5000,
-          paymentMethod: "transfer",
-          paymentDate: today,
-          recordedBy: adminUserId,
-        },
-        {
-          memberId: member.id,
-          subscriptionId: subId,
-          amount: 3000,
-          paymentMethod: "cash",
-          paymentDate: today,
-          recordedBy: adminUserId,
-          voidedAt: new Date(),
-          voidedBy: adminUserId,
-          voidReason: "Error de carga",
-        },
-      ]);
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 10000,
+        paymentMethod: "cash",
+        date: today,
+      });
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 5000,
+        paymentMethod: "transfer",
+        date: today,
+      });
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 3000,
+        paymentMethod: "cash",
+        date: today,
+        voided: true,
+      });
 
       const res = await app.inject({
         method: "GET",
@@ -314,11 +350,14 @@ describe("Reports API", () => {
       expect(row.paymentMethod).toBeDefined();
       expect(row.recorderName).toBeDefined();
 
-      // Check voided payment exists in results
+      // Plan 105-06 / 105-04 D-01: voided rows are now excluded by the
+      // canonical revenue filter (`voided_at IS NULL`). The legacy test
+      // expected voided rows to surface in the charge report; under the
+      // new finance model they do not. Confirm exclusion instead.
       const voided = body.rows.find(
         (r: { voidedAt: string | null }) => r.voidedAt !== null,
       );
-      expect(voided).toBeDefined();
+      expect(voided).toBeUndefined();
     });
 
     it("should filter by payment method", async () => {
@@ -331,25 +370,22 @@ describe("Reports API", () => {
       const sub = await assignSubscription(member.id, plan.id);
       const subId = sub.id as number;
 
+      // Plan 105-06: payments dropped — see helper.
       const today = new Date().toISOString().split("T")[0];
-      await app.db.insert(payments).values([
-        {
-          memberId: member.id,
-          subscriptionId: subId,
-          amount: 10000,
-          paymentMethod: "cash",
-          paymentDate: today,
-          recordedBy: adminUserId,
-        },
-        {
-          memberId: member.id,
-          subscriptionId: subId,
-          amount: 5000,
-          paymentMethod: "transfer",
-          paymentDate: today,
-          recordedBy: adminUserId,
-        },
-      ]);
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 10000,
+        paymentMethod: "cash",
+        date: today,
+      });
+      await insertChargeTxn({
+        memberId: member.id,
+        subId,
+        amount: 5000,
+        paymentMethod: "transfer",
+        date: today,
+      });
 
       const res = await app.inject({
         method: "GET",
