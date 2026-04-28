@@ -499,3 +499,616 @@ describe("TransactionService — DB constraints + immutability", () => {
     ).rejects.toThrow(/Moneda inconsistente/);
   });
 });
+
+// ===========================================================================
+// Phase 106 — Plan 01: list() + getFinancialHistory() + getRowsForTransaction()
+// ===========================================================================
+
+describe("TransactionService.list()", () => {
+  // L1: defaults
+  it("L1: returns PaginatedResult shape with defaults page=1, limit=50", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list({});
+    expect(result).toHaveProperty("rows");
+    expect(result).toHaveProperty("total");
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(50);
+    expect(result.total).toBe(1);
+    expect(result.rows).toHaveLength(1);
+  });
+
+  // L2: country filter
+  it("L2: filters by country='AR' and excludes ES branch transactions", async () => {
+    // Seed an ES branch + subscription on it.
+    // Branch code column is small (likely VARCHAR(10)). Use a short code.
+    const shortCode = `ES${Date.now().toString(36).slice(-4)}`;
+    const [esBranchRes] = await app.db
+      .insert(schema.branches)
+      .values({
+        name: "Madrid Test",
+        code: shortCode,
+        country: "ES",
+      })
+      .$returningId();
+    const esBranchId = esBranchRes.id;
+
+    const esPlanId = (
+      await app.db
+        .insert(schema.subscriptionPlans)
+        .values({
+          name: "ES Plan",
+          planTier: "flex",
+          bookingMode: "flexible",
+          planCategory: "presencial",
+          priceRegular: 100000,
+          priceZero: 0,
+          durationDays: 30,
+          classesPerWeek: 3,
+          currency: "EUR",
+        })
+        .$returningId()
+    )[0].id;
+
+    const esSubRes = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        userId: memberId,
+        planId: esPlanId,
+        branchId: esBranchId,
+        status: "active",
+        startDate: TODAY,
+        pricePaid: 100000,
+        currency: "EUR",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    const esSubId = esSubRes[0].id;
+
+    // 2 AR transactions
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 2000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    // 1 ES transaction
+    await txService.create(
+      baseInput({
+        amount: 5000,
+        currency: "EUR",
+        branchId: esBranchId,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: esSubId,
+            allocatedAmount: 5000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const arResult = await txService.list({ country: "AR" });
+    expect(arResult.total).toBe(2);
+    for (const r of arResult.rows) {
+      expect(r.currency).toBe("ARS");
+    }
+
+    const esResult = await txService.list({ country: "ES" });
+    expect(esResult.total).toBe(1);
+    expect(esResult.rows[0].currency).toBe("EUR");
+  });
+
+  // L3: kind filter
+  it("L3: filters by kind", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        kind: "adjustment",
+        direction: "inflow",
+        amount: 500,
+        links: [],
+      }),
+      adminId,
+    );
+    // advance_payment is the other kind allowed without links per
+    // KINDS_ALLOWED_WITHOUT_LINKS in transaction-service.ts.
+    await txService.create(
+      baseInput({
+        kind: "advance_payment",
+        direction: "inflow",
+        amount: 200,
+        links: [],
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({ kind: "plan_charge" });
+    expect(result.total).toBe(1);
+    expect(result.rows[0].kind).toBe("plan_charge");
+  });
+
+  // L4: date filters
+  it("L4: filters by dateFrom + dateTo (inclusive)", async () => {
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-01-01",
+        effectiveDate: "2026-01-01",
+      }),
+      adminId,
+    );
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-02-15",
+        effectiveDate: "2026-02-15",
+      }),
+      adminId,
+    );
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-03-31",
+        effectiveDate: "2026-03-31",
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({
+      dateFrom: "2026-02-01",
+      dateTo: "2026-02-28",
+    });
+    expect(result.total).toBe(1);
+    expect(result.rows[0].transactionDate).toBe("2026-02-15");
+  });
+
+  // L5: memberId filter
+  it("L5: filters by memberId", async () => {
+    // Seed a second member.
+    const otherMember = await registerUser(app, {
+      email: `other-${Date.now()}@test.local`,
+      password: "TestPass123!",
+      firstName: "Other",
+      lastName: "Member",
+      branchId,
+    });
+    const otherId = (otherMember.user as { id: number }).id;
+    const otherSub = await seedSubscription({
+      userId: otherId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        memberId: otherId,
+        amount: 2000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: otherSub,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({ memberId });
+    expect(result.total).toBe(1);
+    expect(result.rows[0].memberId).toBe(memberId);
+  });
+
+  // L6: paymentMethod filter (T-106-05 enum guard)
+  it("L6: filters by paymentMethod='aura_credit'", async () => {
+    await txService.create(
+      baseInput({ amount: 1000, paymentMethod: "cash" }),
+      adminId,
+    );
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 500,
+        paymentMethod: "aura_credit",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 500,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({ paymentMethod: "aura_credit" });
+    expect(result.total).toBe(1);
+    expect(result.rows[0].paymentMethod).toBe("aura_credit");
+  });
+
+  // L7: search by name
+  it("L7: filters by search (member name partial match)", async () => {
+    // Insert a second member with a distinctive name we can search on.
+    const distinctEmail = `searchable-${Date.now()}@test.local`;
+    const distinctMember = await registerUser(app, {
+      email: distinctEmail,
+      password: "TestPass123!",
+      firstName: "Zorrillo",
+      lastName: "Buscable",
+      branchId,
+    });
+    const distinctId = (distinctMember.user as { id: number }).id;
+    const distinctSub = await seedSubscription({
+      userId: distinctId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        memberId: distinctId,
+        amount: 2000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: distinctSub,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({ search: "Zorrillo" });
+    expect(result.total).toBe(1);
+    expect(result.rows[0].memberId).toBe(distinctId);
+  });
+
+  // L8: pagination
+  it("L8: pagination (limit=2 over 5 rows; page=2 returns next 2)", async () => {
+    // Seed 5 transactions across separate subscriptions so links don't collide.
+    for (let i = 0; i < 5; i++) {
+      const sub = await seedSubscription({
+        userId: memberId,
+        planId,
+        branchId,
+        pricePaid: 10000 + i,
+        currency: "ARS",
+      });
+      // Stagger by created_at so ORDER BY transaction_date DESC, created_at DESC is deterministic.
+      await txService.create(
+        baseInput({
+          amount: 100 + i,
+          links: [
+            {
+              targetKind: "subscription" as const,
+              targetId: sub,
+              allocatedAmount: 100 + i,
+            },
+          ],
+        }),
+        adminId,
+      );
+    }
+
+    const p1 = await txService.list({ page: 1, limit: 2 });
+    expect(p1.total).toBe(5);
+    expect(p1.rows).toHaveLength(2);
+    expect(p1.page).toBe(1);
+    expect(p1.limit).toBe(2);
+
+    const p2 = await txService.list({ page: 2, limit: 2 });
+    expect(p2.total).toBe(5);
+    expect(p2.rows).toHaveLength(2);
+    expect(p2.page).toBe(2);
+
+    // The four IDs across the two pages should be distinct.
+    const ids = new Set<number>([
+      ...p1.rows.map((r) => r.id),
+      ...p2.rows.map((r) => r.id),
+    ]);
+    expect(ids.size).toBe(4);
+  });
+
+  // L9: denormalized fields populated
+  it("L9: denormalized memberName, branchName, recorderName populated", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list({});
+    expect(result.rows[0].memberName.length).toBeGreaterThan(0);
+    expect(result.rows[0].branchName.length).toBeGreaterThan(0);
+    expect(result.rows[0].recorderName.length).toBeGreaterThan(0);
+  });
+
+  // L10: linkSummary populated
+  it("L10: linkSummary array populated for transactions with links", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.list({});
+    expect(Array.isArray(result.rows[0].linkSummary)).toBe(true);
+    expect(result.rows[0].linkSummary.length).toBeGreaterThanOrEqual(1);
+    expect(result.rows[0].linkSummary[0]).toHaveProperty("targetKind");
+    expect(result.rows[0].linkSummary[0]).toHaveProperty("allocatedAmount");
+  });
+
+  // L11: order by transaction_date DESC, created_at DESC
+  it("L11: orders by transaction_date DESC, created_at DESC", async () => {
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-01-01",
+        effectiveDate: "2026-01-01",
+      }),
+      adminId,
+    );
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 2000,
+        transactionDate: "2026-03-15",
+        effectiveDate: "2026-03-15",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    const sub3 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 30000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 500,
+        transactionDate: "2026-02-10",
+        effectiveDate: "2026-02-10",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub3,
+            allocatedAmount: 500,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.list({});
+    expect(result.rows.map((r) => r.transactionDate)).toEqual([
+      "2026-03-15",
+      "2026-02-10",
+      "2026-01-01",
+    ]);
+  });
+});
+
+describe("TransactionService.getFinancialHistory()", () => {
+  // H1: ordered DESC
+  it("H1: returns PaginatedResult ordered transaction_date DESC", async () => {
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-01-01",
+        effectiveDate: "2026-01-01",
+      }),
+      adminId,
+    );
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 2000,
+        transactionDate: "2026-03-15",
+        effectiveDate: "2026-03-15",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getFinancialHistory(memberId, {});
+    expect(result.total).toBe(2);
+    expect(result.rows[0].transaction.transactionDate).toBe("2026-03-15");
+    expect(result.rows[1].transaction.transactionDate).toBe("2026-01-01");
+  });
+
+  // H2: scope to memberId
+  it("H2: only returns rows for the requested memberId", async () => {
+    const otherMember = await registerUser(app, {
+      email: `other-h2-${Date.now()}@test.local`,
+      password: "TestPass123!",
+      firstName: "Other",
+      lastName: "H2",
+      branchId,
+    });
+    const otherId = (otherMember.user as { id: number }).id;
+    const otherSub = await seedSubscription({
+      userId: otherId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        memberId: otherId,
+        amount: 2000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: otherSub,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getFinancialHistory(memberId, {});
+    expect(result.total).toBe(1);
+    expect(result.rows[0].transaction.memberId).toBe(memberId);
+  });
+
+  // H3: voidInfo populated when voidedAt present
+  it("H3: each item has transaction + links; voidInfo populated when voided", async () => {
+    const created = await txService.create(
+      baseInput({ amount: 1000 }),
+      adminId,
+    );
+    await txService.void(created.id, adminId, { reason: "fixed an error" });
+
+    const result = await txService.getFinancialHistory(memberId, {});
+    expect(result.rows).toHaveLength(1);
+    const item = result.rows[0];
+    expect(item.transaction).toBeDefined();
+    expect(Array.isArray(item.links)).toBe(true);
+    expect(item.links.length).toBeGreaterThanOrEqual(1);
+    expect(item.links[0].allocatedAmount).toBeGreaterThan(0);
+    expect(item.voidInfo).toBeDefined();
+    expect(item.voidInfo?.voidReason).toBe("fixed an error");
+    expect(item.voidInfo?.voidedBy).toBe(adminId);
+  });
+
+  // H4: conceptLabel for subscription targets
+  it("H4: conceptLabel populated for target_kind='subscription' (plan name)", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getFinancialHistory(memberId, {});
+    const subLink = result.rows[0].links.find(
+      (l) => l.targetKind === "subscription",
+    );
+    expect(subLink).toBeDefined();
+    expect(typeof subLink?.conceptLabel).toBe("string");
+    expect(subLink?.conceptLabel?.length ?? 0).toBeGreaterThan(0);
+    expect(subLink?.conceptLabel).toContain("Finance Test Plan");
+  });
+
+  // H5: pagination defaults
+  it("H5: pagination defaults to page=1, limit=50", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getFinancialHistory(memberId, {});
+    expect(result.page).toBe(1);
+    expect(result.limit).toBe(50);
+  });
+});
+
+describe("BalanceService.getRowsForTransaction()", () => {
+  // B1: returns balance rows touched by the tx links (excluding 'transaction' kind)
+  it("B1: returns BalanceRow[] for balances touched by the transaction", async () => {
+    const created = await txService.create(
+      baseInput({ amount: 1000 }),
+      adminId,
+    );
+    const rows = await balanceService.getRowsForTransaction(created.id);
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(rows[0].memberId).toBe(memberId);
+    expect(rows[0].targetKind).toBe("subscription");
+    expect(rows[0].targetId).toBe(subscriptionId);
+    expect(rows[0].currency).toBe("ARS");
+  });
+
+  // B2: empty array for unknown transactionId
+  it("B2: returns empty array for non-existent transaction", async () => {
+    const rows = await balanceService.getRowsForTransaction(999999);
+    expect(rows).toEqual([]);
+  });
+
+  // B3: matches by composite key (memberId, currency, targetKind, targetId)
+  it("B3: matches only the right balance rows by composite key", async () => {
+    // Seed a second subscription for the same member.
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    // Two separate transactions, each touching one subscription.
+    const tx1 = await txService.create(
+      baseInput({
+        amount: 1000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: subscriptionId,
+            allocatedAmount: 1000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    const tx2 = await txService.create(
+      baseInput({
+        amount: 500,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 500,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const r1 = await balanceService.getRowsForTransaction(tx1.id);
+    expect(r1).toHaveLength(1);
+    expect(r1[0].targetId).toBe(subscriptionId);
+
+    const r2 = await balanceService.getRowsForTransaction(tx2.id);
+    expect(r2).toHaveLength(1);
+    expect(r2[0].targetId).toBe(sub2);
+  });
+});

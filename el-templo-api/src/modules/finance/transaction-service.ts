@@ -12,15 +12,23 @@
 // allowed to mutate an existing row, and only on the soft-void triplet
 // (voidedAt, voidedBy, voidReason).
 
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray, type SQL } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
+import { buildMemberNameSearchCondition } from "../shared/member-search";
+import type { PaginatedResult } from "../shared/types";
 import { BalanceService } from "./balance-service";
 import type {
   CreateTransactionInput,
+  FinancialHistoryFilters,
+  FinancialHistoryItem,
+  TargetKind,
   TransactionDetail,
+  TransactionListFilters,
+  TransactionListItem,
   VoidTransactionInput,
 } from "./types";
 
@@ -294,5 +302,278 @@ export class TransactionService {
       byTx.set(r.id, links);
     }
     return rows.map((r) => ({ ...r, links: byTx.get(r.id) ?? [] }));
+  }
+
+  // ─── Phase 106: paginated list + financial history ───────────────────────
+
+  /**
+   * Paginated list of financial transactions for the admin caja / reports.
+   * Filters per Phase 106 D-12. Country scope is injected by the route layer
+   * via filters.country (always-present for non-owners, optional for owner).
+   */
+  async list(
+    filters: TransactionListFilters,
+  ): Promise<PaginatedResult<TransactionListItem>> {
+    const page = Math.max(1, filters.page ?? 1);
+    // D-12 / T-106-LISTSIZE: defense-in-depth max=200 even if route bypassed.
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    const recorder = alias(schema.users, "recorder");
+    const conditions = this.buildListConditions(filters);
+
+    // 1) COUNT — same join chain as the row query so country/search filters
+    //    that reference users/branches/recorder resolve identically.
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .innerJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
+    const total = Number(countRow?.count ?? 0);
+
+    // 2) Page rows.
+    const raw = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        transactionDate: schema.financialTransactions.transactionDate,
+        effectiveDate: schema.financialTransactions.effectiveDate,
+        memberId: schema.financialTransactions.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        kind: schema.financialTransactions.kind,
+        direction: schema.financialTransactions.direction,
+        amount: schema.financialTransactions.amount,
+        currency: schema.financialTransactions.currency,
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        branchId: schema.financialTransactions.branchId,
+        branchName: schema.branches.name,
+        recordedBy: schema.financialTransactions.recordedBy,
+        recorderFirstName: recorder.firstName,
+        recorderLastName: recorder.lastName,
+        voidedAt: schema.financialTransactions.voidedAt,
+        notes: schema.financialTransactions.notes,
+        createdAt: schema.financialTransactions.createdAt,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .innerJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(
+        desc(schema.financialTransactions.transactionDate),
+        desc(schema.financialTransactions.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    // 3) Single follow-up query for linkSummary (avoid N+1).
+    const txIds = raw.map((r) => r.id);
+    const links =
+      txIds.length > 0
+        ? await this.db
+            .select({
+              transactionId: schema.transactionLinks.transactionId,
+              targetKind: schema.transactionLinks.targetKind,
+              targetId: schema.transactionLinks.targetId,
+              allocatedAmount: schema.transactionLinks.allocatedAmount,
+            })
+            .from(schema.transactionLinks)
+            .where(inArray(schema.transactionLinks.transactionId, txIds))
+        : [];
+
+    const linksByTx = new Map<
+      number,
+      Array<{
+        targetKind: TargetKind;
+        targetId: number;
+        allocatedAmount: number;
+      }>
+    >();
+    for (const l of links) {
+      const arr = linksByTx.get(l.transactionId) ?? [];
+      arr.push({
+        targetKind: l.targetKind,
+        targetId: l.targetId,
+        allocatedAmount: l.allocatedAmount,
+      });
+      linksByTx.set(l.transactionId, arr);
+    }
+
+    const rows: TransactionListItem[] = raw.map((r) => ({
+      id: r.id,
+      transactionDate: String(r.transactionDate),
+      effectiveDate: String(r.effectiveDate),
+      memberId: r.memberId,
+      memberName: `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim(),
+      kind: r.kind,
+      direction: r.direction,
+      amount: r.amount,
+      currency: r.currency,
+      paymentMethod: r.paymentMethod,
+      branchId: r.branchId,
+      branchName: r.branchName,
+      recordedBy: r.recordedBy,
+      recorderName:
+        `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+      voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
+      notes: r.notes,
+      linkSummary: linksByTx.get(r.id) ?? [],
+    }));
+
+    return { rows, total, page, limit };
+  }
+
+  private buildListConditions(filters: TransactionListFilters): SQL[] {
+    const conds: SQL[] = [];
+    if (filters.branchId !== undefined) {
+      conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
+    }
+    if (filters.country !== undefined) {
+      conds.push(eq(schema.branches.country, filters.country));
+    }
+    if (filters.kind !== undefined) {
+      conds.push(eq(schema.financialTransactions.kind, filters.kind));
+    }
+    if (filters.memberId !== undefined) {
+      conds.push(eq(schema.financialTransactions.memberId, filters.memberId));
+    }
+    if (filters.paymentMethod !== undefined) {
+      conds.push(
+        eq(schema.financialTransactions.paymentMethod, filters.paymentMethod),
+      );
+    }
+    if (filters.dateFrom !== undefined) {
+      conds.push(
+        gte(schema.financialTransactions.transactionDate, filters.dateFrom),
+      );
+    }
+    if (filters.dateTo !== undefined) {
+      conds.push(
+        lte(schema.financialTransactions.transactionDate, filters.dateTo),
+      );
+    }
+    if (filters.search !== undefined && filters.search.trim().length > 0) {
+      const cond = buildMemberNameSearchCondition(filters.search.trim());
+      if (cond) conds.push(cond);
+    }
+    return conds;
+  }
+
+  /**
+   * Member-scoped financial history ordered by transaction_date DESC.
+   * Each item includes denormalized link rows with `conceptLabel` resolved
+   * for target_kind='subscription' (D-13).
+   */
+  async getFinancialHistory(
+    memberId: number,
+    filters: FinancialHistoryFilters,
+  ): Promise<PaginatedResult<FinancialHistoryItem>> {
+    const page = Math.max(1, filters.page ?? 1);
+    const limit = Math.min(200, Math.max(1, filters.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberId));
+    const total = Number(countRow?.count ?? 0);
+
+    const txRows = await this.db
+      .select()
+      .from(schema.financialTransactions)
+      .where(eq(schema.financialTransactions.memberId, memberId))
+      .orderBy(
+        desc(schema.financialTransactions.transactionDate),
+        desc(schema.financialTransactions.createdAt),
+      )
+      .limit(limit)
+      .offset(offset);
+
+    if (txRows.length === 0) return { rows: [], total, page, limit };
+
+    const txIds = txRows.map((r) => r.id);
+
+    // Links + concept labels — LEFT JOIN subscriptions + subscription_plans
+    // for target_kind='subscription'. Other target_kinds yield no plan row;
+    // conceptLabel stays undefined.
+    const linkRows = await this.db
+      .select({
+        transactionId: schema.transactionLinks.transactionId,
+        targetKind: schema.transactionLinks.targetKind,
+        targetId: schema.transactionLinks.targetId,
+        allocatedAmount: schema.transactionLinks.allocatedAmount,
+        planName: schema.subscriptionPlans.name,
+        subscriptionStartDate: schema.subscriptions.startDate,
+      })
+      .from(schema.transactionLinks)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.transactionLinks.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.transactionLinks.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(inArray(schema.transactionLinks.transactionId, txIds));
+
+    const linksByTx = new Map<number, FinancialHistoryItem["links"]>();
+    for (const l of linkRows) {
+      const arr = linksByTx.get(l.transactionId) ?? [];
+      const conceptLabel =
+        l.targetKind === "subscription" && l.planName
+          ? `${l.planName}${
+              l.subscriptionStartDate
+                ? " — " + String(l.subscriptionStartDate)
+                : ""
+            }`
+          : undefined;
+      arr.push({
+        targetKind: l.targetKind,
+        targetId: l.targetId,
+        allocatedAmount: l.allocatedAmount,
+        ...(conceptLabel ? { conceptLabel } : {}),
+      });
+      linksByTx.set(l.transactionId, arr);
+    }
+
+    const rows: FinancialHistoryItem[] = txRows.map((r) => {
+      const item: FinancialHistoryItem = {
+        transaction: r,
+        links: linksByTx.get(r.id) ?? [],
+      };
+      if (r.voidedAt) {
+        item.voidInfo = {
+          voidedAt: r.voidedAt.toISOString(),
+          voidedBy: r.voidedBy ?? 0,
+          voidReason: r.voidReason ?? "",
+        };
+      }
+      return item;
+    });
+
+    return { rows, total, page, limit };
   }
 }

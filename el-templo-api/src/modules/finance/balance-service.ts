@@ -18,7 +18,7 @@
 // the `applyDelta` method takes the `tx` handle so the cache update is
 // atomic with the ledger insert (T-105-10 mitigation).
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -237,5 +237,54 @@ export class BalanceService {
       )
       .limit(1);
     return row ?? null;
+  }
+
+  /**
+   * Read the balance rows touched by a given transaction's links.
+   * Used by POST /transactions handler for the affectedBalances field
+   * (Phase 106 D-10) so the frontend doesn't re-fetch.
+   *
+   * Excludes target_kind='transaction' (no balance effect — see applyDelta).
+   * Matches balances rows by (memberId, currency, targetKind, targetId)
+   * which mirrors the composite key applyDelta writes against.
+   */
+  async getRowsForTransaction(transactionId: number): Promise<BalanceRow[]> {
+    const rows = await this.db
+      .select({
+        id: schema.balances.id,
+        memberId: schema.balances.memberId,
+        targetKind: schema.balances.targetKind,
+        targetId: schema.balances.targetId,
+        currency: schema.balances.currency,
+        amount: schema.balances.amount,
+        lastRecomputedAt: schema.balances.lastRecomputedAt,
+        createdAt: schema.balances.createdAt,
+      })
+      .from(schema.balances)
+      .innerJoin(
+        schema.transactionLinks,
+        and(
+          eq(schema.transactionLinks.targetKind, schema.balances.targetKind),
+          eq(schema.transactionLinks.targetId, schema.balances.targetId),
+        ),
+      )
+      .innerJoin(
+        schema.financialTransactions,
+        and(
+          eq(
+            schema.financialTransactions.id,
+            schema.transactionLinks.transactionId,
+          ),
+          eq(schema.financialTransactions.memberId, schema.balances.memberId),
+          eq(schema.financialTransactions.currency, schema.balances.currency),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.transactionLinks.transactionId, transactionId),
+          ne(schema.transactionLinks.targetKind, "transaction"),
+        ),
+      );
+    return rows;
   }
 }
