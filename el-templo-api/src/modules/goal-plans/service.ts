@@ -92,8 +92,12 @@ export class GoalPlanService {
   // ─── Subscription Enforcement ──────────────────────────────────────────────
 
   /**
-   * Check that the member has an active subscription with a goal-plan-enabled plan.
-   * Presencial plans qualify because they get Foundation (which has goal plan sessions).
+   * Check that the member has an active subscription that grants program
+   * access. presencial gets Foundation; online_regular ships with one or
+   * many enrollments (single program or bundle); online_goal and
+   * online_coach also expose programs. The authoritative goal-plan check
+   * runs downstream via getActiveGoalPlan — which returns null (then 400
+   * upstream) if the resolved enrollment lacks a goalPlanType.
    * Throws SubscriptionRequiredError if not.
    */
   async checkSubscription(userId: number): Promise<void> {
@@ -112,8 +116,10 @@ export class GoalPlanService {
             eq(schema.subscriptions.status, "paused"),
           ),
           or(
-            eq(schema.subscriptionPlans.planCategory, "online_goal"),
             eq(schema.subscriptionPlans.planCategory, "presencial"),
+            eq(schema.subscriptionPlans.planCategory, "online_regular"),
+            eq(schema.subscriptionPlans.planCategory, "online_goal"),
+            eq(schema.subscriptionPlans.planCategory, "online_coach"),
           ),
         ),
       )
