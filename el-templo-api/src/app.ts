@@ -31,6 +31,7 @@ import {
 } from "./modules/scheduling";
 import { analyticsRoutes } from "./modules/analytics";
 import { reportsRoutes } from "./modules/reports";
+import { financeRoutes } from "./modules/finance";
 import { settingsRoutes } from "./modules/settings";
 import { userRoutes } from "./modules/users";
 import { onboardingRoutes } from "./modules/onboarding";
@@ -148,6 +149,11 @@ export async function buildApp() {
   // Reports routes (access log, charges, expiring, inactive + Excel exports)
   await app.register(reportsRoutes, {
     prefix: "/api/admin/reports",
+  });
+
+  // Finance routes (transactions create/void/list, financial history) — Phase 106
+  await app.register(financeRoutes, {
+    prefix: "/api/admin/finance",
   });
 
   // Settings routes (system-wide settings: grace period, etc.)
