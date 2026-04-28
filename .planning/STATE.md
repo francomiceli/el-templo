@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 106-04-PLAN.md
-last_updated: "2026-04-28T20:50:19.507Z"
+stopped_at: Completed 106-05-PLAN.md
+last_updated: "2026-04-28T21:01:51.655Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 96
   completed_phases: 82
   total_plans: 365
-  completed_plans: 358
+  completed_plans: 359
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 106 (endpoints-transaccionales) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Next: Phase 106 — Endpoints Transaccionales
 Last activity: 2026-04-28
 
@@ -148,6 +148,7 @@ _Updated after each plan completion_
 | Phase Phase 106 PP02 | 25min | 3 tasks tasks | 5 files files |
 | Phase 106 P03 | 50min | 4 tasks | 7 files |
 | Phase Phase 106 PP04 | 21min | 3 tasks tasks | 3 files files |
+| Phase 106 P05 | 7min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -326,6 +327,9 @@ Recent decisions affecting current work:
 - Owner-aware country resolution: owner without ?country sees ALL countries (no filter); owner with ?country=XX filters; non-owners locked to scope.country (T-106-02 mitigation per Phase 106-03)
 - Plan 106-04: financialHistorySchema response uses additionalProperties:true on loose-passthrough objects (transaction, links, voidInfo) — Fastify fast-json-stringify strips unlisted fields by default, so Warning #6 idiom requires the explicit escape hatch (Rule 1 fix). Phase 109 audit can flip to strict by replacing with full property listings.
 - Plan 106-04: GET /api/admin/members/:userId/financial-history mounted on members/routes.ts (D-09 sub-resource) with per-handler FINANCE_READ_ROLES privacy override placed BEFORE target lookup so coach denials don't disclose membership existence. Cross-country guard uses !request.scope.isOwner (NOT scope.country) per Plan 02 SUMMARY lesson.
+- Plan 106-05: backward-compat aliases (PAYMENT_METHOD_OPTIONS as alias of PAYMENT_METHOD_FILTER_OPTIONS, LegacyPaymentMethod 3-key narrow type) avoid renaming churn across unrelated callsites; only CajaPage business logic changed. Phase 109 widens.
+- Plan 106-05: kind='plan_charge' bind on listTransactions in CajaPage preserves legacy /payments cobros semantics during Phase 106 (D-14 closure scope); debt_settlement surfaces via Plan 04 financial-history. Phase 109 adds UI kind dropdown.
+- Plan 106-05: Task 1 grep regex for owner-override was overly strict (Prettier formatted across multiple lines); used Plan 03 SUMMARY canonical evidence (grep -c 'request.scope.isOwner' routes.ts === 4) as verification gate. No Plan 03 file modifications — Wave 4 conflict-free invariant intact.
 
 ### Pending Todos
 
@@ -337,8 +341,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T20:50:19.482Z
-Stopped at: Completed 106-04-PLAN.md
+Last session: 2026-04-28T21:01:51.628Z
+Stopped at: Completed 106-05-PLAN.md
 Resume file: None
 
 **Planned Phase:** 106 (endpoints-transaccionales) — 6 plans — 2026-04-28T17:58:54.931Z
