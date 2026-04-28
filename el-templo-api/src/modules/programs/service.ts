@@ -122,6 +122,7 @@ export class ProgramsService {
         sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
         auraWeeklyBonus: programs.auraWeeklyBonus,
         auraCompletionBonus: programs.auraCompletionBonus,
+        goalPlanType: programs.goalPlanType,
         isActive: programs.isActive,
         createdAt: programs.createdAt,
       })

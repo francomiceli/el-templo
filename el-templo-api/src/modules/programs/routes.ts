@@ -18,6 +18,7 @@ import type {
   UpdateProgramInput,
   ContentBlockInput,
 } from "./types";
+import { ALL_GOAL_PLAN_TYPES } from "../goal-plans/constants";
 
 // ---- Fastify JSON Schemas for request validation ----
 
@@ -57,15 +58,7 @@ const createProgramSchema = {
       auraCompletionBonus: { type: "integer", minimum: 0 },
       goalPlanType: {
         type: ["string", "null"],
-        enum: [
-          "tren_superior",
-          "tren_inferior",
-          "empuje",
-          "traccion",
-          "planche",
-          "front_lever",
-          null,
-        ],
+        enum: [...ALL_GOAL_PLAN_TYPES, null],
       },
       contentBlocks: {
         type: "array",
@@ -84,15 +77,7 @@ const updateProgramSchema = {
       description: { type: ["string", "null"] },
       goalPlanType: {
         type: ["string", "null"],
-        enum: [
-          "tren_superior",
-          "tren_inferior",
-          "empuje",
-          "traccion",
-          "planche",
-          "front_lever",
-          null,
-        ],
+        enum: [...ALL_GOAL_PLAN_TYPES, null],
       },
       auraWeeklyBonus: { type: "integer", minimum: 0 },
       auraCompletionBonus: { type: "integer", minimum: 0 },
