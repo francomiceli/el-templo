@@ -2343,11 +2343,16 @@ Plans:
 3. Asignar plan + crear `financial_transaction` + crear `transaction_link` ocurre atómicamente; fallo en cualquier paso revierte todos
 4. UAT operativo: admin carga membresía con cobro parcial, perfil del miembro refleja el saldo correctamente, CajaPage registra el cobro real
 
-**Plans:** TBD
+**Plans:** 6 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-spec-phase 107 then /gsd-plan-phase 107 to break down)
+- [ ] 107-01-PLAN.md — TransactionService.create + BalanceService aceptan tx? opcional (Wave 1)
+- [ ] 107-02-PLAN.md — Subscriptions backend: types/schemas + helper recordAssignmentCharge + 4 callsites atómicos + log estructurado (Wave 2)
+- [ ] 107-03-PLAN.md — Integration tests charge-on-assign (happy/sad matrix + atomicity D-11) (Wave 3)
+- [ ] 107-04-PLAN.md — Frontend admin types: AssignPlanInput + RenewSubscriptionInput.amountReceived (Wave 1)
+- [ ] 107-05-PLAN.md — AssignPlanDialog UI: bloque Cobro en step Confirmar + banner + disabled + payload (Wave 2, has checkpoint)
+- [ ] 107-06-PLAN.md — VERIFICATION.md + smoke staging D-20 + sign-off prod D-21 (Wave 3, has checkpoint)
 
 ---
 
