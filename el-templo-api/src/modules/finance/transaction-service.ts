@@ -12,7 +12,17 @@
 // allowed to mutate an existing row, and only on the soft-void triplet
 // (voidedAt, voidedBy, voidReason).
 
-import { eq, desc, and, sql, gte, lte, inArray, type SQL } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  and,
+  sql,
+  gte,
+  lte,
+  inArray,
+  isNull,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
@@ -23,6 +33,8 @@ import type { PaginatedResult } from "../shared/types";
 import { BalanceService } from "./balance-service";
 import type {
   CreateTransactionInput,
+  FinanceSummary,
+  FinanceSummaryFilters,
   FinancialHistoryFilters,
   FinancialHistoryItem,
   TargetKind,
@@ -575,5 +587,98 @@ export class TransactionService {
     });
 
     return { rows, total, page, limit };
+  }
+
+  /**
+   * Aggregate revenue summary for the CajaPage cards (D-16).
+   * Revenue semantics: direction='inflow' AND voided_at IS NULL.
+   * Filters: branchId, country (via branches.country JOIN), dateFrom/dateTo
+   * on transactionDate (inclusive).
+   *
+   * Returns the legacy FinancialSummary shape with revenueByMethod widened
+   * to 5 keys (cash/transfer/card/aura_credit/internal). revenueByBranch is
+   * sorted DESC by revenue.
+   */
+  async getSummary(filters: FinanceSummaryFilters): Promise<FinanceSummary> {
+    const conds: SQL[] = [
+      eq(schema.financialTransactions.direction, "inflow"),
+      isNull(schema.financialTransactions.voidedAt),
+    ];
+    if (filters.branchId !== undefined) {
+      conds.push(eq(schema.financialTransactions.branchId, filters.branchId));
+    }
+    if (filters.country !== undefined) {
+      conds.push(eq(schema.branches.country, filters.country));
+    }
+    if (filters.dateFrom !== undefined) {
+      conds.push(
+        gte(schema.financialTransactions.transactionDate, filters.dateFrom),
+      );
+    }
+    if (filters.dateTo !== undefined) {
+      conds.push(
+        lte(schema.financialTransactions.transactionDate, filters.dateTo),
+      );
+    }
+
+    // 1) monthlyRevenue — single SUM across matching rows.
+    const [totalRow] = await this.db
+      .select({
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .where(and(...conds));
+    const monthlyRevenue = Number(totalRow?.total ?? 0);
+
+    // 2) revenueByMethod — GROUP BY paymentMethod (5 fixed keys; defaults 0).
+    const methodRows = await this.db
+      .select({
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .where(and(...conds))
+      .groupBy(schema.financialTransactions.paymentMethod);
+    const revenueByMethod: FinanceSummary["revenueByMethod"] = {
+      cash: 0,
+      transfer: 0,
+      card: 0,
+      aura_credit: 0,
+      internal: 0,
+    };
+    for (const r of methodRows) {
+      revenueByMethod[r.paymentMethod] = Number(r.total);
+    }
+
+    // 3) revenueByBranch — GROUP BY branchId, ORDER BY SUM(amount) DESC.
+    const branchRows = await this.db
+      .select({
+        branchId: schema.financialTransactions.branchId,
+        branchName: schema.branches.name,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .where(and(...conds))
+      .groupBy(schema.financialTransactions.branchId, schema.branches.name)
+      .orderBy(desc(sql`SUM(${schema.financialTransactions.amount})`));
+    const revenueByBranch = branchRows.map((r) => ({
+      branchId: r.branchId,
+      branchName: r.branchName,
+      revenue: Number(r.total),
+    }));
+
+    return { monthlyRevenue, revenueByMethod, revenueByBranch };
   }
 }

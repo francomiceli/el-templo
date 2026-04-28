@@ -1043,6 +1043,426 @@ describe("TransactionService.getFinancialHistory()", () => {
   });
 });
 
+describe("TransactionService.getSummary()", () => {
+  /** Seed a fresh ES branch (branches survive between tests). Returns id. */
+  async function seedEsBranch(): Promise<number> {
+    const code = `ES${Date.now().toString(36).slice(-4)}${Math.floor(
+      Math.random() * 100,
+    )
+      .toString(36)
+      .padStart(2, "0")}`;
+    const [res] = await app.db
+      .insert(schema.branches)
+      .values({
+        name: "ES-SUM-Test",
+        code,
+        country: "ES",
+      })
+      .$returningId();
+    return res.id;
+  }
+
+  /** Seed a fresh secondary AR branch (distinct from the seeded TEST branch). */
+  async function seedArBranch2(): Promise<number> {
+    const code = `AR${Date.now().toString(36).slice(-4)}${Math.floor(
+      Math.random() * 100,
+    )
+      .toString(36)
+      .padStart(2, "0")}`;
+    const [res] = await app.db
+      .insert(schema.branches)
+      .values({
+        name: "AR-SUM-Second",
+        code,
+        country: "AR",
+      })
+      .$returningId();
+    return res.id;
+  }
+
+  it("SUM1: returns shape { monthlyRevenue, revenueByMethod (5 keys), revenueByBranch }", async () => {
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    const result = await txService.getSummary({});
+    expect(result).toHaveProperty("monthlyRevenue");
+    expect(result).toHaveProperty("revenueByMethod");
+    expect(result).toHaveProperty("revenueByBranch");
+    expect(result.revenueByMethod).toEqual({
+      cash: 1000,
+      transfer: 0,
+      card: 0,
+      aura_credit: 0,
+      internal: 0,
+    });
+  });
+
+  it("SUM2: monthlyRevenue equals SUM(amount) across inflow + non-voided rows", async () => {
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        amount: 2500,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2500,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getSummary({});
+    expect(result.monthlyRevenue).toBe(3500);
+  });
+
+  it("SUM3: voided transactions are excluded from totals", async () => {
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    const t1 = await txService.create(baseInput({ amount: 1000 }), adminId);
+    await txService.create(
+      baseInput({
+        amount: 4000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 4000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    await txService.void(t1.id, adminId, { reason: "test void" });
+
+    const result = await txService.getSummary({});
+    expect(result.monthlyRevenue).toBe(4000);
+  });
+
+  it("SUM4: outflow transactions are excluded (revenue = inflow only)", async () => {
+    // Inflow 1000.
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    // Outflow 500 (e.g., refund). Use kind='refund' with a transaction-link
+    // so the service accepts it; allocate against the original transaction.
+    // Simpler path: insert directly via Drizzle to bypass kind/link validation.
+    await app.db.insert(schema.financialTransactions).values({
+      memberId,
+      kind: "refund",
+      direction: "outflow",
+      amount: 500,
+      currency: "ARS",
+      paymentMethod: "cash",
+      transactionDate: TODAY,
+      effectiveDate: TODAY,
+      branchId,
+      recordedBy: adminId,
+    });
+
+    const result = await txService.getSummary({});
+    expect(result.monthlyRevenue).toBe(1000);
+  });
+
+  it("SUM5: country filter — AR-only sum excludes ES rows", async () => {
+    const esBranchId = await seedEsBranch();
+    const esPlanId = (
+      await app.db
+        .insert(schema.subscriptionPlans)
+        .values({
+          name: "ES SUM Plan",
+          planTier: "flex",
+          bookingMode: "flexible",
+          planCategory: "presencial",
+          priceRegular: 100000,
+          priceZero: 0,
+          durationDays: 30,
+          classesPerWeek: 3,
+          currency: "EUR",
+        })
+        .$returningId()
+    )[0].id;
+    const esSubId = (
+      await app.db
+        .insert(schema.subscriptions)
+        .values({
+          userId: memberId,
+          planId: esPlanId,
+          branchId: esBranchId,
+          status: "active",
+          startDate: TODAY,
+          pricePaid: 100000,
+          currency: "EUR",
+          priceTypeApplied: "regular",
+        })
+        .$returningId()
+    )[0].id;
+
+    // 2 AR inflows totaling 10000.
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 4000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: subscriptionId,
+            allocatedAmount: 4000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    await txService.create(
+      baseInput({
+        amount: 6000,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 6000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    // 1 ES inflow of 5000.
+    await txService.create(
+      baseInput({
+        amount: 5000,
+        currency: "EUR",
+        branchId: esBranchId,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: esSubId,
+            allocatedAmount: 5000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const arSummary = await txService.getSummary({ country: "AR" });
+    expect(arSummary.monthlyRevenue).toBe(10000);
+    for (const b of arSummary.revenueByBranch) {
+      expect(b.branchId).not.toBe(esBranchId);
+    }
+
+    const esSummary = await txService.getSummary({ country: "ES" });
+    expect(esSummary.monthlyRevenue).toBe(5000);
+    expect(esSummary.revenueByBranch).toHaveLength(1);
+    expect(esSummary.revenueByBranch[0].branchId).toBe(esBranchId);
+  });
+
+  it("SUM6: branchId filter — restricts to that branch only", async () => {
+    const ar2Id = await seedArBranch2();
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId: ar2Id,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    // Default branch (TEST) inflow 1000.
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    // ar2 branch inflow 7000.
+    await txService.create(
+      baseInput({
+        amount: 7000,
+        branchId: ar2Id,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 7000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getSummary({ branchId: ar2Id });
+    expect(result.monthlyRevenue).toBe(7000);
+    expect(result.revenueByBranch).toHaveLength(1);
+    expect(result.revenueByBranch[0].branchId).toBe(ar2Id);
+  });
+
+  it("SUM7: dateFrom/dateTo filter — only transactions in inclusive range", async () => {
+    await txService.create(
+      baseInput({
+        amount: 1000,
+        transactionDate: "2026-01-01",
+        effectiveDate: "2026-01-01",
+      }),
+      adminId,
+    );
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 2000,
+        transactionDate: "2026-02-15",
+        effectiveDate: "2026-02-15",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    const sub3 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({
+        amount: 3000,
+        transactionDate: "2026-03-31",
+        effectiveDate: "2026-03-31",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub3,
+            allocatedAmount: 3000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getSummary({
+      dateFrom: "2026-02-01",
+      dateTo: "2026-02-28",
+    });
+    expect(result.monthlyRevenue).toBe(2000);
+  });
+
+  it("SUM8: revenueByMethod buckets correctly (cash + transfer + aura_credit; rest 0)", async () => {
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    const sub3 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+    await txService.create(
+      baseInput({ amount: 1000, paymentMethod: "cash" }),
+      adminId,
+    );
+    await txService.create(
+      baseInput({
+        amount: 2000,
+        paymentMethod: "transfer",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+      adminId,
+    );
+    await txService.create(
+      baseInput({
+        amount: 3000,
+        paymentMethod: "aura_credit",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub3,
+            allocatedAmount: 3000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getSummary({});
+    expect(result.revenueByMethod).toEqual({
+      cash: 1000,
+      transfer: 2000,
+      card: 0,
+      aura_credit: 3000,
+      internal: 0,
+    });
+  });
+
+  it("SUM9: revenueByBranch sorted DESC by revenue", async () => {
+    const ar2Id = await seedArBranch2();
+    const sub2 = await seedSubscription({
+      userId: memberId,
+      planId,
+      branchId: ar2Id,
+      pricePaid: 50000,
+      currency: "ARS",
+    });
+
+    // Default branch (TEST): 1000.
+    await txService.create(baseInput({ amount: 1000 }), adminId);
+    // ar2: 5000 (should be first in DESC order).
+    await txService.create(
+      baseInput({
+        amount: 5000,
+        branchId: ar2Id,
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: sub2,
+            allocatedAmount: 5000,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    const result = await txService.getSummary({});
+    expect(result.revenueByBranch.length).toBeGreaterThanOrEqual(2);
+    // First entry should have the highest revenue.
+    expect(result.revenueByBranch[0].revenue).toBeGreaterThanOrEqual(
+      result.revenueByBranch[1].revenue,
+    );
+    expect(result.revenueByBranch[0].branchId).toBe(ar2Id);
+    expect(result.revenueByBranch[0].revenue).toBe(5000);
+  });
+});
+
 describe("BalanceService.getRowsForTransaction()", () => {
   // B1: returns balance rows touched by the tx links (excluding 'transaction' kind)
   it("B1: returns BalanceRow[] for balances touched by the transaction", async () => {
