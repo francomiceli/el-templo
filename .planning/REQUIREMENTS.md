@@ -9,7 +9,7 @@
 
 ## v4.8 Requirements
 
-25 requirements en 5 categorías mapeadas 1:1 a las 5 fases (105-109).
+24 requirements en 5 categorías mapeadas 1:1 a las 5 fases (105-109). Phase 105 SPEC absorbió CHARGE-04 (UI cleanup del MemberFormDialog) en TXN-04 para evitar romper el form al dropear la tabla `debts`.
 
 ### Modelo de Datos (TXN) — Phase 105
 
@@ -36,7 +36,8 @@
 - [ ] **CHARGE-01**: `AssignPlanDialog` incluye sección "Cobro" con monto recibido, método de pago, fecha al asignar o renovar plan.
 - [ ] **CHARGE-02**: `AssignPlanDialog` muestra preview en vivo del saldo resultante cuando el monto recibido es menor al `pricePaid` del plan (ej.: "Saldo pendiente: $10.000 ARS").
 - [ ] **CHARGE-03**: Asignar plan + crear `financial_transaction` + crear `transaction_link` es atómico en una transacción DB; fallo en cualquier paso revierte todos.
-- [ ] **CHARGE-04**: Sección "Deuda" del `MemberFormDialog` eliminada (toggle "Deudor", campos `debtAmount`, `debtCurrency`, `debtNote` removidos del form y del API de update de miembro).
+
+> _CHARGE-04 (eliminar UI "Deuda" del `MemberFormDialog`) se movió a Phase 105 — la spec de 105 lockeó que la limpieza del UI va junta con el drop de la tabla `debts` para evitar que el form quede enviando campos a un endpoint inexistente. Ver Phase 105 SPEC requirement #5._
 
 ### Pago de Saldo + Historial Financiero (PAYMENT) — Phase 108
 
@@ -74,12 +75,16 @@
 
 ## Traceability
 
-| Phase                                      | Requirements                                           |
-| ------------------------------------------ | ------------------------------------------------------ |
-| 105 — Modelo de Datos + Drop del Viejo     | TXN-01, TXN-02, TXN-03, TXN-04, TXN-05, TXN-06, TXN-07 |
-| 106 — Endpoints Transaccionales            | API-01, API-02, API-03, API-04, API-05, API-06, API-07 |
-| 107 — Cobro al Asignar Plan                | CHARGE-01, CHARGE-02, CHARGE-03, CHARGE-04             |
-| 108 — Pago de Saldo + Historial Financiero | PAYMENT-01, PAYMENT-02, PAYMENT-03                     |
-| 109 — Caja v2 + Reportes                   | CAJA-01, CAJA-02, CAJA-03, CAJA-04                     |
+| Phase                                      | Requirements                                                                                                    |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| 105 — Modelo de Datos + Drop del Viejo     | TXN-01, TXN-02, TXN-03, TXN-04, TXN-05, TXN-06, TXN-07 (TXN-04 absorbe CHARGE-04 — UI cleanup atómico con drop) |
+| 106 — Endpoints Transaccionales            | API-01, API-02, API-03, API-04, API-05, API-06, API-07                                                          |
+| 107 — Cobro al Asignar Plan                | CHARGE-01, CHARGE-02, CHARGE-03                                                                                 |
+| 108 — Pago de Saldo + Historial Financiero | PAYMENT-01, PAYMENT-02, PAYMENT-03                                                                              |
+| 109 — Caja v2 + Reportes                   | CAJA-01, CAJA-02, CAJA-03, CAJA-04                                                                              |
 
-**Coverage:** 25 requirements / 5 phases / 100% mapeado.
+**Coverage:** 24 requirements / 5 phases / 100% mapeado.
+
+**Reqs adicionales lockeados a nivel SPEC** (no en REQUIREMENTS.md, pero en el SPEC.md de cada fase):
+
+- Phase 105 SPEC adds: tabla `balances` (cache de saldos pendientes), reescritura de filtro "Solo deudores" en AlumnosPage contra la nueva cache.

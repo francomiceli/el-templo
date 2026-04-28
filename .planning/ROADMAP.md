@@ -2321,16 +2321,15 @@ Plans:
 
 ### Phase 107: Cobro al Asignar Plan
 
-**Goal:** Reemplazar el flujo manual de carga de deuda por un formulario de cobro integrado al asignar/renovar plan. `AssignPlanDialog` gana sección "Cobro", `MemberFormDialog` pierde su sección "Deuda", y asignar plan con cobro parcial genera la transacción + link atómicamente. Cumple el pedido original de operaciones.
+**Goal:** Reemplazar el flujo manual de carga de deuda por un formulario de cobro integrado al asignar/renovar plan. `AssignPlanDialog` gana sección "Cobro" y asignar plan con cobro parcial genera la transacción + link atómicamente. Cumple el pedido original de operaciones. (La sección "Deuda" del `MemberFormDialog` ya fue eliminada en Phase 105 — TXN-04.)
 **Depends on:** Phase 106
-**Requirements:** CHARGE-01, CHARGE-02, CHARGE-03, CHARGE-04
+**Requirements:** CHARGE-01, CHARGE-02, CHARGE-03
 **Success Criteria** (what must be TRUE):
 
 1. `AssignPlanDialog` muestra sección "Cobro" con monto, método de pago, fecha
 2. Cuando monto recibido < `pricePaid`, el dialog muestra preview en vivo del saldo pendiente (ej.: "Saldo pendiente: $10.000 ARS")
 3. Asignar plan + crear `financial_transaction` + crear `transaction_link` ocurre atómicamente; fallo en cualquier paso revierte todos
-4. Sección "Deuda" del `MemberFormDialog` (toggle "Deudor" + monto + moneda + nota) eliminada del form y del API de update de miembro
-5. UAT operativo: admin carga membresía con cobro parcial, perfil del miembro refleja el saldo correctamente, CajaPage registra el cobro real
+4. UAT operativo: admin carga membresía con cobro parcial, perfil del miembro refleja el saldo correctamente, CajaPage registra el cobro real
 
 **Plans:** TBD
 
@@ -2396,6 +2395,8 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 
 ---
 
-_v4.8 added: 2026-04-27 — 5 phases (105-109), 25 requirements (TXN, API, CHARGE, PAYMENT, CAJA). Origin: requerimiento de operaciones por integrar deuda al cargar membresía; análisis reveló necesidad de modelo transaccional. Doc: `.planning/research/v48-financial-model-analysis.md`_
+_v4.8 added: 2026-04-27 — 5 phases (105-109), 24 requirements (TXN, API, CHARGE, PAYMENT, CAJA). Origin: requerimiento de operaciones por integrar deuda al cargar membresía; análisis reveló necesidad de modelo transaccional. Doc: `.planning/research/v48-financial-model-analysis.md`_
+
+_Phase 105 SPEC (2026-04-27): absorbed CHARGE-04 (UI cleanup of MemberFormDialog "Deuda") into TXN-04 — atomic with table drop. Phase 107 reqs reduced from 4 to 3._
 
 </details>
