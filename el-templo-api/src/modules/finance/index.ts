@@ -14,4 +14,10 @@ export type {
   BalanceTargetKind,
   FinancialTransactionRow,
   TransactionLinkRow,
+  // Phase 106 — list/history/create response shapes
+  TransactionListFilters,
+  TransactionListItem,
+  FinancialHistoryFilters,
+  FinancialHistoryItem,
+  CreateTransactionResponse,
 } from "./types";
