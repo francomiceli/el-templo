@@ -238,10 +238,19 @@ export interface AssignPlanInput {
   boardingPass?: boolean;
   notes?: string;
   startMode?: 'now' | 'after_current';
+  /**
+   * Monto efectivamente recibido al asignar plan (Phase 107 D-12, D-13).
+   * Backward-compat: undefined → backend defaults to pricePaid.
+   * Validación frontend: 0 <= amountReceived <= chargeBase (botón Confirmar
+   * deshabilitado si excede). Backend revalida y devuelve 400 en cap-violation.
+   */
+  amountReceived?: number;
 }
 
 export interface RenewSubscriptionInput {
   paymentMethod: PaymentMethod;
+  /** Cobro al renovar (Phase 107). Backward-compat: undefined → renewalPrice. */
+  amountReceived?: number;
 }
 
 // ─── Plan Change / Proration Types ─────────────────────────────────────────
