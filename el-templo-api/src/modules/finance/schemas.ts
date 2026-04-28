@@ -284,13 +284,20 @@ export const financialHistorySchema = {
               // Loose passthrough — trusted shape from
               // TransactionService.getFinancialHistory(). Matches the
               // loose-response pattern in listTransactionsSchema (see Plan 03
-              // comment). If Phase 109 audit requires strict response shapes,
-              // this comment is the gate to flip.
-              transaction: { type: "object" },
+              // comment). additionalProperties:true is REQUIRED here because
+              // Fastify uses fast-json-stringify for response serialization
+              // and STRIPS unlisted fields by default — without it the entire
+              // FinancialTransactionRow is wiped to {}. If Phase 109 audit
+              // requires strict response shapes, this comment is the gate to
+              // flip (replace with full property listing à la
+              // transactionListItemProperties).
+              transaction: { type: "object", additionalProperties: true },
               links: {
                 type: "array",
                 items: {
                   type: "object",
+                  // Same passthrough rationale as `transaction` above.
+                  additionalProperties: true,
                   properties: {
                     targetKind: { type: "string", enum: TARGET_KIND_ENUM },
                     targetId: { type: "integer" },
@@ -301,6 +308,8 @@ export const financialHistorySchema = {
               },
               voidInfo: {
                 type: "object",
+                // Same passthrough rationale as `transaction` above.
+                additionalProperties: true,
                 properties: {
                   voidedAt: { type: "string" },
                   voidedBy: { type: "integer" },
