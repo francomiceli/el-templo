@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-05-PLAN.md
-last_updated: "2026-04-28T14:18:17.878Z"
+stopped_at: Completed 105-06-PLAN.md
+last_updated: "2026-04-28T15:29:04.293Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 351
+  completed_plans: 352
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -142,6 +142,7 @@ _Updated after each plan completion_
 | Phase 105 P03 | 4min | 2 tasks | 4 files |
 | Phase 105 P04 | 6min | 2 tasks | 2 files |
 | Phase 105 P05 | 10min | 2 tasks | 4 files |
+| Phase 105 P06 | 67min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -306,6 +307,9 @@ Recent decisions affecting current work:
 - Plan 105-04: getRevenueByMethod tightened payment-method type guard from 'as' cast to literal-union check (T-105-17 defense-in-depth — kind/direction filter already excludes aura_credit/internal but the cast would silently misroute leakage)
 - Plan 105-05: MemberListItem.debt field DELETED (not renamed) — Plan 07 admin frontend must drop AlumnosPage Deuda column + MemberFormDialog Deuda section. TotalDebtRow[] banner contract preserved with new 'outstanding balance' semantics from balances cache.
 - Plan 105-05: PATCH /api/admin/members/:userId hardened with Fastify additionalProperties:false (NOT Zod .strict()) — module convention is Fastify schemas; legacy clients posting isDebtor/debtAmount/debtCurrency/debtNote/debt get HTTP 400 (T-105-18 mitigation).
+- Plan 105-06: pure-deletion plan with regex-based grep gate; usePaymentsApi.ts admin composable deferred to Plan 07 because CajaPage.vue still consumes it; subscriptions/types.ts inline import('../payments/types').PaymentMethod replaced with top-level import from '../finance/types' (Rule 3 fix); 7 test files migrated from PaymentService DI / schema.payments queries / /api/admin/payments POST helpers to TransactionService + BalanceService DI / financialTransactions+transactionLinks queries / direct ft+tl inserts
+- Plan 105-06: helpers.ts TABLES_TO_CLEAN had stale schema.payments + schema.debts entries that crashed cleanAllTestData with getTableName(undefined) after schema files deleted — both lines removed (Rule 3); test suite recovered from 21/58 file-pass to 58/58
+- Plan 105-06: 1 reports.test.ts assertion negated from toBeDefined→toBeUndefined for voided-row visibility because Plan 04 D-01 canonical revenue filter (voided_at IS NULL) excludes voided rows from /charges by design; legacy test asserted contradictory behavior (Rule 1 — bug)
 
 ### Pending Todos
 
@@ -317,8 +321,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T14:18:17.859Z
-Stopped at: Completed 105-05-PLAN.md
+Last session: 2026-04-28T15:29:04.242Z
+Stopped at: Completed 105-06-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
