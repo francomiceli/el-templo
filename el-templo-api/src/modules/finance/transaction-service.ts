@@ -30,7 +30,7 @@ import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
-import { BalanceService } from "./balance-service";
+import { BalanceService, type TxHandle } from "./balance-service";
 import type {
   CreateTransactionInput,
   FinanceSummary,
@@ -62,12 +62,24 @@ export class TransactionService {
   /**
    * Create a financial transaction with its links and atomically maintain
    * the `balances` cache. Validates all SPEC §7 invariants before any write.
+   *
+   * Optional `tx` parameter (D-09 / CHARGE-03): when provided, all queries run
+   * against the caller's transaction handle, allowing nested atomicity (ej.
+   * `subscriptions/service.ts` envuelve la creación de subscription + cobro
+   * en una sola db.transaction). When omitted, opens its own db.transaction
+   * — backward-compat for the REST endpoint `POST /api/admin/transactions`.
    */
   async create(
     input: CreateTransactionInput,
     recordedBy: number,
+    tx?: TxHandle,
   ): Promise<TransactionDetail> {
-    return await this.db.transaction(async (tx) => {
+    const runner = tx
+      ? <T>(cb: (h: TxHandle) => Promise<T>): Promise<T> => cb(tx)
+      : <T>(cb: (h: TxHandle) => Promise<T>): Promise<T> =>
+          this.db.transaction(cb);
+
+    return await runner<TransactionDetail>(async (txHandle) => {
       // 1a. Σ allocated_amount === amount when links non-empty (TXN-06).
       if (input.links.length > 0) {
         const sum = input.links.reduce((acc, l) => acc + l.allocatedAmount, 0);
@@ -83,7 +95,7 @@ export class TransactionService {
       }
 
       // 1b. Member exists.
-      const memberExists = await tx
+      const memberExists = await txHandle
         .select({ id: schema.users.id })
         .from(schema.users)
         .where(eq(schema.users.id, input.memberId))
@@ -93,7 +105,7 @@ export class TransactionService {
       }
 
       // 1c. Branch exists.
-      const branchExists = await tx
+      const branchExists = await txHandle
         .select({ id: schema.branches.id })
         .from(schema.branches)
         .where(eq(schema.branches.id, input.branchId))
@@ -108,21 +120,21 @@ export class TransactionService {
         let exists: { id: number }[];
         switch (link.targetKind) {
           case "subscription":
-            exists = await tx
+            exists = await txHandle
               .select({ id: schema.subscriptions.id })
               .from(schema.subscriptions)
               .where(eq(schema.subscriptions.id, link.targetId))
               .limit(1);
             break;
           case "debt_balance":
-            exists = await tx
+            exists = await txHandle
               .select({ id: schema.balances.id })
               .from(schema.balances)
               .where(eq(schema.balances.id, link.targetId))
               .limit(1);
             break;
           case "transaction":
-            exists = await tx
+            exists = await txHandle
               .select({ id: schema.financialTransactions.id })
               .from(schema.financialTransactions)
               .where(eq(schema.financialTransactions.id, link.targetId))
@@ -143,25 +155,27 @@ export class TransactionService {
       }
 
       // 2. INSERT financial_transactions.
-      const inserted = await tx.insert(schema.financialTransactions).values({
-        memberId: input.memberId,
-        kind: input.kind,
-        direction: input.direction,
-        amount: input.amount,
-        currency: input.currency ?? "ARS",
-        paymentMethod: input.paymentMethod,
-        transactionDate: input.transactionDate,
-        effectiveDate: input.effectiveDate,
-        branchId: input.branchId,
-        recordedBy,
-        notes: input.notes ?? null,
-      });
+      const inserted = await txHandle
+        .insert(schema.financialTransactions)
+        .values({
+          memberId: input.memberId,
+          kind: input.kind,
+          direction: input.direction,
+          amount: input.amount,
+          currency: input.currency ?? "ARS",
+          paymentMethod: input.paymentMethod,
+          transactionDate: input.transactionDate,
+          effectiveDate: input.effectiveDate,
+          branchId: input.branchId,
+          recordedBy,
+          notes: input.notes ?? null,
+        });
       const transactionId = Number(inserted[0].insertId);
 
       // 3. INSERT transaction_links (UNIQUE constraint catches duplicate
       // (transaction_id, target_kind, target_id) tuples).
       if (input.links.length > 0) {
-        await tx.insert(schema.transactionLinks).values(
+        await txHandle.insert(schema.transactionLinks).values(
           input.links.map((l) => ({
             transactionId,
             targetKind: l.targetKind,
@@ -174,17 +188,17 @@ export class TransactionService {
       // 4. Re-read the ledger row + links so balanceService gets the
       // canonical row (with currency defaults applied) and the caller
       // gets a TransactionDetail.
-      const [txRow] = await tx
+      const [txRow] = await txHandle
         .select()
         .from(schema.financialTransactions)
         .where(eq(schema.financialTransactions.id, transactionId));
-      const linkRows = await tx
+      const linkRows = await txHandle
         .select()
         .from(schema.transactionLinks)
         .where(eq(schema.transactionLinks.transactionId, transactionId));
 
       // 5. Apply cache delta in the SAME tx (atomicity per SPEC §8).
-      await this.balanceService.applyDelta(tx, txRow, linkRows, +1);
+      await this.balanceService.applyDelta(txHandle, txRow, linkRows, +1);
 
       this.log.info(
         {
