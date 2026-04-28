@@ -16,7 +16,11 @@ import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { TransactionService, BalanceService } from ".";
 import { handleServiceError } from "../shared/error-handler";
-import { createTransactionSchema, voidTransactionSchema } from "./schemas";
+import {
+  createTransactionSchema,
+  listTransactionsSchema,
+  voidTransactionSchema,
+} from "./schemas";
 import {
   FINANCE_READ_ROLES,
   FINANCE_WRITE_ROLES,
@@ -28,6 +32,9 @@ import * as schema from "../../db/schema";
 import type {
   CreateTransactionInput,
   CreateTransactionResponse,
+  PaymentMethod,
+  TransactionKind,
+  TransactionListFilters,
 } from "./types";
 
 export const financeRoutes: FastifyPluginAsync = async (fastify) => {
@@ -194,6 +201,70 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
         return { transaction: detail };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "void finance transaction");
+      }
+    },
+  );
+
+  // ===================================================================
+  // GET /transactions — paginated list (API-04, API-07, D-12)
+  // Owner can override scope via ?country=XX. Non-owners are LOCKED to
+  // request.scope.country (set by attachCountryScope). Schema accepts
+  // country for everyone, handler enforces the owner-only semantics.
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: string;
+      kind?: TransactionKind;
+      dateFrom?: string;
+      dateTo?: string;
+      memberId?: number;
+      paymentMethod?: PaymentMethod;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/transactions",
+    { schema: listTransactionsSchema },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution (per CajaPage.vue:521-530 contract).
+        //   - Owner with ?country=XX  → filter by that country.
+        //   - Owner without ?country  → no country filter (sees all countries).
+        //   - Non-owner               → LOCKED to request.scope.country
+        //                                (query.country silently ignored —
+        //                                T-106-02 mitigation).
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country;
+        }
+
+        const filters: TransactionListFilters = {
+          branchId: request.query.branchId,
+          country: country as TransactionListFilters["country"],
+          kind: request.query.kind,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          memberId: request.query.memberId,
+          paymentMethod: request.query.paymentMethod,
+          search: request.query.search,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await transactionService.list(filters);
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "list finance transactions",
+        );
+        return reply;
       }
     },
   );

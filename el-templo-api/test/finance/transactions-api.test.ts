@@ -611,6 +611,486 @@ describe("Finance API — POST /transactions", () => {
   });
 });
 
+describe("Finance API — GET /transactions", () => {
+  let app: FastifyInstance;
+  const ctx = {} as SeededContext;
+
+  beforeAll(async () => {
+    app = await createTestApp();
+    const seeded = await seedFixtures(app);
+    Object.assign(ctx, seeded);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await cleanAllTestData(app);
+    await seedUsersAndPlan(app, ctx);
+  });
+
+  /** Helper: seed N AR transactions via the API (owner).
+   *  Each txn uses its own fresh subscription so transaction_links UNIQUE
+   *  (transaction_id, target_kind, target_id) is irrelevant — and the
+   *  allocatedAmount === amount per TXN-06. The first txn reuses ctx.subArId
+   *  (already seeded); subsequent txns get fresh subs.
+   */
+  async function seedNArTxns(n: number): Promise<void> {
+    for (let i = 0; i < n; i++) {
+      let subId = ctx.subArId;
+      if (i > 0) {
+        const [sub] = await app.db
+          .insert(schema.subscriptions)
+          .values({
+            userId: ctx.memberArId,
+            planId: ctx.planId,
+            branchId: ctx.arBranchId,
+            status: "active",
+            startDate: TODAY,
+            pricePaid: 50000,
+            currency: "ARS",
+            priceTypeApplied: "regular",
+          })
+          .$returningId();
+        subId = sub.id;
+      }
+      const amount = 1000 + i;
+      const res = await app.inject({
+        method: "POST",
+        url: `${FINANCE_URL}/transactions`,
+        headers: { authorization: `Bearer ${ctx.ownerToken}` },
+        payload: basePayload(ctx, {
+          amount,
+          links: [
+            {
+              targetKind: "subscription",
+              targetId: subId,
+              allocatedAmount: amount,
+            },
+          ],
+        }),
+      });
+      if (res.statusCode !== 201) {
+        throw new Error(`seedNArTxns failed: ${res.statusCode} ${res.body}`);
+      }
+    }
+  }
+
+  /** Helper: seed an ES transaction directly via Drizzle. */
+  async function insertEsTxn(amount = 5000): Promise<number> {
+    const [inserted] = await app.db
+      .insert(schema.financialTransactions)
+      .values({
+        memberId: ctx.memberEsId,
+        kind: "plan_charge",
+        direction: "inflow",
+        amount,
+        currency: "EUR",
+        paymentMethod: "cash",
+        transactionDate: TODAY,
+        effectiveDate: TODAY,
+        branchId: ctx.esBranchId,
+        recordedBy: ctx.ownerId,
+      });
+    const txnId = (inserted as { insertId: number }).insertId;
+    await app.db.insert(schema.transactionLinks).values({
+      transactionId: txnId,
+      targetKind: "subscription",
+      targetId: ctx.subEsId,
+      allocatedAmount: amount,
+    });
+    return txnId;
+  }
+
+  // ─── Happy path + filters ─────────────────────────────────────────────────
+
+  it("L1: owner GET (no filters) → 200 with { rows, total, page=1, limit=50 }", async () => {
+    await seedNArTxns(1);
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body).toHaveProperty("rows");
+    expect(body).toHaveProperty("total");
+    expect(body.page).toBe(1);
+    expect(body.limit).toBe(50);
+    expect(body.total).toBeGreaterThanOrEqual(1);
+  });
+
+  it("L2: filter by kind=plan_charge → returns only plan_charge rows", async () => {
+    // 1 plan_charge.
+    await seedNArTxns(1);
+    // 1 adjustment (no links).
+    await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        kind: "adjustment",
+        amount: 500,
+        links: [],
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?kind=plan_charge`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const r of body.rows) {
+      expect(r.kind).toBe("plan_charge");
+    }
+  });
+
+  it("L3: filter by dateFrom + dateTo (inclusive)", async () => {
+    // Seed a 2nd subscription for the second txn (UNIQUE link per sub).
+    const [sub2] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        userId: ctx.memberArId,
+        planId: ctx.planId,
+        branchId: ctx.arBranchId,
+        status: "active",
+        startDate: TODAY,
+        pricePaid: 50000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        amount: 1000,
+        transactionDate: "2026-01-01",
+        effectiveDate: "2026-01-01",
+        links: [
+          {
+            targetKind: "subscription",
+            targetId: ctx.subArId,
+            allocatedAmount: 1000,
+          },
+        ],
+      }),
+    });
+    await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        amount: 2000,
+        transactionDate: "2026-02-15",
+        effectiveDate: "2026-02-15",
+        links: [
+          {
+            targetKind: "subscription",
+            targetId: sub2.id,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?dateFrom=2026-02-01&dateTo=2026-02-28`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows[0].transactionDate).toBe("2026-02-15");
+  });
+
+  it("L4: filter by paymentMethod=transfer", async () => {
+    const [sub2] = await app.db
+      .insert(schema.subscriptions)
+      .values({
+        userId: ctx.memberArId,
+        planId: ctx.planId,
+        branchId: ctx.arBranchId,
+        status: "active",
+        startDate: TODAY,
+        pricePaid: 50000,
+        currency: "ARS",
+        priceTypeApplied: "regular",
+      })
+      .$returningId();
+    await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        amount: 1000,
+        paymentMethod: "cash",
+        links: [
+          {
+            targetKind: "subscription",
+            targetId: ctx.subArId,
+            allocatedAmount: 1000,
+          },
+        ],
+      }),
+    });
+    await app.inject({
+      method: "POST",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+      payload: basePayload(ctx, {
+        amount: 2000,
+        paymentMethod: "transfer",
+        links: [
+          {
+            targetKind: "subscription",
+            targetId: sub2.id,
+            allocatedAmount: 2000,
+          },
+        ],
+      }),
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?paymentMethod=transfer`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows[0].paymentMethod).toBe("transfer");
+  });
+
+  it("L5: filter by memberId returns only that member's rows", async () => {
+    // First, seed one for the AR member.
+    await seedNArTxns(1);
+    // Insert a tx for ES member (different branch + member).
+    await insertEsTxn(3000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?memberId=${ctx.memberArId}`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const r of body.rows) {
+      expect(r.memberId).toBe(ctx.memberArId);
+    }
+  });
+
+  it("L6: filter by search returns rows whose member name matches", async () => {
+    await seedNArTxns(1);
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?search=Member`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    for (const r of body.rows) {
+      expect(r.memberName.toLowerCase()).toContain("member");
+    }
+  });
+
+  it("L7: pagination — limit=2 page=2 returns rows 3-4", async () => {
+    await seedNArTxns(5);
+    const p1 = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?limit=2&page=1`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(p1.statusCode).toBe(200);
+    const p1Body = p1.json();
+    expect(p1Body.rows).toHaveLength(2);
+    expect(p1Body.total).toBe(5);
+    expect(p1Body.page).toBe(1);
+    expect(p1Body.limit).toBe(2);
+
+    const p2 = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?limit=2&page=2`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(p2.statusCode).toBe(200);
+    const p2Body = p2.json();
+    expect(p2Body.rows).toHaveLength(2);
+    expect(p2Body.total).toBe(5);
+    expect(p2Body.page).toBe(2);
+
+    const ids = new Set([
+      ...p1Body.rows.map((r: { id: number }) => r.id),
+      ...p2Body.rows.map((r: { id: number }) => r.id),
+    ]);
+    expect(ids.size).toBe(4);
+  });
+
+  // ─── Owner-only country override ─────────────────────────────────────────
+
+  it("L8: owner GET ?country=AR returns only AR rows", async () => {
+    await seedNArTxns(2);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?country=AR`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const r of body.rows) {
+      expect(r.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  it("L9: owner GET ?country=ES returns only ES rows (override works for any 2-letter code)", async () => {
+    await seedNArTxns(2);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?country=ES`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.total).toBe(1);
+    expect(body.rows[0].branchId).toBe(ctx.esBranchId);
+  });
+
+  it("L10: non-owner-AR GET ?country=ES → query is IGNORED (Blocker #1 — non-owner override)", async () => {
+    await seedNArTxns(2);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?country=ES`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    // Must contain ONLY AR rows — non-owner cannot override.
+    expect(body.total).toBeGreaterThanOrEqual(1);
+    for (const r of body.rows) {
+      expect(r.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  // ─── RBAC denial (T-106-01) ──────────────────────────────────────────────
+
+  it("LD1: coach GET → 403 at module hook (D-04)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.coachToken}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("LD2: unauthenticated GET → 401", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  // ─── Country scope baseline (T-106-02) ───────────────────────────────────
+
+  it("LS1: non-owner admin (AR) GET → list excludes ES branch transactions", async () => {
+    await seedNArTxns(1);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.adminArToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    for (const r of body.rows) {
+      expect(r.branchId).toBe(ctx.arBranchId);
+    }
+  });
+
+  it("LS2: owner GET (no country query) → list contains rows from both countries", async () => {
+    await seedNArTxns(1);
+    await insertEsTxn(5000);
+
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    const branchIds = new Set(
+      body.rows.map((r: { branchId: number }) => r.branchId),
+    );
+    expect(branchIds.has(ctx.arBranchId)).toBe(true);
+    expect(branchIds.has(ctx.esBranchId)).toBe(true);
+  });
+
+  // ─── Validation / DoS (T-106-05, T-106-07) ───────────────────────────────
+
+  it("LV1: limit=300 → 400 (> max 200)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?limit=300`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("LV2: limit=0 → 400 (minimum 1)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?limit=0`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("LV3: page=0 → 400 (minimum 1)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?page=0`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("LV4: kind=foo → 400 (enum violation)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?kind=foo`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  // Note: Fastify default AJV STRIPS unknown query params silently rather
+  // than rejecting (project-wide convention; see Plan 02 V3b note). Schema
+  // still enforces typed params via wrong-type rejection (LV1..LV4 above).
+  // We assert the documented strip behavior here so a future AJV-config
+  // change (which would flip the response to 400) breaks loudly.
+  it("LV5: extra unknown query param ?evil=1 is silently stripped (Fastify AJV default)", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `${FINANCE_URL}/transactions?evil=1`,
+      headers: { authorization: `Bearer ${ctx.ownerToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+  });
+});
+
 describe("Finance API — POST /transactions/:id/void", () => {
   let app: FastifyInstance;
   const ctx = {} as SeededContext;
