@@ -21,7 +21,6 @@ import {
   subscriptionRoutes,
   memberSubscriptionRoutes,
 } from "./modules/subscriptions";
-import { paymentRoutes } from "./modules/payments";
 import {
   attendanceAdminRoutes,
   attendanceMemberRoutes,
@@ -115,9 +114,6 @@ export async function buildApp() {
   await app.register(subscriptionRoutes, {
     prefix: "/api/admin/subscriptions",
   });
-
-  // Payment management routes (record, void, balance, overdue, summary)
-  await app.register(paymentRoutes, { prefix: "/api/admin/payments" });
 
   // Attendance management routes (QR generation, batch confirm, manual check-in)
   await app.register(attendanceAdminRoutes, {
