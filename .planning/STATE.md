@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-01-PLAN.md
-last_updated: "2026-04-28T13:41:09.151Z"
+stopped_at: Completed 105-02-PLAN.md
+last_updated: "2026-04-28T13:52:59.236Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 347
+  completed_plans: 348
   percent: 97
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 2 of 8
+Plan: 3 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -138,6 +138,7 @@ _Updated after each plan completion_
 | Phase 103 P05 | 3 | 2 tasks | 3 files |
 | Phase 104 P04 | 23 min | 3 tasks | 6 files |
 | Phase 105 P01 | 12min | 3 tasks | 5 files |
+| Phase 105 P02 | 7min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -290,6 +291,10 @@ Recent decisions affecting current work:
 - Plan 105-01: financial_transactions enums declared inline via mysqlEnum (D-05); TS literals derived via $inferSelect downstream; circular schema imports between financial-transactions.ts and transaction-links.ts work via Drizzle thunks
 - Plan 105-01: transaction_links.target_id has no DB-level FK; service layer enforces heterogeneous integrity by target_kind per SPEC §7. balances.amount is signed int (negatives allowed for saldo a favor per D-08)
 - Plan 105-01: Migration 0106 ordering CREATE×3 then DROP×2 protects against partial-failure data loss; MySQL \_migrations table column is name not filename so verification SQL must use WHERE name=…
+- Plan 105-02: Sign convention LOCKED — balances.amount > 0 = miembro debe; = 0 = saldado; < 0 = saldo a favor (D-08). Inflow REDUCES outstanding; outflow INCREASES; sign multiplier (+1/-1) handles create/void in one code path.
+- Plan 105-02: Lazy seed from subscriptions.pricePaid is two-step (SELECT existing → INSERT-with-seed OR UPDATE delta) inside db.transaction, NOT a single ON DUPLICATE KEY UPDATE. The seed value depends on a per-target lookup which a single upsert cannot express.
+- Plan 105-02: TXN-05 immutability enforced by TS surface — TransactionService deliberately exposes no update() method. Test K probes via cast: (txService as Record<string, unknown>).update is undefined.
+- Plan 105-02: Tests seed subscriptions directly via Drizzle insert (not the /assign API) because /assign still calls paymentService.recordPayment against the dropped payments table — that path is repaired by Plan 03.
 
 ### Pending Todos
 
@@ -301,8 +306,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T13:40:58.759Z
-Stopped at: Completed 105-01-PLAN.md
+Last session: 2026-04-28T13:52:59.218Z
+Stopped at: Completed 105-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z

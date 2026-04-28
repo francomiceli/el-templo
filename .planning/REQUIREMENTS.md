@@ -21,9 +21,12 @@
       **: Tabla `payments` y todo el código relacionado eliminados (módulo `payments/`, schema, types, tests, endpoints).
 - [x] **TXN-04
       **: Tabla `debts` y todo el código relacionado eliminados (`debts-service.ts`, schema, types, tests, endpoints, UI "Deudor" en `MemberFormDialog`).
-- [ ] **TXN-05**: Transacciones inmutables post-creación. Service layer no permite UPDATE de `financial_transactions` excepto sobre los campos `voided_at`, `voided_by`, `void_reason`. Modificaciones reales se hacen vía void + recreate.
-- [ ] **TXN-06**: Suma de `allocated_amount` de los links de una transacción = `amount` de la transacción. Service layer rechaza inputs que violen la igualdad. Excepción: transacciones sin links (e.g., `kind='advance_payment'` sin destino aún) son válidas.
-- [ ] **TXN-07**: Integridad referencial de links: `transaction_links.target_id` debe apuntar a una entidad existente del `target_kind` correspondiente al momento de creación. Service layer valida explícitamente.
+- [x] **TXN-05
+      **: Transacciones inmutables post-creación. Service layer no permite UPDATE de `financial_transactions` excepto sobre los campos `voided_at`, `voided_by`, `void_reason`. Modificaciones reales se hacen vía void + recreate.
+- [x] **TXN-06
+      **: Suma de `allocated_amount` de los links de una transacción = `amount` de la transacción. Service layer rechaza inputs que violen la igualdad. Excepción: transacciones sin links (e.g., `kind='advance_payment'` sin destino aún) son válidas.
+- [x] **TXN-07
+      **: Integridad referencial de links: `transaction_links.target_id` debe apuntar a una entidad existente del `target_kind` correspondiente al momento de creación. Service layer valida explícitamente.
 
 ### Endpoints API (API) — Phase 106
 
