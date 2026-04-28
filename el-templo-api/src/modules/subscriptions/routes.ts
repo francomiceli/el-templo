@@ -11,7 +11,7 @@ import { FastifyPluginAsync } from "fastify";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
-import { PaymentService } from "../payments/service";
+import { TransactionService, BalanceService } from "../finance";
 import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
@@ -56,12 +56,17 @@ import { attachCountryScope } from "../shared/country-scope";
 
 export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
-  const paymentService = new PaymentService(fastify.db, fastify.log);
+  const balanceService = new BalanceService(fastify.db, fastify.log);
+  const transactionService = new TransactionService(
+    fastify.db,
+    fastify.log,
+    balanceService,
+  );
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
-    paymentService,
+    transactionService,
   );
   const bookingService = new BookingService(
     fastify.db,

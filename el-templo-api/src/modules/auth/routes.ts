@@ -9,7 +9,7 @@ import { registerSchema, loginSchema } from "./schemas";
 import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
-import { PaymentService } from "../payments/service";
+import { TransactionService, BalanceService } from "../finance";
 
 interface RegisterBody {
   email: string;
@@ -152,15 +152,20 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
               // pattern in this file (SegmentationService is already instantiated
               // the same way in /me). All three services export their classes.
               const auraService = new AuraService(fastify.db);
-              const paymentService = new PaymentService(
+              const balanceService = new BalanceService(
                 fastify.db,
                 fastify.log,
+              );
+              const transactionService = new TransactionService(
+                fastify.db,
+                fastify.log,
+                balanceService,
               );
               const subscriptionService = new SubscriptionService(
                 fastify.db,
                 request.log,
                 auraService,
-                paymentService,
+                transactionService,
               );
 
               const today = new Date().toISOString().split("T")[0];

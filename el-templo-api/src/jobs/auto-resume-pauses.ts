@@ -14,18 +14,19 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type * as schema from "../db/schema";
 import { SubscriptionService } from "../modules/subscriptions/service";
 import { AuraService } from "../modules/aura";
-import { PaymentService } from "../modules/payments/service";
+import { TransactionService, BalanceService } from "../modules/finance";
 
 const log = pino({ name: "auto-resume-pauses" });
 
 export function startAutoResumePausesJob(db: MySql2Database<typeof schema>) {
   const auraService = new AuraService(db);
-  const paymentService = new PaymentService(db, log);
+  const balanceService = new BalanceService(db, log);
+  const transactionService = new TransactionService(db, log, balanceService);
   const subscriptionService = new SubscriptionService(
     db,
     log,
     auraService,
-    paymentService,
+    transactionService,
   );
 
   // Daily at 00:05 Argentina time (just after midnight)
