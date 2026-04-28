@@ -55,6 +55,7 @@ export interface Program {
   sessionsPerWeekToAdvance: number;
   auraWeeklyBonus: number;
   auraCompletionBonus: number;
+  goalPlanType: string | null;
   isActive: boolean;
   createdAt: string;
 }
