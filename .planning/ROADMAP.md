@@ -2402,13 +2402,13 @@ Plans:
 **Execution Order:**
 Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 108 (Payment UX) → Phase 109 (Caja v2)
 
-| Phase                                     | Plans Complete | Status        | Completed |
-| ----------------------------------------- | -------------- | ------------- | --------- |
-| 105. Modelo de Datos + Drop del Viejo     | 7/8            | Executing     | —         |
-| 106. Endpoints Transaccionales            | —              | Planned       | —         |
-| 107. Cobro al Asignar Plan                | 6/6            | Smoke pending | —         |
-| 108. Pago de Saldo + Historial Financiero | —              | Planned       | —         |
-| 109. Caja v2 + Reportes                   | —              | Planned       | —         |
+| Phase                                     | Plans Complete | Status    | Completed  |
+| ----------------------------------------- | -------------- | --------- | ---------- |
+| 105. Modelo de Datos + Drop del Viejo     | 7/8            | Executing | —          |
+| 106. Endpoints Transaccionales            | —              | Planned   | —          |
+| 107. Cobro al Asignar Plan                | 6/6            | Complete  | 2026-04-28 |
+| 108. Pago de Saldo + Historial Financiero | —              | Planned   | —          |
+| 109. Caja v2 + Reportes                   | —              | Planned   | —          |
 
 ---
 
