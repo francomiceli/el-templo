@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: executing
-stopped_at: Completed 105-03-PLAN.md
-last_updated: "2026-04-28T14:01:02.778Z"
+stopped_at: Completed 105-04-PLAN.md
+last_updated: "2026-04-28T14:08:46.243Z"
 last_activity: 2026-04-28
 progress:
   total_phases: 95
   completed_phases: 81
   total_plans: 359
-  completed_plans: 349
+  completed_plans: 350
   percent: 97
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 105 (modelo-de-datos-drop-del-viejo) — EXECUTING
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-04-28
 
@@ -140,6 +140,7 @@ _Updated after each plan completion_
 | Phase 105 P01 | 12min | 3 tasks | 5 files |
 | Phase 105 P02 | 7min | 3 tasks | 5 files |
 | Phase 105 P03 | 4min | 2 tasks | 4 files |
+| Phase 105 P04 | 6min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -299,6 +300,9 @@ Recent decisions affecting current work:
 - Plan 105-03: Renew callsite (RenewSubscriptionInput has no branchId) resolves branchId via users.branchId lookup with fallback to 'Templo Online' virtual branch — throws if neither resolves; SPEC §1 NOT NULL invariant maintained
 - Plan 105-03: All 4 transactionService.create callsites pass amount===allocatedAmount (preserves legacy full-payment assumption); transactionDate===effectiveDate (legacy paymentDate semantics)
 - Plan 105-03: SubscriptionService takes transactionService?: TransactionService via 4th positional constructor arg; type-only import at consumer, concrete-class import at 3 DI sites (auth/routes, subscriptions/routes, auto-resume-pauses)
+- Plan 105-04: D-01 canonical revenue filter (kind IN ('plan_charge','debt_settlement') AND direction='inflow' AND voided_at IS NULL) applied across 4 analytics methods + 4 reports query blocks; getRevenueByBranch dropped users join (branch_id is first-class on financial_transactions); paymentDate alias preserved (sourced from ft.transaction_date) so frontend ChargeReportRow consumers stay unchanged
+- Plan 105-04: getChargeHistory queries (Drizzle count + raw SQL row fetch) join through transaction_links pivot (target_kind='subscription') because financial_transactions has no direct subscription_id; 4-table → 5-table chain preserves response semantics
+- Plan 105-04: getRevenueByMethod tightened payment-method type guard from 'as' cast to literal-union check (T-105-17 defense-in-depth — kind/direction filter already excludes aura_credit/internal but the cast would silently misroute leakage)
 
 ### Pending Todos
 
@@ -310,8 +314,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T14:01:02.762Z
-Stopped at: Completed 105-03-PLAN.md
+Last session: 2026-04-28T14:08:39.879Z
+Stopped at: Completed 105-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 105 (modelo-de-datos-drop-del-viejo) — 8 plans — 2026-04-28T13:33:11.977Z
