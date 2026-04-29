@@ -14,9 +14,13 @@
  * exist in financial_transactions, OR if a balance row already exists
  * for sub 6116.
  *
- * Usage:
- *   pnpm tsx scripts/backfill-historical-payments.ts            # dry run
- *   pnpm tsx scripts/backfill-historical-payments.ts --apply    # real
+ * Usage (local):
+ *   pnpm tsx src/scripts/backfill-historical-payments.ts            # dry run
+ *   pnpm tsx src/scripts/backfill-historical-payments.ts --apply    # real
+ *
+ * Usage (server, post-deploy):
+ *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js
+ *   NODE_ENV=production node dist/scripts/backfill-historical-payments.js --apply
  *
  * Works against any env via .env DATABASE_URL. Single DB transaction —
  * partial failure rolls back everything.
@@ -25,7 +29,7 @@
  */
 
 import "dotenv/config";
-import { createSingleConnection } from "../src/db/index";
+import { createSingleConnection } from "../db/index";
 import {
   financialTransactions,
   transactionLinks,
@@ -33,7 +37,7 @@ import {
   subscriptions,
   users,
   branches,
-} from "../src/db/schema";
+} from "../db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 
 type Currency = "ARS" | "EUR";
