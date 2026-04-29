@@ -350,6 +350,29 @@ export const outstandingBalancesSchema = {
   },
 } as const;
 
+/**
+ * Phase 109-04 — Export schema for outstanding-balances. Mirrors the
+ * listing querystring minus pagination (server returns full filtered
+ * set in one .xlsx). Response is binary, so no `response: 200` schema.
+ */
+export const outstandingBalancesExportSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      country: { type: "string", enum: ["AR", "ES"] },
+      currency: { type: "string", minLength: 2, maxLength: 4 },
+      search: { type: "string", maxLength: 100 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 export const accessExportSchema = {
   querystring: accessReportSchema.querystring,
 } as const;

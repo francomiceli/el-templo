@@ -1056,6 +1056,115 @@ export class ReportsService {
     return this.getInactiveMembers(filters);
   }
 
+  /**
+   * Phase 109-04 — Export rows for the Deudas (outstanding balances) report.
+   *
+   * Returns the full filtered set in one shot (no pagination), sorted
+   * ageInDays DESC. Mirrors `getOutstandingBalances` filter semantics
+   * exactly so the export contains byte-identical rows to what the
+   * paginated listing would produce. We skip the bucketTotals scan
+   * because the export only needs row-level data.
+   *
+   * Like the listing endpoint, branchId/country filters implicitly
+   * exclude debt_balance rows (no branch/no geography).
+   */
+  async exportOutstandingBalances(
+    filters: OutstandingBalancesFilters,
+  ): Promise<OutstandingBalanceRow[]> {
+    // ── Build WHERE conditions ──────────────────────────────────────────────
+    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+
+    if (filters.branchId !== undefined) {
+      conds.push(eq(schema.subscriptions.branchId, filters.branchId));
+    }
+    if (filters.country !== undefined) {
+      conds.push(eq(schema.branches.country, filters.country));
+    }
+    if (filters.currency !== undefined) {
+      conds.push(eq(schema.balances.currency, filters.currency));
+    }
+    if (filters.search !== undefined && filters.search.trim().length > 0) {
+      const searchCond = buildMemberNameSearchCondition(filters.search, {
+        includeDni: false,
+      });
+      if (searchCond !== null) {
+        conds.push(searchCond);
+      }
+    }
+
+    const whereClause = and(...conds);
+
+    const rawRows = await this.db
+      .select({
+        memberId: schema.balances.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
+        targetKind: schema.balances.targetKind,
+        targetId: schema.balances.targetId,
+        amount: schema.balances.amount,
+        currency: schema.balances.currency,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        planName: schema.subscriptionPlans.name,
+        balanceCreatedAt: schema.balances.createdAt,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .where(whereClause)
+      .orderBy(
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
+      );
+
+    const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
+      const { effectiveDate, conceptLabel } = deriveEffectiveDateAndLabelOB({
+        targetKind: r.targetKind,
+        targetId: r.targetId,
+        subscriptionStartDate: r.subscriptionStartDate,
+        planName: r.planName,
+        balanceCreatedAt: r.balanceCreatedAt,
+      });
+      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const bucket = computeBucketOB(ageInDays);
+      const memberName =
+        `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
+      return {
+        memberId: r.memberId,
+        memberName,
+        branchId: r.branchId ?? null,
+        branchName: r.branchName ?? null,
+        targetKind: r.targetKind,
+        targetId: r.targetId,
+        conceptLabel,
+        amount: Number(r.amount),
+        currency: r.currency,
+        effectiveDate,
+        ageInDays,
+        bucket,
+      };
+    });
+
+    // Final sort: ageInDays DESC (oldest first).
+    mapped.sort((a, b) => b.ageInDays - a.ageInDays);
+
+    return mapped;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // Private Helpers
   // ═══════════════════════════════════════════════════════════════════════════

@@ -26,6 +26,7 @@ import {
   expiringReportSchema,
   inactiveReportSchema,
   outstandingBalancesSchema,
+  outstandingBalancesExportSchema,
   trialConversionReportSchema,
   accessExportSchema,
   chargeExportSchema,
@@ -457,6 +458,103 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // GET /outstanding-balances/export — CAJA-04 Deudas Excel export
+  // (Phase 109-04). One row per concepto pendiente, 9 columns (D-16).
+  // Owner-aware country resolution mirrors the listing endpoint above.
+  // Filename: deudas-<YYYY-MM-DD>.xlsx.
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: "AR" | "ES";
+      currency?: string;
+      search?: string;
+    };
+  }>(
+    "/outstanding-balances/export",
+    { schema: outstandingBalancesExportSchema },
+    async (request, reply) => {
+      try {
+        let country: "AR" | "ES" | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country;
+        } else {
+          country = request.scope.country;
+        }
+
+        const filters: OutstandingBalancesFilters = {
+          branchId: request.query.branchId,
+          country,
+          currency: request.query.currency,
+          search: request.query.search,
+        };
+
+        const rows = await reportsService.exportOutstandingBalances(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Deudas");
+
+        // 9 columns per D-16 — order is load-bearing.
+        sheet.columns = [
+          { header: "Miembro", key: "miembro", width: 28 },
+          { header: "Plan/Concepto", key: "concepto", width: 32 },
+          { header: "Sucursal", key: "sucursal", width: 22 },
+          { header: "Monto", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Antigüedad (días)", key: "antiguedad", width: 18 },
+          { header: "Bucket", key: "bucket", width: 16 },
+          { header: "Fecha devengo", key: "fechaDevengo", width: 16 },
+          { header: "Tipo", key: "tipo", width: 18 },
+        ];
+
+        styleHeaderRow(sheet);
+
+        for (const row of rows) {
+          sheet.addRow({
+            miembro: row.memberName,
+            concepto: row.conceptLabel,
+            sucursal: row.branchName ?? "",
+            monto: row.amount,
+            moneda: row.currency,
+            antiguedad: row.ageInDays,
+            bucket: BUCKET_LABEL_ES[row.bucket],
+            fechaDevengo: row.effectiveDate,
+            tipo: TARGET_KIND_LABEL_ES[row.targetKind] ?? row.targetKind,
+          });
+        }
+
+        return sendExcelReply(workbook, reply, "deudas");
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "export outstanding balances report",
+        );
+      }
+    },
+  );
+};
+
+// =============================================================================
+// Phase 109-04 D-16 — Spanish label maps for Deudas Excel export
+// =============================================================================
+//
+// Mirror of admin frontend labels (DeudasReport.vue). Duplicated inline here
+// per Phase 109-03 precedent — promote to shared module if a 4th consumer
+// surfaces. Bucket label keeps "días" lowercased to match D-01 UI strings.
+const BUCKET_LABEL_ES: Record<"0-30" | "31-60" | "61-90" | "90+", string> = {
+  "0-30": "Hasta 30 días",
+  "31-60": "31-60 días",
+  "61-90": "61-90 días",
+  "90+": "90+ días",
+};
+
+const TARGET_KIND_LABEL_ES: Record<string, string> = {
+  subscription: "Plan",
+  debt_balance: "Saldo a regularizar",
 };
 
 // =============================================================================
