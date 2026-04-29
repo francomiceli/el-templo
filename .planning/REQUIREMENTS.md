@@ -64,7 +64,8 @@
 - [x] **CAJA-01
       **: `CajaPage` summary segmentado por `kind` (cobros de plan, saldos de deuda, ajustes, reembolsos) además del corte actual por método y sucursal.
 - [ ] **CAJA-02**: `CajaPage` tabla muestra columna `kind` y filtro por tipo de transacción.
-- [ ] **CAJA-03**: Reporte de **aging de deudas pendientes**: lista de saldos abiertos agrupable por sucursal, plan, antigüedad (0-30, 31-60, 61-90, 90+ días), miembro.
+- [x] **CAJA-03
+      **: Reporte de **aging de deudas pendientes**: lista de saldos abiertos agrupable por sucursal, plan, antigüedad (0-30, 31-60, 61-90, 90+ días), miembro.
 - [ ] **CAJA-04**: Excel export del CajaPage y del reporte de aging actualizado para reflejar el modelo nuevo (columnas: kind, allocated amounts, target del link).
 
 ---

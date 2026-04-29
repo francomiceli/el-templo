@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Plan 109-01 complete — revenueByKind shipped
-last_updated: "2026-04-29T02:35:41.697Z"
+stopped_at: Plan 109-02 complete — outstanding-balances endpoint shipped
+last_updated: "2026-04-29T02:59:41.671Z"
 last_activity: 2026-04-29 -- Phase --phase execution started
 progress:
   total_phases: 99
   completed_phases: 85
   total_plans: 382
-  completed_plans: 373
+  completed_plans: 374
   percent: 98
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: --phase (109) — EXECUTING
-Plan: 1 of --name
-Next: Phase 107 — Cobro al Asignar Plan
-Last activity: 2026-04-29 -- Phase --phase execution started
+Phase: 109 (Caja v2 + Reportes) — EXECUTING
+Plan: 2 of 5 complete (109-02 outstanding-balances shipped)
+Next: Plan 109-03 — CajaPage v2 frontend (segmentación por kind)
+Last activity: 2026-04-29 — Plan 109-02 complete (outstanding-balances endpoint)
 
 ## Performance Metrics
 
@@ -150,6 +150,7 @@ _Updated after each plan completion_
 | Phase Phase 106 PP04 | 21min | 3 tasks tasks | 3 files files |
 | Phase 106 P05 | 7min | 3 tasks | 9 files |
 | Phase 109 P01 | 22min | 2 tasks tasks | 4 files files |
+| Phase 109 P02 | 20min | 3 tasks tasks | 5 files files |
 
 ## Accumulated Context
 
@@ -332,6 +333,10 @@ Recent decisions affecting current work:
 - Plan 106-05: kind='plan_charge' bind on listTransactions in CajaPage preserves legacy /payments cobros semantics during Phase 106 (D-14 closure scope); debt_settlement surfaces via Plan 04 financial-history. Phase 109 adds UI kind dropdown.
 - Plan 106-05: Task 1 grep regex for owner-override was overly strict (Prettier formatted across multiple lines); used Plan 03 SUMMARY canonical evidence (grep -c 'request.scope.isOwner' routes.ts === 4) as verification gate. No Plan 03 file modifications — Wave 4 conflict-free invariant intact.
 - Plan 109-01: revenueByKind extended FinanceSummary additively (D-11); refund=0 by design (W4 negative assertion in RBK3); placeholder zeros in Task 1 commit kept tsc clean before Task 2 wired real groupBy
+- Plan 109-02: getOutstandingBalances service lives in ReportsService (not finance/transaction-service) — D-08 path is /api/admin/reports/outstanding-balances and reports module already mounts CAJA_ROLES + attachCountryScope; finance counterpart getOutstandingConcepts stays per-member because /financial-history is mounted under members/
+- Plan 109-02: bucket math in JS (computeAgeInDaysOB / computeBucketOB), not SQL CASE — preserves Phase 108 future-date clamp at 0, portable across DB session timezones, ~150 timestamp diffs per request is negligible
+- Plan 109-02: owner without ?country sees ALL countries (no filter); owner with ?country=AR|ES filters; non-owner locked to scope.country — mirrors GET /api/admin/finance/transactions/summary, NOT the simpler /access etc. pattern, because Deudas is the one report that surfaces multi-currency totals (D-06)
+- Plan 109-02: bucketTotals schema typed as object with additionalProperties:true — needed because shape flips between flat BucketTotals (non-owner) and per-currency keyed map (owner); fast-json-stringify would otherwise strip the EUR/ARS keys
 
 ### Pending Todos
 
@@ -343,8 +348,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T02:35:36.279Z
-Stopped at: Plan 109-01 complete — revenueByKind shipped
+Last session: 2026-04-29T02:59:26.597Z
+Stopped at: Plan 109-02 complete — outstanding-balances endpoint shipped
 Resume file: None
 
 **Planned Phase:** 109 (Caja v2 + Reportes) — 5 plans — 2026-04-29T02:13:15.024Z
