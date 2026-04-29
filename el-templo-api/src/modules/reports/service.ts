@@ -6,18 +6,24 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, gt, sql, isNull, isNotNull, type SQL } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
+import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type {
   AccessReportFilters,
   AccessReportRow,
+  BucketTotals,
   ChargeReportFilters,
   ChargeReportRow,
+  DebtBucket,
   ExpiringReportFilters,
   ExpiringReportRow,
   InactiveReportFilters,
   InactiveReportRow,
+  OutstandingBalanceRow,
+  OutstandingBalancesFilters,
+  OutstandingBalancesResult,
   PaginatedResult,
   TrialConversionFilters,
   TrialConversionReport,
@@ -43,6 +49,91 @@ function median(sorted: number[]): number | null {
     return (sorted[mid - 1] + sorted[mid]) / 2;
   }
   return sorted[mid];
+}
+
+// =============================================================================
+// CAJA-03 — Outstanding balances (Deudas) helpers
+// =============================================================================
+
+const MS_PER_DAY_OB = 1000 * 60 * 60 * 24;
+
+const MONTHS_ES_OB = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+/**
+ * D-05: ageInDays clamped at 0 when effective_date is in the future
+ * (consistent with Phase 108 D-04 / getOutstandingConcepts).
+ *
+ * Computed in JS — not via SQL DATEDIFF — so the clamp at 0 is portable
+ * and doesn't drift with the DB session timezone.
+ */
+function computeAgeInDaysOB(effectiveDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const eff = new Date(effectiveDate + "T00:00:00");
+  const diffMs = today.getTime() - eff.getTime();
+  return Math.max(0, Math.floor(diffMs / MS_PER_DAY_OB));
+}
+
+/** D-05 bucket boundaries (closed intervals). */
+function computeBucketOB(ageInDays: number): DebtBucket {
+  if (ageInDays <= 30) return "0-30";
+  if (ageInDays <= 60) return "31-60";
+  if (ageInDays <= 90) return "61-90";
+  return "90+";
+}
+
+function emptyBucketTotals(): BucketTotals {
+  return { "0-30": 0, "31-60": 0, "61-90": 0, "90+": 0 };
+}
+
+/**
+ * D-05/D-06: derive (effectiveDate, conceptLabel) for an outstanding row.
+ *
+ * - subscription rows: effectiveDate = subscriptions.startDate.
+ *   conceptLabel = "Mensualidad <Mes> <Año> — <PlanName>".
+ * - debt_balance rows (or subscription rows where the LEFT JOIN didn't
+ *   resolve, e.g. orphaned data): fallback effectiveDate = balances.createdAt
+ *   (date portion). conceptLabel = "Saldo a regularizar" (D-04 wording).
+ */
+function deriveEffectiveDateAndLabelOB(input: {
+  targetKind: "subscription" | "debt_balance";
+  targetId: number;
+  subscriptionStartDate: string | null;
+  planName: string | null;
+  balanceCreatedAt: Date | string;
+}): { effectiveDate: string; conceptLabel: string } {
+  if (
+    input.targetKind === "subscription" &&
+    input.subscriptionStartDate !== null
+  ) {
+    const effectiveDate = input.subscriptionStartDate;
+    const d = new Date(effectiveDate + "T00:00:00");
+    const month = MONTHS_ES_OB[d.getMonth()] ?? "";
+    const year = d.getFullYear();
+    const planName = input.planName ?? "Plan";
+    const conceptLabel = `Mensualidad ${month} ${year} — ${planName}`;
+    return { effectiveDate, conceptLabel };
+  }
+
+  const created =
+    input.balanceCreatedAt instanceof Date
+      ? input.balanceCreatedAt
+      : new Date(input.balanceCreatedAt);
+  const effectiveDate = created.toISOString().slice(0, 10);
+  return { effectiveDate, conceptLabel: "Saldo a regularizar" };
 }
 
 export class ReportsService {
@@ -389,6 +480,247 @@ export class ReportsService {
         phone: r.phone ? String(r.phone) : null,
       };
     });
+  }
+
+  // ─── Outstanding Balances / Deudas (CAJA-03 — Phase 109-02) ──────────────
+
+  /**
+   * Aging report data feed for the "Deudas" tab in ReportesPage (D-08).
+   *
+   * Source: balances WHERE amount > 0 LEFT JOIN subscriptions
+   *   LEFT JOIN subscription_plans LEFT JOIN branches LEFT JOIN users.
+   *
+   * Why LEFT JOIN: target_kind='debt_balance' rows have no subscription, so
+   * an INNER JOIN would silently drop them. Same for branches — debt_balance
+   * rows have no branch.
+   *
+   * Bucket math is in JS (computeAgeInDaysOB / computeBucketOB) — not SQL —
+   * so the clamp at 0 for future effective_dates is portable and timezone-
+   * independent (matches Phase 108 getOutstandingConcepts).
+   *
+   * Filtering nuance:
+   *  - branchId filter implicitly excludes debt_balance rows (no branch).
+   *    Documented; acceptable per D-04 (debt_balance is rare).
+   *  - country filter applied through branches.country. Same exclusion of
+   *    debt_balance applies — semantically correct because debt_balance is
+   *    a virtual concept without geography.
+   *
+   * D-22 — pagination via LIMIT/OFFSET (no cursor). Default page=1, limit=50.
+   * Schema caps limit at 200 (T-109-05 DoS mitigation).
+   *
+   * D-06 — bucketTotals shape varies by isOwner:
+   *   - non-owner: flat BucketTotals (always single currency by country scope).
+   *   - owner: keyed by currency, e.g. { ARS: {...}, EUR: {...} }.
+   *   We NEVER sum amounts across currencies.
+   *
+   * Sort order: ageInDays DESC (oldest debts first).
+   */
+  async getOutstandingBalances(
+    filters: OutstandingBalancesFilters,
+    scope: { isOwner: boolean },
+  ): Promise<OutstandingBalancesResult> {
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    // ── Build WHERE conditions ──────────────────────────────────────────────
+    const conds: SQL[] = [gt(schema.balances.amount, 0)];
+
+    if (filters.branchId !== undefined) {
+      // Filter on subscriptions.branchId (LEFT JOIN). debt_balance rows have
+      // no subscription, so they're implicitly excluded — documented above.
+      conds.push(eq(schema.subscriptions.branchId, filters.branchId));
+    }
+
+    if (filters.country !== undefined) {
+      // branches is LEFT JOINed via subscriptions; debt_balance rows have no
+      // branch and are excluded when country filter is active.
+      conds.push(eq(schema.branches.country, filters.country));
+    }
+
+    if (filters.currency !== undefined) {
+      conds.push(eq(schema.balances.currency, filters.currency));
+    }
+
+    if (filters.search !== undefined && filters.search.trim().length > 0) {
+      const searchCond = buildMemberNameSearchCondition(filters.search, {
+        includeDni: false,
+      });
+      if (searchCond !== null) {
+        conds.push(searchCond);
+      }
+    }
+
+    const whereClause = and(...conds);
+
+    // ── Count (no LIMIT) ────────────────────────────────────────────────────
+    const [countRow] = await this.db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .where(whereClause);
+
+    const total = Number(countRow?.count ?? 0);
+
+    // ── Paginated rows query ────────────────────────────────────────────────
+    // ORDER BY effective_date ASC (older subscriptions first) before JS clamp.
+    // For debt_balance rows where subscriptions.startDate is null we fall back
+    // to balances.createdAt — emulated in SQL via COALESCE so the DB-side sort
+    // is roughly stable. Final sort in JS by ageInDays DESC guards against any
+    // edge case (future effective_date clamps to 0).
+    const rawRows = await this.db
+      .select({
+        memberId: schema.balances.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        branchId: schema.subscriptions.branchId,
+        branchName: schema.branches.name,
+        targetKind: schema.balances.targetKind,
+        targetId: schema.balances.targetId,
+        amount: schema.balances.amount,
+        currency: schema.balances.currency,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        planName: schema.subscriptionPlans.name,
+        balanceCreatedAt: schema.balances.createdAt,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .where(whereClause)
+      .orderBy(
+        sql`COALESCE(${schema.subscriptions.startDate}, DATE(${schema.balances.createdAt})) ASC`,
+      )
+      .limit(limit)
+      .offset(offset);
+
+    const mapped: OutstandingBalanceRow[] = rawRows.map((r) => {
+      const { effectiveDate, conceptLabel } = deriveEffectiveDateAndLabelOB({
+        targetKind: r.targetKind,
+        targetId: r.targetId,
+        subscriptionStartDate: r.subscriptionStartDate,
+        planName: r.planName,
+        balanceCreatedAt: r.balanceCreatedAt,
+      });
+      const ageInDays = computeAgeInDaysOB(effectiveDate);
+      const bucket = computeBucketOB(ageInDays);
+      const memberName =
+        `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim();
+      return {
+        memberId: r.memberId,
+        memberName,
+        branchId: r.branchId ?? null,
+        branchName: r.branchName ?? null,
+        targetKind: r.targetKind,
+        targetId: r.targetId,
+        conceptLabel,
+        amount: Number(r.amount),
+        currency: r.currency,
+        effectiveDate,
+        ageInDays,
+        bucket,
+      };
+    });
+
+    // Final sort: ageInDays DESC (oldest first). SQL ORDER BY effective_date
+    // ASC produces equivalent ordering in the common case, but explicit JS
+    // sort guards against COALESCE quirks and the future-date clamp at 0.
+    mapped.sort((a, b) => b.ageInDays - a.ageInDays);
+
+    // ── bucketTotals (full filtered set, no LIMIT) ──────────────────────────
+    // Single query over the same JOINs and WHERE. We project just what's
+    // needed to derive (effectiveDate, currency, amount).
+    const totalsRows = await this.db
+      .select({
+        targetKind: schema.balances.targetKind,
+        targetId: schema.balances.targetId,
+        currency: schema.balances.currency,
+        amount: schema.balances.amount,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        planName: schema.subscriptionPlans.name,
+        balanceCreatedAt: schema.balances.createdAt,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .leftJoin(schema.users, eq(schema.users.id, schema.balances.memberId))
+      .where(whereClause);
+
+    let bucketTotals: BucketTotals | Record<string, BucketTotals>;
+    if (scope.isOwner) {
+      const map: Record<string, BucketTotals> = {};
+      for (const r of totalsRows) {
+        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
+          targetKind: r.targetKind,
+          targetId: r.targetId,
+          subscriptionStartDate: r.subscriptionStartDate,
+          planName: r.planName,
+          balanceCreatedAt: r.balanceCreatedAt,
+        });
+        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        const key = r.currency;
+        if (!map[key]) map[key] = emptyBucketTotals();
+        map[key][bucket] += Number(r.amount);
+      }
+      bucketTotals = map;
+    } else {
+      const flat: BucketTotals = emptyBucketTotals();
+      for (const r of totalsRows) {
+        const { effectiveDate } = deriveEffectiveDateAndLabelOB({
+          targetKind: r.targetKind,
+          targetId: r.targetId,
+          subscriptionStartDate: r.subscriptionStartDate,
+          planName: r.planName,
+          balanceCreatedAt: r.balanceCreatedAt,
+        });
+        const bucket = computeBucketOB(computeAgeInDaysOB(effectiveDate));
+        flat[bucket] += Number(r.amount);
+      }
+      bucketTotals = flat;
+    }
+
+    return { rows: mapped, total, page, limit, bucketTotals };
   }
 
   // ─── Trial Conversion (Phase 102-07) ─────────────────────────────────────
