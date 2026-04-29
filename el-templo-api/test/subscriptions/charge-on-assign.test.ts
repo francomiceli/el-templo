@@ -21,14 +21,7 @@
  * subs.setBookingService(bookings)).
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { and, desc, eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 
@@ -199,6 +192,41 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
         .from(schema.balances)
         .where(eq(schema.balances.memberId, member.id));
       expect(balances).toHaveLength(0);
+    });
+
+    it("Happy 5 — amountReceived=0 con pricePaid>0 → balance row = pricePaid, sin transaction", async () => {
+      const plan = await createPlan(app, adminToken, {
+        name: "Assign Happy 5 Plan",
+        priceRegular: 100000,
+      });
+      const member = await createMember(app);
+
+      const res = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        amountReceived: 0,
+      });
+      expect(res.statusCode).toBe(201);
+      const subId = res.body.id as number;
+
+      const [bal] = await app.db
+        .select()
+        .from(schema.balances)
+        .where(
+          and(
+            eq(schema.balances.memberId, member.id),
+            eq(schema.balances.targetKind, "subscription"),
+            eq(schema.balances.targetId, subId),
+          ),
+        )
+        .limit(1);
+      expect(bal?.amount).toBe(100000);
+      expect(bal?.currency).toBe(plan.currency);
+
+      const txs = await app.db
+        .select()
+        .from(schema.financialTransactions)
+        .where(eq(schema.financialTransactions.memberId, member.id));
+      expect(txs).toHaveLength(0);
     });
 
     it("Sad 1 — amountReceived > pricePaid → 400 'no puede exceder' + rollback (sin subscription)", async () => {

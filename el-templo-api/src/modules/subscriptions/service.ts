@@ -194,8 +194,13 @@ export class SubscriptionService {
    * outer `tx` (D-10 atomicidad — si applyDelta tira, la subscription
    * rollbackea junto con el financial_transaction y el balance row).
    *
-   * Cuando es 0 (boarding pass / chargeBase=0 / explícito 0), no crea
-   * transaction (preserva el guard `pricePaid > 0` actual del codebase).
+   * Cuando amountReceived === 0 y chargeBase === 0 (boarding pass / plan
+   * gratuito), no se crea transaction ni balance row — no hay deuda.
+   *
+   * Cuando amountReceived === 0 y chargeBase > 0 (asignación con deuda
+   * total), se siembra directamente la row de `balances` con amount =
+   * chargeBase. Sin esto, la sub queda invisible al Reporte Deudas hasta
+   * el primer cobro real (gap del modelo pre-fix).
    *
    * Cuando el cobro es parcial (0 < amountReceived < chargeBase), emite log
    * estructurado info con los campos del D-16 — observabilidad operativa
@@ -266,6 +271,18 @@ export class SubscriptionService {
         params.adminId,
         tx,
       );
+    } else if (params.chargeBase > 0) {
+      // amountReceived === 0 con chargeBase > 0: siembra el balance row
+      // explícitamente para que la sub aparezca en Reporte Deudas. Sin
+      // este insert, la lazy-seed de BalanceService no dispara hasta el
+      // primer cobro y la deuda queda invisible.
+      await tx.insert(schema.balances).values({
+        memberId: params.userId,
+        targetKind: "subscription",
+        targetId: params.subscriptionId,
+        currency: params.planCurrency,
+        amount: params.chargeBase,
+      });
     }
 
     if (amountReceived < params.chargeBase) {
