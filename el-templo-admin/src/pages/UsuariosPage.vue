@@ -189,7 +189,7 @@ const roleOptions = [
   { label: 'Recepcion', value: 'recepcion' },
 ];
 
-const BRANCH_ROLES = new Set(['coach', 'gestion', 'recepcion']);
+const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion']);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
 
 const ROLE_COLORS: Record<string, string> = {
@@ -234,13 +234,6 @@ const columns: QTableProps['columns'] = [
     align: 'left',
     sortable: true,
     style: 'width: 130px',
-  },
-  {
-    name: 'sede',
-    label: 'Sede',
-    field: 'branchName',
-    align: 'left',
-    sortable: true,
   },
   {
     name: 'estado',
