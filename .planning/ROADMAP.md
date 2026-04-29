@@ -2394,11 +2394,15 @@ Plans:
 4. Excel export del CajaPage y del aging report actualizado al modelo nuevo (kind, allocated amounts, target del link)
 5. Sanity check end-to-end: ingreso del mes en summary = suma manual de inflows no anulados del mes en `financial_transactions`
 
-**Plans:** TBD
+**Plans:** 5 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-spec-phase 109 then /gsd-plan-phase 109 to break down)
+- [ ] 109-01-PLAN.md — Backend: extender summary endpoint con revenueByKind (CAJA-01 backend)
+- [ ] 109-02-PLAN.md — Backend: nuevo endpoint outstanding-balances + aging buckets (CAJA-03 backend)
+- [ ] 109-03-PLAN.md — Admin: CajaPage segmentación por kind + filtro + columna + Excel (CAJA-01/02/04 frontend)
+- [ ] 109-04-PLAN.md — Admin: Reporte Deudas en ReportesPage (CAJA-03/04 frontend)
+- [ ] 109-05-PLAN.md — Sanity test cross-aggregation + VERIFICATION.md scaffold + smoke handoff
 
 ---
 
