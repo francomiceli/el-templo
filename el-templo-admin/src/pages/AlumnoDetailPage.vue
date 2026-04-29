@@ -153,6 +153,7 @@
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
         <q-tab name="asistencia" label="Asistencia" />
+        <q-tab name="finanzas" label="Finanzas" />
       </q-tabs>
       <q-separator />
 
@@ -392,6 +393,15 @@
         <q-tab-panel name="asistencia">
           <MemberAttendanceTab :userId="userId" />
         </q-tab-panel>
+
+        <!-- Finanzas Tab (Phase 108) -->
+        <q-tab-panel name="finanzas">
+          <FinancialHistoryTab
+            ref="financialHistoryTabRef"
+            :user-id="userId"
+            @voided="onTransactionVoided"
+          />
+        </q-tab-panel>
       </q-tab-panels>
 
       <!-- ========================================== -->
@@ -493,6 +503,7 @@ import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
 import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
+import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
 import { useTransactionsApi } from 'src/composables/useTransactionsApi';
 import type { OutstandingConcept } from 'src/types/transaction';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
@@ -537,6 +548,10 @@ const transactionsApi = useTransactionsApi();
 const outstandingConcepts = ref<OutstandingConcept[]>([]);
 const showRegisterPaymentDialog = ref(false);
 
+// Phase 108 Plan 05 — Ref al tab "Finanzas" para invocar refresh() tras eventos
+// externos (ej. nuevo pago registrado en RegisterPaymentDialog).
+const financialHistoryTabRef = ref<InstanceType<typeof FinancialHistoryTab> | null>(null);
+
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
@@ -576,6 +591,16 @@ async function loadOutstanding(): Promise<void> {
 }
 
 function onPaymentRegistered(): void {
+  void loadOutstanding();
+  // Phase 108 Plan 05 — refrescar el tab "Finanzas" si está montado
+  // (la nueva transacción aparece arriba del timeline).
+  financialHistoryTabRef.value?.refresh();
+}
+
+// Phase 108 Plan 05 — Cuando el tab "Finanzas" anula una transacción,
+// los saldos asociados revierten en el backend → recargar outstanding-concepts
+// para que el botón "Registrar pago" refleje el nuevo estado de saldos.
+function onTransactionVoided(): void {
   void loadOutstanding();
 }
 
