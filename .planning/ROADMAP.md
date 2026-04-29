@@ -2368,11 +2368,16 @@ Plans:
 3. Tab "Historial financiero" en perfil muestra timeline cronológico de transacciones con info de void cuando aplica
 4. UAT: admin recibe pago de saldo, lo distribuye entre dos conceptos, ambos saldos reflejan el cambio correctamente; el cobro aparece en CajaPage del día
 
-**Plans:** TBD
+**Plans:** 6 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-spec-phase 108 then /gsd-plan-phase 108 to break down)
+- [ ] 108-01-PLAN.md — Backend: GET /members/:id/outstanding-concepts endpoint + service + types + JSON Schema
+- [ ] 108-02-PLAN.md — Backend: integration tests (happy, debt_balance fallback, no-saldos, RBAC, cross-country)
+- [ ] 108-03-PLAN.md — Frontend: composable extension + types (OutstandingConcept, RegisterPaymentInput, FinancialHistoryItem)
+- [ ] 108-04-PLAN.md — Frontend: RegisterPaymentDialog (auto-FIFO + Σ validation) + AlumnoDetailPage button
+- [ ] 108-05-PLAN.md — Frontend: FinancialHistoryTab + VoidTransactionDialog + 6to tab Finanzas
+- [ ] 108-06-PLAN.md — Verification: VERIFICATION.md scaffold con 6 escenarios + traceability matrix
 
 ---
 
