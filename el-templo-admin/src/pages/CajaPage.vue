@@ -424,6 +424,14 @@ const summary = reactive<FinanceSummary>({
   monthlyRevenue: 0,
   revenueByMethod: { cash: 0, transfer: 0, card: 0, aura_credit: 0, internal: 0 },
   revenueByBranch: [],
+  // Phase 109 D-11 — additive field for "Por tipo de transaccion" block.
+  revenueByKind: {
+    plan_charge: 0,
+    debt_settlement: 0,
+    refund: 0,
+    adjustment: 0,
+    advance_payment: 0,
+  },
 });
 
 const selectedMonth = ref(new Date().toISOString().slice(0, 7));
@@ -543,6 +551,14 @@ async function loadSummary() {
     summary.monthlyRevenue = data.monthlyRevenue;
     summary.revenueByMethod = data.revenueByMethod;
     summary.revenueByBranch = data.revenueByBranch;
+    // D-11 — defensive fallback if backend omits the field (older API).
+    summary.revenueByKind = data.revenueByKind ?? {
+      plan_charge: 0,
+      debt_settlement: 0,
+      refund: 0,
+      adjustment: 0,
+      advance_payment: 0,
+    };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Error desconocido';
     log.error('Error loading financial summary', { error: message });

@@ -134,6 +134,13 @@ export interface FinanceSummary {
     branchName: string;
     revenue: number;
   }>;
+  /**
+   * Phase 109 D-11 — additive segmentation by transaction kind. Same
+   * inflow + non-voided + filter semantics as monthlyRevenue. All 5
+   * keys always present (defaults 0). `refund` always 0 by design
+   * (refund is outflow-only per balance-service.ts:76-77).
+   */
+  revenueByKind: Record<TransactionKind, number>;
 }
 
 export interface FinanceSummaryParams {
