@@ -92,6 +92,32 @@
     </div>
 
     <!-- ========================================== -->
+    <!-- Por tipo de transacción (Phase 109 D-10) -->
+    <!-- ========================================== -->
+    <div class="q-mb-md">
+      <div class="text-subtitle1 text-weight-medium q-mb-sm">Por tipo de transacción</div>
+      <div class="row q-col-gutter-sm">
+        <div v-for="kind in KIND_ORDER" :key="kind" class="col-6 col-sm">
+          <q-card flat bordered>
+            <q-card-section>
+              <div class="text-caption text-grey-7">{{ KIND_LABELS_ES[kind] }}</div>
+              <div v-if="loadingSummary" class="q-mt-xs">
+                <q-skeleton type="text" width="80px" />
+              </div>
+              <div
+                v-else
+                class="text-h6 text-weight-bold q-mt-xs"
+                :class="`text-${KIND_COLORS[kind]}`"
+              >
+                {{ formatPrice(summary.revenueByKind[kind], displayCurrency) }}
+              </div>
+            </q-card-section>
+          </q-card>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- Filter Bar -->
     <!-- ========================================== -->
     <div class="row q-col-gutter-sm q-mb-md items-end">
@@ -134,6 +160,21 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <!-- Phase 109 D-12 — Tipo filter (single-select) -->
+      <div class="col-6 col-sm-2">
+        <q-select
+          v-model="filters.kind"
+          :options="KIND_OPTIONS"
+          label="Tipo"
+          dense
+          outlined
+          emit-value
+          map-options
+          option-value="value"
+          option-label="label"
+          @update:model-value="onFilterChange"
+        />
+      </div>
       <div class="col-6 col-sm-2">
         <!-- @vue-ignore: "month" is valid HTML5 but not in Quasar's type union -->
         <q-input
@@ -163,6 +204,16 @@
       <template #body-cell-fecha="slotProps">
         <q-td :props="slotProps" :class="{ 'text-grey-5': isVoided(slotProps.row) }">
           {{ formatDate(slotProps.row.transactionDate) }}
+        </q-td>
+      </template>
+
+      <!-- Tipo column (Phase 109 D-13) -->
+      <template #body-cell-kind="slotProps">
+        <q-td :props="slotProps">
+          <q-badge
+            :color="isVoided(slotProps.row) ? 'grey' : kindColor(slotProps.row.kind)"
+            :label="kindLabel(slotProps.row.kind)"
+          />
         </q-td>
       </template>
 
@@ -376,6 +427,7 @@ import {
   PAYMENT_METHOD_FILTER_OPTIONS,
   type TransactionListItem,
   type PaymentMethod,
+  type TransactionKind,
   type FinanceSummary,
 } from 'src/types/transaction';
 import type { BranchOption } from 'src/types/member';
@@ -411,6 +463,49 @@ async function onCountryChange() {
   tablePagination.value.page = 1;
   await Promise.all([loadSummary(), loadTransactions()]);
 }
+
+// =========================================================================
+// Phase 109 — Kind labels / colors / filter options (D-10, D-12, D-13)
+// =========================================================================
+
+const KIND_LABELS_ES: Record<TransactionKind, string> = {
+  plan_charge: 'Cobro de plan',
+  debt_settlement: 'Pago de saldo',
+  refund: 'Reembolso',
+  adjustment: 'Ajuste',
+  advance_payment: 'Pago anticipado',
+};
+
+// Quasar color tokens per D-10:
+//   plan_charge   = positive  (verde)
+//   debt_settlement = primary  (azul)
+//   refund        = negative  (rojo)
+//   adjustment    = warning   (amarillo)
+//   advance_payment = purple  (violeta)
+const KIND_COLORS: Record<TransactionKind, string> = {
+  plan_charge: 'positive',
+  debt_settlement: 'primary',
+  refund: 'negative',
+  adjustment: 'warning',
+  advance_payment: 'purple',
+};
+
+const KIND_ORDER: TransactionKind[] = [
+  'plan_charge',
+  'debt_settlement',
+  'refund',
+  'adjustment',
+  'advance_payment',
+];
+
+const KIND_OPTIONS: Array<{ label: string; value: TransactionKind | null }> = [
+  { label: 'Todos', value: null },
+  { label: KIND_LABELS_ES.plan_charge, value: 'plan_charge' },
+  { label: KIND_LABELS_ES.debt_settlement, value: 'debt_settlement' },
+  { label: KIND_LABELS_ES.refund, value: 'refund' },
+  { label: KIND_LABELS_ES.adjustment, value: 'adjustment' },
+  { label: KIND_LABELS_ES.advance_payment, value: 'advance_payment' },
+];
 
 // =========================================================================
 // State
@@ -449,6 +544,8 @@ const filters = reactive({
   search: '',
   branchId: null as number | null,
   paymentMethod: null as PaymentMethod | null,
+  // Phase 109 D-12 — single-select kind filter, null = "Todos".
+  kind: null as TransactionKind | null,
 });
 
 const tablePagination = ref({
@@ -475,6 +572,10 @@ const methodFilterOptions = [{ label: 'Todos', value: null }, ...PAYMENT_METHOD_
 
 const columns: QTableProps['columns'] = [
   { name: 'fecha', label: 'Fecha', field: 'transactionDate', align: 'left', sortable: false },
+  // Phase 109 D-13 — kind badge column (color-coded). Reuses the q-badge
+  // pattern from FinancialHistoryTab (Phase 108) and matches the colors of
+  // the "Por tipo de transacción" summary cards.
+  { name: 'kind', label: 'Tipo', field: 'kind', align: 'left', sortable: false },
   { name: 'alumno', label: 'Alumno', field: 'memberName', align: 'left', sortable: false },
   { name: 'monto', label: 'Monto', field: 'amount', align: 'left', sortable: false },
   { name: 'metodo', label: 'Metodo', field: 'paymentMethod', align: 'left', sortable: false },
@@ -520,6 +621,15 @@ function methodLabel(method: PaymentMethod): string {
 
 function methodColor(method: PaymentMethod): string {
   return PAYMENT_METHOD_COLORS[method] ?? 'grey';
+}
+
+// Phase 109 D-13 — kind label / color helpers (badge column + cards block).
+function kindLabel(kind: TransactionKind): string {
+  return KIND_LABELS_ES[kind] ?? kind;
+}
+
+function kindColor(kind: TransactionKind): string {
+  return KIND_COLORS[kind] ?? 'grey';
 }
 
 // =========================================================================
@@ -570,18 +680,16 @@ async function loadSummary() {
 async function loadTransactions() {
   loadingTable.value = true;
   try {
-    // Phase 106 scope: bind to the inflow revenue types only so the
-    // Caja list keeps its "cobros" semantics (the legacy /payments
-    // endpoint was inherently inflow-only). We only request
-    // plan_charge here; debt_settlement transactions surface in the
-    // member financial-history endpoint (Plan 04). Phase 109 widens
-    // CajaPage to a unified transaction view with a kind dropdown.
+    // Phase 109 D-12/D-14: kind filter is user-selectable. null = "Todos"
+    // (no kind filter — backend returns all 5 kinds). The legacy Phase 106
+    // hard-bind to 'plan_charge' is removed; the Tipo dropdown above
+    // controls the kind filter, combining with date/branch/method.
     const result = await transactionsApi.listTransactions({
       search: filters.search || undefined,
       branchId: filters.branchId ?? undefined,
       country: isOwner.value ? selectedCountry.value : undefined,
       paymentMethod: filters.paymentMethod ?? undefined,
-      kind: 'plan_charge',
+      kind: filters.kind ?? undefined,
       dateFrom: dateRange.value.dateFrom,
       dateTo: dateRange.value.dateTo,
       page: tablePagination.value.page,
