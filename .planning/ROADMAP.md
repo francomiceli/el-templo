@@ -2401,7 +2401,7 @@ Plans:
 - [x] 109-01-PLAN.md — Backend: extender summary endpoint con revenueByKind (CAJA-01 backend)
 - [x] 109-02-PLAN.md — Backend: nuevo endpoint outstanding-balances + aging buckets (CAJA-03 backend)
 - [x] 109-03-PLAN.md — Admin: CajaPage segmentación por kind + filtro + columna + Excel (CAJA-01/02/04 frontend)
-- [ ] 109-04-PLAN.md — Admin: Reporte Deudas en ReportesPage (CAJA-03/04 frontend)
+- [x] 109-04-PLAN.md — Admin: Reporte Deudas en ReportesPage (CAJA-03/04 frontend)
 - [ ] 109-05-PLAN.md — Sanity test cross-aggregation + VERIFICATION.md scaffold + smoke handoff
 
 ---

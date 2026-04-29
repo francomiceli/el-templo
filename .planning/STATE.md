@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Plan 109-03 complete — CajaPage v2 + server-side Excel export shipped
-last_updated: "2026-04-29T03:20:22.832Z"
+stopped_at: Plan 109-04 complete — Deudas report shipped (5to tab in ReportesPage + backend Excel export)
+last_updated: "2026-04-29T03:35:10.765Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 99
   completed_phases: 85
   total_plans: 382
-  completed_plans: 375
+  completed_plans: 376
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 109 (Caja v2 + Reportes) — EXECUTING
-Plan: 3 of 5 complete (109-02 outstanding-balances shipped)
+Plan: 4 of 5 complete (109-02 outstanding-balances shipped)
 Next: Plan 109-03 — CajaPage v2 frontend (segmentación por kind)
 Last activity: 2026-04-29
 
@@ -152,6 +152,7 @@ _Updated after each plan completion_
 | Phase 109 P01 | 22min | 2 tasks tasks | 4 files files |
 | Phase 109 P02 | 20min | 3 tasks tasks | 5 files files |
 | Phase 109 P03 | 50min | 3 tasks tasks | 8 files files |
+| Phase 109 P04 | 9min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -341,6 +342,9 @@ Recent decisions affecting current work:
 - Plan 109-03: Task 3 redirected from client-side xlsx to server-side exceljs (xlsx not installed in admin; Phase 64 P03 reports pattern is server-side; net result is simpler client + single-source-of-truth filter semantics)
 - Plan 109-03: TransactionExportRow extends TransactionListItem with voidReason — minimal additive contract for 'Razon anulacion' column without leaking the field into the standard listing
 - Plan 109-03: Conceptos column rendered as '<TARGET_KIND_LABEL_ES> #<targetId>' joined by ', ' (W5 stub — granular labels deferred until ops requests)
+- Plan 109-04: Excel export redirected from client-side xlsx (not installed in admin) to backend endpoint /api/admin/reports/outstanding-balances/export — mirrors Plan 109-03 redirection precedent; net result is simpler client + single-source-of-truth filter semantics + integration tests against real MySQL
+- Plan 109-04: DeudasReport encapsulates own load lifecycle on mount + filter/countryScope watches; ReportesPage.fetchTabData switch unchanged (no case 'deudas' needed) — keeps component self-contained and avoids two competing data flows when owner toggles country
+- Plan 109-04: bucketTotals shape discriminator at runtime (Object.prototype.hasOwnProperty.call(bt, '0-30')) — gracefully handles flat BucketTotals (non-owner) vs per-currency keyed map (owner) without runtime assertion
 
 ### Pending Todos
 
@@ -352,8 +356,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T03:20:12.630Z
-Stopped at: Plan 109-03 complete — CajaPage v2 + server-side Excel export shipped
+Last session: 2026-04-29T03:35:10.744Z
+Stopped at: Plan 109-04 complete — Deudas report shipped (5to tab in ReportesPage + backend Excel export)
 Resume file: None
 
 **Planned Phase:** 109 (Caja v2 + Reportes) — 5 plans — 2026-04-29T02:13:15.024Z
