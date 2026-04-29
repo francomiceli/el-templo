@@ -331,6 +331,57 @@ export const financialHistorySchema = {
   },
 } as const;
 
+// -- GET /members/:userId/outstanding-concepts — Phase 108 D-01..D-06 ------
+
+/**
+ * Phase 108 — GET /api/admin/members/:userId/outstanding-concepts
+ *
+ * - D-01: response shape array de conceptos con saldo abierto (FIFO).
+ * - D-02: NO paginación — un alumno casi nunca tiene >20 saldos abiertos.
+ * - D-03: cuando no hay saldos, retornar { concepts: [] } (no 404).
+ *
+ * Loose response — `additionalProperties: true` mantiene los campos del
+ * service intactos a través de fast-json-stringify. Match con el comment
+ * en financialHistorySchema (líneas 287-294).
+ */
+export const outstandingConceptsSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: { userId: { type: "integer", minimum: 1 } },
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        concepts: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              targetKind: {
+                type: "string",
+                enum: ["subscription", "debt_balance"],
+              },
+              targetId: { type: "integer", minimum: 1 },
+              description: { type: "string" },
+              currency: { type: "string" },
+              balance: { type: "integer", minimum: 1 },
+              ageInDays: { type: "integer", minimum: 0 },
+              effectiveDate: { type: "string", format: "date" },
+            },
+          },
+        },
+      },
+    },
+    401: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;
