@@ -148,3 +148,138 @@ export interface FinanceSummaryParams {
 export interface VoidTransactionInput {
   reason: string;
 }
+
+// -- Phase 108: Outstanding concepts (D-01) --------------------------------
+
+/**
+ * Phase 108 — Concepto pendiente con saldo abierto.
+ * Mirror del backend (`api/src/modules/finance/types.ts` OutstandingConcept,
+ * to be added by Plan 01). Source: GET /admin/members/:memberId/outstanding-concepts.
+ */
+export interface OutstandingConcept {
+  /** 'subscription' | 'debt_balance' — same union as BalanceTargetKind in backend. */
+  targetKind: 'subscription' | 'debt_balance';
+  targetId: number;
+  /** Human label, e.g. "Mensualidad Marzo 2026 — Performance Mensual" or "Saldo libre #12". */
+  description: string;
+  currency: string;
+  /** Saldo pendiente positivo (entero). */
+  balance: number;
+  /** Días desde effective_date (clamp >= 0). */
+  ageInDays: number;
+  /** YYYY-MM-DD — usado para orden FIFO. */
+  effectiveDate: string;
+}
+
+// -- Phase 108: Financial history item (D-12 / D-14) -----------------------
+
+/**
+ * Phase 108 — Item del historial financiero del miembro.
+ * Mirror del backend `FinancialHistoryItem` (api/src/modules/finance/types.ts:126-139).
+ * Source: GET /admin/members/:memberId/financial-history (paginado).
+ *
+ * `transaction` shape = mirror inline del FinancialTransactionRow (Drizzle inferSelect),
+ * para evitar exponer un type del backend en el admin.
+ */
+export interface FinancialHistoryItem {
+  transaction: {
+    id: number;
+    memberId: number;
+    kind: TransactionKind;
+    direction: TransactionDirection;
+    amount: number;
+    currency: string;
+    paymentMethod: PaymentMethod;
+    transactionDate: string;
+    effectiveDate: string;
+    branchId: number;
+    notes: string | null;
+    voidedAt: string | null;
+    voidedBy: number | null;
+    voidReason: string | null;
+    createdAt: string;
+  };
+  links: Array<{
+    targetKind: TargetKind;
+    targetId: number;
+    allocatedAmount: number;
+    conceptLabel?: string;
+  }>;
+  voidInfo?: {
+    voidedAt: string;
+    voidedBy: number;
+    voidReason: string;
+  };
+}
+
+// -- Phase 108: Register payment (D-22) ------------------------------------
+
+/**
+ * Phase 108 — Payload para POST /admin/finance/transactions cuando se registra
+ * un pago de saldo (kind='debt_settlement'). Per CONTEXT D-22.
+ *
+ * Σ links[].allocatedAmount DEBE coincidir con `amount` (D-09/D-10);
+ * frontend valida en vivo, backend rechaza 400 si no coincide.
+ */
+export interface RegisterPaymentInput {
+  memberId: number;
+  kind: 'debt_settlement';
+  direction: 'inflow';
+  amount: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  /** YYYY-MM-DD — fecha en la que entró a caja. */
+  transactionDate: string;
+  /** YYYY-MM-DD — período al que se imputa. */
+  effectiveDate: string;
+  branchId: number;
+  notes?: string | null;
+  links: Array<{
+    targetKind: TargetKind;
+    targetId: number;
+    allocatedAmount: number;
+  }>;
+}
+
+// -- Phase 108: POST /transactions response shape (D-22) -------------------
+
+/**
+ * Mirror del backend `CreateTransactionResponse` (api/src/modules/finance/types.ts:143-147).
+ * Tipos minimal — solo lo que el dialog/tab necesita; los rich rows del backend
+ * no se mirroran completos para no acoplarse al schema Drizzle.
+ */
+export interface CreateTransactionResponse {
+  transaction: {
+    id: number;
+    memberId: number;
+    kind: TransactionKind;
+    direction: TransactionDirection;
+    amount: number;
+    currency: string;
+    paymentMethod: PaymentMethod;
+    transactionDate: string;
+    effectiveDate: string;
+    branchId: number;
+    notes: string | null;
+    voidedAt: string | null;
+    voidedBy: number | null;
+    voidReason: string | null;
+    createdAt: string;
+  };
+  links: Array<{
+    id: number;
+    transactionId: number;
+    targetKind: TargetKind;
+    targetId: number;
+    allocatedAmount: number;
+  }>;
+  affectedBalances: Array<{
+    id: number;
+    memberId: number;
+    targetKind: 'subscription' | 'debt_balance';
+    targetId: number;
+    currency: string;
+    amount: number;
+    updatedAt: string;
+  }>;
+}
