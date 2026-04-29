@@ -132,6 +132,32 @@ export function useTransactionsApi() {
     }
   }
 
+  /**
+   * Phase 109 D-15 — Excel export of CajaPage transactions.
+   * Server-side rendering with exceljs (Phase 64 P03 pattern).
+   * Returns a Blob the caller writes to disk via URL.createObjectURL.
+   * Same filter shape as listTransactions (minus page/limit; server
+   * returns all matching rows in one shot).
+   */
+  async function exportToExcel(
+    params: Omit<TransactionListParams, 'page' | 'limit'>
+  ): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/finance/transactions/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando caja');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getSummary(params: FinanceSummaryParams = {}): Promise<FinanceSummary> {
     loading.value = true;
     error.value = null;
@@ -163,6 +189,8 @@ export function useTransactionsApi() {
     getOutstandingConcepts,
     getFinancialHistory,
     createTransaction,
+    // Phase 109 additions:
+    exportToExcel,
     cleanup,
   };
 }

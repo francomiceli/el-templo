@@ -128,6 +128,18 @@ export interface TransactionListItem {
 }
 
 /**
+ * Phase 109 D-15 — Row shape for the CajaPage Excel export.
+ *
+ * Extends TransactionListItem with `voidReason` (rendered in the
+ * "Razón anulación" column). Same query/filter semantics as the list
+ * endpoint; consumed only by GET /transactions/export which serializes
+ * to .xlsx via exceljs in the route layer.
+ */
+export interface TransactionExportRow extends TransactionListItem {
+  voidReason: string | null;
+}
+
+/**
  * Item for GET /api/admin/members/:id/financial-history (D-13).
  * `conceptLabel` is populated for target_kind='subscription' via JOIN
  * to subscriptions + subscription_plans (e.g. "Plan Pro — 2026-03-01").

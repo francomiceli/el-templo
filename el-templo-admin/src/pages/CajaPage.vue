@@ -186,6 +186,18 @@
           @update:model-value="onFilterChange"
         />
       </div>
+      <!-- Phase 109 D-15 — Excel export (server-side, exceljs) -->
+      <div class="col-12 col-sm-auto">
+        <q-btn
+          icon="download"
+          label="Exportar Excel"
+          color="primary"
+          outline
+          dense
+          :loading="exporting"
+          @click="onExportCaja"
+        />
+      </div>
     </div>
 
     <!-- ========================================== -->
@@ -514,6 +526,7 @@ const KIND_OPTIONS: Array<{ label: string; value: TransactionKind | null }> = [
 const transactions = ref<TransactionListItem[]>([]);
 const loadingTable = ref(false);
 const loadingSummary = ref(false);
+const exporting = ref(false);
 
 const summary = reactive<FinanceSummary>({
   monthlyRevenue: 0,
@@ -766,6 +779,47 @@ function onTableRequest(props: { pagination: { page: number; rowsPerPage: number
 
 function goToMember(memberId: number) {
   router.push(`/alumnos/${memberId}`);
+}
+
+// =========================================================================
+// Excel export (Phase 109 D-15)
+// =========================================================================
+
+/**
+ * Server-side Excel export. Calls GET /admin/finance/transactions/export
+ * which returns a fully-rendered .xlsx (exceljs). No client-side pagination
+ * loop or xlsx library — the backend handles it in one shot per the
+ * Phase 64 P03 reports pattern.
+ */
+async function onExportCaja(): Promise<void> {
+  exporting.value = true;
+  try {
+    const blob = await transactionsApi.exportToExcel({
+      search: filters.search || undefined,
+      branchId: filters.branchId ?? undefined,
+      country: isOwner.value ? selectedCountry.value : undefined,
+      paymentMethod: filters.paymentMethod ?? undefined,
+      kind: filters.kind ?? undefined,
+      dateFrom: dateRange.value.dateFrom,
+      dateTo: dateRange.value.dateTo,
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `caja-${today}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    $q.notify({ type: 'positive', message: 'Excel exportado' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error exportando caja', { error: message });
+    $q.notify({ type: 'negative', message: 'Error exportando caja' });
+  } finally {
+    exporting.value = false;
+  }
 }
 
 // =========================================================================

@@ -396,6 +396,39 @@ export const outstandingConceptsSchema = {
   },
 } as const;
 
+// -- GET /transactions/export — Phase 109 D-15 (Excel export) ------------
+
+/**
+ * Phase 109 D-15 — Excel export endpoint for CajaPage.
+ *
+ * Same querystring shape as listTransactionsSchema MINUS `page`/`limit`
+ * (server returns ALL matching rows in one shot). Response is a binary
+ * .xlsx attachment, so no JSON response schema is registered (Fastify
+ * skips response validation when the route returns a Buffer with the
+ * correct Content-Type — same pattern as reports/*\/export endpoints).
+ */
+export const exportTransactionsSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      branchId: { type: "integer", minimum: 1 },
+      country: { type: "string", minLength: 2, maxLength: 2 },
+      kind: { type: "string", enum: KIND_ENUM },
+      dateFrom: { type: "string", format: "date" },
+      dateTo: { type: "string", format: "date" },
+      memberId: { type: "integer", minimum: 1 },
+      paymentMethod: { type: "string", enum: PAYMENT_METHOD_ENUM },
+      search: { type: "string", maxLength: 200 },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    401: errorSchema,
+    403: errorSchema,
+    500: errorSchema,
+  },
+} as const;
+
 // -- Re-exported helper fragments for Plan 03 (reads) ----------------------
 
 export const SHARED_ERROR_SCHEMA = errorSchema;

@@ -42,6 +42,7 @@ import type {
   RevenueByKind,
   TargetKind,
   TransactionDetail,
+  TransactionExportRow,
   TransactionListFilters,
   TransactionListItem,
   VoidTransactionInput,
@@ -847,5 +848,122 @@ export class TransactionService {
     }
 
     return { monthlyRevenue, revenueByMethod, revenueByBranch, revenueByKind };
+  }
+
+  /**
+   * Phase 109 D-15 — Excel export of the CajaPage transaction list.
+   *
+   * Mirrors the same filter semantics as `list()` (branchId, country,
+   * kind, dateFrom/dateTo, paymentMethod, search, memberId) but ignores
+   * pagination — returns ALL matching rows in one shot. Reuses
+   * buildListConditions + the link follow-up query so the result set
+   * stays byte-identical to what the listing endpoint would page through.
+   *
+   * Returns the raw row array; the route layer renders the workbook
+   * (mirrors reports/service.ts → reports/routes.ts split).
+   */
+  async exportRowsForExcel(
+    filters: TransactionListFilters,
+  ): Promise<TransactionExportRow[]> {
+    const recorder = alias(schema.users, "recorder");
+    const conditions = this.buildListConditions(filters);
+
+    const raw = await this.db
+      .select({
+        id: schema.financialTransactions.id,
+        transactionDate: schema.financialTransactions.transactionDate,
+        effectiveDate: schema.financialTransactions.effectiveDate,
+        memberId: schema.financialTransactions.memberId,
+        memberFirstName: schema.users.firstName,
+        memberLastName: schema.users.lastName,
+        kind: schema.financialTransactions.kind,
+        direction: schema.financialTransactions.direction,
+        amount: schema.financialTransactions.amount,
+        currency: schema.financialTransactions.currency,
+        paymentMethod: schema.financialTransactions.paymentMethod,
+        branchId: schema.financialTransactions.branchId,
+        branchName: schema.branches.name,
+        recordedBy: schema.financialTransactions.recordedBy,
+        recorderFirstName: recorder.firstName,
+        recorderLastName: recorder.lastName,
+        voidedAt: schema.financialTransactions.voidedAt,
+        voidReason: schema.financialTransactions.voidReason,
+        notes: schema.financialTransactions.notes,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.users,
+        eq(schema.users.id, schema.financialTransactions.memberId),
+      )
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .innerJoin(
+        recorder,
+        eq(recorder.id, schema.financialTransactions.recordedBy),
+      )
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(
+        desc(schema.financialTransactions.transactionDate),
+        desc(schema.financialTransactions.createdAt),
+      );
+
+    // Single follow-up query for linkSummary (mirrors list() N+1 avoidance).
+    const txIds = raw.map((r) => r.id);
+    const links =
+      txIds.length > 0
+        ? await this.db
+            .select({
+              transactionId: schema.transactionLinks.transactionId,
+              targetKind: schema.transactionLinks.targetKind,
+              targetId: schema.transactionLinks.targetId,
+              allocatedAmount: schema.transactionLinks.allocatedAmount,
+            })
+            .from(schema.transactionLinks)
+            .where(inArray(schema.transactionLinks.transactionId, txIds))
+        : [];
+
+    const linksByTx = new Map<
+      number,
+      Array<{
+        targetKind: TargetKind;
+        targetId: number;
+        allocatedAmount: number;
+      }>
+    >();
+    for (const l of links) {
+      const arr = linksByTx.get(l.transactionId) ?? [];
+      arr.push({
+        targetKind: l.targetKind,
+        targetId: l.targetId,
+        allocatedAmount: l.allocatedAmount,
+      });
+      linksByTx.set(l.transactionId, arr);
+    }
+
+    // Row shape mirrors TransactionListItem + voidReason (added for the
+    // "Razón anulación" column per D-15).
+    return raw.map((r) => ({
+      id: r.id,
+      transactionDate: String(r.transactionDate),
+      effectiveDate: String(r.effectiveDate),
+      memberId: r.memberId,
+      memberName: `${r.memberFirstName ?? ""} ${r.memberLastName ?? ""}`.trim(),
+      kind: r.kind,
+      direction: r.direction,
+      amount: r.amount,
+      currency: r.currency,
+      paymentMethod: r.paymentMethod,
+      branchId: r.branchId,
+      branchName: r.branchName,
+      recordedBy: r.recordedBy,
+      recorderName:
+        `${r.recorderFirstName ?? ""} ${r.recorderLastName ?? ""}`.trim(),
+      voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
+      voidReason: r.voidReason ?? null,
+      notes: r.notes,
+      linkSummary: linksByTx.get(r.id) ?? [],
+    })) as TransactionExportRow[];
   }
 }

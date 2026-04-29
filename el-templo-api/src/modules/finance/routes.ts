@@ -14,10 +14,12 @@
 
 import { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
+import { Workbook } from "exceljs";
 import { TransactionService, BalanceService } from ".";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createTransactionSchema,
+  exportTransactionsSchema,
   listTransactionsSchema,
   transactionsSummarySchema,
   voidTransactionSchema,
@@ -315,4 +317,176 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
       }
     },
   );
+
+  // ===================================================================
+  // GET /transactions/export — Phase 109 D-15 (CajaPage Excel export)
+  //
+  // RBAC: same module-level FINANCE_READ_ROLES guard as the listing
+  // endpoint. Country scope: same owner-aware resolution (owner can
+  // override via ?country=XX, non-owners locked to scope.country).
+  //
+  // Returns a single .xlsx workbook with one row per transaction,
+  // 11 columns per D-15. NO pagination — server returns all matching
+  // rows in one shot (admin frontend never loops). Mirrors the
+  // server-side export pattern from reports/routes.ts (Phase 64 P03).
+  // ===================================================================
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: string;
+      kind?: TransactionKind;
+      dateFrom?: string;
+      dateTo?: string;
+      memberId?: number;
+      paymentMethod?: PaymentMethod;
+      search?: string;
+    };
+  }>(
+    "/transactions/export",
+    { schema: exportTransactionsSchema },
+    async (request, reply) => {
+      try {
+        // Owner-aware country resolution — mirrors GET /transactions.
+        let country: string | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country
+            ? request.query.country.toUpperCase()
+            : undefined;
+        } else {
+          country = request.scope.country;
+        }
+
+        const filters: TransactionListFilters = {
+          branchId: request.query.branchId,
+          country: country as TransactionListFilters["country"],
+          kind: request.query.kind,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          memberId: request.query.memberId,
+          paymentMethod: request.query.paymentMethod,
+          search: request.query.search,
+        };
+
+        const rows = await transactionService.exportRowsForExcel(filters);
+
+        const workbook = new Workbook();
+        workbook.creator = "El Templo";
+        workbook.created = new Date();
+        const sheet = workbook.addWorksheet("Caja");
+
+        // 11 columns per D-15 — order is load-bearing.
+        sheet.columns = [
+          { header: "Fecha", key: "fecha", width: 12 },
+          { header: "Tipo", key: "tipo", width: 18 },
+          { header: "Monto total", key: "monto", width: 14 },
+          { header: "Moneda", key: "moneda", width: 10 },
+          { header: "Método de pago", key: "metodo", width: 16 },
+          { header: "Sucursal", key: "sucursal", width: 22 },
+          { header: "Miembro", key: "miembro", width: 28 },
+          { header: "Conceptos", key: "conceptos", width: 32 },
+          { header: "Notas", key: "notas", width: 28 },
+          { header: "Anulado", key: "anulado", width: 10 },
+          { header: "Razón anulación", key: "razon", width: 24 },
+        ];
+
+        // Header style — bold + light grey fill (mirrors reports/routes.ts
+        // styleHeaderRow helper).
+        const headerRow = sheet.getRow(1);
+        headerRow.font = { bold: true };
+        headerRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE0E0E0" },
+        };
+
+        for (const row of rows) {
+          sheet.addRow({
+            fecha: row.transactionDate,
+            tipo: KIND_LABELS_ES[row.kind] ?? row.kind,
+            monto: row.amount,
+            moneda: row.currency,
+            metodo:
+              PAYMENT_METHOD_LABELS_ES[row.paymentMethod] ?? row.paymentMethod,
+            sucursal: row.branchName,
+            miembro: row.memberName,
+            conceptos: buildConceptosCell(row.linkSummary),
+            notas: row.notes ?? "",
+            anulado: row.voidedAt ? "Sí" : "No",
+            razon: row.voidReason ?? "",
+          });
+        }
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const today = new Date().toISOString().split("T")[0];
+        const filename = `caja-${today}.xlsx`;
+
+        reply
+          .header(
+            "Content-Type",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          )
+          .header("Content-Disposition", `attachment; filename="${filename}"`)
+          .send(Buffer.from(buffer as ArrayBuffer));
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "export finance transactions",
+        );
+      }
+    },
+  );
 };
+
+// =============================================================================
+// Helpers (Phase 109 D-15)
+// =============================================================================
+
+/** Spanish labels for the 5 transaction kinds. Mirror of admin frontend. */
+const KIND_LABELS_ES: Record<TransactionKind, string> = {
+  plan_charge: "Cobro de plan",
+  debt_settlement: "Pago de saldo",
+  refund: "Reembolso",
+  adjustment: "Ajuste",
+  advance_payment: "Pago anticipado",
+};
+
+/** Spanish labels for payment methods. Mirror of admin frontend. */
+const PAYMENT_METHOD_LABELS_ES: Record<PaymentMethod, string> = {
+  cash: "Efectivo",
+  transfer: "Transferencia",
+  card: "Tarjeta",
+  aura_credit: "AURA",
+  internal: "Interno",
+};
+
+/**
+ * Spanish labels for transaction-link target kinds. Used to build the
+ * "Conceptos" column (W5 stub — operations gets `<label> #<id>` until a
+ * future endpoint extension exposes resolved human-readable labels).
+ */
+const TARGET_KIND_LABEL_ES: Record<string, string> = {
+  subscription: "Plan",
+  debt_balance: "Saldo",
+  transaction: "Transacción",
+};
+
+/**
+ * Build the "Conceptos" cell value: "Plan #123, Saldo #45" — empty string
+ * when no links. Per Phase 109 D-15 / W5: granular labels deferred.
+ */
+function buildConceptosCell(
+  linkSummary:
+    | Array<{ targetKind: string; targetId: number }>
+    | undefined
+    | null,
+): string {
+  if (!linkSummary || linkSummary.length === 0) return "";
+  return linkSummary
+    .map(
+      (l) =>
+        `${TARGET_KIND_LABEL_ES[l.targetKind] ?? l.targetKind} #${l.targetId}`,
+    )
+    .join(", ");
+}
