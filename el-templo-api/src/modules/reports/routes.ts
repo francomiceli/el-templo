@@ -17,6 +17,7 @@ import type {
   ChargeReportFilters,
   ExpiringReportFilters,
   InactiveReportFilters,
+  OutstandingBalancesFilters,
   TrialConversionFilters,
 } from "./types";
 import {
@@ -24,6 +25,7 @@ import {
   chargeReportSchema,
   expiringReportSchema,
   inactiveReportSchema,
+  outstandingBalancesSchema,
   trialConversionReportSchema,
   accessExportSchema,
   chargeExportSchema,
@@ -174,6 +176,58 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         return await reportsService.getTrialConversionReport(filters);
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get trial conversion");
+      }
+    },
+  );
+
+  // GET /outstanding-balances — CAJA-03 Deudas report (Phase 109-02)
+  //
+  // Owner-aware country resolution mirrors GET /api/admin/finance/transactions
+  // (Phase 106): non-owner is locked to request.scope.country; owner sees ALL
+  // countries when ?country is absent and filters when ?country=AR|ES is set.
+  // This differs from the simpler scope.country pattern used by /access etc.,
+  // which always filters — owner-without-?country must see all countries here
+  // because the Deudas report is the one place where multi-currency totals
+  // surface (D-06).
+  fastify.get<{
+    Querystring: {
+      branchId?: number;
+      country?: "AR" | "ES";
+      currency?: string;
+      search?: string;
+      page?: number;
+      limit?: number;
+    };
+  }>(
+    "/outstanding-balances",
+    { schema: outstandingBalancesSchema },
+    async (request, reply) => {
+      try {
+        let country: "AR" | "ES" | undefined;
+        if (request.scope.isOwner) {
+          country = request.query.country;
+        } else {
+          country = request.scope.country;
+        }
+
+        const filters: OutstandingBalancesFilters = {
+          branchId: request.query.branchId,
+          country,
+          currency: request.query.currency,
+          search: request.query.search,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await reportsService.getOutstandingBalances(filters, {
+          isOwner: request.scope.isOwner,
+        });
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get outstanding balances report",
+        );
       }
     },
   );
