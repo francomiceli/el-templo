@@ -248,6 +248,54 @@ export interface RegisterPaymentInput {
   }>;
 }
 
+// -- Phase 109 CAJA-03 — Outstanding balances (Deudas report) -------------
+// Internal naming: aging / outstanding-balances. UI label always "Deudas"
+// (D-01 — never expose "aging" string to the user).
+//
+// Mirrors backend types from el-templo-api/src/modules/reports/types.ts
+// (added by Plan 109-02). The bucketTotals shape is bivariant:
+//   - non-owner: flat BucketTotals (single currency by country scope).
+//   - owner: keyed by currency, e.g. { ARS: BucketTotals, EUR: BucketTotals }.
+// We NEVER sum amounts across different currencies.
+
+export type DebtBucket = '0-30' | '31-60' | '61-90' | '90+';
+
+export interface OutstandingBalanceRow {
+  memberId: number;
+  memberName: string;
+  branchId: number | null;
+  branchName: string | null;
+  targetKind: 'subscription' | 'debt_balance';
+  targetId: number;
+  conceptLabel: string;
+  amount: number;
+  currency: string;
+  effectiveDate: string; // YYYY-MM-DD
+  ageInDays: number;
+  bucket: DebtBucket;
+}
+
+export type BucketTotals = Record<DebtBucket, number>;
+
+export interface OutstandingBalancesResult {
+  rows: OutstandingBalanceRow[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Owner: keyed by currency. Non-owner: flat. */
+  bucketTotals: BucketTotals | Record<string, BucketTotals>;
+}
+
+export interface OutstandingBalancesFilters {
+  branchId?: number;
+  country?: 'AR' | 'ES';
+  /** balances.currency — 'ARS' | 'EUR'. Owner-only filter. */
+  currency?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
 // -- Phase 108: POST /transactions response shape (D-22) -------------------
 
 /**

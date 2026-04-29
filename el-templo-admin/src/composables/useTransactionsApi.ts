@@ -15,6 +15,8 @@ import type {
   FinancialHistoryItem,
   RegisterPaymentInput,
   CreateTransactionResponse,
+  OutstandingBalancesFilters,
+  OutstandingBalancesResult,
 } from 'src/types/transaction';
 import type { PaginatedResult } from 'src/types/report';
 
@@ -158,6 +160,55 @@ export function useTransactionsApi() {
     }
   }
 
+  /**
+   * Phase 109 CAJA-03 — List outstanding balances (Deudas report).
+   * Source: GET /admin/reports/outstanding-balances (Plan 109-02).
+   * Filters with undefined values are auto-omitted by axios `params:`.
+   */
+  async function getOutstandingBalances(
+    filters: OutstandingBalancesFilters = {}
+  ): Promise<OutstandingBalancesResult> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get<OutstandingBalancesResult>(
+        '/admin/reports/outstanding-balances',
+        { params: filters }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error cargando deudas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  /**
+   * Phase 109 CAJA-04 — Server-side Excel export of outstanding balances.
+   * Source: GET /admin/reports/outstanding-balances/export (Plan 109-04).
+   * Mirrors exportToExcel pattern (Plan 109-03) — server returns the full
+   * filtered set in one .xlsx; admin never paginates client-side.
+   */
+  async function exportOutstandingBalancesToExcel(
+    params: Omit<OutstandingBalancesFilters, 'page' | 'limit'> = {}
+  ): Promise<Blob> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.get('/admin/reports/outstanding-balances/export', {
+        params,
+        responseType: 'blob',
+      });
+      return data as Blob;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error exportando deudas');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   async function getSummary(params: FinanceSummaryParams = {}): Promise<FinanceSummary> {
     loading.value = true;
     error.value = null;
@@ -191,6 +242,8 @@ export function useTransactionsApi() {
     createTransaction,
     // Phase 109 additions:
     exportToExcel,
+    getOutstandingBalances,
+    exportOutstandingBalancesToExcel,
     cleanup,
   };
 }
