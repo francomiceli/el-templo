@@ -56,6 +56,7 @@
       <q-tab name="cobros" label="Cobros" icon="payments" />
       <q-tab name="vencimientos" label="Vencimientos" icon="event_busy" />
       <q-tab name="inactivos" label="Inactivos" icon="person_off" />
+      <q-tab name="deudas" label="Deudas" icon="warning" />
       <q-tab name="conversion" label="Conversión" icon="trending_up" />
     </q-tabs>
 
@@ -469,6 +470,18 @@
       </q-tab-panel>
 
       <!-- ================================================================ -->
+      <!-- Deudas Tab (Phase 109 CAJA-03) -->
+      <!-- ================================================================ -->
+      <q-tab-panel name="deudas">
+        <DeudasReport
+          :branch-options="deudasBranchOptions"
+          :display-currency="displayCurrency"
+          :country-scope="countryScope"
+          :is-owner="isOwner"
+        />
+      </q-tab-panel>
+
+      <!-- ================================================================ -->
       <!-- Conversión de Trials Tab (Phase 102-07) -->
       <!-- ================================================================ -->
       <q-tab-panel name="conversion">
@@ -676,6 +689,7 @@ import type {
   TrialConversionReport,
 } from 'src/types/report';
 import type { BranchOption } from 'src/types/member';
+import DeudasReport from 'src/components/DeudasReport.vue';
 
 // -- Setup -------------------------------------------------------------------
 
@@ -769,6 +783,11 @@ async function fetchBranches() {
 function onBranchChange() {
   fetchTabData();
 }
+
+// Phase 109-04 — Deudas tab consumes the same branch list as the global
+// filter, but exposes it under its own prop so the component stays
+// decoupled from the shape of `branchOptions` if it ever changes.
+const deudasBranchOptions = computed(() => branchOptions.value);
 
 // -- Date range helpers (shared) ---------------------------------------------
 
