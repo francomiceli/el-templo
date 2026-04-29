@@ -2372,12 +2372,12 @@ Plans:
 
 Plans:
 
-- [ ] 108-01-PLAN.md — Backend: GET /members/:id/outstanding-concepts endpoint + service + types + JSON Schema
-- [ ] 108-02-PLAN.md — Backend: integration tests (happy, debt_balance fallback, no-saldos, RBAC, cross-country)
-- [ ] 108-03-PLAN.md — Frontend: composable extension + types (OutstandingConcept, RegisterPaymentInput, FinancialHistoryItem)
-- [ ] 108-04-PLAN.md — Frontend: RegisterPaymentDialog (auto-FIFO + Σ validation) + AlumnoDetailPage button
-- [ ] 108-05-PLAN.md — Frontend: FinancialHistoryTab + VoidTransactionDialog + 6to tab Finanzas
-- [ ] 108-06-PLAN.md — Verification: VERIFICATION.md scaffold con 6 escenarios + traceability matrix
+- [x] 108-01-PLAN.md — Backend: GET /members/:id/outstanding-concepts endpoint + service + types + JSON Schema
+- [x] 108-02-PLAN.md — Backend: integration tests (happy, debt_balance fallback, no-saldos, RBAC, cross-country)
+- [x] 108-03-PLAN.md — Frontend: composable extension + types (OutstandingConcept, RegisterPaymentInput, FinancialHistoryItem)
+- [x] 108-04-PLAN.md — Frontend: RegisterPaymentDialog (auto-FIFO + Σ validation) + AlumnoDetailPage button
+- [x] 108-05-PLAN.md — Frontend: FinancialHistoryTab + VoidTransactionDialog + 6to tab Finanzas
+- [x] 108-06-PLAN.md — VERIFICATION.md scaffold listo (smoke staging pendiente de acción humana)
 
 ---
 
@@ -2412,7 +2412,7 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 | 105. Modelo de Datos + Drop del Viejo     | 8/8            | Complete | 2026-04-28 |
 | 106. Endpoints Transaccionales            | 6/6            | Complete | 2026-04-28 |
 | 107. Cobro al Asignar Plan                | 6/6            | Complete | 2026-04-28 |
-| 108. Pago de Saldo + Historial Financiero | —              | Planned  | —          |
+| 108. Pago de Saldo + Historial Financiero | 6/6            | Complete | 2026-04-28 |
 | 109. Caja v2 + Reportes                   | —              | Planned  | —          |
 
 ---
