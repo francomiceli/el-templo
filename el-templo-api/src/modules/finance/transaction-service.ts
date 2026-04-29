@@ -813,9 +813,28 @@ export class TransactionService {
       revenue: Number(r.total),
     }));
 
-    // Phase 109 Plan 01 Task 1 — placeholder defaults. Real aggregation
-    // wired in Task 2 (groupBy kind). Keeps the type-system happy and the
-    // response shape stable while Task 2 implements + tests the query.
+    // 4) revenueByKind — GROUP BY kind (5 fixed keys; defaults 0). Same
+    //    conds[] as the rest (direction='inflow' + voidedAt IS NULL +
+    //    branchId/country/dateFrom/dateTo).
+    //
+    //    NOTE (Phase 109 W4): refund is always direction='outflow' per
+    //    balance-service.ts:76-77 convention ("outflow INCREASES it
+    //    (refund/new charge)"). There is no valid (kind='refund' +
+    //    direction='inflow') combo in the model, so revenueByKind.refund
+    //    will always = 0 here. This is correct: monthlyRevenue is
+    //    inflow-only by design, and revenueByKind shares that semantics.
+    const kindRows = await this.db
+      .select({
+        kind: schema.financialTransactions.kind,
+        total: sql<number>`COALESCE(SUM(${schema.financialTransactions.amount}), 0)`,
+      })
+      .from(schema.financialTransactions)
+      .innerJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.financialTransactions.branchId),
+      )
+      .where(and(...conds))
+      .groupBy(schema.financialTransactions.kind);
     const revenueByKind: RevenueByKind = {
       plan_charge: 0,
       debt_settlement: 0,
@@ -823,6 +842,9 @@ export class TransactionService {
       adjustment: 0,
       advance_payment: 0,
     };
+    for (const r of kindRows) {
+      revenueByKind[r.kind] = Number(r.total);
+    }
 
     return { monthlyRevenue, revenueByMethod, revenueByBranch, revenueByKind };
   }
