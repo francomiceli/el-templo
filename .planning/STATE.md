@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 109 context gathered — 22 decisions locked, ready for /gsd-plan-phase 109
-last_updated: "2026-04-28T22:35:00.000Z"
-last_activity: 2026-04-28 -- Phase 109 discuss complete
+stopped_at: Plan 109-01 complete — revenueByKind shipped
+last_updated: "2026-04-29T02:35:41.697Z"
+last_activity: 2026-04-29 -- Phase --phase execution started
 progress:
-  total_phases: 98
+  total_phases: 99
   completed_phases: 85
-  total_plans: 377
-  completed_plans: 372
-  percent: 99
+  total_plans: 382
+  completed_plans: 373
+  percent: 98
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff. v4.8 reemplaza el modelo financiero por uno transaccional unificado.
-**Current focus:** Phase --phase — 107
+**Current focus:** Phase --phase — 109
 
 ## Current Position
 
-Phase: --phase (107) — EXECUTING
+Phase: --phase (109) — EXECUTING
 Plan: 1 of --name
 Next: Phase 107 — Cobro al Asignar Plan
-Last activity: 2026-04-28 -- Phase --phase execution started
+Last activity: 2026-04-29 -- Phase --phase execution started
 
 ## Performance Metrics
 
@@ -149,6 +149,7 @@ _Updated after each plan completion_
 | Phase 106 P03 | 50min | 4 tasks | 7 files |
 | Phase Phase 106 PP04 | 21min | 3 tasks tasks | 3 files files |
 | Phase 106 P05 | 7min | 3 tasks | 9 files |
+| Phase 109 P01 | 22min | 2 tasks tasks | 4 files files |
 
 ## Accumulated Context
 
@@ -330,6 +331,7 @@ Recent decisions affecting current work:
 - Plan 106-05: backward-compat aliases (PAYMENT_METHOD_OPTIONS as alias of PAYMENT_METHOD_FILTER_OPTIONS, LegacyPaymentMethod 3-key narrow type) avoid renaming churn across unrelated callsites; only CajaPage business logic changed. Phase 109 widens.
 - Plan 106-05: kind='plan_charge' bind on listTransactions in CajaPage preserves legacy /payments cobros semantics during Phase 106 (D-14 closure scope); debt_settlement surfaces via Plan 04 financial-history. Phase 109 adds UI kind dropdown.
 - Plan 106-05: Task 1 grep regex for owner-override was overly strict (Prettier formatted across multiple lines); used Plan 03 SUMMARY canonical evidence (grep -c 'request.scope.isOwner' routes.ts === 4) as verification gate. No Plan 03 file modifications — Wave 4 conflict-free invariant intact.
+- Plan 109-01: revenueByKind extended FinanceSummary additively (D-11); refund=0 by design (W4 negative assertion in RBK3); placeholder zeros in Task 1 commit kept tsc clean before Task 2 wired real groupBy
 
 ### Pending Todos
 
@@ -341,8 +343,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 108 executed — VERIFICATION.md scaffold ready, smoke staging pending
-Resume file: --resume-file
+Last session: 2026-04-29T02:35:36.279Z
+Stopped at: Plan 109-01 complete — revenueByKind shipped
+Resume file: None
 
-**Planned Phase:** 107 (cobro-al-asignar-plan) — 6 plans — 2026-04-28T22:29:30.141Z
+**Planned Phase:** 109 (Caja v2 + Reportes) — 5 plans — 2026-04-29T02:13:15.024Z
