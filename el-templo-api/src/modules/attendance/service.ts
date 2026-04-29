@@ -11,7 +11,11 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { BadRequestError } from "../shared/errors";
-import { getWeekRange } from "../shared/date-utils";
+import {
+  getWeekRange,
+  todayInTz,
+  buildClassDateTime,
+} from "../shared/date-utils";
 import { validateQrToken } from "../shared/qr-token";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -48,6 +52,18 @@ export class AttendanceService {
     }
 
     const branchId = qrPayload.branchId;
+
+    // Resolve branch timezone for tz-aware "today" and check-in window math.
+    const [branchRow] = await this.db
+      .select({ timezone: schema.branches.timezone })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, branchId));
+
+    if (!branchRow) {
+      throw new BadRequestError("Sede invalida");
+    }
+
+    const tz = branchRow.timezone;
 
     // Check subscription (auto-expire catches expired subs, returns null = hard block)
     const subscription =
@@ -101,7 +117,7 @@ export class AttendanceService {
 
     // One check-in per day (fast-path guard; authoritative check inside transaction)
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = todayInTz(tz, now);
 
     const [alreadyCheckedIn] = await this.db
       .select({ id: schema.attendance.id })
@@ -119,8 +135,7 @@ export class AttendanceService {
     }
 
     // Find today's bookings before the transaction (read-only, no race concern)
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const windowMinutes = 20;
+    const windowMs = 20 * 60 * 1000;
 
     const bookingsInRange = await this.db
       .select({
@@ -148,9 +163,8 @@ export class AttendanceService {
       );
 
     const matchingBooking = bookingsInRange.find((b) => {
-      const [h, m] = b.startTime.split(":").map(Number);
-      const classMinutes = h * 60 + m;
-      return Math.abs(nowMinutes - classMinutes) <= windowMinutes;
+      const classTime = buildClassDateTime(todayStr, b.startTime, tz);
+      return Math.abs(now.getTime() - classTime.getTime()) <= windowMs;
     });
 
     if (!matchingBooking) {

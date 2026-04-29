@@ -69,11 +69,14 @@ describe("Attendance API", () => {
   };
 
   beforeAll(async () => {
-    // Pin to Wednesday 10:00 local time so booking-window and
+    // Pin to Wednesday 13:00 UTC (= 10:00 AR for branches with default
+    // timezone "America/Argentina/Buenos_Aires") so booking-window and
     // week-range helpers always have valid future slots within Mon-Sat.
-    // No "Z" suffix — local time ensures getHours()=10 matches schedule startTime "10:00".
+    // Using explicit UTC ensures the test is independent of the host
+    // timezone — production servers run in UTC and check-in must work
+    // correctly for branches in negative-offset timezones.
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date("2026-03-11T10:00:00")); // Wednesday 10:00 local
+    vi.setSystemTime(new Date("2026-03-11T13:00:00Z")); // 10:00 AR Wednesday
 
     app = await createTestApp();
     adminToken = await getAuthToken(app, "admin@test.com", "adminpass123");
