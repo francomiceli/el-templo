@@ -226,16 +226,55 @@
             </q-item>
           </q-list>
 
-          <q-select
-            v-model="renewalMethod"
-            :options="paymentMethodOptions"
-            label="Metodo de pago *"
+          <div class="row q-col-gutter-md q-mt-md">
+            <div class="col-12 col-sm-6">
+              <q-input
+                v-model.number="renewalAmountReceived"
+                label="Monto recibido"
+                type="number"
+                dense
+                outlined
+                prefix="$"
+                :max="renewalChargeBase"
+                :min="0"
+                :disable="renewalChargeBase === 0"
+                hint="Por defecto se cobra el total. Modificá si el cobro es parcial o cero."
+              />
+            </div>
+            <div class="col-12 col-sm-6">
+              <q-select
+                v-model="renewalMethod"
+                :options="paymentMethodOptions"
+                label="Metodo de pago *"
+                dense
+                outlined
+                emit-value
+                map-options
+                :disable="renewalChargeBase === 0"
+              />
+            </div>
+          </div>
+
+          <div
+            v-if="renewalChargeBase > 0 && renewalAmountReceived !== null"
+            class="q-mt-md text-body2"
+          >
+            <span class="text-weight-medium">Saldo pendiente:</span>
+            {{ formatPrice(renewalPendingBalance, renewTarget.currency ?? 'ARS') }}
+          </div>
+
+          <q-banner
+            v-if="renewalIsPartialCharge"
             dense
-            outlined
-            emit-value
-            map-options
-            class="q-mt-md"
-          />
+            rounded
+            class="bg-yellow-1 text-warning q-mt-md"
+          >
+            <template #avatar>
+              <q-icon name="warning" />
+            </template>
+            La renovacion se confirma con saldo pendiente. El miembro quedara como deudor por
+            {{ formatPrice(renewalPendingBalance, renewTarget.currency ?? 'ARS') }}.
+          </q-banner>
         </q-card-section>
         <q-card-actions align="right" class="q-pa-md">
           <q-btn flat label="Cancelar" color="grey" @click="showRenewalDialog = false" />
@@ -244,6 +283,11 @@
             label="Confirmar Renovacion"
             icon="check"
             :loading="renewalLoading"
+            :disable="
+              renewalAmountReceived === null ||
+              renewalAmountReceived < 0 ||
+              renewalAmountReceived > renewalChargeBase
+            "
             @click="executeRenewal"
           />
         </q-card-actions>
@@ -367,6 +411,7 @@ const showRenewalDialog = ref(false);
 const renewTarget = ref<SubscriptionDetail | null>(null);
 const renewalMethod = ref<PaymentMethod>('cash');
 const renewalLoading = ref(false);
+const renewalAmountReceived = ref<number | null>(null);
 const showEditStartDateDialog = ref(false);
 const editStartDateTarget = ref<SubscriptionDetail | null>(null);
 
@@ -406,6 +451,19 @@ const renewalActivationDate = computed(() => {
   if (renewTarget.value.endDate < today) return null;
   return formatDate(renewTarget.value.endDate);
 });
+
+const renewalChargeBase = computed(() => renewTarget.value?.pricePaid ?? 0);
+
+const renewalPendingBalance = computed(() =>
+  Math.max(0, renewalChargeBase.value - (renewalAmountReceived.value ?? 0))
+);
+
+const renewalIsPartialCharge = computed(
+  () =>
+    renewalChargeBase.value > 0 &&
+    renewalAmountReceived.value !== null &&
+    renewalAmountReceived.value < renewalChargeBase.value
+);
 
 // =========================================================================
 // Display helpers
@@ -496,6 +554,7 @@ async function refreshAll() {
 
 function openRenewal(sub: SubscriptionDetail) {
   renewTarget.value = sub;
+  renewalAmountReceived.value = sub.pricePaid ?? 0;
   showRenewalDialog.value = true;
 }
 
@@ -512,13 +571,18 @@ function onStartDateEdited() {
 async function executeRenewal() {
   renewalLoading.value = true;
   try {
+    // Si el cobro es 0, omitimos el campo amountReceived; sino enviamos el valor.
+    // Backend hace `amountReceived ?? chargeBase` (default = full).
     await subsApi.renewSubscription(props.userId, {
       paymentMethod: renewalMethod.value,
+      amountReceived:
+        renewalChargeBase.value === 0 ? undefined : (renewalAmountReceived.value ?? undefined),
     });
     $q.notify({ type: 'positive', message: 'Suscripcion renovada correctamente' });
     showRenewalDialog.value = false;
     renewTarget.value = null;
     renewalMethod.value = 'cash';
+    renewalAmountReceived.value = null;
     refreshAll();
     emit('subscription-changed');
   } catch (err: unknown) {
