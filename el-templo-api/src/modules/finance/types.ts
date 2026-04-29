@@ -176,3 +176,26 @@ export interface FinanceSummaryFilters {
   dateFrom?: string;
   dateTo?: string;
 }
+
+// -- Phase 108: Outstanding concepts (D-01..D-06) ---------------------------
+
+/**
+ * Concepto pendiente con saldo abierto. Resultado de
+ * GET /api/admin/members/:userId/outstanding-concepts (Phase 108).
+ *
+ * Source: balances WHERE amount > 0, ordenado por effectiveDate ASC (FIFO).
+ * - D-01: shape autoritativa que consume el dialog "Registrar pago".
+ * - D-04: ageInDays = max(0, DATEDIFF(today, effectiveDate)).
+ * - D-05: para targetKind='subscription', effectiveDate = subscriptions.startDate.
+ *         Para targetKind='debt_balance', fallback = balances.createdAt (date portion).
+ * - D-06: description = "Mensualidad <Mes> <Año> — <PlanName>" o "Saldo libre #<id>".
+ */
+export interface OutstandingConcept {
+  targetKind: BalanceTargetKind; // 'subscription' | 'debt_balance'
+  targetId: number;
+  description: string; // ej: "Mensualidad Marzo 2026 — Performance Mensual"
+  currency: string; // ARS / EUR
+  balance: number; // saldo pendiente positivo (entero)
+  ageInDays: number; // días desde effectiveDate (clamp 0 si futuro)
+  effectiveDate: string; // YYYY-MM-DD para auditoría / orden FIFO
+}
