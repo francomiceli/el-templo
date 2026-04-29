@@ -42,7 +42,7 @@ SET @run = (SELECT IF(
 
 -- pay 31: BCN, EUR 75 transfer, 2026-04-23
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5821, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-23', '2026-04-23', 14, 5721, NULL
+SELECT 5821, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-23', '2026-04-23', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -51,7 +51,7 @@ SELECT id, 'subscription', 6086, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 32: BCN, EUR 75 transfer, 2026-04-23 (preventa nota)
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5822, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-23', '2026-04-23', 14, 5721, 'Había pagado preventa en febrero. Se le activa hoy que fue su primera clase.'
+SELECT 5822, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-23', '2026-04-23', 14, 5721, '[BACKFILL-2026-04-29] Había pagado preventa en febrero. Se le activa hoy que fue su primera clase.'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -60,7 +60,7 @@ SELECT id, 'subscription', 6087, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 34: Chapa, ARS 65000 cash, 2026-04-23
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5825, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-23', '2026-04-23', 15, 5707, NULL
+SELECT 5825, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-23', '2026-04-23', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -69,7 +69,7 @@ SELECT id, 'subscription', 6089, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 35: BCN, EUR 75 transfer, 2026-05-04
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5826, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-05-04', '2026-05-04', 14, 5721, NULL
+SELECT 5826, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-05-04', '2026-05-04', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -78,7 +78,7 @@ SELECT id, 'subscription', 6090, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 36: Chapa, ARS 65000 transfer, 2026-04-23
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5827, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-23', '2026-04-23', 15, 5707, NULL
+SELECT 5827, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-23', '2026-04-23', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -87,7 +87,7 @@ SELECT id, 'subscription', 6091, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 39: Chapa, ARS 65000 transfer, 2026-04-20
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5832, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-20', '2026-04-20', 15, 5707, NULL
+SELECT 5832, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-20', '2026-04-20', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -96,7 +96,7 @@ SELECT id, 'subscription', 6094, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 40: Chapa, ARS 65000 transfer, 2026-04-20
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5831, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-20', '2026-04-20', 15, 5707, NULL
+SELECT 5831, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-20', '2026-04-20', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -105,7 +105,7 @@ SELECT id, 'subscription', 6095, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 41: Chapa, ARS 65000 transfer, 2026-04-22
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5803, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-22', '2026-04-22', 15, 5707, NULL
+SELECT 5803, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-22', '2026-04-22', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -114,7 +114,7 @@ SELECT id, 'subscription', 6096, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 43: Chapa, ARS 65000 transfer, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5833, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-27', '2026-04-27', 15, 5707, NULL
+SELECT 5833, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-27', '2026-04-27', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -123,7 +123,7 @@ SELECT id, 'subscription', 6098, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 44: Chapa, ARS 65000 cash, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5834, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-27', '2026-04-27', 15, 5707, NULL
+SELECT 5834, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-27', '2026-04-27', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -132,7 +132,7 @@ SELECT id, 'subscription', 6099, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 45: Chapa, ARS 65000 cash, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5835, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-27', '2026-04-27', 15, 5707, NULL
+SELECT 5835, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-27', '2026-04-27', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -141,7 +141,7 @@ SELECT id, 'subscription', 6100, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 47: Chapa, ARS 65000 transfer, 2026-04-28
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5836, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-28', '2026-04-28', 15, 5707, NULL
+SELECT 5836, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-28', '2026-04-28', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -150,7 +150,7 @@ SELECT id, 'subscription', 6102, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 48: Chapa, ARS 65000 cash, 2026-04-28
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5839, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-28', '2026-04-28', 15, 5707, NULL
+SELECT 5839, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-28', '2026-04-28', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -159,7 +159,7 @@ SELECT id, 'subscription', 6103, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 49: BCN, EUR 75 transfer, 2026-04-24
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5841, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-24', '2026-04-24', 14, 5721, NULL
+SELECT 5841, 'plan_charge', 'inflow', 75, 'EUR', 'transfer', '2026-04-24', '2026-04-24', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -168,7 +168,7 @@ SELECT id, 'subscription', 6104, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 50: Chapa, ARS 80000 cash, 2026-04-22
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5842, 'plan_charge', 'inflow', 80000, 'ARS', 'cash', '2026-04-22', '2026-04-22', 15, 5707, NULL
+SELECT 5842, 'plan_charge', 'inflow', 80000, 'ARS', 'cash', '2026-04-22', '2026-04-22', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -177,7 +177,7 @@ SELECT id, 'subscription', 6105, 80000 FROM financial_transactions WHERE id = LA
 
 -- pay 51: Chapa, ARS 65000 transfer, 2026-04-21
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5843, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-21', '2026-04-21', 15, 5707, NULL
+SELECT 5843, 'plan_charge', 'inflow', 65000, 'ARS', 'transfer', '2026-04-21', '2026-04-21', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -186,7 +186,7 @@ SELECT id, 'subscription', 6106, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 52: BCN, EUR 75 card, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5851, 'plan_charge', 'inflow', 75, 'EUR', 'card', '2026-04-27', '2026-04-27', 14, 5721, NULL
+SELECT 5851, 'plan_charge', 'inflow', 75, 'EUR', 'card', '2026-04-27', '2026-04-27', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -195,7 +195,7 @@ SELECT id, 'subscription', 6108, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 53: Chapa, ARS 80000 transfer, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5844, 'plan_charge', 'inflow', 80000, 'ARS', 'transfer', '2026-04-27', '2026-04-27', 15, 5707, NULL
+SELECT 5844, 'plan_charge', 'inflow', 80000, 'ARS', 'transfer', '2026-04-27', '2026-04-27', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -204,7 +204,7 @@ SELECT id, 'subscription', 6109, 80000 FROM financial_transactions WHERE id = LA
 
 -- pay 54: Chapa, ARS 65000 cash, 2026-04-28
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5852, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-28', '2026-04-28', 15, 5707, NULL
+SELECT 5852, 'plan_charge', 'inflow', 65000, 'ARS', 'cash', '2026-04-28', '2026-04-28', 15, 5707, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -213,7 +213,7 @@ SELECT id, 'subscription', 6110, 65000 FROM financial_transactions WHERE id = LA
 
 -- pay 55: BCN, EUR 75 cash, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5855, 'plan_charge', 'inflow', 75, 'EUR', 'cash', '2026-04-27', '2026-04-27', 14, 5721, NULL
+SELECT 5855, 'plan_charge', 'inflow', 75, 'EUR', 'cash', '2026-04-27', '2026-04-27', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
@@ -222,7 +222,7 @@ SELECT id, 'subscription', 6111, 75 FROM financial_transactions WHERE id = LAST_
 
 -- pay 56: BCN, EUR 75 cash, 2026-04-27
 INSERT INTO financial_transactions (member_id, kind, direction, amount, currency, payment_method, transaction_date, effective_date, branch_id, recorded_by, notes)
-SELECT 5856, 'plan_charge', 'inflow', 75, 'EUR', 'cash', '2026-04-27', '2026-04-27', 14, 5721, NULL
+SELECT 5856, 'plan_charge', 'inflow', 75, 'EUR', 'cash', '2026-04-27', '2026-04-27', 14, 5721, '[BACKFILL-2026-04-29]'
 FROM (SELECT 1) AS t WHERE @run = 1;
 --> statement-breakpoint
 INSERT INTO transaction_links (transaction_id, target_kind, target_id, allocated_amount)
