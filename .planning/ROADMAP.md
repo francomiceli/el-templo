@@ -2402,7 +2402,7 @@ Plans:
 - [x] 109-02-PLAN.md — Backend: nuevo endpoint outstanding-balances + aging buckets (CAJA-03 backend)
 - [x] 109-03-PLAN.md — Admin: CajaPage segmentación por kind + filtro + columna + Excel (CAJA-01/02/04 frontend)
 - [x] 109-04-PLAN.md — Admin: Reporte Deudas en ReportesPage (CAJA-03/04 frontend)
-- [ ] 109-05-PLAN.md — Sanity test cross-aggregation + VERIFICATION.md scaffold + smoke handoff
+- [x] 109-05-PLAN.md — Sanity test cross-aggregation + VERIFICATION.md scaffold + smoke handoff
 
 ---
 
@@ -2417,7 +2417,7 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 | 106. Endpoints Transaccionales            | 6/6            | Complete | 2026-04-28 |
 | 107. Cobro al Asignar Plan                | 6/6            | Complete | 2026-04-28 |
 | 108. Pago de Saldo + Historial Financiero | 6/6            | Complete | 2026-04-28 |
-| 109. Caja v2 + Reportes                   | —              | Planned  | —          |
+| 109. Caja v2 + Reportes                   | 5/5            | Complete | 2026-04-29 |
 
 ---
 

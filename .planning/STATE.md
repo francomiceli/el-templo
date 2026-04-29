@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Plan 109-04 complete — Deudas report shipped (5to tab in ReportesPage + backend Excel export)
-last_updated: "2026-04-29T03:35:10.765Z"
+stopped_at: Phase 109 complete — sanity test (5/5) + VERIFICATION.md scaffold ready; smoke staging deferred to user
+last_updated: "2026-04-29T03:56:05Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 99
-  completed_phases: 85
+  completed_phases: 86
   total_plans: 382
-  completed_plans: 376
-  percent: 98
+  completed_plans: 377
+  percent: 99
 ---
 
 # Project State
@@ -25,9 +25,9 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 
 ## Current Position
 
-Phase: 109 (Caja v2 + Reportes) — EXECUTING
-Plan: 4 of 5 complete (109-02 outstanding-balances shipped)
-Next: Plan 109-03 — CajaPage v2 frontend (segmentación por kind)
+Phase: 109 (Caja v2 + Reportes) — COMPLETE (smoke staging pending user)
+Plan: 5 of 5 complete — 109-05 (sanity test + VERIFICATION.md scaffold)
+Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
 Last activity: 2026-04-29
 
 ## Performance Metrics
@@ -153,6 +153,7 @@ _Updated after each plan completion_
 | Phase 109 P02 | 20min | 3 tasks tasks | 5 files files |
 | Phase 109 P03 | 50min | 3 tasks tasks | 8 files files |
 | Phase 109 P04 | 9min | 3 tasks | 8 files |
+| Phase 109 P05 | 10min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -345,6 +346,9 @@ Recent decisions affecting current work:
 - Plan 109-04: Excel export redirected from client-side xlsx (not installed in admin) to backend endpoint /api/admin/reports/outstanding-balances/export — mirrors Plan 109-03 redirection precedent; net result is simpler client + single-source-of-truth filter semantics + integration tests against real MySQL
 - Plan 109-04: DeudasReport encapsulates own load lifecycle on mount + filter/countryScope watches; ReportesPage.fetchTabData switch unchanged (no case 'deudas' needed) — keeps component self-contained and avoids two competing data flows when owner toggles country
 - Plan 109-04: bucketTotals shape discriminator at runtime (Object.prototype.hasOwnProperty.call(bt, '0-30')) — gracefully handles flat BucketTotals (non-owner) vs per-currency keyed map (owner) without runtime assertion
+- Plan 109-05: cross-aggregation sanity test asserts Σ revenueByMethod = Σ revenueByKind = Σ revenueByBranch = monthlyRevenue over a single mixed-scenario seed (10 rows incl. 1 voided + 1 outflow refund); 5/5 cases PASS; W7 symmetric branch invariant covered explicitly
+- Plan 109-05: VERIFICATION.md scaffold mirrors Phase 108 pattern + adds prominent "Smoke Pendiente — Handoff al Operador" section at top because skip_checkpoints mode (Phase 107/108 precedent); 6 smoke escenarios PENDING, 22/22 D-XX decisions covered, "NO viernes" appears 4× in sign-off pre-flight
+- Plan 109-05: country=AR query param applied to all 5 sanity test requests to bypass owner-no-country wide-open behavior (Phase 106 P03 invariant) and keep tests deterministic against eltemplo_test leftover rows
 
 ### Pending Todos
 
@@ -356,8 +360,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T03:35:10.744Z
-Stopped at: Plan 109-04 complete — Deudas report shipped (5to tab in ReportesPage + backend Excel export)
+Last session: 2026-04-29T03:56:05Z
+Stopped at: Phase 109 complete — sanity test (5/5) + VERIFICATION.md scaffold ready; smoke staging deferred to user
 Resume file: None
 
 **Planned Phase:** 109 (Caja v2 + Reportes) — 5 plans — 2026-04-29T02:13:15.024Z
