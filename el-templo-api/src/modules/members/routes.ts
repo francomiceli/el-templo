@@ -53,7 +53,10 @@ import {
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import { TransactionService, BalanceService } from "../finance";
-import { financialHistorySchema } from "../finance/schemas";
+import {
+  financialHistorySchema,
+  outstandingConceptsSchema,
+} from "../finance/schemas";
 import { handleServiceError } from "../shared/error-handler";
 
 /**
@@ -779,6 +782,81 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         );
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "get financial history");
+      }
+    },
+  );
+
+  // GET /admin/members/:userId/outstanding-concepts — Phase 108 D-01..D-06
+  // Source autoritativa de saldos pendientes para el dialog "Registrar pago".
+  // RBAC: FINANCE_READ_ROLES (excluye coach por privacidad).
+  // Cross-country reads return 404 (info-leak prevention) — mismo patrón que
+  // financial-history.
+  fastify.get<{ Params: { userId: number } }>(
+    "/:userId/outstanding-concepts",
+    { schema: outstandingConceptsSchema },
+    async (request, reply) => {
+      try {
+        // D-04 privacy override (FINANCE_READ_ROLES es más estricto que
+        // MEMBER_ROLES — excluye 'coach'). El módulo-level hook admite coach
+        // pero los datos financieros son la excepción.
+        if (
+          !(FINANCE_READ_ROLES as readonly string[]).includes(request.user.role)
+        ) {
+          return reply.code(403).send({
+            error: "Acceso denegado",
+            message: "No tienes permiso para ver los saldos pendientes",
+          });
+        }
+
+        // T-106-02 — verify target member exists and (for non-owners) lives
+        // in a branch that matches the request's country scope. 404 (no 403)
+        // para cross-country, mirror DELETE /:userId pattern (info-leak avoid).
+        const [target] = await fastify.db
+          .select({
+            id: schema.users.id,
+            deletedAt: schema.users.deletedAt,
+            branchCountry: schema.branches.country,
+            branchIsVirtual: schema.branches.isVirtual,
+          })
+          .from(schema.users)
+          .innerJoin(
+            schema.branches,
+            eq(schema.branches.id, schema.users.branchId),
+          )
+          .where(eq(schema.users.id, request.params.userId))
+          .limit(1);
+
+        if (!target || target.deletedAt) {
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        if (
+          !request.scope.isOwner &&
+          !target.branchIsVirtual &&
+          target.branchCountry !== request.scope.country
+        ) {
+          // 404 (not 403) to mirror DELETE /:userId pattern (info-leak avoid).
+          return reply.code(404).send({
+            error: "No encontrado",
+            message: "Miembro no encontrado",
+          });
+        }
+
+        // D-03: cuando no hay saldos abiertos, retornar { concepts: [] }.
+        const concepts = await transactionService.getOutstandingConcepts(
+          request.params.userId,
+        );
+        return { concepts };
+      } catch (err: unknown) {
+        handleServiceError(
+          err,
+          reply,
+          request.log,
+          "get outstanding concepts",
+        );
       }
     },
   );

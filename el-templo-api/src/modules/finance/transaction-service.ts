@@ -17,6 +17,7 @@ import {
   desc,
   and,
   sql,
+  gt,
   gte,
   lte,
   inArray,
@@ -37,6 +38,7 @@ import type {
   FinanceSummaryFilters,
   FinancialHistoryFilters,
   FinancialHistoryItem,
+  OutstandingConcept,
   TargetKind,
   TransactionDetail,
   TransactionListFilters,
@@ -601,6 +603,123 @@ export class TransactionService {
     });
 
     return { rows, total, page, limit };
+  }
+
+  /**
+   * Phase 108 (D-01..D-06): Lista saldos pendientes del miembro con
+   * descripción humana y antigüedad. Source: balances cache (105-SPEC §8)
+   * WHERE amount > 0. Ordenado por effectiveDate ASC (FIFO).
+   *
+   * Hidden invariants:
+   * - LEFT JOIN obligatorio: target_kind='debt_balance' no tiene FK a
+   *   subscriptions; INNER JOIN los borraría silenciosamente.
+   * - effectiveDate para subscription = subscriptions.startDate (D-05).
+   *   Para debt_balance fallback = balances.createdAt (date portion).
+   * - ageInDays se computa en TS (no SQL date-diff) para clamp >=0 cuando
+   *   effectiveDate es futuro (D-04) y para evitar drift de timezone.
+   * - description: "Mensualidad <Mes> <Año> — <PlanName>" (subscription)
+   *   o "Saldo libre #<id>" (debt_balance fallback) per D-06.
+   */
+  async getOutstandingConcepts(
+    memberId: number,
+  ): Promise<OutstandingConcept[]> {
+    this.log.info({ memberId }, "Loading outstanding concepts");
+
+    const rows = await this.db
+      .select({
+        targetKind: schema.balances.targetKind,
+        targetId: schema.balances.targetId,
+        currency: schema.balances.currency,
+        amount: schema.balances.amount,
+        planName: schema.subscriptionPlans.name,
+        subscriptionStartDate: schema.subscriptions.startDate,
+        balanceCreatedAt: schema.balances.createdAt,
+      })
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+      )
+      .where(
+        and(
+          eq(schema.balances.memberId, memberId),
+          gt(schema.balances.amount, 0),
+        ),
+      );
+
+    // D-06: meses en español derivados del effective_date.
+    const MONTHS_ES = [
+      "Enero",
+      "Febrero",
+      "Marzo",
+      "Abril",
+      "Mayo",
+      "Junio",
+      "Julio",
+      "Agosto",
+      "Septiembre",
+      "Octubre",
+      "Noviembre",
+      "Diciembre",
+    ];
+
+    // Hoy a medianoche (local) para diferencia de días computada en TS.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+    const concepts: OutstandingConcept[] = rows.map((r) => {
+      let effectiveDate: string;
+      let description: string;
+
+      if (r.targetKind === "subscription" && r.subscriptionStartDate) {
+        // D-05: effectiveDate = subscriptions.startDate (YYYY-MM-DD).
+        effectiveDate = r.subscriptionStartDate;
+        const d = new Date(effectiveDate + "T00:00:00");
+        const month = MONTHS_ES[d.getMonth()] ?? "";
+        const year = d.getFullYear();
+        const planName = r.planName ?? "Plan";
+        // D-06: "Mensualidad <Mes> <Año> — <PlanName>".
+        description = `Mensualidad ${month} ${year} — ${planName}`;
+      } else {
+        // D-05/D-06 fallback (debt_balance): effectiveDate = balances.createdAt
+        // (date portion); description = "Saldo libre #<id>".
+        const created =
+          r.balanceCreatedAt instanceof Date
+            ? r.balanceCreatedAt
+            : new Date(r.balanceCreatedAt);
+        effectiveDate = created.toISOString().slice(0, 10);
+        description = `Saldo libre #${r.targetId}`;
+      }
+
+      // D-04: ageInDays = max(0, dayDiff(today, effectiveDate)).
+      const effDate = new Date(effectiveDate + "T00:00:00");
+      const diffMs = today.getTime() - effDate.getTime();
+      const ageInDays = Math.max(0, Math.floor(diffMs / MS_PER_DAY));
+
+      return {
+        targetKind: r.targetKind,
+        targetId: r.targetId,
+        description,
+        currency: r.currency,
+        balance: r.amount,
+        ageInDays,
+        effectiveDate,
+      };
+    });
+
+    // D-01: FIFO — sort por effectiveDate ASC. localeCompare es estable y
+    // funciona bien con strings YYYY-MM-DD.
+    concepts.sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+
+    return concepts;
   }
 
   /**
