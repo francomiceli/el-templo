@@ -90,6 +90,19 @@
                 @click="showEditDialog = true"
               />
               <q-btn
+                v-if="canRegisterPayment"
+                flat
+                icon="payments"
+                label="Registrar pago"
+                color="primary"
+                :disable="outstandingConcepts.length === 0"
+                @click="showRegisterPaymentDialog = true"
+              >
+                <q-tooltip v-if="outstandingConcepts.length === 0">
+                  Sin saldos pendientes
+                </q-tooltip>
+              </q-btn>
+              <q-btn
                 v-if="canDeleteMember"
                 flat
                 icon="delete_outline"
@@ -392,6 +405,17 @@
       />
 
       <!-- ========================================== -->
+      <!-- Register Payment Dialog (Phase 108) -->
+      <!-- ========================================== -->
+      <RegisterPaymentDialog
+        v-model="showRegisterPaymentDialog"
+        :user-id="userId"
+        :member-branch-id="memberProfile.branchId"
+        :outstanding-concepts="outstandingConcepts"
+        @paid="onPaymentRegistered"
+      />
+
+      <!-- ========================================== -->
       <!-- Delete Confirmation Dialog                 -->
       <!--                                            -->
       <!-- Soft-delete: the backend cancels the       -->
@@ -468,6 +492,9 @@ import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
+import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
+import { useTransactionsApi } from 'src/composables/useTransactionsApi';
+import type { OutstandingConcept } from 'src/types/transaction';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import {
@@ -505,6 +532,11 @@ const showDeleteDialog = ref(false);
 const deleteConfirmInput = ref('');
 const deleting = ref(false);
 
+// Phase 108 — Outstanding concepts + dialog state
+const transactionsApi = useTransactionsApi();
+const outstandingConcepts = ref<OutstandingConcept[]>([]);
+const showRegisterPaymentDialog = ref(false);
+
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
@@ -515,6 +547,37 @@ const canDeleteMember = computed(() => {
   const role = currentUser.value?.role;
   return role === 'admin' || role === 'owner';
 });
+
+// Phase 108 D-23 — FINANCE_WRITE_ROLES (owner | admin | gestion | recepcion).
+// Coach NO ve el botón "Registrar pago".
+const canRegisterPayment = computed(() => {
+  const role = currentUser.value?.role;
+  return (
+    role === 'owner' ||
+    role === 'admin' ||
+    role === 'gestion' ||
+    role === 'recepcion'
+  );
+});
+
+async function loadOutstanding(): Promise<void> {
+  try {
+    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(
+      userId.value
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error loading outstanding concepts', {
+      error: message,
+      userId: userId.value,
+    });
+    outstandingConcepts.value = [];
+  }
+}
+
+function onPaymentRegistered(): void {
+  void loadOutstanding();
+}
 
 // Require an exact name match to commit the delete — cheap guardrail against
 // clicking the wrong row. Whitespace and case are normalized.
@@ -687,6 +750,9 @@ async function loadAll() {
     loadGoalPlanDetail();
     // Phase 99 R11: load session-level counts in background (non-blocking)
     loadSessionLevels();
+    // Phase 108: load outstanding concepts in background (non-blocking) —
+    // gates the "Registrar pago" button (D-19).
+    void loadOutstanding();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {
