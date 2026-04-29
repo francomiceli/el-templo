@@ -20,6 +20,15 @@ export type TransactionKind = FinancialTransactionRow["kind"];
 export type TransactionDirection = FinancialTransactionRow["direction"];
 export type PaymentMethod = FinancialTransactionRow["paymentMethod"];
 
+/**
+ * Phase 109 D-11 — `revenueByKind` field of FinanceSummary.
+ * Sum of inflow non-voided rows grouped by kind. 5 fixed keys,
+ * defaults 0. `refund` is always 0 by design (refund is outflow-only
+ * per balance-service.ts:76-77 convention; this aggregation is
+ * inflow-only, identical filter semantics to monthlyRevenue).
+ */
+export type RevenueByKind = Record<TransactionKind, number>;
+
 export type TransactionLinkRow = typeof transactionLinks.$inferSelect;
 export type TargetKind = TransactionLinkRow["targetKind"];
 
@@ -167,6 +176,13 @@ export interface FinanceSummary {
     branchName: string;
     revenue: number;
   }>;
+  /**
+   * Phase 109 D-11 — additive segmentation by transaction kind. Same
+   * inflow + non-voided + filter semantics as monthlyRevenue. All 5
+   * keys always present (defaults 0). `refund` always 0 by design
+   * (refund is outflow-only per balance-service.ts:76-77).
+   */
+  revenueByKind: RevenueByKind;
 }
 
 /** Filters for getSummary — subset of TransactionListFilters. */

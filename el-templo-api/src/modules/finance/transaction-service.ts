@@ -39,6 +39,7 @@ import type {
   FinancialHistoryFilters,
   FinancialHistoryItem,
   OutstandingConcept,
+  RevenueByKind,
   TargetKind,
   TransactionDetail,
   TransactionListFilters,
@@ -812,6 +813,17 @@ export class TransactionService {
       revenue: Number(r.total),
     }));
 
-    return { monthlyRevenue, revenueByMethod, revenueByBranch };
+    // Phase 109 Plan 01 Task 1 — placeholder defaults. Real aggregation
+    // wired in Task 2 (groupBy kind). Keeps the type-system happy and the
+    // response shape stable while Task 2 implements + tests the query.
+    const revenueByKind: RevenueByKind = {
+      plan_charge: 0,
+      debt_settlement: 0,
+      refund: 0,
+      adjustment: 0,
+      advance_payment: 0,
+    };
+
+    return { monthlyRevenue, revenueByMethod, revenueByBranch, revenueByKind };
   }
 }

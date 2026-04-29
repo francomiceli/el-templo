@@ -243,6 +243,20 @@ export const transactionsSummarySchema = {
             },
           },
         },
+        // Phase 109 D-11 — `revenueByKind` additive field. Same loose-
+        // passthrough rationale as the parent response (service produces
+        // trusted RevenueByKind shape). All 5 kinds always present;
+        // defaults 0. `refund` is 0 by design (outflow-only convention).
+        revenueByKind: {
+          type: "object",
+          properties: {
+            plan_charge: { type: "integer" },
+            debt_settlement: { type: "integer" },
+            refund: { type: "integer" },
+            adjustment: { type: "integer" },
+            advance_payment: { type: "integer" },
+          },
+        },
       },
     },
     401: errorSchema,
