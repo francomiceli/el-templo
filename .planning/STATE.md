@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 109 complete — sanity test (5/5) + VERIFICATION.md scaffold ready; smoke staging deferred to user
-last_updated: "2026-04-30T19:30:57.007Z"
-last_activity: 2026-04-29
+stopped_at: Completed 110-02-PLAN.md
+last_updated: "2026-04-30T19:45:47.427Z"
+last_activity: 2026-04-30
 progress:
   total_phases: 100
   completed_phases: 86
   total_plans: 391
-  completed_plans: 377
-  percent: 96
+  completed_plans: 379
+  percent: 97
 ---
 
 # Project State
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 Phase: 109 (Caja v2 + Reportes) — COMPLETE (smoke staging pending user)
 Plan: 5 of 5 complete — 109-05 (sanity test + VERIFICATION.md scaffold)
 Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
-Last activity: 2026-04-29
+Last activity: 2026-04-30
 
 ## Performance Metrics
 
@@ -154,6 +154,7 @@ _Updated after each plan completion_
 | Phase 109 P03 | 50min | 3 tasks tasks | 8 files files |
 | Phase 109 P04 | 9min | 3 tasks | 8 files |
 | Phase 109 P05 | 10min | 2 tasks | 2 files |
+| Phase 110 P02 | 109 | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -350,6 +351,7 @@ Recent decisions affecting current work:
 - Plan 109-05: cross-aggregation sanity test asserts Σ revenueByMethod = Σ revenueByKind = Σ revenueByBranch = monthlyRevenue over a single mixed-scenario seed (10 rows incl. 1 voided + 1 outflow refund); 5/5 cases PASS; W7 symmetric branch invariant covered explicitly
 - Plan 109-05: VERIFICATION.md scaffold mirrors Phase 108 pattern + adds prominent "Smoke Pendiente — Handoff al Operador" section at top because skip_checkpoints mode (Phase 107/108 precedent); 6 smoke escenarios PENDING, 22/22 D-XX decisions covered, "NO viernes" appears 4× in sign-off pre-flight
 - Plan 109-05: country=AR query param applied to all 5 sanity test requests to bypass owner-no-country wide-open behavior (Phase 106 P03 invariant) and keep tests deterministic against eltemplo_test leftover rows
+- Plan 110-02: Migration 0107 applied to local DB; users.country populated for admin (1 row, AR), 7 user_branches rows inserted for coaches; owner stays NULL per D-12.
 
 ### Pending Todos
 
@@ -361,8 +363,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T03:56:05Z
-Stopped at: Phase 109 complete — sanity test (5/5) + VERIFICATION.md scaffold ready; smoke staging deferred to user
+Last session: 2026-04-30T19:45:42.343Z
+Stopped at: Completed 110-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
