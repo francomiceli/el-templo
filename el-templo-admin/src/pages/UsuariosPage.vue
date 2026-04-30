@@ -131,7 +131,7 @@
           <q-select
             v-if="needsBranch"
             v-model="form.branchId"
-            label="Sede personal de entrenamiento"
+            label="Sede principal"
             hint="La sede que ve por default al usar la app de miembros para entrenar (no afecta su alcance de gestión ni operativo)."
             :options="branches"
             option-value="id"
