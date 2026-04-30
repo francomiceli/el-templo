@@ -245,7 +245,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             ? request.query.country.toUpperCase()
             : undefined;
         } else {
-          country = request.scope.country;
+          country = request.scope.country ?? undefined;
         }
 
         const filters: TransactionListFilters = {
@@ -296,7 +296,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             ? request.query.country.toUpperCase()
             : undefined;
         } else {
-          country = request.scope.country;
+          country = request.scope.country ?? undefined;
         }
 
         const filters: FinanceSummaryFilters = {
@@ -353,7 +353,7 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             ? request.query.country.toUpperCase()
             : undefined;
         } else {
-          country = request.scope.country;
+          country = request.scope.country ?? undefined;
         }
 
         const filters: TransactionListFilters = {

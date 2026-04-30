@@ -118,7 +118,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     const plans = await subscriptionService.listPlans({
       isActive: request.query.isActive,
       includeArchived: request.query.includeArchived,
-      country: request.scope.country,
+      country: request.scope.country ?? undefined,
       branchId: request.query.branchId,
     });
     return { plans };
@@ -499,7 +499,7 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /promo-plans — List all promo plans (scoped to request.scope.country)
   fastify.get("/promo-plans", { schema: listPromosSchema }, async (request) => {
     return subscriptionService.listPromoPlans({
-      country: request.scope.country,
+      country: request.scope.country ?? undefined,
     });
   });
 

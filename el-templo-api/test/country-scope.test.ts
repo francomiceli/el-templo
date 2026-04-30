@@ -106,7 +106,8 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
     // Owner token (seeded admin@test.com is role=owner, branchId=1=AR).
     ownerToken = await getAuthToken(app, "admin@test.com", "adminpass123");
 
-    // AR admin (staff).
+    // AR admin (staff). Phase 110: admin requires `country` set on users
+    // (the country-scope hook reads users.country directly for admin/gestion).
     await createStaffUser(app, {
       email: "ar-admin@test.com",
       password: "ar-admin-pass",
@@ -114,6 +115,7 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
       lastName: "Admin",
       role: "admin",
       branchId: arBranchId,
+      country: "AR",
     });
     arAdminToken = await getAuthToken(
       app,
@@ -121,7 +123,8 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
       "ar-admin-pass",
     );
 
-    // ES admin (staff).
+    // ES admin (staff). Phase 110: country='ES' so the hook resolves
+    // scope.country = 'ES'.
     await createStaffUser(app, {
       email: "es-admin@test.com",
       password: "es-admin-pass",
@@ -129,6 +132,7 @@ describe("Country scope — RBAC matrix, cross-country guards, forward-compat (P
       lastName: "Admin",
       role: "admin",
       branchId: esBranchId,
+      country: "ES",
     });
     esAdminToken = await getAuthToken(
       app,

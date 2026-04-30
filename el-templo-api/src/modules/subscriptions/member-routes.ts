@@ -100,7 +100,7 @@ export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     const allPlans = await subscriptionService.listPlans({
       isActive: true,
       includeArchived: false,
-      country: request.scope.country,
+      country: request.scope.country ?? undefined,
     });
 
     // Exclude trial plans

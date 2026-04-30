@@ -73,7 +73,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: AccessReportFilters = {
         branchId: request.query.branchId,
-        country: request.scope.country,
+        country: request.scope.country ?? undefined,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
         search: request.query.search,
@@ -102,7 +102,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: ChargeReportFilters = {
         branchId: request.query.branchId,
-        country: request.scope.country,
+        country: request.scope.country ?? undefined,
         dateFrom: request.query.dateFrom,
         dateTo: request.query.dateTo,
         search: request.query.search,
@@ -127,7 +127,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: ExpiringReportFilters = {
         branchId: request.query.branchId,
-        country: request.scope.country,
+        country: request.scope.country ?? undefined,
         daysWindow: request.query.daysWindow,
         includeExpired: request.query.includeExpired,
       };
@@ -147,7 +147,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const filters: InactiveReportFilters = {
         branchId: request.query.branchId,
-        country: request.scope.country,
+        country: request.scope.country ?? undefined,
         daysThreshold: request.query.daysThreshold,
       };
       return await reportsService.getInactiveMembers(filters);
@@ -170,7 +170,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: TrialConversionFilters = {
           branchId: request.query.branchId,
-          country: request.scope.country,
+          country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
         };
@@ -208,7 +208,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.scope.isOwner) {
           country = request.query.country;
         } else {
-          country = request.scope.country;
+          country = request.scope.country ?? undefined;
         }
 
         const filters: OutstandingBalancesFilters = {
@@ -253,7 +253,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: AccessReportFilters = {
           branchId: request.query.branchId,
-          country: request.scope.country,
+          country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           search: request.query.search,
@@ -309,7 +309,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: ChargeReportFilters = {
           branchId: request.query.branchId,
-          country: request.scope.country,
+          country: request.scope.country ?? undefined,
           dateFrom: request.query.dateFrom,
           dateTo: request.query.dateTo,
           search: request.query.search,
@@ -369,7 +369,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: ExpiringReportFilters = {
           branchId: request.query.branchId,
-          country: request.scope.country,
+          country: request.scope.country ?? undefined,
           daysWindow: request.query.daysWindow,
           includeExpired: request.query.includeExpired,
         };
@@ -422,7 +422,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const filters: InactiveReportFilters = {
           branchId: request.query.branchId,
-          country: request.scope.country,
+          country: request.scope.country ?? undefined,
           daysThreshold: request.query.daysThreshold,
         };
         const rows = await reportsService.exportInactiveMembers(filters);
@@ -479,7 +479,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.scope.isOwner) {
           country = request.query.country;
         } else {
-          country = request.scope.country;
+          country = request.scope.country ?? undefined;
         }
 
         const filters: OutstandingBalancesFilters = {

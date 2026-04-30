@@ -7,7 +7,7 @@
  */
 
 import { buildApp } from "../src/app";
-import { sql, getTableName } from "drizzle-orm";
+import { sql, getTableName, eq } from "drizzle-orm";
 import argon2 from "argon2";
 import * as schema from "../src/db/schema";
 import type { FastifyInstance } from "fastify";
@@ -335,6 +335,16 @@ export async function seedAuraBalance(
 /**
  * Create a staff user directly in the database (bypasses API auth).
  * Returns the created user's ID.
+ *
+ * Phase 110: `users.country` (varchar(2)) is required for admin/gestion to get
+ * a non-null `scope.country` since the country-scope hook now reads
+ * `users.country` directly (no longer a JOIN to branches). For backward
+ * compatibility with the dozens of existing tests that pre-date Phase 110, when
+ * `country` is not explicitly passed AND the role is admin/gestion, this helper
+ * derives the country from the user's branch — mirroring the production
+ * migration-0107 backfill (`UPDATE users SET country = (SELECT country FROM
+ * branches WHERE id = users.branch_id) WHERE role IN ('admin','gestion')`).
+ * Owner stays NULL (global access). Coach/recepción/member stay NULL.
  */
 export async function createStaffUser(
   app: FastifyInstance,
@@ -345,9 +355,26 @@ export async function createStaffUser(
     lastName: string;
     role: string;
     branchId: number;
+    country?: "AR" | "ES" | null;
   },
 ): Promise<number> {
   const passwordHash = await argon2.hash(data.password);
+
+  // Phase 110 backfill mirror: when admin/gestion is created without an
+  // explicit `country`, look it up from the branch (matches migration 0107
+  // semantics so existing tests continue to work).
+  let country: "AR" | "ES" | null = data.country ?? null;
+  if (country === null && (data.role === "admin" || data.role === "gestion")) {
+    const [branchRow] = await app.db
+      .select({ country: schema.branches.country })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, data.branchId))
+      .limit(1);
+    if (branchRow?.country === "AR" || branchRow?.country === "ES") {
+      country = branchRow.country;
+    }
+  }
+
   const [result] = await app.db
     .insert(schema.users)
     .values({
@@ -357,6 +384,7 @@ export async function createStaffUser(
       lastName: data.lastName,
       role: data.role as "coach" | "admin" | "owner" | "gestion" | "recepcion",
       branchId: data.branchId,
+      country,
     })
     .$returningId();
   return result.id;

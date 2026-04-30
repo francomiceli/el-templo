@@ -355,6 +355,17 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Phase 110: scope.country is nullable to support fail-closed
+        // default-deny (admin/gestion with NULL users.country). Trials
+        // listing requires a non-null country — short-circuit to empty
+        // result rather than leak unscoped trials.
+        if (request.scope.country === null) {
+          return {
+            date: request.query.date,
+            shift: request.query.shift ?? "all",
+            groups: [],
+          };
+        }
         const result = await trialService.listTrials({
           date: request.query.date,
           shift: request.query.shift ?? "all",

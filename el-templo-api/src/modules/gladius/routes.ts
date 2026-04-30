@@ -165,7 +165,9 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
           .send({ error: "Acceso de administrador requerido" });
       }
       await attachCountryScope(request, fastify.db);
-      return service.listAllProducts({ country: request.scope.country });
+      return service.listAllProducts({
+        country: request.scope.country ?? undefined,
+      });
     },
   );
 
@@ -183,7 +185,7 @@ export const gladiusRoutes: FastifyPluginAsync = async (fastify) => {
       await attachCountryScope(request, fastify.db);
       const product = await service.createProduct({
         ...request.body,
-        country: request.scope.country,
+        country: request.scope.country ?? undefined,
       });
       return reply.code(201).send(product);
     },

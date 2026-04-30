@@ -170,7 +170,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       status: request.query.status,
       planId: request.query.planId,
       avatarType: request.query.avatarType,
-      country: request.scope.country,
+      country: request.scope.country ?? undefined,
     });
 
     const workbook = new Workbook();
@@ -265,7 +265,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       planId,
       segment,
       avatarType,
-      country: request.scope.country,
+      country: request.scope.country ?? undefined,
       debtorOnly,
       status,
       page,
