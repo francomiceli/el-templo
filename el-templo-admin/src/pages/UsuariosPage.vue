@@ -115,6 +115,18 @@
             dense
             :rules="[(v: string) => !!v || 'Requerido']"
           />
+          <!-- Phase 110 D-11: País selector for admin/gestion roles. -->
+          <q-select
+            v-if="needsCountry"
+            v-model="form.country"
+            label="País"
+            :options="countryOptions"
+            emit-value
+            map-options
+            outlined
+            dense
+            :rules="[(v: string | null) => !!v || 'Requerido']"
+          />
           <q-select
             v-if="needsBranch"
             v-model="form.branchId"
@@ -127,6 +139,25 @@
             outlined
             dense
             :rules="[(v: number | null) => v !== null || 'Requerido']"
+          />
+          <!-- Phase 110 D-11: multi-select de sedes operativas para coach/recepción.
+               branches list is already scope-filtered by Plan 06 backend seam. -->
+          <q-select
+            v-if="needsOperationalBranches"
+            v-model="form.branchIds"
+            label="Sedes operativas"
+            :options="branches"
+            option-value="id"
+            option-label="name"
+            emit-value
+            map-options
+            multiple
+            use-chips
+            outlined
+            dense
+            :rules="[
+              (v: number[]) => (Array.isArray(v) && v.length > 0) || 'Requerido al menos una sede',
+            ]"
           />
         </q-card-section>
 
@@ -175,6 +206,9 @@ const form = ref({
   password: '',
   role: '' as string,
   branchId: null as number | null,
+  // Phase 110 D-11: country only required for admin/gestion; branchIds only required for coach/recepción.
+  country: null as 'AR' | 'ES' | null,
+  branchIds: [] as number[],
 });
 
 // =========================================================================
@@ -191,6 +225,19 @@ const roleOptions = [
 
 const BRANCH_ROLES = new Set(['admin', 'coach', 'gestion', 'recepcion']);
 const needsBranch = computed(() => BRANCH_ROLES.has(form.value.role));
+
+// Phase 110 D-11: roles that need País selector (country-wide scope).
+const COUNTRY_ROLES = new Set(['admin', 'gestion']);
+// Phase 110 D-11: roles that need multi-sede selector (per-branch scope).
+const OPERATIONAL_BRANCH_ROLES = new Set(['coach', 'recepcion']);
+
+const needsCountry = computed(() => COUNTRY_ROLES.has(form.value.role));
+const needsOperationalBranches = computed(() => OPERATIONAL_BRANCH_ROLES.has(form.value.role));
+
+const countryOptions = [
+  { label: 'Argentina', value: 'AR' as const },
+  { label: 'España', value: 'ES' as const },
+];
 
 const ROLE_COLORS: Record<string, string> = {
   owner: 'deep-purple',
@@ -306,6 +353,8 @@ function resetForm() {
     password: '',
     role: '',
     branchId: null,
+    country: null,
+    branchIds: [],
   };
   usersApi.error.value = null;
 }
@@ -325,6 +374,9 @@ function openEditDialog(user: StaffUser) {
     password: '',
     role: user.role,
     branchId: user.branchId,
+    // Phase 110: pre-populate new staff-scope fields from the row.
+    country: user.country,
+    branchIds: [...user.branchIds],
   };
   usersApi.error.value = null;
   dialogOpen.value = true;
@@ -340,6 +392,28 @@ async function handleSave() {
     if (form.value.password) input.password = form.value.password;
     if (form.value.role) input.role = form.value.role;
     if (form.value.branchId !== null) input.branchId = form.value.branchId;
+    // Phase 110: send country + branchIds based on (effective) role.
+    // Backend (Plan 05) re-validates cardinality.
+    if (needsCountry.value) {
+      input.country = form.value.country;
+    } else if (
+      form.value.role === 'owner' ||
+      form.value.role === 'coach' ||
+      form.value.role === 'recepcion'
+    ) {
+      // Owner / coach / recepción: country must be NULL per REQ-9 rules 3 + invariant.
+      input.country = null;
+    }
+    if (needsOperationalBranches.value) {
+      input.branchIds = form.value.branchIds;
+    } else if (
+      form.value.role === 'admin' ||
+      form.value.role === 'gestion' ||
+      form.value.role === 'owner'
+    ) {
+      // admin / gestion / owner: empty operational branches.
+      input.branchIds = [];
+    }
 
     try {
       await usersApi.updateUser(editingUser.value.id, input);
@@ -353,13 +427,17 @@ async function handleSave() {
   } else {
     // Create mode: validate required fields
     const branchRequired = BRANCH_ROLES.has(form.value.role);
+    const countryRequired = needsCountry.value;
+    const operationalBranchesRequired = needsOperationalBranches.value;
     if (
       !form.value.firstName ||
       !form.value.lastName ||
       !form.value.email ||
       !form.value.password ||
       !form.value.role ||
-      (branchRequired && form.value.branchId === null)
+      (branchRequired && form.value.branchId === null) ||
+      (countryRequired && !form.value.country) ||
+      (operationalBranchesRequired && form.value.branchIds.length === 0)
     ) {
       $q.notify({ type: 'warning', message: 'Completa todos los campos requeridos' });
       return;
@@ -378,6 +456,9 @@ async function handleSave() {
         password: form.value.password,
         role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion',
         branchId,
+        // Phase 110: send country + branchIds; backend validates per role (REQ-9).
+        country: countryRequired ? form.value.country : null,
+        branchIds: operationalBranchesRequired ? form.value.branchIds : [],
       });
       dialogOpen.value = false;
       $q.notify({ type: 'positive', message: 'Usuario creado' });
