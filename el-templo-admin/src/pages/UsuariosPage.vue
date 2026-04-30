@@ -396,27 +396,18 @@ async function handleSave() {
     if (form.value.password) input.password = form.value.password;
     if (form.value.role) input.role = form.value.role;
     if (form.value.branchId !== null) input.branchId = form.value.branchId;
-    // Phase 110: send country + branchIds based on (effective) role.
-    // Backend (Plan 05) re-validates cardinality.
+    // Phase 110: only send country/branchIds when the (effective) role needs
+    // them. Sending `country: null` to AJV trips the enum validator
+    // ("must be equal to one of the allowed values") because the OpenAPI
+    // `nullable: true` flag is a no-op in Fastify/Ajv default config. The
+    // backend handles `undefined` as "inherit current value" (Plan 05
+    // updateStaff lines 274-285), so omitting the field is safer and
+    // semantically equivalent to "don't change this dimension".
     if (needsCountry.value) {
       input.country = form.value.country;
-    } else if (
-      form.value.role === 'owner' ||
-      form.value.role === 'coach' ||
-      form.value.role === 'recepcion'
-    ) {
-      // Owner / coach / recepción: country must be NULL per REQ-9 rules 3 + invariant.
-      input.country = null;
     }
     if (needsOperationalBranches.value) {
       input.branchIds = form.value.branchIds;
-    } else if (
-      form.value.role === 'admin' ||
-      form.value.role === 'gestion' ||
-      form.value.role === 'owner'
-    ) {
-      // admin / gestion / owner: empty operational branches.
-      input.branchIds = [];
     }
 
     try {
@@ -453,17 +444,26 @@ async function handleSave() {
       : (form.value.branchId ?? branches.value[0]?.id ?? 1);
 
     try {
-      await usersApi.createUser({
+      // Phase 110: build payload conditionally — sending `country: null`
+      // trips AJV's enum validator (Fastify default Ajv config ignores
+      // `nullable: true`). Backend handles missing fields as defaults
+      // (Plan 05 schema + service: country defaults to NULL on insert,
+      // branchIds defaults to []).
+      const createPayload: Parameters<typeof usersApi.createUser>[0] = {
         firstName: form.value.firstName,
         lastName: form.value.lastName,
         email: form.value.email,
         password: form.value.password,
         role: form.value.role as 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion',
         branchId,
-        // Phase 110: send country + branchIds; backend validates per role (REQ-9).
-        country: countryRequired ? form.value.country : null,
-        branchIds: operationalBranchesRequired ? form.value.branchIds : [],
-      });
+      };
+      if (countryRequired && form.value.country) {
+        createPayload.country = form.value.country;
+      }
+      if (operationalBranchesRequired) {
+        createPayload.branchIds = form.value.branchIds;
+      }
+      await usersApi.createUser(createPayload);
       dialogOpen.value = false;
       $q.notify({ type: 'positive', message: 'Usuario creado' });
       await loadUsers();
