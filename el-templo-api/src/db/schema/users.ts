@@ -60,9 +60,19 @@ export const users = mysqlTable(
     firstName: varchar("first_name", { length: 100 }),
     lastName: varchar("last_name", { length: 100 }),
     role: roleEnum.default("member").notNull(),
+    // Phase 110: branch_id is the user's "sede personal de entrenamiento" — the
+    // branch they train at as a member. This is distinct from the operational
+    // scope tables (`country` for admin/gestion country-wide scope; `user_branches`
+    // for coach/recepción multi-branch operational reach). Stays NOT NULL for ALL
+    // roles (REQ-4). Members + staff who also train use this column.
     branchId: int("branch_id")
       .references(() => branches.id)
       .notNull(),
+    // Phase 110: Country of management for staff with country-wide scope (admin/gestion).
+    // NULL for owner (global access by role), member, coach, recepción.
+    // Authoritative source for `attachCountryScope` for admin/gestion (replaces
+    // JOIN to branches.country). REQ-1 / D-12.
+    country: varchar("country", { length: 2 }),
     level: levelEnum.default("alfa").notNull(),
     phone: varchar("phone", { length: 30 }),
     dni: varchar("dni", { length: 20 }).unique(),
