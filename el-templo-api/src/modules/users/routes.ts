@@ -56,8 +56,20 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
           lastName: request.body.lastName,
           role: request.body.role,
           branchId: request.body.branchId,
+          // Phase 110 REQ-9 / REQ-11: surface the new scope fields in the
+          // 201 reply so the admin form can hydrate without a follow-up GET.
+          country: request.body.country ?? null,
+          branchIds: request.body.branchIds ?? [],
         });
       } catch (err: unknown) {
+        // Phase 110: validateStaffCardinality throws statusCode=400 — coerce
+        // to a 400 reply with the existing { error } shape (mirrors 409 path).
+        if (
+          err instanceof Error &&
+          (err as Error & { statusCode?: number }).statusCode === 400
+        ) {
+          return reply.code(400).send({ error: err.message });
+        }
         if (
           err instanceof Error &&
           (err as Error & { statusCode?: number }).statusCode === 409
@@ -86,6 +98,14 @@ export const userRoutes: FastifyPluginAsync = async (fastify) => {
         }
         return result;
       } catch (err: unknown) {
+        // Phase 110: validateStaffCardinality throws statusCode=400 — coerce
+        // to a 400 reply with the existing { error } shape (mirrors 409 path).
+        if (
+          err instanceof Error &&
+          (err as Error & { statusCode?: number }).statusCode === 400
+        ) {
+          return reply.code(400).send({ error: err.message });
+        }
         if (
           err instanceof Error &&
           (err as Error & { statusCode?: number }).statusCode === 409
