@@ -2422,13 +2422,21 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 ### Phase 110: Admin users por país + multi-sede staff
 
 **Goal:** Refactorizar el modelo de permisos del staff. admin/gestion/owner pasan a tener alcance por país (nueva columna `users.country` varchar(2)). coach/recepción pasan a multi-sede (nueva tabla `user_branches`). `users.branch_id` se mantiene NOT NULL para todos como sede personal de entrenamiento (la app de miembros sigue funcionando para staff). Staff hereda multisucursal por rol al usar la app de miembros (`canBookInBranch` permite cualquier sede si `role !== 'member'`). Templo Online (`branches.isVirtual=true`) accesible globalmente. Owner: bypass por rol. El hook `country-scope.ts` existente se extiende para leer `users.country` directamente (sin JOIN a branches) y agregar `branchIds` para coach/recepción.
-**Requirements**: TBD (definir en SPEC.md)
+**Requirements**: REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12 (locked in 110-SPEC.md)
 **Depends on:** Phase 109
-**Plans:** 0 plans
+**Plans:** 9 plans
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 110 to break down)
+- [ ] 110-01-PLAN.md — Drizzle schema (users.country + user_branches) + migration 0107 SQL with atomic backfill
+- [ ] 110-02-PLAN.md — [BLOCKING] pnpm db:migrate run + test helpers cleanup
+- [ ] 110-03-PLAN.md — Extend country-scope.ts hook + create shared/branch-access.ts (canAccessBranch + requireBranchAccess + BRANCH_OUT_OF_SCOPE)
+- [ ] 110-04-PLAN.md — booking-service.ts staff multibranch bypass (REQ-8)
+- [ ] 110-05-PLAN.md — users service cardinality validation + atomic user_branches writes + types/schemas/routes extension
+- [ ] 110-06-PLAN.md — Apply requireBranchAccess to admin/finance/reports/scheduling/analytics/attendance routes + GET /admin/members/branches scope filter
+- [ ] 110-07-PLAN.md — Integration tests (test/branch-access.test.ts) — 15+ cases covering REQ-5..REQ-12
+- [ ] 110-08-PLAN.md — Admin UI: UsuariosPage form per role + useUsersApi types + single-seam audit
+- [ ] 110-09-PLAN.md — VERIFICATION.md scaffold + smoke + UAT prompts + decision matrix
 
 ---
 
