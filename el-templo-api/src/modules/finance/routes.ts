@@ -31,6 +31,10 @@ import {
   FINANCE_ADJUSTMENT_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import {
+  requireBranchAccess,
+  BRANCH_OUT_OF_SCOPE,
+} from "../shared/branch-access";
 import * as schema from "../../db/schema";
 import type {
   CreateTransactionInput,
@@ -71,7 +75,10 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
   // ===================================================================
   fastify.post<{ Body: CreateTransactionInput }>(
     "/transactions",
-    { schema: createTransactionSchema },
+    {
+      schema: createTransactionSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
     async (request, reply) => {
       try {
         // T-106-06: kind=adjustment requires FINANCE_ADJUSTMENT_ROLES.
@@ -111,9 +118,25 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
             !branchRow.isVirtual &&
             branchRow.country !== request.scope.country
           ) {
+            // Phase 110 Warning 2: harmonize inline 403 body to the same shape
+            // as requireBranchAccess so the frontend matches by `code` exactly.
+            // Phase 98 D-03 belt-and-suspenders: this service-layer guard
+            // remains for direct callers (tests, internal cross-module calls)
+            // even though the new requireBranchAccess preHandler covers the
+            // HTTP path.
+            request.log.warn(
+              {
+                userId: request.user?.userId,
+                role: request.user?.role,
+                branchId: request.body.branchId,
+                scope: request.scope,
+              },
+              BRANCH_OUT_OF_SCOPE,
+            );
             return reply.code(403).send({
-              error: "Acceso denegado",
-              message: "No tienes permiso sobre esta sucursal",
+              error: "Forbidden",
+              message: "No tenés acceso a esta sede",
+              code: BRANCH_OUT_OF_SCOPE,
             });
           }
         }
@@ -230,7 +253,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/transactions",
-    { schema: listTransactionsSchema },
+    {
+      schema: listTransactionsSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         // Owner-aware country resolution (per CajaPage.vue:521-530 contract).
@@ -286,7 +314,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/transactions/summary",
-    { schema: transactionsSummarySchema },
+    {
+      schema: transactionsSummarySchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         // Owner-aware country resolution — mirrors GET /transactions.
@@ -343,7 +376,12 @@ export const financeRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/transactions/export",
-    { schema: exportTransactionsSchema },
+    {
+      schema: exportTransactionsSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         // Owner-aware country resolution — mirrors GET /transactions.

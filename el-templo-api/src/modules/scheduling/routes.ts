@@ -23,6 +23,7 @@ import { BookingService } from "./booking-service";
 import { HolidayService } from "./holiday-service";
 import { TrialService } from "./trials-service";
 import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
@@ -89,6 +90,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
+   *
+   * Phase 110 (Rule 3 — Plan 06 blocker): attach country scope here so
+   * requireBranchAccess preHandlers downstream can read request.scope.
+   * Previously the trials endpoint attached it per-route; the new
+   * preHandler pattern needs scope on every gated route. The module-level
+   * attach is idempotent and consistent with reports/finance/analytics.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
@@ -98,6 +105,7 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // ─── Activities ─────────────────────────────────────────────────────────
@@ -156,27 +164,39 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
       startTime: string;
       endTime: string;
     };
-  }>("/schedules", { schema: createScheduleSchema }, async (request, reply) => {
-    try {
-      const slot = await schedulingService.createSchedule(
-        request.body.branchId,
-        request.body.activityId,
-        request.body.dayOfWeek as DayOfWeek,
-        request.body.startTime,
-        request.body.endTime,
-      );
-      return reply.code(201).send(slot);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "create schedule");
-    }
-  });
+  }>(
+    "/schedules",
+    {
+      schema: createScheduleSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const slot = await schedulingService.createSchedule(
+          request.body.branchId,
+          request.body.activityId,
+          request.body.dayOfWeek as DayOfWeek,
+          request.body.startTime,
+          request.body.endTime,
+        );
+        return reply.code(201).send(slot);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "create schedule");
+      }
+    },
+  );
 
   // GET /schedules/weekly — weekly grid with occupancy
   fastify.get<{
     Querystring: { branchId: number; weekStart: string };
   }>(
     "/schedules/weekly",
-    { schema: weeklyGridSchema },
+    {
+      schema: weeklyGridSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const result = await schedulingService.getWeeklyGrid(
@@ -253,7 +273,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /schedules/seed — seed default slots for a branch
   fastify.post<{ Body: { branchId: number } }>(
     "/schedules/seed",
-    { schema: seedSchedulesSchema },
+    {
+      schema: seedSchedulesSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
     async (request, reply) => {
       try {
         const created = await schedulingService.seedDefaultSchedules(
@@ -327,7 +350,10 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: { branchId: number };
   }>(
     "/trials/eligible",
-    { schema: listEligibleTrialsSchema },
+    {
+      schema: listEligibleTrialsSchema,
+      preHandler: [requireBranchAccess({ from: "query.branchId" })],
+    },
     async (request, reply) => {
       try {
         const result = await trialService.listEligibleTrials(
@@ -349,9 +375,9 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     "/trials",
     {
       schema: listTrialsSchema,
-      preHandler: async (request) => {
-        await attachCountryScope(request, fastify.db);
-      },
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
     },
     async (request, reply) => {
       try {

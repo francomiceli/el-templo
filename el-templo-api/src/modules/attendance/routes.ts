@@ -23,6 +23,8 @@ import {
 } from "./schemas";
 
 import { ATTENDANCE_ROLES } from "../shared/permissions";
+import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 
 // =============================================================================
 // Admin Routes (registered at /api/admin/attendance)
@@ -44,6 +46,10 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * Guard: require admin/coach role on all routes in this plugin.
+   *
+   * Phase 110 (Rule 3 — Plan 06 blocker): attach country scope here so
+   * requireBranchAccess preHandlers can read request.scope. Module hook
+   * order is consistent with finance/reports/analytics/members.
    */
   fastify.addHook("onRequest", async (request, reply) => {
     await fastify.authenticate(request, reply);
@@ -53,6 +59,7 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
         message: "Acceso de administrador requerido",
       });
     }
+    await attachCountryScope(request, fastify.db);
   });
 
   // GET /member/:userId — Member's attendance history (admin view)
@@ -76,17 +83,24 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /force — Force check-in (admin/coach override, legacy endpoint)
   fastify.post<{
     Body: { memberId: number; branchId: number; reason: string };
-  }>("/force", { schema: forceCheckInSchema }, async (request, reply) => {
-    try {
-      const record = await attendanceService.forceCheckIn(
-        request.body,
-        request.user.userId,
-      );
-      return reply.code(201).send(record);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "force check-in");
-    }
-  });
+  }>(
+    "/force",
+    {
+      schema: forceCheckInSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
+    async (request, reply) => {
+      try {
+        const record = await attendanceService.forceCheckIn(
+          request.body,
+          request.user.userId,
+        );
+        return reply.code(201).send(record);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "force check-in");
+      }
+    },
+  );
 
   // GET /slot/:scheduleId/:date — Slot attendance view
   fastify.get<{
