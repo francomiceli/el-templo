@@ -13,6 +13,11 @@ export interface StaffUser {
   // staffDisabled=true means deactivated (cannot log in once Plan 07 ships
   // the staff_disabled login gate); staffDisabled=false means active.
   staffDisabled: boolean;
+  // Phase 110 REQ-1: country of management. NULL for owner / coach / recepción / member.
+  country: 'AR' | 'ES' | null;
+  // Phase 110 REQ-2: operational branch ids (coach/recepción only).
+  // Empty array for admin / gestion / owner / member.
+  branchIds: number[];
   createdAt: string;
 }
 
@@ -23,6 +28,10 @@ export interface CreateStaffInput {
   password: string;
   role: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion';
   branchId: number;
+  // Phase 110: required for admin / gestion (validated server-side per REQ-9).
+  country?: 'AR' | 'ES' | null;
+  // Phase 110: required (≥ 1) for coach / recepción (validated server-side per REQ-9).
+  branchIds?: number[];
 }
 
 export interface UpdateStaffInput {
@@ -32,6 +41,8 @@ export interface UpdateStaffInput {
   password?: string;
   role?: 'coach' | 'admin' | 'owner' | 'gestion' | 'recepcion';
   branchId?: number;
+  country?: 'AR' | 'ES' | null;
+  branchIds?: number[];
 }
 
 function extractError(err: unknown, fallback: string): string {
