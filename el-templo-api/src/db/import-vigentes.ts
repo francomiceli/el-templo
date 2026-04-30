@@ -547,16 +547,18 @@ async function main(): Promise<void> {
       console.log(`  Users fecha ingreso updated: ${usersUpdatedIngreso}`);
       console.log(`  Users marked inactive: ${usersMarkedInactive}`);
 
-      // Cleanup: deactivate any member on a physical branch who is active
-      // but has zero subscriptions (not from CSV, not from app — orphan state)
+      // Cleanup: deactivate any member on a physical branch who is currently
+      // marked activo but has zero subscriptions (not from CSV, not from app —
+      // orphan state). Phase 103 dropped users.is_active; we now write the
+      // status enum instead.
       const onlineBranches = dbBranches
         .filter((b) => b.name.includes("Online") || b.name.includes("Park"))
         .map((b) => b.id);
 
       const cleanupResult = await db.execute(sql`
         UPDATE ${users} u
-        SET u.is_active = 0
-        WHERE u.is_active = 1
+        SET u.status = 'inactivo'
+        WHERE u.status = 'activo'
           AND u.role = 'member'
           AND u.branch_id NOT IN (${sql.join(
             onlineBranches.map((id) => sql`${id}`),
