@@ -280,6 +280,20 @@ export function useMembersApi() {
 
   // ─── Branches ─────────────────────────────────────────────────────────
 
+  /**
+   * GET /admin/members/branches — returns active branches scoped to the
+   * current user's permissions:
+   *   - owner without ?country=  → all branches (real + virtual)
+   *   - owner with ?country=AR|ES → that country + virtual
+   *   - admin/gestion             → own country + virtual
+   *   - coach/recepción           → user_branches + virtual
+   *
+   * Phase 110 D-07/D-08/D-09: backend filter at members/routes.ts is the
+   * single seam — frontend consumes the filtered list transparently. No
+   * client-side filtering required (CajaPage, ReportesPage, AnaliticasPage,
+   * AlumnosPage, AlumnoDetailPage, HorariosPage, UsuariosPage all consume
+   * this composable / endpoint and rely on the backend scope).
+   */
   async function getBranches(): Promise<BranchOption[]> {
     loading.value = true;
     error.value = null;
