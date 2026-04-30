@@ -1,5 +1,6 @@
 export * from "./branches";
 export * from "./users";
+export * from "./user-branches";
 export * from "./routes";
 export * from "./spom-rules";
 export * from "./intensity-rules";
