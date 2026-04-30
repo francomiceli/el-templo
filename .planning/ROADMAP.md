@@ -2419,6 +2419,17 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 | 108. Pago de Saldo + Historial Financiero | 6/6            | Complete | 2026-04-28 |
 | 109. Caja v2 + Reportes                   | 5/5            | Complete | 2026-04-29 |
 
+### Phase 110: Admin users por país + multi-sede staff
+
+**Goal:** Refactorizar el modelo de permisos del staff. admin/gestion/owner pasan a tener alcance por país (nueva columna `users.country` varchar(2)). coach/recepción pasan a multi-sede (nueva tabla `user_branches`). `users.branch_id` se mantiene NOT NULL para todos como sede personal de entrenamiento (la app de miembros sigue funcionando para staff). Staff hereda multisucursal por rol al usar la app de miembros (`canBookInBranch` permite cualquier sede si `role !== 'member'`). Templo Online (`branches.isVirtual=true`) accesible globalmente. Owner: bypass por rol. El hook `country-scope.ts` existente se extiende para leer `users.country` directamente (sin JOIN a branches) y agregar `branchIds` para coach/recepción.
+**Requirements**: TBD (definir en SPEC.md)
+**Depends on:** Phase 109
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 110 to break down)
+
 ---
 
 _v4.8 added: 2026-04-27 — 5 phases (105-109), 24 requirements (TXN, API, CHARGE, PAYMENT, CAJA). Origin: requerimiento de operaciones por integrar deuda al cargar membresía; análisis reveló necesidad de modelo transaccional. Doc: `.planning/research/v48-financial-model-analysis.md`_
