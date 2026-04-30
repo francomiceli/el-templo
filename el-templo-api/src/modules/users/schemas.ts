@@ -28,6 +28,10 @@ export const listStaffSchema = {
           // inversion: `staffDisabled=true` means the staff member is
           // deactivated and cannot log in (gated by Plan 07 in /login).
           staffDisabled: { type: "boolean" },
+          // Phase 110 REQ-1 / REQ-2: country (admin/gestion) and
+          // branchIds (coach/recepción) projected for the UI.
+          country: { type: "string", nullable: true },
+          branchIds: { type: "array", items: { type: "integer" } },
           createdAt: { type: "string", format: "date-time" },
         },
       },
@@ -56,8 +60,33 @@ export const createStaffSchema = {
         enum: ["coach", "admin", "owner", "gestion", "recepcion"],
       },
       branchId: { type: "integer" },
+      // Phase 110 REQ-1: country of management for admin/gestion (validated
+      // by validateStaffCardinality in service). Owner / coach / recepción
+      // must NOT carry country (REQ-9 rule 3 for owner; ignored for the rest).
+      country: { type: "string", enum: ["AR", "ES"], nullable: true },
+      // Phase 110 REQ-2: operational branches for coach/recepción (validated
+      // by validateStaffCardinality). Empty/absent for other roles.
+      branchIds: {
+        type: "array",
+        items: { type: "integer" },
+        default: [],
+      },
     },
     additionalProperties: false,
+    // Phase 110 REQ-9 (4th rule): members must NOT carry branchIds. AJV-level
+    // rejection prevents malformed payloads from reaching the service. The
+    // service keeps its own validateStaffCardinality check as belt-and-
+    // suspenders. Note: the staff CRUD route is also OWNER_ROLES-only, so
+    // this is defense-in-depth.
+    if: {
+      properties: { role: { const: "member" } },
+      required: ["role"],
+    },
+    then: {
+      properties: {
+        branchIds: { type: "array", maxItems: 0 },
+      },
+    },
   },
   response: {
     201: {
@@ -69,6 +98,8 @@ export const createStaffSchema = {
         lastName: { type: "string" },
         role: { type: "string" },
         branchId: { type: "integer" },
+        country: { type: "string", nullable: true },
+        branchIds: { type: "array", items: { type: "integer" } },
       },
     },
   },
@@ -94,8 +125,25 @@ export const updateStaffSchema = {
         enum: ["coach", "admin", "owner", "gestion", "recepcion"],
       },
       branchId: { type: "integer" },
+      // Phase 110 REQ-1 / REQ-2: same additive shape as create.
+      country: { type: "string", enum: ["AR", "ES"], nullable: true },
+      branchIds: {
+        type: "array",
+        items: { type: "integer" },
+        default: [],
+      },
     },
     additionalProperties: false,
+    // Phase 110 REQ-9 (4th rule): mirror of createStaffSchema.
+    if: {
+      properties: { role: { const: "member" } },
+      required: ["role"],
+    },
+    then: {
+      properties: {
+        branchIds: { type: "array", maxItems: 0 },
+      },
+    },
   },
 };
 
