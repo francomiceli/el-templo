@@ -36,6 +36,7 @@ import {
 
 import { CAJA_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 
 export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
   const reportsService = new ReportsService(fastify.db, fastify.log);
@@ -69,23 +70,32 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       page?: number;
       limit?: number;
     };
-  }>("/access", { schema: accessReportSchema }, async (request, reply) => {
-    try {
-      const filters: AccessReportFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        dateFrom: request.query.dateFrom,
-        dateTo: request.query.dateTo,
-        search: request.query.search,
-        source: request.query.source,
-        page: request.query.page,
-        limit: request.query.limit,
-      };
-      return await reportsService.getAccessLog(filters);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get access report");
-    }
-  });
+  }>(
+    "/access",
+    {
+      schema: accessReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AccessReportFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          search: request.query.search,
+          source: request.query.source,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await reportsService.getAccessLog(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get access report");
+      }
+    },
+  );
 
   // GET /charges — Paginated charge history
   fastify.get<{
@@ -98,23 +108,32 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       page?: number;
       limit?: number;
     };
-  }>("/charges", { schema: chargeReportSchema }, async (request, reply) => {
-    try {
-      const filters: ChargeReportFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        dateFrom: request.query.dateFrom,
-        dateTo: request.query.dateTo,
-        search: request.query.search,
-        paymentMethod: request.query.paymentMethod,
-        page: request.query.page,
-        limit: request.query.limit,
-      };
-      return await reportsService.getChargeHistory(filters);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get charges report");
-    }
-  });
+  }>(
+    "/charges",
+    {
+      schema: chargeReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: ChargeReportFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+          search: request.query.search,
+          paymentMethod: request.query.paymentMethod,
+          page: request.query.page,
+          limit: request.query.limit,
+        };
+        return await reportsService.getChargeHistory(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get charges report");
+      }
+    },
+  );
 
   // GET /expiring — Expiring memberships list
   fastify.get<{
@@ -123,19 +142,28 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       daysWindow?: number;
       includeExpired?: boolean;
     };
-  }>("/expiring", { schema: expiringReportSchema }, async (request, reply) => {
-    try {
-      const filters: ExpiringReportFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        daysWindow: request.query.daysWindow,
-        includeExpired: request.query.includeExpired,
-      };
-      return await reportsService.getExpiringMemberships(filters);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get expiring report");
-    }
-  });
+  }>(
+    "/expiring",
+    {
+      schema: expiringReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: ExpiringReportFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          daysWindow: request.query.daysWindow,
+          includeExpired: request.query.includeExpired,
+        };
+        return await reportsService.getExpiringMemberships(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get expiring report");
+      }
+    },
+  );
 
   // GET /inactive — Inactive members list
   fastify.get<{
@@ -143,18 +171,27 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
       branchId?: number;
       daysThreshold?: number;
     };
-  }>("/inactive", { schema: inactiveReportSchema }, async (request, reply) => {
-    try {
-      const filters: InactiveReportFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        daysThreshold: request.query.daysThreshold,
-      };
-      return await reportsService.getInactiveMembers(filters);
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get inactive report");
-    }
-  });
+  }>(
+    "/inactive",
+    {
+      schema: inactiveReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: InactiveReportFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          daysThreshold: request.query.daysThreshold,
+        };
+        return await reportsService.getInactiveMembers(filters);
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get inactive report");
+      }
+    },
+  );
 
   // GET /trial-conversion — Trial→alumno conversion funnel (Phase 102-07)
   fastify.get<{
@@ -165,7 +202,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/trial-conversion",
-    { schema: trialConversionReportSchema },
+    {
+      schema: trialConversionReportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: TrialConversionFilters = {
@@ -201,7 +243,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/outstanding-balances",
-    { schema: outstandingBalancesSchema },
+    {
+      schema: outstandingBalancesSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         let country: "AR" | "ES" | undefined;
@@ -248,7 +295,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/access/export",
-    { schema: accessExportSchema },
+    {
+      schema: accessExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: AccessReportFilters = {
@@ -304,7 +356,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/charges/export",
-    { schema: chargeExportSchema },
+    {
+      schema: chargeExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: ChargeReportFilters = {
@@ -364,7 +421,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/expiring/export",
-    { schema: expiringExportSchema },
+    {
+      schema: expiringExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: ExpiringReportFilters = {
@@ -417,7 +479,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/inactive/export",
-    { schema: inactiveExportSchema },
+    {
+      schema: inactiveExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: InactiveReportFilters = {
@@ -472,7 +539,12 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
     };
   }>(
     "/outstanding-balances/export",
-    { schema: outstandingBalancesExportSchema },
+    {
+      schema: outstandingBalancesExportSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         let country: "AR" | "ES" | undefined;

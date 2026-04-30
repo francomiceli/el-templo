@@ -19,6 +19,7 @@ import {
 
 import { ADMIN_ROLES } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import { requireBranchAccess } from "../shared/branch-access";
 
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   const analyticsService = new AnalyticsService(fastify.db, fastify.log);
@@ -40,45 +41,68 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
   // GET / — KPI stats
   fastify.get<{
     Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
-  }>("/", { schema: kpiSchema }, async (request, reply) => {
-    try {
-      const filters: AnalyticsFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        dateFrom: request.query.dateFrom,
-        dateTo: request.query.dateTo,
-      };
-      const result = await analyticsService.getKpis(filters);
-      return result;
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get KPIs");
-    }
-  });
+  }>(
+    "/",
+    {
+      schema: kpiSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await analyticsService.getKpis(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get KPIs");
+      }
+    },
+  );
 
   // GET /members — member analytics
   fastify.get<{
     Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
-  }>("/members", { schema: memberAnalyticsSchema }, async (request, reply) => {
-    try {
-      const filters: AnalyticsFilters = {
-        branchId: request.query.branchId,
-        country: request.scope.country ?? undefined,
-        dateFrom: request.query.dateFrom,
-        dateTo: request.query.dateTo,
-      };
-      const result = await analyticsService.getMemberAnalytics(filters);
-      return result;
-    } catch (err: unknown) {
-      handleServiceError(err, reply, request.log, "get member analytics");
-    }
-  });
+  }>(
+    "/members",
+    {
+      schema: memberAnalyticsSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const filters: AnalyticsFilters = {
+          branchId: request.query.branchId,
+          country: request.scope.country ?? undefined,
+          dateFrom: request.query.dateFrom,
+          dateTo: request.query.dateTo,
+        };
+        const result = await analyticsService.getMemberAnalytics(filters);
+        return result;
+      } catch (err: unknown) {
+        handleServiceError(err, reply, request.log, "get member analytics");
+      }
+    },
+  );
 
   // GET /attendance — attendance analytics
   fastify.get<{
     Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
   }>(
     "/attendance",
-    { schema: attendanceAnalyticsSchema },
+    {
+      schema: attendanceAnalyticsSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: AnalyticsFilters = {
@@ -100,7 +124,12 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     Querystring: { branchId?: number; dateFrom?: string; dateTo?: string };
   }>(
     "/financial",
-    { schema: financialAnalyticsSchema },
+    {
+      schema: financialAnalyticsSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
     async (request, reply) => {
       try {
         const filters: AnalyticsFilters = {
