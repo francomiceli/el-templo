@@ -194,6 +194,13 @@ const columns = [
     sortable: false,
   },
   {
+    name: 'telefono',
+    label: 'Teléfono',
+    field: (r: OutstandingBalanceRow) => r.memberPhone ?? '—',
+    align: 'left' as const,
+    sortable: false,
+  },
+  {
     name: 'concepto',
     label: 'Plan/Concepto',
     field: 'conceptLabel',

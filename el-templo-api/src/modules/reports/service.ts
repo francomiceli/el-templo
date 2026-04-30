@@ -588,6 +588,7 @@ export class ReportsService {
         memberId: schema.balances.memberId,
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
+        memberPhone: schema.users.phone,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         targetKind: schema.balances.targetKind,
@@ -637,6 +638,7 @@ export class ReportsService {
       return {
         memberId: r.memberId,
         memberName,
+        memberPhone: r.memberPhone ?? null,
         branchId: r.branchId ?? null,
         branchName: r.branchName ?? null,
         targetKind: r.targetKind,
@@ -1099,6 +1101,7 @@ export class ReportsService {
         memberId: schema.balances.memberId,
         memberFirstName: schema.users.firstName,
         memberLastName: schema.users.lastName,
+        memberPhone: schema.users.phone,
         branchId: schema.subscriptions.branchId,
         branchName: schema.branches.name,
         targetKind: schema.balances.targetKind,
@@ -1146,6 +1149,7 @@ export class ReportsService {
       return {
         memberId: r.memberId,
         memberName,
+        memberPhone: r.memberPhone ?? null,
         branchId: r.branchId ?? null,
         branchName: r.branchName ?? null,
         targetKind: r.targetKind,

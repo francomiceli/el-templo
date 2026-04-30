@@ -499,6 +499,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         // 9 columns per D-16 — order is load-bearing.
         sheet.columns = [
           { header: "Miembro", key: "miembro", width: 28 },
+          { header: "Teléfono", key: "telefono", width: 18 },
           { header: "Plan/Concepto", key: "concepto", width: 32 },
           { header: "Sucursal", key: "sucursal", width: 22 },
           { header: "Monto", key: "monto", width: 14 },
@@ -514,6 +515,7 @@ export const reportsRoutes: FastifyPluginAsync = async (fastify) => {
         for (const row of rows) {
           sheet.addRow({
             miembro: row.memberName,
+            telefono: row.memberPhone ?? "",
             concepto: row.conceptLabel,
             sucursal: row.branchName ?? "",
             monto: row.amount,

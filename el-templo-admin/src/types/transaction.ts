@@ -263,6 +263,7 @@ export type DebtBucket = '0-30' | '31-60' | '61-90' | '90+';
 export interface OutstandingBalanceRow {
   memberId: number;
   memberName: string;
+  memberPhone: string | null;
   branchId: number | null;
   branchName: string | null;
   targetKind: 'subscription' | 'debt_balance';

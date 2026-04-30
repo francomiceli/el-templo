@@ -318,6 +318,7 @@ export const outstandingBalancesSchema = {
             properties: {
               memberId: { type: "integer" },
               memberName: { type: "string" },
+              memberPhone: { type: ["string", "null"] },
               branchId: { type: ["integer", "null"] },
               branchName: { type: ["string", "null"] },
               targetKind: {

@@ -307,26 +307,27 @@ describe("Reports API — GET /outstanding-balances/export (Phase 109-04)", () =
     // Header row + 2 data rows = 3.
     expect(sheet.rowCount).toBe(3);
 
-    // 9 columns per D-16 — order is load-bearing.
+    // 10 columns — order is load-bearing.
     const header = sheet.getRow(1);
     expect(header.getCell(1).value).toBe("Miembro");
-    expect(header.getCell(2).value).toBe("Plan/Concepto");
-    expect(header.getCell(3).value).toBe("Sucursal");
-    expect(header.getCell(4).value).toBe("Monto");
-    expect(header.getCell(5).value).toBe("Moneda");
-    expect(header.getCell(6).value).toBe("Antigüedad (días)");
-    expect(header.getCell(7).value).toBe("Bucket");
-    expect(header.getCell(8).value).toBe("Fecha devengo");
-    expect(header.getCell(9).value).toBe("Tipo");
+    expect(header.getCell(2).value).toBe("Teléfono");
+    expect(header.getCell(3).value).toBe("Plan/Concepto");
+    expect(header.getCell(4).value).toBe("Sucursal");
+    expect(header.getCell(5).value).toBe("Monto");
+    expect(header.getCell(6).value).toBe("Moneda");
+    expect(header.getCell(7).value).toBe("Antigüedad (días)");
+    expect(header.getCell(8).value).toBe("Bucket");
+    expect(header.getCell(9).value).toBe("Fecha devengo");
+    expect(header.getCell(10).value).toBe("Tipo");
 
     // Sort: ageInDays DESC. Oldest balance (45d, Juan) is first data row.
     const firstRow = sheet.getRow(2);
     expect(firstRow.getCell(1).value).toBe("Juan Pérez");
-    expect(firstRow.getCell(5).value).toBe("ARS");
-    expect(firstRow.getCell(6).value).toBe(45);
+    expect(firstRow.getCell(6).value).toBe("ARS");
+    expect(firstRow.getCell(7).value).toBe(45);
     // 45d → bucket "31-60 días"
-    expect(firstRow.getCell(7).value).toBe("31-60 días");
-    expect(firstRow.getCell(9).value).toBe("Plan");
+    expect(firstRow.getCell(8).value).toBe("31-60 días");
+    expect(firstRow.getCell(10).value).toBe("Plan");
   });
 
   it("X2: coach gets 403 (CAJA_ROLES excludes coach)", async () => {
