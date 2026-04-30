@@ -1,4 +1,5 @@
 <template>
+  <!-- Phase 110 v1: form per-role (country / multi-sede) — deploy redeploy trigger -->
   <q-page class="q-pa-md">
     <!-- Header -->
     <div class="row items-center q-mb-md">
