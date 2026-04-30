@@ -131,7 +131,8 @@
           <q-select
             v-if="needsBranch"
             v-model="form.branchId"
-            label="Sede"
+            label="Sede personal de entrenamiento"
+            hint="La sede que ve por default al usar la app de miembros para entrenar (no afecta su alcance de gestión ni operativo)."
             :options="branches"
             option-value="id"
             option-label="name"
@@ -141,25 +142,27 @@
             dense
             :rules="[(v: number | null) => v !== null || 'Requerido']"
           />
-          <!-- Phase 110 D-11: multi-select de sedes operativas para coach/recepción.
-               branches list is already scope-filtered by Plan 06 backend seam. -->
-          <q-select
-            v-if="needsOperationalBranches"
-            v-model="form.branchIds"
-            label="Sedes operativas"
-            :options="branches"
-            option-value="id"
-            option-label="name"
-            emit-value
-            map-options
-            multiple
-            use-chips
-            outlined
-            dense
-            :rules="[
-              (v: number[]) => (Array.isArray(v) && v.length > 0) || 'Requerido al menos una sede',
-            ]"
-          />
+          <!-- Phase 110 D-11: multi-select operativo para coach/recepción.
+               Lista con checkboxes (q-option-group) — más obvio que es
+               multi-select que un dropdown con chips. -->
+          <div v-if="needsOperationalBranches" class="q-mt-md">
+            <div class="text-caption text-grey-7 q-mb-xs">
+              Sedes operativas
+              <span class="text-caption text-grey-6">
+                — sedes donde trabaja (toma asistencia, da clase, atiende mostrador)
+              </span>
+            </div>
+            <q-option-group
+              v-model="form.branchIds"
+              :options="branches.map((b) => ({ label: b.name, value: b.id }))"
+              type="checkbox"
+              color="primary"
+              dense
+            />
+            <div v-if="form.branchIds.length === 0" class="text-negative text-caption q-mt-xs">
+              Requerido al menos una sede
+            </div>
+          </div>
         </q-card-section>
 
         <q-card-section v-if="usersApi.error.value" class="text-negative q-pt-none">
