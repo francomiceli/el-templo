@@ -23,6 +23,7 @@ import { MemberService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
+import { NotificationService } from "../notifications/service";
 import { NotFoundError } from "../shared/errors";
 import { EmailService } from "../email";
 import type {
@@ -565,10 +566,15 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         request.log,
         auraService,
       );
+      const notificationService = new NotificationService(
+        fastify.db,
+        request.log,
+      );
       const bookingService = new BookingService(
         fastify.db,
         request.log,
         subscriptionService,
+        notificationService,
       );
       subscriptionService.setBookingService(bookingService);
 
@@ -851,12 +857,7 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         );
         return { concepts };
       } catch (err: unknown) {
-        handleServiceError(
-          err,
-          reply,
-          request.log,
-          "get outstanding concepts",
-        );
+        handleServiceError(err, reply, request.log, "get outstanding concepts");
       }
     },
   );

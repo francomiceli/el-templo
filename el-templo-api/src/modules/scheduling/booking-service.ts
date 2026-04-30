@@ -12,6 +12,7 @@ import { eq, and, sql, asc, inArray } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "../subscriptions/service";
+import { NotificationService } from "../notifications/service";
 import {
   addDays,
   getWeekRange,
@@ -35,6 +36,7 @@ export class BookingService {
     private db: MySql2Database<typeof schema>,
     private log: FastifyBaseLogger,
     private subscriptionService: SubscriptionService,
+    private notificationService: NotificationService,
   ) {}
 
   /**
@@ -856,11 +858,12 @@ export class BookingService {
     scheduleId: number,
     bookingDate: string,
   ): Promise<void> {
-    await this.db.transaction(async (tx) => {
+    const promoted = await this.db.transaction(async (tx) => {
       // Find the first waitlisted booking (lowest position)
       const [first] = await tx
         .select({
           id: schema.bookings.id,
+          memberId: schema.bookings.memberId,
           waitlistPosition: schema.bookings.waitlistPosition,
         })
         .from(schema.bookings)
@@ -874,7 +877,7 @@ export class BookingService {
         .orderBy(asc(schema.bookings.waitlistPosition))
         .limit(1);
 
-      if (!first) return;
+      if (!first) return null;
 
       // Promote to reservado
       await tx
@@ -909,7 +912,26 @@ export class BookingService {
         { scheduleId, bookingDate, promotedBookingId: first.id },
         "Waitlist member promoted",
       );
+
+      return { bookingId: first.id, memberId: first.memberId };
     });
+
+    // Notify the promoted member outside the transaction so a notification
+    // failure never rolls back the promotion itself.
+    if (promoted) {
+      try {
+        await this.notificationService.queueNotification({
+          userId: promoted.memberId,
+          templateKey: "waitlist_promoted",
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Unknown error";
+        this.log.error(
+          { err: message, ...promoted, scheduleId, bookingDate },
+          "Failed to queue waitlist promotion notification",
+        );
+      }
+    }
   }
 
   /**

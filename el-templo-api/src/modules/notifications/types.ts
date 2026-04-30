@@ -149,8 +149,7 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     title: "¡Programa activado!",
     body: "Tu programa fue activado. Entrá para ver tu plan semanal.",
     titleFemale: "¡Programa activado!",
-    bodyFemale:
-      "Tu programa fue activado. Entra para ver tu plan semanal.",
+    bodyFemale: "Tu programa fue activado. Entra para ver tu plan semanal.",
     route: "/mi-camino",
   },
   {
@@ -159,8 +158,7 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     title: "Nueva semana desbloqueada",
     body: "Avanzaste a una nueva semana en tu programa. ¡A por ella!",
     titleFemale: "Nueva semana desbloqueada",
-    bodyFemale:
-      "Avanzaste a una nueva semana en tu programa. A por ella!",
+    bodyFemale: "Avanzaste a una nueva semana en tu programa. A por ella!",
     route: "/mi-camino",
   },
   {
@@ -172,5 +170,15 @@ export const TEMPLATE_SEEDS: TemplateSeed[] = [
     bodyFemale:
       "Te quedan 7 dias de programa. Habla con tu coach para renovar.",
     route: "/mi-camino",
+  },
+  {
+    templateKey: "waitlist_promoted",
+    category: "entrenamiento",
+    title: "¡Se liberó tu lugar!",
+    body: "Pasaste de la lista de espera a una reserva confirmada. Te esperamos.",
+    titleFemale: "¡Se liberó tu lugar!",
+    bodyFemale:
+      "Pasaste de la lista de espera a una reserva confirmada. Te esperamos.",
+    route: "/reservas",
   },
 ];

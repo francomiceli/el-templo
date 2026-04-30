@@ -26,6 +26,7 @@ import { attachCountryScope } from "../shared/country-scope";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   createActivitySchema,
@@ -74,10 +75,12 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
+  const notificationService = new NotificationService(fastify.db, fastify.log);
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
     subscriptionService,
+    notificationService,
   );
   // Wire circular dependency: SubscriptionService needs BookingService for fixed-plan booking generation
   subscriptionService.setBookingService(bookingService);
@@ -428,10 +431,12 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     auraService,
   );
+  const notificationService = new NotificationService(fastify.db, fastify.log);
   const bookingService = new BookingService(
     fastify.db,
     fastify.log,
     subscriptionService,
+    notificationService,
   );
   subscriptionService.setBookingService(bookingService);
 

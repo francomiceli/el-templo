@@ -28,6 +28,7 @@ import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import { TransactionService, BalanceService } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
+import { NotificationService } from "../../src/modules/notifications/service";
 
 describe("Phase 103 — User status auto-transitions", () => {
   let app: FastifyInstance;
@@ -46,7 +47,8 @@ describe("Phase 103 — User status auto-transitions", () => {
     const balances = new BalanceService(app.db, app.log);
     const txns = new TransactionService(app.db, app.log, balances);
     const subs = new SubscriptionService(app.db, app.log, aura, txns);
-    const bookings = new BookingService(app.db, app.log, subs);
+    const notifs = new NotificationService(app.db, app.log);
+    const bookings = new BookingService(app.db, app.log, subs, notifs);
     subs.setBookingService(bookings);
     return subs;
   }

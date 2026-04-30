@@ -32,6 +32,12 @@ import { auraBalances } from "../../src/db/schema/aura-balances";
 import { memberNotes } from "../../src/db/schema/member-notes";
 import { branches } from "../../src/db/schema/branches";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import {
+  deviceTokens,
+  notificationTemplates,
+  pendingNotifications,
+} from "../../src/db/schema/notifications";
+import { NotificationService } from "../../src/modules/notifications/service";
 
 const ADMIN_URL = "/api/admin/scheduling";
 const MEMBER_URL = "/api/members/scheduling";
@@ -749,6 +755,89 @@ describe("Scheduling API", () => {
       expect(promotedBooking.waitlistPosition).toBeNull();
 
       // Reset capacity
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 22 })
+        .where(eq(branches.id, testBranchId));
+    });
+
+    it("waitlist promotion enqueues a push notification for the promoted member", async () => {
+      // Seed the waitlist_promoted template so queueNotification can find it.
+      // In production this runs on cron startup; tests don't boot the cron.
+      const notifSvc = new NotificationService(app.db, app.log);
+      await notifSvc.seedTemplates();
+
+      // Capacity 1 forces the second booking onto the waitlist.
+      await app.db
+        .update(branches)
+        .set({ maxCapacity: 1 })
+        .where(eq(branches.id, testBranchId));
+
+      const { memberToken } = await setupMemberWithSubscription();
+      const { member: member2, memberToken: memberToken2 } =
+        await setupMemberWithSubscription(
+          { email: "waitlist-push@test.com", dni: "80000035" },
+          { name: "Plan Waitlist Push" },
+        );
+
+      // Register a device token for member2 — without it, queueNotification
+      // skips enqueueing entirely (by design — see notifications/service.ts).
+      await app.db.insert(deviceTokens).values({
+        userId: member2.id,
+        token: "test-fcm-token-waitlist-push",
+        platform: "android",
+      });
+
+      const activity = await createActivity();
+      const futureSlot = getFutureSlot();
+      const slot = await createScheduleSlot(
+        activity.id,
+        futureSlot.dayOfWeek,
+        futureSlot.startTime,
+        futureSlot.endTime,
+      );
+
+      const res1 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      const booking1 = JSON.parse(res1.body);
+
+      const res2 = await app.inject({
+        method: "POST",
+        url: `${MEMBER_URL}/reserve`,
+        headers: { authorization: `Bearer ${memberToken2}` },
+        payload: { scheduleId: slot.id, date: futureSlot.date },
+      });
+      expect(JSON.parse(res2.body).status).toBe("lista_espera");
+
+      // First member cancels → triggers promotion → should enqueue push.
+      const cancelRes = await app.inject({
+        method: "DELETE",
+        url: `${MEMBER_URL}/bookings/${booking1.id}`,
+        headers: { authorization: `Bearer ${memberToken}` },
+      });
+      expect(cancelRes.statusCode).toBe(200);
+
+      // Verify a pending_notifications row exists for member2 with the
+      // waitlist_promoted template.
+      const [template] = await app.db
+        .select({ id: notificationTemplates.id })
+        .from(notificationTemplates)
+        .where(eq(notificationTemplates.templateKey, "waitlist_promoted"));
+      expect(template).toBeTruthy();
+
+      const queued = await app.db
+        .select()
+        .from(pendingNotifications)
+        .where(eq(pendingNotifications.userId, member2.id));
+      expect(queued.length).toBe(1);
+      expect(queued[0].templateId).toBe(template.id);
+      expect(queued[0].status).toBe("pending");
+
+      // Reset capacity for downstream tests.
       await app.db
         .update(branches)
         .set({ maxCapacity: 22 })

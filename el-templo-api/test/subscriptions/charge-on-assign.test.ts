@@ -38,6 +38,7 @@ import { SubscriptionService } from "../../src/modules/subscriptions/service";
 import { AuraService } from "../../src/modules/aura";
 import { BalanceService, TransactionService } from "../../src/modules/finance";
 import { BookingService } from "../../src/modules/scheduling/booking-service";
+import { NotificationService } from "../../src/modules/notifications/service";
 
 describe("Phase 107 — Charge on assign / change / renew", () => {
   let app: FastifyInstance;
@@ -320,7 +321,8 @@ describe("Phase 107 — Charge on assign / change / renew", () => {
       const txSvc = new TransactionService(app.db, app.log, failingBalance);
       const auraSvc = new AuraService(app.db);
       const subSvc = new SubscriptionService(app.db, app.log, auraSvc, txSvc);
-      const bookings = new BookingService(app.db, app.log, subSvc);
+      const notifSvc = new NotificationService(app.db, app.log);
+      const bookings = new BookingService(app.db, app.log, subSvc, notifSvc);
       subSvc.setBookingService(bookings);
 
       // Resolve admin id (recordedBy) — usa el seed admin@test.com.
