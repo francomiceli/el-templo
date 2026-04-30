@@ -3,9 +3,10 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 109 complete — sanity test (5/5) + VERIFICATION.md scaffold ready; smoke staging deferred to user
-last_updated: "2026-04-29T03:56:05Z"
-last_activity: 2026-04-29
+stopped_at: Phase 110 SPEC + CONTEXT gathered — 12 requirements lockeados, 13 implementation decisions across 4 areas
+last_updated: "2026-04-30T00:00:00Z"
+last_activity: 2026-04-30
+resume_file: .planning/phases/110-admin-users-by-country-multi-branch-staff/110-CONTEXT.md
 progress:
   total_phases: 99
   completed_phases: 86
