@@ -387,5 +387,16 @@ export async function createStaffUser(
       country,
     })
     .$returningId();
+
+  // Phase 110 backfill mirror: when coach/recepcion is created, auto-insert
+  // their working sede into user_branches (matches migration 0107 semantics
+  // so existing tests that rely on cardinality + canAccessBranch continue to
+  // work without explicit user_branches setup).
+  if (data.role === "coach" || data.role === "recepcion") {
+    await app.db
+      .insert(schema.userBranches)
+      .values({ userId: result.id, branchId: data.branchId });
+  }
+
   return result.id;
 }

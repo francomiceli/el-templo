@@ -211,6 +211,7 @@ describe("Phase 103-06 — PATCH /api/admin/users/:id/status (R11)", () => {
         password: "secure123",
         role: "coach",
         branchId: 1,
+        branchIds: [1],
       },
     });
     expect(res.statusCode).toBe(201);

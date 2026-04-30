@@ -123,6 +123,7 @@ describe("User Management Routes", () => {
           password: "secure123",
           role: "coach",
           branchId: 1,
+          branchIds: [1],
         },
       });
 
@@ -152,6 +153,7 @@ describe("User Management Routes", () => {
           password: "secure123",
           role: "coach",
           branchId: 1,
+          branchIds: [1],
         },
       });
 
@@ -167,6 +169,7 @@ describe("User Management Routes", () => {
           password: "secure456",
           role: "admin",
           branchId: 1,
+          country: "AR",
         },
       });
 
@@ -193,7 +196,8 @@ describe("User Management Routes", () => {
         method: "PUT",
         url: `/api/admin/users/${userId}`,
         headers: { authorization: `Bearer ${ownerToken}` },
-        payload: { role: "admin" },
+        // Phase 110: changing role to admin requires `country` (cardinality).
+        payload: { role: "admin", country: "AR" },
       });
 
       expect(res.statusCode).toBe(200);

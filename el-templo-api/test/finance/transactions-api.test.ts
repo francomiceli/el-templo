@@ -499,14 +499,19 @@ describe("Finance API — POST /transactions", () => {
     expect(res.statusCode).toBe(201);
   });
 
-  it("S4: non-owner POST with non-existent branchId → 404 from handler", async () => {
+  it("S4: non-owner POST with non-existent branchId → 403 (Phase 110: scope gate runs before handler)", async () => {
+    // Phase 110 semantics: requireBranchAccess preHandler runs before the
+    // handler's existence check. canAccessBranch returns false for any branch
+    // not in the actor's scope (including non-existent branches), so the
+    // request short-circuits with 403 BRANCH_OUT_OF_SCOPE — security-correct
+    // because non-owner callers cannot enumerate branch IDs by status code.
     const res = await app.inject({
       method: "POST",
       url: `${FINANCE_URL}/transactions`,
       headers: { authorization: `Bearer ${ctx.adminArToken}` },
       payload: basePayload(ctx, { branchId: 99999999 }),
     });
-    expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(403);
   });
 
   // ─── Validation (T-106-05, T-106-07) ─────────────────────────────────────

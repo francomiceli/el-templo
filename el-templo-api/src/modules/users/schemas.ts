@@ -127,10 +127,15 @@ export const updateStaffSchema = {
       branchId: { type: "integer" },
       // Phase 110 REQ-1 / REQ-2: same additive shape as create.
       country: { type: "string", enum: ["AR", "ES"], nullable: true },
+      // Phase 110: NO `default: []` here (unlike createStaffSchema). For
+      // partial UPDATEs where the caller does not touch branchIds (e.g. PUT
+      // { password }), the service must distinguish "field absent" (inherit
+      // current user_branches) from "explicitly empty" (clear branches). An
+      // AJV default would collapse both cases and falsely trip the
+      // coach/recepción cardinality rule on every untouched UPDATE.
       branchIds: {
         type: "array",
         items: { type: "integer" },
-        default: [],
       },
     },
     additionalProperties: false,
