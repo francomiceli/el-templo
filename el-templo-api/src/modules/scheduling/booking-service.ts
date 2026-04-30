@@ -112,6 +112,20 @@ export class BookingService {
       throw new BadRequestError("No tenes una suscripcion activa");
     }
 
+    // Phase 110 REQ-8: Load actor role to support the staff multi-branch bypass
+    // at the bonus check below. Single SELECT, indexed on users.id (PK).
+    // (Existing SELECT at booking-service.ts:86-89 was NOT reusable — it queries
+    // schema.branches keyed by scheduleRow.branchId, not schema.users keyed by
+    // memberId. Different table + different key → projection cannot be merged.)
+    const [actor] = await this.db
+      .select({ role: schema.users.role })
+      .from(schema.users)
+      .where(eq(schema.users.id, memberId))
+      .limit(1);
+    // Safe fallback: missing user row treated as member so the existing 400
+    // still triggers downstream (defense — no silent staff bypass on data gap).
+    const actorRole: string = actor?.role ?? "member";
+
     // 5b. Monthly budget check: if classesRemaining is tracked and exhausted
     if (
       subscription.classesRemaining !== null &&
@@ -139,8 +153,13 @@ export class BookingService {
       isBonus = !fixedScheduleIds.has(scheduleId);
 
       if (isBonus) {
-        // Multi-branch check: bonuses on a different branch require plan.multiBranch
+        // Multi-branch check: bonuses on a different branch require plan.multiBranch.
+        // Phase 110 REQ-8: staff (role !== 'member') bypass this check entirely —
+        // staff using the member app to entrenar pueden reservar en cualquier sede
+        // sin necesidad de plan multiBranch. Role check goes first so staff
+        // short-circuits out before the plan flag is even evaluated.
         if (
+          actorRole === "member" &&
           scheduleRow.branchId !== subscription.branchId &&
           !plan?.multiBranch
         ) {
