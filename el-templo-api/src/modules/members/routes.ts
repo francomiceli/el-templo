@@ -53,6 +53,10 @@ import {
   FINANCE_READ_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
+import {
+  requireBranchAccess,
+  BRANCH_OUT_OF_SCOPE,
+} from "../shared/branch-access";
 import { TransactionService, BalanceService } from "../finance";
 import {
   financialHistorySchema,
@@ -116,17 +120,55 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // Branches (must be defined BEFORE :userId param routes)
   // =========================================================================
 
-  // GET /admin/members/branches — List active branches for dropdowns
-  fastify.get("/branches", async () => {
-    const rows = await fastify.db
+  // GET /admin/members/branches — list active branches, filtered by request.scope.
+  //
+  // Phase 110 D-07/D-08/D-09:
+  //   - owner: with ?country=AR|ES filters; without ?country= sees all (real + virtual).
+  //   - admin/gestion: only sedes whose country matches scope.country (+ virtual).
+  //   - coach/recepcion: only sedes in scope.branchIds (+ virtual).
+  // Virtual sedes (e.g. Templo Online) are always included so members assigned to
+  // them stay reachable. Response shape preserved as { branches: [{ id, name }] } —
+  // frontend selectors auto-receive the filtered list (REQ-12).
+  fastify.get("/branches", async (request) => {
+    const allRows = await fastify.db
       .select({
         id: schema.branches.id,
         name: schema.branches.name,
+        country: schema.branches.country,
+        isVirtual: schema.branches.isVirtual,
       })
       .from(schema.branches)
       .where(eq(schema.branches.isActive, true))
       .orderBy(schema.branches.name);
-    return { branches: rows };
+
+    const { isOwner, country, branchIds, role } = request.scope;
+    let filtered = allRows;
+
+    if (isOwner) {
+      // D-08: owner with ?country= filters; without ?country= sees all (real + virtual).
+      // attachCountryScope already reflects ?country=AR|ES into scope.country for
+      // owners, but to support "no toggle = see all" we check the raw query param.
+      const q = (request.query as Record<string, unknown> | undefined)?.country;
+      if (q === "AR" || q === "ES") {
+        filtered = allRows.filter((b) => b.isVirtual || b.country === country);
+      }
+      // else: owner without ?country= → keep allRows
+    } else if (role === "admin" || role === "gestion") {
+      // When scope.country is null (data-corruption fail-closed), this filter
+      // degenerates to virtual-only — consistent with canAccessBranch Rule 3
+      // which evaluates `country !== null && branch.country === country`.
+      filtered = allRows.filter((b) => b.isVirtual || b.country === country);
+    } else if (role === "coach" || role === "recepcion") {
+      const allowed = new Set(branchIds);
+      filtered = allRows.filter((b) => b.isVirtual || allowed.has(b.id));
+    }
+    // member: leave allRows. Module guard restricts to MEMBER_ROLES (which here
+    // includes coach/admin/owner/gestion/recepcion), so this branch is unreachable
+    // in practice — kept as defensive default.
+
+    return {
+      branches: filtered.map(({ id, name }) => ({ id, name })),
+    };
   });
 
   // =========================================================================
@@ -157,67 +199,76 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       planId?: number;
       avatarType?: string;
     };
-  }>("/export", { schema: exportMembersSchema }, async (request, reply) => {
-    // Country scope (Phase 98): always pass request.scope.country into the
-    // service so /export mirrors the list endpoint. Non-owners cannot
-    // override this (preHandler ignores their ?country=); owners get the
-    // country they selected via the admin dropdown.
-    const rows = await memberService.exportMembers({
-      search: request.query.search,
-      branchId: request.query.branchId,
-      multiBranch: request.query.multiBranch,
-      level: request.query.level,
-      status: request.query.status,
-      planId: request.query.planId,
-      avatarType: request.query.avatarType,
-      country: request.scope.country ?? undefined,
-    });
+  }>(
+    "/export",
+    {
+      schema: exportMembersSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      // Country scope (Phase 98): always pass request.scope.country into the
+      // service so /export mirrors the list endpoint. Non-owners cannot
+      // override this (preHandler ignores their ?country=); owners get the
+      // country they selected via the admin dropdown.
+      const rows = await memberService.exportMembers({
+        search: request.query.search,
+        branchId: request.query.branchId,
+        multiBranch: request.query.multiBranch,
+        level: request.query.level,
+        status: request.query.status,
+        planId: request.query.planId,
+        avatarType: request.query.avatarType,
+        country: request.scope.country ?? undefined,
+      });
 
-    const workbook = new Workbook();
-    workbook.creator = "El Templo";
-    workbook.created = new Date();
-    const sheet = workbook.addWorksheet("Alumnos");
+      const workbook = new Workbook();
+      workbook.creator = "El Templo";
+      workbook.created = new Date();
+      const sheet = workbook.addWorksheet("Alumnos");
 
-    sheet.columns = [
-      { header: "Nombre", key: "nombre", width: 30 },
-      { header: "Email", key: "email", width: 30 },
-      { header: "DNI", key: "dni", width: 15 },
-      { header: "Telefono", key: "telefono", width: 18 },
-      { header: "Sucursal", key: "sucursal", width: 20 },
-      { header: "Nivel", key: "nivel", width: 12 },
-      { header: "Plan", key: "plan", width: 25 },
-      { header: "Estado", key: "estado", width: 12 },
-      { header: "Vencimiento", key: "vencimientoSuscripcion", width: 15 },
-      { header: "Fecha Nac.", key: "fechaNacimiento", width: 15 },
-      { header: "Direccion", key: "direccion", width: 35 },
-    ];
+      sheet.columns = [
+        { header: "Nombre", key: "nombre", width: 30 },
+        { header: "Email", key: "email", width: 30 },
+        { header: "DNI", key: "dni", width: 15 },
+        { header: "Telefono", key: "telefono", width: 18 },
+        { header: "Sucursal", key: "sucursal", width: 20 },
+        { header: "Nivel", key: "nivel", width: 12 },
+        { header: "Plan", key: "plan", width: 25 },
+        { header: "Estado", key: "estado", width: 12 },
+        { header: "Vencimiento", key: "vencimientoSuscripcion", width: 15 },
+        { header: "Fecha Nac.", key: "fechaNacimiento", width: 15 },
+        { header: "Direccion", key: "direccion", width: 35 },
+      ];
 
-    // Style header row: bold, background color
-    const headerRow = sheet.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFE0E0E0" },
-    };
+      // Style header row: bold, background color
+      const headerRow = sheet.getRow(1);
+      headerRow.font = { bold: true };
+      headerRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0E0E0" },
+      };
 
-    for (const row of rows) {
-      sheet.addRow(row);
-    }
+      for (const row of rows) {
+        sheet.addRow(row);
+      }
 
-    const buffer = await workbook.xlsx.writeBuffer();
+      const buffer = await workbook.xlsx.writeBuffer();
 
-    const today = new Date().toISOString().split("T")[0];
-    const filename = `alumnos-${today}.xlsx`;
+      const today = new Date().toISOString().split("T")[0];
+      const filename = `alumnos-${today}.xlsx`;
 
-    return reply
-      .header(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      )
-      .header("Content-Disposition", `attachment; filename="${filename}"`)
-      .send(Buffer.from(buffer as ArrayBuffer));
-  });
+      return reply
+        .header(
+          "Content-Type",
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        .header("Content-Disposition", `attachment; filename="${filename}"`)
+        .send(Buffer.from(buffer as ArrayBuffer));
+    },
+  );
 
   // =========================================================================
   // Member CRUD
@@ -239,42 +290,51 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       page?: number;
       limit?: number;
     };
-  }>("/", { schema: listMembersSchema }, async (request) => {
-    const {
-      search,
-      branchId,
-      multiBranch,
-      level,
-      planId,
-      segment,
-      avatarType,
-      debtorOnly,
-      status,
-      page = 1,
-      limit = 20,
-    } = request.query;
+  }>(
+    "/",
+    {
+      schema: listMembersSchema,
+      preHandler: [
+        requireBranchAccess({ from: "query.branchId", optional: true }),
+      ],
+    },
+    async (request) => {
+      const {
+        search,
+        branchId,
+        multiBranch,
+        level,
+        planId,
+        segment,
+        avatarType,
+        debtorOnly,
+        status,
+        page = 1,
+        limit = 20,
+      } = request.query;
 
-    // Country scope (Phase 98): request.scope.country is set by
-    // attachCountryScope. Non-owners cannot override it; owners' `?country=`
-    // has already been reflected into scope.country by the preHandler.
-    const params: MemberListParams = {
-      search,
-      branchId,
-      multiBranch,
-      level,
-      planId,
-      segment,
-      avatarType,
-      country: request.scope.country ?? undefined,
-      debtorOnly,
-      status,
-      page,
-      limit,
-    };
+      // Country scope (Phase 98): request.scope.country is set by
+      // attachCountryScope. Non-owners cannot override it; owners' `?country=`
+      // has already been reflected into scope.country by the preHandler.
+      const params: MemberListParams = {
+        search,
+        branchId,
+        multiBranch,
+        level,
+        planId,
+        segment,
+        avatarType,
+        country: request.scope.country ?? undefined,
+        debtorOnly,
+        status,
+        page,
+        limit,
+      };
 
-    const result = await memberService.listMembers(params);
-    return { ...result, page, limit };
-  });
+      const result = await memberService.listMembers(params);
+      return { ...result, page, limit };
+    },
+  );
 
   // GET /admin/members/:userId — Get member profile
   fastify.get<{ Params: { userId: number } }>(
@@ -292,6 +352,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // members. Virtual branches (e.g. ONLINE) are exempt so self-registered
       // members stay reachable by staff of either country until a coach
       // reassigns them to their physical branch.
+      //
+      // Phase 110 Warning 2: this inline guard cannot be replaced by a
+      // requireBranchAccess preHandler because the branchId is derived from
+      // a DB row inside the handler (not from the request payload). The 403
+      // body is harmonized to `{ error, message, code: BRANCH_OUT_OF_SCOPE }`
+      // so the frontend can match by `code` consistently across preHandler-
+      // gated and handler-gated routes. Note: sibling routes (DELETE /:userId,
+      // financial-history, outstanding-concepts) intentionally return 404 for
+      // info-leak prevention; here the plan explicitly requested 403 + code
+      // to align with the new preHandler contract.
       if (request.scope.country && member.branchId) {
         const [memberBranch] = await fastify.db
           .select({
@@ -306,9 +376,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           !memberBranch.isVirtual &&
           memberBranch.country !== request.scope.country
         ) {
-          return reply
-            .code(404)
-            .send({ error: "No encontrado", message: "Miembro no encontrado" });
+          request.log.warn(
+            {
+              userId: request.user?.userId,
+              role: request.user?.role,
+              branchId: member.branchId,
+              scope: request.scope,
+            },
+            BRANCH_OUT_OF_SCOPE,
+          );
+          return reply.code(403).send({
+            error: "Forbidden",
+            message: "No tenés acceso a esta sede",
+            code: BRANCH_OUT_OF_SCOPE,
+          });
         }
       }
 
@@ -361,7 +442,10 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /admin/members — Create member (plan-first, auto-password, auto-subscription)
   fastify.post<{ Body: CreateMemberInput }>(
     "/",
-    { schema: createMemberSchema },
+    {
+      schema: createMemberSchema,
+      preHandler: [requireBranchAccess({ from: "body.branchId" })],
+    },
     async (request, reply) => {
       try {
         const { member, tempPassword } = await memberService.createMember(
@@ -467,41 +551,50 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put<{
     Params: { userId: number };
     Body: UpdateMemberInput;
-  }>("/:userId", { schema: updateMemberSchema }, async (request, reply) => {
-    try {
-      const member = await memberService.updateMember(
-        request.params.userId,
-        request.body,
-      );
-      if (!member) {
-        return reply
-          .code(404)
-          .send({ error: "No encontrado", message: "Miembro no encontrado" });
-      }
-
-      return member;
-    } catch (err: unknown) {
-      const { isDuplicate, detail } = isDuplicateKeyError(err);
-
-      if (isDuplicate) {
-        if (detail.includes("dni")) {
-          return reply.code(409).send({
-            error: "Conflicto",
-            message: "El DNI ya esta registrado",
-          });
+  }>(
+    "/:userId",
+    {
+      schema: updateMemberSchema,
+      preHandler: [
+        requireBranchAccess({ from: "body.branchId", optional: true }),
+      ],
+    },
+    async (request, reply) => {
+      try {
+        const member = await memberService.updateMember(
+          request.params.userId,
+          request.body,
+        );
+        if (!member) {
+          return reply
+            .code(404)
+            .send({ error: "No encontrado", message: "Miembro no encontrado" });
         }
-        return reply
-          .code(409)
-          .send({ error: "Conflicto", message: "Registro duplicado" });
-      }
 
-      request.log.error({ err }, "Error updating member");
-      return reply.code(500).send({
-        error: "Error del servidor",
-        message: "Error al actualizar miembro",
-      });
-    }
-  });
+        return member;
+      } catch (err: unknown) {
+        const { isDuplicate, detail } = isDuplicateKeyError(err);
+
+        if (isDuplicate) {
+          if (detail.includes("dni")) {
+            return reply.code(409).send({
+              error: "Conflicto",
+              message: "El DNI ya esta registrado",
+            });
+          }
+          return reply
+            .code(409)
+            .send({ error: "Conflicto", message: "Registro duplicado" });
+        }
+
+        request.log.error({ err }, "Error updating member");
+        return reply.code(500).send({
+          error: "Error del servidor",
+          message: "Error al actualizar miembro",
+        });
+      }
+    },
+  );
 
   // DELETE /admin/members/:userId — Soft-delete a member.
   //
