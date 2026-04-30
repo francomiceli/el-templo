@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { users } from "./schema/users.js";
 import { branches } from "./schema/branches.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
@@ -770,6 +770,7 @@ async function main(): Promise<void> {
       let subscriptionsCreated = 0;
       let subscriptionsUpdated = 0;
       let subscriptionsCancelled = 0;
+      const touchedUserIds = new Set<number>();
 
       for (const action of memberActions) {
         const m = action.member;
@@ -801,10 +802,9 @@ async function main(): Promise<void> {
             address: m.address,
             dateOfBirth: m.dateOfBirth,
             gender: m.gender,
-            // Phase 103: users.is_active was dropped. Map the CSV's
-            // active/inactive boolean onto the new status enum so the import
-            // produces a consistent post-migration state.
-            status: m.isActive ? "activo" : "inactivo",
+            // status is intentionally NOT set here — derived from subscriptions
+            // by the recompute pass at the end of the import (mirrors the
+            // app's recomputeUserStatus in subscriptions/service.ts).
           };
 
           // Use fechaIngreso as createdAt if available
@@ -861,8 +861,6 @@ async function main(): Promise<void> {
                     address: m.address || undefined,
                     dateOfBirth: m.dateOfBirth || undefined,
                     gender: m.gender || undefined,
-                    // Phase 103: see status mapping note in the insert above.
-                    status: m.isActive ? "activo" : "inactivo",
                     branchId,
                   })
                   .where(eq(users.id, userId));
@@ -889,11 +887,9 @@ async function main(): Promise<void> {
           if (m.address) updateFields.address = m.address;
           if (m.dateOfBirth) updateFields.dateOfBirth = m.dateOfBirth;
           if (m.gender) updateFields.gender = m.gender;
-          // Always update branchId and status from CSV. Phase 103 dropped
-          // users.is_active; the active/inactive boolean now maps onto the
-          // status enum (activo/inactivo).
+          // Always update branchId from CSV. status is intentionally NOT set
+          // here — derived by the recompute pass at the end of the import.
           updateFields.branchId = branchId;
-          updateFields.status = m.isActive ? "activo" : "inactivo";
 
           if (Object.keys(updateFields).length > 0) {
             await db
@@ -907,6 +903,8 @@ async function main(): Promise<void> {
         } else {
           continue;
         }
+
+        touchedUserIds.add(userId);
 
         // 4. Create member_notes for Observaciones
         if (m.observaciones) {
@@ -1063,6 +1061,34 @@ async function main(): Promise<void> {
         }
       }
 
+      // 5. Recompute users.status for every user touched by this import.
+      // Mirrors recomputeUserStatus() in subscriptions/service.ts (Phase 103
+      // R5/R6/D-01) — single source of truth for status derivation.
+      let usersStatusRecomputed = 0;
+      if (touchedUserIds.size > 0) {
+        const recomputeResult = await db.execute(sql`
+          UPDATE users u
+          SET u.status = CASE
+            WHEN EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            ) THEN 'activo'
+            WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
+            ELSE u.status
+          END
+          WHERE u.id IN (${sql.join(
+            Array.from(touchedUserIds).map((id) => sql`${id}`),
+            sql`,`,
+          )})
+        `);
+        usersStatusRecomputed =
+          (recomputeResult as unknown as [{ affectedRows: number }])[0]
+            ?.affectedRows ?? 0;
+      }
+
       report.execution = {
         usersCreated,
         usersUpdated,
@@ -1083,6 +1109,7 @@ async function main(): Promise<void> {
       console.log(`  Subscriptions created: ${subscriptionsCreated}`);
       console.log(`  Subscriptions updated: ${subscriptionsUpdated}`);
       console.log(`  Subscriptions cancelled: ${subscriptionsCancelled}`);
+      console.log(`  Users status recomputed: ${usersStatusRecomputed}`);
     }
 
     // ── Write JSON report ─────────────────────────────────────────

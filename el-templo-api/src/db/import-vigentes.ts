@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
-import { eq, inArray, and, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { users } from "./schema/users.js";
 import { branches } from "./schema/branches.js";
 import { subscriptionPlans } from "./schema/subscription-plans.js";
@@ -206,7 +206,7 @@ interface VigentesReport {
     subscriptionsUpdated: number;
     firstPassSubsKept: number;
     usersUpdatedIngreso: number;
-    usersMarkedInactive: number;
+    usersStatusRecomputed: number;
   };
 }
 
@@ -425,7 +425,7 @@ async function main(): Promise<void> {
       let subscriptionsUpdated = 0;
       let firstPassKept = 0;
       let usersUpdatedIngreso = 0;
-      let usersMarkedInactive = 0;
+      const touchedUserIds = new Set<number>();
 
       for (const history of histories) {
         const user = userByEmail.get(history.email);
@@ -519,17 +519,36 @@ async function main(): Promise<void> {
           usersUpdatedIngreso++;
         }
 
-        // Determine if user should be active or inactive.
-        // Phase 103: users.is_active was dropped — write the new status enum
-        // directly. Active = has at least one subscription with endDate >= today.
-        const hasActiveSub = history.rows.some((r) => r.endDate >= today);
-        await db
-          .update(users)
-          .set({ status: hasActiveSub ? "activo" : "inactivo" })
-          .where(eq(users.id, user.id));
-        if (!hasActiveSub) {
-          usersMarkedInactive++;
-        }
+        touchedUserIds.add(user.id);
+      }
+
+      // Recompute users.status for every user touched by this import.
+      // Mirrors recomputeUserStatus() in subscriptions/service.ts (Phase 103
+      // R5/R6/D-01) — single source of truth for status derivation. Replaces
+      // both the per-user status write and the legacy orphan cleanup query.
+      let usersStatusRecomputed = 0;
+      if (touchedUserIds.size > 0) {
+        const recomputeResult = await db.execute(sql`
+          UPDATE users u
+          SET u.status = CASE
+            WHEN EXISTS (
+              SELECT 1 FROM subscriptions s
+              WHERE s.user_id = u.id
+                AND s.subscription_status IN ('active','paused')
+                AND s.start_date <= CURDATE()
+                AND (s.end_date IS NULL OR s.end_date >= CURDATE())
+            ) THEN 'activo'
+            WHEN u.status IN ('activo','inactivo') THEN 'inactivo'
+            ELSE u.status
+          END
+          WHERE u.id IN (${sql.join(
+            Array.from(touchedUserIds).map((id) => sql`${id}`),
+            sql`,`,
+          )})
+        `);
+        usersStatusRecomputed =
+          (recomputeResult as unknown as [{ affectedRows: number }])[0]
+            ?.affectedRows ?? 0;
       }
 
       report.execution = {
@@ -537,7 +556,7 @@ async function main(): Promise<void> {
         subscriptionsUpdated,
         firstPassSubsKept: firstPassKept,
         usersUpdatedIngreso,
-        usersMarkedInactive,
+        usersStatusRecomputed,
       };
 
       console.log(`=== EXECUTION SUMMARY ===`);
@@ -545,35 +564,7 @@ async function main(): Promise<void> {
       console.log(`  Subscriptions updated: ${subscriptionsUpdated}`);
       console.log(`  First-pass subs kept: ${firstPassKept}`);
       console.log(`  Users fecha ingreso updated: ${usersUpdatedIngreso}`);
-      console.log(`  Users marked inactive: ${usersMarkedInactive}`);
-
-      // Cleanup: deactivate any member on a physical branch who is currently
-      // marked activo but has zero subscriptions (not from CSV, not from app —
-      // orphan state). Phase 103 dropped users.is_active; we now write the
-      // status enum instead.
-      const onlineBranches = dbBranches
-        .filter((b) => b.name.includes("Online") || b.name.includes("Park"))
-        .map((b) => b.id);
-
-      const cleanupResult = await db.execute(sql`
-        UPDATE ${users} u
-        SET u.status = 'inactivo'
-        WHERE u.status = 'activo'
-          AND u.role = 'member'
-          AND u.branch_id NOT IN (${sql.join(
-            onlineBranches.map((id) => sql`${id}`),
-            sql`,`,
-          )})
-          AND NOT EXISTS (
-            SELECT 1 FROM ${subscriptions} s WHERE s.user_id = u.id
-          )
-      `);
-      const cleanupCount =
-        (cleanupResult as unknown as [{ affectedRows: number }])[0]
-          ?.affectedRows ?? 0;
-      console.log(
-        `  Cleanup — active members with no subs deactivated: ${cleanupCount}`,
-      );
+      console.log(`  Users status recomputed: ${usersStatusRecomputed}`);
     }
 
     // ── Write report ──────────────────────────────────────────────
