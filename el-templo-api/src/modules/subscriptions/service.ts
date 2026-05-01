@@ -45,6 +45,7 @@ import type { TxHandle } from "../finance/balance-service";
 import type { PaymentMethod } from "../finance/types";
 import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings } from "./booking-population";
+import { auditLog } from "../shared/audit-log";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -806,6 +807,24 @@ export class SubscriptionService {
       );
     }
 
+    // REQ-1 (Phase 111): Reject presencial plan on a virtual branch.
+    // Admin must convert the member to a physical branch first (edit alumno
+    // → cambiar sede). The check is `=== "presencial"` exactly — only this
+    // category requires a physical sede; online_* categories live on the
+    // virtual branch by design (T-111-10 in the threat register).
+    const [memberBranch] = await this.db
+      .select({ isVirtual: schema.branches.isVirtual })
+      .from(schema.branches)
+      .where(eq(schema.branches.id, member.branchId));
+    if (
+      plan.planCategory === "presencial" &&
+      memberBranch?.isVirtual === true
+    ) {
+      throw new BadRequestError(
+        "Plan presencial requiere sede física. Convertí al alumno primero.",
+      );
+    }
+
     // Phase 104 R3 (checker WARNING): without a UNIQUE constraint on
     // grants_all_programs=true at the schema level, an admin could author
     // multiple bundle SKUs (e.g. monthly vs yearly) and accidentally assign
@@ -1270,6 +1289,27 @@ export class SubscriptionService {
           effectiveDate: input.startDate,
           adminId,
           flow: "assign",
+        });
+
+        // REQ-7 (Phase 111): forensic trail for plan_assigned (D-13 payload).
+        // Atomic with the subscription insert + charge — if either fails, the
+        // audit row vanishes with the rest of the transaction.
+        const effectiveAmountReceived = input.amountReceived ?? pricePaid;
+        await auditLog.write(tx, {
+          actorId: adminId,
+          action: "plan_assigned",
+          targetKind: "subscription",
+          targetId: newSubscriptionId,
+          payload: {
+            subId: newSubscriptionId,
+            planId: plan.id,
+            branchId: input.branchId,
+            pricePaid,
+            paymentMethod: input.paymentMethod,
+            hasChargeTx: effectiveAmountReceived > 0,
+            startDate: input.startDate,
+            endDate: endDateStr,
+          },
         });
 
         return {

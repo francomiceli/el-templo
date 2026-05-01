@@ -96,15 +96,27 @@ describe("Subscriptions API — assignPlan REQ-1 validation + REQ-7 audit", () =
   });
 
   it("REQ-1 inverse: online plan on virtual branch is accepted", async () => {
-    const plan = await createPlan(app, adminToken, {
-      name: "Plan Online Mensual",
-      planCategory: "online_regular",
-      // Online plans never use schedules
-      bookingMode: "flexible",
-      classesPerWeek: null,
-      // Online plans require linkedProgramId or grantsAllPrograms
-      grantsAllPrograms: true,
+    // basePlan from _helpers includes classesPerWeek=3; for online_regular
+    // we must omit it (online plans don't use schedules) and provide
+    // grantsAllPrograms to satisfy assertPlanInvariants. Build payload
+    // explicitly to avoid carrying classesPerWeek through.
+    const planRes = await app.inject({
+      method: "POST",
+      url: `${SUBSCRIPTIONS_URL}/plans`,
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        name: "Plan Online Mensual",
+        planTier: "flex",
+        bookingMode: "flexible",
+        priceRegular: 12000,
+        priceZero: 8000,
+        durationDays: 30,
+        planCategory: "online_regular",
+        grantsAllPrograms: true,
+      },
     });
+    expect(planRes.statusCode).toBe(201);
+    const plan = JSON.parse(planRes.body) as { id: number };
     const member = await createMember(app, {
       email: `req1-online-${Date.now()}@test.com`,
       branchId: virtualBranchId,
