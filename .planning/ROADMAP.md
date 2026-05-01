@@ -2428,20 +2428,30 @@ Phase 105 (Data Model) → Phase 106 (API) → Phase 107 (Charge UX) ‖ Phase 1
 
 Plans:
 
-- [ ] 110-01-PLAN.md — Drizzle schema (users.country + user_branches) + migration 0107 SQL with atomic backfill
-- [ ] 110-02-PLAN.md — [BLOCKING] pnpm db:migrate run + test helpers cleanup
-- [ ] 110-03-PLAN.md — Extend country-scope.ts hook + create shared/branch-access.ts (canAccessBranch + requireBranchAccess + BRANCH_OUT_OF_SCOPE)
-- [ ] 110-04-PLAN.md — booking-service.ts staff multibranch bypass (REQ-8)
-- [ ] 110-05-PLAN.md — users service cardinality validation + atomic user_branches writes + types/schemas/routes extension
-- [ ] 110-06-PLAN.md — Apply requireBranchAccess to admin/finance/reports/scheduling/analytics/attendance routes + GET /admin/members/branches scope filter
-- [ ] 110-07-PLAN.md — Integration tests (test/branch-access.test.ts) — 15+ cases covering REQ-5..REQ-12
-- [ ] 110-08-PLAN.md — Admin UI: UsuariosPage form per role + useUsersApi types + single-seam audit
-- [ ] 110-09-PLAN.md — VERIFICATION.md scaffold + smoke + UAT prompts + decision matrix
+- [x] 110-01-PLAN.md — Drizzle schema (users.country + user_branches) + migration 0107 SQL with atomic backfill
+- [x] 110-02-PLAN.md — [BLOCKING] pnpm db:migrate run + test helpers cleanup
+- [x] 110-03-PLAN.md — Extend country-scope.ts hook + create shared/branch-access.ts (canAccessBranch + requireBranchAccess + BRANCH_OUT_OF_SCOPE)
+- [x] 110-04-PLAN.md — booking-service.ts staff multibranch bypass (REQ-8)
+- [x] 110-05-PLAN.md — users service cardinality validation + atomic user_branches writes + types/schemas/routes extension
+- [x] 110-06-PLAN.md — Apply requireBranchAccess to admin/finance/reports/scheduling/analytics/attendance routes + GET /admin/members/branches scope filter
+- [x] 110-07-PLAN.md — Integration tests (test/branch-access.test.ts) — 15+ cases covering REQ-5..REQ-12
+- [x] 110-08-PLAN.md — Admin UI: UsuariosPage form per role + useUsersApi types + single-seam audit
+- [x] 110-09-PLAN.md — VERIFICATION.md scaffold + smoke + UAT prompts + decision matrix
+
+---
+
+### Phase 111: Salvaguardas operativas — validación plan↔branch, integridad financiera y detección de duplicados
+
+**Goal:** Cerrar los agujeros operativos detectados en el caso Soledad Mailland (cuenta duplicada por autorregistro online → manual presencial; $65.000 cash linkeado a sub cancelada de usuario eliminado; 3 balances huérfanos). Tres salvaguardas a nivel sistema: (1) bloquear asignación de plan presencial sobre sede virtual con UX de conversión guiada en `AssignPlanDialog`, (2) bloquear cancelación de subscriptions con transactions activas para forzar void manual primero, (3) lookup de duplicados por DNI/teléfono normalizado al crear miembro/autorregistro que redirige al alumno existente sin modal. Cuarta tarea: discontinuar el botón de soft-delete del admin UI (los miembros inactivos quedan en `status='inactivo'`, sin borrar). Quinta tarea: tabla `audit_log` mínima para trazar cancel sub / void tx / plan assigned. Sexta: migración SQL idempotente que reconcilia los datos de Soledad (transaction_link 34 → sub 6382, cierre de balances huérfanos 14/16/20, cierre de program_enrollment 1125).
+**Depends on:** Phase 110
+**Plans:** TBD (definidos en /gsd-plan-phase tras /gsd-spec-phase + /gsd-discuss-phase)
 
 ---
 
 _v4.8 added: 2026-04-27 — 5 phases (105-109), 24 requirements (TXN, API, CHARGE, PAYMENT, CAJA). Origin: requerimiento de operaciones por integrar deuda al cargar membresía; análisis reveló necesidad de modelo transaccional. Doc: `.planning/research/v48-financial-model-analysis.md`_
 
 _Phase 105 SPEC (2026-04-27): absorbed CHARGE-04 (UI cleanup of MemberFormDialog "Deuda") into TXN-04 — atomic with table drop. Phase 107 reqs reduced from 4 to 3._
+
+_Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (autorregistro online → conversión presencial fallida → cuenta duplicada con cash huérfano). 3 causas raíz identificadas, consolidadas en 1 fase única reducida._
 
 </details>
