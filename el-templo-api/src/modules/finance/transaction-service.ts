@@ -31,6 +31,7 @@ import * as schema from "../../db/schema";
 import { BadRequestError, NotFoundError } from "../shared/errors";
 import { buildMemberNameSearchCondition } from "../shared/member-search";
 import type { PaginatedResult } from "../shared/types";
+import { auditLog } from "../shared/audit-log";
 import { BalanceService, type TxHandle } from "./balance-service";
 import type {
   CreateTransactionInput,
@@ -264,6 +265,30 @@ export class TransactionService {
       // sign=-1 so applyDelta computes `-1 * baseDelta` and undoes the
       // create-time effect on the cache exactly.
       await this.balanceService.applyDelta(tx, existing, linkRows, -1);
+
+      // REQ-7 (Phase 111 D-13 / D-15): forensic audit row for transaction
+      // voids. Atomic with the soft-void update + balance rollback — if any
+      // of the writes above throws after this point, the audit row vanishes
+      // (helper requires tx handle; never opens its own transaction).
+      await auditLog.write(tx, {
+        actorId: voidedBy,
+        action: "transaction_voided",
+        targetKind: "transaction",
+        targetId: id,
+        payload: {
+          txId: id,
+          amount: existing.amount,
+          currency: existing.currency,
+          voidedAt: new Date().toISOString(),
+          voidReason: input.reason,
+          links: linkRows.map((l) => ({
+            targetKind: l.targetKind,
+            targetId: l.targetId,
+            allocatedAmount: l.allocatedAmount,
+          })),
+        },
+        reason: input.reason,
+      });
 
       const [updatedRow] = await tx
         .select()
