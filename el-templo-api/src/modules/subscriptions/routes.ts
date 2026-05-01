@@ -421,10 +421,46 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const sub = await subscriptionService.cancelSubscription(
           request.params.userId,
+          request.user.userId,
           request.body.notes,
         );
         return sub;
       } catch (err: unknown) {
+        // Phase 111 REQ-3 / Phase 110 D-05: cancelSubscription encodes a
+        // structured error body inside BadRequestError.message when active
+        // charge transactions block cancellation. Unwrap and emit the
+        // shape { error, message, code, details } so the admin frontend
+        // can match on code='SUB_HAS_ACTIVE_TRANSACTIONS' and render the
+        // tx links. All other errors fall through to the global handler.
+        if (err instanceof Error) {
+          try {
+            const parsed = JSON.parse(err.message) as {
+              code?: string;
+              message?: string;
+              details?: unknown;
+            };
+            if (parsed && parsed.code === "SUB_HAS_ACTIVE_TRANSACTIONS") {
+              // 4xx logging policy (Phase 110 D-06): warn, not error —
+              // operator misuse, not a system failure. Keeps Sentry clean.
+              request.log.warn(
+                {
+                  userId: request.params.userId,
+                  actorId: request.user.userId,
+                  details: parsed.details,
+                },
+                "SUB_HAS_ACTIVE_TRANSACTIONS",
+              );
+              return reply.code(400).send({
+                error: "Bad Request",
+                message: parsed.message,
+                code: parsed.code,
+                details: parsed.details,
+              });
+            }
+          } catch {
+            // Not a JSON-encoded structured error — fall through.
+          }
+        }
         handleServiceError(err, reply, request.log, "cancel subscription");
       }
     },

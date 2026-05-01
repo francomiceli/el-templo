@@ -7,7 +7,17 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, ne, desc, sql, inArray, isNotNull } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  ne,
+  desc,
+  sql,
+  inArray,
+  isNotNull,
+  isNull,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { AuraService, InsufficientBalanceError } from "../aura";
@@ -1917,10 +1927,26 @@ export class SubscriptionService {
   /**
    * Cancel an active or paused subscription.
    * Also cancels any scheduled (early-renewed) subscription for this member.
+   *
+   * Phase 111 (REQ-3): refuses to cancel when there are non-voided charge
+   * transactions linked to the sub. Admin must use TransactionService.void
+   * (Detalle Financiero → Anular) on each tx first, then retry the cancel.
+   * The structured error body (code: 'SUB_HAS_ACTIVE_TRANSACTIONS' + details
+   * with transactionIds, totalAmount, currency) is JSON-encoded into
+   * BadRequestError.message and unwrapped at the route layer.
+   *
+   * Phase 111 (REQ-7 / D-13): writes one audit_log row with
+   * action='subscription_cancelled' inside the same db.transaction. Atomic
+   * with the status mutation — if the tx rolls back, the audit row vanishes.
+   *
+   * `actorId` (Phase 111): JWT-authenticated principal sourced at the route
+   * layer (request.user.userId). All callers MUST pass it explicitly so the
+   * audit row records the real actor (T-111-14 mitigation).
    */
   async cancelSubscription(
     userId: number,
-    notes?: string,
+    actorId: number,
+    notes?: string | null,
   ): Promise<SubscriptionDetail> {
     const sub = await this.getMemberSubscription(userId);
     if (!sub) {
@@ -1951,7 +1977,53 @@ export class SubscriptionService {
     // status in a single transaction. recomputeUserStatus flips user to
     // 'inactivo' if no other active/paused sub remains (D-04: never back to
     // freemium/prueba — paying history is preserved).
+    const prevStatus = sub.status;
     await this.db.transaction(async (tx) => {
+      // REQ-3 (Phase 111 D-09): block cancellation if there are active
+      // (non-voided) charge transactions linked to this sub. Forces the
+      // admin to anular each charge first via Detalle Financiero (which
+      // calls TransactionService.void → soft-void + balance rollback).
+      const activeLinks = await tx
+        .select({
+          txId: schema.financialTransactions.id,
+          amount: schema.financialTransactions.amount,
+          currency: schema.financialTransactions.currency,
+        })
+        .from(schema.transactionLinks)
+        .innerJoin(
+          schema.financialTransactions,
+          eq(
+            schema.transactionLinks.transactionId,
+            schema.financialTransactions.id,
+          ),
+        )
+        .where(
+          and(
+            eq(schema.transactionLinks.targetKind, "subscription"),
+            eq(schema.transactionLinks.targetId, sub.id),
+            isNull(schema.financialTransactions.voidedAt),
+          ),
+        );
+      if (activeLinks.length > 0) {
+        const totalAmount = activeLinks.reduce((s, l) => s + l.amount, 0);
+        const currency = activeLinks[0].currency;
+        // Phase 110 D-05 structured 4xx body. Encoded as JSON inside the
+        // BadRequestError message and unwrapped by the route handler so the
+        // existing global error pipeline isn't affected for other 400s.
+        throw new BadRequestError(
+          JSON.stringify({
+            message:
+              "Hay transacciones de cobro activas en esta suscripción. Anulalas primero (Detalle Financiero → Anular) y volvé a intentar.",
+            code: "SUB_HAS_ACTIVE_TRANSACTIONS",
+            details: {
+              transactionIds: activeLinks.map((l) => l.txId),
+              totalAmount,
+              currency,
+            },
+          }),
+        );
+      }
+
       await tx
         .update(schema.subscriptions)
         .set(updateData)
@@ -1979,6 +2051,28 @@ export class SubscriptionService {
       await this.tearDownBundleEnrollments(tx, userId, sub.id, sub.planId);
 
       await this.recomputeUserStatus(userId, tx);
+
+      // REQ-7 (Phase 111 D-13): subscription_cancelled forensic audit row.
+      // Atomic with the cancel — if any of the writes above rolls back,
+      // this row vanishes too (helper requires tx handle, never opens its
+      // own transaction).
+      await auditLog.write(tx, {
+        actorId,
+        action: "subscription_cancelled",
+        targetKind: "subscription",
+        targetId: sub.id,
+        payload: {
+          subId: sub.id,
+          prevStatus,
+          newStatus: "cancelled",
+          cancelledAt: new Date().toISOString(),
+          notes: notes ?? null,
+          // REQ-3 already blocked when active tx exist, so by definition the
+          // successful cancel path has no live charges against this sub.
+          hasActiveTx: false,
+        },
+        reason: notes ?? null,
+      });
     });
 
     // Cancel all future bookings for fixed-plan subscriptions (external

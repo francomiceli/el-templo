@@ -1972,7 +1972,9 @@ describe("Scheduling API", () => {
         })
         .$returningId();
 
-      // Assign subscription starting in the past so some bookings are past
+      // Assign subscription starting in the past so some bookings are past.
+      // Phase 111 REQ-3: priceOverrideAmount=0 skips charge tx so the
+      // cancel below proceeds without first having to anular each tx.
       const assignRes = await app.inject({
         method: "POST",
         url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/assign`,
@@ -1984,6 +1986,8 @@ describe("Scheduling API", () => {
           priceTypeApplied: "regular",
           paymentMethod: "cash",
           scheduleIds: [monResult.id],
+          priceOverrideAmount: 0,
+          priceOverrideReason: "test (no charge — REQ-3 isolation)",
         },
       });
       expect(assignRes.statusCode).toBe(201);

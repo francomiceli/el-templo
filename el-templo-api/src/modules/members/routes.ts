@@ -687,8 +687,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
 
           let cancelledExistingSub = false;
           try {
+            // Phase 111: cancelSubscription now requires actorId — pass the
+            // authenticated admin's userId so the audit_log row records the
+            // real principal who triggered the conversion.
             await subscriptionService.cancelSubscription(
               request.params.userId,
+              request.user.userId,
               "Conversión a presencial",
             );
             cancelledExistingSub = true;
@@ -826,8 +830,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       subscriptionService.setBookingService(bookingService);
 
       try {
+        // Phase 111: cancelSubscription now requires actorId — pass the
+        // authenticated principal so the audit_log row records who triggered
+        // the soft-delete cascade (T-111-15 mitigation).
         await subscriptionService.cancelSubscription(
           request.params.userId,
+          request.user.userId,
           "Cancelado por eliminación del alumno",
         );
       } catch (err) {

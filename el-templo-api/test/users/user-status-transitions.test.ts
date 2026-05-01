@@ -80,7 +80,13 @@ describe("Phase 103 — User status auto-transitions", () => {
     return id;
   }
 
-  /** Helper: assign the canonical test plan via the service (default branch=presential). */
+  /** Helper: assign the canonical test plan via the service (default branch=presential).
+   *
+   * Phase 111 REQ-3: uses priceOverrideAmount=0 so assignPlan does NOT
+   * record a charge tx. Without this, cancelSubscription would refuse to
+   * cancel (active charge tx blocks it) — these tests are about user.status
+   * transitions, not the financial guard.
+   */
   async function assignDefaultPlan(
     userId: number,
     overrides: Partial<{
@@ -97,6 +103,8 @@ describe("Phase 103 — User status auto-transitions", () => {
         startDate: overrides.startDate ?? todayStr(),
         priceTypeApplied: "regular",
         paymentMethod: "cash",
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
       },
       /* adminId */ 2,
     );
@@ -182,7 +190,10 @@ describe("Phase 103 — User status auto-transitions", () => {
   // =========================================================================
   describe("R5 — create subscription transitions to 'activo'", () => {
     it("freemium → activo on assignPlan", async () => {
-      const userId = await insertMember("freemium", onlineBranchId);
+      // Phase 111 REQ-1: presencial plan on virtual branch is now rejected.
+      // The intent here is the freemium → activo status transition; branch
+      // choice is incidental, so use the presential branch.
+      const userId = await insertMember("freemium", presentialBranchId);
       await assignDefaultPlan(userId);
       expect(await getStatus(userId)).toBe("activo");
     });
@@ -209,7 +220,7 @@ describe("Phase 103 — User status auto-transitions", () => {
       await assignDefaultPlan(userId);
       expect(await getStatus(userId)).toBe("activo");
 
-      await svc.cancelSubscription(userId);
+      await svc.cancelSubscription(userId, /* actorId */ 2);
       expect(await getStatus(userId)).toBe("inactivo");
     });
 
@@ -237,7 +248,7 @@ describe("Phase 103 — User status auto-transitions", () => {
       expect(subs).toHaveLength(2);
 
       // Cancel one through the service (it cancels the latest active sub).
-      await svc.cancelSubscription(userId);
+      await svc.cancelSubscription(userId, /* actorId */ 2);
       // One sub remains active → status stays 'activo'
       expect(await getStatus(userId)).toBe("activo");
     });
@@ -252,7 +263,7 @@ describe("Phase 103 — User status auto-transitions", () => {
       expect(await getStatus(userId)).toBe("activo");
 
       // Cancel → inactivo (NOT back to freemium, per D-04 — paying history)
-      await svc.cancelSubscription(userId);
+      await svc.cancelSubscription(userId, /* actorId */ 2);
       expect(await getStatus(userId)).toBe("inactivo");
     });
   });
@@ -299,7 +310,7 @@ describe("Phase 103 — User status auto-transitions", () => {
 
       // Idempotency: a second sub mutation does NOT overwrite convertedAt
       const firstConvertedAtMs = (convertedAt as Date).getTime();
-      await svc.cancelSubscription(userId);
+      await svc.cancelSubscription(userId, /* actorId */ 2);
       // Re-buy the same plan path
       await assignDefaultPlan(userId);
       const second = await getConvertedAt(userId);

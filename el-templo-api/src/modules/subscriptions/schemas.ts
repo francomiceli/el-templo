@@ -431,6 +431,30 @@ export const resumeSubscriptionSchema = {
   },
 };
 
+/**
+ * Phase 111 (REQ-3 / D-09 / D-10): cancel can return a structured 4xx body
+ * with `code` + `details` when there are non-voided charge transactions
+ * blocking the cancel. The response serializer strips unknown keys, so the
+ * 400 schema for this route must whitelist them explicitly. Other 4xx
+ * (404, generic 400) keep the minimal { error, message } shape.
+ */
+const cancelErrorSchema = {
+  type: "object",
+  properties: {
+    error: { type: "string" },
+    message: { type: "string" },
+    code: { type: "string" },
+    details: {
+      type: "object",
+      properties: {
+        transactionIds: { type: "array", items: { type: "integer" } },
+        totalAmount: { type: "integer" },
+        currency: { type: "string" },
+      },
+    },
+  },
+} as const;
+
 export const cancelSubscriptionSchema = {
   params: {
     type: "object",
@@ -447,7 +471,7 @@ export const cancelSubscriptionSchema = {
   },
   response: {
     200: subscriptionDetailSchema,
-    400: errorSchema,
+    400: cancelErrorSchema,
     404: errorSchema,
   },
 };

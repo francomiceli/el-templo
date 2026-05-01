@@ -314,6 +314,11 @@ describe("Bundle Todos los Programas (Phase 104 R3+R4 + checker fixes)", () => {
 
     const assignRes = await assignPlan(app, adminToken, member.id as number, {
       planId: bundle.id,
+      // Phase 111 REQ-3: skip charge tx so the cancel HTTP endpoint can
+      // run cleanly without first having to anular each tx (this test is
+      // about bundle enrollment teardown, not the new financial guard).
+      priceOverrideAmount: 0,
+      priceOverrideReason: "test (no charge — REQ-3 isolation)",
     });
     expect(assignRes.statusCode).toBe(201);
 

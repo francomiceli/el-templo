@@ -93,6 +93,43 @@ describe("Subscriptions API — Lifecycle", () => {
       });
       expect(first.statusCode).toBe(201);
 
+      // Phase 111 REQ-3: cancel now refuses when there are non-voided charge
+      // transactions on the sub (boarding pass uses priceZero, which still
+      // records a charge). Pre-void the auto-created charge tx so the cancel
+      // proceeds and the test can attempt the second boarding-pass assign.
+      const subId = first.body.id as number;
+      const [admin] = await app.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, "admin@test.com"))
+        .limit(1);
+      const linkedTxIds = await app.db
+        .select({ id: schema.financialTransactions.id })
+        .from(schema.transactionLinks)
+        .innerJoin(
+          schema.financialTransactions,
+          eq(
+            schema.transactionLinks.transactionId,
+            schema.financialTransactions.id,
+          ),
+        )
+        .where(
+          and(
+            eq(schema.transactionLinks.targetKind, "subscription"),
+            eq(schema.transactionLinks.targetId, subId),
+          ),
+        );
+      for (const t of linkedTxIds) {
+        await app.db
+          .update(schema.financialTransactions)
+          .set({
+            voidedAt: new Date(),
+            voidedBy: admin?.id ?? null,
+            voidReason: "test setup — pre-void",
+          })
+          .where(eq(schema.financialTransactions.id, t.id));
+      }
+
       // Cancel so we can attempt another assign
       await app.inject({
         method: "POST",
@@ -383,7 +420,14 @@ describe("Subscriptions API — Lifecycle", () => {
     it("cancel sets status and stores notes", async () => {
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
-      await assignPlan(app, adminToken, member.id, { planId: plan.id });
+      // Phase 111 REQ-3: cancel refuses if there are non-voided charge tx;
+      // priceOverrideAmount=0 makes assignPlan skip the charge tx so the
+      // cancel proceeds without needing to pre-void anything.
+      await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
+      });
 
       const res = await app.inject({
         method: "POST",
@@ -402,7 +446,12 @@ describe("Subscriptions API — Lifecycle", () => {
     it("cancel works on a paused subscription", async () => {
       const plan = await createPlan(app, adminToken);
       const member = await createMember(app);
-      await assignPlan(app, adminToken, member.id, { planId: plan.id });
+      // See REQ-3 comment in the previous test for why priceOverrideAmount=0.
+      await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
+      });
 
       await app.inject({
         method: "POST",
@@ -690,6 +739,9 @@ describe("Subscriptions API — Lifecycle", () => {
       await assignPlan(app, adminToken, member.id, {
         planId: plan.id,
         startDate: firstStart,
+        // Phase 111 REQ-3: skip charge tx so cancel proceeds without anular.
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no charge — REQ-3 isolation)",
       });
       await app.inject({
         method: "POST",
