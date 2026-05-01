@@ -274,6 +274,9 @@
       :memberBranchId="postCreateAssignTarget.branchId"
       :memberBranchName="postCreateAssignTarget.branchName"
       :boardingPassUsed="false"
+      :memberBranchIsVirtual="postCreateBranchIsVirtual"
+      :member="postCreateAssignTarget"
+      :branches="branches"
       @assigned="onPostCreateAssigned"
       @update:modelValue="onPostCreateAssignDialog"
     />
@@ -759,6 +762,16 @@ function viewMember(member: MemberListItem) {
 const showAssignFromCreate = ref(false);
 const postCreateAssignTarget = ref<MemberProfile | null>(null);
 const postCreateAssignmentDone = ref(false);
+
+// Phase 111 REQ-2: derive whether the just-created alumno's branch is
+// virtual (e.g. Templo Online). Threaded into AssignPlanDialog to filter
+// presencial plans + show the convert-CTA banner. Defaults to false when
+// the target is null or branches haven't loaded.
+const postCreateBranchIsVirtual = computed(() => {
+  if (!postCreateAssignTarget.value) return false;
+  const branch = branches.value.find((b) => b.id === postCreateAssignTarget.value!.branchId);
+  return branch?.isVirtual === true;
+});
 
 function onMemberSaved(created: MemberProfile | null) {
   $q.notify({ type: 'positive', message: 'Alumno guardado correctamente' });

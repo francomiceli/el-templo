@@ -30,6 +30,21 @@ export interface SessionLevelCount {
   count: number;
 }
 
+// Phase 111 REQ-4: backend contract for /admin/members/check-duplicates.
+// Mirrors el-templo-api/src/modules/members/service.ts checkDuplicates()
+// response shape exactly — see 111-04-SUMMARY.md.
+export interface DuplicateMatch {
+  id: number;
+  firstName: string | null;
+  lastName: string | null;
+  branchId: number;
+  branchName: string;
+  isVirtual: boolean;
+  status: string | null;
+  deletedAt: string | null;
+  matchedField: 'dni' | 'phone';
+}
+
 export function useMembersApi() {
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -160,6 +175,37 @@ export function useMembersApi() {
       return data;
     } catch (err: unknown) {
       error.value = extractError(err, 'Error verificando DNI');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  // ─── Duplicate Check (Phase 111 REQ-4) ───────────────────────────────
+  //
+  // Multi-criterion lookup against /admin/members/check-duplicates.
+  // Returns up to N matches by exact DNI or normalized last-10 phone digits.
+  // Used by MemberFormDialog (create mode) on @blur of DNI / phone inputs to
+  // surface ghost-twin accounts before the admin submits — see plan 111-04
+  // for the backend contract and 111-05 for the UI wiring.
+
+  async function checkDuplicates(opts: {
+    dni?: string;
+    phone?: string;
+  }): Promise<{ matches: DuplicateMatch[] }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const params: Record<string, unknown> = {};
+      if (opts.dni) params.dni = opts.dni;
+      if (opts.phone) params.phone = opts.phone;
+      const { data } = await api.get<{ matches: DuplicateMatch[] }>(
+        '/admin/members/check-duplicates',
+        { params }
+      );
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error verificando duplicados');
       throw err;
     } finally {
       loading.value = false;
@@ -382,6 +428,7 @@ export function useMembersApi() {
     deleteMember,
     resetMemberPassword,
     checkDni,
+    checkDuplicates,
     getPlans,
     bulkMigratePlan,
     getNotes,

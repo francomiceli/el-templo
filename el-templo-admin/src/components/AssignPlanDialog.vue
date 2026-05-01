@@ -1,4 +1,17 @@
 <template>
+  <!-- Phase 111 REQ-2: stacked MemberFormDialog overlay rendered as a sibling
+       so Quasar's dialog stack manages it independently from this dialog.
+       Opening it does NOT unmount AssignPlanDialog — the assign state is
+       preserved underneath. The watcher on props.memberBranchId refetches
+       plans automatically once the parent re-binds with the updated branch. -->
+  <MemberFormDialog
+    v-if="props.member && props.branches"
+    v-model="showEditFromAssign"
+    :member="props.member"
+    :branches="props.branches"
+    @saved="onMemberEdited"
+  />
+
   <q-dialog :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)">
     <q-card style="width: 700px; max-width: 95vw">
       <q-card-section>
@@ -12,6 +25,27 @@
         <!-- Step 1: Select Plan -->
         <!-- ============================================================ -->
         <q-step :name="1" title="Seleccionar Plan" icon="list" :done="step > 1">
+          <!-- Phase 111 REQ-2: virtual-branch members can't receive presencial
+               plans. Drop the presencial entries (filteredPlans handles it)
+               and surface the path to convert via the "Editar alumno" CTA.
+               Quasar dialogs stack natively — MemberFormDialog opens on top
+               and AssignPlanDialog stays mounted below with its state. -->
+          <q-banner v-if="props.memberBranchIsVirtual" dense rounded class="bg-blue-1 q-mb-md">
+            <template #avatar>
+              <q-icon name="info" color="primary" />
+            </template>
+            Para asignar planes presenciales, primero cambiá la sede del alumno.
+            <template #action>
+              <q-btn
+                flat
+                color="primary"
+                label="Editar alumno"
+                :disable="!props.member"
+                @click="showEditFromAssign = true"
+              />
+            </template>
+          </q-banner>
+
           <div v-if="loadingPlans" class="flex flex-center q-pa-lg">
             <q-spinner-dots size="40px" color="primary" />
           </div>
@@ -485,10 +519,7 @@
                 <div class="text-subtitle1 text-weight-bold q-mb-md">Cobro</div>
 
                 <!-- Plan gratuito (chargeBase = 0): leyenda deshabilitada (D-06) -->
-                <div
-                  v-if="chargeBase === 0"
-                  class="bg-grey-2 q-pa-md rounded-borders q-mb-md"
-                >
+                <div v-if="chargeBase === 0" class="bg-grey-2 q-pa-md rounded-borders q-mb-md">
                   <div class="row items-center q-gutter-sm">
                     <q-icon name="info" size="sm" />
                     <div class="text-body2">Plan gratuito - sin cobro</div>
@@ -526,10 +557,7 @@
                 </div>
 
                 <!-- Preview saldo pendiente (CHARGE-02) -->
-                <div
-                  v-if="chargeBase > 0 && amountReceived !== null"
-                  class="q-mt-md text-body2"
-                >
+                <div v-if="chargeBase > 0 && amountReceived !== null" class="q-mt-md text-body2">
                   <span class="text-weight-medium">Saldo pendiente:</span>
                   {{ formatPrice(pendingBalance, displayCurrency) }}
                 </div>
@@ -630,7 +658,12 @@ import {
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
 import { DAY_SHORT_LABELS, type DayOfWeek } from 'src/types/scheduling';
+import type { MemberProfile, BranchOption } from 'src/types/member';
 import FixedSchedulePicker from 'src/components/scheduling/FixedSchedulePicker.vue';
+// Phase 111 REQ-2: stacked MemberFormDialog overlay for the "Editar alumno"
+// banner CTA. Lazy import to avoid a circular ref (MemberFormDialog does not
+// import AssignPlanDialog, but the parent pages do — keep this localized).
+import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 
 const log = createLogger('AssignPlanDialog');
 const $q = useQuasar();
@@ -652,8 +685,27 @@ const props = withDefaults(
     categoryFilter?: 'presencial' | 'online';
     /** End date of the member's current subscription. Required for change mode to offer the "start after current ends" option. */
     currentSubEndDate?: string | null;
+    /**
+     * Phase 111 REQ-2: when the member's current branch is virtual (e.g. Templo
+     * Online), presencial plans are filtered out and a banner with an
+     * "Editar alumno" CTA is shown. The CTA opens MemberFormDialog stacked
+     * over this dialog so the admin can change the branch to a physical one
+     * without losing the assign-plan context.
+     */
+    memberBranchIsVirtual?: boolean;
+    /** Full member profile — required to render the inner MemberFormDialog stacked overlay. */
+    member?: MemberProfile | null;
+    /** Branches list — required by MemberFormDialog for the branch selector. */
+    branches?: BranchOption[];
   }>(),
-  { mode: 'assign', categoryFilter: undefined, currentSubEndDate: null }
+  {
+    mode: 'assign',
+    categoryFilter: undefined,
+    currentSubEndDate: null,
+    memberBranchIsVirtual: false,
+    member: null,
+    branches: () => [],
+  }
 );
 
 const emit = defineEmits<{
@@ -703,6 +755,18 @@ const paymentMethodOptions = PAYMENT_METHOD_OPTIONS;
 // Monto recibido en caja al asignar/cambiar plan. `null` = no inicializado;
 // se pre-llena con `chargeBase` cuando el usuario entra al step Confirmar.
 const amountReceived = ref<number | null>(null);
+
+// =========================================================================
+// Phase 111 REQ-2: stacked MemberFormDialog state
+// =========================================================================
+//
+// `showEditFromAssign` toggles the inner MemberFormDialog overlay. Quasar
+// q-dialog stacks natively, so opening this while AssignPlanDialog is open
+// keeps the assign dialog mounted underneath. After saving the edit the
+// parent updates `props.memberBranchId` / `props.memberBranchIsVirtual` and
+// the watcher below re-fetches plans automatically.
+
+const showEditFromAssign = ref(false);
 
 // =========================================================================
 // Computed
@@ -766,12 +830,20 @@ const scheduleStepValid = computed(() => {
 });
 
 const filteredPlans = computed(() => {
-  if (!props.categoryFilter) return plans.value;
+  let list = plans.value;
+  // Phase 111 REQ-2: virtual-branch members cannot receive presencial plans.
+  // Drop them from the list so the admin doesn't even see the option; the
+  // banner above the empty list explains the CTA path (edit alumno → change
+  // branch).
+  if (props.memberBranchIsVirtual) {
+    list = list.filter((p) => p.planCategory !== 'presencial');
+  }
+  if (!props.categoryFilter) return list;
   if (props.categoryFilter === 'presencial') {
-    return plans.value.filter((p) => p.planCategory === 'presencial');
+    return list.filter((p) => p.planCategory === 'presencial');
   }
   // 'online' filter: show all non-presencial categories
-  return plans.value.filter((p) => p.planCategory !== 'presencial');
+  return list.filter((p) => p.planCategory !== 'presencial');
 });
 
 const plansByTier = computed((): TierGroup[] => {
@@ -851,9 +923,7 @@ const chargeBase = computed<number>(() => {
 // Cobro parcial activo: hay algo a cobrar y el admin recibió menos. Phase 107 D-03.
 const isPartialCharge = computed<boolean>(
   () =>
-    chargeBase.value > 0 &&
-    amountReceived.value !== null &&
-    amountReceived.value < chargeBase.value
+    chargeBase.value > 0 && amountReceived.value !== null && amountReceived.value < chargeBase.value
 );
 
 // Saldo pendiente en vivo (CHARGE-02). Nunca negativo.
@@ -1115,8 +1185,7 @@ async function executeConfirm() {
       // Phase 107 D-12/D-13: cobro al asignar. Si chargeBase=0 (plan gratuito)
       // se omite el campo para no crear transaction; resto envía amountReceived
       // o undefined (backend defaultea a pricePaid por backward-compat).
-      amountReceived:
-        chargeBase.value === 0 ? undefined : (amountReceived.value ?? undefined),
+      amountReceived: chargeBase.value === 0 ? undefined : (amountReceived.value ?? undefined),
     };
 
     if (props.mode === 'change') {
@@ -1195,12 +1264,35 @@ watch(
 // Phase 107 D-02: pre-llenar amountReceived con chargeBase la primera vez
 // que el usuario entra al step Confirmar. No se sobrescribe si ya tipeó algo
 // (admin que retrocedió y volvió mantiene su valor).
+watch([step, chargeBase], ([newStep, base]: [number, number]) => {
+  if (newStep === confirmStep.value && amountReceived.value === null) {
+    amountReceived.value = base;
+  }
+});
+
+// =========================================================================
+// Phase 111 REQ-2: refetch plans when the member's branch changes
+// =========================================================================
+//
+// After the inner MemberFormDialog saves a virtual→presencial conversion,
+// the parent updates `memberBranchId` and `memberBranchIsVirtual`. We need
+// to re-pull the plan catalog scoped to the new branch so the previously
+// hidden presencial plans appear in the list. `loadPlans` is idempotent so
+// the brief race during a rapid toggle is benign (T-111-28 — accepted).
+
 watch(
-  [step, chargeBase],
-  ([newStep, base]: [number, number]) => {
-    if (newStep === confirmStep.value && amountReceived.value === null) {
-      amountReceived.value = base;
-    }
+  () => props.memberBranchId,
+  (newId, oldId) => {
+    if (newId !== oldId) loadPlans();
   }
 );
+
+async function onMemberEdited() {
+  // MemberFormDialog emit('saved') runs AFTER the API update, but the parent
+  // still needs to refetch the member profile to surface new branch info via
+  // props. The watcher above kicks in once the parent re-binds; this handler
+  // is a defensive secondary trigger in case the parent doesn't re-fetch
+  // synchronously.
+  await loadPlans();
+}
 </script>

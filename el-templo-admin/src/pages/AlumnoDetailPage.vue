@@ -383,6 +383,9 @@
             :memberBranchId="memberProfile.branchId"
             :memberBranchName="memberProfile.branchName"
             :memberBoardingPassUsed="memberBoardingPassUsed"
+            :memberBranchIsVirtual="memberBranchIsVirtual"
+            :member="memberProfile"
+            :branches="branches"
             @subscription-changed="onSubscriptionChanged"
           />
         </q-tab-panel>
@@ -567,6 +570,18 @@ async function onConfirmDelete() {
 
 // boardingPassUsed is not in the member profile API response; the pricing preview API handles eligibility
 const memberBoardingPassUsed = computed(() => false);
+
+// Phase 111 REQ-2: derive whether the member's current branch is virtual
+// (e.g. Templo Online) from the loaded branches list. Threaded down to
+// MemberSubscriptionTab → AssignPlanDialog so the assign flow can filter
+// presencial plans and surface the convert-CTA banner. Defaults to false
+// when branches haven't loaded yet (the dialog won't open before the page
+// finishes loading anyway).
+const memberBranchIsVirtual = computed(() => {
+  if (!memberProfile.value) return false;
+  const branch = branches.value.find((b) => b.id === memberProfile.value!.branchId);
+  return branch?.isVirtual === true;
+});
 
 const memberName = computed(() => {
   if (!memberProfile.value) return '';

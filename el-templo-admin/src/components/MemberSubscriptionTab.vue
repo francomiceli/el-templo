@@ -139,6 +139,9 @@
       :memberBranchId="memberBranchId"
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
+      :memberBranchIsVirtual="memberBranchIsVirtual ?? false"
+      :member="member ?? null"
+      :branches="branches ?? []"
       @assigned="onAssigned"
     />
 
@@ -150,6 +153,9 @@
       :memberBranchName="memberBranchName"
       :boardingPassUsed="memberBoardingPassUsed"
       :currentSubEndDate="presencialSub?.endDate ?? null"
+      :memberBranchIsVirtual="memberBranchIsVirtual ?? false"
+      :member="member ?? null"
+      :branches="branches ?? []"
       mode="change"
       @assigned="onAssigned"
     />
@@ -366,6 +372,7 @@ import {
   type SubscriptionStatus,
 } from 'src/types/subscription';
 import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from 'src/types/transaction';
+import type { MemberProfile, BranchOption } from 'src/types/member';
 import AssignPlanDialog from 'src/components/AssignPlanDialog.vue';
 import ChangeFixedSchedulesDialog from 'src/components/ChangeFixedSchedulesDialog.vue';
 import EditSubscriptionStartDateDialog from 'src/components/EditSubscriptionStartDateDialog.vue';
@@ -385,6 +392,14 @@ const props = defineProps<{
   memberBranchId: number;
   memberBranchName: string;
   memberBoardingPassUsed: boolean;
+  // Phase 111 REQ-2: thread the virtual-branch flag down to AssignPlanDialog
+  // so it can filter presencial plans and render the convert-CTA banner.
+  memberBranchIsVirtual?: boolean;
+  // Full member profile + branches list — passed straight through to the
+  // stacked MemberFormDialog overlay rendered by AssignPlanDialog when the
+  // admin clicks "Editar alumno" from the banner CTA.
+  member?: MemberProfile | null;
+  branches?: BranchOption[];
 }>();
 
 const emit = defineEmits<{
