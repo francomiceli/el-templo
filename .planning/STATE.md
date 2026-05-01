@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Phase 110 COMPLETE — 9 plans across 7 waves; goal-backward verification PASSED. Manual UAT scaffold in 110-VERIFICATION.md pending operator sign-off (NO viernes).
-last_updated: "2026-04-30T20:30:00.000Z"
+stopped_at: Phase 111 context gathered
+last_updated: "2026-05-01T15:00:19.341Z"
 last_activity: 2026-04-30
 progress:
-  total_phases: 100
+  total_phases: 101
   completed_phases: 87
   total_plans: 391
-  completed_plans: 391
-  percent: 100
+  completed_plans: 386
+  percent: 99
 ---
 
 # Project State
@@ -365,8 +365,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-30T20:18:54.314Z
-Stopped at: Completed 110-06-PLAN.md
-Resume file: None
+Last session: 2026-05-01T15:00:19.332Z
+Stopped at: Phase 111 context gathered
+Resume file: .planning/phases/111-salvaguardas-operativas/111-CONTEXT.md
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
