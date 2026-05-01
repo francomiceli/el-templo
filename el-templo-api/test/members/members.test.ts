@@ -1628,7 +1628,7 @@ describe("Members Management Routes", () => {
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
       expect(body.message).toContain("convertir a presencial");
-      expect(body.message).toMatch(/DNI|Domicilio|Fecha|contacto/i);
+      expect(body.message).toMatch(/DNI|Tipo de documento|Fecha/i);
 
       // Branch did not change.
       const [row] = await app.db

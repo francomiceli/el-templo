@@ -586,11 +586,6 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               dni: schema.users.dni,
               documentType: schema.users.documentType,
               dateOfBirth: schema.users.dateOfBirth,
-              address: schema.users.address,
-              emergencyContactName: schema.users.emergencyContactName,
-              emergencyContactPhone: schema.users.emergencyContactPhone,
-              emergencyContactRelationship:
-                schema.users.emergencyContactRelationship,
               currentBranchId: schema.users.branchId,
               currentBranchIsVirtual: schema.branches.isVirtual,
             })
@@ -627,33 +622,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
               // satisfied if the body sets it to a non-empty value OR the
               // user already has a non-empty value on the row.
               type Field = {
-                key:
-                  | "dni"
-                  | "documentType"
-                  | "dateOfBirth"
-                  | "address"
-                  | "emergencyContactName"
-                  | "emergencyContactPhone"
-                  | "emergencyContactRelationship";
+                key: "dni" | "documentType" | "dateOfBirth";
                 label: string;
               };
               const required: Field[] = [
                 { key: "dni", label: "DNI" },
                 { key: "documentType", label: "Tipo de documento" },
                 { key: "dateOfBirth", label: "Fecha de nacimiento" },
-                { key: "address", label: "Domicilio" },
-                {
-                  key: "emergencyContactName",
-                  label: "Nombre del contacto de emergencia",
-                },
-                {
-                  key: "emergencyContactPhone",
-                  label: "Teléfono del contacto de emergencia",
-                },
-                {
-                  key: "emergencyContactRelationship",
-                  label: "Relación del contacto de emergencia",
-                },
               ];
 
               const missing: string[] = [];

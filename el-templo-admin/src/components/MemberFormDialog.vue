@@ -717,7 +717,7 @@ function confirmConversion(): Promise<boolean> {
         'Esto va a:<ul class="q-pl-md q-mt-sm">' +
         '<li>Cancelar la suscripción online activa, si tiene.</li>' +
         '<li>Dejar al alumno en estado <b>Inactivo</b> hasta que le crees una suscripción presencial.</li>' +
-        '<li>Validar los datos obligatorios para alta presencial (DNI, fecha de nacimiento, domicilio, contacto de emergencia).</li>' +
+        '<li>Validar los datos obligatorios para alta presencial (DNI, tipo de documento y fecha de nacimiento).</li>' +
         '</ul><p class="q-mt-sm q-mb-none">La contraseña <b>no</b> se resetea automáticamente. Usá el botón "Resetear contraseña" si lo necesitás.</p>',
       html: true,
       cancel: { label: 'Cancelar', flat: true },
