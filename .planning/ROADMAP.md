@@ -2448,12 +2448,14 @@ Plans:
 
 Plans:
 
-- [ ] 111-01-PLAN.md — REQ-9 normalizePhone helper (backend + admin frontend mirror) + trim de firstName/lastName en members service (createMember + updateMember)
-- [ ] 111-02-PLAN.md — REQ-7 audit_log foundation: Drizzle schema + migration 0108 aplicada vía pnpm db:migrate + helper auditLog.write(tx, params) con test de atomicidad
-- [ ] 111-03-PLAN.md — REQ-1 + REQ-3 + REQ-7 backend wiring: assignPlan rechaza presencial+virtual; cancelSubscription bloquea con tx activas (estructurado 400); audit calls en cancelSubscription, TransactionService.void, assignPlan
-- [ ] 111-04-PLAN.md — REQ-4 + REQ-5 backend: endpoint GET /admin/members/check-duplicates + bloqueo de phone duplicado en /auth/register (409) + trim en autorregistro
-- [ ] 111-05-PLAN.md — REQ-2 + REQ-4 frontend + REQ-6 + D-27 admin UX: filtro presencial + banner CTA en AssignPlanDialog; lookup on-blur con submit disabled en MemberFormDialog; quitar botón Eliminar y reordenar badges en AlumnoDetailPage
-- [ ] 111-06-PLAN.md — REQ-8 reconcile migration 0109 (idempotente) + integration test + staging-first run + 111-VERIFICATION.md cubriendo REQ-1..REQ-9 y D-01..D-28
+- [x] 111-01-PLAN.md — REQ-9 normalizePhone helper (backend + admin frontend mirror) + trim de firstName/lastName en members service (createMember + updateMember)
+- [x] 111-02-PLAN.md — REQ-7 audit_log foundation: Drizzle schema + migration 0108 aplicada vía pnpm db:migrate + helper auditLog.write(tx, params) con test de atomicidad
+- [x] 111-03-PLAN.md — REQ-1 + REQ-3 + REQ-7 backend wiring: assignPlan rechaza presencial+virtual; cancelSubscription bloquea con tx activas (estructurado 400); audit calls en cancelSubscription, TransactionService.void, assignPlan
+- [x] 111-04-PLAN.md — REQ-4 + REQ-5 backend: endpoint GET /admin/members/check-duplicates + bloqueo de phone duplicado en /auth/register (409) + trim en autorregistro
+- [x] 111-05-PLAN.md — REQ-2 + REQ-4 frontend + REQ-6 + D-27 admin UX: filtro presencial + banner CTA en AssignPlanDialog; lookup on-blur con submit disabled en MemberFormDialog; quitar botón Eliminar y reordenar badges en AlumnoDetailPage
+- [x] 111-06-PLAN.md — REQ-8 reconcile migration 0109 (idempotente) + integration test + staging-first run + 111-VERIFICATION.md cubriendo REQ-1..REQ-9 y D-01..D-28
+
+**Status:** Complete (2026-05-01) — reconcile de Soledad ejecutado en prod, datos verificados via SSH. Bonus out-of-scope: nginx retry config aplicada a api/api-staging para reducir 502s en futuras ventanas de pm2 restart.
 
 ---
 

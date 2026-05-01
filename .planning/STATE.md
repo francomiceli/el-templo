@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
-status: unknown
-stopped_at: Plan 111-06 partial — checkpoint pending (staging+prod runs of migration 0109)
-last_updated: "2026-05-01T21:24:17.802Z"
+status: idle
+stopped_at: Phase 111 COMPLETE — reconcile de Soledad ejecutado en prod, datos verificados; nginx retry config aplicada a api/api-staging
+last_updated: "2026-05-01T22:30:00.000Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 101
-  completed_phases: 88
+  completed_phases: 89
   total_plans: 397
-  completed_plans: 392
-  percent: 99
+  completed_plans: 397
+  percent: 100
 ---
 
 # Project State
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff. v4.8 reemplaza el modelo financiero por uno transaccional unificado.
-**Current focus:** Phase 111 — salvaguardas-operativas
+**Current focus:** Phase 111 complete — awaiting next phase decision
 
 ## Current Position
 
-Phase: 111 (salvaguardas-operativas) — EXECUTING
-Plan: 5 of 6
-Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
+Phase: 111 (salvaguardas-operativas) — COMPLETE
+Plan: 6 of 6
+Next: User decides next phase (backlog includes deploy-resilience: pm2 cluster mode + commit nginx retry config to repo templates)
 Last activity: 2026-05-01
 
 ## Performance Metrics
