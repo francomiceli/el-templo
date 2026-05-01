@@ -412,11 +412,13 @@ export class MemberService {
     type Gender = "male" | "female" | "other";
     type DocType = "DNI" | "Pasaporte" | "NIE" | "NIF" | "Otro";
 
+    // Phase 111-01 (REQ-9, D-26): trim firstName/lastName before insert.
+    // Prevents the Soledad Mailland bug (trailing space stored in DB).
     const result = await this.db.insert(schema.users).values({
       email: input.email,
       passwordHash,
-      firstName: input.firstName,
-      lastName: input.lastName,
+      firstName: input.firstName.trim(),
+      lastName: input.lastName.trim(),
       phone: input.phone,
       dni: input.dni,
       documentType: (input.documentType as DocType) || null,
@@ -461,8 +463,11 @@ export class MemberService {
     // Build update object, only including provided fields
     const updateData: Partial<typeof schema.users.$inferInsert> = {};
 
-    if (input.firstName !== undefined) updateData.firstName = input.firstName;
-    if (input.lastName !== undefined) updateData.lastName = input.lastName;
+    // Phase 111-01 (REQ-9, D-26): trim firstName/lastName before update.
+    if (input.firstName !== undefined)
+      updateData.firstName = input.firstName.trim();
+    if (input.lastName !== undefined)
+      updateData.lastName = input.lastName.trim();
     if (input.phone !== undefined) updateData.phone = input.phone;
     if (input.dni !== undefined) updateData.dni = input.dni;
     if (input.documentType !== undefined)
