@@ -1315,9 +1315,17 @@ export class SubscriptionService {
     if (!sub) {
       throw new NotFoundError("Suscripcion no encontrada");
     }
-    if (sub.status !== "active") {
+    // Allow on the three "live" states: active (running today), scheduled
+    // (paid in advance, hasn't started yet), and paused. Cancelled/expired
+    // subs are historical — there are no future bookings to regenerate, so
+    // editing their schedules has no operational effect and is rejected.
+    if (
+      sub.status !== "active" &&
+      sub.status !== "scheduled" &&
+      sub.status !== "paused"
+    ) {
       throw new BadRequestError(
-        "Solo se pueden cambiar turnos de suscripciones activas",
+        "Solo se pueden cambiar turnos de suscripciones activas, programadas o pausadas",
       );
     }
 

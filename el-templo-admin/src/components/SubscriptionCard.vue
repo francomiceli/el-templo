@@ -168,6 +168,14 @@
       </template>
       <template v-else-if="subscription.status === 'paused'">
         <q-btn
+          v-if="canChangeTurnos"
+          flat
+          icon="calendar_today"
+          label="Cambiar turnos"
+          color="primary"
+          @click="emit('change-turnos')"
+        />
+        <q-btn
           v-if="isPresencial"
           flat
           icon="swap_horiz"
@@ -186,6 +194,14 @@
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'scheduled'">
+        <q-btn
+          v-if="canChangeTurnos"
+          flat
+          icon="calendar_today"
+          label="Cambiar turnos"
+          color="primary"
+          @click="emit('change-turnos')"
+        />
         <q-btn flat icon="cancel" label="Cancelar" color="negative" @click="emit('cancel')" />
       </template>
       <template v-else-if="subscription.status === 'expired'">

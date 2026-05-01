@@ -11,6 +11,7 @@ import { activities } from "../../src/db/schema/activities";
 import { schedules } from "../../src/db/schema/schedules";
 import { bookings } from "../../src/db/schema/bookings";
 import { subscriptionSchedules } from "../../src/db/schema/subscription-schedules";
+import { subscriptions } from "../../src/db/schema/subscriptions";
 import { users } from "../../src/db/schema/users";
 import {
   SUBSCRIPTIONS_URL,
@@ -219,7 +220,7 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     expect(body.message).toContain("exactamente");
   });
 
-  it("rejects when sub is paused", async () => {
+  it("accepts when sub is paused", async () => {
     const { subId, memberId } = await setupActiveFixedSub(2);
     const pauseRes = await app.inject({
       method: "POST",
@@ -233,8 +234,47 @@ describe("Subscriptions API — PATCH /:id/schedules (change fixed turnos)", () 
     const { statusCode, body } = await patchSchedules(subId, {
       scheduleIds: newSlots,
     });
+    expect(statusCode).toBe(200);
+    expect([...(body.scheduleIds as number[])].sort()).toEqual(
+      [...newSlots].sort(),
+    );
+  });
+
+  it("accepts when sub is scheduled (paid in advance, hasn't started yet)", async () => {
+    const { subId } = await setupActiveFixedSub(2);
+    // Push the sub forward so it becomes 'scheduled': startDate in the
+    // future + status='scheduled'. Mirrors the early-renewal flow.
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    await app.db
+      .update(subscriptions)
+      .set({ status: "scheduled", startDate: tomorrow })
+      .where(eq(subscriptions.id, subId));
+
+    const newSlots = await createScheduleSlots(1, 2, 60);
+    const { statusCode, body } = await patchSchedules(subId, {
+      scheduleIds: newSlots,
+    });
+    expect(statusCode).toBe(200);
+    expect([...(body.scheduleIds as number[])].sort()).toEqual(
+      [...newSlots].sort(),
+    );
+  });
+
+  it("rejects when sub is cancelled", async () => {
+    const { subId } = await setupActiveFixedSub(2);
+    await app.db
+      .update(subscriptions)
+      .set({ status: "cancelled", cancelledAt: new Date() })
+      .where(eq(subscriptions.id, subId));
+
+    const newSlots = await createScheduleSlots(1, 2, 70);
+    const { statusCode, body } = await patchSchedules(subId, {
+      scheduleIds: newSlots,
+    });
     expect(statusCode).toBe(400);
-    expect(body.message).toContain("activa");
+    expect(body.message).toMatch(/activas, programadas o pausadas/);
   });
 
   it("accepts partial anchors on a flexible presencial plan", async () => {
