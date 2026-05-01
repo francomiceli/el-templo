@@ -50,24 +50,17 @@
                    isActive). For status='prueba' the label embeds the trial
                    counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
                    hasUsedTrial flag — replaces the standalone Phase 102 trial
-                   chip. -->
-              <q-badge
-                :color="getStatusColor(memberProfile.status)"
-                :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
-                class="text-body2 q-mt-xs"
-              />
-            </div>
-
-            <!-- Segment + avatar badges on top, action buttons stacked
-                 underneath. The wrapper is end-aligned in the row; buttons
-                 inside align items-start so they read top-to-bottom from
-                 the left edge of this end-aligned block. "Registrar pago"
-                 lives inside the Finanzas tab — not in this header. -->
-            <div class="column items-end q-gutter-sm">
-              <div
-                v-if="memberProfile.segment || memberProfile.avatarType"
-                class="row items-center q-gutter-sm"
-              >
+                   chip.
+                   Phase 111 D-27: segment + avatarType badges moved here so
+                   "Freemium Ghost" (status + segment) appear pegados in a
+                   single row under the name. The right column keeps only the
+                   action buttons. -->
+              <div class="row items-center q-gutter-xs q-mt-xs">
+                <q-badge
+                  :color="getStatusColor(memberProfile.status)"
+                  :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
+                  class="text-body2"
+                />
                 <q-badge
                   v-if="memberProfile.segment"
                   :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
@@ -91,24 +84,20 @@
                   <q-tooltip>Avatar: {{ memberProfile.avatarType }}</q-tooltip>
                 </q-badge>
               </div>
-              <div class="column items-start q-gutter-xs">
-                <q-btn
-                  flat
-                  icon="edit"
-                  label="Editar"
-                  color="primary"
-                  @click="showEditDialog = true"
-                />
-                <q-btn
-                  v-if="canDeleteMember"
-                  flat
-                  icon="delete_outline"
-                  label="Eliminar"
-                  color="negative"
-                  :loading="deleting"
-                  @click="showDeleteDialog = true"
-                />
-              </div>
+            </div>
+
+            <!-- Phase 111 REQ-6 (D-21): "Eliminar" button removed. The
+                 backend endpoint stays live (D-23) — only the UI access is
+                 retired. Phase 111 REQ-6 (D-22): admin/owner can no longer
+                 trigger soft-deletes via the SPA. -->
+            <div class="column items-end q-gutter-sm">
+              <q-btn
+                flat
+                icon="edit"
+                label="Editar"
+                color="primary"
+                @click="showEditDialog = true"
+              />
             </div>
           </div>
         </q-card-section>
@@ -410,64 +399,6 @@
         :branches="branches"
         @saved="onMemberSaved"
       />
-
-      <!-- ========================================== -->
-      <!-- Delete Confirmation Dialog                 -->
-      <!--                                            -->
-      <!-- Soft-delete: the backend cancels the       -->
-      <!-- active subscription and future bookings,   -->
-      <!-- then scrubs email/DNI so the alumno can be -->
-      <!-- re-created with the same real identifiers. -->
-      <!-- Historical financial records stay intact.  -->
-      <!-- Requires typing the full name to avoid     -->
-      <!-- accidental clicks.                         -->
-      <!-- ========================================== -->
-      <q-dialog v-model="showDeleteDialog" persistent>
-        <q-card style="min-width: 380px; max-width: 480px">
-          <q-card-section>
-            <div class="text-h6 text-negative">Eliminar alumno</div>
-          </q-card-section>
-          <q-card-section class="q-pt-none">
-            <p class="q-mb-sm">
-              Vas a eliminar a <strong>{{ memberName }}</strong
-              >. Esto libera su email y DNI para que pueda recrearse otra cuenta.
-            </p>
-            <q-banner dense rounded class="bg-amber-1 text-amber-10 q-mb-md">
-              <template #avatar>
-                <q-icon name="warning" color="amber-10" />
-              </template>
-              <div class="text-weight-medium q-mb-xs">Al eliminar va a pasar esto:</div>
-              <ul class="q-ma-none q-pl-md text-body2">
-                <li>Su suscripción activa o pausada se cancela.</li>
-                <li>Las reservas futuras (de clases y clases de prueba) se cancelan.</li>
-                <li>Se libera su email y DNI para crear otra cuenta.</li>
-                <li>El historial de pagos, asistencias y AURA queda atribuido al registro.</li>
-              </ul>
-            </q-banner>
-            <p class="text-caption text-grey-7 q-mb-md">
-              La acción no se puede deshacer desde el admin.
-            </p>
-            <q-input
-              v-model="deleteConfirmInput"
-              label="Escribí el nombre completo para confirmar"
-              dense
-              outlined
-              autofocus
-              :disable="deleting"
-            />
-          </q-card-section>
-          <q-card-actions align="right" class="q-pa-md">
-            <q-btn flat label="Cancelar" :disable="deleting" @click="onCancelDelete" />
-            <q-btn
-              color="negative"
-              label="Eliminar"
-              :disable="!canConfirmDelete"
-              :loading="deleting"
-              @click="onConfirmDelete"
-            />
-          </q-card-actions>
-        </q-card>
-      </q-dialog>
     </template>
   </q-page>
 </template>
@@ -522,51 +453,15 @@ const goalPlanLoading = ref(false);
 const branches = ref<BranchOption[]>([]);
 const activeTab = ref('perfil');
 const showEditDialog = ref(false);
-const showDeleteDialog = ref(false);
-const deleteConfirmInput = ref('');
-const deleting = ref(false);
 
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
 
-// Only admin/owner can eliminate a member — consistent with the backend
-// ADMIN_ROLES gate. Coaches keep the Editar path but never see Eliminar.
-const canDeleteMember = computed(() => {
-  const role = currentUser.value?.role;
-  return role === 'admin' || role === 'owner';
-});
-
-// Require an exact name match to commit the delete — cheap guardrail against
-// clicking the wrong row. Whitespace and case are normalized.
-const canConfirmDelete = computed(() => {
-  if (deleting.value) return false;
-  const expected = memberName.value.trim().toLocaleLowerCase();
-  const typed = deleteConfirmInput.value.trim().toLocaleLowerCase();
-  return expected.length > 0 && typed === expected;
-});
-
-function onCancelDelete() {
-  showDeleteDialog.value = false;
-  deleteConfirmInput.value = '';
-}
-
-async function onConfirmDelete() {
-  if (!canConfirmDelete.value || !memberProfile.value) return;
-  deleting.value = true;
-  try {
-    await membersApi.deleteMember(memberProfile.value.id);
-    $q.notify({ type: 'positive', message: 'Alumno eliminado' });
-    showDeleteDialog.value = false;
-    await router.push('/alumnos');
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error eliminando alumno';
-    log.error('Error deleting member', { error: message });
-    $q.notify({ type: 'negative', message });
-  } finally {
-    deleting.value = false;
-  }
-}
+// Phase 111 REQ-6 (D-21): "Eliminar" button + soft-delete dialog removed
+// from the UI. The backend endpoint and useMembersApi.deleteMember
+// composable stay (D-22, D-23) — re-enabling is a code change, not a
+// devtools toggle.
 
 // boardingPassUsed is not in the member profile API response; the pricing preview API handles eligibility
 const memberBoardingPassUsed = computed(() => false);
