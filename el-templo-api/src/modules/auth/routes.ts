@@ -1,5 +1,5 @@
 import { FastifyPluginAsync } from "fastify";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import argon2 from "argon2";
 import { users } from "../../db/schema/users";
 import { branches } from "../../db/schema/branches";
@@ -10,6 +10,7 @@ import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { TransactionService, BalanceService } from "../finance";
+import { normalizePhone } from "../shared";
 
 interface RegisterBody {
   email: string;
@@ -78,6 +79,44 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Phase 111 Plan 04 (REQ-5, D-08): block autorregistro when the
+      // submitted phone matches any non-deleted user (virtual or
+      // presencial). Phone is normalized via the shared helper before the
+      // SQL expression strips formatting from the stored value (last-10
+      // digits — AR mobile convention). Structured 4xx body per Phase 110
+      // D-05; logged at warn level (Phase 110 D-06) with normalized last-10
+      // (NOT raw phone — PII minimization, T-111-22 mitigation).
+      if (phone) {
+        const normalized = normalizePhone(phone);
+        if (normalized.length > 0) {
+          const [existingByPhone] = await fastify.db
+            .select({ id: users.id })
+            .from(users)
+            .where(
+              and(
+                sql`RIGHT(REGEXP_REPLACE(${users.phone}, '[^0-9]', ''), 10) = ${normalized}`,
+                isNull(users.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (existingByPhone) {
+            request.log.warn(
+              {
+                phoneNormalized: normalized,
+                existingUserId: existingByPhone.id,
+              },
+              "PHONE_ALREADY_REGISTERED",
+            );
+            return reply.code(409).send({
+              error: "Conflict",
+              message:
+                "Esta persona ya tiene cuenta. Iniciá sesión o contactanos.",
+              code: "PHONE_ALREADY_REGISTERED",
+            });
+          }
+        }
+      }
+
       // Resolve branch: use provided branchId or default to ONLINE
       let branchId: number;
       if (requestedBranchId) {
@@ -113,12 +152,19 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Hash password and create user
       const passwordHash = await argon2.hash(password);
 
+      // Phase 111 Plan 04 (REQ-9, D-26): trim firstName/lastName at the
+      // service entry point before persistence. Mirrors the createMember /
+      // updateMember trim from Plan 01 — closes the Soledad Mailland
+      // trailing-space bug class for the autorregistro path.
+      const firstNameTrimmed = firstName.trim();
+      const lastNameTrimmed = lastName.trim();
+
       const result = await fastify.db.insert(users).values({
         email,
         passwordHash,
         branchId,
-        firstName,
-        lastName,
+        firstName: firstNameTrimmed,
+        lastName: lastNameTrimmed,
         dni,
         phone,
         gender,
@@ -223,8 +269,8 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
         user: {
           id: userId,
           email,
-          firstName,
-          lastName,
+          firstName: firstNameTrimmed,
+          lastName: lastNameTrimmed,
           role: "member",
           level: "alfa",
           branchId,

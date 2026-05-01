@@ -40,6 +40,19 @@ export function dateOffsetStr(days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+// Phase 111 Plan 04 (REQ-5): autorregister blocks duplicate phones via
+// last-10-digit normalization, so test fixtures must produce a globally
+// unique last-10 per registration. We combine a millisecond timestamp with
+// an in-process counter so back-to-back calls in the same ms still differ.
+let __phoneSeq = 0;
+function makeUniquePhoneLast10(): string {
+  __phoneSeq = (__phoneSeq + 1) % 10000;
+  // 10 digits = (timestamp last 6 digits) + (4-digit zero-padded counter)
+  const tsTail = String(Date.now() % 1_000_000).padStart(6, "0");
+  const seq = String(__phoneSeq).padStart(4, "0");
+  return `${tsTail}${seq}`;
+}
+
 /**
  * Log in with email/password and return the JWT token.
  */
@@ -83,6 +96,12 @@ export async function registerUser(
   user: Record<string, unknown>;
   promoApplied?: boolean;
 }> {
+  // Phase 111 Plan 04 (REQ-5): /auth/register now blocks duplicate phones
+  // (normalized last-10 digits, AR mobile convention). Generate a unique
+  // last-10 per call so the dozens of legacy callers that don't override
+  // phone don't collide with each other when they run sequentially in the
+  // same per-worker DB. Mirrors the existing dni randomization above.
+  const uniquePhoneLast10 = makeUniquePhoneLast10();
   const response = await app.inject({
     method: "POST",
     url: "/api/auth/register",
@@ -90,7 +109,7 @@ export async function registerUser(
       firstName: "Test",
       lastName: "User",
       dni: `T${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
-      phone: "+5491100000000",
+      phone: `+549${uniquePhoneLast10}`,
       gender: "male",
       ...data,
     },
