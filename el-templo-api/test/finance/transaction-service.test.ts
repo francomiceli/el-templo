@@ -1532,3 +1532,109 @@ describe("BalanceService.getRowsForTransaction()", () => {
     expect(r2[0].targetId).toBe(sub2);
   });
 });
+
+describe("TransactionService.void — Phase 111 REQ-7 audit_log", () => {
+  beforeEach(async () => {
+    await app.db.execute(sql`DELETE FROM audit_log`);
+  });
+
+  it("writes one transaction_voided audit row with the D-13 payload on successful void", async () => {
+    // Create a charge tx with one link, then void it. links allocatedAmount
+    // must equal amount (TXN-06 sum invariant).
+    const created = await txService.create(
+      baseInput({
+        amount: 7500,
+        kind: "plan_charge",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: subscriptionId,
+            allocatedAmount: 7500,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    await txService.void(created.id, adminId, { reason: "operator typo" });
+
+    const rows = await app.db
+      .select()
+      .from(schema.auditLog)
+      .where(
+        and(
+          eq(schema.auditLog.action, "transaction_voided"),
+          eq(schema.auditLog.targetId, created.id),
+        ),
+      );
+
+    expect(rows).toHaveLength(1);
+    const row = rows[0];
+    expect(row.actorId).toBe(adminId);
+    expect(row.targetKind).toBe("transaction");
+    expect(row.reason).toBe("operator typo");
+
+    const payload = row.payloadJson as Record<string, unknown>;
+    expect(payload.txId).toBe(created.id);
+    expect(payload.amount).toBe(7500);
+    expect(payload.currency).toBe("ARS");
+    expect(payload.voidReason).toBe("operator typo");
+    expect(typeof payload.voidedAt).toBe("string");
+
+    // Links: array with at least one entry, each carrying targetKind +
+    // targetId + allocatedAmount per D-13.
+    const links = payload.links as Array<{
+      targetKind: string;
+      targetId: number;
+      allocatedAmount: number;
+    }>;
+    expect(Array.isArray(links)).toBe(true);
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    expect(links[0]).toMatchObject({
+      targetKind: "subscription",
+      targetId: subscriptionId,
+      allocatedAmount: 7500,
+    });
+  });
+
+  it("writes no audit row when void fails (e.g. tx already voided)", async () => {
+    const created = await txService.create(
+      baseInput({
+        amount: 1234,
+        kind: "plan_charge",
+        links: [
+          {
+            targetKind: "subscription" as const,
+            targetId: subscriptionId,
+            allocatedAmount: 1234,
+          },
+        ],
+      }),
+      adminId,
+    );
+
+    await txService.void(created.id, adminId, { reason: "first void" });
+
+    // Second void should throw "ya fue anulada" before reaching applyDelta /
+    // audit write. This verifies the helper isn't called eagerly outside
+    // the success path.
+    await expect(
+      txService.void(created.id, adminId, { reason: "second void" }),
+    ).rejects.toThrow();
+
+    const rows = await app.db
+      .select()
+      .from(schema.auditLog)
+      .where(
+        and(
+          eq(schema.auditLog.action, "transaction_voided"),
+          eq(schema.auditLog.targetId, created.id),
+        ),
+      );
+    // Only the first (successful) void produced a row.
+    expect(rows).toHaveLength(1);
+    expect((rows[0].payloadJson as { voidReason: string }).voidReason).toBe(
+      "first void",
+    );
+  });
+});
