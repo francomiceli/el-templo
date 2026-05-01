@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 111-01-PLAN.md
-last_updated: "2026-05-01T15:48:32.961Z"
+stopped_at: Completed 111-02-PLAN.md
+last_updated: "2026-05-01T16:02:59.671Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 101
   completed_phases: 87
   total_plans: 397
-  completed_plans: 387
-  percent: 97
+  completed_plans: 388
+  percent: 98
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 111 (salvaguardas-operativas) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
 Last activity: 2026-05-01
 
@@ -157,6 +157,7 @@ _Updated after each plan completion_
 | Phase 110 P02 | 109 | 3 tasks | 1 files |
 | Phase 110 P06 | 25m | 3 tasks | 6 files |
 | Phase 111 P01 | 5min | 3 tasks | 6 files |
+| Phase 111 P02 | 6min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -356,6 +357,9 @@ Recent decisions affecting current work:
 - Plan 110-02: Migration 0107 applied to local DB; users.country populated for admin (1 row, AR), 7 user_branches rows inserted for coaches; owner stays NULL per D-12.
 - Plan 110-06: Wired requireBranchAccess into 25 admin endpoints across 6 modules; added module-level attachCountryScope to scheduling-admin and attendance-admin (Rule 3); harmonized 2 inline 403 bodies to BRANCH_OUT_OF_SCOPE shape; documented 4 audit-table drifts surfaced by Warning 7 grep pre-step.
 - Plan 111-01: normalizePhone helper landed at backend (modules/shared/phone.ts) and admin frontend (utils/phone.ts) as 1:1 mirror with sync-warning JSDoc — D-25 path B (no shared workspace package) chosen for minimum effort. createMember + updateMember now apply .trim() to firstName/lastName before db.insert/update (D-26) closing the Soledad Mailland trailing-space bug class.
+- Plan 111-02: Hand-wrote 0108_create_audit_log.sql instead of pnpm db:generate — drizzle-kit meta/\_journal.json snapshot is at 0059 while DB is at 0107 so generate either prompts interactively or pollutes the file (Phase 86 / 90 / 103-01 precedent). Drizzle schema in src/db/schema/audit-log.ts is canonical.
+- Plan 111-02: auditLog.write helper takes REQUIRED tx handle (not optional). Helper does NOT open its own transaction — atomicity owned by caller. Test 2 verifies rollback removes the row. T-111-09 mitigation is structural, not runtime.
+- Plan 111-02: TxHandle imported from finance/balance-service (canonical export site) rather than redefined locally. AuditTargetKind union includes 'member' to support REQ-8 reconciliation entries.
 
 ### Pending Todos
 
@@ -367,8 +371,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T15:48:24.873Z
-Stopped at: Completed 111-01-PLAN.md
+Last session: 2026-05-01T16:02:49.920Z
+Stopped at: Completed 111-02-PLAN.md
 Resume file: None
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
