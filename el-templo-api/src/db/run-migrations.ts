@@ -22,6 +22,40 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 
+/**
+ * Split a migration SQL file into individual executable statements.
+ *
+ * - If the file uses drizzle-kit's `--> statement-breakpoint` delimiter,
+ *   splits on that.
+ * - Otherwise falls back to splitting on `;` and stripping `--` line comments
+ *   from each fragment so comments cannot leak between statements.
+ *
+ * Phase 103-01 caveat: this fallback splits on `;` BEFORE stripping comments,
+ * so any `;` inside a `--` line comment will produce a malformed split.
+ * Migration files MUST keep `;` out of `--` comment lines.
+ *
+ * Exported so integration tests for data-fix migrations (Phase 111 plan 06)
+ * can apply migration SQL with the exact same parser as production runs.
+ */
+export function splitSqlStatements(sql: string): string[] {
+  if (sql.includes("--> statement-breakpoint")) {
+    return sql
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+  return sql
+    .split(";")
+    .map((s) =>
+      s
+        .split("\n")
+        .filter((line) => !line.trimStart().startsWith("--"))
+        .join("\n")
+        .trim(),
+    )
+    .filter((s) => s.length > 0);
+}
+
 async function runMigrations() {
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST || "localhost",
@@ -64,25 +98,10 @@ async function runMigrations() {
 
       const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
 
-      // Split by drizzle breakpoint delimiter, or by semicolons as fallback
-      let statements: string[];
-      if (sql.includes("--> statement-breakpoint")) {
-        statements = sql
-          .split("--> statement-breakpoint")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
-      } else {
-        statements = sql
-          .split(";")
-          .map((s) =>
-            s
-              .split("\n")
-              .filter((line) => !line.trimStart().startsWith("--"))
-              .join("\n")
-              .trim(),
-          )
-          .filter((s) => s.length > 0);
-      }
+      // Split by drizzle breakpoint delimiter, or by semicolons as fallback.
+      // Uses the exported splitSqlStatements() so integration tests can apply
+      // migration SQL with the exact same parser.
+      const statements = splitSqlStatements(sql);
 
       console.log(`Applying: ${file} (${statements.length} statements)`);
 
@@ -132,7 +151,12 @@ async function runMigrations() {
   }
 }
 
-runMigrations().catch((err) => {
-  console.error("Migration failed:", err);
-  process.exit(1);
-});
+// Only auto-run when executed directly as the entry point. When imported as a
+// module (e.g. from integration tests that need the exported splitSqlStatements
+// helper), do nothing on import.
+if (require.main === module) {
+  runMigrations().catch((err) => {
+    console.error("Migration failed:", err);
+    process.exit(1);
+  });
+}
