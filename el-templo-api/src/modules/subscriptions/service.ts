@@ -2044,11 +2044,20 @@ export class SubscriptionService {
           ),
         );
 
-      // Phase 104 R4: tear down bundle enrollments + clear stale pointer.
-      // No-op if the cancelled sub's plan is not a bundle. Runs inside
-      // the same tx as the cancel so cancellation + pointer cleanup are
-      // atomic.
+      // Phase 104 R4 + linked-program teardown: cancel any program
+      // enrollments owned by this subscription's plan. Bundle helper handles
+      // grants_all_programs=true; linked-program helper handles
+      // linkedProgramId. Both are no-ops if their precondition fails; calling
+      // both keeps the cancel path symmetric with assign/changePlanNow.
+      // Runs inside the same tx so cancellation + enrollment teardown +
+      // pointer cleanup are atomic.
       await this.tearDownBundleEnrollments(tx, userId, sub.id, sub.planId);
+      await this.tearDownLinkedProgramEnrollment(
+        tx,
+        userId,
+        sub.id,
+        sub.planId,
+      );
 
       await this.recomputeUserStatus(userId, tx);
 
@@ -3537,6 +3546,125 @@ export class SubscriptionService {
   }
 
   /**
+   * Cancel the program_enrollment owned by a non-bundle subscription via its
+   * plan's linkedProgramId binding. Mirrors tearDownBundleEnrollments but for
+   * the single-program-plan case (assignPlan / changePlanNow / renewal create
+   * one enrollment per linkedProgramId; cancelSubscription / autoExpire must
+   * tear it down symmetrically — historical bug: only the bundle path did).
+   *
+   * Protection: if the user has ANOTHER active|paused subscription whose plan
+   * also links to the same program, keep the enrollment alive. Mirrors the
+   * bundle helper's protection logic so concurrent dual subscriptions sharing
+   * a linked program (e.g. presencial + online_goal both pointing at
+   * Foundation) don't lose access when one ends.
+   *
+   * Caller MAY pass a tx (preferred — keeps cancellation + pointer cleanup
+   * atomic with the parent op) or this.db (auto-expire path; best-effort,
+   * repaired idempotently on next read).
+   *
+   * No-op if the sub's plan has no linkedProgramId.
+   */
+  private async tearDownLinkedProgramEnrollment(
+    txOrDb:
+      | MySql2Database<typeof schema>
+      | Parameters<
+          Parameters<MySql2Database<typeof schema>["transaction"]>[0]
+        >[0],
+    userId: number,
+    subscriptionId: number,
+    planId: number,
+  ): Promise<void> {
+    const [subPlan] = await txOrDb
+      .select({
+        linkedProgramId: schema.subscriptionPlans.linkedProgramId,
+      })
+      .from(schema.subscriptionPlans)
+      .where(eq(schema.subscriptionPlans.id, planId))
+      .limit(1);
+
+    const linkedProgramId = subPlan?.linkedProgramId ?? null;
+    if (linkedProgramId === null) return;
+
+    // Protection: another active|paused sub of this user that ALSO links to
+    // the same program keeps the enrollment alive.
+    const [protector] = await txOrDb
+      .select({ id: schema.subscriptions.id })
+      .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
+      .where(
+        and(
+          eq(schema.subscriptions.userId, userId),
+          or(
+            eq(schema.subscriptions.status, "active"),
+            eq(schema.subscriptions.status, "paused"),
+          ),
+          ne(schema.subscriptions.id, subscriptionId),
+          eq(schema.subscriptionPlans.linkedProgramId, linkedProgramId),
+        ),
+      )
+      .limit(1);
+
+    if (protector) {
+      this.log.info(
+        {
+          userId,
+          subscriptionId,
+          linkedProgramId,
+          protectorSubId: protector.id,
+        },
+        "Linked-program teardown: enrollment protected by another sub",
+      );
+      return;
+    }
+
+    // Cancel any active enrollment(s) of the linked program for this user.
+    const activeEnrollments = await txOrDb
+      .select({ id: schema.programEnrollments.id })
+      .from(schema.programEnrollments)
+      .where(
+        and(
+          eq(schema.programEnrollments.userId, userId),
+          eq(schema.programEnrollments.programId, linkedProgramId),
+          eq(schema.programEnrollments.status, "active"),
+        ),
+      );
+
+    if (activeEnrollments.length === 0) return;
+
+    const enrollmentIds = activeEnrollments.map((e) => e.id);
+
+    await txOrDb
+      .update(schema.programEnrollments)
+      .set({ status: "cancelled", cancelledAt: new Date() })
+      .where(inArray(schema.programEnrollments.id, enrollmentIds));
+
+    // Clear stale users.current_program_enrollment_id if it points at any
+    // of the just-cancelled rows.
+    await txOrDb
+      .update(schema.users)
+      .set({ currentProgramEnrollmentId: null })
+      .where(
+        and(
+          eq(schema.users.id, userId),
+          inArray(schema.users.currentProgramEnrollmentId, enrollmentIds),
+        ),
+      );
+
+    this.log.info(
+      {
+        userId,
+        subscriptionId,
+        linkedProgramId,
+        cancelledCount: enrollmentIds.length,
+      },
+      "Linked-program enrollment teardown completed (pointer cleared if stale)",
+    );
+  }
+
+  /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
    * If the expiring sub has a scheduled successor (from early renewal),
@@ -3601,13 +3729,15 @@ export class SubscriptionService {
         .where(inArray(schema.subscriptions.id, expiredOnlyIds));
     }
 
-    // Phase 104 R4: for every just-expired sub, run bundle teardown
-    // (no-op if the sub's plan is not a bundle — helper short-circuits
-    // on grants_all_programs=false). Best-effort: not wrapped in a tx
+    // Phase 104 R4 + linked-program teardown: for every just-expired sub,
+    // tear down owned enrollments. Bundle helper (grants_all_programs=true)
+    // and linked-program helper (linkedProgramId != null) are mutually
+    // exclusive in practice but both are called for correctness — each is
+    // a no-op if its precondition fails. Best-effort: not wrapped in a tx
     // with the status flip above (would require touching the
     // activateScheduledSub path too — out of scope per Phase 103 D-16).
-    // Safe because the helper only acts on currently-active enrollments
-    // and is idempotent — if the process crashes between steps, the
+    // Safe because the helpers only act on currently-active enrollments
+    // and are idempotent — if the process crashes between steps, the
     // next getMemberSubscription call repairs.
     if (expiredOnlyIds.length > 0) {
       const expiredSubRows = await this.db
@@ -3625,6 +3755,12 @@ export class SubscriptionService {
           row.id,
           row.planId,
         );
+        await this.tearDownLinkedProgramEnrollment(
+          this.db,
+          row.userId,
+          row.id,
+          row.planId,
+        );
       }
     }
 
@@ -3633,6 +3769,14 @@ export class SubscriptionService {
     for (const successor of scheduledSuccessors) {
       await this.activateScheduledSub(successor.id);
     }
+
+    // Recompute users.status after the expiration. Without this, a user
+    // whose only sub just expired keeps users.status='activo' indefinitely
+    // (every other lifecycle path — assign/cancel/pause/renew/changePlan —
+    // calls recomputeUserStatus, but the passive auto-expire was the
+    // historical gap). recomputeUserStatus is idempotent and safe to run
+    // even when scheduled successors were activated above.
+    await this.recomputeUserStatus(userId, this.db);
   }
 
   /**
