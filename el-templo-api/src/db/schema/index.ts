@@ -52,3 +52,4 @@ export * from "./program-enrollments";
 export * from "./notifications";
 export * from "./promo-plans";
 export * from "./day-modes";
+export * from "./audit-log";
