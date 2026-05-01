@@ -2444,7 +2444,16 @@ Plans:
 
 **Goal:** Cerrar los agujeros operativos detectados en el caso Soledad Mailland (cuenta duplicada por autorregistro online → manual presencial; $65.000 cash linkeado a sub cancelada de usuario eliminado; 3 balances huérfanos). Tres salvaguardas a nivel sistema: (1) bloquear asignación de plan presencial sobre sede virtual con UX de conversión guiada en `AssignPlanDialog`, (2) bloquear cancelación de subscriptions con transactions activas para forzar void manual primero, (3) lookup de duplicados por DNI/teléfono normalizado al crear miembro/autorregistro que redirige al alumno existente sin modal. Cuarta tarea: discontinuar el botón de soft-delete del admin UI (los miembros inactivos quedan en `status='inactivo'`, sin borrar). Quinta tarea: tabla `audit_log` mínima para trazar cancel sub / void tx / plan assigned. Sexta: migración SQL idempotente que reconcilia los datos de Soledad (transaction_link 34 → sub 6382, cierre de balances huérfanos 14/16/20, cierre de program_enrollment 1125).
 **Depends on:** Phase 110
-**Plans:** TBD (definidos en /gsd-plan-phase tras /gsd-spec-phase + /gsd-discuss-phase)
+**Plans:** 6 plans
+
+Plans:
+
+- [ ] 111-01-PLAN.md — REQ-9 normalizePhone helper (backend + admin frontend mirror) + trim de firstName/lastName en members service (createMember + updateMember)
+- [ ] 111-02-PLAN.md — REQ-7 audit_log foundation: Drizzle schema + migration 0108 aplicada vía pnpm db:migrate + helper auditLog.write(tx, params) con test de atomicidad
+- [ ] 111-03-PLAN.md — REQ-1 + REQ-3 + REQ-7 backend wiring: assignPlan rechaza presencial+virtual; cancelSubscription bloquea con tx activas (estructurado 400); audit calls en cancelSubscription, TransactionService.void, assignPlan
+- [ ] 111-04-PLAN.md — REQ-4 + REQ-5 backend: endpoint GET /admin/members/check-duplicates + bloqueo de phone duplicado en /auth/register (409) + trim en autorregistro
+- [ ] 111-05-PLAN.md — REQ-2 + REQ-4 frontend + REQ-6 + D-27 admin UX: filtro presencial + banner CTA en AssignPlanDialog; lookup on-blur con submit disabled en MemberFormDialog; quitar botón Eliminar y reordenar badges en AlumnoDetailPage
+- [ ] 111-06-PLAN.md — REQ-8 reconcile migration 0109 (idempotente) + integration test + staging-first run + 111-VERIFICATION.md cubriendo REQ-1..REQ-9 y D-01..D-28
 
 ---
 
