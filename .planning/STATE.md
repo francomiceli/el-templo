@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 111-03-PLAN.md
-last_updated: "2026-05-01T17:04:57.478Z"
+stopped_at: Completed 111-04-PLAN.md
+last_updated: "2026-05-01T17:29:07.465Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 101
   completed_phases: 87
   total_plans: 397
-  completed_plans: 389
+  completed_plans: 390
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 111 (salvaguardas-operativas) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
 Last activity: 2026-05-01
 
@@ -159,6 +159,7 @@ _Updated after each plan completion_
 | Phase 111 P01 | 5min | 3 tasks | 6 files |
 | Phase 111 P02 | 6min | 3 tasks | 6 files |
 | Phase 111 P03 | 58min | 3 tasks | 10 files |
+| Phase 111 P04 | 21min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -363,6 +364,11 @@ Recent decisions affecting current work:
 - Plan 111-02: TxHandle imported from finance/balance-service (canonical export site) rather than redefined locally. AuditTargetKind union includes 'member' to support REQ-8 reconciliation entries.
 - Phase 111-03: cancelSubscription signature gained required actorId param; 3 internal callers updated to source from request.user.userId (T-111-14/15 mitigation)
 - Phase 111-03: Structured 4xx body emitted by route layer via JSON.parse on BadRequestError.message — preserves global handleServiceError pipeline; cancelErrorSchema whitelists code+details for Fastify response serializer
+- Plan 111-04: phone match runs at SQL level via RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) — no schema change, no index. Reused for both /admin/members/check-duplicates and /auth/register phone block (single source of normalization in shared/phone.ts).
+
+Plan 111-04: helpers.ts registerUser default phone now per-call unique via timestamp-tail + in-process counter (Rule 3 fix unblocking dozens of legacy callers under the new uniqueness check). Mirrors existing dni randomization pattern.
+Plan 111-04: 400 MISSING_QUERY enforced at route handler (not schema required:[]) so the structured 4xx body carries explicit code per Phase 110 D-05.
+Plan 111-04: dedup by user id with matchedField='dni' preferred when both criteria match the same row — admin sees the stronger identifier first.
 
 ### Pending Todos
 
@@ -374,8 +380,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T17:04:49.837Z
-Stopped at: Completed 111-03-PLAN.md
+Last session: 2026-05-01T17:29:07.444Z
+Stopped at: Completed 111-04-PLAN.md
 Resume file: None
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
