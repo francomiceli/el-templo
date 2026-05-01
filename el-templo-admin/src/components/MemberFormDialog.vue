@@ -69,6 +69,7 @@
                       dense
                       outlined
                       :rules="[requiredRule('Telefono')]"
+                      @blur="onLookupBlur"
                     />
                   </div>
                 </div>
@@ -101,6 +102,7 @@
                       :error-message="`DNI ya registrado para ${dniExistingName}`"
                       debounce="500"
                       @update:model-value="onDniChange"
+                      @blur="onLookupBlur"
                     >
                       <template #append>
                         <q-spinner v-if="dniStatus === 'checking'" size="xs" color="grey" />
@@ -114,6 +116,37 @@
                         </q-icon>
                       </template>
                     </q-input>
+                  </div>
+                </div>
+
+                <!-- Phase 111 REQ-4: inline duplicate-match banner. Renders below
+                     the DNI/phone row when /admin/members/check-duplicates returns
+                     a match. Submit is disabled while the banner is visible —
+                     admin must click "Ver alumno" to navigate to the existing
+                     record (the duplicate-creation path is closed). -->
+                <div
+                  v-if="existingMatch && !props.member"
+                  class="q-pa-sm bg-amber-1 rounded-borders"
+                >
+                  <div class="row items-center q-gutter-sm">
+                    <q-icon name="warning" color="warning" size="sm" />
+                    <div class="text-body2">
+                      <span class="text-weight-medium">Ya existe:</span>
+                      {{ existingMatchDisplayName }}
+                      ({{ existingMatch.branchName }})
+                      <span class="text-caption text-grey-7">
+                        — coincide por
+                        {{ existingMatch.matchedField === 'dni' ? 'DNI' : 'teléfono' }}
+                      </span>
+                    </div>
+                    <q-space />
+                    <q-btn
+                      flat
+                      dense
+                      color="primary"
+                      label="Ver alumno"
+                      :to="`/alumnos/${existingMatch.id}`"
+                    />
                   </div>
                 </div>
 
@@ -222,8 +255,8 @@
               form="member-create-form"
               label="Crear"
               color="primary"
-              :loading="submitting"
-              :disable="submitting || dniStatus === 'taken'"
+              :loading="submitting || lookupChecking"
+              :disable="submitDisabled"
             />
           </template>
         </q-card-actions>
@@ -456,9 +489,10 @@
 import { ref, computed, watch } from 'vue';
 import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
-import { useMembersApi } from 'src/composables/useMembersApi';
+import { useMembersApi, type DuplicateMatch } from 'src/composables/useMembersApi';
 import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
+import { normalizePhone } from 'src/utils/phone';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 
 const log = createLogger('MemberFormDialog');
@@ -546,6 +580,15 @@ async function resetPassword(): Promise<void> {
 // DNI uniqueness state
 const dniStatus = ref<'idle' | 'checking' | 'available' | 'taken'>('idle');
 const dniExistingName = ref('');
+
+// Phase 111 REQ-4: duplicate-detection state. Tracks the strongest match
+// returned by /admin/members/check-duplicates (DNI > phone preferred per
+// backend dedup rule). Null when no match (or in edit mode — D-07 gates the
+// lookup to create only). When a match is set, the inline banner renders
+// below the form and `submitDisabled` blocks the create button.
+const existingMatch = ref<DuplicateMatch | null>(null);
+const lookupChecking = ref(false);
+let lookupTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Form data
 const form = ref({
@@ -635,6 +678,78 @@ async function onDniChange(val: string | number | null) {
 }
 
 // =========================================================================
+// Phase 111 REQ-4: duplicate lookup (create mode only)
+// =========================================================================
+//
+// On blur of DNI or phone we debounce 300ms then hit
+// /admin/members/check-duplicates with whichever fields are populated. The
+// backend dedupes by user id and prefers the DNI match when both criteria
+// hit the same row. We only consider the FIRST match (strongest signal) —
+// the form already has a path to the member detail page via "Ver alumno".
+//
+// Edit mode is excluded entirely — admins editing an existing member will
+// trivially "match themselves" so the lookup adds noise, not safety.
+
+async function runLookup() {
+  if (props.member) {
+    existingMatch.value = null;
+    return;
+  }
+  const dni = (form.value.dni ?? '').trim();
+  const phoneRaw = (form.value.phone ?? '').trim();
+  const phoneNormalized = phoneRaw ? normalizePhone(phoneRaw) : '';
+  if (!dni && !phoneNormalized) {
+    existingMatch.value = null;
+    return;
+  }
+
+  lookupChecking.value = true;
+  try {
+    const result = await membersApi.checkDuplicates({
+      dni: dni || undefined,
+      // Send the raw phone — the backend re-normalizes via SQL. Keeps the
+      // composable contract simple (no double-normalization).
+      phone: phoneRaw || undefined,
+    });
+    existingMatch.value = result.matches[0] ?? null;
+  } catch {
+    // Network errors aren't a hard block — let the user submit and the
+    // backend will catch real conflicts via the existing 409 path.
+    existingMatch.value = null;
+  } finally {
+    lookupChecking.value = false;
+  }
+}
+
+function scheduleLookup() {
+  if (lookupTimeout !== null) {
+    clearTimeout(lookupTimeout);
+  }
+  lookupTimeout = setTimeout(() => {
+    void runLookup();
+  }, 300);
+}
+
+function onLookupBlur() {
+  scheduleLookup();
+}
+
+const submitDisabled = computed(() => {
+  if (submitting.value) return true;
+  if (dniStatus.value === 'taken') return true;
+  // Phase 111 REQ-4 (D-07): block submit while a non-deleted match exists.
+  // Edit mode skips the lookup entirely so existingMatch stays null.
+  if (existingMatch.value) return true;
+  return false;
+});
+
+const existingMatchDisplayName = computed(() => {
+  if (!existingMatch.value) return '';
+  const parts = [existingMatch.value.firstName, existingMatch.value.lastName].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : `#${existingMatch.value.id}`;
+});
+
+// =========================================================================
 // Form Lifecycle
 // =========================================================================
 
@@ -645,6 +760,13 @@ watch(
     if (!open) return;
     dniStatus.value = 'idle';
     dniExistingName.value = '';
+    // Phase 111 REQ-4: clear duplicate-match state on every reopen so a
+    // previous create's lookup doesn't bleed into the next admin session.
+    existingMatch.value = null;
+    if (lookupTimeout !== null) {
+      clearTimeout(lookupTimeout);
+      lookupTimeout = null;
+    }
 
     if (props.member) {
       form.value = {
