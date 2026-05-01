@@ -398,6 +398,39 @@ describe("Members Management Routes", () => {
       const body = JSON.parse(res.body);
       expect(body.message).toContain("DNI");
     });
+
+    // Phase 111-01 (REQ-9, D-26): trim firstName/lastName on create.
+    // Prevents the Soledad Mailland bug (lastName="Mailland " stored
+    // with trailing space).
+    it("trims trailing/leading whitespace from firstName and lastName on create", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/admin/members",
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          ...getBaseMember(),
+          firstName: "  Soledad  ",
+          lastName: "  Mailland  ",
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.firstName).toBe("Soledad");
+      expect(body.lastName).toBe("Mailland");
+
+      // Confirm against DB (defense against API-level transform that
+      // doesn't reach storage).
+      const [row] = await app.db
+        .select({
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(users)
+        .where(eq(users.id, body.id));
+      expect(row?.firstName).toBe("Soledad");
+      expect(row?.lastName).toBe("Mailland");
+    });
   });
 
   // =========================================================================
@@ -486,6 +519,37 @@ describe("Members Management Routes", () => {
       });
 
       expect(res.statusCode).toBe(404);
+    });
+
+    // Phase 111-01 (REQ-9, D-26): trim firstName/lastName on update.
+    it("trims trailing/leading whitespace from firstName and lastName on update", async () => {
+      const member = await createMember();
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          firstName: "  Updated ",
+          lastName: "  Mailland  ",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.firstName).toBe("Updated");
+      expect(body.lastName).toBe("Mailland");
+
+      // Confirm against DB.
+      const [row] = await app.db
+        .select({
+          firstName: users.firstName,
+          lastName: users.lastName,
+        })
+        .from(users)
+        .where(eq(users.id, member.id as number));
+      expect(row?.firstName).toBe("Updated");
+      expect(row?.lastName).toBe("Mailland");
     });
   });
 
