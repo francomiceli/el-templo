@@ -66,6 +66,11 @@ export interface AttendanceAnalytics {
 
 // -- Financial Analytics -------------------------------------------------
 
+export interface OutstandingByCurrency {
+  ARS: number;
+  EUR: number;
+}
+
 export interface FinancialAnalytics {
   revenueTrend: Array<{ month: string; revenue: number }>;
   revenueByMethod: { cash: number; transfer: number; card: number };
@@ -74,8 +79,13 @@ export interface FinancialAnalytics {
     branchName: string;
     revenue: number;
   }>;
-  totalOutstanding: number;
-  collectionRate: number;
+  /**
+   * Total outstanding debt (amount > 0 in `balances`) at "now",
+   * grouped by currency. Source of truth: the same `balances` table the
+   * Reports/Deudas tab reads from. Currencies are NEVER summed across.
+   * Non-owner scopes will only have one non-zero key.
+   */
+  outstandingByCurrency: OutstandingByCurrency;
 }
 
 // -- Filters -------------------------------------------------------------

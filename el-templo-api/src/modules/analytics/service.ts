@@ -7,7 +7,7 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, sql, isNull, inArray } from "drizzle-orm";
+import { eq, and, sql, isNull, inArray, gt } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import { resolveMonthRange, computePriorPeriod } from "../shared/date-utils";
@@ -16,6 +16,7 @@ import type {
   MemberAnalytics,
   AttendanceAnalytics,
   FinancialAnalytics,
+  OutstandingByCurrency,
   AnalyticsFilters,
   Trend,
   AttentionMember,
@@ -136,28 +137,19 @@ export class AnalyticsService {
       revenueTrend,
       revenueByMethod,
       revenueByBranch,
-      expectedRevenue,
-      collectedRevenue,
+      outstandingByCurrency,
     ] = await Promise.all([
       this.getRevenueTrend(branchId, country, dateFrom, dateTo),
       this.getRevenueByMethod(branchId, country, dateFrom, dateTo),
       this.getRevenueByBranch(branchId, country, dateFrom, dateTo),
-      this.getExpectedRevenue(branchId, country, dateFrom, dateTo),
-      this.sumRevenue(branchId, country, dateFrom, dateTo),
+      this.getOutstandingByCurrency(branchId, country),
     ]);
-
-    const totalOutstanding = Math.max(0, expectedRevenue - collectedRevenue);
-    const collectionRate =
-      expectedRevenue > 0
-        ? Math.round((collectedRevenue / expectedRevenue) * 1000) / 10
-        : 100;
 
     return {
       revenueTrend,
       revenueByMethod,
       revenueByBranch,
-      totalOutstanding,
-      collectionRate,
+      outstandingByCurrency,
     };
   }
 
@@ -924,21 +916,21 @@ export class AnalyticsService {
   }
 
   /**
-   * Sum pricePaid from subscriptions whose period overlaps the date range.
-   * Excludes zero-price subscriptions (free/complimentary).
+   * Total outstanding debt at "now", grouped by currency. Source: balances
+   * WHERE amount > 0. Aligned with the Reports/Deudas tab (single source of
+   * truth post-Phase 109). Uses LEFT JOIN to subscriptions/branches because
+   * `target_kind='debt_balance'` rows have no subscription. branchId/country
+   * filters apply through subscriptions, which implicitly excludes
+   * debt_balance rows — same trade-off as `reports/service.ts::getOutstandingBalances`.
+   *
+   * Returns both ARS and EUR keys, defaulting to 0. Currencies are NEVER
+   * summed across.
    */
-  private async getExpectedRevenue(
+  private async getOutstandingByCurrency(
     branchId: number | undefined,
     country: "AR" | "ES" | undefined,
-    dateFrom: string,
-    dateTo: string,
-  ): Promise<number> {
-    const conditions: ReturnType<typeof eq>[] = [
-      sql`${schema.subscriptions.startDate} <= ${dateTo}`,
-      sql`(${schema.subscriptions.endDate} >= ${dateFrom} OR ${schema.subscriptions.endDate} IS NULL)`,
-      sql`${schema.subscriptions.status} IN ('active', 'paused', 'expired', 'completed', 'changed')`,
-      sql`${schema.subscriptions.pricePaid} > 0`,
-    ];
+  ): Promise<OutstandingByCurrency> {
+    const conditions: ReturnType<typeof eq>[] = [gt(schema.balances.amount, 0)];
 
     if (branchId !== undefined) {
       conditions.push(eq(schema.subscriptions.branchId, branchId));
@@ -947,23 +939,33 @@ export class AnalyticsService {
       conditions.push(eq(schema.branches.country, country));
     }
 
-    const base = this.db
+    const rows = await this.db
       .select({
-        total: sql<number>`COALESCE(SUM(${schema.subscriptions.pricePaid}), 0)`,
+        currency: schema.balances.currency,
+        total: sql<number>`COALESCE(SUM(${schema.balances.amount}), 0)`,
       })
-      .from(schema.subscriptions);
+      .from(schema.balances)
+      .leftJoin(
+        schema.subscriptions,
+        and(
+          eq(schema.balances.targetKind, "subscription"),
+          eq(schema.subscriptions.id, schema.balances.targetId),
+        ),
+      )
+      .leftJoin(
+        schema.branches,
+        eq(schema.branches.id, schema.subscriptions.branchId),
+      )
+      .where(and(...conditions))
+      .groupBy(schema.balances.currency);
 
-    const [result] =
-      country !== undefined
-        ? await base
-            .innerJoin(
-              schema.branches,
-              eq(schema.branches.id, schema.subscriptions.branchId),
-            )
-            .where(and(...conditions))
-        : await base.where(and(...conditions));
-
-    return Number(result?.total ?? 0);
+    const result: OutstandingByCurrency = { ARS: 0, EUR: 0 };
+    for (const row of rows) {
+      if (row.currency === "ARS" || row.currency === "EUR") {
+        result[row.currency] = Number(row.total);
+      }
+    }
+    return result;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

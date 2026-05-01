@@ -64,6 +64,11 @@ export interface AttendanceAnalytics {
 
 // -- Financial Analytics -------------------------------------------------
 
+export interface OutstandingByCurrency {
+  ARS: number;
+  EUR: number;
+}
+
 export interface FinancialAnalytics {
   revenueTrend: Array<{ month: string; revenue: number }>;
   revenueByMethod: { cash: number; transfer: number; card: number };
@@ -72,8 +77,8 @@ export interface FinancialAnalytics {
     branchName: string;
     revenue: number;
   }>;
-  totalOutstanding: number;
-  collectionRate: number;
+  /** Snapshot of debt at "now" (NOT period-scoped). Same source as Reportes/Deudas. */
+  outstandingByCurrency: OutstandingByCurrency;
 }
 
 // -- Filter params -------------------------------------------------------

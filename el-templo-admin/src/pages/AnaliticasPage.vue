@@ -6,7 +6,7 @@
     <div class="row items-center q-mb-md">
       <div class="col">
         <div class="text-h5">Analiticas</div>
-        <div class="text-caption text-grey-7">Metricas y reportes de operacion</div>
+        <div class="text-caption text-grey-7">Tendencias y métricas — para entender el negocio</div>
       </div>
     </div>
 

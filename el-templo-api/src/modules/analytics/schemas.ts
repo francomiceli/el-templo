@@ -199,8 +199,13 @@ export const financialAnalyticsSchema = {
             },
           },
         },
-        totalOutstanding: { type: "number" },
-        collectionRate: { type: "number" },
+        outstandingByCurrency: {
+          type: "object",
+          properties: {
+            ARS: { type: "number" },
+            EUR: { type: "number" },
+          },
+        },
       },
     },
     401: errorSchema,

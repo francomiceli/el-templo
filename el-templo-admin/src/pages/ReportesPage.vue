@@ -6,7 +6,9 @@
     <div class="row items-center q-mb-md">
       <div class="col">
         <div class="text-h5">Reportes</div>
-        <div class="text-caption text-grey-7">Reportes operativos</div>
+        <div class="text-caption text-grey-7">
+          Listas operativas — para actuar (contactar, cobrar, exportar)
+        </div>
       </div>
     </div>
 
@@ -669,6 +671,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { useQuasar, type QTableColumn, type QTableProps } from 'quasar';
 import { useReportsApi } from 'src/composables/useReportsApi';
 import { useMembersApi } from 'src/composables/useMembersApi';
@@ -845,7 +848,13 @@ const datePresets: DatePreset[] = [
 
 // -- Tab state ---------------------------------------------------------------
 
-const activeTab = ref('accesos');
+const route = useRoute();
+const VALID_TABS = ['accesos', 'cobros', 'vencimientos', 'inactivos', 'deudas', 'conversion'];
+const initialTab = (() => {
+  const q = route.query.tab;
+  return typeof q === 'string' && VALID_TABS.includes(q) ? q : 'accesos';
+})();
+const activeTab = ref(initialTab);
 
 // -- Source filter options ---------------------------------------------------
 

@@ -606,12 +606,13 @@ describe("Analytics API", () => {
       expect(body.revenueByMethod.card).toBe(0);
     });
 
-    it("should include totalOutstanding and collectionRate", async () => {
+    it("should expose outstandingByCurrency from balances (single currency, fully paid → 0)", async () => {
       const member = await createMember({
         email: "fin-m3@test.com",
         dni: "90000022",
       });
-      await recordPayment(member.id, 5000);
+      // Default assignSubscription pays full chargeBase, so balance settles to 0.
+      await recordPayment(member.id, 15000);
 
       const today = new Date().toISOString().split("T")[0];
       const firstOfMonth = today.substring(0, 8) + "01";
@@ -624,8 +625,37 @@ describe("Analytics API", () => {
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
-      expect(typeof body.totalOutstanding).toBe("number");
-      expect(typeof body.collectionRate).toBe("number");
+      expect(body.outstandingByCurrency).toBeDefined();
+      expect(body.outstandingByCurrency.ARS).toBe(0);
+      expect(body.outstandingByCurrency.EUR).toBe(0);
+      expect(body.totalOutstanding).toBeUndefined();
+      expect(body.collectionRate).toBeUndefined();
+    });
+
+    it("should report unpaid plan as outstanding ARS debt", async () => {
+      const member = await createMember({
+        email: "fin-m4@test.com",
+        dni: "90000023",
+      });
+      const plan = await createPlan({ name: `Debt-Plan-${Date.now()}` });
+      // amountReceived=0 with positive chargeBase seeds a balance row equal to
+      // the plan price, simulating "asignación con deuda total".
+      await assignSubscription(member.id, plan.id, { amountReceived: 0 });
+
+      const today = new Date().toISOString().split("T")[0];
+      const firstOfMonth = today.substring(0, 8) + "01";
+
+      const res = await app.inject({
+        method: "GET",
+        url: `${ANALYTICS_URL}/financial?dateFrom=${firstOfMonth}&dateTo=${today}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      // chargeBase = priceRegular = 15000 (basePlan)
+      expect(body.outstandingByCurrency.ARS).toBe(15000);
+      expect(body.outstandingByCurrency.EUR).toBe(0);
     });
   });
 

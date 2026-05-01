@@ -60,33 +60,25 @@
       </q-card>
     </div>
 
-    <!-- Bottom stat cards -->
+    <!-- Outstanding debt snapshot (at "now", not period-scoped) -->
     <div class="row q-col-gutter-md">
-      <div class="col-12 col-sm-6">
-        <q-card flat bordered>
+      <div
+        v-for="entry in outstandingEntries"
+        :key="entry.currency"
+        class="col-12"
+        :class="outstandingEntries.length > 1 ? 'col-sm-6' : 'col-sm-12'"
+      >
+        <q-card flat bordered class="cursor-pointer" @click="goToDeudas">
           <q-card-section class="text-center">
-            <div class="text-caption text-grey-7">Deuda pendiente</div>
-            <div class="text-h4 text-negative">
-              {{ formatCurrency(props.data.totalOutstanding) }}
+            <div class="text-caption text-grey-7">
+              Deuda al hoy{{ outstandingEntries.length > 1 ? ` (${entry.currency})` : '' }}
             </div>
-          </q-card-section>
-        </q-card>
-      </div>
-      <div class="col-12 col-sm-6">
-        <q-card flat bordered>
-          <q-card-section class="text-center">
-            <div class="text-caption text-grey-7">Tasa de cobro</div>
-            <div
-              class="text-h4"
-              :class="
-                props.data.collectionRate >= 80
-                  ? 'text-positive'
-                  : props.data.collectionRate >= 50
-                    ? 'text-warning'
-                    : 'text-negative'
-              "
-            >
-              {{ props.data.collectionRate.toFixed(1) }}%
+            <div class="text-h4" :class="entry.amount > 0 ? 'text-negative' : 'text-positive'">
+              {{ formatPrice(entry.amount, entry.currency) }}
+            </div>
+            <div class="text-caption text-grey-6 q-mt-xs">
+              Ver detalle en Reportes → Deudas
+              <q-icon name="arrow_forward" size="xs" />
             </div>
           </q-card-section>
         </q-card>
@@ -97,6 +89,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -111,6 +104,8 @@ import { Bar } from 'vue-chartjs';
 import { COLORS, chartColors } from 'src/utils/chart-colors';
 import { formatPrice } from 'src/utils/format-price';
 import type { FinancialAnalytics } from 'src/types/analytics';
+
+const router = useRouter();
 
 // -- Register Chart.js components ----------------------------------------
 
@@ -197,4 +192,22 @@ const revenueByBranchData = computed(() => {
     ],
   };
 });
+
+// Show only currencies with non-zero debt; if all zero, show one card in the
+// scoped currency so the operator sees an explicit "0" instead of nothing.
+const outstandingEntries = computed<Array<{ currency: 'ARS' | 'EUR'; amount: number }>>(() => {
+  if (!props.data) return [];
+  const breakdown = props.data.outstandingByCurrency;
+  const entries: Array<{ currency: 'ARS' | 'EUR'; amount: number }> = [];
+  if (breakdown.ARS > 0) entries.push({ currency: 'ARS', amount: breakdown.ARS });
+  if (breakdown.EUR > 0) entries.push({ currency: 'EUR', amount: breakdown.EUR });
+  if (entries.length === 0) {
+    entries.push({ currency: props.currency, amount: 0 });
+  }
+  return entries;
+});
+
+function goToDeudas(): void {
+  void router.push({ path: '/reportes', query: { tab: 'deudas' } });
+}
 </script>
