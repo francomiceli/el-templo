@@ -1,10 +1,23 @@
 <template>
   <div>
+    <!-- Action bar (Phase 108 D-19/D-23) — registrar pago vive en este tab,
+         no en el header del detalle. Visible para FINANCE_WRITE_ROLES y
+         deshabilitado cuando no hay saldos pendientes. -->
+    <div v-if="canRegisterPayment" class="row justify-end q-mb-md">
+      <q-btn
+        flat
+        icon="payments"
+        label="Registrar pago"
+        color="primary"
+        :disable="outstandingConcepts.length === 0"
+        @click="showRegisterPaymentDialog = true"
+      >
+        <q-tooltip v-if="outstandingConcepts.length === 0"> Sin saldos pendientes </q-tooltip>
+      </q-btn>
+    </div>
+
     <!-- Empty state -->
-    <div
-      v-if="items.length === 0 && !loading"
-      class="text-grey-6 q-pa-md text-center"
-    >
+    <div v-if="items.length === 0 && !loading" class="text-grey-6 q-pa-md text-center">
       Sin movimientos registrados.
     </div>
 
@@ -28,17 +41,9 @@
                 {{ kindLabel(item.transaction.kind) }} ·
                 {{ formatPrice(item.transaction.amount, item.transaction.currency) }}
               </span>
-              <q-badge
-                v-if="isVoided(item)"
-                color="negative"
-                label="ANULADO"
-                class="q-ml-sm"
-              />
+              <q-badge v-if="isVoided(item)" color="negative" label="ANULADO" class="q-ml-sm" />
             </q-item-label>
-            <q-item-label
-              caption
-              :class="{ 'text-grey-5': isVoided(item) }"
-            >
+            <q-item-label caption :class="{ 'text-grey-5': isVoided(item) }">
               {{ methodLabel(item.transaction.paymentMethod) }}
               <span v-if="item.transaction.notes"> · {{ item.transaction.notes }}</span>
             </q-item-label>
@@ -73,9 +78,7 @@
                 </q-item-section>
               </q-item>
               <q-item v-if="item.links.length === 0">
-                <q-item-section class="text-grey-6 text-italic">
-                  Sin links
-                </q-item-section>
+                <q-item-section class="text-grey-6 text-italic"> Sin links </q-item-section>
               </q-item>
             </q-list>
 
@@ -111,6 +114,15 @@
       :transaction-label="voidTargetLabel"
       @voided="onVoided"
     />
+
+    <!-- Register payment dialog (Phase 108) -->
+    <RegisterPaymentDialog
+      v-model="showRegisterPaymentDialog"
+      :user-id="userId"
+      :member-branch-id="memberBranchId"
+      :outstanding-concepts="outstandingConcepts"
+      @paid="onPaymentRegistered"
+    />
   </div>
 </template>
 
@@ -123,14 +135,15 @@ import type {
   FinancialHistoryItem,
   TransactionKind,
   PaymentMethod,
+  OutstandingConcept,
 } from 'src/types/transaction';
 import { formatPrice } from 'src/utils/format-price';
 import { formatDate } from 'src/utils/format-date';
 import { createLogger } from 'src/utils/logger';
 import VoidTransactionDialog from './VoidTransactionDialog.vue';
+import RegisterPaymentDialog from './RegisterPaymentDialog.vue';
 
-const props = defineProps<{ userId: number }>();
-const emit = defineEmits<{ (e: 'voided'): void }>();
+const props = defineProps<{ userId: number; memberBranchId: number }>();
 
 const $q = useQuasar();
 const authStore = useAuthStore();
@@ -149,6 +162,11 @@ const showVoidDialog = ref(false);
 const voidTargetId = ref<number | null>(null);
 const voidTargetLabel = ref<string>('');
 
+// Phase 108 — Outstanding concepts gate the "Registrar pago" button + feed
+// the dialog. Owned by this tab now (was previously lifted to AlumnoDetailPage).
+const outstandingConcepts = ref<OutstandingConcept[]>([]);
+const showRegisterPaymentDialog = ref(false);
+
 // hasMore se deriva de total vs items.length (PaginatedResult no expone hasMore).
 const hasMore = computed(() => items.value.length < total.value);
 
@@ -156,6 +174,12 @@ const hasMore = computed(() => items.value.length < total.value);
 const canVoid = computed(() => {
   const role = authStore.user?.role;
   return role === 'owner' || role === 'admin' || role === 'gestion';
+});
+
+// Phase 108 D-23 — FINANCE_WRITE_ROLES = owner | admin | gestion | recepcion.
+const canRegisterPayment = computed(() => {
+  const role = authStore.user?.role;
+  return role === 'owner' || role === 'admin' || role === 'gestion' || role === 'recepcion';
 });
 
 // Verificación del enum: estos 5 valores se corresponden 1:1 con el union TransactionKind
@@ -219,8 +243,17 @@ function loadMore(): void {
   void load(currentPage.value + 1, true);
 }
 
-function refresh(): void {
-  void load(1, false);
+async function loadOutstanding(): Promise<void> {
+  try {
+    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(props.userId);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Error desconocido';
+    log.error('Error cargando saldos pendientes', {
+      error: message,
+      userId: props.userId,
+    });
+    outstandingConcepts.value = [];
+  }
 }
 
 function onAnularClick(item: FinancialHistoryItem): void {
@@ -233,15 +266,20 @@ function onAnularClick(item: FinancialHistoryItem): void {
 }
 
 function onVoided(): void {
-  // Refrescar historial (saldos cambiaron) + notificar al parent para que recargue
-  // outstanding-concepts (los saldos revirtieron del lado backend).
-  refresh();
-  emit('voided');
+  // Anular reabre saldos en el backend; recargar historial y outstanding
+  // para que el botón "Registrar pago" refleje el nuevo estado.
+  void load(1, false);
+  void loadOutstanding();
 }
 
-defineExpose({ refresh });
+function onPaymentRegistered(): void {
+  // Nuevo pago: refrescar timeline y saldos (algunos pueden haberse cancelado).
+  void load(1, false);
+  void loadOutstanding();
+}
 
 onMounted(() => {
   void load(1, false);
+  void loadOutstanding();
 });
 </script>

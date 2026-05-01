@@ -105,6 +105,23 @@ export function useMembersApi() {
     }
   }
 
+  /**
+   * Reset a member's password to the shared temp password ("eltemplo2026").
+   * Restricted to owner/admin/gestion server-side.
+   */
+  async function resetMemberPassword(userId: number): Promise<void> {
+    loading.value = true;
+    error.value = null;
+    try {
+      await api.put(`/admin/members/${userId}/password`);
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error reseteando contraseña');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Session Levels (Phase 99) ────────────────────────────────────────
 
   /**
@@ -363,6 +380,7 @@ export function useMembersApi() {
     createMember,
     updateMember,
     deleteMember,
+    resetMemberPassword,
     checkDni,
     getPlans,
     bulkMigratePlan,

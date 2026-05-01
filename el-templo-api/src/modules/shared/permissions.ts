@@ -97,3 +97,6 @@ export const FINANCE_READ_ROLES = [
   "gestion",
   "recepcion",
 ] as const;
+
+/** Roles that can soft-delete a member and reset member passwords. */
+export const MEMBER_LIFECYCLE_ROLES = ["owner", "admin", "gestion"] as const;

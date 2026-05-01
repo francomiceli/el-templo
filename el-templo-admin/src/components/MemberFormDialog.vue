@@ -322,14 +322,30 @@
               </div>
             </div>
 
-            <q-input
-              v-model="form.address"
-              label="Domicilio"
-              dense
-              outlined
-              clearable
-              maxlength="500"
-            />
+            <div class="row q-col-gutter-sm items-start">
+              <div class="col-12 col-sm-6">
+                <q-input
+                  v-model="form.address"
+                  label="Domicilio"
+                  dense
+                  outlined
+                  clearable
+                  maxlength="500"
+                />
+              </div>
+              <div v-if="canResetPassword" class="col-12 col-sm-6">
+                <q-btn
+                  flat
+                  icon="lock_reset"
+                  label="Resetear contraseña"
+                  color="primary"
+                  :loading="resettingPassword"
+                  class="full-width"
+                  style="height: 40px"
+                  @click="onResetPasswordClick"
+                />
+              </div>
+            </div>
 
             <!-- Sede y Nivel -->
             <div class="text-subtitle2 text-weight-bold q-mt-md">Sede y Nivel</div>
@@ -441,6 +457,7 @@ import { ref, computed, watch } from 'vue';
 import { useQuasar, type QForm } from 'quasar';
 import { createLogger } from 'src/utils/logger';
 import { useMembersApi } from 'src/composables/useMembersApi';
+import { useAuthStore } from 'src/stores/useAuthStore';
 import { extractError, isExpectedClientError } from 'src/utils/extract-error';
 import type { MemberProfile, BranchOption, UpdateMemberInput } from 'src/types/member';
 
@@ -469,11 +486,62 @@ const emit = defineEmits<{
 
 const membersApi = useMembersApi();
 const $q = useQuasar();
+const authStore = useAuthStore();
 const formRef = ref<InstanceType<typeof QForm> | null>(null);
 const submitting = ref(false);
 const step = ref(1);
+const resettingPassword = ref(false);
 
 const isEditMode = computed(() => !!props.member);
+
+// MEMBER_LIFECYCLE_ROLES (owner | admin | gestion) — mirrors the backend
+// guard on PUT /admin/members/:userId/password. The button is hidden in
+// create mode (no user yet) and for roles outside the allowlist.
+const canResetPassword = computed(() => {
+  if (!isEditMode.value) return false;
+  const role = authStore.user?.role;
+  return role === 'owner' || role === 'admin' || role === 'gestion';
+});
+
+async function onResetPasswordClick(): Promise<void> {
+  if (!props.member) return;
+  $q.dialog({
+    title: 'Resetear contraseña',
+    message:
+      `Vas a resetear la contraseña de ${props.member.firstName ?? ''} ${
+        props.member.lastName ?? ''
+      }`.trim() +
+      '. La nueva contraseña va a ser <b>eltemplo2026</b>. ' +
+      'El alumno la tendrá que cambiar luego desde el perfil.',
+    html: true,
+    cancel: { label: 'Cancelar', flat: true },
+    ok: { label: 'Resetear', color: 'primary' },
+    persistent: true,
+  }).onOk(() => {
+    void resetPassword();
+  });
+}
+
+async function resetPassword(): Promise<void> {
+  if (!props.member) return;
+  resettingPassword.value = true;
+  try {
+    await membersApi.resetMemberPassword(props.member.id);
+    $q.notify({
+      type: 'positive',
+      message: 'Contraseña reseteada a eltemplo2026',
+    });
+  } catch (err: unknown) {
+    const message = extractError(err, 'Error reseteando contraseña');
+    log.error('Error resetting member password', {
+      error: message,
+      userId: props.member.id,
+    });
+    $q.notify({ type: 'negative', message });
+  } finally {
+    resettingPassword.value = false;
+  }
+}
 
 // DNI uniqueness state
 const dniStatus = ref<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -622,9 +690,54 @@ watch(
 // Submit
 // =========================================================================
 
+/**
+ * Detect a "convert online → presencial" save: the user is moving from a
+ * virtual branch (typically Templo Online) to a physical one. Returns true
+ * if the caller should pause and ask for explicit confirmation; false if the
+ * save can proceed silently.
+ */
+function isConvertingToPresencial(): boolean {
+  if (!isEditMode.value || !props.member) return false;
+  const newBranchId = form.value.branchId;
+  if (newBranchId === null || newBranchId === props.member.branchId) {
+    return false;
+  }
+  const oldBranch = props.branches.find((b) => b.id === props.member!.branchId);
+  const newBranch = props.branches.find((b) => b.id === newBranchId);
+  if (!oldBranch || !newBranch) return false;
+  return oldBranch.isVirtual === true && newBranch.isVirtual !== true;
+}
+
+function confirmConversion(): Promise<boolean> {
+  return new Promise((resolve) => {
+    $q.dialog({
+      title: 'Convertir a presencial',
+      message:
+        'Vas a mover al alumno desde el Templo Online a una sede presencial. ' +
+        'Esto va a:<ul class="q-pl-md q-mt-sm">' +
+        '<li>Cancelar la suscripción online activa, si tiene.</li>' +
+        '<li>Dejar al alumno en estado <b>Inactivo</b> hasta que le crees una suscripción presencial.</li>' +
+        '<li>Validar los datos obligatorios para alta presencial (DNI, fecha de nacimiento, domicilio, contacto de emergencia).</li>' +
+        '</ul><p class="q-mt-sm q-mb-none">La contraseña <b>no</b> se resetea automáticamente. Usá el botón "Resetear contraseña" si lo necesitás.</p>',
+      html: true,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Convertir', color: 'primary' },
+      persistent: true,
+    })
+      .onOk(() => resolve(true))
+      .onCancel(() => resolve(false))
+      .onDismiss(() => resolve(false));
+  });
+}
+
 async function onSubmit() {
   const valid = await formRef.value?.validate();
   if (!valid) return;
+
+  if (isConvertingToPresencial()) {
+    const confirmed = await confirmConversion();
+    if (!confirmed) return;
+  }
 
   submitting.value = true;
   try {

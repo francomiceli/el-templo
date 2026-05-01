@@ -1352,4 +1352,379 @@ describe("Members Management Routes", () => {
       expect(body.avatarType).toBeNull();
     });
   });
+
+  // =========================================================================
+  // DELETE — gestion role can soft-delete (MEMBER_LIFECYCLE_ROLES)
+  // =========================================================================
+  describe("DELETE /api/admin/members/:userId — gestion role", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("gestion role can soft-delete a member", async () => {
+      const member = await createMember({
+        email: "gestion-can-delete@test-members.com",
+        dni: "36111222",
+      });
+
+      await createStaffUser(app, {
+        email: "gestion-delete@test.com",
+        password: "gestionpass123",
+        firstName: "Mica",
+        lastName: "Gestion",
+        role: "gestion",
+        branchId: 1,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion-delete@test.com",
+        "gestionpass123",
+      );
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(204);
+
+      const getRes = await app.inject({
+        method: "GET",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(getRes.statusCode).toBe(404);
+    });
+
+    it("recepcion role still cannot soft-delete (not in MEMBER_LIFECYCLE_ROLES)", async () => {
+      const member = await createMember({
+        email: "recepcion-blocked@test-members.com",
+        dni: "36333444",
+      });
+
+      await createStaffUser(app, {
+        email: "recepcion-delete@test.com",
+        password: "recepass123",
+        firstName: "Recep",
+        lastName: "Cion",
+        role: "recepcion",
+        branchId: 1,
+      });
+      const recepcionToken = await getAuthToken(
+        app,
+        "recepcion-delete@test.com",
+        "recepass123",
+      );
+
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${recepcionToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  // =========================================================================
+  // PUT /api/admin/members/:userId/password -- Reset to "eltemplo2026"
+  // =========================================================================
+  describe("PUT /api/admin/members/:userId/password", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    it("admin resets password; member can log in with eltemplo2026", async () => {
+      const member = await createMember({
+        email: "pwd-reset-admin@test-members.com",
+        dni: "37111222",
+      });
+
+      // Manually set a different password to prove the reset overwrites it.
+      const argon2Mod = await import("argon2");
+      const otherHash = await argon2Mod.default.hash("someOtherPass!");
+      await app.db
+        .update(users)
+        .set({ passwordHash: otherHash })
+        .where(eq(users.id, member.id));
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}/password`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(204);
+
+      const token = await getAuthToken(
+        app,
+        "pwd-reset-admin@test-members.com",
+        "eltemplo2026",
+      );
+      expect(typeof token).toBe("string");
+      expect(token.length).toBeGreaterThan(0);
+    });
+
+    it("gestion role can reset a member's password", async () => {
+      const member = await createMember({
+        email: "pwd-reset-gestion@test-members.com",
+        dni: "37333444",
+      });
+
+      await createStaffUser(app, {
+        email: "gestion-pwd@test.com",
+        password: "gestionpass123",
+        firstName: "Mica",
+        lastName: "Gestion",
+        role: "gestion",
+        branchId: 1,
+      });
+      const gestionToken = await getAuthToken(
+        app,
+        "gestion-pwd@test.com",
+        "gestionpass123",
+      );
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}/password`,
+        headers: { authorization: `Bearer ${gestionToken}` },
+      });
+      expect(res.statusCode).toBe(204);
+    });
+
+    it("coach cannot reset passwords (403)", async () => {
+      const member = await createMember({
+        email: "pwd-reset-coach-blocked@test-members.com",
+        dni: "37555666",
+      });
+
+      await createStaffUser(app, {
+        email: "coach-pwd@test.com",
+        password: "coachpass123",
+        firstName: "Coach",
+        lastName: "Test",
+        role: "coach",
+        branchId: 1,
+      });
+      const coachToken = await getAuthToken(
+        app,
+        "coach-pwd@test.com",
+        "coachpass123",
+      );
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}/password`,
+        headers: { authorization: `Bearer ${coachToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("recepcion cannot reset passwords (403)", async () => {
+      const member = await createMember({
+        email: "pwd-reset-rec-blocked@test-members.com",
+        dni: "37777888",
+      });
+
+      await createStaffUser(app, {
+        email: "recepcion-pwd@test.com",
+        password: "recepass123",
+        firstName: "Recep",
+        lastName: "Cion",
+        role: "recepcion",
+        branchId: 1,
+      });
+      const recToken = await getAuthToken(
+        app,
+        "recepcion-pwd@test.com",
+        "recepass123",
+      );
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}/password`,
+        headers: { authorization: `Bearer ${recToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it("refuses to reset a non-member row (target=coach) — 400", async () => {
+      await createStaffUser(app, {
+        email: "protected-coach-pwd@test.com",
+        password: "coachpass123",
+        firstName: "Protected",
+        lastName: "Coach",
+        role: "coach",
+        branchId: 1,
+      });
+      const [row] = await app.db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, "protected-coach-pwd@test.com"));
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${row.id}/password`,
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it("returns 404 for non-existent member id", async () => {
+      const res = await app.inject({
+        method: "PUT",
+        url: "/api/admin/members/99999/password",
+        headers: { authorization: `Bearer ${adminToken}` },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  // =========================================================================
+  // PUT /api/admin/members/:userId — virtual→presencial conversion
+  // =========================================================================
+  describe("PUT /api/admin/members/:userId — virtual→presencial conversion", () => {
+    beforeEach(async () => {
+      await cleanupTestMembers();
+      testPlanId = await createTestPlan();
+    });
+
+    /**
+     * Helper: register a freemium online member (defaults to the ONLINE
+     * virtual branch when branchId is omitted from /auth/register).
+     */
+    async function registerOnlineMember(email: string): Promise<number> {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/auth/register",
+        payload: {
+          email,
+          password: "onlinepass123",
+          firstName: "Online",
+          lastName: "Alumno",
+          gender: "male",
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      return body.user.id;
+    }
+
+    it("blocks conversion when presencial required fields are missing", async () => {
+      const userId = await registerOnlineMember(
+        "conv-missing@test-members.com",
+      );
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          branchId: 1, // physical Test branch
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.message).toContain("convertir a presencial");
+      expect(body.message).toMatch(/DNI|Domicilio|Fecha|contacto/i);
+
+      // Branch did not change.
+      const [row] = await app.db
+        .select({ branchId: users.branchId, status: users.status })
+        .from(users)
+        .where(eq(users.id, userId));
+      expect(row.branchId).not.toBe(1);
+      expect(row.status).toBe("freemium");
+    });
+
+    it("converts a freemium online member to presencial and forces status=inactivo", async () => {
+      const userId = await registerOnlineMember("conv-ok@test-members.com");
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          branchId: 1,
+          dni: "38111222",
+          documentType: "DNI",
+          dateOfBirth: "1990-01-01",
+          address: "Av. Siempreviva 742",
+          emergencyContactName: "Fer",
+          emergencyContactPhone: "+5491155557777",
+          emergencyContactRelationship: "Hermana",
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.branchId).toBe(1);
+      expect(body.status).toBe("inactivo");
+    });
+
+    it("accepts conversion when missing fields were already on the row", async () => {
+      // Register, then patch missing presencial fields directly into the row
+      // without changing the branch — simulates a user who finished
+      // onboarding online and only the branch flip is left.
+      const userId = await registerOnlineMember("conv-merge@test-members.com");
+      await app.db
+        .update(users)
+        .set({
+          dni: "38333444",
+          documentType: "DNI",
+          dateOfBirth: "1990-05-05",
+          address: "Calle Falsa 123",
+          emergencyContactName: "Mica",
+          emergencyContactPhone: "+5491100009999",
+          emergencyContactRelationship: "Madre",
+        })
+        .where(eq(users.id, userId));
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${userId}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { branchId: 1 },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.branchId).toBe(1);
+      expect(body.status).toBe("inactivo");
+    });
+
+    it("a non-branch PUT on a presencial member does not flip status to inactivo", async () => {
+      // Member is already presencial (createMember uses branchId=1) and has
+      // a subscription from the seeded plan — non-conversion edits must not
+      // touch status. We assert status is NOT 'inactivo' (the conversion
+      // sentinel) rather than pinning the exact post-create value, since
+      // the recomputeUserStatus 'prueba' vs 'activo' branch depends on
+      // start_date semantics that are out of scope for this test.
+      const member = await createMember({
+        email: "conv-noop@test-members.com",
+        dni: "38555666",
+      });
+
+      const beforeRow = await app.db
+        .select({ status: users.status })
+        .from(users)
+        .where(eq(users.id, member.id))
+        .limit(1);
+      const statusBefore = beforeRow[0]?.status;
+
+      const res = await app.inject({
+        method: "PUT",
+        url: `/api/admin/members/${member.id}`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { phone: "+5491100001111" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.status).not.toBe("inactivo");
+      expect(body.status).toBe(statusBefore);
+    });
+  });
 });

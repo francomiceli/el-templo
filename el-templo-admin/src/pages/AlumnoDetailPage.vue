@@ -48,69 +48,64 @@
               </div>
             </div>
 
-            <!-- Status badge + segment badge + action buttons -->
-            <div class="q-gutter-sm row items-center">
-              <!-- Phase 103 R10: 4-state badge from users.status (was binary
-                   isActive). For status='prueba' the label embeds the trial
-                   counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
-                   hasUsedTrial flag — replaces the standalone Phase 102 trial
-                   chip. -->
-              <q-badge
-                :color="getStatusColor(memberProfile.status)"
-                :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
-                class="text-body2"
-              />
-              <q-badge
-                v-if="memberProfile.segment"
-                :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
-                :label="
-                  SEGMENT_LABELS[memberProfile.segment as MemberSegment] ?? memberProfile.segment
-                "
-                outline
-                class="text-body2"
-              >
-                <q-tooltip v-if="memberProfile.segmentUpdatedAt">
-                  Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
-                </q-tooltip>
-              </q-badge>
-              <q-badge
-                v-if="memberProfile.avatarType"
-                color="primary"
-                :label="AVATAR_LABELS[memberProfile.avatarType] ?? memberProfile.avatarType"
-                outline
-                class="text-body2"
-              >
-                <q-tooltip>Avatar: {{ memberProfile.avatarType }}</q-tooltip>
-              </q-badge>
-              <q-btn
-                flat
-                icon="edit"
-                label="Editar"
-                color="primary"
-                @click="showEditDialog = true"
-              />
-              <q-btn
-                v-if="canRegisterPayment"
-                flat
-                icon="payments"
-                label="Registrar pago"
-                color="primary"
-                :disable="outstandingConcepts.length === 0"
-                @click="showRegisterPaymentDialog = true"
-              >
-                <q-tooltip v-if="outstandingConcepts.length === 0">
-                  Sin saldos pendientes
-                </q-tooltip>
-              </q-btn>
-              <q-btn
-                v-if="canDeleteMember"
-                flat
-                icon="delete_outline"
-                label="Eliminar"
-                color="negative"
-                :loading="deleting"
-                @click="showDeleteDialog = true"
-              />
+            <!-- Status badge + segment badge stack on top, action buttons
+                 stacked underneath. The wrapper is end-aligned in the row;
+                 buttons inside align items-start so they read top-to-bottom
+                 from the left edge of this end-aligned block. "Registrar
+                 pago" lives inside the Finanzas tab — not in this header. -->
+            <div class="column items-end q-gutter-sm">
+              <div class="row items-center q-gutter-sm">
+                <!-- Phase 103 R10: 4-state badge from users.status (was binary
+                     isActive). For status='prueba' the label embeds the trial
+                     counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
+                     hasUsedTrial flag — replaces the standalone Phase 102 trial
+                     chip. -->
+                <q-badge
+                  :color="getStatusColor(memberProfile.status)"
+                  :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
+                  class="text-body2"
+                />
+                <q-badge
+                  v-if="memberProfile.segment"
+                  :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
+                  :label="
+                    SEGMENT_LABELS[memberProfile.segment as MemberSegment] ?? memberProfile.segment
+                  "
+                  outline
+                  class="text-body2"
+                >
+                  <q-tooltip v-if="memberProfile.segmentUpdatedAt">
+                    Actualizado: {{ formatDate(memberProfile.segmentUpdatedAt) }}
+                  </q-tooltip>
+                </q-badge>
+                <q-badge
+                  v-if="memberProfile.avatarType"
+                  color="primary"
+                  :label="AVATAR_LABELS[memberProfile.avatarType] ?? memberProfile.avatarType"
+                  outline
+                  class="text-body2"
+                >
+                  <q-tooltip>Avatar: {{ memberProfile.avatarType }}</q-tooltip>
+                </q-badge>
+              </div>
+              <div class="column items-start q-gutter-xs">
+                <q-btn
+                  flat
+                  icon="edit"
+                  label="Editar"
+                  color="primary"
+                  @click="showEditDialog = true"
+                />
+                <q-btn
+                  v-if="canDeleteMember"
+                  flat
+                  icon="delete_outline"
+                  label="Eliminar"
+                  color="negative"
+                  :loading="deleting"
+                  @click="showDeleteDialog = true"
+                />
+              </div>
             </div>
           </div>
         </q-card-section>
@@ -396,11 +391,7 @@
 
         <!-- Finanzas Tab (Phase 108) -->
         <q-tab-panel name="finanzas">
-          <FinancialHistoryTab
-            ref="financialHistoryTabRef"
-            :user-id="userId"
-            @voided="onTransactionVoided"
-          />
+          <FinancialHistoryTab :user-id="userId" :member-branch-id="memberProfile.branchId" />
         </q-tab-panel>
       </q-tab-panels>
 
@@ -412,17 +403,6 @@
         :member="memberProfile"
         :branches="branches"
         @saved="onMemberSaved"
-      />
-
-      <!-- ========================================== -->
-      <!-- Register Payment Dialog (Phase 108) -->
-      <!-- ========================================== -->
-      <RegisterPaymentDialog
-        v-model="showRegisterPaymentDialog"
-        :user-id="userId"
-        :member-branch-id="memberProfile.branchId"
-        :outstanding-concepts="outstandingConcepts"
-        @paid="onPaymentRegistered"
       />
 
       <!-- ========================================== -->
@@ -502,10 +482,7 @@ import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
-import RegisterPaymentDialog from 'src/components/RegisterPaymentDialog.vue';
 import FinancialHistoryTab from 'src/components/FinancialHistoryTab.vue';
-import { useTransactionsApi } from 'src/composables/useTransactionsApi';
-import type { OutstandingConcept } from 'src/types/transaction';
 import type { MemberProfile, MemberSegment, BranchOption } from 'src/types/member';
 import { SEGMENT_LABELS, SEGMENT_COLORS, AVATAR_LABELS } from 'src/types/member';
 import {
@@ -543,15 +520,6 @@ const showDeleteDialog = ref(false);
 const deleteConfirmInput = ref('');
 const deleting = ref(false);
 
-// Phase 108 — Outstanding concepts + dialog state
-const transactionsApi = useTransactionsApi();
-const outstandingConcepts = ref<OutstandingConcept[]>([]);
-const showRegisterPaymentDialog = ref(false);
-
-// Phase 108 Plan 05 — Ref al tab "Finanzas" para invocar refresh() tras eventos
-// externos (ej. nuevo pago registrado en RegisterPaymentDialog).
-const financialHistoryTabRef = ref<InstanceType<typeof FinancialHistoryTab> | null>(null);
-
 const userId = computed(() => Number(route.params.userId));
 
 const currentUser = computed(() => authStore.user);
@@ -562,47 +530,6 @@ const canDeleteMember = computed(() => {
   const role = currentUser.value?.role;
   return role === 'admin' || role === 'owner';
 });
-
-// Phase 108 D-23 — FINANCE_WRITE_ROLES (owner | admin | gestion | recepcion).
-// Coach NO ve el botón "Registrar pago".
-const canRegisterPayment = computed(() => {
-  const role = currentUser.value?.role;
-  return (
-    role === 'owner' ||
-    role === 'admin' ||
-    role === 'gestion' ||
-    role === 'recepcion'
-  );
-});
-
-async function loadOutstanding(): Promise<void> {
-  try {
-    outstandingConcepts.value = await transactionsApi.getOutstandingConcepts(
-      userId.value
-    );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Error desconocido';
-    log.error('Error loading outstanding concepts', {
-      error: message,
-      userId: userId.value,
-    });
-    outstandingConcepts.value = [];
-  }
-}
-
-function onPaymentRegistered(): void {
-  void loadOutstanding();
-  // Phase 108 Plan 05 — refrescar el tab "Finanzas" si está montado
-  // (la nueva transacción aparece arriba del timeline).
-  financialHistoryTabRef.value?.refresh();
-}
-
-// Phase 108 Plan 05 — Cuando el tab "Finanzas" anula una transacción,
-// los saldos asociados revierten en el backend → recargar outstanding-concepts
-// para que el botón "Registrar pago" refleje el nuevo estado de saldos.
-function onTransactionVoided(): void {
-  void loadOutstanding();
-}
 
 // Require an exact name match to commit the delete — cheap guardrail against
 // clicking the wrong row. Whitespace and case are normalized.
@@ -775,9 +702,6 @@ async function loadAll() {
     loadGoalPlanDetail();
     // Phase 99 R11: load session-level counts in background (non-blocking)
     loadSessionLevels();
-    // Phase 108: load outstanding concepts in background (non-blocking) —
-    // gates the "Registrar pago" button (D-19).
-    void loadOutstanding();
   } catch {
     pageError.value = 'Error cargando detalle del alumno';
   } finally {

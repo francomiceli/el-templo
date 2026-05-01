@@ -203,4 +203,5 @@ export interface UpdateNoteInput {
 export interface BranchOption {
   id: number;
   name: string;
+  isVirtual?: boolean;
 }

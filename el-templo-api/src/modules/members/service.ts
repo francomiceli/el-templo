@@ -10,6 +10,9 @@ import { eq, and, or, like, sql, desc, ne, isNull, gte } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
+
+/** Temporary password assigned by admin-driven member creation and password reset. */
+export const MEMBER_TEMP_PASSWORD = "eltemplo2026";
 import { buildMemberNameSearchCondition } from "../shared";
 import type { TrainingLevel } from "../shared/training-constants";
 import type {
@@ -402,7 +405,7 @@ export class MemberService {
   async createMember(
     input: CreateMemberInput,
   ): Promise<{ member: MemberProfile; tempPassword: string }> {
-    const tempPassword = "eltemplo2026";
+    const tempPassword = MEMBER_TEMP_PASSWORD;
     const passwordHash = await argon2.hash(tempPassword);
 
     type Level = "alfa" | "delta" | "sigma" | "omega" | "spartan";
@@ -553,6 +556,45 @@ export class MemberService {
         email: scrubbedEmail,
         dni: null,
       })
+      .where(eq(schema.users.id, id));
+
+    return { ok: true };
+  }
+
+  /**
+   * Reset a member's password to MEMBER_TEMP_PASSWORD ("eltemplo2026").
+   * Refuses non-members and soft-deleted rows.
+   *
+   * Returns:
+   *   - { ok: true }
+   *   - { ok: false, reason: "not_found" }
+   *   - { ok: false, reason: "not_member" } — refuses staff
+   *   - { ok: false, reason: "deleted" }    — refuses soft-deleted rows
+   */
+  async resetMemberPassword(
+    id: number,
+  ): Promise<
+    { ok: true } | { ok: false; reason: "not_found" | "not_member" | "deleted" }
+  > {
+    const [existing] = await this.db
+      .select({
+        id: schema.users.id,
+        role: schema.users.role,
+        deletedAt: schema.users.deletedAt,
+      })
+      .from(schema.users)
+      .where(eq(schema.users.id, id))
+      .limit(1);
+
+    if (!existing) return { ok: false, reason: "not_found" };
+    if (existing.deletedAt) return { ok: false, reason: "deleted" };
+    if (existing.role !== "member") return { ok: false, reason: "not_member" };
+
+    const passwordHash = await argon2.hash(MEMBER_TEMP_PASSWORD);
+
+    await this.db
+      .update(schema.users)
+      .set({ passwordHash })
       .where(eq(schema.users.id, id));
 
     return { ok: true };

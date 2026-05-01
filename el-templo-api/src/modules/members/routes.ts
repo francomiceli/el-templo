@@ -36,6 +36,7 @@ import {
   getMemberSchema,
   createMemberSchema,
   updateMemberSchema,
+  resetMemberPasswordSchema,
   checkDniSchema,
   exportMembersSchema,
   uploadPhotoUrlSchema,
@@ -51,6 +52,7 @@ import {
   ADMIN_ROLES,
   MEMBER_ROLES,
   FINANCE_READ_ROLES,
+  MEMBER_LIFECYCLE_ROLES,
 } from "../shared/permissions";
 import { attachCountryScope } from "../shared/country-scope";
 import {
@@ -167,7 +169,11 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     // in practice — kept as defensive default.
 
     return {
-      branches: filtered.map(({ id, name }) => ({ id, name })),
+      branches: filtered.map(({ id, name, isVirtual }) => ({
+        id,
+        name,
+        isVirtual: !!isVirtual,
+      })),
     };
   });
 
@@ -548,6 +554,12 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // `debt`/`isDebtor`/`debtAmount`/`debtCurrency`/`debtNote` get a 400 with
   // a clear error. The new finance model (Phase 106+) exposes
   // POST /transactions for any debt/payment workflow.
+  //
+  // Online → presencial conversion: when branchId moves from a virtual branch
+  // (e.g. ONLINE) to a physical one, the handler validates the presencial
+  // required fields, cancels any active/paused subscription, and forces
+  // status='inactivo' so the admin can immediately enroll the member in a
+  // presencial plan (which will recompute status back to 'activo').
   fastify.put<{
     Params: { userId: number };
     Body: UpdateMemberInput;
@@ -561,6 +573,108 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       try {
+        // Detect online → presencial conversion before applying the update.
+        // We need (a) the current branch's isVirtual to know where the user
+        // is coming from, and (b) the target branch's isVirtual to confirm
+        // the move actually crosses from virtual to physical.
+        let isConversion = false;
+
+        if (request.body.branchId !== undefined) {
+          const [current] = await fastify.db
+            .select({
+              userId: schema.users.id,
+              dni: schema.users.dni,
+              documentType: schema.users.documentType,
+              dateOfBirth: schema.users.dateOfBirth,
+              address: schema.users.address,
+              emergencyContactName: schema.users.emergencyContactName,
+              emergencyContactPhone: schema.users.emergencyContactPhone,
+              emergencyContactRelationship:
+                schema.users.emergencyContactRelationship,
+              currentBranchId: schema.users.branchId,
+              currentBranchIsVirtual: schema.branches.isVirtual,
+            })
+            .from(schema.users)
+            .innerJoin(
+              schema.branches,
+              eq(schema.branches.id, schema.users.branchId),
+            )
+            .where(eq(schema.users.id, request.params.userId))
+            .limit(1);
+
+          if (!current) {
+            return reply.code(404).send({
+              error: "No encontrado",
+              message: "Miembro no encontrado",
+            });
+          }
+
+          if (
+            current.currentBranchIsVirtual &&
+            request.body.branchId !== current.currentBranchId
+          ) {
+            const [target] = await fastify.db
+              .select({ isVirtual: schema.branches.isVirtual })
+              .from(schema.branches)
+              .where(eq(schema.branches.id, request.body.branchId))
+              .limit(1);
+
+            if (target && !target.isVirtual) {
+              isConversion = true;
+
+              // Validate the presencial required-field set against the
+              // merged view of (incoming patch ⊕ current row). A field is
+              // satisfied if the body sets it to a non-empty value OR the
+              // user already has a non-empty value on the row.
+              type Field = {
+                key:
+                  | "dni"
+                  | "documentType"
+                  | "dateOfBirth"
+                  | "address"
+                  | "emergencyContactName"
+                  | "emergencyContactPhone"
+                  | "emergencyContactRelationship";
+                label: string;
+              };
+              const required: Field[] = [
+                { key: "dni", label: "DNI" },
+                { key: "documentType", label: "Tipo de documento" },
+                { key: "dateOfBirth", label: "Fecha de nacimiento" },
+                { key: "address", label: "Domicilio" },
+                {
+                  key: "emergencyContactName",
+                  label: "Nombre del contacto de emergencia",
+                },
+                {
+                  key: "emergencyContactPhone",
+                  label: "Teléfono del contacto de emergencia",
+                },
+                {
+                  key: "emergencyContactRelationship",
+                  label: "Relación del contacto de emergencia",
+                },
+              ];
+
+              const missing: string[] = [];
+              for (const f of required) {
+                const incoming = request.body[f.key];
+                const existing = current[f.key];
+                const value =
+                  incoming !== undefined ? incoming : (existing ?? null);
+                if (value === null || value === "") missing.push(f.label);
+              }
+
+              if (missing.length > 0) {
+                return reply.code(400).send({
+                  error: "Solicitud invalida",
+                  message: `Para convertir a presencial faltan datos: ${missing.join(", ")}`,
+                });
+              }
+            }
+          }
+        }
+
         const member = await memberService.updateMember(
           request.params.userId,
           request.body,
@@ -569,6 +683,66 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           return reply
             .code(404)
             .send({ error: "No encontrado", message: "Miembro no encontrado" });
+        }
+
+        if (isConversion) {
+          // Cancel any active/paused/scheduled subscription tied to the
+          // virtual branch. SubscriptionService.cancelSubscription handles
+          // recomputeUserStatus internally; if the user has no cancellable
+          // sub (typical freemium), we force status='inactivo' ourselves —
+          // recomputeUserStatus is a no-op when transitioning out of
+          // freemium, so the manual write is required.
+          const auraService = new AuraService(fastify.db);
+          const subscriptionService = new SubscriptionService(
+            fastify.db,
+            request.log,
+            auraService,
+          );
+          const notificationService = new NotificationService(
+            fastify.db,
+            request.log,
+          );
+          const bookingService = new BookingService(
+            fastify.db,
+            request.log,
+            subscriptionService,
+            notificationService,
+          );
+          subscriptionService.setBookingService(bookingService);
+
+          let cancelledExistingSub = false;
+          try {
+            await subscriptionService.cancelSubscription(
+              request.params.userId,
+              "Conversión a presencial",
+            );
+            cancelledExistingSub = true;
+          } catch (err) {
+            if (!(err instanceof NotFoundError)) throw err;
+          }
+
+          if (!cancelledExistingSub) {
+            await fastify.db
+              .update(schema.users)
+              .set({ status: "inactivo" })
+              .where(eq(schema.users.id, request.params.userId));
+          }
+
+          request.log.info(
+            {
+              userId: request.params.userId,
+              convertedBy: request.user.userId,
+              cancelledExistingSub,
+            },
+            "Member converted from online to presencial",
+          );
+
+          // Re-read so the response reflects status='inactivo' and any
+          // side-effects from cancelSubscription.
+          const refreshed = await memberService.getMemberById(
+            request.params.userId,
+          );
+          if (refreshed) return refreshed;
         }
 
         return member;
@@ -601,15 +775,20 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
   // Scrubs email + DNI so the person can be re-onboarded with their real
   // identifiers, and sets deletedAt so the row drops out of admin lists and
   // single-member reads. Financial history (financial_transactions,
-  // subscriptions) stays intact. ADMIN_ROLES only — coaches cannot delete.
-  // Refuses to delete non-members (coach/admin/owner rows) as a safety net.
+  // subscriptions) stays intact. MEMBER_LIFECYCLE_ROLES only — coaches and
+  // recepción cannot delete. Refuses to delete non-members (coach/admin/owner
+  // rows) as a safety net.
   fastify.delete<{ Params: { userId: number } }>(
     "/:userId",
     async (request, reply) => {
-      if (!(ADMIN_ROLES as readonly string[]).includes(request.user.role)) {
+      if (
+        !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
+          request.user.role,
+        )
+      ) {
         return reply.code(403).send({
           error: "Acceso denegado",
-          message: "Solo admin/owner puede eliminar alumnos",
+          message: "Solo owner, admin o gestión puede eliminar alumnos",
         });
       }
 
@@ -728,6 +907,84 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       request.log.info(
         { userId: request.params.userId, deletedBy: request.user.userId },
         "Member soft-deleted",
+      );
+
+      return reply.code(204).send();
+    },
+  );
+
+  // PUT /admin/members/:userId/password — Reset a member's password to the
+  // shared temp password ("eltemplo2026"). Operational use case: members
+  // forget their password and Mica/Fer need to unblock them without going
+  // through the self-serve forgot-password flow. MEMBER_LIFECYCLE_ROLES only.
+  fastify.put<{ Params: { userId: number } }>(
+    "/:userId/password",
+    { schema: resetMemberPasswordSchema },
+    async (request, reply) => {
+      if (
+        !(MEMBER_LIFECYCLE_ROLES as readonly string[]).includes(
+          request.user.role,
+        )
+      ) {
+        return reply.code(403).send({
+          error: "Acceso denegado",
+          message: "Solo owner, admin o gestión puede resetear contraseñas",
+        });
+      }
+
+      // Cross-country guard mirrors DELETE: read the row + branch country
+      // and 404 anything outside the actor's scope so nothing leaks.
+      const [target] = await fastify.db
+        .select({
+          id: schema.users.id,
+          role: schema.users.role,
+          deletedAt: schema.users.deletedAt,
+          branchCountry: schema.branches.country,
+          branchIsVirtual: schema.branches.isVirtual,
+        })
+        .from(schema.users)
+        .innerJoin(
+          schema.branches,
+          eq(schema.branches.id, schema.users.branchId),
+        )
+        .where(eq(schema.users.id, request.params.userId))
+        .limit(1);
+
+      if (!target || target.deletedAt) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      if (
+        request.scope.country &&
+        !target.branchIsVirtual &&
+        target.branchCountry !== request.scope.country
+      ) {
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      const result = await memberService.resetMemberPassword(
+        request.params.userId,
+      );
+
+      if (!result.ok) {
+        if (result.reason === "not_member") {
+          return reply.code(400).send({
+            error: "Solicitud invalida",
+            message: "Solo se puede resetear la contraseña de alumnos",
+          });
+        }
+        return reply
+          .code(404)
+          .send({ error: "No encontrado", message: "Miembro no encontrado" });
+      }
+
+      request.log.info(
+        { userId: request.params.userId, resetBy: request.user.userId },
+        "Member password reset to temp password",
       );
 
       return reply.code(204).send();

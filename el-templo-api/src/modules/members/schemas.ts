@@ -279,6 +279,22 @@ export const updateMemberSchema = {
   },
 };
 
+export const resetMemberPasswordSchema = {
+  params: {
+    type: "object",
+    required: ["userId"],
+    properties: {
+      userId: { type: "integer" },
+    },
+  },
+  response: {
+    204: { type: "null" },
+    400: errorSchema,
+    403: errorSchema,
+    404: errorSchema,
+  },
+};
+
 export const checkDniSchema = {
   querystring: {
     type: "object",
