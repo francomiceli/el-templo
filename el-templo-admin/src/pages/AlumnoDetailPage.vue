@@ -46,25 +46,28 @@
                 {{ levelDisplayName(memberProfile.level) }} ·
                 {{ memberProfile.branchName }}
               </div>
+              <!-- Phase 103 R10: 4-state badge from users.status (was binary
+                   isActive). For status='prueba' the label embeds the trial
+                   counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
+                   hasUsedTrial flag — replaces the standalone Phase 102 trial
+                   chip. -->
+              <q-badge
+                :color="getStatusColor(memberProfile.status)"
+                :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
+                class="text-body2 q-mt-xs"
+              />
             </div>
 
-            <!-- Status badge + segment badge stack on top, action buttons
-                 stacked underneath. The wrapper is end-aligned in the row;
-                 buttons inside align items-start so they read top-to-bottom
-                 from the left edge of this end-aligned block. "Registrar
-                 pago" lives inside the Finanzas tab — not in this header. -->
+            <!-- Segment + avatar badges on top, action buttons stacked
+                 underneath. The wrapper is end-aligned in the row; buttons
+                 inside align items-start so they read top-to-bottom from
+                 the left edge of this end-aligned block. "Registrar pago"
+                 lives inside the Finanzas tab — not in this header. -->
             <div class="column items-end q-gutter-sm">
-              <div class="row items-center q-gutter-sm">
-                <!-- Phase 103 R10: 4-state badge from users.status (was binary
-                     isActive). For status='prueba' the label embeds the trial
-                     counter ("En Prueba (0/1)" / "En Prueba (1/1)") via the
-                     hasUsedTrial flag — replaces the standalone Phase 102 trial
-                     chip. -->
-                <q-badge
-                  :color="getStatusColor(memberProfile.status)"
-                  :label="getStatusLabel(memberProfile.status, memberProfile.hasUsedTrial)"
-                  class="text-body2"
-                />
+              <div
+                v-if="memberProfile.segment || memberProfile.avatarType"
+                class="row items-center q-gutter-sm"
+              >
                 <q-badge
                   v-if="memberProfile.segment"
                   :color="SEGMENT_COLORS[memberProfile.segment as MemberSegment] ?? 'grey'"
