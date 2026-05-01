@@ -38,6 +38,7 @@ import {
   updateMemberSchema,
   resetMemberPasswordSchema,
   checkDniSchema,
+  checkDuplicatesSchema,
   exportMembersSchema,
   uploadPhotoUrlSchema,
   listNotesSchema,
@@ -188,6 +189,32 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
     const { dni, excludeUserId } = request.query;
     return memberService.checkDniUniqueness(dni, excludeUserId);
   });
+
+  // GET /admin/members/check-duplicates?dni=X&phone=Y
+  //
+  // Phase 111 Plan 04 (REQ-4). Returns the union of users matching the
+  // exact DNI OR a phone-normalized last-10 expression, excluding
+  // soft-deleted rows. Both querystring fields are optional at the schema
+  // level; the handler enforces "at least one" with a structured 400
+  // (Phase 110 D-05 error shape) so the admin frontend can match by code.
+  // Auth: inherits the module-level MEMBER_ROLES guard at line 110.
+  fastify.get<{
+    Querystring: { dni?: string; phone?: string };
+  }>(
+    "/check-duplicates",
+    { schema: checkDuplicatesSchema },
+    async (request, reply) => {
+      const { dni, phone } = request.query;
+      if (!dni && !phone) {
+        return reply.code(400).send({
+          error: "Solicitud invalida",
+          message: "Al menos uno de dni o phone es requerido",
+          code: "MISSING_QUERY",
+        });
+      }
+      return memberService.checkDuplicates({ dni, phone });
+    },
+  );
 
   // =========================================================================
   // Export (must be defined BEFORE :userId param routes)

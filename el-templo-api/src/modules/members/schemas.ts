@@ -316,6 +316,60 @@ export const checkDniSchema = {
 };
 
 // =============================================================================
+// Check Duplicates (Phase 111 Plan 04 — REQ-4)
+// =============================================================================
+
+// Querystring schema for GET /admin/members/check-duplicates. Both dni and
+// phone are optional at the schema level; the route handler enforces that
+// at least one is provided (400 MISSING_QUERY) so the structured error body
+// can carry the `code` field per Phase 110 D-05.
+export const checkDuplicatesSchema = {
+  querystring: {
+    type: "object",
+    properties: {
+      dni: { type: "string" },
+      phone: { type: "string" },
+    },
+    additionalProperties: false,
+  },
+  response: {
+    200: {
+      type: "object",
+      properties: {
+        matches: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "integer" },
+              firstName: { type: ["string", "null"] },
+              lastName: { type: ["string", "null"] },
+              branchId: { type: "integer" },
+              branchName: { type: "string" },
+              isVirtual: { type: "boolean" },
+              status: {
+                type: ["string", "null"],
+                enum: ["freemium", "prueba", "activo", "inactivo", null],
+              },
+              deletedAt: { type: ["string", "null"] },
+              matchedField: { type: "string", enum: ["dni", "phone"] },
+            },
+          },
+        },
+      },
+    },
+    400: {
+      type: "object",
+      properties: {
+        error: { type: "string" },
+        message: { type: "string" },
+        code: { type: "string" },
+      },
+    },
+  },
+};
+
+// =============================================================================
 // Export Endpoint
 // =============================================================================
 

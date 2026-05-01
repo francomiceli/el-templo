@@ -6,14 +6,25 @@
  */
 
 import { MySql2Database } from "drizzle-orm/mysql2";
-import { eq, and, or, like, sql, desc, ne, isNull, gte } from "drizzle-orm";
+import {
+  eq,
+  and,
+  or,
+  like,
+  sql,
+  desc,
+  ne,
+  isNull,
+  gte,
+  SQL,
+} from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
 import argon2 from "argon2";
 import * as schema from "../../db/schema";
 
 /** Temporary password assigned by admin-driven member creation and password reset. */
 export const MEMBER_TEMP_PASSWORD = "eltemplo2026";
-import { buildMemberNameSearchCondition } from "../shared";
+import { buildMemberNameSearchCondition, normalizePhone } from "../shared";
 import type { TrainingLevel } from "../shared/training-constants";
 import type {
   MemberListParams,
@@ -637,6 +648,89 @@ export class MemberService {
     }
 
     return { available: true };
+  }
+
+  /**
+   * Check for duplicate users matching by DNI exact OR phone normalized
+   * (last-10 digits, AR mobile convention). Excludes soft-deleted users.
+   *
+   * Phase 111 Plan 04 (REQ-4). Phone match runs at SQL level via
+   * `RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ?` — no schema
+   * changes, no new index (D-05 / CONTEXT "Out of scope: phone column").
+   *
+   * If both `dni` and `phone` are provided, returns the union of matches
+   * deduplicated by user id. When a single row matches on both criteria,
+   * `matchedField='dni'` is preferred so the admin sees the stronger
+   * identifier first.
+   */
+  async checkDuplicates(opts: { dni?: string; phone?: string }): Promise<{
+    matches: Array<{
+      id: number;
+      firstName: string | null;
+      lastName: string | null;
+      branchId: number;
+      branchName: string;
+      isVirtual: boolean;
+      status: string | null;
+      deletedAt: string | null;
+      matchedField: "dni" | "phone";
+    }>;
+  }> {
+    const dniInput = opts.dni?.trim() || undefined;
+    const phoneNormalized = opts.phone ? normalizePhone(opts.phone) : undefined;
+
+    // No usable criteria → nothing to query (route already guards 400 in
+    // the missing-both case; this is the additional defensive path when
+    // phone normalizes to "" or dni is whitespace).
+    const orParts: SQL[] = [];
+    if (dniInput) orParts.push(eq(schema.users.dni, dniInput));
+    if (phoneNormalized && phoneNormalized.length > 0) {
+      orParts.push(
+        sql`RIGHT(REGEXP_REPLACE(${schema.users.phone}, '[^0-9]', ''), 10) = ${phoneNormalized}`,
+      );
+    }
+    if (orParts.length === 0) return { matches: [] };
+
+    const rows = await this.db
+      .select({
+        id: schema.users.id,
+        firstName: schema.users.firstName,
+        lastName: schema.users.lastName,
+        branchId: schema.users.branchId,
+        branchName: schema.branches.name,
+        isVirtual: schema.branches.isVirtual,
+        status: schema.users.status,
+        deletedAt: schema.users.deletedAt,
+        dni: schema.users.dni,
+        phone: schema.users.phone,
+      })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.users.branchId, schema.branches.id))
+      .where(and(or(...orParts), isNull(schema.users.deletedAt)));
+
+    // Deduplicate by user id; prefer dni when both criteria match the row.
+    const seen = new Map<number, (typeof rows)[number]>();
+    for (const r of rows) {
+      if (!seen.has(r.id)) seen.set(r.id, r);
+    }
+
+    const matches = Array.from(seen.values()).map((r) => {
+      const matchedField: "dni" | "phone" =
+        dniInput && r.dni === dniInput ? "dni" : "phone";
+      return {
+        id: r.id,
+        firstName: r.firstName,
+        lastName: r.lastName,
+        branchId: r.branchId,
+        branchName: r.branchName,
+        isVirtual: Boolean(r.isVirtual),
+        status: r.status ?? null,
+        deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null,
+        matchedField,
+      };
+    });
+
+    return { matches };
   }
 
   /**
