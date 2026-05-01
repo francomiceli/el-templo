@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 111-02-PLAN.md
-last_updated: "2026-05-01T16:02:59.671Z"
+stopped_at: Completed 111-03-PLAN.md
+last_updated: "2026-05-01T17:04:57.478Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 101
   completed_phases: 87
   total_plans: 397
-  completed_plans: 388
+  completed_plans: 389
   percent: 98
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-27)
 ## Current Position
 
 Phase: 111 (salvaguardas-operativas) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Next: User runs 6 smoke escenarios + signs off VERIFICATION.md before deploying to producción
 Last activity: 2026-05-01
 
@@ -158,6 +158,7 @@ _Updated after each plan completion_
 | Phase 110 P06 | 25m | 3 tasks | 6 files |
 | Phase 111 P01 | 5min | 3 tasks | 6 files |
 | Phase 111 P02 | 6min | 3 tasks | 6 files |
+| Phase 111 P03 | 58min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -360,6 +361,8 @@ Recent decisions affecting current work:
 - Plan 111-02: Hand-wrote 0108_create_audit_log.sql instead of pnpm db:generate — drizzle-kit meta/\_journal.json snapshot is at 0059 while DB is at 0107 so generate either prompts interactively or pollutes the file (Phase 86 / 90 / 103-01 precedent). Drizzle schema in src/db/schema/audit-log.ts is canonical.
 - Plan 111-02: auditLog.write helper takes REQUIRED tx handle (not optional). Helper does NOT open its own transaction — atomicity owned by caller. Test 2 verifies rollback removes the row. T-111-09 mitigation is structural, not runtime.
 - Plan 111-02: TxHandle imported from finance/balance-service (canonical export site) rather than redefined locally. AuditTargetKind union includes 'member' to support REQ-8 reconciliation entries.
+- Phase 111-03: cancelSubscription signature gained required actorId param; 3 internal callers updated to source from request.user.userId (T-111-14/15 mitigation)
+- Phase 111-03: Structured 4xx body emitted by route layer via JSON.parse on BadRequestError.message — preserves global handleServiceError pipeline; cancelErrorSchema whitelists code+details for Fastify response serializer
 
 ### Pending Todos
 
@@ -371,8 +374,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T16:02:49.920Z
-Stopped at: Completed 111-02-PLAN.md
+Last session: 2026-05-01T17:04:49.837Z
+Stopped at: Completed 111-03-PLAN.md
 Resume file: None
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
