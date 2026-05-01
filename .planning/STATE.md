@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Landing Page
 status: unknown
-stopped_at: Completed 111-04-PLAN.md
-last_updated: "2026-05-01T17:29:07.465Z"
+stopped_at: Plan 111-06 partial — checkpoint pending (staging+prod runs of migration 0109)
+last_updated: "2026-05-01T21:24:17.802Z"
 last_activity: 2026-05-01
 progress:
   total_phases: 101
-  completed_phases: 87
+  completed_phases: 88
   total_plans: 397
-  completed_plans: 390
-  percent: 98
+  completed_plans: 392
+  percent: 99
 ---
 
 # Project State
@@ -370,18 +370,24 @@ Plan 111-04: helpers.ts registerUser default phone now per-call unique via times
 Plan 111-04: 400 MISSING_QUERY enforced at route handler (not schema required:[]) so the structured 4xx body carries explicit code per Phase 110 D-05.
 Plan 111-04: dedup by user id with matchedField='dni' preferred when both criteria match the same row — admin sees the stronger identifier first.
 
+- Plan 111-06: data-fix migrations use defensive WHERE-on-BEFORE-state guards + DELETE by id + INSERT … SELECT … WHERE NOT EXISTS — re-runnable as 0-row no-op (verified by Tests 2 and 3)
+- Plan 111-06: refactored run-migrations.ts to export splitSqlStatements + guarded auto-run with require.main check, so integration tests share the production parser without triggering a real migration on import
+- Plan 111-06: balance for sub 6382 zeroed explicitly in step 4 (D-19 — eliminates the inseguro lazy applyDelta path)
+
 ### Pending Todos
 
 None yet.
 
 ### Blockers/Concerns
 
-None yet.
+yet.
+
+- Plan 111-06 task 3 awaiting staging + production runs of migration 0109_reconcile_soledad_mailland.sql (human checkpoint — operator must run pnpm db:migrate on staging then approve prod)
 
 ## Session Continuity
 
-Last session: 2026-05-01T17:29:07.444Z
-Stopped at: Completed 111-04-PLAN.md
-Resume file: None
+Last session: 2026-05-01T21:24:09.040Z
+Stopped at: Plan 111-06 partial — checkpoint pending (staging+prod runs of migration 0109)
+Resume file: Awaiting human approval for staging + production runs
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
