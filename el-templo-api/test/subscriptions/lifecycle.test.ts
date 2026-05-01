@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { eq } from "drizzle-orm";
+import { sql, eq, and, desc } from "drizzle-orm";
 import { createTestApp, getAuthToken, cleanAllTestData } from "../helpers";
 import { subscriptions } from "../../src/db/schema/subscriptions";
+import * as schema from "../../src/db/schema";
 import {
   SUBSCRIPTIONS_URL,
   basePlan,
@@ -418,6 +419,220 @@ describe("Subscriptions API — Lifecycle", () => {
 
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.body).status).toBe("cancelled");
+    });
+
+    // ─── Phase 111-03 REQ-3 + REQ-7 cancel guards ───────────────────────────
+
+    /**
+     * Insert a non-voided financial_transaction + transaction_link targeting
+     * the given subscription. Returns the new tx id. Used to seed the
+     * "active charge tx" precondition for REQ-3 cancel guard tests.
+     */
+    async function seedActiveChargeTx(
+      memberId: number,
+      branchId: number,
+      subId: number,
+      amount: number,
+      voided: boolean = false,
+    ): Promise<number> {
+      const today = todayStr();
+      const [admin] = await app.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, "admin@test.com"))
+        .limit(1);
+      if (!admin) throw new Error("admin@test.com seed missing");
+      const [txRes] = await app.db
+        .insert(schema.financialTransactions)
+        .values({
+          memberId,
+          kind: "plan_charge",
+          direction: "inflow",
+          amount,
+          currency: "ARS",
+          paymentMethod: "cash",
+          transactionDate: today,
+          effectiveDate: today,
+          branchId,
+          recordedBy: admin.id,
+          voidedAt: voided ? new Date() : null,
+          voidedBy: voided ? admin.id : null,
+          voidReason: voided ? "test seed" : null,
+        })
+        .$returningId();
+      await app.db.insert(schema.transactionLinks).values({
+        transactionId: txRes.id,
+        targetKind: "subscription",
+        targetId: subId,
+        allocatedAmount: amount,
+      });
+      return txRes.id;
+    }
+
+    it("REQ-3: cancel returns 400 SUB_HAS_ACTIVE_TRANSACTIONS when a non-voided charge tx exists", async () => {
+      await app.db.execute(sql`DELETE FROM audit_log`);
+      const plan = await createPlan(app, adminToken);
+      const member = await createMember(app);
+      const assigned = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+      });
+      expect(assigned.statusCode).toBe(201);
+      const subId = assigned.body.id as number;
+
+      // The assignPlan flow already creates a charge tx via
+      // recordAssignmentCharge. Seed an additional active charge so we have
+      // a deterministic id list to assert against (and confirm the query
+      // returns more than one when applicable).
+      const extraTxId = await seedActiveChargeTx(
+        member.id,
+        1,
+        subId,
+        12345,
+        false,
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { notes: "should fail" },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.code).toBe("SUB_HAS_ACTIVE_TRANSACTIONS");
+      expect(body.error).toBe("Bad Request");
+      expect(body.message).toContain("transacciones de cobro activas");
+      expect(body.details).toBeDefined();
+      expect(Array.isArray(body.details.transactionIds)).toBe(true);
+      expect(body.details.transactionIds).toContain(extraTxId);
+      expect(typeof body.details.totalAmount).toBe("number");
+      expect(body.details.totalAmount).toBeGreaterThanOrEqual(12345);
+      expect(body.details.currency).toBe("ARS");
+
+      // Ensure no audit row was written (guard fires BEFORE the audit write)
+      const auditRows = await app.db
+        .select()
+        .from(schema.auditLog)
+        .where(
+          and(
+            eq(schema.auditLog.action, "subscription_cancelled"),
+            eq(schema.auditLog.targetId, subId),
+          ),
+        );
+      expect(auditRows).toHaveLength(0);
+    });
+
+    it("REQ-3: cancel succeeds (200) when all charge tx for the sub are voided", async () => {
+      await app.db.execute(sql`DELETE FROM audit_log`);
+      const plan = await createPlan(app, adminToken);
+      const member = await createMember(app);
+      const assigned = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+      });
+      expect(assigned.statusCode).toBe(201);
+      const subId = assigned.body.id as number;
+
+      // Void every charge tx pointing to this sub (assignPlan auto-charge +
+      // any seed). Mark them as voided directly so we don't depend on the
+      // void route.
+      const [admin] = await app.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, "admin@test.com"))
+        .limit(1);
+      if (!admin) throw new Error("admin@test.com seed missing");
+      const linkedTxIds = await app.db
+        .select({ id: schema.financialTransactions.id })
+        .from(schema.transactionLinks)
+        .innerJoin(
+          schema.financialTransactions,
+          eq(
+            schema.transactionLinks.transactionId,
+            schema.financialTransactions.id,
+          ),
+        )
+        .where(
+          and(
+            eq(schema.transactionLinks.targetKind, "subscription"),
+            eq(schema.transactionLinks.targetId, subId),
+          ),
+        );
+      for (const t of linkedTxIds) {
+        await app.db
+          .update(schema.financialTransactions)
+          .set({
+            voidedAt: new Date(),
+            voidedBy: admin.id,
+            voidReason: "test setup — pre-void",
+          })
+          .where(eq(schema.financialTransactions.id, t.id));
+      }
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { notes: "cancel after voiding" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(JSON.parse(res.body).status).toBe("cancelled");
+    });
+
+    it("REQ-7: successful cancelSubscription writes one subscription_cancelled audit row", async () => {
+      await app.db.execute(sql`DELETE FROM audit_log`);
+      const plan = await createPlan(app, adminToken);
+      const member = await createMember(app);
+      const assigned = await assignPlan(app, adminToken, member.id, {
+        planId: plan.id,
+        // priceOverrideAmount=0 with reason → no charge tx, so REQ-3 won't trip
+        priceOverrideAmount: 0,
+        priceOverrideReason: "test (no-charge)",
+      });
+      expect(assigned.statusCode).toBe(201);
+      const subId = assigned.body.id as number;
+      const prevStatus = assigned.body.status as string;
+
+      // Resolve admin id for actorId assertion
+      const [admin] = await app.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(eq(schema.users.email, "admin@test.com"))
+        .limit(1);
+
+      const res = await app.inject({
+        method: "POST",
+        url: `${SUBSCRIPTIONS_URL}/members/${member.id}/subscription/cancel`,
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: { notes: "alumno solicitó la baja" },
+      });
+      expect(res.statusCode).toBe(200);
+
+      const rows = await app.db
+        .select()
+        .from(schema.auditLog)
+        .where(
+          and(
+            eq(schema.auditLog.action, "subscription_cancelled"),
+            eq(schema.auditLog.targetId, subId),
+          ),
+        )
+        .orderBy(desc(schema.auditLog.id));
+
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row.actorId).toBe(admin?.id);
+      expect(row.targetKind).toBe("subscription");
+      expect(row.reason).toBe("alumno solicitó la baja");
+
+      const payload = row.payloadJson as Record<string, unknown>;
+      expect(payload.subId).toBe(subId);
+      expect(payload.prevStatus).toBe(prevStatus);
+      expect(payload.newStatus).toBe("cancelled");
+      expect(payload.hasActiveTx).toBe(false);
+      expect(payload.notes).toBe("alumno solicitó la baja");
+      expect(typeof payload.cancelledAt).toBe("string");
     });
   });
 
