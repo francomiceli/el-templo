@@ -494,19 +494,44 @@ describe("Migration 0111 — program_enrollments add-on columns", () => {
     // errors the production runner also tolerates (Duplicate column / Duplicate
     // key / Duplicate foreign key / already exists). Non-tolerated errors fail
     // the test with a descriptive message.
+    //
+    // Drizzle wraps MySQL errors in `err.cause` — `err.message` only contains
+    // "Failed query: ..." without the real reason. Same pattern as Plan 105-02:
+    // duplicate detection must inspect cause.code / cause.sqlMessage.
     for (const stmt of migrationStatements) {
       try {
         await app.db.execute(sql.raw(stmt));
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const wrapperMsg = err instanceof Error ? err.message : String(err);
+        const cause =
+          err instanceof Error && "cause" in err
+            ? (err as Error & { cause?: unknown }).cause
+            : undefined;
+        const causeCode =
+          cause && typeof cause === "object" && "code" in cause
+            ? String((cause as { code: unknown }).code)
+            : "";
+        const causeMsg =
+          cause && typeof cause === "object" && "sqlMessage" in cause
+            ? String((cause as { sqlMessage: unknown }).sqlMessage)
+            : cause instanceof Error
+              ? cause.message
+              : "";
+        const haystack = `${wrapperMsg}\n${causeCode}\n${causeMsg}`;
         const isDuplicate =
-          msg.includes("Duplicate column name") ||
-          msg.includes("Duplicate key name") ||
-          msg.includes("Duplicate foreign key") ||
-          msg.includes("already exists") ||
-          msg.includes("Can't DROP");
+          /Duplicate column name/i.test(haystack) ||
+          /Duplicate key name/i.test(haystack) ||
+          /Duplicate foreign key/i.test(haystack) ||
+          /Duplicate FOREIGN KEY constraint/i.test(haystack) ||
+          /already exists/i.test(haystack) ||
+          /Can't DROP/i.test(haystack) ||
+          /ER_DUP_FIELDNAME/.test(haystack) ||
+          /ER_DUP_KEYNAME/.test(haystack) ||
+          /ER_FK_DUP_NAME/.test(haystack);
         if (!isDuplicate) {
-          throw new Error(`Replay produced non-tolerated error: ${msg}`);
+          throw new Error(
+            `Replay produced non-tolerated error: ${wrapperMsg} | cause.code=${causeCode} | cause.sqlMessage=${causeMsg}`,
+          );
         }
       }
     }
