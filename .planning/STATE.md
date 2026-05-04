@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.0
-milestone_name: Landing Page
+milestone: v4.85
+milestone_name: Enrollment Service + Admin Add-ons
 status: idle
-stopped_at: Phase 111 COMPLETE — reconcile de Soledad ejecutado en prod, datos verificados; nginx retry config aplicada a api/api-staging
-last_updated: "2026-05-01T22:30:00.000Z"
-last_activity: 2026-05-01
+stopped_at: Milestone v4.85 initialized — defining requirements
+last_updated: "2026-05-04T00:00:00.000Z"
+last_activity: 2026-05-04
 progress:
-  total_phases: 101
-  completed_phases: 89
-  total_plans: 397
-  completed_plans: 397
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-04-27)
+See: .planning/PROJECT.md (updated 2026-05-04)
 
-**Core value:** The admin app is fully operational for physical branches — real member data imported, access control with soft verification, cash box tracking, enhanced payments with discounts and debt management, and role-based permissions for branch staff. v4.8 reemplaza el modelo financiero por uno transaccional unificado.
-**Current focus:** Phase 111 complete — awaiting next phase decision
+**Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
+**Current focus:** Milestone v4.85 started — defining requirements
 
 ## Current Position
 
-Phase: 111 (salvaguardas-operativas) — COMPLETE
-Plan: 6 of 6
-Next: User decides next phase (backlog includes deploy-resilience: pm2 cluster mode + commit nginx retry config to repo templates)
-Last activity: 2026-05-01
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-04 — Milestone v4.85 started
 
 ## Performance Metrics
 
