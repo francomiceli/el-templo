@@ -66,7 +66,14 @@ export interface ProgramDetail extends Program {
 }
 
 // ---- Enrollment types ----
-export type EnrollmentStatus = "active" | "completed" | "expired" | "cancelled";
+// Phase 112 D-02: 'paused' status added so an enrollment can mirror the
+// lifecycle of its parent subscription when the sub is paused.
+export type EnrollmentStatus =
+  | "active"
+  | "completed"
+  | "expired"
+  | "cancelled"
+  | "paused";
 
 export interface ProgramEnrollment {
   id: number;

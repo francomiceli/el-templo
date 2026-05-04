@@ -1201,6 +1201,12 @@ export class SubscriptionService {
             );
 
           // Create new enrollment
+          // Phase 112 Plan 01: source='plan_linked' is required by the new
+          // NOT NULL column. Plan 02 will replace these direct inserts with
+          // EnrollmentService.enrollFromPlan(...) which also wires
+          // subscription_id; for now subscription_id stays null on new rows
+          // (schema FK is nullable) and Plan 03 lifecycle hooks ignore
+          // null-sub rows.
           await tx.insert(schema.programEnrollments).values({
             userId,
             programId: plan.linkedProgramId,
@@ -1208,6 +1214,8 @@ export class SubscriptionService {
             currentWeek: 1,
             sessionsCompletedThisWeek: 0,
             weekUnlockedAt: new Date(),
+            source: "plan_linked",
+            subscriptionId: newSubscriptionId,
           });
 
           this.log.info(
@@ -1254,6 +1262,9 @@ export class SubscriptionService {
           );
 
           if (toCreate.length > 0) {
+            // Phase 112 Plan 01: source='plan_bundle' for grants_all_programs
+            // auto-enrolls; subscription_id wires the new sub so Plan 03
+            // pause/cancel hooks can find the rows.
             await tx.insert(schema.programEnrollments).values(
               toCreate.map((p) => ({
                 userId,
@@ -1262,6 +1273,8 @@ export class SubscriptionService {
                 currentWeek: 1,
                 sessionsCompletedThisWeek: 0,
                 weekUnlockedAt: new Date(),
+                source: "plan_bundle" as const,
+                subscriptionId: newSubscriptionId,
               })),
             );
           }
@@ -2481,6 +2494,8 @@ export class SubscriptionService {
         }
 
         // Create new program enrollment if new plan has a linked program
+        // Phase 112 Plan 01: source='plan_linked' + subscription_id=subId
+        // wires the enrollment to the freshly created sub.
         if (targetPlan.linkedProgramId) {
           await tx.insert(schema.programEnrollments).values({
             userId,
@@ -2489,6 +2504,8 @@ export class SubscriptionService {
             currentWeek: 1,
             sessionsCompletedThisWeek: 0,
             weekUnlockedAt: new Date(),
+            source: "plan_linked",
+            subscriptionId: subId,
           });
 
           this.log.info(
@@ -2533,6 +2550,7 @@ export class SubscriptionService {
           );
 
           if (toCreate.length > 0) {
+            // Phase 112 Plan 01: source='plan_bundle' + subscription_id=subId.
             await tx.insert(schema.programEnrollments).values(
               toCreate.map((p) => ({
                 userId,
@@ -2541,6 +2559,8 @@ export class SubscriptionService {
                 currentWeek: 1,
                 sessionsCompletedThisWeek: 0,
                 weekUnlockedAt: new Date(),
+                source: "plan_bundle" as const,
+                subscriptionId: subId,
               })),
             );
           }
@@ -3188,6 +3208,7 @@ export class SubscriptionService {
 
         // Only create new enrollment if no active one exists
         if (existingEnrollment.length === 0) {
+          // Phase 112 Plan 01: source='plan_linked' + subscription_id=subId.
           await tx.insert(schema.programEnrollments).values({
             userId,
             programId: plan.linkedProgramId,
@@ -3195,6 +3216,8 @@ export class SubscriptionService {
             currentWeek: 1,
             sessionsCompletedThisWeek: 0,
             weekUnlockedAt: new Date(),
+            source: "plan_linked",
+            subscriptionId: subId,
           });
 
           this.log.info(
@@ -3869,6 +3892,8 @@ export class SubscriptionService {
         .limit(1);
 
       if (existing.length === 0) {
+        // Phase 112 Plan 01: source='plan_linked' + subscription_id=scheduled.id
+        // (the just-activated successor sub).
         await this.db.insert(schema.programEnrollments).values({
           userId: scheduled.userId,
           programId: newPlan.linkedProgramId,
@@ -3876,6 +3901,8 @@ export class SubscriptionService {
           currentWeek: 1,
           sessionsCompletedThisWeek: 0,
           weekUnlockedAt: new Date(),
+          source: "plan_linked",
+          subscriptionId: scheduled.id,
         });
 
         this.log.info(
