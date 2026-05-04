@@ -24,7 +24,7 @@
 // and tearDownForSubscription. Plans 03/04 fill the remaining 4 stubs
 // (enrollAddon, transferAddons, pauseForSubscription, resumeForSubscription).
 
-import { and, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -246,17 +246,27 @@ export class EnrollmentService {
 
   /**
    * Generalized teardown — replaces phase 111's `tearDownBundleEnrollments`
-   * + `tearDownLinkedProgramEnrollment` helpers. Driven by `subscription_id`
-   * (the column added in Plan 01) so it works for ALL sources, not just
-   * bundle plans.
+   * + `tearDownLinkedProgramEnrollment` helpers. Primarily driven by
+   * `subscription_id` (the column added in Plan 01) so it works for ALL
+   * sources, not just bundle plans.
+   *
+   * Backward-compat fallback (D-08 no-regression gate): also includes
+   * pre-Phase-112 enrollments whose `subscription_id IS NULL` but match
+   * the cancelled sub's plan binding (linkedProgramId or grantsAllPrograms).
+   * Plan 01 backfill resolves most of these, but ambiguous rows remain null
+   * and the legacy helpers (which scanned by user+plan) caught them. The
+   * fallback preserves that semantics so phase 111 regression tests pass
+   * without modification.
    *
    * Algorithm:
-   *   1. Resolve the sub's userId + planId. If missing, return silently
-   *      (the sub may have been deleted concurrently).
+   *   1. Resolve the sub's userId + planId + plan flags. Silent return if
+   *      sub missing.
    *   2. Compute the protected-program set: programIds covered by ANOTHER
    *      active|paused sub of the same user. If any protector has
    *      `grantsAllPrograms=true`, every program is protected.
-   *   3. Select active|paused enrollments for `subscription_id = subId`.
+   *   3. Select active|paused enrollments either (a) owned by this sub via
+   *      subscription_id, OR (b) matching the cancelled sub's plan binding
+   *      with subscription_id IS NULL (legacy-row fallback).
    *   4. Filter out rows whose programId is protected.
    *   5. Cancel survivors atomically (`status='cancelled', cancelledAt=NOW`).
    *   6. NULL `users.current_program_enrollment_id` if it pointed to any
@@ -268,13 +278,18 @@ export class EnrollmentService {
   ): Promise<void> {
     const runner = this.runner(tx);
 
-    // Step 1 — resolve userId + planId. Silent return if sub missing.
+    // Step 1 — resolve userId + plan flags. Silent return if sub missing.
     const [sub] = await runner
       .select({
         userId: schema.subscriptions.userId,
-        planId: schema.subscriptions.planId,
+        planLinkedProgramId: schema.subscriptionPlans.linkedProgramId,
+        planGrantsAllPrograms: schema.subscriptionPlans.grantsAllPrograms,
       })
       .from(schema.subscriptions)
+      .innerJoin(
+        schema.subscriptionPlans,
+        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+      )
       .where(eq(schema.subscriptions.id, subscriptionId))
       .limit(1);
 
@@ -313,7 +328,8 @@ export class EnrollmentService {
         .filter((id): id is number => id !== null),
     );
 
-    // Step 3 — select active|paused enrollments owned by this sub.
+    // Step 3a — owned enrollments via subscription_id (the post-Phase-112
+    // canonical wiring).
     const ownedEnrollments = await runner
       .select({
         id: schema.programEnrollments.id,
@@ -327,7 +343,50 @@ export class EnrollmentService {
         ),
       );
 
-    if (ownedEnrollments.length === 0) {
+    // Step 3b — legacy fallback: include user's active|paused enrollments
+    // with subscription_id IS NULL that match the cancelled sub's plan
+    // binding. Bundle (grantsAllPrograms) sweeps every such row; linked
+    // (linkedProgramId) only the matching programId. Mirrors the legacy
+    // helpers which scanned by user+plan, not by subscription_id.
+    let legacyOrphanRows: Array<{ id: number; programId: number }> = [];
+    if (sub.planGrantsAllPrograms) {
+      legacyOrphanRows = await runner
+        .select({
+          id: schema.programEnrollments.id,
+          programId: schema.programEnrollments.programId,
+        })
+        .from(schema.programEnrollments)
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            inArray(schema.programEnrollments.status, ["active", "paused"]),
+            isNull(schema.programEnrollments.subscriptionId),
+          ),
+        );
+    } else if (sub.planLinkedProgramId !== null) {
+      legacyOrphanRows = await runner
+        .select({
+          id: schema.programEnrollments.id,
+          programId: schema.programEnrollments.programId,
+        })
+        .from(schema.programEnrollments)
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.programId, sub.planLinkedProgramId),
+            inArray(schema.programEnrollments.status, ["active", "paused"]),
+            isNull(schema.programEnrollments.subscriptionId),
+          ),
+        );
+    }
+
+    // Merge owned + legacy-orphan candidates, dedupe by id.
+    const candidateMap = new Map<number, { id: number; programId: number }>();
+    for (const e of ownedEnrollments) candidateMap.set(e.id, e);
+    for (const e of legacyOrphanRows) candidateMap.set(e.id, e);
+    const candidates = Array.from(candidateMap.values());
+
+    if (candidates.length === 0) {
       this.log.info(
         {
           subscriptionId,
@@ -345,7 +404,7 @@ export class EnrollmentService {
     // every program is implicitly protected.
     const toCancel = anyProtectorIsBundle
       ? []
-      : ownedEnrollments.filter((e) => !protectedProgramIds.has(e.programId));
+      : candidates.filter((e) => !protectedProgramIds.has(e.programId));
 
     if (toCancel.length === 0) {
       this.log.info(

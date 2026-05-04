@@ -56,6 +56,7 @@ import type { PaymentMethod } from "../finance/types";
 import type { GoalPlanType } from "../goal-plans/types";
 import { populateBookings } from "./booking-population";
 import { auditLog } from "../shared/audit-log";
+import { EnrollmentService } from "../programs/enrollment-service";
 
 // ─── Charge flow taxonomy (Phase 107) ─────────────────────────────────────────
 
@@ -153,6 +154,7 @@ export class SubscriptionService {
     private log: FastifyBaseLogger,
     private auraService: AuraService,
     private transactionService?: TransactionService,
+    private enrollmentService?: EnrollmentService,
   ) {}
 
   /**
@@ -160,6 +162,22 @@ export class SubscriptionService {
    */
   setBookingService(bookingService: BookingServiceType): void {
     this.bookingService = bookingService;
+  }
+
+  /**
+   * Phase 112-02: every program_enrollments mutation now flows through
+   * EnrollmentService. The DI param stays optional during the rollout (Plan
+   * 03 wires the remaining 11 instantiation sites in this same plan, Task 3),
+   * but every call MUST go through this guard so a missing wiring surfaces
+   * as a loud runtime error rather than a silent no-op (T-112-02-02).
+   */
+  private requireEnrollmentService(): EnrollmentService {
+    if (!this.enrollmentService) {
+      throw new Error(
+        "EnrollmentService not injected — DI site missing (phase 112-02)",
+      );
+    }
+    return this.enrollmentService;
   }
 
   // ─── Plans CRUD ──────────────────────────────────────────────────────────
@@ -1186,107 +1204,26 @@ export class SubscriptionService {
           }
         }
 
-        // Auto-create program enrollment if plan has linked program (D-34/D-39)
-        if (plan.linkedProgramId) {
-          // Cancel any existing active enrollment for this user in this program
-          await tx
-            .update(schema.programEnrollments)
-            .set({ status: "cancelled", cancelledAt: new Date() })
-            .where(
-              and(
-                eq(schema.programEnrollments.userId, userId),
-                eq(schema.programEnrollments.programId, plan.linkedProgramId),
-                eq(schema.programEnrollments.status, "active"),
-              ),
-            );
-
-          // Create new enrollment
-          // Phase 112 Plan 01: source='plan_linked' is required by the new
-          // NOT NULL column. Plan 02 will replace these direct inserts with
-          // EnrollmentService.enrollFromPlan(...) which also wires
-          // subscription_id; for now subscription_id stays null on new rows
-          // (schema FK is nullable) and Plan 03 lifecycle hooks ignore
-          // null-sub rows.
-          await tx.insert(schema.programEnrollments).values({
+        // Phase 112-02: program enrollment (linked + bundle) flows through
+        // EnrollmentService. The single call covers both the
+        // plan.linkedProgramId branch and the plan.grantsAllPrograms
+        // (Foundation-excluded) bundle branch — driven internally by plan
+        // flags. All writes share `tx` so rollback semantics are preserved.
+        // Guarded by the plan flags so plans with neither binding (e.g.
+        // pure-presencial plans without a linked program) skip the
+        // enrollment chokepoint entirely — keeps test instantiations that
+        // omit EnrollmentService working, and avoids spurious DI errors on
+        // flows that have nothing to enroll.
+        if (plan.linkedProgramId || plan.grantsAllPrograms) {
+          await this.requireEnrollmentService().enrollFromPlan(
             userId,
-            programId: plan.linkedProgramId,
-            status: "active",
-            currentWeek: 1,
-            sessionsCompletedThisWeek: 0,
-            weekUnlockedAt: new Date(),
-            source: "plan_linked",
-            subscriptionId: newSubscriptionId,
-          });
-
-          this.log.info(
-            { userId, programId: plan.linkedProgramId },
-            "Auto-created program enrollment from plan assignment",
-          );
-        }
-
-        // Phase 104 R3 + Foundation exclusion (checker WARNING): bundle
-        // auto-enroll. If this plan grants access to all programs, create
-        // one active enrollment per programs.isActive=true AND
-        // goalPlanType IS NOT NULL that the user is not already actively
-        // enrolled in. Foundation programs (goalPlanType=null) are EXCLUDED
-        // because they reuse W* templo session content — granting bundle
-        // users Foundation enrollments would let them hit /sessions/* for
-        // W* templo content without a presencial sub, defeating R7's
-        // anti-piracy intent.
-        if (plan.grantsAllPrograms) {
-          const activePrograms = await tx
-            .select({ id: schema.programs.id })
-            .from(schema.programs)
-            .where(
-              and(
-                eq(schema.programs.isActive, true),
-                isNotNull(schema.programs.goalPlanType),
-              ),
-            );
-
-          const existingActiveEnrollments = await tx
-            .select({ programId: schema.programEnrollments.programId })
-            .from(schema.programEnrollments)
-            .where(
-              and(
-                eq(schema.programEnrollments.userId, userId),
-                eq(schema.programEnrollments.status, "active"),
-              ),
-            );
-          const alreadyEnrolledIds = new Set(
-            existingActiveEnrollments.map((r) => r.programId),
-          );
-
-          const toCreate = activePrograms.filter(
-            (p) => !alreadyEnrolledIds.has(p.id),
-          );
-
-          if (toCreate.length > 0) {
-            // Phase 112 Plan 01: source='plan_bundle' for grants_all_programs
-            // auto-enrolls; subscription_id wires the new sub so Plan 03
-            // pause/cancel hooks can find the rows.
-            await tx.insert(schema.programEnrollments).values(
-              toCreate.map((p) => ({
-                userId,
-                programId: p.id,
-                status: "active" as const,
-                currentWeek: 1,
-                sessionsCompletedThisWeek: 0,
-                weekUnlockedAt: new Date(),
-                source: "plan_bundle" as const,
-                subscriptionId: newSubscriptionId,
-              })),
-            );
-          }
-
-          this.log.info(
             {
-              userId,
-              planId: plan.id,
-              enrolledCount: toCreate.length,
-              alreadyEnrolledCount: alreadyEnrolledIds.size,
+              id: plan.id,
+              linkedProgramId: plan.linkedProgramId,
+              grantsAllPrograms: plan.grantsAllPrograms,
             },
-            "Bundle (Todos los Programas) auto-enroll completed (Foundation excluded)",
+            newSubscriptionId,
+            tx,
           );
         }
 
@@ -2057,20 +1994,13 @@ export class SubscriptionService {
           ),
         );
 
-      // Phase 104 R4 + linked-program teardown: cancel any program
-      // enrollments owned by this subscription's plan. Bundle helper handles
-      // grants_all_programs=true; linked-program helper handles
-      // linkedProgramId. Both are no-ops if their precondition fails; calling
-      // both keeps the cancel path symmetric with assign/changePlanNow.
-      // Runs inside the same tx so cancellation + enrollment teardown +
-      // pointer cleanup are atomic.
-      await this.tearDownBundleEnrollments(tx, userId, sub.id, sub.planId);
-      await this.tearDownLinkedProgramEnrollment(
-        tx,
-        userId,
-        sub.id,
-        sub.planId,
-      );
+      // Phase 112-02: enrollment teardown is now driven by subscription_id
+      // via EnrollmentService.tearDownForSubscription, generalized across
+      // all sources (plan_linked, plan_bundle, admin_addon). Replaces the
+      // legacy tearDownBundleEnrollments + tearDownLinkedProgramEnrollment
+      // pair with a single call. Runs inside the same tx so cancellation +
+      // enrollment teardown + pointer cleanup are atomic.
+      await this.requireEnrollmentService().tearDownForSubscription(sub.id, tx);
 
       await this.recomputeUserStatus(userId, tx);
 
@@ -2317,19 +2247,15 @@ export class SubscriptionService {
       targetPlan.priceRegular - proration.remainingValue,
     );
 
-    // Phase 104 R4: if the outgoing plan was a bundle, tear down its
-    // enrollments BEFORE closing it. Runs on this.db (not in the new-sub
-    // tx) by design — we want the teardown committed so the auto-enroll
-    // loop in the new-sub tx sees a clean slate. No-op if currentPlan is
-    // not a bundle.
-    if (currentPlan.grantsAllPrograms) {
-      await this.tearDownBundleEnrollments(
-        this.db,
-        userId,
-        existingSub.id,
-        existingSub.planId,
-      );
-    }
+    // Phase 112-02: tear down the outgoing sub's enrollments BEFORE closing
+    // it. Runs on this.db (not in the new-sub tx) by design — we want the
+    // teardown committed so the auto-enroll inside the new-sub tx sees a
+    // clean slate. Generalized across all sources (was bundle-only via
+    // tearDownBundleEnrollments) — driven by subscription_id so it covers
+    // plan_linked, plan_bundle, and admin_addon rows symmetrically.
+    await this.requireEnrollmentService().tearDownForSubscription(
+      existingSub.id,
+    );
 
     // Close old subscription with status='changed'.
     // We do this BEFORE creating the new one. If new creation fails,
@@ -2471,108 +2397,23 @@ export class SubscriptionService {
           }
         }
 
-        // Cancel old program enrollment if old plan had a linked program
-        if (currentPlan.linkedProgramId) {
-          await tx
-            .update(schema.programEnrollments)
-            .set({ status: "cancelled", cancelledAt: new Date() })
-            .where(
-              and(
-                eq(schema.programEnrollments.userId, userId),
-                eq(
-                  schema.programEnrollments.programId,
-                  currentPlan.linkedProgramId,
-                ),
-                eq(schema.programEnrollments.status, "active"),
-              ),
-            );
-
-          this.log.info(
-            { userId, programId: currentPlan.linkedProgramId },
-            "Cancelled program enrollment from old plan on plan change",
-          );
-        }
-
-        // Create new program enrollment if new plan has a linked program
-        // Phase 112 Plan 01: source='plan_linked' + subscription_id=subId
-        // wires the enrollment to the freshly created sub.
-        if (targetPlan.linkedProgramId) {
-          await tx.insert(schema.programEnrollments).values({
+        // Phase 112-02: program enrollment for the new plan flows through
+        // EnrollmentService — single call covers both linkedProgramId and
+        // grantsAllPrograms branches. The OLD plan's enrollment was already
+        // torn down above by tearDownForSubscription(existingSub.id) (which
+        // is driven by subscription_id, not plan flags), so no inline cancel
+        // block is needed here. Guarded by plan flags so plans with neither
+        // binding skip the chokepoint cleanly (matches assignPlan precedent).
+        if (targetPlan.linkedProgramId || targetPlan.grantsAllPrograms) {
+          await this.requireEnrollmentService().enrollFromPlan(
             userId,
-            programId: targetPlan.linkedProgramId,
-            status: "active",
-            currentWeek: 1,
-            sessionsCompletedThisWeek: 0,
-            weekUnlockedAt: new Date(),
-            source: "plan_linked",
-            subscriptionId: subId,
-          });
-
-          this.log.info(
-            { userId, programId: targetPlan.linkedProgramId },
-            "Auto-created program enrollment from plan change",
-          );
-        }
-
-        // Phase 104 R3 + Foundation exclusion: bundle auto-enroll on plan
-        // change. Mirrors the assignPlan branch — same Foundation filter,
-        // same idempotency. The double-bundle 409 guard from assignPlan is
-        // NOT re-checked here; by definition the outgoing sub (which the
-        // changePlanNow flow is closing) was the user's "current" online
-        // sub, so any other active bundle would have been blocked when
-        // assigned in the first place.
-        if (targetPlan.grantsAllPrograms) {
-          const activePrograms = await tx
-            .select({ id: schema.programs.id })
-            .from(schema.programs)
-            .where(
-              and(
-                eq(schema.programs.isActive, true),
-                isNotNull(schema.programs.goalPlanType),
-              ),
-            );
-
-          const existingActiveEnrollments = await tx
-            .select({ programId: schema.programEnrollments.programId })
-            .from(schema.programEnrollments)
-            .where(
-              and(
-                eq(schema.programEnrollments.userId, userId),
-                eq(schema.programEnrollments.status, "active"),
-              ),
-            );
-          const alreadyEnrolledIds = new Set(
-            existingActiveEnrollments.map((r) => r.programId),
-          );
-
-          const toCreate = activePrograms.filter(
-            (p) => !alreadyEnrolledIds.has(p.id),
-          );
-
-          if (toCreate.length > 0) {
-            // Phase 112 Plan 01: source='plan_bundle' + subscription_id=subId.
-            await tx.insert(schema.programEnrollments).values(
-              toCreate.map((p) => ({
-                userId,
-                programId: p.id,
-                status: "active" as const,
-                currentWeek: 1,
-                sessionsCompletedThisWeek: 0,
-                weekUnlockedAt: new Date(),
-                source: "plan_bundle" as const,
-                subscriptionId: subId,
-              })),
-            );
-          }
-
-          this.log.info(
             {
-              userId,
-              planId: targetPlan.id,
-              enrolledCount: toCreate.length,
-              alreadyEnrolledCount: alreadyEnrolledIds.size,
+              id: targetPlan.id,
+              linkedProgramId: targetPlan.linkedProgramId,
+              grantsAllPrograms: targetPlan.grantsAllPrograms,
             },
-            "Bundle (Todos los Programas) auto-enroll completed via changePlanNow (Foundation excluded)",
+            subId,
+            tx,
           );
         }
 
@@ -3193,36 +3034,39 @@ export class SubscriptionService {
           .where(eq(schema.subscriptions.id, subId));
       }
 
-      // Handle program enrollment on renewal
-      if (plan.linkedProgramId) {
-        const existingEnrollment = await tx
-          .select({ id: schema.programEnrollments.id })
-          .from(schema.programEnrollments)
-          .where(
-            and(
-              eq(schema.programEnrollments.userId, userId),
-              eq(schema.programEnrollments.programId, plan.linkedProgramId),
-              eq(schema.programEnrollments.status, "active"),
-            ),
-          );
-
-        // Only create new enrollment if no active one exists
-        if (existingEnrollment.length === 0) {
-          // Phase 112 Plan 01: source='plan_linked' + subscription_id=subId.
-          await tx.insert(schema.programEnrollments).values({
+      // Phase 112-02: program enrollment on renewal flows through
+      // EnrollmentService. Behavior preservation gate (D-08): the legacy
+      // renewal path created the enrollment ONLY when no active enrollment
+      // already existed (preserving in-flight currentWeek progress when the
+      // user renewed mid-program). enrollFromPlan's linked-program branch
+      // is cancel-then-insert by contract (assignPlan / changePlan need
+      // that), so we keep the legacy guard at this callsite to avoid
+      // resetting currentWeek=1 on a still-running enrollment.
+      if (plan.linkedProgramId || plan.grantsAllPrograms) {
+        let shouldEnroll = true;
+        if (plan.linkedProgramId) {
+          const existingEnrollment = await tx
+            .select({ id: schema.programEnrollments.id })
+            .from(schema.programEnrollments)
+            .where(
+              and(
+                eq(schema.programEnrollments.userId, userId),
+                eq(schema.programEnrollments.programId, plan.linkedProgramId),
+                eq(schema.programEnrollments.status, "active"),
+              ),
+            );
+          shouldEnroll = existingEnrollment.length === 0;
+        }
+        if (shouldEnroll) {
+          await this.requireEnrollmentService().enrollFromPlan(
             userId,
-            programId: plan.linkedProgramId,
-            status: "active",
-            currentWeek: 1,
-            sessionsCompletedThisWeek: 0,
-            weekUnlockedAt: new Date(),
-            source: "plan_linked",
-            subscriptionId: subId,
-          });
-
-          this.log.info(
-            { userId, programId: plan.linkedProgramId },
-            "Auto-created program enrollment on renewal",
+            {
+              id: plan.id,
+              linkedProgramId: plan.linkedProgramId,
+              grantsAllPrograms: plan.grantsAllPrograms,
+            },
+            subId,
+            tx,
           );
         }
       }
@@ -3447,247 +3291,6 @@ export class SubscriptionService {
   // ─── Private Helpers ──────────────────────────────────────────────────────
 
   /**
-   * Phase 104 R4 + currentProgramEnrollmentId hygiene (SPEC Constraints):
-   * cancel program_enrollments owned by a bundle subscription, preserving
-   * any enrollment whose program is also covered by another active or
-   * paused subscription's linkedProgramId. After cancellation, NULL out
-   * users.current_program_enrollment_id if it points at any of the
-   * just-cancelled enrollments — required by SPEC line 109 to avoid
-   * stale pointers in /members/me/current-program (Plan 04) and the
-   * member app program selector (Plan 05).
-   *
-   * Caller MAY pass a tx (preferred — keeps cancellation + pointer
-   * cleanup atomic with the parent op) or this.db (auto-expire path;
-   * best-effort, repaired idempotently on next read).
-   *
-   * No-op if the sub's plan is not a bundle (grants_all_programs=false).
-   */
-  private async tearDownBundleEnrollments(
-    txOrDb:
-      | MySql2Database<typeof schema>
-      | Parameters<
-          Parameters<MySql2Database<typeof schema>["transaction"]>[0]
-        >[0],
-    userId: number,
-    subscriptionId: number,
-    planId: number,
-  ): Promise<void> {
-    const subPlan = await txOrDb
-      .select({
-        grantsAllPrograms: schema.subscriptionPlans.grantsAllPrograms,
-      })
-      .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, planId))
-      .limit(1);
-
-    if (!subPlan[0]?.grantsAllPrograms) return;
-
-    // Programs protected by other active/paused subs (linkedProgramId binding).
-    const protectedRows = await txOrDb
-      .select({ programId: schema.subscriptionPlans.linkedProgramId })
-      .from(schema.subscriptions)
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
-      )
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-          ),
-          ne(schema.subscriptions.id, subscriptionId),
-        ),
-      );
-    const protectedProgramIds = new Set(
-      protectedRows
-        .map((r) => r.programId)
-        .filter((id): id is number => id !== null),
-    );
-
-    const activeEnrollments = await txOrDb
-      .select({
-        id: schema.programEnrollments.id,
-        programId: schema.programEnrollments.programId,
-      })
-      .from(schema.programEnrollments)
-      .where(
-        and(
-          eq(schema.programEnrollments.userId, userId),
-          eq(schema.programEnrollments.status, "active"),
-        ),
-      );
-
-    const toCancel = activeEnrollments.filter(
-      (e) => !protectedProgramIds.has(e.programId),
-    );
-
-    if (toCancel.length === 0) {
-      this.log.info(
-        {
-          userId,
-          subscriptionId,
-          protectedCount: protectedProgramIds.size,
-        },
-        "Bundle teardown: nothing to cancel",
-      );
-      return;
-    }
-
-    const toCancelIds = toCancel.map((e) => e.id);
-
-    for (const enr of toCancel) {
-      await txOrDb
-        .update(schema.programEnrollments)
-        .set({ status: "cancelled", cancelledAt: new Date() })
-        .where(eq(schema.programEnrollments.id, enr.id));
-    }
-
-    // SPEC Constraints line 109: clear stale pointer atomically with
-    // the cancellation. If users.current_program_enrollment_id points
-    // at any of the just-cancelled enrollments, NULL it.
-    await txOrDb
-      .update(schema.users)
-      .set({ currentProgramEnrollmentId: null })
-      .where(
-        and(
-          eq(schema.users.id, userId),
-          inArray(schema.users.currentProgramEnrollmentId, toCancelIds),
-        ),
-      );
-
-    this.log.info(
-      {
-        userId,
-        subscriptionId,
-        cancelledCount: toCancel.length,
-        protectedCount: protectedProgramIds.size,
-      },
-      "Bundle (Todos los Programas) teardown completed (pointer cleared if stale)",
-    );
-  }
-
-  /**
-   * Cancel the program_enrollment owned by a non-bundle subscription via its
-   * plan's linkedProgramId binding. Mirrors tearDownBundleEnrollments but for
-   * the single-program-plan case (assignPlan / changePlanNow / renewal create
-   * one enrollment per linkedProgramId; cancelSubscription / autoExpire must
-   * tear it down symmetrically — historical bug: only the bundle path did).
-   *
-   * Protection: if the user has ANOTHER active|paused subscription whose plan
-   * also links to the same program, keep the enrollment alive. Mirrors the
-   * bundle helper's protection logic so concurrent dual subscriptions sharing
-   * a linked program (e.g. presencial + online_goal both pointing at
-   * Foundation) don't lose access when one ends.
-   *
-   * Caller MAY pass a tx (preferred — keeps cancellation + pointer cleanup
-   * atomic with the parent op) or this.db (auto-expire path; best-effort,
-   * repaired idempotently on next read).
-   *
-   * No-op if the sub's plan has no linkedProgramId.
-   */
-  private async tearDownLinkedProgramEnrollment(
-    txOrDb:
-      | MySql2Database<typeof schema>
-      | Parameters<
-          Parameters<MySql2Database<typeof schema>["transaction"]>[0]
-        >[0],
-    userId: number,
-    subscriptionId: number,
-    planId: number,
-  ): Promise<void> {
-    const [subPlan] = await txOrDb
-      .select({
-        linkedProgramId: schema.subscriptionPlans.linkedProgramId,
-      })
-      .from(schema.subscriptionPlans)
-      .where(eq(schema.subscriptionPlans.id, planId))
-      .limit(1);
-
-    const linkedProgramId = subPlan?.linkedProgramId ?? null;
-    if (linkedProgramId === null) return;
-
-    // Protection: another active|paused sub of this user that ALSO links to
-    // the same program keeps the enrollment alive.
-    const [protector] = await txOrDb
-      .select({ id: schema.subscriptions.id })
-      .from(schema.subscriptions)
-      .innerJoin(
-        schema.subscriptionPlans,
-        eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
-      )
-      .where(
-        and(
-          eq(schema.subscriptions.userId, userId),
-          or(
-            eq(schema.subscriptions.status, "active"),
-            eq(schema.subscriptions.status, "paused"),
-          ),
-          ne(schema.subscriptions.id, subscriptionId),
-          eq(schema.subscriptionPlans.linkedProgramId, linkedProgramId),
-        ),
-      )
-      .limit(1);
-
-    if (protector) {
-      this.log.info(
-        {
-          userId,
-          subscriptionId,
-          linkedProgramId,
-          protectorSubId: protector.id,
-        },
-        "Linked-program teardown: enrollment protected by another sub",
-      );
-      return;
-    }
-
-    // Cancel any active enrollment(s) of the linked program for this user.
-    const activeEnrollments = await txOrDb
-      .select({ id: schema.programEnrollments.id })
-      .from(schema.programEnrollments)
-      .where(
-        and(
-          eq(schema.programEnrollments.userId, userId),
-          eq(schema.programEnrollments.programId, linkedProgramId),
-          eq(schema.programEnrollments.status, "active"),
-        ),
-      );
-
-    if (activeEnrollments.length === 0) return;
-
-    const enrollmentIds = activeEnrollments.map((e) => e.id);
-
-    await txOrDb
-      .update(schema.programEnrollments)
-      .set({ status: "cancelled", cancelledAt: new Date() })
-      .where(inArray(schema.programEnrollments.id, enrollmentIds));
-
-    // Clear stale users.current_program_enrollment_id if it points at any
-    // of the just-cancelled rows.
-    await txOrDb
-      .update(schema.users)
-      .set({ currentProgramEnrollmentId: null })
-      .where(
-        and(
-          eq(schema.users.id, userId),
-          inArray(schema.users.currentProgramEnrollmentId, enrollmentIds),
-        ),
-      );
-
-    this.log.info(
-      {
-        userId,
-        subscriptionId,
-        linkedProgramId,
-        cancelledCount: enrollmentIds.length,
-      },
-      "Linked-program enrollment teardown completed (pointer cleared if stale)",
-    );
-  }
-
-  /**
    * Auto-expire active subscriptions past their end date for a given user.
    * "Expire on read" pattern — no cron job needed.
    * If the expiring sub has a scheduled successor (from early renewal),
@@ -3752,38 +3355,18 @@ export class SubscriptionService {
         .where(inArray(schema.subscriptions.id, expiredOnlyIds));
     }
 
-    // Phase 104 R4 + linked-program teardown: for every just-expired sub,
-    // tear down owned enrollments. Bundle helper (grants_all_programs=true)
-    // and linked-program helper (linkedProgramId != null) are mutually
-    // exclusive in practice but both are called for correctness — each is
-    // a no-op if its precondition fails. Best-effort: not wrapped in a tx
-    // with the status flip above (would require touching the
-    // activateScheduledSub path too — out of scope per Phase 103 D-16).
-    // Safe because the helpers only act on currently-active enrollments
-    // and are idempotent — if the process crashes between steps, the
-    // next getMemberSubscription call repairs.
+    // Phase 112-02: for every just-expired sub, tear down owned enrollments
+    // through EnrollmentService.tearDownForSubscription — driven by
+    // subscription_id so it covers ALL sources (plan_linked, plan_bundle,
+    // admin_addon) in one call instead of the legacy bundle+linked pair.
+    // Best-effort: not wrapped in a tx with the status flip above (would
+    // require touching the activateScheduledSub path too — out of scope per
+    // Phase 103 D-16). Safe because the method only acts on active|paused
+    // enrollments and is idempotent — if the process crashes between steps,
+    // the next getMemberSubscription call repairs.
     if (expiredOnlyIds.length > 0) {
-      const expiredSubRows = await this.db
-        .select({
-          id: schema.subscriptions.id,
-          userId: schema.subscriptions.userId,
-          planId: schema.subscriptions.planId,
-        })
-        .from(schema.subscriptions)
-        .where(inArray(schema.subscriptions.id, expiredOnlyIds));
-      for (const row of expiredSubRows) {
-        await this.tearDownBundleEnrollments(
-          this.db,
-          row.userId,
-          row.id,
-          row.planId,
-        );
-        await this.tearDownLinkedProgramEnrollment(
-          this.db,
-          row.userId,
-          row.id,
-          row.planId,
-        );
+      for (const subId of expiredOnlyIds) {
+        await this.requireEnrollmentService().tearDownForSubscription(subId);
       }
     }
 
@@ -3847,70 +3430,64 @@ export class SubscriptionService {
     const newPlan = await this.getPlanById(scheduled.planId);
     if (!prevPlan || !newPlan) return;
 
-    // Cancel old program enrollment if old plan had a linked program and it
-    // differs from the new plan's linked program
+    // Phase 112-02: program enrollment transitions on scheduled plan-change
+    // activation. Behavior preservation: legacy code (a) cancelled the old
+    // linked-program enrollment when the new plan's linked program differed,
+    // and (b) created the new enrollment ONLY if no active one already
+    // existed (preserving currentWeek progress when the user happened to
+    // have an enrollment for that program from a parallel path).
+    //
+    // Cancel-old: emulated via a direct UPDATE because the previous sub's
+    // own enrollment is what we cancel (NOT the freshly-activated sub's
+    // — tearDownForSubscription would try to act on scheduled.id which has
+    // no rows yet). Keeping the cancel here avoids regressing the symmetric
+    // "old plan had linkedProgramId, new doesn't" case.
     if (
       prevPlan.linkedProgramId &&
       prevPlan.linkedProgramId !== newPlan.linkedProgramId
     ) {
-      await this.db
-        .update(schema.programEnrollments)
-        .set({ status: "cancelled", cancelledAt: new Date() })
-        .where(
-          and(
-            eq(schema.programEnrollments.userId, scheduled.userId),
-            eq(schema.programEnrollments.programId, prevPlan.linkedProgramId),
-            eq(schema.programEnrollments.status, "active"),
-          ),
-        );
-
-      this.log.info(
-        {
-          userId: scheduled.userId,
-          programId: prevPlan.linkedProgramId,
-        },
-        "Cancelled program enrollment on scheduled plan-change activation",
+      // Delegate to tearDownForSubscription on the predecessor sub so the
+      // cancel goes through the EnrollmentService chokepoint. Runs on
+      // this.db (no tx — preserves the legacy best-effort semantics).
+      await this.requireEnrollmentService().tearDownForSubscription(
+        scheduled.previousSubscriptionId,
       );
     }
 
-    // Create new program enrollment if new plan has a linked program and the
-    // user doesn't already have an active enrollment for it
+    // Create-new: only when the new plan exposes a programs binding AND the
+    // user does not already hold an active enrollment for that program
+    // (idempotency / progress-preservation). enrollFromPlan covers both
+    // linkedProgramId and grantsAllPrograms branches; we wrap it in the
+    // legacy guard so currentWeek=1 doesn't replace an in-flight enrollment.
     if (
-      newPlan.linkedProgramId &&
-      newPlan.linkedProgramId !== prevPlan.linkedProgramId
+      (newPlan.linkedProgramId &&
+        newPlan.linkedProgramId !== prevPlan.linkedProgramId) ||
+      newPlan.grantsAllPrograms
     ) {
-      const existing = await this.db
-        .select({ id: schema.programEnrollments.id })
-        .from(schema.programEnrollments)
-        .where(
-          and(
-            eq(schema.programEnrollments.userId, scheduled.userId),
-            eq(schema.programEnrollments.programId, newPlan.linkedProgramId),
-            eq(schema.programEnrollments.status, "active"),
-          ),
-        )
-        .limit(1);
-
-      if (existing.length === 0) {
-        // Phase 112 Plan 01: source='plan_linked' + subscription_id=scheduled.id
-        // (the just-activated successor sub).
-        await this.db.insert(schema.programEnrollments).values({
-          userId: scheduled.userId,
-          programId: newPlan.linkedProgramId,
-          status: "active",
-          currentWeek: 1,
-          sessionsCompletedThisWeek: 0,
-          weekUnlockedAt: new Date(),
-          source: "plan_linked",
-          subscriptionId: scheduled.id,
-        });
-
-        this.log.info(
+      let shouldEnroll = true;
+      if (newPlan.linkedProgramId) {
+        const existing = await this.db
+          .select({ id: schema.programEnrollments.id })
+          .from(schema.programEnrollments)
+          .where(
+            and(
+              eq(schema.programEnrollments.userId, scheduled.userId),
+              eq(schema.programEnrollments.programId, newPlan.linkedProgramId),
+              eq(schema.programEnrollments.status, "active"),
+            ),
+          )
+          .limit(1);
+        shouldEnroll = existing.length === 0;
+      }
+      if (shouldEnroll) {
+        await this.requireEnrollmentService().enrollFromPlan(
+          scheduled.userId,
           {
-            userId: scheduled.userId,
-            programId: newPlan.linkedProgramId,
+            id: newPlan.id,
+            linkedProgramId: newPlan.linkedProgramId,
+            grantsAllPrograms: newPlan.grantsAllPrograms,
           },
-          "Created program enrollment on scheduled plan-change activation",
+          scheduled.id,
         );
       }
     }
