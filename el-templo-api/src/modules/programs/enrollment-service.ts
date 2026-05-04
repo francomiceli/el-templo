@@ -24,7 +24,7 @@
 // and tearDownForSubscription. Plans 03/04 fill the remaining 4 stubs
 // (enrollAddon, transferAddons, pauseForSubscription, resumeForSubscription).
 
-import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
@@ -452,39 +452,142 @@ export class EnrollmentService {
   }
 
   /**
-   * Plan 03 — addon transfer between subs on changePlan. Stub.
+   * Phase 112 D-19 — transfer admin add-on enrollments from one subscription
+   * to another (used by changePlanNow + activateScheduledSub when a member
+   * switches plans). Only `source='admin_addon'` rows in `active`/`paused`
+   * status are transferred; `plan_linked` and `plan_bundle` rows are
+   * recreated by `enrollFromPlan` against the new plan flags, NOT moved.
+   *
+   * No re-charge is performed (decision A in CONTEXT.md). The financial
+   * transaction created at `enrollAddon` time stays linked to its original
+   * subscription via `transaction_links`; the enrollment row is repointed
+   * via `subscription_id`.
+   *
+   * Zero-add-on case (D-20): clean no-op — no UPDATE issued, returns
+   * { transferred: 0 }.
    */
   async transferAddons(
-    _fromSubId: number,
-    _toSubId: number,
-    _tx?: TxHandle,
+    fromSubId: number,
+    toSubId: number,
+    tx?: TxHandle,
   ): Promise<{ transferred: number }> {
-    throw new Error(
-      "Plan 03 — addon transfer not yet implemented (transferAddons)",
+    const runner = this.runner(tx);
+
+    const candidates = await runner
+      .select({ id: schema.programEnrollments.id })
+      .from(schema.programEnrollments)
+      .where(
+        and(
+          eq(schema.programEnrollments.subscriptionId, fromSubId),
+          eq(schema.programEnrollments.source, "admin_addon"),
+          or(
+            eq(schema.programEnrollments.status, "active"),
+            eq(schema.programEnrollments.status, "paused"),
+          ),
+        ),
+      );
+
+    if (candidates.length === 0) {
+      // D-20: zero-add-on case is a clean no-op.
+      this.log.info(
+        { fromSubId, toSubId, transferred: 0 },
+        "transferAddons no-op (no admin_addon rows on source sub)",
+      );
+      return { transferred: 0 };
+    }
+
+    const ids = candidates.map((c) => c.id);
+    await runner
+      .update(schema.programEnrollments)
+      .set({ subscriptionId: toSubId })
+      .where(inArray(schema.programEnrollments.id, ids));
+
+    this.log.info(
+      { fromSubId, toSubId, transferred: ids.length },
+      "Add-ons transferred (transferAddons)",
     );
+    return { transferred: ids.length };
   }
 
   /**
-   * Plan 03 — pause hook (mirror parent sub status). Stub.
+   * Phase 112 D-16 — pause cascade. Updates EVERY enrollment with
+   * `subscription_id=subscriptionId` whose status is `active` to `paused`.
+   * Applies to ALL sources (plan_linked, plan_bundle, admin_addon) — not
+   * just admin add-ons. Closes the pre-Phase-112 gap where pauseSubscription
+   * left enrollments in 'active' state.
+   *
+   * Idempotency: cancelled / completed / expired rows are NOT touched. Rows
+   * already in 'paused' are no-ops. Calling on a sub with no active
+   * enrollments is a clean no-op.
    */
   async pauseForSubscription(
-    _subscriptionId: number,
-    _tx?: TxHandle,
+    subscriptionId: number,
+    tx?: TxHandle,
   ): Promise<void> {
-    throw new Error(
-      "Plan 03 — pause hook not yet implemented (pauseForSubscription)",
+    const runner = this.runner(tx);
+    await runner
+      .update(schema.programEnrollments)
+      .set({ status: "paused" })
+      .where(
+        and(
+          eq(schema.programEnrollments.subscriptionId, subscriptionId),
+          eq(schema.programEnrollments.status, "active"),
+        ),
+      );
+
+    const [pausedCountRow] = await runner
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.programEnrollments)
+      .where(
+        and(
+          eq(schema.programEnrollments.subscriptionId, subscriptionId),
+          eq(schema.programEnrollments.status, "paused"),
+        ),
+      );
+
+    this.log.info(
+      { subscriptionId, pausedCount: Number(pausedCountRow?.count ?? 0) },
+      "Enrollments paused (pauseForSubscription)",
     );
   }
 
   /**
-   * Plan 03 — resume hook (mirror parent sub status). Stub.
+   * Phase 112 D-17 — resume cascade. Updates rows previously paused by this
+   * sub (`subscription_id=subscriptionId AND status='paused'`) back to
+   * `active`. NEVER resurrects cancelled / completed / expired rows — only
+   * the last-paused state can be reverted.
+   *
+   * Mirror inverse of pauseForSubscription. Idempotent: a no-op if no rows
+   * are currently paused on this sub.
    */
   async resumeForSubscription(
-    _subscriptionId: number,
-    _tx?: TxHandle,
+    subscriptionId: number,
+    tx?: TxHandle,
   ): Promise<void> {
-    throw new Error(
-      "Plan 03 — resume hook not yet implemented (resumeForSubscription)",
+    const runner = this.runner(tx);
+    await runner
+      .update(schema.programEnrollments)
+      .set({ status: "active" })
+      .where(
+        and(
+          eq(schema.programEnrollments.subscriptionId, subscriptionId),
+          eq(schema.programEnrollments.status, "paused"),
+        ),
+      );
+
+    const [activeCountRow] = await runner
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(schema.programEnrollments)
+      .where(
+        and(
+          eq(schema.programEnrollments.subscriptionId, subscriptionId),
+          eq(schema.programEnrollments.status, "active"),
+        ),
+      );
+
+    this.log.info(
+      { subscriptionId, activeCount: Number(activeCountRow?.count ?? 0) },
+      "Enrollments resumed (resumeForSubscription)",
     );
   }
 }
