@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v4.85
 milestone_name: Enrollment Service + Admin Add-ons
 status: idle
-stopped_at: Roadmap created — Phase 112 ready to plan
-last_updated: "2026-05-04T12:00:00.000Z"
-last_activity: 2026-05-04
+stopped_at: Phase 112 context gathered
+last_updated: "2026-05-04T22:19:44.169Z"
+last_activity: 2026-05-04 — Phase 112 CONTEXT.md written (24/24 reqs locked, 24 D-IDs)
 progress:
   total_phases: 1
   completed_phases: 0
@@ -386,8 +386,8 @@ yet.
 
 ## Session Continuity
 
-Last session: 2026-05-01T21:24:09.040Z
-Stopped at: Plan 111-06 partial — checkpoint pending (staging+prod runs of migration 0109)
-Resume file: Awaiting human approval for staging + production runs
+Last session: --stopped-at
+Stopped at: Phase 112 context gathered
+Resume file: --resume-file
 
 **Planned Phase:** 110 (admin-users-by-country-multi-branch-staff) — 9 plans — 2026-04-30T19:30:56.988Z
