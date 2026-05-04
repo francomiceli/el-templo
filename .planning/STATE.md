@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v4.85
 milestone_name: Enrollment Service + Admin Add-ons
-status: Ready to execute
-stopped_at: Phase 112 planned (6 plans, verification passed first iteration)
-last_updated: "2026-05-04T22:51:07.015Z"
-last_activity: 2026-05-04 — Phase 112 PLAN.md ×6 written (D-13/D-22/D-03 locked at planner level)
+status: executing
+stopped_at: Phase 112 Plan 01 complete (schema migration applied locally + downstream type/service updates wired)
+last_updated: "2026-05-04T23:16:21Z"
+last_activity: 2026-05-04 — Phase 112 Plan 01 complete; ready for Plan 02 (EnrollmentService extraction)
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 112 planned — 6 plans en 5 waves. Próximo paso: `/gsd-execute-phase 112`.
+**Current focus:** Phase 112 executing — wave 2 next (Plan 02 EnrollmentService extraction)
 
 ## Current Position
 
-Phase: 112 (Enrollment Service + Admin Add-ons) — ready to execute
-Plan: 0 of 6
-Status: Ready to execute
-Last activity: 2026-05-04 — Plans verified (24/24 reqs covered, 10/10 project gates passed, 0 issues)
+Phase: 112 (Enrollment Service + Admin Add-ons) — EXECUTING
+Plan: 2 of 6 (112-02 EnrollmentService extraction, wave 2)
+Status: Plan 01 complete, ready for Plan 02
+Last activity: 2026-05-04 — Plan 112-01 (schema migration) complete; awaiting staging+production migration apply (operator checkpoint)
 
 ## Performance Metrics
 
@@ -160,6 +160,7 @@ _Updated after each plan completion_
 | Phase 111 P02 | 6min | 3 tasks | 6 files |
 | Phase 111 P03 | 58min | 3 tasks | 10 files |
 | Phase 111 P04 | 21min | 2 tasks | 8 files |
+| Phase 112 P01 | 19min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -373,21 +374,26 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 111-06: data-fix migrations use defensive WHERE-on-BEFORE-state guards + DELETE by id + INSERT … SELECT … WHERE NOT EXISTS — re-runnable as 0-row no-op (verified by Tests 2 and 3)
 - Plan 111-06: refactored run-migrations.ts to export splitSqlStatements + guarded auto-run with require.main check, so integration tests share the production parser without triggering a real migration on import
 - Plan 111-06: balance for sub 6382 zeroed explicitly in step 4 (D-19 — eliminates the inseguro lazy applyDelta path)
+- Plan 112-01: deferred-NOT-NULL pattern for source enum — column added NULL-tolerant first, backfilled in 3 priority steps (plan_linked → plan_bundle → admin_addon fallback), then ALTER … MODIFY tightens to NOT NULL in Step 5 (fails fast if any row remained NULL, surfaces partial-backfill bugs as hard failures)
+- Plan 112-01: WHERE source IS NULL guards on every backfill UPDATE so a manual replay outside the runner is a 0-row no-op (defense in depth on top of the \_migrations tracker)
+- Plan 112-01: Drizzle schema source enum has no .default(...) — callers must pass explicit source value; Plan 02 EnrollmentService owns that responsibility (the 6 existing inserts in subscriptions/service.ts wired with explicit source + subscription_id directly under Rule 3 to compile, will be replaced by EnrollmentService.enrollFromPlan in Plan 02)
 
 ### Pending Todos
 
-- [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Plan + execute the full milestone in a single phase: schema migration (ADDON-SCHEMA-01..05), `EnrollmentService` extraction (ENROLL-01..05), admin add-on API + finance integration (ADDON-API-01..06), lifecycle hooks for changePlan transfer + cancel/expire teardown (ADDON-LIFE-01..04), admin frontend "Programas" section (ADDON-ADMIN-UI-01..05), and member-app dropdown verification (ADDON-MEMBER-UI-01..02). Internal structure surfaces as plans during `/gsd-plan-phase 112`.
+- [x] **Phase 112 Plan 01: Schema migration** — completed 2026-05-04 (4 add-on columns + paused enum + backfill applied locally, idempotent, tsc clean)
+- [ ] **Phase 112 Plan 02: EnrollmentService extraction** — wave 2, depends on Plan 01 (next)
+- [ ] **Phase 112 Plans 03-06** — lifecycle hooks, admin add-on API, admin UI, member-app verification
 
 ### Blockers/Concerns
 
-yet.
-
 - Plan 111-06 task 3 awaiting staging + production runs of migration 0109_reconcile_soledad_mailland.sql (human checkpoint — operator must run pnpm db:migrate on staging then approve prod)
+- Plan 112-01 awaiting staging + production runs of migration 0111_program_enrollments_addon_columns.sql (human checkpoint — operator must run pnpm db:migrate on staging, sanity-check `SELECT COUNT(*) FROM program_enrollments WHERE source IS NULL` returns 0, then approve prod)
+- Plan 112-01 deferred item: pre-existing test-DB provisioning bug (per-worker setup mis-tolerates Unknown-table errors at migration 0070, blocks `pnpm test` boot via `formats.description` schema drift). Documented in `.planning/phases/112-enrollment-service-admin-add-ons/deferred-items.md`. Out of scope for v4.85; recommend a future housekeeping plan.
 
 ## Session Continuity
 
-Last session: --stopped-at
-Stopped at: Phase 112 context gathered
-Resume file: --resume-file
+Last session: 2026-05-04T23:16:21Z
+Stopped at: Plan 112-01 complete; ready for Plan 02 (EnrollmentService extraction)
+Resume file: .planning/phases/112-enrollment-service-admin-add-ons/112-02-PLAN.md
 
-**Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z
+**Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)

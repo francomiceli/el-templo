@@ -2531,7 +2531,7 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 
 | Phase                                   | Plans Complete | Status      | Completed |
 | --------------------------------------- | -------------- | ----------- | --------- |
-| 112. Enrollment Service + Admin Add-ons | 0/6            | Not started | -         |
+| 112. Enrollment Service + Admin Add-ons | 1/6            | In progress | -         |
 
 _Plan counts populated by `/gsd-plan-phase 112`._
 
