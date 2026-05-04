@@ -1,118 +1,89 @@
-# Requirements: El Templo v4.8 — Modelo Financiero
+# Requirements: El Templo v4.85 — Enrollment Service + Admin Add-ons
 
-**Defined:** 2026-04-27
-**Core Value:** El Templo tiene un modelo transaccional unificado de cobros, deudas y caja: cada movimiento de dinero deja huella auditable, los saldos pendientes son derivados (no editables a mano), las anulaciones revierten correctamente, y la página de Caja refleja la realidad financiera real.
+**Defined:** 2026-05-04
+**Core Value:** El lifecycle de `programEnrollments` está centralizado en un único servicio (`EnrollmentService`) que sirve tanto a las creaciones automáticas vía suscripción como a las asignaciones manuales del admin (add-ons). El admin puede regalar o cobrar programas adicionales sobre la sub activa de un miembro, y los add-ons heredan el ciclo de vida de la sub principal sin acoplar lógica duplicada.
 
-**Reference:** `.planning/research/v48-financial-model-analysis.md` — análisis profundo, schema propuesto, gray areas con voto pre-spec, casos de uso, riesgos.
+**Reference:** Conversación 2026-05-04 (transcripts en `.docs/WhatsApp Ptt 2026-05-04 at 14.28.21.txt` y `.docs/WhatsApp Ptt 2026-05-04 at 14.29.51.txt`) + análisis arquitectural en chat principal — diagnóstico del spaghetti `subscriptions/programas` (6 inserts duplicados, fase 111 como síntoma reciente). Inserción entre v4.8 (cerrado) y v4.9 (queued — refactor splits): v4.85 desbloquea v4.9 al sacar la lógica de enrollment fuera de `subscriptions/service.ts`.
 
----
+**Decisiones clave:**
 
-## v4.8 Requirements
-
-24 requirements en 5 categorías mapeadas 1:1 a las 5 fases (105-109). Phase 105 SPEC absorbió CHARGE-04 (UI cleanup del MemberFormDialog) en TXN-04 para evitar romper el form al dropear la tabla `debts`.
-
-### Modelo de Datos (TXN) — Phase 105
-
-- [x] **TXN-01
-      **: Tabla `financial_transactions` creada con schema completo: `kind` enum (`plan_charge`, `debt_settlement`, `refund`, `adjustment`, `advance_payment`), `direction` enum (`inflow`, `outflow`), `amount`, `currency`, `payment_method` enum (`cash`, `transfer`, `card`, `aura_credit`, `internal`), `transaction_date`, `effective_date`, `branch_id`, `recorded_by`, `voided_at`, `voided_by`, `void_reason`, `notes`, timestamps.
-- [x] **TXN-02
-      **: Tabla pivot `transaction_links` creada con `transaction_id`, `target_kind` enum (`subscription`, `debt_balance`, `transaction`), `target_id`, `allocated_amount`, UNIQUE(`transaction_id`, `target_kind`, `target_id`), índice por `target_kind` + `target_id` para lookups eficientes.
-- [x] **TXN-03
-      **: Tabla `payments` y todo el código relacionado eliminados (módulo `payments/`, schema, types, tests, endpoints).
-- [x] **TXN-04
-      **: Tabla `debts` y todo el código relacionado eliminados (`debts-service.ts`, schema, types, tests, endpoints, UI "Deudor" en `MemberFormDialog`).
-- [x] **TXN-05
-      **: Transacciones inmutables post-creación. Service layer no permite UPDATE de `financial_transactions` excepto sobre los campos `voided_at`, `voided_by`, `void_reason`. Modificaciones reales se hacen vía void + recreate.
-- [x] **TXN-06
-      **: Suma de `allocated_amount` de los links de una transacción = `amount` de la transacción. Service layer rechaza inputs que violen la igualdad. Excepción: transacciones sin links (e.g., `kind='advance_payment'` sin destino aún) son válidas.
-- [x] **TXN-07
-      **: Integridad referencial de links: `transaction_links.target_id` debe apuntar a una entidad existente del `target_kind` correspondiente al momento de creación. Service layer valida explícitamente.
-
-### Endpoints API (API) — Phase 106
-
-- [x] **API-01
-      **: `POST /transactions` crea transacción + N links atómicamente en una transacción DB. Payload acepta `member_id`, `kind`, `direction`, `amount`, `currency`, `payment_method`, dates, `branch_id`, `notes`, `links[]`.
-- [x] **API-02
-      **: `POST /transactions/:id/void` requiere `reason` no vacío, marca `voided_at`/`voided_by`/`void_reason`, y revierte el efecto de los links sobre el saldo derivado de cada target.
-- [x] **API-03
-      **: `GET /members/:id/financial-history` retorna timeline cronológico de todas las transacciones del miembro (con sus links, info de void, montos). Ordenado por `transaction_date` desc.
-- [x] **API-04
-      **: `GET /transactions` retorna lista paginada y filtrable por `branch_id`, `kind`, `date_from`, `date_to`, `member_id`, `payment_method`, búsqueda por nombre. Reusa el patrón `PaginatedResult<T>` existente.
-- [x] **API-05
-      **: RBAC para crear transacción — `POST /transactions` con `kind=adjustment` requiere rol `owner | admin | gestion`; otros `kind` (`plan_charge`, `debt_settlement`, `refund`, `advance_payment`) requieren `owner | admin | gestion | recepcion`. [^api-05-reconciliation]
-- [x] **API-06
-      **: RBAC para anular — `POST /transactions/:id/void` requiere rol `owner | admin | gestion` (recepcion excluido por riesgo de abuso). [^api-06-reconciliation]
-- [x] **API-07
-      **: RBAC para lectura — `GET /transactions` y `GET /members/:id/financial-history` requieren rol `owner | admin | gestion | recepcion` (coach EXCLUIDO por privacy: el rol coach no necesita ver historial financiero del alumno). Scope por país para no-owners (vía `attachCountryScope`). Owner puede sobre-escribir el scope con `?country=AR|ES`. [^api-07-reconciliation]
-
-### Cobro al Asignar Plan (CHARGE) — Phase 107
-
-- [ ] **CHARGE-01**: `AssignPlanDialog` incluye sección "Cobro" con monto recibido, método de pago, fecha al asignar o renovar plan.
-- [ ] **CHARGE-02**: `AssignPlanDialog` muestra preview en vivo del saldo resultante cuando el monto recibido es menor al `pricePaid` del plan (ej.: "Saldo pendiente: $10.000 ARS").
-- [ ] **CHARGE-03**: Asignar plan + crear `financial_transaction` + crear `transaction_link` es atómico en una transacción DB; fallo en cualquier paso revierte todos.
-
-> _CHARGE-04 (eliminar UI "Deuda" del `MemberFormDialog`) se movió a Phase 105 — la spec de 105 lockeó que la limpieza del UI va junta con el drop de la tabla `debts` para evitar que el form quede enviando campos a un endpoint inexistente. Ver Phase 105 SPEC requirement #5._
-
-### Pago de Saldo + Historial Financiero (PAYMENT) — Phase 108
-
-- [ ] **PAYMENT-01**: Perfil del miembro (`AlumnoDetailPage`) tiene botón "Registrar pago" que abre dialog con monto, método, fecha, notas.
-- [ ] **PAYMENT-02**: Dialog "Registrar pago" lista conceptos pendientes del miembro mostrando para cada uno: descripción, saldo actual, antigüedad en días. Permite distribuir el monto entre ellos (split allocation), validando que `Σ allocated = monto total`.
-- [ ] **PAYMENT-03**: Perfil del miembro tiene tab "Historial financiero" con timeline cronológico de todas sus transacciones, mostrando para cada concepto pendiente su saldo y antigüedad. Incluye info de void cuando aplica.
-
-### Caja y Reportes (CAJA) — Phase 109
-
-- [x] **CAJA-01
-      **: `CajaPage` summary segmentado por `kind` (cobros de plan, saldos de deuda, ajustes, reembolsos) además del corte actual por método y sucursal.
-- [x] **CAJA-02
-      **: `CajaPage` tabla muestra columna `kind` y filtro por tipo de transacción.
-- [x] **CAJA-03
-      **: Reporte de **aging de deudas pendientes**: lista de saldos abiertos agrupable por sucursal, plan, antigüedad (0-30, 31-60, 61-90, 90+ días), miembro.
-- [x] **CAJA-04
-      **: Excel export del CajaPage y del reporte de aging actualizado para reflejar el modelo nuevo (columnas: kind, allocated amounts, target del link).
+- **A** — Add-ons se transfieren automáticamente al cambiar de plan (sin recobrar).
+- **C** — Add-ons se cancelan cuando muere la sub principal (sin refund automático).
+- **A** — `pricePaid` se cobra como `financial_transaction` independiente al asignar (puede ser 0 = regalo).
+- **Bloqueo (no alerta)** ante programa duplicado activo — admin debe cancelar el viejo primero.
+- Asignación de add-on como acción aparte (no flow combinado con renovación; deferred).
 
 ---
 
-## Future Requirements (deferred to v4.9+)
+## v4.85 Requirements
 
-- **Reembolso como flow de UX dedicado** (caso 9 del análisis — el modelo lo soporta vía `kind='refund'` pero la UX dedicada queda fuera).
-- **Señales / pagos anticipados como flow de UX dedicado** (caso 10 — modelo lo soporta vía `kind='advance_payment'` sin link inicial; la UX dedicada queda fuera).
-- **Cierre de caja diario / Z report** con totales firmados por turno.
-- **Conciliación bancaria automática** (matching de transferencias contra extractos).
-- **Transferencias inter-miembros** como concepto primario (familiar paga por otro miembro).
-- **Doc operacional para admins** — tutorial de cada escenario (cobro completo, parcial, saldo, ajuste, anulación). Originalmente CAJA-05; movido fuera del milestone porque es entregable de docs, no de código.
+24 requirements en 6 categorías. Refactor + feature van juntos: extracción de `EnrollmentService` precede al feature de add-ons para evitar empeorar el acoplamiento existente.
+
+### EnrollmentService Refactor (ENROLL)
+
+- [ ] **ENROLL-01**: Toda creación de `programEnrollments` pasa por `EnrollmentService.enrollFromPlan()` — reemplaza los 6 inserts inline en `subscriptions/service.ts` (líneas aproximadas 1204, 1257, 2485, 2536, 3191, 3872).
+- [ ] **ENROLL-02**: Todo teardown de `programEnrollments` pasa por `EnrollmentService.tearDownForSubscription()` — reemplaza `tearDownBundleEnrollments` (introducido en fase 111), generalizado para todas las `source` de enrollment.
+- [ ] **ENROLL-03**: Métodos mutadores de `EnrollmentService` aceptan parámetro `tx?` opcional para preservar atomicidad cuando son invocados dentro de transacciones existentes en `subscriptions/service.ts`.
+- [ ] **ENROLL-04**: Tests existentes de fase 111 (teardown on cancel/expire + recompute `user.status`) pasan sin modificaciones después del refactor — no regresión de comportamiento.
+- [ ] **ENROLL-05**: `EnrollmentService` vive en `el-templo-api/src/modules/programs/` y se inyecta a `SubscriptionService` por constructor (DI pattern establecido en fase 56).
+
+### Schema Changes (ADDON-SCHEMA)
+
+- [ ] **ADDON-SCHEMA-01**: `program_enrollments` tiene columna `source` (enum `plan_linked` | `plan_bundle` | `admin_addon`), NOT NULL.
+- [ ] **ADDON-SCHEMA-02**: `program_enrollments` tiene columna `price_paid` (int, nullable). Null = no aplica (enrollment automático por plan); 0 = regalo; > 0 = monto cobrado.
+- [ ] **ADDON-SCHEMA-03**: `program_enrollments` tiene columna `assigned_by` (FK `users.id`, nullable) — auditoría del admin que asignó el add-on. Null para enrollments automáticos.
+- [ ] **ADDON-SCHEMA-04**: `program_enrollments` tiene columna `subscription_id` (FK `subscriptions.id`, nullable) — vincula el enrollment al lifecycle de una sub específica.
+- [ ] **ADDON-SCHEMA-05**: Migration backfilea registros existentes — `source` derivado del plan original (plan con `linkedProgramId` → `plan_linked`, plan con `grantsAllPrograms` → `plan_bundle`); `subscription_id` resuelto donde sea unívoco.
+
+### Admin Add-on API (ADDON-API)
+
+- [ ] **ADDON-API-01**: Admin asigna add-on via `POST /api/admin/users/:userId/program-addons` con payload `{ programId, pricePaid?, notes? }`.
+- [ ] **ADDON-API-02**: Asignación requiere sub activa del miembro target; sin sub activa → HTTP 400 con código de error explícito.
+- [ ] **ADDON-API-03**: `pricePaid > 0` genera `financial_transaction` (kind apropiado del módulo finance v4.8) atómicamente con la creación del enrollment, link via `transaction_links` con `target_kind = enrollment`.
+- [ ] **ADDON-API-04**: `pricePaid = 0` o null crea enrollment sin transacción financiera (regalo).
+- [ ] **ADDON-API-05**: Programa duplicado activo → HTTP 409 (forzar cancelar el enrollment viejo primero); no se permite tener dos enrollments activas del mismo programa por user.
+- [ ] **ADDON-API-06**: Admin/owner puede cancelar un add-on individual via endpoint existente de cancelación de enrollment; el endpoint respeta el rol y emite log de auditoría.
+
+### Lifecycle Hooks (ADDON-LIFE)
+
+- [ ] **ADDON-LIFE-01**: `changePlanNow` transfiere add-ons activos de la sub vieja a la nueva (update de `subscription_id`); no se recobra `pricePaid`.
+- [ ] **ADDON-LIFE-02**: `changePlanAfterCurrent` mantiene add-ons en la sub actual hasta que muera; transferencia se aplica al activar la scheduled successor.
+- [ ] **ADDON-LIFE-03**: Cancel/expire de sub → `EnrollmentService.tearDownForSubscription()` cancela add-ons asociados (status → `cancelled`).
+- [ ] **ADDON-LIFE-04**: Teardown de add-on por cancelación de sub NO genera refund automático (decisión C: el add-on muere con la sub; reembolso es decisión de producto fuera de scope).
+
+### Admin Frontend (ADDON-ADMIN-UI)
+
+- [ ] **ADDON-ADMIN-UI-01**: Detalle del miembro tiene sección "Programas" con lista de enrollments activas, cada una con badge `incluido en plan` o `add-on` según `source`.
+- [ ] **ADDON-ADMIN-UI-02**: Cada fila de add-on muestra `pricePaid`, fecha de asignación, y nombre del admin que lo asignó (`assigned_by`).
+- [ ] **ADDON-ADMIN-UI-03**: Botón "Asignar programa adicional" abre modal con dropdown de programas activos disponibles, input opcional de precio (default 0), campo de notas opcional.
+- [ ] **ADDON-ADMIN-UI-04**: Admin cancela un add-on individual desde la lista con confirmación; UI refleja el estado actualizado tras la respuesta.
+- [ ] **ADDON-ADMIN-UI-05**: UI muestra errores accionables del backend — sub inactiva ("Asignar plan primero"), programa duplicado ("Cancelar la inscripción existente primero").
+
+### Member Frontend (ADDON-MEMBER-UI)
+
+- [ ] **ADDON-MEMBER-UI-01**: Dropdown de programas en home del member muestra todas las enrollments activas (linked + add-ons) sin distinción visual; reutiliza el patrón bundle existente.
+- [ ] **ADDON-MEMBER-UI-02**: Member alterna entre programas via dropdown; selección dispara contenido del weekly view (comportamiento bundle preservado, sin nueva UI).
 
 ---
 
-## Out of Scope
+## Future Requirements (Deferred)
 
-- **Mercado Pago / Stripe**: corresponde a Phase 7 del ecosistema (milestone v6.x — Online Model + Payment Gateway). Ese milestone usará este modelo transaccional como base.
-- **Multi-moneda mezcladas en una transacción**: regla "una moneda por transacción" se mantiene. Pagos en distintas monedas → múltiples transacciones.
-- **Migración de datos históricos** de `payments` y `debts`: explícitamente descartada por decisión del usuario (2026-04-27). Ambas tablas se eliminan en Phase 105 sin backfill.
+- **Flow combinado "renovar + regalar"**: botón único en `RenewSubscriptionDialog` con checkbox "Regalar programa" + dropdown. Cubierto manualmente por el endpoint actual; se evalúa según fricción operativa.
+- **Refund explícito al cancelar add-on**: política de devolución de `pricePaid` al cancelar manualmente un add-on antes de su completion. Decisión de producto pendiente.
+- **Add-ons sin sub activa**: caso "ex-alumno vuelve solo por programa puntual" — descartado en v4.85, requiere repensar invariantes.
+
+## Out of Scope (Explicit Exclusions)
+
+- **Add-ons como producto vendible al member en su app**: solo asignación admin en v4.85.
+- **Multi-currency en `pricePaid`**: hereda la moneda de la sub activa del miembro; sin override.
+- **Pausar add-on independientemente de la sub**: el lifecycle del add-on sigue al de la sub; no hay pausado granular.
+- **Reactivación automática de add-ons al re-suscribirse**: si la sub muere y el miembro vuelve a contratar, los add-ons NO reviven (decisión C).
+- **Splits mecánicos de archivos largos**: corresponde a v4.9 (Refactor Splits, queued).
 
 ---
 
 ## Traceability
 
-| Phase                                      | Requirements                                                                                                    |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| 105 — Modelo de Datos + Drop del Viejo     | TXN-01, TXN-02, TXN-03, TXN-04, TXN-05, TXN-06, TXN-07 (TXN-04 absorbe CHARGE-04 — UI cleanup atómico con drop) |
-| 106 — Endpoints Transaccionales            | API-01, API-02, API-03, API-04, API-05, API-06, API-07                                                          |
-| 107 — Cobro al Asignar Plan                | CHARGE-01, CHARGE-02, CHARGE-03                                                                                 |
-| 108 — Pago de Saldo + Historial Financiero | PAYMENT-01, PAYMENT-02, PAYMENT-03                                                                              |
-| 109 — Caja v2 + Reportes                   | CAJA-01, CAJA-02, CAJA-03, CAJA-04                                                                              |
-
-**Coverage:** 24 requirements / 5 phases / 100% mapeado.
-
-**Reqs adicionales lockeados a nivel SPEC** (no en REQUIREMENTS.md, pero en el SPEC.md de cada fase):
-
-- Phase 105 SPEC adds: tabla `balances` (cache de saldos pendientes), reescritura de filtro "Solo deudores" en AlumnosPage contra la nueva cache.
-
----
-
-## Reconciliation Footnotes
-
-[^api-05-reconciliation]: gestion added to both role lists (was: owner-only for adjustment; owner+admin+recepcionista for others). Rationale: gestion already operates caja in the operational model — CAJA_ROLES alignment. Locked by Phase 106 CONTEXT D-01/D-02 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
-
-[^api-06-reconciliation]: gestion added to the void role list. Rationale: consistent with the API-05 widening; recepcion still excluded for abuse risk per the original spec intent. Locked by Phase 106 CONTEXT D-03 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
-
-[^api-07-reconciliation]: Two changes: (a) coach EXCLUDED — privacy: coach role serves training, not financial oversight. (b) Scope is country (not branch) — aligns with the existing `attachCountryScope` middleware used by reports module; branch scope would require a separate middleware that does not yet exist. Locked by Phase 106 CONTEXT D-04/D-05 (2026-04-28). See `.planning/phases/106-endpoints-transaccionales/106-VERIFICATION.md` § Spec Divergence Reconciliation.
+| REQ-ID                                  | Phase |
+| --------------------------------------- | ----- |
+| (To be filled by roadmapper in step 10) |       |
