@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.85
-milestone_name: Enrollment Service + Admin Add-ons
+milestone: v3.0
+milestone_name: Landing Page
 status: executing
-stopped_at: Phase 112 Plan 01 complete (schema migration applied locally + downstream type/service updates wired)
-last_updated: "2026-05-04T23:16:21Z"
-last_activity: 2026-05-04 — Phase 112 Plan 01 complete; ready for Plan 02 (EnrollmentService extraction)
+stopped_at: Plan 112-02 complete (EnrollmentService extraction); ready for Plan 03 (lifecycle hooks)
+last_updated: "2026-05-04T23:52:35.986Z"
+last_activity: 2026-05-04
 progress:
-  total_phases: 1
-  completed_phases: 0
-  total_plans: 6
-  completed_plans: 1
-  percent: 17
+  total_phases: 102
+  completed_phases: 88
+  total_plans: 403
+  completed_plans: 394
+  percent: 98
 ---
 
 # Project State
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Phase 112 executing — wave 2 next (Plan 02 EnrollmentService extraction)
+**Current focus:** Phase 112 executing — wave 3 next (Plan 03 lifecycle hooks + transferAddons body)
 
 ## Current Position
 
 Phase: 112 (Enrollment Service + Admin Add-ons) — EXECUTING
-Plan: 2 of 6 (112-02 EnrollmentService extraction, wave 2)
-Status: Plan 01 complete, ready for Plan 02
-Last activity: 2026-05-04 — Plan 112-01 (schema migration) complete; awaiting staging+production migration apply (operator checkpoint)
+Plan: 3 of 6 (112-03 lifecycle hooks pause/resume + transferAddons, wave 3)
+Status: Plan 02 complete (EnrollmentService extraction landed); ready for Plan 03
+Last activity: 2026-05-04 — Plan 112-02 complete (EnrollmentService extracted, 6 inserts + 2 teardown helpers collapsed; 423 LOC removed from subscriptions/service.ts; 130/130 tests pass; phase 111 regression gate green)
 
 ## Performance Metrics
 
@@ -161,6 +161,7 @@ _Updated after each plan completion_
 | Phase 111 P03 | 58min | 3 tasks | 10 files |
 | Phase 111 P04 | 21min | 2 tasks | 8 files |
 | Phase 112 P01 | 19min | 3 tasks | 6 files |
+| Phase 112 P02 | 24min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -377,6 +378,9 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 - Plan 112-01: deferred-NOT-NULL pattern for source enum — column added NULL-tolerant first, backfilled in 3 priority steps (plan_linked → plan_bundle → admin_addon fallback), then ALTER … MODIFY tightens to NOT NULL in Step 5 (fails fast if any row remained NULL, surfaces partial-backfill bugs as hard failures)
 - Plan 112-01: WHERE source IS NULL guards on every backfill UPDATE so a manual replay outside the runner is a 0-row no-op (defense in depth on top of the \_migrations tracker)
 - Plan 112-01: Drizzle schema source enum has no .default(...) — callers must pass explicit source value; Plan 02 EnrollmentService owns that responsibility (the 6 existing inserts in subscriptions/service.ts wired with explicit source + subscription_id directly under Rule 3 to compile, will be replaced by EnrollmentService.enrollFromPlan in Plan 02)
+- Plan 112-02: Plan-flag preconditions wrap requireEnrollmentService() calls — chokepoint skipped for plans without linkedProgramId/grantsAllPrograms; preserves test instantiations omitting EnrollmentService and avoids spurious DI errors on flows with no enrollment work
+- Plan 112-02: tearDownForSubscription dual-lookup strategy — (a) rows with subscription_id = subId AND (b) user-scoped rows with subscription_id IS NULL matching the cancelled sub's plan binding; preserves R4 protection regression test for direct-DB-inserted bundle rows AND backward-compat for ambiguous Plan-01-backfill leftovers
+- Plan 112-02: Renewal + activateScheduledSub call sites preserve legacy 'skip if active enrollment exists' guard around enrollFromPlan — enrollFromPlan's linked-program branch is unconditionally cancel-then-insert (assignPlan/changePlan need it), so the guard prevents resetting currentWeek=1 on a still-running mid-program enrollment
 
 ### Pending Todos
 
@@ -392,8 +396,8 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ## Session Continuity
 
-Last session: 2026-05-04T23:16:21Z
-Stopped at: Plan 112-01 complete; ready for Plan 02 (EnrollmentService extraction)
-Resume file: .planning/phases/112-enrollment-service-admin-add-ons/112-02-PLAN.md
+Last session: 2026-05-04T23:52:09.721Z
+Stopped at: Plan 112-02 complete (EnrollmentService extraction); ready for Plan 03 (lifecycle hooks)
+Resume file: None
 
 **Planned Phase:** 112 (Enrollment Service + Admin Add-ons) — 6 plans — 2026-05-04T22:51:06.993Z (Plan 01 complete)

@@ -21,11 +21,16 @@
 
 ### EnrollmentService Refactor (ENROLL)
 
-- [ ] **ENROLL-01**: Toda creación de `programEnrollments` pasa por `EnrollmentService.enrollFromPlan()` — reemplaza los 6 inserts inline en `subscriptions/service.ts` (líneas aproximadas 1204, 1257, 2485, 2536, 3191, 3872).
-- [ ] **ENROLL-02**: Todo teardown de `programEnrollments` pasa por `EnrollmentService.tearDownForSubscription()` — reemplaza `tearDownBundleEnrollments` (introducido en fase 111), generalizado para todas las `source` de enrollment.
-- [ ] **ENROLL-03**: Métodos mutadores de `EnrollmentService` aceptan parámetro `tx?` opcional para preservar atomicidad cuando son invocados dentro de transacciones existentes en `subscriptions/service.ts`.
-- [ ] **ENROLL-04**: Tests existentes de fase 111 (teardown on cancel/expire + recompute `user.status`) pasan sin modificaciones después del refactor — no regresión de comportamiento.
-- [ ] **ENROLL-05**: `EnrollmentService` vive en `el-templo-api/src/modules/programs/` y se inyecta a `SubscriptionService` por constructor (DI pattern establecido en fase 56).
+- [x] **ENROLL-01
+      **: Toda creación de `programEnrollments` pasa por `EnrollmentService.enrollFromPlan()` — reemplaza los 6 inserts inline en `subscriptions/service.ts` (líneas aproximadas 1204, 1257, 2485, 2536, 3191, 3872).
+- [x] **ENROLL-02
+      **: Todo teardown de `programEnrollments` pasa por `EnrollmentService.tearDownForSubscription()` — reemplaza `tearDownBundleEnrollments` (introducido en fase 111), generalizado para todas las `source` de enrollment.
+- [x] **ENROLL-03
+      **: Métodos mutadores de `EnrollmentService` aceptan parámetro `tx?` opcional para preservar atomicidad cuando son invocados dentro de transacciones existentes en `subscriptions/service.ts`.
+- [x] **ENROLL-04
+      **: Tests existentes de fase 111 (teardown on cancel/expire + recompute `user.status`) pasan sin modificaciones después del refactor — no regresión de comportamiento.
+- [x] **ENROLL-05
+      **: `EnrollmentService` vive en `el-templo-api/src/modules/programs/` y se inyecta a `SubscriptionService` por constructor (DI pattern establecido en fase 56).
 
 ### Schema Changes (ADDON-SCHEMA)
 
