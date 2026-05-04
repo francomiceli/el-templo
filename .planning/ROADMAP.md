@@ -2466,3 +2466,68 @@ _Phase 105 SPEC (2026-04-27): absorbed CHARGE-04 (UI cleanup of MemberFormDialog
 _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (autorregistro online → conversión presencial fallida → cuenta duplicada con cash huérfano). 3 causas raíz identificadas, consolidadas en 1 fase única reducida._
 
 </details>
+
+## v4.85 Overview
+
+**Milestone:** v4.85 — Enrollment Service + Admin Add-ons
+**Started:** 2026-05-04
+**Phases:** 1 (112)
+**Granularity:** coarse — single phase, structure surfaces during `/gsd-plan-phase 112`
+**Coverage:** 24/24 requirements mapped (100%)
+**Inserted between:** v4.8 (closed at 109; ad-hoc 110/111 included) and v4.9 (Refactor Splits, queued)
+
+**Why this milestone first.** v4.9 plans to split `subscriptions/service.ts` (~3995 LOC). That split is materially harder while six `programEnrollments` inserts + `tearDownBundleEnrollments` (added in fase 111) remain dispersed across the file. v4.85 extracts `EnrollmentService` first, generalizes teardown, and lands the admin add-on feature on top of the clean abstraction — making v4.9 a mechanical move instead of a semantic refactor.
+
+**Single-phase rationale.** The refactor (`EnrollmentService` extraction) and the feature (admin add-ons) are mutually justifying: the refactor alone has no user-facing payoff, the feature alone deepens the existing spaghetti. They ship together as one phase. Internal structure (schema → service → API → lifecycle hooks → UI) emerges as plans inside Phase 112 during `/gsd-plan-phase 112`.
+
+**Decisiones arquitectónicas (recap).**
+
+- **A** — Add-ons se transfieren automáticamente al cambiar de plan (sin recobrar).
+- **C** — Add-ons se cancelan cuando muere la sub principal (sin refund automático).
+- **A** — `pricePaid` se cobra como `financial_transaction` independiente al asignar (puede ser 0 = regalo).
+- Bloqueo (no alerta) ante programa duplicado activo — admin debe cancelar el viejo primero.
+
+## v4.85 Phases
+
+- [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Extract `EnrollmentService` centralizing the lifecycle of `program_enrollments` (replacing 6 dispersed inserts in `subscriptions/service.ts` + the fase-111 `tearDownBundleEnrollments`), add the four new columns + backfill, ship the admin add-on assignment endpoint with finance integration and lifecycle hooks (transfer on changePlan, teardown on cancel/expire), and add the admin UI section to manage add-ons in the member detail page. Internal structure surfaces as plans during `/gsd-plan-phase 112`.
+
+## v4.85 Phase Details
+
+### Phase 112: Enrollment Service + Admin Add-ons
+
+**Goal:** Centralize program enrollment lifecycle in a new `EnrollmentService` and ship admin-driven program add-ons with optional pricing. Refactor + feature ship together because each justifies the other: the refactor alone has no user-facing payoff, the feature alone deepens existing duplication. End state: a single service owns all `program_enrollments` writes/teardowns, admins can assign extra programs to members with optional cost via finance integration, and add-ons follow the parent subscription's lifecycle (transfer on plan change, cancel on sub cancel/expire) without code duplication.
+
+**Depends on:** Nothing (fase 111 is closed; v4.8 finance module is in production)
+
+**Requirements** (24/24, all v4.85 requirements):
+
+- ENROLL-01..05 — `EnrollmentService` extraction and DI integration
+- ADDON-SCHEMA-01..05 — `program_enrollments` columns + migration backfill
+- ADDON-API-01..06 — `POST /api/admin/users/:userId/program-addons` + finance + cancel
+- ADDON-LIFE-01..04 — changePlan transfer + cancel/expire teardown for add-ons
+- ADDON-ADMIN-UI-01..05 — "Programas" section in member detail page
+- ADDON-MEMBER-UI-01..02 — verify member-app dropdown lists all enrollments
+
+**Success Criteria** (what must be TRUE at phase completion):
+
+1. **Schema in place.** `program_enrollments` has new columns `source` (NOT NULL enum `plan_linked` | `plan_bundle` | `admin_addon`), `price_paid` (nullable int), `assigned_by` (nullable FK `users.id`), `subscription_id` (nullable FK `subscriptions.id`); legacy rows backfilled deterministically (plan→source rule), migration idempotent and applied via `_migrations` runner.
+2. **Single service owns enrollment lifecycle.** `grep -nE "(insert|update).*programEnrollments"` in `subscriptions/service.ts` returns zero hits — all 6 legacy inline mutations + fase-111 `tearDownBundleEnrollments` route through `EnrollmentService` (`enrollFromPlan`, `enrollAddon`, `tearDownForSubscription`, `transferAddons`). Service accepts optional `tx?` for atomicity, lives in `src/modules/programs/`, injected into `SubscriptionService` by constructor (DI pattern from fase 56). All fase 111 integration tests pass unmodified.
+3. **Admin add-on endpoint works end-to-end.** `POST /api/admin/users/:userId/program-addons` creates an active `admin_addon` enrollment linked to the member's active subscription. `pricePaid > 0` writes a `financial_transaction` (v4.8 finance) + `transaction_links` row atomically with the enrollment; `pricePaid = 0`/null skips finance. HTTP 400 if no active sub, HTTP 409 if program duplicate active. Admin/owner can cancel an add-on individually with audit log entry.
+4. **Lifecycle hooks honor decisions A and C.** `changePlanNow` and `changePlanAfterCurrent` (on scheduled successor activation) transfer active add-ons' `subscription_id` to the new sub atomically — no re-charge (A). Cancel/expire of any subscription cancels its linked add-ons via `tearDownForSubscription` — no auto-refund (C). Plan change with zero active add-ons is a clean no-op.
+5. **Admin UI ships the management surface.** Member detail page in `el-templo-admin` shows "Programas" section listing all active enrollments with `incluido en plan` / `add-on` badges. Add-on rows display `pricePaid`, assigned date, assigning admin. "Asignar programa adicional" modal: program dropdown (excluding already-enrolled), optional price (default 0), notes; submits to the new endpoint, list updates without manual refresh. Per-row cancel with confirmation. Backend errors render with actionable Spanish copy ("Asignar plan primero", "Cancelar la inscripción existente primero").
+6. **Member-app dropdown verified.** Member home program dropdown lists all active enrollments (linked + add-on) with no visual distinction; selection drives the weekly view. Verification via integration test + manual staging check; ship code adjustments only if a gap is found (expected: zero code changes, the bundle pattern from fase 104 should cover it).
+
+**Plans:** TBD — internal decomposition (schema → service → API → lifecycle → UI admin → UI member verification) emerges during `/gsd-plan-phase 112`.
+**UI hint:** yes (admin frontend changes; member frontend verification only)
+
+## v4.85 Progress
+
+| Phase                                   | Plans Complete | Status      | Completed |
+| --------------------------------------- | -------------- | ----------- | --------- |
+| 112. Enrollment Service + Admin Add-ons | 0/0            | Not started | -         |
+
+_Plan counts populated by `/gsd-plan-phase 112`._
+
+---
+
+_v4.85 added: 2026-05-04 — 1 phase (112), 24 requirements (ENROLL, ADDON-SCHEMA, ADDON-API, ADDON-LIFE, ADDON-ADMIN-UI, ADDON-MEMBER-UI). Origin: análisis de spaghetti `subscriptions/programas` (6 inserts duplicados + `tearDownBundleEnrollments` de fase 111) + necesidad operativa de asignar programas adicionales por admin con precio opcional. Inserción intencional entre v4.8 y v4.9 para desbloquear el split de v4.9. Deliberadamente una sola fase: refactor + feature se justifican mutuamente y la estructura interna emerge en `/gsd-plan-phase 112`._

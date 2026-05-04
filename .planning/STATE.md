@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v4.85
 milestone_name: Enrollment Service + Admin Add-ons
 status: idle
-stopped_at: Milestone v4.85 initialized — defining requirements
-last_updated: "2026-05-04T00:00:00.000Z"
+stopped_at: Roadmap created — Phase 112 ready to plan
+last_updated: "2026-05-04T12:00:00.000Z"
 last_activity: 2026-05-04
 progress:
-  total_phases: 0
+  total_phases: 1
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-04)
 
 **Core value:** v4.85 desacopla el lifecycle de `programEnrollments` de `subscriptions/service.ts` (extrae `EnrollmentService`) y habilita add-ons de programas asignables por admin con precio opcional, retención de progreso atado al ciclo de vida de la sub principal.
-**Current focus:** Milestone v4.85 started — defining requirements
+**Current focus:** Roadmap aprobado — 1 fase única (112), 24 reqs mapeados. Próximo paso: `/gsd-plan-phase 112`.
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 112 (Enrollment Service + Admin Add-ons) — ready to plan
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-04 — Milestone v4.85 started
+Status: Roadmap created, awaiting `/gsd-plan-phase 112`
+Last activity: 2026-05-04 — Roadmap v4.85 written (1 phase, 24/24 requirements mapped)
 
 ## Performance Metrics
 
@@ -376,7 +376,7 @@ Plan 111-04: dedup by user id with matchedField='dni' preferred when both criter
 
 ### Pending Todos
 
-None yet.
+- [ ] **Phase 112: Enrollment Service + Admin Add-ons** — Plan + execute the full milestone in a single phase: schema migration (ADDON-SCHEMA-01..05), `EnrollmentService` extraction (ENROLL-01..05), admin add-on API + finance integration (ADDON-API-01..06), lifecycle hooks for changePlan transfer + cancel/expire teardown (ADDON-LIFE-01..04), admin frontend "Programas" section (ADDON-ADMIN-UI-01..05), and member-app dropdown verification (ADDON-MEMBER-UI-01..02). Internal structure surfaces as plans during `/gsd-plan-phase 112`.
 
 ### Blockers/Concerns
 

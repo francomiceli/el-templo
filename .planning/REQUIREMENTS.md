@@ -84,6 +84,32 @@
 
 ## Traceability
 
-| REQ-ID                                  | Phase |
-| --------------------------------------- | ----- |
-| (To be filled by roadmapper in step 10) |       |
+| REQ-ID             | Phase |
+| ------------------ | ----- |
+| ENROLL-01          | 112   |
+| ENROLL-02          | 112   |
+| ENROLL-03          | 112   |
+| ENROLL-04          | 112   |
+| ENROLL-05          | 112   |
+| ADDON-SCHEMA-01    | 112   |
+| ADDON-SCHEMA-02    | 112   |
+| ADDON-SCHEMA-03    | 112   |
+| ADDON-SCHEMA-04    | 112   |
+| ADDON-SCHEMA-05    | 112   |
+| ADDON-API-01       | 112   |
+| ADDON-API-02       | 112   |
+| ADDON-API-03       | 112   |
+| ADDON-API-04       | 112   |
+| ADDON-API-05       | 112   |
+| ADDON-API-06       | 112   |
+| ADDON-LIFE-01      | 112   |
+| ADDON-LIFE-02      | 112   |
+| ADDON-LIFE-03      | 112   |
+| ADDON-LIFE-04      | 112   |
+| ADDON-ADMIN-UI-01  | 112   |
+| ADDON-ADMIN-UI-02  | 112   |
+| ADDON-ADMIN-UI-03  | 112   |
+| ADDON-ADMIN-UI-04  | 112   |
+| ADDON-ADMIN-UI-05  | 112   |
+| ADDON-MEMBER-UI-01 | 112   |
+| ADDON-MEMBER-UI-02 | 112   |
