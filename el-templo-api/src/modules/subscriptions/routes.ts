@@ -13,6 +13,7 @@ import { AuraService } from "../aura/service";
 import { BookingService } from "../scheduling/booking-service";
 import { NotificationService } from "../notifications/service";
 import { TransactionService, BalanceService } from "../finance";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import { InsufficientBalanceError } from "../aura";
 import type {
@@ -63,11 +64,13 @@ export const subscriptionRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.log,
     balanceService,
   );
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
     transactionService,
+    enrollmentService,
   );
   const notificationService = new NotificationService(fastify.db, fastify.log);
   const bookingService = new BookingService(

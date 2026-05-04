@@ -10,6 +10,7 @@ import { SegmentationService } from "../segmentation/service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
 import { TransactionService, BalanceService } from "../finance";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { normalizePhone } from "../shared";
 
 interface RegisterBody {
@@ -207,11 +208,16 @@ export const authRoutes: FastifyPluginAsync = async (fastify) => {
                 fastify.log,
                 balanceService,
               );
+              const enrollmentService = new EnrollmentService(
+                fastify.db,
+                fastify.log,
+              );
               const subscriptionService = new SubscriptionService(
                 fastify.db,
                 request.log,
                 auraService,
                 transactionService,
+                enrollmentService,
               );
 
               const today = new Date().toISOString().split("T")[0];

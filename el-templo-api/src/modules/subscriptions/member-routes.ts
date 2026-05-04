@@ -11,16 +11,20 @@ import { eq } from "drizzle-orm";
 import * as schema from "../../db/schema";
 import { SubscriptionService } from "./service";
 import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { GOAL_PLAN_METADATA } from "../goal-plans/constants";
 import { isOnlinePlan, isGoalPlan, type PlanCategory } from "./types";
 import { attachCountryScope } from "../shared/country-scope";
 
 export const memberSubscriptionRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
+    undefined,
+    enrollmentService,
   );
 
   /**

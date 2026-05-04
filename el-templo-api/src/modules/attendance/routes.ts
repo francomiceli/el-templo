@@ -11,6 +11,7 @@ import { FastifyPluginAsync } from "fastify";
 import { AttendanceService } from "./service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { handleServiceError } from "../shared/error-handler";
 import {
   memberAttendanceHistorySchema,
@@ -32,10 +33,13 @@ import { requireBranchAccess } from "../shared/branch-access";
 
 export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
+    undefined,
+    enrollmentService,
   );
   const attendanceService = new AttendanceService(
     fastify.db,
@@ -168,10 +172,13 @@ export const attendanceAdminRoutes: FastifyPluginAsync = async (fastify) => {
 
 export const attendanceMemberRoutes: FastifyPluginAsync = async (fastify) => {
   const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
+    undefined,
+    enrollmentService,
   );
   const attendanceService = new AttendanceService(
     fastify.db,

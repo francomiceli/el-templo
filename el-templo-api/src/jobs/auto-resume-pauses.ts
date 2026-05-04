@@ -15,6 +15,7 @@ import type * as schema from "../db/schema";
 import { SubscriptionService } from "../modules/subscriptions/service";
 import { AuraService } from "../modules/aura";
 import { TransactionService, BalanceService } from "../modules/finance";
+import { EnrollmentService } from "../modules/programs/enrollment-service";
 
 const log = pino({ name: "auto-resume-pauses" });
 
@@ -22,11 +23,13 @@ export function startAutoResumePausesJob(db: MySql2Database<typeof schema>) {
   const auraService = new AuraService(db);
   const balanceService = new BalanceService(db, log);
   const transactionService = new TransactionService(db, log, balanceService);
+  const enrollmentService = new EnrollmentService(db, log);
   const subscriptionService = new SubscriptionService(
     db,
     log,
     auraService,
     transactionService,
+    enrollmentService,
   );
 
   // Daily at 00:05 Argentina time (just after midnight)

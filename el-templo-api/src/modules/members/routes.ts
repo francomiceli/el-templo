@@ -61,6 +61,7 @@ import {
   BRANCH_OUT_OF_SCOPE,
 } from "../shared/branch-access";
 import { TransactionService, BalanceService } from "../finance";
+import { EnrollmentService } from "../programs/enrollment-service";
 import {
   financialHistorySchema,
   outstandingConceptsSchema,
@@ -492,10 +493,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
         if (request.body.planId !== undefined) {
           try {
             const auraService = new AuraService(fastify.db);
+            const enrollmentService = new EnrollmentService(
+              fastify.db,
+              fastify.log,
+            );
             const subscriptionService = new SubscriptionService(
               fastify.db,
               fastify.log,
               auraService,
+              undefined,
+              enrollmentService,
             );
 
             const today = new Date().toISOString().split("T")[0];
@@ -695,10 +702,16 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
           // recomputeUserStatus is a no-op when transitioning out of
           // freemium, so the manual write is required.
           const auraService = new AuraService(fastify.db);
+          const enrollmentService = new EnrollmentService(
+            fastify.db,
+            request.log,
+          );
           const subscriptionService = new SubscriptionService(
             fastify.db,
             request.log,
             auraService,
+            undefined,
+            enrollmentService,
           );
           const notificationService = new NotificationService(
             fastify.db,
@@ -839,10 +852,13 @@ export const memberRoutes: FastifyPluginAsync = async (fastify) => {
       // and calls BookingService.cancelFutureBookings for fixed-plan subs
       // — so this one call covers subscription-tied bookings.
       const auraService = new AuraService(fastify.db);
+      const enrollmentService = new EnrollmentService(fastify.db, request.log);
       const subscriptionService = new SubscriptionService(
         fastify.db,
         request.log,
         auraService,
+        undefined,
+        enrollmentService,
       );
       const notificationService = new NotificationService(
         fastify.db,

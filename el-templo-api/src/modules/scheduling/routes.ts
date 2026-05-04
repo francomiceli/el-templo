@@ -27,6 +27,7 @@ import { requireBranchAccess } from "../shared/branch-access";
 import type { TrialShift } from "./trials-service";
 import { SubscriptionService } from "../subscriptions/service";
 import { AuraService } from "../aura/service";
+import { EnrollmentService } from "../programs/enrollment-service";
 import { NotificationService } from "../notifications/service";
 import { handleServiceError } from "../shared/error-handler";
 import {
@@ -71,10 +72,13 @@ export const schedulingAdminRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
+    undefined,
+    enrollmentService,
   );
   const notificationService = new NotificationService(fastify.db, fastify.log);
   const bookingService = new BookingService(
@@ -463,10 +467,13 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   const auraService = new AuraService(fastify.db);
+  const enrollmentService = new EnrollmentService(fastify.db, fastify.log);
   const subscriptionService = new SubscriptionService(
     fastify.db,
     fastify.log,
     auraService,
+    undefined,
+    enrollmentService,
   );
   const notificationService = new NotificationService(fastify.db, fastify.log);
   const bookingService = new BookingService(
