@@ -2517,14 +2517,21 @@ _Phase 111 added: 2026-05-01 — origen: investigación caso Soledad Mailland (a
 5. **Admin UI ships the management surface.** Member detail page in `el-templo-admin` shows "Programas" section listing all active enrollments with `incluido en plan` / `add-on` badges. Add-on rows display `pricePaid`, assigned date, assigning admin. "Asignar programa adicional" modal: program dropdown (excluding already-enrolled), optional price (default 0), notes; submits to the new endpoint, list updates without manual refresh. Per-row cancel with confirmation. Backend errors render with actionable Spanish copy ("Asignar plan primero", "Cancelar la inscripción existente primero").
 6. **Member-app dropdown verified.** Member home program dropdown lists all active enrollments (linked + add-on) with no visual distinction; selection drives the weekly view. Verification via integration test + manual staging check; ship code adjustments only if a gap is found (expected: zero code changes, the bundle pattern from fase 104 should cover it).
 
-**Plans:** TBD — internal decomposition (schema → service → API → lifecycle → UI admin → UI member verification) emerges during `/gsd-plan-phase 112`.
-**UI hint:** yes (admin frontend changes; member frontend verification only)
+**Plans:** 6 plans
+
+- [ ] 112-01-PLAN.md — Schema migration: 4 columns + paused enum + backfill (ADDON-SCHEMA-01..05)
+- [ ] 112-02-PLAN.md — EnrollmentService extraction (refactor only, no behavior change) (ENROLL-01..05)
+- [ ] 112-03-PLAN.md — Lifecycle hooks: pause/resume/transferAddons + integration tests (ADDON-LIFE-01..04)
+- [ ] 112-04-PLAN.md — Admin add-on API + finance integration + audit log (ADDON-API-01..06)
+- [ ] 112-05-PLAN.md — Admin frontend "Programas" tab + assign modal (ADDON-ADMIN-UI-01..05)
+- [ ] 112-06-PLAN.md — Member-app dropdown verification + integration test (ADDON-MEMBER-UI-01..02)
+      **UI hint:** yes (admin frontend changes; member frontend verification only)
 
 ## v4.85 Progress
 
 | Phase                                   | Plans Complete | Status      | Completed |
 | --------------------------------------- | -------------- | ----------- | --------- |
-| 112. Enrollment Service + Admin Add-ons | 0/0            | Not started | -         |
+| 112. Enrollment Service + Admin Add-ons | 0/6            | Not started | -         |
 
 _Plan counts populated by `/gsd-plan-phase 112`._
 
