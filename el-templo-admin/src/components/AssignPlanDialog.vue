@@ -907,9 +907,13 @@ const pricingDisplay = computed(() => {
 });
 
 // Monto base a cobrar — Phase 107 D-02/D-07.
+// - override: cobra exactamente lo digitado, sin prorata.
 // - mode='change' + startMode='now' (proration activa) → netAmount del preview.
 // - resto (assign / change-after_current) → finalPrice del pricingDisplay.
 const chargeBase = computed<number>(() => {
+  if (assignForm.value.useOverride && assignForm.value.priceOverrideAmount !== null) {
+    return assignForm.value.priceOverrideAmount;
+  }
   if (
     props.mode === 'change' &&
     startMode.value === 'now' &&
@@ -1100,18 +1104,10 @@ async function selectPlan(plan: PlanListItem) {
     } finally {
       loadingPreview.value = false;
     }
-
-    // Presencial plans (fixed or flexible with classesPerWeek) go to the
-    // schedule-slot step. Online plans skip directly to confirm.
-    if (showScheduleStep.value) {
-      step.value = 3;
-    } else {
-      step.value = confirmStep.value;
-    }
-  } else {
-    step.value = 2;
-    loadPricingPreview();
   }
+
+  step.value = 2;
+  loadPricingPreview();
 }
 
 function onPricingOptionChange() {

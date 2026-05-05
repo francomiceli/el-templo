@@ -2264,10 +2264,35 @@ export class SubscriptionService {
 
     // Calculate proration from CURRENT subscription only (single record, no accumulation)
     const proration = this.calculateProration(existingSub, currentPlan);
-    const netAmount = Math.max(
-      0,
-      targetPlan.priceRegular - proration.remainingValue,
-    );
+
+    // Resolve pricing the same way changePlanAfterCurrent does: respect
+    // priceOverrideAmount (admin-typed custom amount, no proration applied)
+    // and priceTypeApplied (regular/zero/credit_card) before falling back
+    // to priceRegular. Without this, the UI's price-type and override
+    // selectors silently no-op for "Cambiar ahora".
+    let netAmount: number;
+    let resolvedPriceType: PriceType = input.priceTypeApplied;
+    let resolvedOverrideAmount: number | null = null;
+    let resolvedOverrideReason: string | null = null;
+
+    if (
+      input.priceOverrideAmount !== undefined &&
+      input.priceOverrideAmount >= 0
+    ) {
+      if (!input.priceOverrideReason) {
+        throw new BadRequestError(
+          "Se requiere una razon para el precio personalizado",
+        );
+      }
+      netAmount = input.priceOverrideAmount;
+      resolvedOverrideAmount = input.priceOverrideAmount;
+      resolvedOverrideReason = input.priceOverrideReason;
+    } else {
+      const basePrice = this.getBasePrice(targetPlan, resolvedPriceType);
+      netAmount = Math.max(0, basePrice - proration.remainingValue);
+      resolvedOverrideAmount = netAmount;
+      resolvedOverrideReason = `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`;
+    }
 
     // Phase 112-02 + 03: tear down the outgoing sub's plan-bound enrollments
     // BEFORE closing it. Runs on this.db (not in the new-sub tx) by design
@@ -2378,9 +2403,9 @@ export class SubscriptionService {
           startDate: input.startDate,
           endDate: endDateStr,
           pricePaid: netAmount,
-          priceTypeApplied: input.priceTypeApplied,
-          priceOverrideAmount: netAmount,
-          priceOverrideReason: `Cambio de plan: credito $${proration.remainingValue} (${proration.remainingDetail})`,
+          priceTypeApplied: resolvedPriceType,
+          priceOverrideAmount: resolvedOverrideAmount,
+          priceOverrideReason: resolvedOverrideReason,
           classesRemaining,
           classesBudget: classesRemaining,
           previousSubscriptionId: existingSub.id,
