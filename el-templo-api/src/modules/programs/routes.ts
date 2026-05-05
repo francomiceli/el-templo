@@ -10,9 +10,18 @@
  */
 
 import { FastifyPluginAsync } from "fastify";
+import { and, eq, or } from "drizzle-orm";
 import { ProgramsService } from "./service";
+import { EnrollmentService } from "./enrollment-service";
+import { TransactionService, BalanceService } from "../finance";
 import { handleServiceError } from "../shared/error-handler";
-import { CAJA_ROLES, COACH_ROLES } from "../shared/permissions";
+import { auditLog } from "../shared/audit-log";
+import {
+  CAJA_ROLES,
+  COACH_ROLES,
+  FINANCE_WRITE_ROLES,
+} from "../shared/permissions";
+import * as schema from "../../db/schema";
 import type {
   CreateProgramInput,
   UpdateProgramInput,
@@ -131,8 +140,39 @@ const userIdParamsSchema = {
   },
 };
 
+// Phase 112 D-10 — JSON schema for the admin add-on body. additionalProperties
+// false rejects anything not whitelisted (T-112-04-02 Tampering mitigation).
+const enrollAddonBodySchema = {
+  type: "object",
+  required: ["programId"],
+  properties: {
+    programId: { type: "integer", minimum: 1 },
+    pricePaid: { type: ["integer", "null"], minimum: 0 },
+    paymentMethod: {
+      type: "string",
+      enum: ["cash", "transfer", "card", "aura_credit", "internal"],
+    },
+    notes: { type: ["string", "null"], maxLength: 500 },
+  },
+  additionalProperties: false,
+};
+
 export const programRoutes: FastifyPluginAsync = async (fastify) => {
   const service = new ProgramsService(fastify.db, fastify.log);
+  // Phase 112 Plan 04 — finance + enrollment wiring for the admin add-on
+  // endpoint and the cancel-with-audit handler. Other handlers in this file
+  // pre-date Phase 112 and continue to use the original ProgramsService surface.
+  const balanceService = new BalanceService(fastify.db, fastify.log);
+  const transactionService = new TransactionService(
+    fastify.db,
+    fastify.log,
+    balanceService,
+  );
+  const enrollmentService = new EnrollmentService(
+    fastify.db,
+    fastify.log,
+    transactionService,
+  );
 
   // =========================================================================
   // Admin Routes — Program CRUD (CAJA_ROLES)
@@ -324,8 +364,120 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   /**
+   * POST /api/admin/users/:userId/program-addons — Phase 112 D-10 admin add-on
+   * assignment. Body: { programId, pricePaid?, paymentMethod?, notes? }.
+   *
+   * RBAC: FINANCE_WRITE_ROLES (owner|admin|gestion|recepcion) per D-22 —
+   * mirrors the precedent that recepcion already creates kind='plan_charge'
+   * transactions via assignPlan today.
+   *
+   * Behavior:
+   *  - Resolves the user's active|paused subscription id and forwards it +
+   *    the body to EnrollmentService.enrollAddon (D-11).
+   *  - 200 OK with { enrollmentId } on success.
+   *  - 400 ASSIGN_PLAN_FIRST when the user has no active|paused sub.
+   *  - 404 when the program does not exist or is inactive.
+   *  - 409 PROGRAM_ALREADY_ACTIVE for duplicate program (D-12, includes
+   *    bundle edge case).
+   *  - 403 for unauthorized roles.
+   */
+  fastify.post<{
+    Params: { userId: number };
+    Body: {
+      programId: number;
+      pricePaid?: number | null;
+      paymentMethod?: "cash" | "transfer" | "card" | "aura_credit" | "internal";
+      notes?: string | null;
+    };
+  }>(
+    "/admin/users/:userId/program-addons",
+    {
+      schema: {
+        params: {
+          type: "object",
+          required: ["userId"],
+          properties: { userId: { type: "integer", minimum: 1 } },
+        },
+        body: enrollAddonBodySchema,
+      },
+    },
+    async (request, reply) => {
+      await fastify.authenticate(request, reply);
+      const { role } = request.user;
+      if (!(FINANCE_WRITE_ROLES as readonly string[]).includes(role)) {
+        return reply
+          .code(403)
+          .send({ error: "Acceso denegado", message: "Acceso requerido" });
+      }
+
+      try {
+        // Resolve the user's active|paused sub id BEFORE delegating to
+        // EnrollmentService — duplicates the D-11 check on purpose so the
+        // structured 4xx body is emitted consistently regardless of whether
+        // the service or the route catches it first.
+        const [activeSub] = await fastify.db
+          .select({ id: schema.subscriptions.id })
+          .from(schema.subscriptions)
+          .where(
+            and(
+              eq(schema.subscriptions.userId, request.params.userId),
+              or(
+                eq(schema.subscriptions.status, "active"),
+                eq(schema.subscriptions.status, "paused"),
+              ),
+            ),
+          )
+          .limit(1);
+        if (!activeSub) {
+          return reply.code(400).send({
+            error: "Bad Request",
+            message: "El miembro no tiene suscripcion activa",
+            code: "ASSIGN_PLAN_FIRST",
+          });
+        }
+
+        const result = await enrollmentService.enrollAddon(
+          request.params.userId,
+          activeSub.id,
+          {
+            programId: request.body.programId,
+            pricePaid: request.body.pricePaid ?? null,
+            paymentMethod: request.body.paymentMethod,
+            assignedBy: request.user.userId,
+            notes: request.body.notes ?? null,
+          },
+        );
+
+        return reply.code(200).send(result);
+      } catch (err: unknown) {
+        const code = (err as { code?: string }).code;
+        if (code === "ASSIGN_PLAN_FIRST") {
+          return reply.code(400).send({
+            error: "Bad Request",
+            message: (err as Error).message,
+            code,
+          });
+        }
+        if (code === "PROGRAM_ALREADY_ACTIVE") {
+          return reply.code(409).send({
+            error: "Conflict",
+            message: (err as Error).message,
+            code,
+          });
+        }
+        handleServiceError(err, reply, request.log, "enrollAddon");
+      }
+    },
+  );
+
+  /**
    * POST /api/admin/programs/enrollments/:enrollmentId/cancel — Cancel enrollment.
    * COACH_ROLES per D-35.
+   *
+   * Phase 112 D-24: when the enrollment was created via the admin add-on path
+   * (source='admin_addon'), write an audit_log entry recording the manual
+   * cancel. Teardown via parent-sub cancel/expire is NOT logged here — the
+   * parent sub event already audits at the subscription layer.
    */
   fastify.post<{ Params: { enrollmentId: number } }>(
     "/admin/programs/enrollments/:enrollmentId/cancel",
@@ -338,7 +490,43 @@ export const programRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        await service.cancelEnrollment(request.params.enrollmentId);
+        // Resolve enrollment metadata BEFORE cancel (cancelEnrollment opens
+        // its own write, so we read first to know whether the audit branch
+        // applies). Fetched outside the audit tx for read simplicity; the
+        // audit row + cancel are wrapped in a single tx below for atomicity.
+        const [enrollmentRow] = await fastify.db
+          .select({
+            id: schema.programEnrollments.id,
+            userId: schema.programEnrollments.userId,
+            programId: schema.programEnrollments.programId,
+            source: schema.programEnrollments.source,
+            pricePaid: schema.programEnrollments.pricePaid,
+            subscriptionId: schema.programEnrollments.subscriptionId,
+          })
+          .from(schema.programEnrollments)
+          .where(eq(schema.programEnrollments.id, request.params.enrollmentId))
+          .limit(1);
+
+        await fastify.db.transaction(async (tx) => {
+          await service.cancelEnrollment(request.params.enrollmentId);
+          if (enrollmentRow && enrollmentRow.source === "admin_addon") {
+            await auditLog.write(tx, {
+              actorId: request.user.userId,
+              action: "plan_assigned",
+              targetKind: "member",
+              targetId: enrollmentRow.userId,
+              payload: {
+                enrollmentId: enrollmentRow.id,
+                programId: enrollmentRow.programId,
+                pricePaid: enrollmentRow.pricePaid,
+                subscriptionId: enrollmentRow.subscriptionId,
+                cancelledByAdmin: true,
+              },
+              reason: "Manual admin cancel of program add-on",
+            });
+          }
+        });
+
         return { success: true };
       } catch (err: unknown) {
         handleServiceError(err, reply, request.log, "cancelEnrollment");

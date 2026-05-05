@@ -146,3 +146,14 @@ export interface EnrollmentSummary {
 export interface EnrollmentsListResponse {
   enrollments: EnrollmentSummary[];
 }
+
+// ---- Phase 112 D-10: admin add-on assignment endpoint response shape ----
+export interface EnrollAddonResponse {
+  enrollmentId: number;
+  /**
+   * Optional — present only when pricePaid > 0 and Plan 04 wires the
+   * financial transaction id back through the response. Plan 04 ships
+   * with enrollmentId only; reserved for a future minor add.
+   */
+  financialTransactionId?: number;
+}
