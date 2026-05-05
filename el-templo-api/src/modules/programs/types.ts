@@ -75,6 +75,9 @@ export type EnrollmentStatus =
   | "cancelled"
   | "paused";
 
+// Phase 112 D-01: how the enrollment was created.
+export type EnrollmentSource = "plan_linked" | "plan_bundle" | "admin_addon";
+
 export interface ProgramEnrollment {
   id: number;
   userId: number;
@@ -85,6 +88,10 @@ export interface ProgramEnrollment {
   sessionsCompletedThisWeek: number;
   durationWeeks: number | null; // from joined program
   sessionsPerWeekToAdvance: number; // from joined program
+  // Phase 112 D-24: provenance for the admin "Programas" tab.
+  source: EnrollmentSource;
+  pricePaid: number | null; // populated only when source='admin_addon' and a price was charged
+  assignedByName: string | null; // resolved from users.first/last_name; null for non-admin-addon rows
   enrolledAt: string;
   completedAt: string | null;
   expiredAt: string | null;

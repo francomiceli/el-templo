@@ -6,12 +6,17 @@
 // ─── Enum Union Types ────────────────────────────────────────────────────────
 
 export type ContentBlockType = 'video' | 'text' | 'pdf' | 'exercise';
-export type EnrollmentStatus = 'active' | 'completed' | 'expired' | 'cancelled';
+// Phase 112 D-02: 'paused' added so admin UI can render paused enrollments.
+export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'expired' | 'cancelled';
+
+// Phase 112 D-01: provenance classification surfaced in the admin Programas tab.
+export type EnrollmentSource = 'plan_linked' | 'plan_bundle' | 'admin_addon';
 
 // ─── Label & Color Maps ─────────────────────────────────────────────────────
 
 export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
   active: 'Activo',
+  paused: 'Pausado',
   completed: 'Completado',
   expired: 'Expirado',
   cancelled: 'Cancelado',
@@ -19,6 +24,7 @@ export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
 
 export const ENROLLMENT_STATUS_COLORS: Record<EnrollmentStatus, string> = {
   active: 'positive',
+  paused: 'warning',
   completed: 'info',
   expired: 'grey',
   cancelled: 'negative',
@@ -97,10 +103,29 @@ export interface ProgramEnrollment {
   sessionsCompletedThisWeek: number;
   durationWeeks: number;
   sessionsPerWeekToAdvance: number;
+  // Phase 112 D-24: provenance fields surfaced in the admin Programas tab.
+  source: EnrollmentSource;
+  pricePaid: number | null;
+  assignedByName: string | null;
   enrolledAt: string;
   completedAt: string | null;
   expiredAt: string | null;
   cancelledAt: string | null;
+}
+
+// Phase 112 D-22: program option for the AssignProgramAddonDialog dropdown.
+export interface ProgramOption {
+  id: number;
+  name: string;
+  durationWeeks: number | null;
+}
+
+// Phase 112 D-22: payload accepted by POST /api/admin/users/:userId/program-addons.
+export interface AssignAddonPayload {
+  programId: number;
+  pricePaid?: number | null;
+  paymentMethod?: 'cash' | 'transfer' | 'card' | 'aura_credit' | 'internal';
+  notes?: string | null;
 }
 
 // ─── Analytics Types ─────────────────────────────────────────────────────────

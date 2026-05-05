@@ -13,6 +13,8 @@ import type {
   ContentBlockInput,
   ProgramEnrollment,
   ProgramAnalytics,
+  ProgramOption,
+  AssignAddonPayload,
 } from 'src/types/program';
 
 export function useProgramsApi() {
@@ -146,6 +148,43 @@ export function useProgramsApi() {
     }
   }
 
+  // ─── Phase 112 — Admin Programas tab + Add-on assignment ────────────
+
+  // Alias kept stable for the MemberProgramsTab consumer (Plan 112-05).
+  async function listEnrollmentsForUser(userId: number): Promise<ProgramEnrollment[]> {
+    return getUserEnrollments(userId);
+  }
+
+  // Active-only program list for the AssignProgramAddonDialog dropdown.
+  // The admin /admin/programs endpoint returns active+inactive; client-side
+  // filter keeps the surface narrow until a dedicated query param is needed.
+  async function listActivePrograms(): Promise<ProgramOption[]> {
+    const programs = await getPrograms();
+    return programs
+      .filter((p) => p.isActive)
+      .map((p) => ({ id: p.id, name: p.name, durationWeeks: p.durationWeeks }));
+  }
+
+  async function assignAddon(
+    userId: number,
+    payload: AssignAddonPayload
+  ): Promise<{ enrollmentId: number; financialTransactionId?: number }> {
+    loading.value = true;
+    error.value = null;
+    try {
+      const { data } = await api.post<{
+        enrollmentId: number;
+        financialTransactionId?: number;
+      }>(`/admin/users/${userId}/program-addons`, payload);
+      return data;
+    } catch (err: unknown) {
+      error.value = extractError(err, 'Error asignando programa');
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
   // ─── Analytics ──────────────────────────────────────────────────────
 
   async function getAnalytics(): Promise<ProgramAnalytics> {
@@ -182,6 +221,10 @@ export function useProgramsApi() {
     advanceWeek,
     getUserEnrollments,
     getAnalytics,
+    // Phase 112
+    listEnrollmentsForUser,
+    listActivePrograms,
+    assignAddon,
     cleanup,
   };
 }

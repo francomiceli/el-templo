@@ -1,5 +1,6 @@
 // Module: programs
 import { eq, and, or, sql, desc, count } from "drizzle-orm";
+import { alias } from "drizzle-orm/mysql-core";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import type * as schema from "../../db/schema";
@@ -394,8 +395,13 @@ export class ProgramsService {
   /**
    * Get all enrollments for a user, joined with program info.
    * Active enrollments first, then by enrolledAt DESC.
+   *
+   * Phase 112 D-24: response includes provenance fields (source, pricePaid)
+   * and a resolved `assignedByName` (LEFT JOIN users-as-assigner). Legacy
+   * rows whose assignedBy is NULL emit assignedByName: null.
    */
   async getEnrollmentsByUser(userId: number): Promise<ProgramEnrollment[]> {
+    const assigner = alias(users, "assigner");
     const rows = await this.db
       .select({
         id: programEnrollments.id,
@@ -407,6 +413,10 @@ export class ProgramsService {
         sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         durationWeeks: programs.durationWeeks,
         sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+        source: programEnrollments.source,
+        pricePaid: programEnrollments.pricePaid,
+        assignedByFirstName: assigner.firstName,
+        assignedByLastName: assigner.lastName,
         enrolledAt: programEnrollments.enrolledAt,
         completedAt: programEnrollments.completedAt,
         expiredAt: programEnrollments.expiredAt,
@@ -414,25 +424,44 @@ export class ProgramsService {
       })
       .from(programEnrollments)
       .innerJoin(programs, eq(programEnrollments.programId, programs.id))
+      .leftJoin(assigner, eq(assigner.id, programEnrollments.assignedBy))
       .where(eq(programEnrollments.userId, userId))
       .orderBy(
         sql`CASE WHEN ${programEnrollments.status} = 'active' THEN 0 ELSE 1 END`,
         desc(programEnrollments.enrolledAt),
       );
 
-    return rows.map((r) => ({
-      ...r,
-      enrolledAt: r.enrolledAt.toISOString(),
-      completedAt: r.completedAt?.toISOString() ?? null,
-      expiredAt: r.expiredAt?.toISOString() ?? null,
-      cancelledAt: r.cancelledAt?.toISOString() ?? null,
-    }));
+    return rows.map((r) => {
+      const assignedByName =
+        r.assignedByFirstName && r.assignedByLastName
+          ? `${r.assignedByFirstName} ${r.assignedByLastName}`
+          : null;
+      return {
+        id: r.id,
+        userId: r.userId,
+        programId: r.programId,
+        programName: r.programName,
+        status: r.status,
+        currentWeek: r.currentWeek,
+        sessionsCompletedThisWeek: r.sessionsCompletedThisWeek,
+        durationWeeks: r.durationWeeks,
+        sessionsPerWeekToAdvance: r.sessionsPerWeekToAdvance,
+        source: r.source,
+        pricePaid: r.pricePaid,
+        assignedByName,
+        enrolledAt: r.enrolledAt.toISOString(),
+        completedAt: r.completedAt?.toISOString() ?? null,
+        expiredAt: r.expiredAt?.toISOString() ?? null,
+        cancelledAt: r.cancelledAt?.toISOString() ?? null,
+      };
+    });
   }
 
   /**
    * Get the single active enrollment for a user, or null.
    */
   async getActiveEnrollment(userId: number): Promise<ProgramEnrollment | null> {
+    const assigner = alias(users, "assigner");
     const rows = await this.db
       .select({
         id: programEnrollments.id,
@@ -444,6 +473,10 @@ export class ProgramsService {
         sessionsCompletedThisWeek: programEnrollments.sessionsCompletedThisWeek,
         durationWeeks: programs.durationWeeks,
         sessionsPerWeekToAdvance: programs.sessionsPerWeekToAdvance,
+        source: programEnrollments.source,
+        pricePaid: programEnrollments.pricePaid,
+        assignedByFirstName: assigner.firstName,
+        assignedByLastName: assigner.lastName,
         enrolledAt: programEnrollments.enrolledAt,
         completedAt: programEnrollments.completedAt,
         expiredAt: programEnrollments.expiredAt,
@@ -451,6 +484,7 @@ export class ProgramsService {
       })
       .from(programEnrollments)
       .innerJoin(programs, eq(programEnrollments.programId, programs.id))
+      .leftJoin(assigner, eq(assigner.id, programEnrollments.assignedBy))
       .where(
         and(
           eq(programEnrollments.userId, userId),
@@ -461,8 +495,23 @@ export class ProgramsService {
     if (rows.length === 0) return null;
 
     const r = rows[0];
+    const assignedByName =
+      r.assignedByFirstName && r.assignedByLastName
+        ? `${r.assignedByFirstName} ${r.assignedByLastName}`
+        : null;
     return {
-      ...r,
+      id: r.id,
+      userId: r.userId,
+      programId: r.programId,
+      programName: r.programName,
+      status: r.status,
+      currentWeek: r.currentWeek,
+      sessionsCompletedThisWeek: r.sessionsCompletedThisWeek,
+      durationWeeks: r.durationWeeks,
+      sessionsPerWeekToAdvance: r.sessionsPerWeekToAdvance,
+      source: r.source,
+      pricePaid: r.pricePaid,
+      assignedByName,
       enrolledAt: r.enrolledAt.toISOString(),
       completedAt: r.completedAt?.toISOString() ?? null,
       expiredAt: r.expiredAt?.toISOString() ?? null,
