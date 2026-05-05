@@ -9,9 +9,23 @@ A multi-app platform for El Templo Calistenia, a calisthenics gym chain with 8 l
 **Latest shipped:** v5.3.2 Post-v5.3.1 Live Test Fixes (2026-04-16, archived 2026-05-05)
 **Bot status:** Mica runs a 5-playbook engine with avatar adaptation, 606 tests (incl. v5-3-2-regression behavioural-integration suite), state-gated knowledge injection (PB1 leads see only discovery-relevant sections — 20.25% total / 42.30% knowledge-block prompt reduction), price-free PB1 discovery prompt, reachable method elevator pitch, canonical Boarding Pass with dual-benefit framing, multi-signal stage advancement (4-category content gate + turn-count requirement), soft-rejection objection handling (signal + WHY/BACK-OFF Spanish framing), strengthened price-deferral rule (live-test hardened), Argentine tuteo enforcement, debounce, non-text fallback, off-topic handling, and zone-to-branch recommendations.
 
-## Current Milestone: between milestones
+## Current Milestone: v5.3.3 — Post-v5.3.2 Live Test Fixes
 
-v5.3.2 archived 2026-05-05. Next milestone (v5.3.3 Post-v5.3.2 Live Test Fixes) will be opened via `/gsd:new-milestone`. See `.planning/MACRO-ROADMAP.md` for the cross-milestone sequence (v5.3.3 → v5.4.0 Production Deployment → Kero CRM) and `.planning/v5.3.3-prework-notes.md` for the pre-resolved 5-phase structure (BUG-01..05 + BACKLOG-01/02 + regression lock).
+**Goal:** Close the 7 issues surfaced by the post-v5.3.2 live test (handler concurrency, OpenAI latency, booking inconsistency, context-awareness, graceful degradation, plus 2 low-priority backlog items) so the bot is stable and **production-deploy-ready** for v5.4.0.
+
+**Environment:** dev-only (local + ngrok + Meta test number — same as v5.3.2). v5.4.0 owns the dev → prod migration.
+
+**Closing constraint (per MACRO-ROADMAP.md):** v5.3.3's final live test must validate the bot is production-deploy-ready, NOT CRM-integration-ready. Acceptance focuses on behavioral/handler correctness and stability — not persistence layer, not CRM hooks, not multi-tenancy.
+
+**Target fixes:**
+
+- BUG-01 (Phase 93): Race condition — fast successive user messages produce duplicate bot responses. Fix: debounce / Redis lock per phone with short TTL in `handler.ts`.
+- BUG-02 (Phase 94): ~3min response latency. Root cause confirmed: `new OpenAI()` with no `timeout` option (`openai.ts:29`) + unbounded `await provider.chat()` (`handler.ts:584,641`). Fix: explicit timeout + interim UX + graceful fallback.
+- BUG-03 + BUG-05 (Phase 95, paired): Class search inconsistent across venues (can't close bookings) + apology loop on tool failures. Pairing rationale: BUG-05 is the safety net for when BUG-03 still fails. SC#3 invariant must be preserved (no-escalation rule applies to soft rejections only, NOT tool failures).
+- BUG-04 (Phase 96): Bot re-asks data already provided in conversation. Fix in `system-prompt.ts` or profile extraction layer.
+- BACKLOG-01 + BACKLOG-02 + regression lock (Phase 97): Third hook missing from elevator pitch + voseo inconsistency (model variance — non-deterministic regression strategy required) + assertions for all v5.3.3 fixes + extend timeout pattern to `executeTool` localhost calls (debug session bonus finding).
+
+**Phase ordering A → B → C → D → E (93→97) locked:** A and B together stabilize the handler entry+exit; C depends on stable handler; D is discrete prompt work; E is regression lock + low-priority backlog (mirrors v5.3.2 Phase 92 shape).
 
 ## Core Value
 
@@ -63,7 +77,16 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ### Active
 
-(none — v5.3.2 shipped; v5.3.3 Post-v5.3.2 Live Test Fixes scoped, awaiting `/gsd:new-milestone`. Backlog: 5 BUGs + 2 BACKLOG items from post-v5.3.2 live test — see `.planning/v5.3.3-prework-notes.md`.)
+<!-- v5.3.3 — see .planning/REQUIREMENTS.md for full REQ-IDs. Categories: CONC (concurrency), LAT (latency), BOOK (booking), DEGR (degradation), CTXT (context), ELEV (elevator), VOSEO (voseo), RGUARD (v5.3.3 regression guard). -->
+
+- [ ] **CONC-01** — Bot does not generate duplicate responses on rapid-fire user messages (Phase 93)
+- [ ] **LAT-01..03** — OpenAI client timeout + interim UX + graceful fallback (Phase 94)
+- [ ] **BOOK-01** — Class search consistent across venues, bookings can be closed (Phase 95)
+- [ ] **DEGR-01..02** — Tool-failure retry-counter + escalate via `request_human`; SC#3 invariant preserved (Phase 95)
+- [ ] **CTXT-01..02** — Bot does not re-ask data already provided (Phase 96)
+- [ ] **ELEV-01** — Elevator pitch consistently includes all 3 team hooks (Phase 97)
+- [ ] **VOSEO-01** — Bot uses Argentine voseo consistently (non-deterministic regression strategy required) (Phase 97)
+- [ ] **RGUARD-01..03** — v5.3.3 regression lock + zero v5.3.2/v5.3.1 regressions + extend timeout pattern to `executeTool` (Phase 97)
 
 ### Out of Scope
 
@@ -173,4 +196,4 @@ Members know exactly what to train today, complete guided sessions with block st
 
 ---
 
-_Last updated: 2026-05-05 after v5.3.2 archive_
+_Last updated: 2026-05-05 after v5.3.3 milestone start_
