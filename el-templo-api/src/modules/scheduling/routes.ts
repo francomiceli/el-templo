@@ -594,20 +594,37 @@ export const schedulingMemberRoutes: FastifyPluginAsync = async (fastify) => {
     return { bookings };
   });
 
-  // GET /branches — list active non-virtual branches for multi-branch selector
-  fastify.get("/branches", async () => {
+  // GET /branches — list active non-virtual branches for multi-branch selector,
+  // scoped to the caller's country. The cross-country guard in
+  // BookingService.reserve also rejects cross-country reservations server-side,
+  // but filtering here keeps the selector free of sedes the member couldn't
+  // book anyway (no UX dead ends).
+  fastify.get("/branches", async (request) => {
+    const [memberRow] = await fastify.db
+      .select({ branchCountry: schema.branches.country })
+      .from(schema.users)
+      .innerJoin(schema.branches, eq(schema.branches.id, schema.users.branchId))
+      .where(eq(schema.users.id, request.user.userId))
+      .limit(1);
+
+    const where = memberRow
+      ? and(
+          eq(schema.branches.isActive, true),
+          eq(schema.branches.isVirtual, false),
+          eq(schema.branches.country, memberRow.branchCountry),
+        )
+      : and(
+          eq(schema.branches.isActive, true),
+          eq(schema.branches.isVirtual, false),
+        );
+
     const rows = await fastify.db
       .select({
         id: schema.branches.id,
         name: schema.branches.name,
       })
       .from(schema.branches)
-      .where(
-        and(
-          eq(schema.branches.isActive, true),
-          eq(schema.branches.isVirtual, false),
-        ),
-      )
+      .where(where)
       .orderBy(schema.branches.name);
     return { branches: rows };
   });

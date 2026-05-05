@@ -126,6 +126,22 @@ export class BookingService {
     // still triggers downstream (defense — no silent staff bypass on data gap).
     const actorRole: string = actor?.role ?? "member";
 
+    // Cross-country guard: a member's subscription is bound to one country
+    // (AR or ES today). Reservations on a sede in a different country are
+    // rejected outright — even with multi_branch the member can only roam
+    // within their own country. Staff bypass for the same reason as the
+    // multi-branch check below: an admin/coach using the member app to
+    // entrenar may legitimately train across regions.
+    if (actorRole === "member" && branch) {
+      const [subBranch] = await this.db
+        .select({ country: schema.branches.country })
+        .from(schema.branches)
+        .where(eq(schema.branches.id, subscription.branchId));
+      if (subBranch && subBranch.country !== branch.country) {
+        throw new BadRequestError("No podes reservar en sedes de otro pais");
+      }
+    }
+
     // 5b. Monthly budget check: if classesRemaining is tracked and exhausted
     if (
       subscription.classesRemaining !== null &&
