@@ -139,6 +139,7 @@
         <q-tab name="entrenamiento" label="Entrenamiento" />
         <q-tab name="notas" label="Notas" />
         <q-tab name="suscripcion" label="Suscripcion" />
+        <q-tab name="programas" label="Programas" />
         <q-tab name="asistencia" label="Asistencia" />
         <q-tab name="finanzas" label="Finanzas" />
       </q-tabs>
@@ -379,6 +380,11 @@
           />
         </q-tab-panel>
 
+        <!-- Programas Tab (Phase 112) -->
+        <q-tab-panel name="programas">
+          <MemberProgramsTab :user-id="userId" />
+        </q-tab-panel>
+
         <!-- Asistencia Tab -->
         <q-tab-panel name="asistencia">
           <MemberAttendanceTab :userId="userId" />
@@ -416,6 +422,7 @@ import { useStatusBadge } from 'src/composables/useStatusBadge';
 import MemberProfileTab from 'src/components/MemberProfileTab.vue';
 import MemberNotesTab from 'src/components/MemberNotesTab.vue';
 import MemberSubscriptionTab from 'src/components/MemberSubscriptionTab.vue';
+import MemberProgramsTab from 'src/components/MemberProgramsTab.vue';
 import MemberAttendanceTab from 'src/components/MemberAttendanceTab.vue';
 import MemberFormDialog from 'src/components/MemberFormDialog.vue';
 import MemberPhotoUpload from 'src/components/MemberPhotoUpload.vue';
