@@ -326,11 +326,17 @@ onMounted(async () => {
   fetchWeeklySummary()
   fetchTodayCheckIns()
 
-  // Hydrate active enrollments so the bundle dropdown on ProgramProgressCard
-  // appears on first load. loadSubscription is only called from /training,
-  // /reservas, /profile, /planes — without this, the dropdown would only
-  // light up after visiting one of those pages.
-  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
+  // Hydrate active enrollments + subscription so the program dropdown on
+  // ProgramProgressCard reflects the full picture on first load. Without
+  // hydrating subscription, hasPresencialPlan stays false on a cold Mi
+  // Templo visit and the "Templo Presencial" entry in the dropdown
+  // (Phase 112) only surfaces after the user navigates to /training,
+  // /reservas, /profile or /planes (the other pages that call
+  // loadSubscription). loadSubscription cascades into fetchCurrentProgram
+  // internally — when it's already loaded we just refresh enrollments.
+  const hydrateUser =
+    userStore.subscription === null ? userStore.loadSubscription() : userStore.fetchCurrentProgram()
+  await Promise.all([loadProgramProgress(), hydrateUser])
 
   fetchWeekSessions(currentWeekDates())
 
