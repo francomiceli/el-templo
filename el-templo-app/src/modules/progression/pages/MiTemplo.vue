@@ -18,15 +18,15 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
-      <!-- Program/Premium card — paid (non-linked) programs OR any case where
-           the member has multiple views (Templo + addon, linked + addon, bundle, etc).
-           Phase 112: presencial members with admin-assigned addons need the card
-           rendered so the dropdown surfaces — even when the resolved current
-           program is plan_linked — otherwise the addon is unreachable from the UI. -->
+      <!-- Program/Premium card — non-linked program, OR linked-program member
+           with at least one extra enrollment (admin add-on, bundle, etc) so
+           the dropdown can surface those alternatives. Phase 112: without the
+           multi-enrollment branch, presencial+linked members would have no
+           UI surface to reach an admin-assigned addon. -->
       <ProgramProgressCard
         v-if="
           programProgress &&
-          (!programProgress.isLinkedToSubscription || userStore.viewOptionsCount > 1)
+          (!programProgress.isLinkedToSubscription || userStore.allActiveEnrollments.length > 1)
         "
         :progress="programProgress"
         @program-changed="onProgramChanged"
@@ -326,17 +326,11 @@ onMounted(async () => {
   fetchWeeklySummary()
   fetchTodayCheckIns()
 
-  // Hydrate active enrollments + subscription so the program dropdown on
-  // ProgramProgressCard reflects the full picture on first load. Without
-  // hydrating subscription, hasPresencialPlan stays false on a cold Mi
-  // Templo visit and the "Templo Presencial" entry in the dropdown
-  // (Phase 112) only surfaces after the user navigates to /training,
-  // /reservas, /profile or /planes (the other pages that call
-  // loadSubscription). loadSubscription cascades into fetchCurrentProgram
-  // internally — when it's already loaded we just refresh enrollments.
-  const hydrateUser =
-    userStore.subscription === null ? userStore.loadSubscription() : userStore.fetchCurrentProgram()
-  await Promise.all([loadProgramProgress(), hydrateUser])
+  // Hydrate active enrollments so the program dropdown on ProgramProgressCard
+  // appears on first load. loadSubscription is only called from /training,
+  // /reservas, /profile, /planes — without this, the dropdown would only
+  // light up after visiting one of those pages.
+  await Promise.all([loadProgramProgress(), userStore.fetchCurrentProgram()])
 
   fetchWeekSessions(currentWeekDates())
 
