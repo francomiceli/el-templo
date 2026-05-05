@@ -29,6 +29,14 @@ import type { MySql2Database } from "drizzle-orm/mysql2";
 import type { FastifyBaseLogger } from "fastify";
 import * as schema from "../../db/schema";
 import type { TxHandle } from "../finance/balance-service";
+import type { TransactionService } from "../finance/transaction-service";
+import type { PaymentMethod } from "../finance/types";
+import { auditLog } from "../shared/audit-log";
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from "../shared/errors";
 
 type DbInstance = MySql2Database<typeof schema>;
 type DbOrTx = DbInstance | TxHandle;
@@ -44,6 +52,14 @@ export interface EnrollAddonInput {
   pricePaid?: number | null;
   assignedBy: number;
   notes?: string | null;
+  /** Optional payment method when pricePaid > 0. Defaults to 'cash' (D-13). */
+  paymentMethod?: PaymentMethod;
+  /**
+   * Optional branch override for the financial_transaction. Defaults to the
+   * member's active subscription branchId so add-on revenue lands in the same
+   * sucursal as the parent plan_charge.
+   */
+  branchId?: number;
 }
 
 export interface ActiveEnrollmentSummary {
@@ -58,6 +74,14 @@ export class EnrollmentService {
   constructor(
     private readonly db: DbInstance,
     private readonly log: FastifyBaseLogger,
+    /**
+     * Phase 112 D-13: TransactionService is required only by enrollAddon
+     * when pricePaid > 0. Other entry points (enrollFromPlan, teardown,
+     * pause/resume/transfer) do NOT touch finance, so the param stays
+     * optional to keep Plan 02's DI rollout shape (test files instantiate
+     * `new EnrollmentService(db, log)` without finance wiring).
+     */
+    private readonly transactionService?: TransactionService,
   ) {}
 
   /**
@@ -231,17 +255,202 @@ export class EnrollmentService {
   }
 
   /**
-   * Plan 04 — admin add-on creation. Stub.
+   * Phase 112 D-10..D-15, D-22, D-24 — admin add-on creation.
+   *
+   * Validates that the member has an active|paused subscription, that the
+   * program exists+is active, and that no duplicate active enrollment exists
+   * (D-12: any source — plan_linked, plan_bundle, admin_addon — counts).
+   * Inserts the enrollment row with source='admin_addon', subscriptionId set,
+   * and pricePaid recorded. When pricePaid > 0 ALSO creates a
+   * financial_transaction (kind='plan_charge', direction='inflow', currency
+   * inherited from the active sub plan per D-15) plus the corresponding
+   * transaction_links row (target_kind='enrollment'), atomic with the
+   * enrollment insert.
+   *
+   * D-14: pricePaid = 0 OR null → enrollment-only path (regalo). No
+   * financial transaction is emitted.
+   *
+   * D-24: writes an audit_log row (action='plan_assigned', targetKind='member')
+   * with payload describing the assignment. Atomic with the rest.
+   *
+   * Errors carry machine-readable `code` properties so the route layer can
+   * map to structured 4xx bodies (mirrors phase 111-03 cancelSubscription
+   * pattern):
+   *   - "ASSIGN_PLAN_FIRST" (no active|paused sub) → 400
+   *   - "PROGRAM_ALREADY_ACTIVE" (D-12 dup) → 409
+   * NotFoundError ("Programa no encontrado o inactivo") → 404 via
+   * handleServiceError.
    */
   async enrollAddon(
-    _userId: number,
-    _subscriptionId: number,
-    _input: EnrollAddonInput,
-    _tx?: TxHandle,
+    userId: number,
+    subscriptionId: number,
+    input: EnrollAddonInput,
+    tx?: TxHandle,
   ): Promise<{ enrollmentId: number }> {
-    throw new Error(
-      "Plan 04 — admin add-on creation not yet implemented (enrollAddon)",
-    );
+    const runner = tx
+      ? <T>(cb: (h: TxHandle) => Promise<T>): Promise<T> => cb(tx)
+      : <T>(cb: (h: TxHandle) => Promise<T>): Promise<T> =>
+          this.db.transaction(cb);
+
+    return await runner<{ enrollmentId: number }>(async (txHandle) => {
+      // Step 1 (D-11) — validate active|paused sub belongs to user AND id
+      // matches subscriptionId. Pull plan.currency for D-15 inheritance and
+      // sub.branchId for the financial transaction default.
+      const [activeSub] = await txHandle
+        .select({
+          id: schema.subscriptions.id,
+          status: schema.subscriptions.status,
+          branchId: schema.subscriptions.branchId,
+          planId: schema.subscriptions.planId,
+          currency: schema.subscriptionPlans.currency,
+        })
+        .from(schema.subscriptions)
+        .innerJoin(
+          schema.subscriptionPlans,
+          eq(schema.subscriptions.planId, schema.subscriptionPlans.id),
+        )
+        .where(
+          and(
+            eq(schema.subscriptions.userId, userId),
+            eq(schema.subscriptions.id, subscriptionId),
+            or(
+              eq(schema.subscriptions.status, "active"),
+              eq(schema.subscriptions.status, "paused"),
+            ),
+          ),
+        )
+        .limit(1);
+      if (!activeSub) {
+        const err = new BadRequestError(
+          "El miembro no tiene suscripcion activa",
+        );
+        (err as { code?: string }).code = "ASSIGN_PLAN_FIRST";
+        throw err;
+      }
+
+      // Step 2 — validate program exists + is active.
+      const [program] = await txHandle
+        .select({ id: schema.programs.id, isActive: schema.programs.isActive })
+        .from(schema.programs)
+        .where(eq(schema.programs.id, input.programId))
+        .limit(1);
+      if (!program || !program.isActive) {
+        throw new NotFoundError("Programa no encontrado o inactivo");
+      }
+
+      // Step 3 (D-12) — duplicate active|paused enrollment for this program
+      // across ALL sources (plan_linked, plan_bundle, admin_addon). Bundle
+      // edge case is automatically covered: a bundle subscription lazy-enrolls
+      // the user in every program when assigned (Plan 02 enrollFromPlan +
+      // grantsAllPrograms branch), so a row already exists at admin_addon
+      // time and this lookup catches it.
+      const dupes = await txHandle
+        .select({ id: schema.programEnrollments.id })
+        .from(schema.programEnrollments)
+        .where(
+          and(
+            eq(schema.programEnrollments.userId, userId),
+            eq(schema.programEnrollments.programId, input.programId),
+            or(
+              eq(schema.programEnrollments.status, "active"),
+              eq(schema.programEnrollments.status, "paused"),
+            ),
+          ),
+        )
+        .limit(1);
+      if (dupes.length > 0) {
+        const err = new ConflictError(
+          "El miembro ya tiene una inscripcion activa para este programa",
+        );
+        (err as { code?: string }).code = "PROGRAM_ALREADY_ACTIVE";
+        throw err;
+      }
+
+      // Step 4 — insert the enrollment row.
+      const insertResult = await txHandle
+        .insert(schema.programEnrollments)
+        .values({
+          userId,
+          programId: input.programId,
+          status: "active",
+          currentWeek: 1,
+          sessionsCompletedThisWeek: 0,
+          weekUnlockedAt: new Date(),
+          source: "admin_addon",
+          subscriptionId,
+          pricePaid: input.pricePaid ?? null,
+          assignedBy: input.assignedBy,
+          notes: input.notes ?? null,
+        });
+      const enrollmentId = Number(
+        (insertResult as unknown as Array<{ insertId: number }>)[0].insertId,
+      );
+
+      // Step 5 (D-13/D-14) — emit financial_transaction iff pricePaid > 0.
+      if ((input.pricePaid ?? 0) > 0) {
+        if (!this.transactionService) {
+          throw new Error(
+            "TransactionService not injected — enrollAddon with pricePaid > 0 requires it",
+          );
+        }
+        const today = new Date().toISOString().split("T")[0];
+        const amount = input.pricePaid as number;
+        await this.transactionService.create(
+          {
+            memberId: userId,
+            kind: "plan_charge",
+            direction: "inflow",
+            amount,
+            currency: activeSub.currency,
+            paymentMethod: input.paymentMethod ?? "cash",
+            transactionDate: today,
+            effectiveDate: today,
+            branchId: input.branchId ?? activeSub.branchId,
+            links: [
+              {
+                targetKind: "enrollment",
+                targetId: enrollmentId,
+                allocatedAmount: amount,
+              },
+            ],
+            notes: `Add-on programa ${input.programId} asignado por admin`,
+          },
+          input.assignedBy,
+          txHandle,
+        );
+      }
+
+      // Step 6 (D-24) — audit log row. Same tx as the rest, so a downstream
+      // failure rolls everything back.
+      await auditLog.write(txHandle, {
+        actorId: input.assignedBy,
+        action: "plan_assigned",
+        targetKind: "member",
+        targetId: userId,
+        payload: {
+          enrollmentId,
+          programId: input.programId,
+          pricePaid: input.pricePaid ?? null,
+          subscriptionId,
+          currency: activeSub.currency,
+          source: "admin_addon",
+        },
+        reason: input.notes ?? null,
+      });
+
+      this.log.info(
+        {
+          userId,
+          programId: input.programId,
+          enrollmentId,
+          pricePaid: input.pricePaid ?? null,
+          subscriptionId,
+        },
+        "Admin add-on enrollment created",
+      );
+
+      return { enrollmentId };
+    });
   }
 
   /**
