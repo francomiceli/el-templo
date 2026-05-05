@@ -830,6 +830,46 @@ function isConvertingToPresencial(): boolean {
   return oldBranch.isVirtual === true && newBranch.isVirtual !== true;
 }
 
+// Detect a sede change between two physical branches (or presencial → online).
+// The online → presencial flow has its own confirmConversion above. Any other
+// branch change triggers the destructive cleanup downstream — back-end cancels
+// future bookings and clears fixed schedules — so the admin must opt in.
+function isChangingPhysicalBranch(): boolean {
+  if (!isEditMode.value || !props.member) return false;
+  const newBranchId = form.value.branchId;
+  if (newBranchId === null || newBranchId === props.member.branchId) {
+    return false;
+  }
+  if (isConvertingToPresencial()) return false;
+  return true;
+}
+
+function confirmBranchChange(): Promise<boolean> {
+  const oldBranch = props.branches.find((b) => b.id === props.member!.branchId);
+  const newBranch = props.branches.find((b) => b.id === form.value.branchId);
+  const oldName = oldBranch?.name ?? 'sede actual';
+  const newName = newBranch?.name ?? 'nueva sede';
+  return new Promise((resolve) => {
+    $q.dialog({
+      title: 'Cambiar de sede',
+      message:
+        `Vas a mover al alumno de <b>${oldName}</b> a <b>${newName}</b>. ` +
+        'Esto va a:<ul class="q-pl-md q-mt-sm">' +
+        '<li>Cancelar todas sus reservas futuras.</li>' +
+        '<li>Borrar sus turnos fijos.</li>' +
+        '</ul><p class="q-mt-sm q-mb-none">Después vas a tener que reasignarle los turnos fijos en la nueva sede desde la suscripción del alumno.</p>' +
+        '<p class="q-mt-sm q-mb-none text-caption text-grey-7"><b>Excepción:</b> si el alumno tiene plan multi-sucursal (Performance, Foundation+), sus reservas y turnos fijos se conservan — sólo se actualiza la sede principal.</p>',
+      html: true,
+      cancel: { label: 'Cancelar', flat: true },
+      ok: { label: 'Cambiar de sede', color: 'primary' },
+      persistent: true,
+    })
+      .onOk(() => resolve(true))
+      .onCancel(() => resolve(false))
+      .onDismiss(() => resolve(false));
+  });
+}
+
 function confirmConversion(): Promise<boolean> {
   return new Promise((resolve) => {
     $q.dialog({
@@ -858,6 +898,9 @@ async function onSubmit() {
 
   if (isConvertingToPresencial()) {
     const confirmed = await confirmConversion();
+    if (!confirmed) return;
+  } else if (isChangingPhysicalBranch()) {
+    const confirmed = await confirmBranchChange();
     if (!confirmed) return;
   }
 

@@ -16,6 +16,7 @@ import {
   ne,
   isNull,
   gte,
+  inArray,
   SQL,
 } from "drizzle-orm";
 import type { FastifyBaseLogger } from "fastify";
@@ -512,10 +513,105 @@ export class MemberService {
         | "spartan";
 
     if (Object.keys(updateData).length > 0) {
-      await this.db
-        .update(schema.users)
-        .set(updateData)
-        .where(eq(schema.users.id, id));
+      // When the member's sede changes, cascade the destructive cleanup the
+      // admin opted in to via the MemberFormDialog confirmation:
+      //   1. Sync subscriptions.branch_id so the fixed-schedule editor
+      //      (changeFixedSchedules) and capacity validation work against
+      //      the new sede.
+      //   2. Cancel future bookings — they're pinned to the old sede and
+      //      no longer match the member's location.
+      //   3. Drop subscription_schedules — the admin must reassign fixed
+      //      slots in the new sede afterwards.
+      // Bosch/Carmela case (may 2026) surfaced this — `changeFixedSchedules`
+      // checks `schedule.branchId === subscription.branchId`, so without
+      // (1) every edit attempt 400s. Without (2)/(3) the member keeps a
+      // queue of phantom reservations in the old sede.
+      //
+      // Multi-sucursal exception: if any live sub belongs to a multi_branch
+      // plan (Performance, Foundation+ today), the member is entitled to
+      // reserve in any sede — cancelling future bookings or dropping fixed
+      // schedules would be wrong. In that case we only sync sub.branch_id
+      // (step 1) and leave bookings + schedules alone.
+      const branchChanged =
+        input.branchId !== undefined && input.branchId !== existing.branchId;
+      await this.db.transaction(async (tx) => {
+        await tx
+          .update(schema.users)
+          .set(updateData)
+          .where(eq(schema.users.id, id));
+        if (branchChanged) {
+          // Detect whether any live sub is multi_branch — that disables the
+          // destructive cleanup and keeps the member's bookings/schedules
+          // intact across sedes.
+          const liveSubs = await tx
+            .select({
+              id: schema.subscriptions.id,
+              multiBranch: schema.subscriptionPlans.multiBranch,
+            })
+            .from(schema.subscriptions)
+            .innerJoin(
+              schema.subscriptionPlans,
+              eq(schema.subscriptionPlans.id, schema.subscriptions.planId),
+            )
+            .where(
+              and(
+                eq(schema.subscriptions.userId, id),
+                inArray(schema.subscriptions.status, [
+                  "active",
+                  "scheduled",
+                  "paused",
+                ]),
+              ),
+            );
+          const hasMultiBranchPlan = liveSubs.some((s) => s.multiBranch);
+
+          // 1. Sync sub.branchId for live subs (always — regardless of
+          //    multi-branch). The "principal" sede follows the member.
+          await tx
+            .update(schema.subscriptions)
+            .set({ branchId: input.branchId as number })
+            .where(
+              and(
+                eq(schema.subscriptions.userId, id),
+                inArray(schema.subscriptions.status, [
+                  "active",
+                  "scheduled",
+                  "paused",
+                ]),
+              ),
+            );
+
+          if (!hasMultiBranchPlan) {
+            // 2. Cancel future bookings (today and onwards). Past bookings
+            //    stay untouched for attendance/history.
+            const todayStr = new Date().toISOString().split("T")[0];
+            await tx
+              .update(schema.bookings)
+              .set({
+                status: "cancelado",
+                cancelledAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(schema.bookings.memberId, id),
+                  inArray(schema.bookings.status, ["reservado", "confirmado"]),
+                  gte(schema.bookings.bookingDate, todayStr),
+                ),
+              );
+
+            // 3. Drop fixed-schedule anchors for this member's live subs so
+            //    the admin can reassign them in the new sede.
+            if (liveSubs.length > 0) {
+              await tx.delete(schema.subscriptionSchedules).where(
+                inArray(
+                  schema.subscriptionSchedules.subscriptionId,
+                  liveSubs.map((r) => r.id),
+                ),
+              );
+            }
+          }
+        }
+      });
     }
 
     return this.getMemberById(id);
