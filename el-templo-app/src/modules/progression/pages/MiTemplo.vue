@@ -18,9 +18,16 @@
       <!-- Notification Permission Banner (per D-24) -->
       <PermissionBanner />
 
-      <!-- Program/Premium card — only for paid (non-plan-linked) programs -->
+      <!-- Program/Premium card — paid (non-linked) programs OR any case where
+           the member has multiple views (Templo + addon, linked + addon, bundle, etc).
+           Phase 112: presencial members with admin-assigned addons need the card
+           rendered so the dropdown surfaces — even when the resolved current
+           program is plan_linked — otherwise the addon is unreachable from the UI. -->
       <ProgramProgressCard
-        v-if="programProgress && !programProgress.isLinkedToSubscription"
+        v-if="
+          programProgress &&
+          (!programProgress.isLinkedToSubscription || userStore.viewOptionsCount > 1)
+        "
         :progress="programProgress"
         @program-changed="onProgramChanged"
       />

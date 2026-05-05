@@ -42,6 +42,25 @@
             <q-menu v-if="canSwitch" anchor="bottom left" self="top left" :offset="[0, 6]">
               <q-list class="prog-menu">
                 <q-item-label header class="prog-menu__header">Cambiar de programa</q-item-label>
+                <!-- Phase 112: presencial members can also point at "Templo" (no
+                     enrollment selected) — explicit option so they can return
+                     to the presencial view after picking an addon. -->
+                <q-item
+                  v-if="hasPresencial"
+                  v-close-popup
+                  clickable
+                  :active="currentEnrollmentId === null"
+                  :disable="isUpdating"
+                  @click="onSelectTemplo"
+                >
+                  <q-item-section>
+                    <q-item-label>Templo Presencial</q-item-label>
+                    <q-item-label caption>Vista del plan presencial</q-item-label>
+                  </q-item-section>
+                  <q-item-section v-if="currentEnrollmentId === null" side>
+                    <q-icon name="check" color="positive" />
+                  </q-item-section>
+                </q-item>
                 <q-item
                   v-for="enr in enrollments"
                   :key="enr.id"
@@ -179,11 +198,14 @@ const textDialogContent = ref('')
 
 const userStore = useUserStore()
 
-const { currentEnrollmentId, enrollments, isUpdating, select } = useCurrentProgram()
+const { currentEnrollmentId, enrollments, hasPresencial, isUpdating, select } = useCurrentProgram()
 
-// Show the dropdown only when the member has more than one active enrollment
-// (i.e. bundle users). Single-program members keep the static title.
-const canSwitch = computed(() => enrollments.value.length > 1)
+// Phase 112: surface the dropdown whenever there is more than one VIEW
+// available — that is, multiple enrollments OR (presencial + at least one
+// enrollment), so a presencial member with an admin-assigned addon can
+// switch between the Templo view and the addon program. Aligns with
+// userStore.viewOptionsCount which already tracks the same count.
+const canSwitch = computed(() => enrollments.value.length + (hasPresencial.value ? 1 : 0) > 1)
 
 const badgeText = computed(() => (canSwitch.value ? 'Tus Programas' : 'Tu Programa'))
 
@@ -195,6 +217,20 @@ async function onSelectEnrollment(enrollmentId: number): Promise<void> {
     emit('program-changed')
   } catch {
     // useCurrentProgram already logged; let the UI keep the previous program.
+  }
+}
+
+// Phase 112: switch to Templo view (clears the pointer). Only valid when the
+// member has a presencial sub — useCurrentProgram.select(null) delegates to
+// setCurrentProgramId(null) which the API rejects for non-presencial users.
+async function onSelectTemplo(): Promise<void> {
+  if (isUpdating.value) return
+  if (currentEnrollmentId.value === null) return
+  try {
+    await select(null)
+    emit('program-changed')
+  } catch {
+    // useCurrentProgram already logged; keep current view.
   }
 }
 
