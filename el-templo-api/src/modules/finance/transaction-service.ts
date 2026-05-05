@@ -145,6 +145,15 @@ export class TransactionService {
               .where(eq(schema.financialTransactions.id, link.targetId))
               .limit(1);
             break;
+          case "enrollment":
+            // Phase 112 D-13: target_kind='enrollment' for admin add-on
+            // financial transactions. target_id refers to program_enrollments.id.
+            exists = await txHandle
+              .select({ id: schema.programEnrollments.id })
+              .from(schema.programEnrollments)
+              .where(eq(schema.programEnrollments.id, link.targetId))
+              .limit(1);
+            break;
           default: {
             const unknownKind: string = String(link.targetKind);
             throw new BadRequestError(
