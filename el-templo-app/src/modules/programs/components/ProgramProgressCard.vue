@@ -32,6 +32,13 @@
           >
             <h3 class="prog-title">{{ progress.programName }}</h3>
             <q-icon v-if="canSwitch" name="expand_more" size="20px" class="prog-title-chevron" />
+            <!-- Phase 112 D-21 (verified zero-code outcome): the dropdown
+                 lists ALL active enrollments regardless of source. Bundle
+                 (plan_bundle), linked (plan_linked) and admin-assigned
+                 (admin_addon) rows surface naturally because /me/enrollments
+                 does not filter by source and useCurrentProgram does not
+                 inspect it. Do NOT add a source-based badge here — D-21
+                 explicitly forbids visual distinction in the member UI. -->
             <q-menu v-if="canSwitch" anchor="bottom left" self="top left" :offset="[0, 6]">
               <q-list class="prog-menu">
                 <q-item-label header class="prog-menu__header">Cambiar de programa</q-item-label>
